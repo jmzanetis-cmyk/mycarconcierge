@@ -108,6 +108,7 @@
       traffic: false,
       'marketing-outreach': false,
       'ai-ops': false,
+      'agent-fleet': false,
       'saas-subscriptions': false,
       'white-label': false,
       'survey-analytics': false,
@@ -142,6 +143,7 @@
       traffic: async () => { await loadTrafficData(); },
       'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
       'ai-ops': async () => { await initAiOps(); },
+      'agent-fleet': async () => { await loadAgentFleetSection(); },
       'sms-log': async () => { await loadSmsLog(1); },
       'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
       'white-label': async () => { await loadWhiteLabelTenants(); },
@@ -510,6 +512,15 @@
       loadedSections.dashboard = true;
       loadedSections.analytics = true;
       updateDashboard();
+      // Task #139 — start agent-fleet badge polling once admin is verified.
+      if (typeof loadAgentFleetBadge === 'function') {
+        loadAgentFleetBadge();
+        if (!_agentFleetBadgeTimer) {
+          _agentFleetBadgeTimer = setInterval(() => {
+            try { loadAgentFleetBadge(); } catch (_) {}
+          }, 60000);
+        }
+      }
     }
 
     async function loadDashboardStats() {
@@ -947,6 +958,9 @@
       } catch (err) {
         console.error('Dashboard charts error:', err);
       }
+      // Task #139 — best-effort agent fleet tile/recent list (won't block dashboard if it fails).
+      try { if (typeof loadDashboardAgentTile === 'function') await loadDashboardAgentTile(); }
+      catch (e) { console.warn('[admin] dashboard agent tile failed:', e); }
     }
 
     function formatChartLabel(dateStr) {
@@ -2821,9 +2835,29 @@
         </div>
       `;
 
+      // Task #139: Gatekeeper agent-activity panel.
+      // Append a container after the form sections; the helper renders into it.
+      const modalBody = document.getElementById('application-modal-body');
+      if (modalBody) {
+        const agentDiv = document.createElement('div');
+        agentDiv.className = 'form-section';
+        agentDiv.style.borderBottom = 'none';
+        agentDiv.innerHTML = `<div class="form-section-title">${mccIcon('zap', 24)} Gatekeeper Review</div>
+          <div id="app-agent-${app.id}"></div>`;
+        modalBody.appendChild(agentDiv);
+      }
+
       document.getElementById('application-modal').classList.add('active');
       if (app.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
         window.renderOutreachHistoryPanel('application-outreach-history-body', app.user_id);
+      }
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        // Gatekeeper writes payload.provider_id = applicant user_id; fall back to application id.
+        const targetId = app.user_id || app.id;
+        try { window.renderAgentActivityPanel(`app-agent-${app.id}`, {
+          targetId, targetKind: 'application', agentSlug: 'gatekeeper',
+          title: 'Gatekeeper Review', limit: 8, showEmpty: true
+        }); } catch (e) { console.warn('[admin] gatekeeper panel failed:', e); }
       }
     }
 
@@ -2949,7 +2983,25 @@
         <button class="btn btn-success" onclick="resolveDispute('member')">Resolve for Member</button>
       `;
 
+      // Task #139: AI dispute analysis panel (legacy ai_ops dispute_resolver + Advocate fleet agent).
+      const dBody = document.getElementById('dispute-modal-body');
+      if (dBody) {
+        const ad = document.createElement('div');
+        ad.className = 'form-section';
+        ad.style.borderBottom = 'none';
+        ad.innerHTML = `<div class="form-section-title">${mccIcon('cpu', 24)} AI Dispute Analysis</div>
+          <div id="dispute-agent-${d.id}"></div>`;
+        dBody.appendChild(ad);
+      }
+
       document.getElementById('dispute-modal').classList.add('active');
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        try { window.renderAgentActivityPanel(`dispute-agent-${d.id}`, {
+          targetId: d.id, targetKind: 'dispute',
+          agentSlug: 'advocate', includeAiOpsModule: 'dispute_resolver',
+          title: 'AI Dispute Analysis', limit: 8, showEmpty: true
+        }); } catch (e) { console.warn('[admin] dispute agent panel failed:', e); }
+      }
     }
 
     async function resolveDispute(winner) {
@@ -3050,11 +3102,25 @@
         </div>
 
         ${t.user_id ? `<div id="ticket-outreach-panel-${t.id}"></div>` : ''}
+
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">${mccIcon('cpu', 24)} AI Helpdesk Activity</div>
+          <div id="ticket-agent-${t.id}"></div>
+        </div>
       `;
 
       if (t.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
         try { window.renderOutreachHistoryPanel(`ticket-outreach-panel-${t.id}`, t.user_id); }
         catch (e) { console.warn('[admin] outreach history panel failed:', e); }
+      }
+
+      // Task #139: AI Helpdesk module rows for this ticket (legacy ai_action_log).
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        try { window.renderAgentActivityPanel(`ticket-agent-${t.id}`, {
+          targetId: t.id, targetKind: 'ticket',
+          includeAiOpsModule: 'ai_helpdesk',
+          title: 'AI Helpdesk', limit: 8, showEmpty: true
+        }); } catch (e) { console.warn('[admin] ticket agent panel failed:', e); }
       }
 
       document.getElementById('ticket-modal').classList.add('active');
@@ -9010,6 +9076,13 @@
     async function initMarketingHub() {
       updatePlatformVisibility();
       await loadSavedCampaigns();
+      // Task #139 — Hunter & Promoter activity strip at top of section.
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        try { window.renderAgentActivityPanel('mo-agent-activity', {
+          agentSlug: ['hunter', 'promoter'], limit: 15,
+          title: 'Recent Hunter & Promoter Activity', showEmpty: true
+        }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
+      }
     }
 
     function getMarketingHeaders() {
@@ -10046,6 +10119,102 @@
       return headers;
     }
 
+    // ========== AGENT FLEET (Task #139) ==========
+    // Lightweight glue that exposes the agent-fleet output in the main admin
+    // portal. Polls badge-summary every 60s, renders the inline section, and
+    // populates the dashboard 24h tile. All heavy lifting still lives in
+    // /admin/agent-fleet.html — this is presentation only.
+    let _agentFleetBadgeTimer = null;
+
+    async function loadAgentFleetBadge() {
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const r = await fetch(`${apiBase}/api/admin/agent-fleet/badge-summary`, { headers: getAiOpsHeaders() });
+        if (!r.ok) return;
+        const j = await r.json();
+        const badge = document.getElementById('agent-fleet-badge');
+        if (!badge) return;
+        const total = j.total_attention || 0;
+        if (total > 0) {
+          badge.textContent = total > 99 ? '99+' : String(total);
+          badge.style.display = 'inline-block';
+          badge.title = `${j.open_dlq||0} dead-letter · ${j.needs_review||0} needs review · ${j.unack_spend_alerts||0} spend alerts`;
+        } else {
+          badge.style.display = 'none';
+        }
+      } catch (e) { /* silent — badge is best-effort */ }
+    }
+    window.loadAgentFleetBadge = loadAgentFleetBadge;
+
+    async function loadAgentFleetSection() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const summaryEl = document.getElementById('agent-fleet-summary');
+      // Pull badge summary (counts) and recent actions in parallel.
+      try {
+        const [bRes] = await Promise.all([
+          fetch(`${apiBase}/api/admin/agent-fleet/badge-summary`, { headers: getAiOpsHeaders() })
+        ]);
+        const b = bRes.ok ? await bRes.json() : { open_dlq: 0, needs_review: 0, unack_spend_alerts: 0 };
+        if (summaryEl) {
+          const tile = (label, val, color, hint) => `
+            <div style="background:var(--bg-elevated);border-radius:10px;padding:14px;border-left:3px solid ${color};">
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">${label}</div>
+              <div style="font-size:1.6rem;font-weight:700;color:${color};">${val}</div>
+              <div style="font-size:0.72rem;color:var(--text-muted);margin-top:4px;">${hint}</div>
+            </div>`;
+          summaryEl.innerHTML = [
+            tile('Dead-letter (open)', b.open_dlq || 0, '#c0392b', 'agent_dead_letter'),
+            tile('Actions awaiting review', b.needs_review || 0, '#b8942d', 'needs_review = true'),
+            tile('Unack spend alerts (7d)', b.unack_spend_alerts || 0, '#f59e0b', 'agent_spend_alerts')
+          ].join('');
+        }
+      } catch (e) {
+        if (summaryEl) summaryEl.innerHTML =
+          `<div style="grid-column:1/-1;padding:14px;color:var(--accent-red);font-size:0.85rem;">Failed to load summary: ${escapeHtml(e.message)}</div>`;
+      }
+      // Render last 25 across all agents using the shared helper.
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        window.renderAgentActivityPanel('agent-fleet-recent', {
+          limit: 25, title: '', showEmpty: true
+        });
+      }
+    }
+    window.loadAgentFleetSection = loadAgentFleetSection;
+
+    async function loadDashboardAgentTile() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const tileEl = document.getElementById('dashboard-agent-fleet-tile');
+      if (!tileEl) return;
+      try {
+        // Use the service-role-backed admin API; agent_actions has RLS that only
+        // allows service_role, so a browser supabaseClient query would silently
+        // return zeros. The /stats/24h endpoint runs server-side with the
+        // service-role client and respects authenticateAdmin.
+        const r = await fetch(`${apiBase}/api/admin/agent-fleet/stats/24h`, { headers: getAiOpsHeaders() });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const tile = (label, val, color) => `
+          <div style="background:var(--bg-elevated);border-radius:10px;padding:14px;border-left:3px solid ${color};">
+            <div style="font-size:0.74rem;color:var(--text-muted);margin-bottom:4px;">${label}</div>
+            <div style="font-size:1.4rem;font-weight:700;color:${color};">${val}</div>
+          </div>`;
+        tileEl.innerHTML = [
+          tile('Total actions', j.total_actions || 0, '#3b82f6'),
+          tile('Auto-executed', j.auto_executed || 0, '#10b981'),
+          tile('Needs review',  j.needs_review  || 0, '#b8942d')
+        ].join('');
+      } catch (e) {
+        tileEl.innerHTML = `<div style="grid-column:1/-1;padding:10px;color:var(--text-muted);font-size:0.82rem;">Agent metrics unavailable</div>`;
+      }
+      if (typeof window.renderAgentActivityPanel === 'function') {
+        window.renderAgentActivityPanel('dashboard-agent-recent', {
+          limit: 10, title: 'Recent Agent Actions', showEmpty: true
+        });
+      }
+    }
+    window.loadDashboardAgentTile = loadDashboardAgentTile;
+
+
     function switchAiOpsTab(tab) {
       aiOpsCurrentTab = tab;
       ['activity', 'escalations', 'digest', 'settings'].forEach(t => {
@@ -10072,9 +10241,95 @@
       const listEl = document.getElementById('ai-ops-activity-list');
       const pagEl = document.getElementById('ai-ops-activity-pagination');
       if (!listEl) return;
-      const mod = document.getElementById('ai-ops-module-filter')?.value || '';
+      const rawMod = document.getElementById('ai-ops-module-filter')?.value || '';
+      const source = document.getElementById('ai-ops-source-filter')?.value || 'all';
+      // Split "agent:slug" prefix into a fleet-only filter; bare values stay legacy.
+      const isAgentFilter = rawMod.startsWith('agent:');
+      const agentSlug = isAgentFilter ? rawMod.slice('agent:'.length) : '';
+      const mod = isAgentFilter ? '' : rawMod;
+      // Effective source: agent: prefix forces fleet, otherwise honor dropdown.
+      const effSource = isAgentFilter ? 'fleet' : source;
+
       listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
       try {
+        // Helpers shared between fleet/all rendering paths.
+        const confColor = c => c >= 0.9 ? 'var(--accent-green)' : c >= 0.7 ? 'var(--accent-gold)' : 'var(--accent-red)';
+        const renderFleetRow = (a) => `<tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 12px;"><span style="background:#3b82f6;color:#fff;padding:2px 8px;border-radius:6px;font-size:0.75rem;margin-right:6px;">FLEET</span><span style="font-family:monospace;font-size:0.82rem;">${escapeHtml(a.agent_slug)}</span></td>
+          <td style="padding:10px 12px;">${escapeHtml(a.action_type || '—')}</td>
+          <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;">${escapeHtml(a.autonomy_used || '—')}</td>
+          <td style="padding:10px 12px;text-align:center;"><span style="color:${confColor(a.confidence || 0)};font-weight:600;">${((a.confidence || 0) * 100).toFixed(0)}%</span></td>
+          <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.78rem;background:${a.status === 'executed' ? 'var(--accent-green)' : a.status === 'proposed' ? '#f59e0b' : a.status === 'errored' ? 'var(--accent-red)' : 'var(--bg-tertiary)'};color:${['executed','proposed','errored'].includes(a.status) ? '#fff' : 'var(--text-primary)'};">${escapeHtml(a.status || 'pending')}${a.needs_review && !a.reviewed_at ? ' · review' : ''}</span></td>
+          <td style="padding:10px 12px;text-align:right;color:var(--text-muted);font-size:0.82rem;">$${Number(a.cost_usd || 0).toFixed(4)}</td>
+          <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;">${new Date(a.created_at).toLocaleDateString()} ${new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+        </tr>`;
+        const renderLegacyRow = (a) => `<tr style="border-bottom:1px solid var(--border-subtle);">
+          <td style="padding:10px 12px;"><span style="background:#7c3aed;color:#fff;padding:2px 8px;border-radius:6px;font-size:0.75rem;margin-right:6px;">AI OPS</span><span style="font-family:monospace;font-size:0.82rem;">${escapeHtml(a.module || '—')}</span></td>
+          <td style="padding:10px 12px;">${escapeHtml(a.action_type || '—')}</td>
+          <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;">${a.auto_executed ? 'auto' : a.escalated ? 'escalated' : '—'}</td>
+          <td style="padding:10px 12px;text-align:center;"><span style="color:${confColor(a.confidence || 0)};font-weight:600;">${((a.confidence || 0) * 100).toFixed(0)}%</span></td>
+          <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.78rem;background:${a.outcome === 'executed' ? 'var(--accent-green)' : a.outcome === 'escalated' ? '#f59e0b' : a.outcome === 'error' ? 'var(--accent-red)' : 'var(--bg-tertiary)'};color:${['executed','escalated','error'].includes(a.outcome) ? '#fff' : 'var(--text-primary)'};">${escapeHtml(a.outcome || 'pending')}</span></td>
+          <td style="padding:10px 12px;text-align:right;color:var(--text-muted);font-size:0.82rem;">—</td>
+          <td style="padding:10px 12px;color:var(--text-muted);font-size:0.82rem;">${new Date(a.created_at).toLocaleDateString()} ${new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'})}</td>
+        </tr>`;
+        const tableShell = (rowsHtml) => `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Source / Agent</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Action</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Autonomy</th>
+            <th style="padding:10px 12px;text-align:center;color:var(--text-muted);font-weight:500;">Confidence</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Status</th>
+            <th style="padding:10px 12px;text-align:right;color:var(--text-muted);font-weight:500;">Cost</th>
+            <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Time</th>
+          </tr></thead><tbody>${rowsHtml}</tbody></table>`;
+
+        // Fleet-only branch.
+        if (effSource === 'fleet') {
+          const p = new URLSearchParams({ limit: 50 });
+          if (agentSlug) p.set('agent', agentSlug);
+          const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?${p}`, { headers: getAiOpsHeaders() });
+          if (!r.ok) throw new Error(`HTTP ${r.status}`);
+          const j = await r.json();
+          const actions = j.actions || [];
+          if (actions.length === 0) {
+            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No agent fleet actions yet.</div>';
+            if (pagEl) pagEl.innerHTML = '';
+            return;
+          }
+          listEl.innerHTML = tableShell(actions.map(renderFleetRow).join(''));
+          if (pagEl) pagEl.innerHTML = '';
+          return;
+        }
+
+        // Unified ("all") branch — fetch both legacy and fleet, merge by created_at.
+        if (effSource === 'all') {
+          const fleetParams = new URLSearchParams({ limit: 25 });
+          const legacyParams = new URLSearchParams({ page: 1, limit: 25 });
+          if (mod) legacyParams.set('module', mod);
+          const [fleetRes, legacyRes] = await Promise.all([
+            fetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
+              .then(r => r.ok ? r.json() : { actions: [] })
+              .catch(() => ({ actions: [] })),
+            safeFetch(`${apiBase}/api/admin/ai-ops/actions?${legacyParams}`, { headers: getAiOpsHeaders() })
+              .catch(() => ({ actions: [] }))
+          ]);
+          const merged = [
+            ...(fleetRes.actions || []).map(a => ({ __src: 'fleet', __ts: a.created_at, row: a })),
+            ...(legacyRes.actions || []).map(a => ({ __src: 'legacy', __ts: a.created_at, row: a }))
+          ].sort((a, b) => new Date(b.__ts) - new Date(a.__ts)).slice(0, 50);
+          if (merged.length === 0) {
+            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI activity yet.</div>';
+            if (pagEl) pagEl.innerHTML = '';
+            return;
+          }
+          listEl.innerHTML = tableShell(merged.map(m =>
+            m.__src === 'fleet' ? renderFleetRow(m.row) : renderLegacyRow(m.row)
+          ).join(''));
+          if (pagEl) pagEl.innerHTML = '';
+          return;
+        }
+
+        // Legacy-only branch (preserves the original paginated behavior).
         const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
         if (mod) params.set('module', mod);
         const data = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
@@ -10084,7 +10339,6 @@
           if (pagEl) pagEl.innerHTML = '';
           return;
         }
-        const confColor = c => c >= 0.9 ? 'var(--accent-green)' : c >= 0.7 ? 'var(--accent-gold)' : 'var(--accent-red)';
         listEl.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
           <thead><tr style="border-bottom:2px solid var(--border-subtle);">
             <th style="padding:10px 12px;text-align:left;color:var(--text-muted);font-weight:500;">Module</th>

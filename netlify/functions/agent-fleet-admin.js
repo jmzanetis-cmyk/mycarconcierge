@@ -264,6 +264,51 @@ exports.handler = async function(event) {
       });
       return jsonResponse(200, result);
     }
+
+    // -------- actions filtered by target id (used by Task #139 inline activity panels)
+    // Accepts target_id (required) + optional target_kind to scope JSONB key search.
+    // Returns the most recent matching agent_actions rows for inline rendering.
+    if (route === 'actions/by-target' && method === 'GET') {
+      const rawTargetId = (qs.target_id || '').trim();
+      if (!rawTargetId) return jsonResponse(400, { error: 'target_id required' });
+      // PostgREST .or() reserves comma, parens, period, quotes, and whitespace as syntax;
+      // these characters in the value would either silently truncate the filter or break parsing.
+      // Restrict to alphanumerics + dash/underscore (covers UUIDs, numeric IDs, slug-like ids).
+      if (!/^[A-Za-z0-9_-]{1,128}$/.test(rawTargetId)) {
+        return jsonResponse(400, { error: 'target_id must be alphanumeric (with - or _), max 128 chars' });
+      }
+      const targetId = rawTargetId;
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 10, 1), 50);
+      const kind = (qs.target_kind || '').trim().toLowerCase();
+      // PostgREST `or` filter — JSONB text-extraction is `key->>field`.
+      // Each kind maps to one or more candidate JSON paths the agents use.
+      const PATHS_BY_KIND = {
+        provider:    ['decision->payload->>provider_id', 'decision->>provider_id'],
+        application: ['decision->payload->>provider_id', 'decision->payload->>application_id'],
+        social_lead: ['decision->>social_lead_id'],
+        dispute:     ['decision->payload->>dispute_id', 'decision->>dispute_id'],
+        ticket:      ['decision->payload->>ticket_id', 'decision->>ticket_id'],
+        payment:     ['decision->payload->>payment_id', 'decision->>payment_id', 'decision->payload->>provider_id'],
+        any:         ['decision->payload->>provider_id', 'decision->>social_lead_id',
+                      'decision->payload->>dispute_id', 'decision->payload->>ticket_id',
+                      'decision->payload->>application_id']
+      };
+      const paths = PATHS_BY_KIND[kind] || PATHS_BY_KIND.any;
+      // Build "or" expression: path1.eq.X,path2.eq.X,...
+      const orExpr = paths.map(p => `${p}.eq.${targetId}`).join(',');
+      let q = supabase.from('agent_actions')
+        .select('id, agent_slug, action_type, status, autonomy_used, decision, reasoning, confidence, ' +
+                'tokens_in, tokens_out, cost_usd, duration_ms, needs_review, reviewed_at, review_status, ' +
+                'review_notes, error_message, event_id, created_at')
+        .order('created_at', { ascending: false })
+        .limit(lim);
+      if (qs.agent) q = q.eq('agent_slug', qs.agent);
+      q = q.or(orExpr);
+      const { data, error } = await q;
+      if (error) throw new Error(error.message);
+      return jsonResponse(200, { actions: data || [], target_id: targetId, target_kind: kind || 'any' });
+    }
+
     const reviewMatch = route.match(/^actions\/(\d+)\/review$/);
     if (reviewMatch && method === 'POST') {
       const r = await reviewAction(supabase, parseInt(reviewMatch[1], 10), body);
@@ -273,6 +318,67 @@ exports.handler = async function(event) {
     // -------- spend
     if (route === 'spend' && method === 'GET') {
       return jsonResponse(200, await spendRollup(supabase));
+    }
+
+    // -------- stats/24h (Task #139): drives the dashboard "Last 24h" tile.
+    // Service-role-backed counts so RLS on agent_actions doesn't return zero.
+    if (route === 'stats/24h' && method === 'GET') {
+      const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+      // resolveAutonomy() in agent-fleet-runtime.js writes one of:
+      //   'autonomous' (agent ran it, no human gate)
+      //   'assist'     (agent ran it because confidence >= assistThreshold)
+      //   'propose'    (queued for review)
+      // "Auto-executed" semantically = ran without sitting in the review queue.
+      const [totalRes, autoRes, reviewRes] = await Promise.all([
+        supabase.from('agent_actions').select('*', { count: 'exact', head: true }).gte('created_at', since),
+        supabase.from('agent_actions').select('*', { count: 'exact', head: true })
+          .gte('created_at', since).in('autonomy_used', ['autonomous', 'assist']),
+        supabase.from('agent_actions').select('*', { count: 'exact', head: true })
+          .gte('created_at', since).eq('needs_review', true).is('reviewed_at', null)
+      ]);
+      return jsonResponse(200, {
+        total_actions:    totalRes.error  ? 0 : (totalRes.count  || 0),
+        auto_executed:    autoRes.error   ? 0 : (autoRes.count   || 0),
+        needs_review:     reviewRes.error ? 0 : (reviewRes.count || 0),
+        errors: {
+          total:  totalRes.error?.message  || null,
+          auto:   autoRes.error?.message   || null,
+          review: reviewRes.error?.message || null
+        }
+      });
+    }
+
+    // -------- badge-summary (Task #139): drives the sidebar attention badge.
+    // Returns counts the operator should notice without having to open the
+    // fleet console. Cheap to call — uses head/count selects.
+    if (route === 'badge-summary' && method === 'GET') {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000)
+        .toISOString().split('T')[0];
+      const [dlqRes, reviewRes, alertRes] = await Promise.all([
+        supabase.from('agent_dead_letter')
+          .select('*', { count: 'exact', head: true })
+          .is('replayed_at', null),
+        supabase.from('agent_actions')
+          .select('*', { count: 'exact', head: true })
+          .eq('needs_review', true)
+          .is('reviewed_at', null),
+        supabase.from('agent_spend_alerts')
+          .select('*', { count: 'exact', head: true })
+          .gte('day', sevenDaysAgo)
+          .eq('email_sent', false)
+      ]);
+      const open_dlq           = dlqRes.error    ? 0 : (dlqRes.count    || 0);
+      const needs_review       = reviewRes.error ? 0 : (reviewRes.count || 0);
+      const unack_spend_alerts = alertRes.error  ? 0 : (alertRes.count  || 0);
+      return jsonResponse(200, {
+        open_dlq, needs_review, unack_spend_alerts,
+        total_attention: open_dlq + needs_review + unack_spend_alerts,
+        errors: {
+          dlq:    dlqRes.error?.message    || null,
+          review: reviewRes.error?.message || null,
+          alerts: alertRes.error?.message  || null
+        }
+      });
     }
 
     // -------- briefing

@@ -590,7 +590,8 @@
       <div class="nav-item" data-section="documents"><span class="icon-inline" data-icon="file-text"></span> Documents &amp; Resources</div>
       
       <div class="nav-label">AI Operations</div>
-      <div class="nav-item" data-section="ai-ops"><span class="icon-inline" data-icon="cpu"></span> AI Ops Agent</div>
+      <div class="nav-item" data-section="agent-fleet"><span class="icon-inline" data-icon="zap"></span> Agent Fleet <span class="nav-badge red" id="agent-fleet-badge" style="display:none;">0</span></div>
+      <div class="nav-item" data-section="ai-ops"><span class="icon-inline" data-icon="cpu"></span> AI Activity</div>
 
       <div class="nav-label">Revenue</div>
       <div class="nav-item" data-section="saas-subscriptions"><span class="icon-inline" data-icon="layers"></span> SaaS Subscriptions</div>
@@ -759,6 +760,18 @@
             <p>All caught up!</p>
           </div>
         </div>
+      </div>
+
+      <!-- Task #139: Agent Fleet 24h tile + recent agent activity -->
+      <div class="card" style="margin-bottom:20px;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 class="card-title"><span class="icon-inline" data-icon="zap"></span> Agent Fleet — Last 24h</h2>
+          <button class="btn btn-secondary btn-sm" onclick="navigateToSection('agent-fleet')">Open Agent Fleet →</button>
+        </div>
+        <div id="dashboard-agent-fleet-tile" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;padding:6px 0 14px;">
+          <div style="grid-column:1/-1;color:var(--text-muted);padding:14px;text-align:center;font-size:0.85rem;">Loading…</div>
+        </div>
+        <div id="dashboard-agent-recent"></div>
       </div>
 
       <div class="dashboard-grid-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:20px;">
@@ -1024,6 +1037,11 @@
           </div>
           <button id="marketing-share-btn" class="btn btn-primary btn-sm" onclick="if(window.openMarketingShareModal)window.openMarketingShareModal()" style="display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg> Share</button>
         </div>
+      </div>
+
+      <!-- Task #139: Hunter & Promoter agent activity strip -->
+      <div class="card" style="margin-bottom:20px;">
+        <div id="mo-agent-activity"></div>
       </div>
 
       <div class="card" style="margin-bottom:24px;">
@@ -4056,12 +4074,44 @@
       </div>
     </div>
 
-    <!-- AI Ops Section -->
+    <!-- Agent Fleet Section (Task #139) -->
+    <section id="agent-fleet" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="zap"></span> Agent Fleet</h1>
+        <p class="page-subtitle">Specialist agents — Gatekeeper, Hunter, Promoter, Analyst, Concierge, Treasurer, Matchmaker, Advocate</p>
+      </div>
+
+      <!-- Attention summary -->
+      <div class="card" style="margin-bottom:16px;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 class="card-title">Attention</h2>
+          <button class="btn btn-secondary btn-sm" onclick="loadAgentFleetSection()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+        </div>
+        <div id="agent-fleet-summary" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;padding:8px 0;">
+          <div style="color:var(--text-muted);padding:24px;text-align:center;grid-column:1/-1;">Loading…</div>
+        </div>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;">
+          <a class="btn btn-primary btn-sm" href="/admin/agent-fleet.html" target="_blank" rel="noopener">Open full Agent Fleet console →</a>
+          <button class="btn btn-secondary btn-sm" onclick="loadAgentFleetSection()">Refresh</button>
+        </div>
+      </div>
+
+      <!-- Recent agent activity (last 25 across all agents) -->
+      <div class="card">
+        <div class="card-header">
+          <h2 class="card-title"><span class="icon-inline" data-icon="activity"></span> Recent Agent Actions</h2>
+        </div>
+        <div id="agent-fleet-recent"></div>
+      </div>
+    </section>
+
+    <!-- AI Ops Section (renamed to "AI Activity" — Task #139 unifies legacy + fleet) -->
     <section id="ai-ops" class="section">
       <div class="page-header">
         <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
-        <h1 class="page-title"><span class="icon-inline" data-icon="cpu"></span> AI Ops Agent</h1>
-        <p class="page-subtitle">Autonomous platform operations — dispute resolution, payment tracking, and outreach intelligence</p>
+        <h1 class="page-title"><span class="icon-inline" data-icon="cpu"></span> AI Activity</h1>
+        <p class="page-subtitle">Unified view of legacy AI Ops modules (dispute resolver, payment tracker, daily digest) and the new Agent Fleet (Gatekeeper, Hunter, Promoter, Analyst…)</p>
       </div>
 
       <!-- Shadow Mode Banner -->
@@ -4089,12 +4139,26 @@
           <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
             <h2 class="card-title"><span class="icon-inline" data-icon="activity"></span> AI Action Log</h2>
             <div style="display:flex;gap:8px;align-items:center;">
+              <select id="ai-ops-source-filter" onchange="loadAiOpsActivity()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                <option value="all">All sources</option>
+                <option value="legacy">Legacy AI Ops only</option>
+                <option value="fleet">Agent Fleet only</option>
+              </select>
               <select id="ai-ops-module-filter" onchange="loadAiOpsActivity()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
-                <option value="">All Modules</option>
+                <option value="">All modules / agents</option>
                 <option value="dispute_resolver">Dispute Resolver</option>
                 <option value="payment_tracker">Payment Tracker</option>
                 <option value="outreach_engine">Outreach Engine</option>
                 <option value="daily_digest">Daily Digest</option>
+                <option value="ai_helpdesk">AI Helpdesk</option>
+                <option value="agent:gatekeeper">Agent: Gatekeeper</option>
+                <option value="agent:hunter">Agent: Hunter</option>
+                <option value="agent:promoter">Agent: Promoter</option>
+                <option value="agent:analyst">Agent: Analyst</option>
+                <option value="agent:concierge">Agent: Concierge</option>
+                <option value="agent:treasurer">Agent: Treasurer</option>
+                <option value="agent:matchmaker">Agent: Matchmaker</option>
+                <option value="agent:advocate">Agent: Advocate</option>
               </select>
               <button class="btn btn-secondary btn-sm" onclick="loadAiOpsActivity()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
             </div>
@@ -5025,6 +5089,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
   <script src="mcc-config.js?v=20260204"></script>
   <script src="supabaseclient.js?v=20260122"></script>
   <script src="admin-outreach.js?v=20260317a"></script>
+  <script src="admin-agent-activity.js?v=20260424a"></script>
   <script src="admin.js?v=20260317c"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
