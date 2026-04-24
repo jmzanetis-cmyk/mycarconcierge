@@ -1,0 +1,53 @@
+User-agent: *
+Allow: /
+
+# Block private/internal routes from indexing
+Disallow: /admin
+Disallow: /admin.html
+Disallow: /admin-invite.html
+Disallow: /admin/
+Disallow: /generate-admin-hash.html
+Disallow: /founder-dashboard.html
+Disallow: /accept-invite.html
+Disallow: /check-in.html
+Disallow: /email-template.html
+Disallow: /forgot-password.html
+Disallow: /reset-password.html
+Disallow: /onboarding-member.html
+Disallow: /onboarding-provider.html
+Disallow: /p.html
+Disallow: /split-pay.html
+Disallow: /signed-agreements.html
+Disallow: /survey.html
+Disallow: /fleet.html
+Disallow: /fleet-driver.html
+Disallow: /fleet-join.html
+Disallow: /fleet-signup.html
+Disallow: /iOS_App_Store_Submission_Guide.html
+Disallow: /My_Car_Concierge_Complete_Outline.html
+Disallow: /ad-deck.html
+Disallow: /MCC-Brand-Assets.html
+Disallow: /MCC-Brand-Assets-ES.html
+Disallow: /MCC-Provider-Brochure.html
+Disallow: /MCC-Provider-Brochure-V2.html
+Disallow: /MCC-Provider-Presentation.html
+Disallow: /MCC-Provider-Presentation-Visual.html
+Disallow: /MCC-Provider-Presentation-Visual-ES.html
+Disallow: /MCC-Services-Proposal.html
+Disallow: /generate-admin-hash.html
+
+# Block Netlify Function endpoints from being indexed as content
+Disallow: /.netlify/
+Disallow: /api/
+
+# Block tracking and email-template URLs
+Disallow: /t/
+Disallow: /track/
+
+# Allow asset directories so OG previews and structured-data crawlers work
+Allow: /icons/
+Allow: /images/
+Allow: /og-card.png
+Allow: /logo.png
+
+Sitemap: https://www.mycarconcierge.com/sitemap.xml
