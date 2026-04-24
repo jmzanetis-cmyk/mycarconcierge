@@ -6,3 +6,15 @@ id = "gO4B7nvc_aC55SYCgm989"
 uri = "file://attached_assets/outreach-migrations-combined.txt"
 type = "text"
 title = "Outreach migrations — paste into Supabase SQL Editor"
+
+[[outputs]]
+id = "VL4Se_M4fyN657yVowO1U"
+uri = "file://attached_assets/outreach-migration-1-of-2.sql.txt"
+type = "text"
+title = "1. Run first — Outreach Engine schema (pure SQL, no header)"
+
+[[outputs]]
+id = "vTDcQuskKr6amJQsZLr7D"
+uri = "file://attached_assets/outreach-migration-2-of-2.sql.txt"
+type = "text"
+title = "2. Run second — CRM bridge (pure SQL, no header)"
