@@ -1219,23 +1219,30 @@ async function runEngineCycle(supabase) {
     const scoredArray = (alreadyScoredIds || []).map(r => r.lead_id);
     const scoredSet = new Set(scoredArray);
 
-    let leadsQuery = supabase
-      .from('outreach_leads')
-      .select('id, type, name, location, metadata, notes')
-      .eq('status', 'new');
-    if (scoredArray.length > 0) {
-      // PostgREST AND-combines chained .not() filters, so apply EVERY chunk
-      // (previously only the first 200 already-scored ids were excluded at
-      // the DB level, causing the in-memory filter to drain the page to 0
-      // and starving the pipeline of new leads to score).
-      for (let ci = 0; ci < scoredArray.length; ci += 200) {
-        const chunk = scoredArray.slice(ci, ci + 200);
-        leadsQuery = leadsQuery.not('id', 'in', `(${chunk.join(',')})`);
+    // Paginated scan: server-side .not('id','in',...) chunks blow past PostgREST's
+    // URL length limit once the pipeline has more than ~200 rows (a 5-chunk URL is
+    // ~31KB → 400 Bad Request). Instead, page through `status='new'` ordered by
+    // created_at and filter the already-scored set in memory until we have 200 to
+    // score (or run out of pages).
+    const toScore = [];
+    const PAGE_SIZE = 500;
+    const MAX_PAGES = 20; // up to 10k leads scanned per cycle — bounded
+    for (let page = 0; page < MAX_PAGES && toScore.length < 200; page++) {
+      const from = page * PAGE_SIZE;
+      const to = from + PAGE_SIZE - 1;
+      const { data: pageRows } = await supabase
+        .from('outreach_leads')
+        .select('id, type, name, location, metadata, notes')
+        .eq('status', 'new')
+        .order('created_at', { ascending: false })
+        .range(from, to);
+      if (!pageRows || pageRows.length === 0) break;
+      for (const l of pageRows) {
+        if (!scoredSet.has(l.id)) toScore.push(l);
+        if (toScore.length >= 200) break;
       }
+      if (pageRows.length < PAGE_SIZE) break; // last page
     }
-    const { data: allNewLeads } = await leadsQuery.limit(500);
-
-    const toScore = (allNewLeads || []).filter(l => !scoredSet.has(l.id)).slice(0, 200);
     if (toScore.length > 0) {
       const scored = await scoreLeadsWithAI(supabase, toScore);
       results.scored = scored;
