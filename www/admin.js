@@ -10142,10 +10142,15 @@
     let aiOpsDigests = [];
 
     function getAiOpsHeaders() {
+      // Send BOTH headers when available. The agent-fleet/ai-ops backends
+      // currently only validate x-admin-password, so omitting the password
+      // (when only the team token is present) would silently 401 every new
+      // call. The team-admin login flow stamps mcc_admin_pass after server-
+      // side token validation, so both headers are normally available together.
       const headers = {};
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
-      else { const p = localStorage.getItem('mcc_admin_pass'); if (p) headers['x-admin-password'] = p; }
+      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass') || localStorage.getItem('adminPassword');
+      if (pw) headers['x-admin-password'] = pw;
       return headers;
     }
 

@@ -402,6 +402,10 @@ exports.handler = async function(event) {
       const open_dlq           = dlqRes.error    ? 0 : (dlqRes.count    || 0);
       const needs_review       = reviewRes.error ? 0 : (reviewRes.count || 0);
       const unack_spend_alerts = alertRes.error  ? 0 : (alertRes.count  || 0);
+      // total_attention deliberately includes needs_review alongside DLQ + spend
+      // alerts — operators have asked for a single sidebar signal that lights up
+      // for ANY pending agent work, not just infrastructure failures. The three
+      // fields are returned individually too so the UI can break them out.
       return jsonResponse(200, {
         open_dlq, needs_review, unack_spend_alerts,
         total_attention: open_dlq + needs_review + unack_spend_alerts,
