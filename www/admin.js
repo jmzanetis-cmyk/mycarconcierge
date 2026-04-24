@@ -10398,12 +10398,15 @@
         }
 
         // Legacy-only branch (preserves the original paginated behavior).
+        // Outcome is handled client-side via matchesOutcome() because the legacy
+        // table uses different vocabularies ('error' vs fleet 'errored') and we
+        // want the same set of dropdown values to behave consistently across
+        // every Source selection.
         const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
         if (mod) params.set('module', mod);
         if (sinceISO) params.set('since', sinceISO);
-        if (outcome && outcome !== 'escalated') params.set('outcome', outcome);
         const data = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
-        const actions = data.actions || [];
+        const actions = (data.actions || []).filter(a => matchesOutcome(a, 'legacy'));
         if (actions.length === 0) {
           listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI actions logged yet. Run an AI Ops module to see activity here.</div>';
           if (pagEl) pagEl.innerHTML = '';
