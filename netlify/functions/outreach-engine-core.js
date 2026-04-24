@@ -1224,11 +1224,14 @@ async function runEngineCycle(supabase) {
       .select('id, type, name, location, metadata, notes')
       .eq('status', 'new');
     if (scoredArray.length > 0) {
-      const filterChunks = [];
+      // PostgREST AND-combines chained .not() filters, so apply EVERY chunk
+      // (previously only the first 200 already-scored ids were excluded at
+      // the DB level, causing the in-memory filter to drain the page to 0
+      // and starving the pipeline of new leads to score).
       for (let ci = 0; ci < scoredArray.length; ci += 200) {
-        filterChunks.push(scoredArray.slice(ci, ci + 200));
+        const chunk = scoredArray.slice(ci, ci + 200);
+        leadsQuery = leadsQuery.not('id', 'in', `(${chunk.join(',')})`);
       }
-      leadsQuery = leadsQuery.not('id', 'in', `(${filterChunks[0].join(',')})`);
     }
     const { data: allNewLeads } = await leadsQuery.limit(500);
 
@@ -1277,16 +1280,40 @@ async function runEngineCycle(supabase) {
       if (!freshState?.is_running) break;
 
       const lead = opp.outreach_leads;
-      if (!lead?.email && !lead?.phone) continue;
-      if (lead.crm_sync_status === 'duplicate') continue;
-      if (lead.status === 'unsubscribed' || lead.status === 'contacted' || lead.status === 'converted' || lead.status === 'bounced' || lead.status === 'responded') continue;
+      // Auto-advance pipeline rows we can never act on so they stop consuming
+      // the per-cycle draft budget on every run.
+      if (!lead?.email && !lead?.phone) {
+        await supabase.from('opportunity_pipeline')
+          .update({ stage: 'dead', last_action_at: new Date().toISOString() })
+          .eq('lead_id', opp.lead_id);
+        continue;
+      }
+      if (lead.crm_sync_status === 'duplicate') {
+        await supabase.from('opportunity_pipeline')
+          .update({ stage: 'dead', last_action_at: new Date().toISOString() })
+          .eq('lead_id', opp.lead_id);
+        continue;
+      }
+      if (lead.status === 'unsubscribed' || lead.status === 'contacted' || lead.status === 'converted' || lead.status === 'bounced' || lead.status === 'responded') {
+        await supabase.from('opportunity_pipeline')
+          .update({ stage: 'dead', last_action_at: new Date().toISOString() })
+          .eq('lead_id', opp.lead_id);
+        continue;
+      }
 
       const { count } = await supabase
         .from('outreach_messages')
         .select('id', { count: 'exact', head: true })
         .eq('lead_id', opp.lead_id)
         .in('status', ['draft', 'approved', 'sent']);
-      if (count && count > 0) continue;
+      if (count && count > 0) {
+        // A message already exists — advance pipeline so we don't keep picking
+        // this lead. (Subsequent send/queue-flush loop will handle delivery.)
+        await supabase.from('opportunity_pipeline')
+          .update({ stage: 'message_queued', last_action_at: new Date().toISOString() })
+          .eq('lead_id', opp.lead_id);
+        continue;
+      }
 
       const result = await draftMessageWithAI(lead, opp.recommended_channel || 'email', 1);
       if (!result) break;
