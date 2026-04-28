@@ -148,6 +148,7 @@
     "backToLogin": "Back to Login",
     "signInWithApple": "Sign in with Apple",
     "continueWithApple": "Continue with Apple",
+    "signInWithFacebook": "Continue with Facebook",
     "orContinueWith": "or continue with"
   },
   "member": {
