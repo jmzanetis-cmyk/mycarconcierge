@@ -34692,8 +34692,13 @@ const server = http.createServer(async (req, res) => {
           const page = parseInt(u.searchParams.get('page') || '1');
           const limit = Math.min(parseInt(u.searchParams.get('limit') || '25'), 100);
           const mod = u.searchParams.get('module') || '';
+          // Task #139 — by-target lookup so admin-agent-activity.js can pull
+          // legacy ai_action_log rows scoped to one entity (matches Netlify
+          // ai-ops-admin.js behaviour). target_id is stored as TEXT.
+          const targetId = (u.searchParams.get('target_id') || '').trim();
           let q = supabase.from('ai_action_log').select('*', { count: 'exact' }).order('created_at', { ascending: false }).range((page - 1) * limit, page * limit - 1);
           if (mod) q = q.eq('module', mod);
+          if (targetId) q = q.eq('target_id', targetId);
           const { data, error, count } = await q;
           if (error && isTableMissingError(error)) {
             res.writeHead(200, { 'Content-Type': 'application/json' });
