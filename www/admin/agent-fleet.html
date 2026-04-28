@@ -159,9 +159,9 @@
       <h3>Events / hour <span style="font-size:12px; color:var(--muted); font-weight:400;" id="eventsTotal"></span></h3>
       <div class="row" style="margin-bottom:10px;">
         <select id="eventsRange" class="input" style="max-width:160px;">
-          <option value="1">Last 24 hours</option>
+          <option value="1" selected>Last 24 hours</option>
           <option value="3">Last 3 days</option>
-          <option value="7" selected>Last 7 days</option>
+          <option value="7">Last 7 days</option>
           <option value="14">Last 14 days</option>
           <option value="30">Last 30 days</option>
         </select>
@@ -172,7 +172,7 @@
         <button class="btn btn-ghost" id="eventsReload" style="margin-left:auto;">Reload</button>
         <button class="btn btn-ghost" id="refreshAll">Refresh all</button>
       </div>
-      <canvas id="eventsChart" height="80"></canvas>
+      <div style="position:relative; height:220px;"><canvas id="eventsChart"></canvas></div>
     </div>
 
     <div class="card" style="margin-bottom:20px;">
