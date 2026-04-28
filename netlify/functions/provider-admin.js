@@ -82,18 +82,25 @@ async function sendEmail(to, subject, html) {
   }
 }
 
-async function suspendProviders(supabase, providerIds, reason, source = 'manual') {
+async function suspendProviders(supabase, providerIds, reason, source = 'manual', opts = {}) {
   // Returns { updated: N, failed: [{id,error}], updated_ids: [...] } per the
   // task spec contract. updated_ids is included for the admin UI's audit trail
   // but the canonical "did it work" signal is the numeric `updated` count.
   const updatedIdsArr = [];
   const failed = [];
   const suspendedAt = new Date().toISOString();
+  // Task #127 — when set_role_suspended is true, also flip profiles.role
+  // to 'suspended', which is what fires the Gatekeeper Postgres trigger
+  // shipped in Task #123.
+  const setRoleSuspended = !!opts.setRoleSuspended;
+
+  const updateRow = { suspension_reason: reason, suspended_at: suspendedAt };
+  if (setRoleSuspended) updateRow.role = 'suspended';
 
   // Batch update in a single statement — atomic for the matched rows.
   const { data, error } = await supabase
     .from('profiles')
-    .update({ suspension_reason: reason, suspended_at: suspendedAt })
+    .update(updateRow)
     .in('id', providerIds)
     .select('id, email, full_name, business_name');
 
@@ -142,11 +149,15 @@ async function activateProviders(supabase, providerIds) {
   const updatedIdsArr = [];
   const failed = [];
 
+  // Task #127 — also pull `role` so we can restore profiles whose role was
+  // flipped to 'suspended' by the suspend route. Without this the netlify
+  // (proxied) activate path leaves the role at 'suspended', diverging from
+  // the in-process www/server.js behavior.
   const { data, error } = await supabase
     .from('profiles')
     .update({ suspension_reason: null, suspended_at: null })
     .in('id', providerIds)
-    .select('id, email, full_name, business_name');
+    .select('id, email, full_name, business_name, role');
 
   if (error) {
     return { updated: 0, failed: providerIds.map(id => ({ id, error: error.message })), updated_ids: [] };
@@ -156,6 +167,15 @@ async function activateProviders(supabase, providerIds) {
   for (const id of providerIds) {
     if (returnedIds.has(id)) updatedIdsArr.push(id);
     else failed.push({ id, error: 'profile not found' });
+  }
+
+  // Restore role only for profiles currently sitting at 'suspended' so we
+  // don't accidentally promote a member or otherwise change a non-suspended role.
+  const suspendedRoleIds = (data || []).filter(p => p.role === 'suspended').map(p => p.id);
+  if (suspendedRoleIds.length > 0) {
+    try {
+      await supabase.from('profiles').update({ role: 'provider' }).in('id', suspendedRoleIds);
+    } catch (e) { console.error('[provider-admin] role restore failed:', e.message); }
   }
 
   await Promise.all((data || []).map(async (p) => {
@@ -207,16 +227,28 @@ exports.handler = async function(event) {
 
   try {
     if (route === 'suspend' && method === 'POST') {
-      const ids = Array.isArray(body.provider_ids) ? body.provider_ids.filter(isUuid) : [];
+      // Task #127 — also accept singular `provider_id` so the new
+      // /api/admin/provider/suspend route (which proxies here) works without
+      // making the admin UI massage the body.
+      const rawIds = [];
+      if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
+      if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
+      const ids = Array.from(new Set(rawIds.filter(isUuid)));
       const reason = (body.reason || '').toString().trim();
+      const setRoleSuspended = !!body.set_role_suspended;
       if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
       if (reason.length < 5 || reason.length > 500) return jsonResponse(400, { error: 'reason must be 5-500 characters' });
-      const result = await suspendProviders(supabase, ids, reason, 'manual');
+      const result = await suspendProviders(supabase, ids, reason, 'manual', { setRoleSuspended });
       return jsonResponse(200, result);
     }
 
     if (route === 'activate' && method === 'POST') {
-      const ids = Array.isArray(body.provider_ids) ? body.provider_ids.filter(isUuid) : [];
+      // Task #127 — also accept singular `provider_id` for parity with the
+      // /api/admin/provider/activate route.
+      const rawIds = [];
+      if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
+      if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
+      const ids = Array.from(new Set(rawIds.filter(isUuid)));
       if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
       const result = await activateProviders(supabase, ids);
       return jsonResponse(200, result);

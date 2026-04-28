@@ -5724,15 +5724,31 @@
         return;
       }
 
-      // Suspend the provider
+      // Suspend the provider — Task #127: routed through the server
+      // /api/admin/provider/suspend endpoint so the action is admin-password
+      // gated, audited, and triggers the Gatekeeper Postgres trigger by
+      // flipping role=suspended.
       const suspendProvider = confirm('Violation confirmed. Suspend this provider account?');
       if (suspendProvider && report.provider_id) {
-        await supabaseClient
-          .from('profiles')
-          .update({ role: 'suspended', suspended_at: new Date().toISOString(), suspension_reason: 'Policy violation - circumvention attempt' })
-          .eq('id', report.provider_id);
-        
-        showToast('Provider account suspended', 'success');
+        try {
+          const sres = await fetch('/api/admin/provider/suspend', {
+            method: 'POST',
+            headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              provider_id: report.provider_id,
+              reason: 'Policy violation - circumvention attempt',
+              set_role_suspended: true
+            })
+          });
+          const sjson = await sres.json().catch(() => ({}));
+          if (!sres.ok) {
+            showToast(sjson.error || `Suspend failed (${sres.status})`, 'error');
+          } else {
+            showToast('Provider account suspended', 'success');
+          }
+        } catch (e) {
+          showToast(`Suspend failed: ${e.message}`, 'error');
+        }
       }
 
       showToast('Violation confirmed', 'success');
@@ -6243,39 +6259,49 @@
       const user = allUserManagementData.find(u => u.id === userId);
       if (!user) return;
 
+      // Task #127 — both branches now route through admin-password-gated
+      // server endpoints so the actions are validated, rate-limited, and
+      // audited (and Gatekeeper triggers fire when role changes).
       if (suspend) {
-        const reason = prompt('Enter suspension reason:');
-        if (!reason) return;
-
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update({ 
-            suspension_reason: reason,
-            suspended_at: new Date().toISOString()
-          })
-          .eq('id', userId);
-
-        if (error) {
-          showToast('Failed to suspend user: ' + error.message, 'error');
+        const reason = prompt('Enter suspension reason (5-500 chars):');
+        if (!reason || reason.trim().length < 5) {
+          showToast('Suspension reason must be at least 5 characters.', 'error');
           return;
         }
-        showToast('User suspended', 'success');
+        try {
+          const res = await fetch('/api/admin/provider/suspend', {
+            method: 'POST',
+            headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider_id: userId, reason: reason.trim() })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showToast(json.error || `Failed to suspend user (${res.status})`, 'error');
+            return;
+          }
+          showToast('User suspended', 'success');
+        } catch (e) {
+          showToast('Failed to suspend user: ' + e.message, 'error');
+          return;
+        }
       } else {
         if (!confirm('Unsuspend this user?')) return;
-
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update({ 
-            suspension_reason: null,
-            suspended_at: null
-          })
-          .eq('id', userId);
-
-        if (error) {
-          showToast('Failed to unsuspend user: ' + error.message, 'error');
+        try {
+          const res = await fetch('/api/admin/provider/activate', {
+            method: 'POST',
+            headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ provider_id: userId })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showToast(json.error || `Failed to unsuspend user (${res.status})`, 'error');
+            return;
+          }
+          showToast('User unsuspended', 'success');
+        } catch (e) {
+          showToast('Failed to unsuspend user: ' + e.message, 'error');
           return;
         }
-        showToast('User unsuspended', 'success');
       }
 
       await loadUserManagement();

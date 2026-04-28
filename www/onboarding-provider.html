@@ -1563,13 +1563,15 @@
           // FAIL-CLOSED: if we can't write the provider_applications row, do NOT
           // promote the user to provider role — that would create an orphan
           // provider account with no application audit trail.
+          // Task #127 — uses the in-process /api/provider/apply route exposed
+          // by www/server.js so this works in dev too (not just on Netlify).
           const sessionRes = await supabaseClient.auth.getSession();
           const accessToken = sessionRes?.data?.session?.access_token;
           if (!accessToken) {
             throw new Error('Could not establish a session. Please check your email to confirm your account, then sign in and try again.');
           }
           let appData = null;
-          const appResp = await fetch('/api/provider-application', {
+          const appResp = await fetch('/api/provider/apply', {
             method: 'POST',
             headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
             body: JSON.stringify({
