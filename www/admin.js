@@ -3124,7 +3124,12 @@
           </select>
         </div>
 
-        ${t.user_id ? `<div id="ticket-outreach-panel-${t.id}"></div>` : ''}
+        ${t.user_id ? `
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">${mccIcon('mail', 24)} Outreach History</div>
+          <div id="ticket-outreach-history-body-${t.id}" style="font-size:0.9rem;color:var(--text-muted);">Loading…</div>
+        </div>
+        ` : ''}
 
         <div class="form-section" style="border-bottom:none;">
           <div class="form-section-title">${mccIcon('cpu', 24)} AI Helpdesk Activity</div>
@@ -3133,7 +3138,7 @@
       `;
 
       if (t.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
-        try { window.renderOutreachHistoryPanel(`ticket-outreach-panel-${t.id}`, t.user_id); }
+        try { window.renderOutreachHistoryPanel(`ticket-outreach-history-body-${t.id}`, t.user_id); }
         catch (e) { console.warn('[admin] outreach history panel failed:', e); }
       }
 
