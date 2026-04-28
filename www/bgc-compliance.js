@@ -175,12 +175,19 @@
         ? 'Initiate check'
         : (chk.status === 'pending' || chk.status === 'consider' ? 'In progress' : 'Renew');
       const disabled = (chk && (chk.status === 'pending' || chk.status === 'consider')) ? 'disabled' : '';
-      const cfTag = e.is_customer_facing
-        ? ''
-        : ' <span style="font-size:0.7rem;color:var(--text-muted);">(internal)</span>';
+
+      // Customer-facing toggle. Affects whether the employee counts toward the
+      // 90% compliance threshold. Click flips the flag on the row, which then
+      // re-runs the compliance recompute via toggleCustomerFacing.
+      const cfChecked = e.is_customer_facing ? 'checked' : '';
+      const cfToggle =
+        '<label title="Counts toward the 90% MCC Verified threshold when on" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:0.78rem;color:var(--text-muted);">' +
+          '<input type="checkbox" ' + cfChecked + ' onchange="window.bgcCompliance.toggleCustomerFacing(\'' + e.id + '\', this.checked)" style="cursor:pointer;" />' +
+          '<span>Customer-facing</span>' +
+        '</label>';
 
       return '<tr style="border-bottom:1px solid var(--border-subtle);">' +
-        '<td style="padding:14px 16px;">' + escapeHtml(e.first_name + ' ' + e.last_name) + cfTag + '</td>' +
+        '<td style="padding:14px 16px;">' + escapeHtml(e.first_name + ' ' + e.last_name) + '<div style="margin-top:6px;">' + cfToggle + '</div></td>' +
         '<td style="padding:14px 16px;color:var(--text-secondary);">' + escapeHtml(e.role || '—') + '</td>' +
         '<td style="padding:14px 16px;"><span style="padding:4px 10px;border-radius:999px;font-size:0.78rem;font-weight:600;background:' + palette.bg + ';color:' + palette.fg + ';">' + palette.label + '</span></td>' +
         '<td style="padding:14px 16px;color:var(--text-secondary);">' + expires + expiringPill + '</td>' +
@@ -189,6 +196,22 @@
         '</td>' +
       '</tr>';
     }).join('');
+  }
+
+  async function toggleCustomerFacing(employeeId, value) {
+    const sb = getSupabase();
+    const providerId = await getProviderId();
+    if (!sb || !providerId) { alert('Not signed in.'); return; }
+    const { error } = await sb
+      .from('provider_employees')
+      .update({ is_customer_facing: !!value, updated_at: new Date().toISOString() })
+      .eq('id', employeeId);
+    if (error) { alert('Failed to update: ' + error.message); return; }
+    // Recompute compliance for this provider so the % / badge reflect the new
+    // denominator immediately. RLS allows providers to call this RPC because
+    // it's SECURITY DEFINER.
+    await sb.rpc('calculate_provider_compliance', { p_provider_id: providerId });
+    await refresh();
   }
 
   function escapeHtml(s) {
