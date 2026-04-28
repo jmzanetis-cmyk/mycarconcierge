@@ -18,8 +18,6 @@
 
     let magicLinkRedirecting = false;
 
-    });
-
     window.addEventListener('load', async () => {
       await initBiometricUI();
       
