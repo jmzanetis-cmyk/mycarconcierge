@@ -1149,6 +1149,25 @@ exports.handler = async function(event) {
         .select('*').single();
       if (insErr) return jsonResponse(500, { error: insErr.message });
       try { clearPromptCache(slug); } catch (e) { /* warm cache only — ignore */ }
+      // Audit row in agent_actions so the change shows up in the agent's activity
+      // feed alongside its other actions. Best-effort — never blocks the save.
+      try {
+        await supabase.from('agent_actions').insert({
+          agent_slug: slug,
+          action_type: 'prompt.update',
+          status: 'executed',
+          autonomy_used: 'admin',
+          decision: {
+            version: inserted.version,
+            notes: inserted.notes,
+            body_chars: body_.length,
+            body_preview: body_.slice(0, 200)
+          },
+          reasoning: inserted.notes
+            ? `Admin saved prompt v${inserted.version}: ${inserted.notes}`
+            : `Admin saved prompt v${inserted.version} (no changelog note).`
+        });
+      } catch (e) { console.warn('[agent-fleet-admin] prompt.update audit log failed:', e.message); }
       return jsonResponse(200, { version: inserted });
     }
 
@@ -1176,6 +1195,22 @@ exports.handler = async function(event) {
         .select('*').single();
       if (actErr) return jsonResponse(500, { error: actErr.message });
       try { clearPromptCache(slug); } catch (e) { /* ignore */ }
+      // Audit the rollback in the agent's activity feed.
+      try {
+        await supabase.from('agent_actions').insert({
+          agent_slug: slug,
+          action_type: 'prompt.rollback',
+          status: 'executed',
+          autonomy_used: 'admin',
+          decision: {
+            activated_version: activated.version,
+            notes: activated.notes,
+            body_chars: (activated.body || '').length
+          },
+          reasoning: `Admin rolled back to prompt v${activated.version}` +
+            (activated.notes ? ` (${activated.notes}).` : '.')
+        });
+      } catch (e) { console.warn('[agent-fleet-admin] prompt.rollback audit log failed:', e.message); }
       return jsonResponse(200, { version: activated });
     }
 
