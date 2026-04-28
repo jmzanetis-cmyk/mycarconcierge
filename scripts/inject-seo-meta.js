@@ -331,7 +331,52 @@ for (const file of files) {
   if (isPublic) publicCount++; else privateCount++;
 }
 
+// ----- /blog/ — every file is PUBLIC, indexable, og:type=article -----
+const BLOG_DIR = path.join(WWW_DIR, 'blog');
+let blogCount = 0;
+if (fs.existsSync(BLOG_DIR)) {
+  const blogFiles = fs.readdirSync(BLOG_DIR).filter(f => f.endsWith('.html'));
+  for (const file of blogFiles) {
+    const filePath = path.join(BLOG_DIR, file);
+    const html = fs.readFileSync(filePath, 'utf8');
+    const url = `${SITE_URL}/blog/${file === 'index.html' ? '' : file}`;
+    const title = extractTitle(html) || SITE_NAME;
+    const description = extractMetaDescription(html);
+    // Blog posts use og:type=article; the listing page uses og:type=website
+    const isListing = file === 'index.html';
+    const ogType = isListing ? 'website' : 'article';
+    const block = [
+      MARKER_OPEN,
+      `  <link rel="canonical" href="${escapeAttr(url)}" />`,
+      `  <meta name="robots" content="index, follow, max-image-preview:large" />`,
+      description ? `  <meta name="description" content="${escapeAttr(description)}" />` : null,
+      `  <meta property="og:type" content="${ogType}" />`,
+      `  <meta property="og:site_name" content="${escapeAttr(SITE_NAME)}" />`,
+      `  <meta property="og:url" content="${escapeAttr(url)}" />`,
+      `  <meta property="og:title" content="${escapeAttr(title)}" />`,
+      description ? `  <meta property="og:description" content="${escapeAttr(description)}" />` : null,
+      `  <meta property="og:image" content="${escapeAttr(OG_IMAGE)}" />`,
+      `  <meta property="og:image:width" content="1200" />`,
+      `  <meta property="og:image:height" content="630" />`,
+      `  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />`,
+      `  <meta property="og:locale" content="en_US" />`,
+      `  <meta name="twitter:card" content="summary_large_image" />`,
+      `  <meta name="twitter:site" content="${TWITTER}" />`,
+      `  <meta name="twitter:title" content="${escapeAttr(title)}" />`,
+      description ? `  <meta name="twitter:description" content="${escapeAttr(description)}" />` : null,
+      `  <meta name="twitter:image" content="${escapeAttr(OG_IMAGE)}" />`,
+      MARKER_CLOSE,
+    ].filter(Boolean).join('\n');
+    const next = injectIntoHead(html, block);
+    if (next !== html) {
+      fs.writeFileSync(filePath, next, 'utf8');
+      blogCount++;
+    }
+  }
+}
+
 console.log(`✓ Injected SEO into ${publicCount} public + ${privateCount} private pages (${skippedCount} unchanged)`);
+console.log(`✓ Injected SEO into ${blogCount} blog pages`);
 if (unclassified.length) {
   console.log(`⚠ Auto-classified as private (noindex): ${unclassified.join(', ')}`);
 }

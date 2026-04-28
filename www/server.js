@@ -45114,6 +45114,11 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
       filePath = './rideshare/index.html';
     }
   }
+
+  // Serve blog listing from www/blog folder
+  if (filePath === './blog' || filePath === './blog/') {
+    filePath = './blog/index.html';
+  }
   
   if (filePath.includes('?')) {
     filePath = filePath.split('?')[0];

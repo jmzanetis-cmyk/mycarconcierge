@@ -38,6 +38,7 @@ function renderMCCFooter() {
           <h4>Company</h4>
           <ul>
             <li><a href="/about.html">About</a></li>
+            <li><a href="/blog/">Blog</a></li>
             <li><a href="/contact.html">Contact Us</a></li>
           </ul>
         </div>

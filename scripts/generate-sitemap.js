@@ -68,12 +68,31 @@ const urls = valid.map(file => {
   </url>`;
 }).join('\n');
 
+// ----- /blog/ — listing + every post (priority 0.7, weekly) -----
+const BLOG_DIR = path.join(WWW_DIR, 'blog');
+let blogUrls = '';
+let blogCount = 0;
+if (fs.existsSync(BLOG_DIR)) {
+  const blogFiles = fs.readdirSync(BLOG_DIR).filter(f => f.endsWith('.html'));
+  blogCount = blogFiles.length;
+  blogUrls = '\n' + blogFiles.map(file => {
+    const loc = `${SITE_URL}/blog/${file === 'index.html' ? '' : file}`;
+    const isListing = file === 'index.html';
+    return `  <url>
+    <loc>${loc}</loc>
+    <lastmod>${today}</lastmod>
+    <changefreq>${isListing ? 'weekly' : 'monthly'}</changefreq>
+    <priority>${isListing ? '0.8' : '0.7'}</priority>
+  </url>`;
+  }).join('\n');
+}
+
 const xml = `<?xml version="1.0" encoding="UTF-8"?>
 <urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
-${urls}
+${urls}${blogUrls}
 </urlset>
 `;
 
 const outPath = path.join(WWW_DIR, 'sitemap.xml');
 fs.writeFileSync(outPath, xml, 'utf8');
-console.log(`✓ Wrote ${valid.length} URLs to www/sitemap.xml`);
+console.log(`✓ Wrote ${valid.length} core + ${blogCount} blog URLs to www/sitemap.xml`);
