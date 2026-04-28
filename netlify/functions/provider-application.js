@@ -247,12 +247,39 @@ exports.handler = async function(event) {
   };
 
   // 5) Insert via service-role client (bypasses RLS).
+  //
+  //    The 24h SELECT above is a friendly fast path; it cannot prevent two
+  //    concurrent submissions (e.g. a double-click) from both passing the
+  //    check before either inserts. The partial unique index added in
+  //    supabase/migrations/20260428f_provider_applications_one_per_day.sql
+  //    is the real backstop: if a duplicate slips through here, Postgres
+  //    rejects the second insert with code 23505 (unique_violation) and we
+  //    translate that back into the same 429 the fast path returns.
   const { data: app, error: insertErr } = await supabase
     .from('provider_applications')
     .insert(insertRow)
     .select('id, business_name, contact_name, email')
     .single();
   if (insertErr) {
+    if (insertErr.code === '23505') {
+      // Look up the row that won the race so the client gets the same
+      // existing_application_id shape the fast-path 429 returns.
+      let existingId = null;
+      try {
+        const { data: winner } = await supabase
+          .from('provider_applications')
+          .select('id')
+          .eq('user_id', userId)
+          .gte('created_at', cutoff)
+          .order('created_at', { ascending: false })
+          .limit(1);
+        existingId = winner && winner[0] ? winner[0].id : null;
+      } catch (_) { /* best-effort */ }
+      return jsonResponse(429, {
+        error: 'You already submitted an application in the last 24 hours.',
+        existing_application_id: existingId
+      });
+    }
     console.error('[provider-application] insert failed:', insertErr.message);
     return jsonResponse(500, { error: 'failed to create application', details: insertErr.message });
   }
