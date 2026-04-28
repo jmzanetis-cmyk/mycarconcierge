@@ -58,6 +58,7 @@ function renderMCCFooter() {
           <ul>
             <li><a href="/terms.html">Terms of Service</a></li>
             <li><a href="/privacy.html">Privacy Policy</a></li>
+            <li><a href="/data-deletion.html">Data Deletion</a></li>
             <li><a href="/sms-consent.html">SMS Policy</a></li>
             <li><a href="/trust-safety.html">Trust & Safety</a></li>
             <li><a href="/data-rights.html">Your Privacy Choices</a></li>
