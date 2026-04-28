@@ -10728,7 +10728,7 @@
             <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
               <thead>
                 <tr style="text-align:left;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);">
-                  <th style="padding:8px;">ID</th><th style="padding:8px;">Status</th><th style="padding:8px;">Bid</th><th style="padding:8px;">Paid/Captured</th><th style="padding:8px;">Escrow</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th>
+                  <th style="padding:8px;">ID</th><th style="padding:8px;">Status</th><th style="padding:8px;">Bid</th><th style="padding:8px;">Paid/Captured</th><th style="padding:8px;">Escrow</th><th style="padding:8px;">Payout Batch</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -10744,12 +10744,14 @@
                     <td style="padding:8px;">${fmt(r.bid_amount)}</td>
                     <td style="padding:8px;">${fmt(r.captured_amount != null ? r.captured_amount : r.actual_paid_amount)}</td>
                     <td style="padding:8px;color:${payColor(escrowState)};font-weight:600;font-size:0.8rem;">${escrowState ? esc(escrowState) : '—'}</td>
+                    <td style="padding:8px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${r.payout_batch_id ? esc(r.payout_batch_id) : '—'}</td>
                     <td style="padding:8px;color:var(--text-muted);">${dt(r.created_at)}</td>
                     <td style="padding:8px;display:flex;gap:4px;flex-wrap:wrap;">
                       <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';window.scrollTo({top:0,behavior:'smooth'});">Use ID</button>
                       ${r.status === 'disputed' ? `<button class="btn btn-primary btn-sm" onclick="(async()=>{document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';await runAiOpsDisputeResolver();})()">Resolve</button>` : ''}
                       ${canCapture ? `<button class="btn btn-primary btn-sm" style="background:var(--accent-green);" onclick="captureCarePlanEscrow('${esc(r.id)}')">Capture</button>` : ''}
                       ${canRefund ? `<button class="btn btn-secondary btn-sm" style="border-color:var(--accent-red);color:var(--accent-red);" onclick="refundCarePlanEscrow('${esc(r.id)}')">Refund</button>` : ''}
+                      <button class="btn btn-secondary btn-sm" onclick="tagCarePlanPayoutBatch('${esc(r.id)}', '${esc(r.payout_batch_id || '')}')">Tag Batch</button>
                     </td>
                   </tr>
                 `;}).join('')}
@@ -10815,6 +10817,32 @@
       }
     }
     window.refundCarePlanEscrow = refundCarePlanEscrow;
+
+    // Task #150: tag a completion with a payout-batch label so weekly
+    // settlement runs can be reconciled in one place. Pass empty string to clear.
+    async function tagCarePlanPayoutBatch(completionId, currentValue) {
+      if (!completionId) return;
+      const next = prompt('Payout batch ID (e.g. 2026-W17). Leave blank to clear.', currentValue || '');
+      if (next === null) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions/${completionId}`, {
+          method: 'PATCH',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            payout_batch_id: next.trim() || null,
+            metadata_merge: { payout_batch_tagged_at: new Date().toISOString(), payout_batch_value: next.trim() || null }
+          })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (window.showToast) showToast('Payout batch updated', 'success');
+        await loadCarePlanCompletions();
+      } catch (err) {
+        alert(`Tag failed: ${err.message}`);
+      }
+    }
+    window.tagCarePlanPayoutBatch = tagCarePlanPayoutBatch;
 
     async function loadAiOpsSettings() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';

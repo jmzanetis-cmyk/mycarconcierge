@@ -589,7 +589,7 @@ exports.handler = async function(event, context) {
     // Admin creates a completion record on behalf of a member (Light: no
     // public member UI yet — admin captures the data manually).
     if (method === 'POST' && path === 'care-plan-completions') {
-      const { care_plan_id, accepted_bid_id, member_id, provider_id, status, bid_amount, actual_paid_amount, payment_method, completion_notes, dispute_reason, dispute_description, admin_notes } = body;
+      const { care_plan_id, accepted_bid_id, member_id, provider_id, status, bid_amount, actual_paid_amount, payment_method, completion_notes, dispute_reason, dispute_description, admin_notes, metadata, payout_batch_id } = body;
       if (!care_plan_id || !member_id) {
         return jsonResponse(400, { error: 'care_plan_id and member_id required' });
       }
@@ -602,7 +602,9 @@ exports.handler = async function(event, context) {
         completion_notes: completion_notes || null,
         dispute_reason: dispute_reason || null,
         dispute_description: dispute_description || null,
-        admin_notes: admin_notes || null
+        admin_notes: admin_notes || null,
+        payout_batch_id: payout_batch_id || null,
+        metadata: (metadata && typeof metadata === 'object') ? { ...metadata, created_via: 'admin_endpoint' } : { created_via: 'admin_endpoint' }
       };
       if (insertRow.status === 'completed') insertRow.completed_at = new Date().toISOString();
       if (insertRow.status === 'disputed') insertRow.disputed_at = new Date().toISOString();
@@ -616,11 +618,19 @@ exports.handler = async function(event, context) {
     if (method === 'PATCH' && completionMatch) {
       const id = completionMatch[1];
       const allowed = {};
-      const fields = ['status', 'actual_paid_amount', 'payment_method', 'completion_notes', 'dispute_reason', 'dispute_description', 'admin_notes', 'ai_resolution'];
+      const fields = ['status', 'actual_paid_amount', 'payment_method', 'completion_notes', 'dispute_reason', 'dispute_description', 'admin_notes', 'ai_resolution', 'payout_batch_id'];
       for (const f of fields) if (body[f] !== undefined) allowed[f] = body[f];
       if (allowed.status === 'completed' && !allowed.completed_at) allowed.completed_at = new Date().toISOString();
       if (allowed.status === 'disputed' && !allowed.disputed_at) allowed.disputed_at = new Date().toISOString();
       if (allowed.status === 'resolved' && !allowed.resolved_at) allowed.resolved_at = new Date().toISOString();
+      // metadata: full replace (body.metadata) or shallow merge (body.metadata_merge)
+      if (body.metadata !== undefined) {
+        allowed.metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
+      } else if (body.metadata_merge && typeof body.metadata_merge === 'object') {
+        const { data: existing } = await supabase.from('care_plan_completions').select('metadata').eq('id', id).maybeSingle();
+        const prior = (existing && existing.metadata && typeof existing.metadata === 'object') ? existing.metadata : {};
+        allowed.metadata = { ...prior, ...body.metadata_merge };
+      }
       if (!Object.keys(allowed).length) return jsonResponse(400, { error: 'No valid fields' });
       const { data, error } = await supabase.from('care_plan_completions').update(allowed).eq('id', id).select().single();
       if (error) return jsonResponse(500, { error: error.message });
