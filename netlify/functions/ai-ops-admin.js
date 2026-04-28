@@ -125,14 +125,10 @@ async function runDisputeResolver(supabase, disputeId) {
   const memberProfile = dispute['profiles!disputes_member_id_fkey'] || {};
   const providerProfile = dispute['profiles!disputes_provider_id_fkey'] || {};
 
-  const [memberHistory, providerHistory] = await Promise.all([
-    memberProfile.id
-      ? supabase.from('packages').select('id, status, amount, created_at').eq('member_id', memberProfile.id).order('created_at', { ascending: false }).limit(5).then(r => r.data || [])
-      : Promise.resolve([]),
-    providerProfile.id
-      ? supabase.from('packages').select('id, status, amount, created_at').eq('provider_id', providerProfile.id).order('created_at', { ascending: false }).limit(5).then(r => r.data || [])
-      : Promise.resolve([])
-  ]);
+  // Order history disabled (Task #149): the `packages` table this targeted
+  // was never created. The marketplace runs on care_plans + plan_bids.
+  // Returning empty arrays keeps any caller alive without a 42P01 crash.
+  const [memberHistory, providerHistory] = [[], []];
 
   const memberPastDisputes = await supabase.from('disputes').select('id, reason, status, created_at').eq('member_id', memberProfile.id || '').limit(5).then(r => r.data || []);
   const providerPastDisputes = await supabase.from('disputes').select('id, reason, status, created_at').eq('provider_id', providerProfile.id || '').limit(5).then(r => r.data || []);
@@ -542,17 +538,29 @@ exports.handler = async function(event, context) {
     }
 
     // POST /api/admin/ai-ops/dispute-resolver/trigger
+    // Disabled — Task #149. Original `runDisputeResolver` queries a `packages`
+    // table that was never created. Will be re-enabled when the marketplace
+    // payments layer ships and the resolver is rewritten against
+    // care_plans + plan_bids.
     if (method === 'POST' && path === 'dispute-resolver/trigger') {
-      const { dispute_id } = body;
-      if (!dispute_id) return jsonResponse(400, { error: 'dispute_id required' });
-      const result = await runDisputeResolver(supabase, dispute_id);
-      return jsonResponse(200, result);
+      return jsonResponse(501, {
+        error: 'Not yet wired to current schema',
+        detail: 'Dispute resolver depends on a packages/orders table that does not exist. Will be re-enabled when the marketplace payments layer ships.',
+        code: 'feature_paused',
+        task: 149
+      });
     }
 
     // POST /api/admin/ai-ops/payment-tracker/run
+    // Disabled — Task #149. See above; runPaymentTracker reconciles `packages`
+    // rows with payment_intent_id which the live schema does not have.
     if (method === 'POST' && path === 'payment-tracker/run') {
-      const result = await runPaymentTracker(supabase);
-      return jsonResponse(200, result);
+      return jsonResponse(501, {
+        error: 'Not yet wired to current schema',
+        detail: 'Payment tracker depends on packages.payment_intent_id which does not exist yet. Will be re-enabled when the marketplace payments layer ships.',
+        code: 'feature_paused',
+        task: 149
+      });
     }
 
     // POST /api/admin/ai-ops/daily-digest/run

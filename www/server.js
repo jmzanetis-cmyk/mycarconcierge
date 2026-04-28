@@ -34825,34 +34825,32 @@ const server = http.createServer(async (req, res) => {
       }
 
       // POST /api/admin/ai-ops/dispute-resolver/trigger
+      // Disabled — Task #149. runDisputeResolver targets a `packages` table
+      // that was never created (marketplace runs on care_plans + plan_bids).
+      // Will be re-enabled once the marketplace payments layer ships and the
+      // resolver is rewritten against the real schema.
       if (req.method === 'POST' && req.url === '/api/admin/ai-ops/dispute-resolver/trigger') {
-        let body = '';
-        req.on('data', c => { body += c.toString(); });
-        req.on('end', async () => {
-          try {
-            const { dispute_id } = JSON.parse(body || '{}');
-            if (!dispute_id) { res.writeHead(400, { 'Content-Type': 'application/json' }); res.end(JSON.stringify({ error: 'dispute_id required' })); return; }
-            const result = await runDisputeResolver(supabase, dispute_id, requestId);
-            res.writeHead(200, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify(result));
-          } catch (err) {
-            res.writeHead(500, { 'Content-Type': 'application/json' });
-            res.end(JSON.stringify({ error: err.message }));
-          }
-        });
+        res.writeHead(501, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Not yet wired to current schema',
+          detail: 'Dispute resolver depends on a packages/orders table that does not exist. Will be re-enabled when the marketplace payments layer ships.',
+          code: 'feature_paused',
+          task: 149
+        }));
         return;
       }
 
       // POST /api/admin/ai-ops/payment-tracker/run
+      // Disabled — Task #149. See above; runPaymentTracker reconciles
+      // `packages` rows with payment_intent_id which the live schema lacks.
       if (req.method === 'POST' && req.url === '/api/admin/ai-ops/payment-tracker/run') {
-        try {
-          const result = await runPaymentTracker(supabase, requestId);
-          res.writeHead(200, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify(result));
-        } catch (err) {
-          res.writeHead(500, { 'Content-Type': 'application/json' });
-          res.end(JSON.stringify({ error: err.message }));
-        }
+        res.writeHead(501, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+          error: 'Not yet wired to current schema',
+          detail: 'Payment tracker depends on packages.payment_intent_id which does not exist yet. Will be re-enabled when the marketplace payments layer ships.',
+          code: 'feature_paused',
+          task: 149
+        }));
         return;
       }
 

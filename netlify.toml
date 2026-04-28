@@ -21,8 +21,9 @@
 [functions."outreach-cleanup"]
   schedule = "0 0 * * 0"
 
-[functions."payment-tracker-scheduled"]
-  schedule = "0 */6 * * *"
+# payment-tracker-scheduled cron disabled — module targets a `packages` table
+# that was never created (marketplace runs on care_plans + plan_bids instead).
+# Re-enable once the marketplace payments layer ships. See Task #149.
 
 [functions."daily-digest-scheduled"]
   schedule = "0 1 * * *"

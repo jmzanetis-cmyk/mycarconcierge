@@ -104,6 +104,27 @@ async function getAiOpsSettings(supabase) {
 }
 
 exports.handler = async function(event, context) {
+  // DISABLED — Task #149.
+  // This module pulls member/provider order history from a `packages` table
+  // that was never created. The marketplace was built on `care_plans` +
+  // `plan_bids` instead, with no payment_intent_id / amount / metadata
+  // fields. Re-enable once the marketplace payments layer ships and this
+  // code is rewritten. Original implementation preserved below as reference.
+  console.log('[DisputeResolver] Skipped — disabled pending marketplace payments layer (Task #149)');
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      skipped: true,
+      reason: 'Dispute resolver disabled — depends on packages table that was replaced by care_plans+plan_bids; awaiting rewrite',
+      code: 'feature_paused',
+      task: 149
+    })
+  };
+
+  /* eslint-disable */
+  // ----------------------------------------------------------------------
+  // Original implementation preserved below as reference. UNREACHABLE.
+  // ----------------------------------------------------------------------
   const t0 = Date.now();
   console.log('[DisputeResolver] Background function triggered');
 

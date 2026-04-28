@@ -99,7 +99,29 @@ async function getAiOpsSettings(supabase) {
 }
 
 exports.handler = async function(event, context) {
-  console.log('[PaymentTracker] Scheduled run triggered at', new Date().toISOString());
+  // DISABLED — Task #149.
+  // This module targets a `packages` table that was never created. The
+  // marketplace was built on `care_plans` + `plan_bids` instead, and
+  // care_plans has no `provider_id`, `amount`, `payment_intent_id`, or
+  // `metadata` columns. Re-enable once the marketplace payments layer ships
+  // and this code is rewritten against the real schema. The original logic
+  // is preserved below as reference.
+  console.log('[PaymentTracker] Skipped — disabled pending marketplace payments layer (Task #149)');
+  return {
+    statusCode: 200,
+    body: JSON.stringify({
+      skipped: true,
+      reason: 'Payment tracker disabled — care_plans schema has no payment_intent_id; awaiting marketplace payments layer',
+      code: 'feature_paused',
+      task: 149
+    })
+  };
+
+  /* eslint-disable */
+  // ----------------------------------------------------------------------
+  // Original implementation preserved below as reference for future rewrite
+  // against care_plans + plan_bids + a real payments table. UNREACHABLE.
+  // ----------------------------------------------------------------------
   const t0 = Date.now();
 
   const supabase = getSupabase();

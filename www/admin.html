@@ -4084,7 +4084,7 @@
       <div class="page-header">
         <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
         <h1 class="page-title"><span class="icon-inline" data-icon="cpu"></span> AI Activity</h1>
-        <p class="page-subtitle">Unified view of legacy AI Ops modules (dispute resolver, payment tracker, daily digest) and the new Agent Fleet (Gatekeeper, Hunter, Promoter, Analyst…)</p>
+        <p class="page-subtitle">Unified view of the Agent Fleet (Gatekeeper, Hunter, Promoter, Analyst, Matchmaker…) plus Daily Digest and AI Helpdesk.</p>
       </div>
 
       <!-- Shadow Mode Banner -->
@@ -4119,8 +4119,6 @@
               </select>
               <select id="ai-ops-module-filter" onchange="loadAiOpsActivity()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
                 <option value="">All modules / agents</option>
-                <option value="dispute_resolver">Dispute Resolver</option>
-                <option value="payment_tracker">Payment Tracker</option>
                 <option value="outreach_engine">Outreach Engine</option>
                 <option value="daily_digest">Daily Digest</option>
                 <option value="ai_helpdesk">AI Helpdesk</option>
@@ -4200,21 +4198,12 @@
           </div>
 
           <div style="padding-top:20px;border-top:1px solid var(--border-subtle);margin-top:8px;">
-            <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-primary);">Manual Triggers (Shadow Mode Safe)</h3>
+            <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-primary);">Manual Triggers</h3>
+            <div style="background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:14px 16px;margin-bottom:12px;color:var(--text-secondary);font-size:0.88rem;line-height:1.5;">
+              <strong style="color:var(--text-primary);">Dispute Resolver and Payment Tracker are paused.</strong>
+              They target a payments schema that hasn't shipped yet. Daily Digest below still works, and the Agent Fleet (Gatekeeper, Hunter, Promoter, Analyst, Matchmaker…) handles all current automation.
+            </div>
             <div style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:200px;">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Dispute Resolver</div>
-                <div style="display:flex;gap:8px;">
-                  <input type="text" id="ai-ops-dispute-id" placeholder="Dispute ID (UUID)" style="flex:1;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;" />
-                  <button class="btn btn-primary btn-sm" onclick="triggerDisputeResolver()">Analyze</button>
-                </div>
-                <div id="ai-ops-dispute-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
-              </div>
-              <div style="flex:1;min-width:200px;">
-                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Payment Tracker</div>
-                <button class="btn btn-primary btn-sm" onclick="triggerPaymentTracker()">Run Now</button>
-                <div id="ai-ops-payment-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
-              </div>
               <div style="flex:1;min-width:200px;">
                 <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Daily Digest</div>
                 <button class="btn btn-primary btn-sm" onclick="runAiOpsDigest()">Generate Digest</button>
