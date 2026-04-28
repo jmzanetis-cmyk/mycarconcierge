@@ -1175,6 +1175,8 @@ function indexHtml() {
         <h2>${escapeHtml(p.title)}</h2>
         <p class="excerpt">${escapeHtml(p.excerpt)}</p>
         <div class="post-meta">
+          <span class="post-author">By ${escapeHtml(AUTHOR)}</span>
+          <span class="dot"></span>
           <span>${dateShort}</span>
           <span class="dot"></span>
           <span>${p.readingTime}</span>

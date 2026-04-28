@@ -238,8 +238,22 @@ function extractTitle(html) {
   return m ? m[1].trim() : null;
 }
 function extractMetaDescription(html) {
-  const m = html.match(/<meta\s+name=["']description["']\s+content=["']([^"']+)["']/i);
-  return m ? m[1].trim() : null;
+  // Backreference matches the same quote style and lets the value contain the OTHER quote (e.g. apostrophes inside double-quoted attrs).
+  const m = html.match(/<meta\s+name=["']description["']\s+content=(["'])([\s\S]*?)\1/i);
+  return m ? m[2].trim() : null;
+}
+function extractFirstH1(html) {
+  const m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
+  return m ? m[1].replace(/<[^>]+>/g, '').trim() : null;
+}
+function extractFirstParagraph(html) {
+  // First <p> that isn't empty and isn't inside a <header>/<nav>; simple heuristic: pick any <p> with > 80 chars of text.
+  const matches = html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
+  for (const m of matches) {
+    const text = m[1].replace(/<[^>]+>/g, '').trim();
+    if (text.length >= 80) return text.length > 200 ? text.slice(0, 197) + '...' : text;
+  }
+  return null;
 }
 function escapeAttr(s) {
   return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
@@ -340,8 +354,13 @@ if (fs.existsSync(BLOG_DIR)) {
     const filePath = path.join(BLOG_DIR, file);
     const html = fs.readFileSync(filePath, 'utf8');
     const url = `${SITE_URL}/blog/${file === 'index.html' ? '' : file}`;
-    const title = extractTitle(html) || SITE_NAME;
-    const description = extractMetaDescription(html);
+    // Title: prefer <title>, fall back to first <h1>, then site name.
+    const title = extractTitle(html) || extractFirstH1(html) || SITE_NAME;
+    // Description: prefer existing meta description, fall back to first real <p>.
+    const description = extractMetaDescription(html) || extractFirstParagraph(html);
+    // If the file already carries a <meta name="description">, do not emit a duplicate;
+    // og:/twitter: descriptions still get the extracted value.
+    const hadOriginalMetaDescription = /<meta\s+name=["']description["']/i.test(html);
     // Blog posts use og:type=article; the listing page uses og:type=website
     const isListing = file === 'index.html';
     const ogType = isListing ? 'website' : 'article';
@@ -349,7 +368,7 @@ if (fs.existsSync(BLOG_DIR)) {
       MARKER_OPEN,
       `  <link rel="canonical" href="${escapeAttr(url)}" />`,
       `  <meta name="robots" content="index, follow, max-image-preview:large" />`,
-      description ? `  <meta name="description" content="${escapeAttr(description)}" />` : null,
+      description && !hadOriginalMetaDescription ? `  <meta name="description" content="${escapeAttr(description)}" />` : null,
       `  <meta property="og:type" content="${ogType}" />`,
       `  <meta property="og:site_name" content="${escapeAttr(SITE_NAME)}" />`,
       `  <meta property="og:url" content="${escapeAttr(url)}" />`,

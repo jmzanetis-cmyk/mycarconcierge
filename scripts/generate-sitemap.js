@@ -68,7 +68,7 @@ const urls = valid.map(file => {
   </url>`;
 }).join('\n');
 
-// ----- /blog/ — listing + every post (priority 0.7, weekly) -----
+// ----- /blog/ — listing (0.8 weekly), every post (0.6 monthly) -----
 const BLOG_DIR = path.join(WWW_DIR, 'blog');
 let blogUrls = '';
 let blogCount = 0;
@@ -82,7 +82,7 @@ if (fs.existsSync(BLOG_DIR)) {
     <loc>${loc}</loc>
     <lastmod>${today}</lastmod>
     <changefreq>${isListing ? 'weekly' : 'monthly'}</changefreq>
-    <priority>${isListing ? '0.8' : '0.7'}</priority>
+    <priority>${isListing ? '0.8' : '0.6'}</priority>
   </url>`;
   }).join('\n');
 }
