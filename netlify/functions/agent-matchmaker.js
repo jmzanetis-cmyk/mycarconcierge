@@ -44,9 +44,19 @@ const SYSTEM_PROMPT =
 // crash the handler — we still want to log SOMETHING so the operator sees it.
 // ---------------------------------------------------------------------------
 async function loadCarePlan(supabase, carePlanId) {
+  // Real columns per supabase/migrations/20260328_job_board.sql:
+  //   id, member_id, vehicle_id, title, description, services (jsonb),
+  //   value_min, value_max, service_types (text[]), city, state, zip_code,
+  //   lat, lng, status, bid_count, bid_closes_at, created_at, updated_at.
+  // The vehicle (year/make/model) is joined via vehicle_id so the LLM can
+  // weight bids against the actual car.
   const { data } = await supabase
     .from('care_plans')
-    .select('id, status, member_id, bid_closes_at, created_at, vehicle_year, vehicle_make, vehicle_model, zip_code, service_type, description, urgency')
+    .select(
+      'id, status, member_id, title, description, services, service_types, ' +
+      'value_min, value_max, city, state, zip_code, bid_closes_at, created_at, ' +
+      'vehicle:vehicle_id (year, make, model)'
+    )
     .eq('id', carePlanId).maybeSingle();
   return data || { id: carePlanId, missing: true };
 }

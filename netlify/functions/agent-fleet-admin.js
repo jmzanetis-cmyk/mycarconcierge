@@ -114,20 +114,29 @@ async function reviewAction(supabase, id, body) {
   return { action: data };
 }
 
-// Apply a Gatekeeper review recommendation. Mutates profile.role based on
-// the embedded decision and stamps the original action as 'executed'. Logs a
-// follow-up agent_actions row for the audit trail.
+// Apply an agent recommendation. Currently supports:
+//   - Gatekeeper 'review' → mutates profile.role
+//   - Matchmaker 'rank'   → accepts the winning plan_bid (and rejects the rest)
+// Stamps the original action as 'executed' and writes a follow-up
+// agent_actions row for the audit trail.
 async function applyAction(supabase, id) {
   const { data: action, error: aErr } = await supabase
     .from('agent_actions').select('*').eq('id', id).maybeSingle();
   if (aErr) return { error: aErr.message, status: 500 };
   if (!action) return { error: 'Action not found', status: 404 };
-  if (action.agent_slug !== 'gatekeeper' || action.action_type !== 'review') {
-    return { error: 'Apply only supported for Gatekeeper review actions in Phase 2', status: 400 };
-  }
   if (action.review_status === 'executed') {
     return { error: 'Already executed', status: 409 };
   }
+  if (action.agent_slug === 'gatekeeper' && action.action_type === 'review') {
+    return applyGatekeeperReview(supabase, id, action);
+  }
+  if (action.agent_slug === 'matchmaker' && action.action_type === 'rank') {
+    return applyMatchmakerRank(supabase, id, action);
+  }
+  return { error: 'Apply only supported for Gatekeeper review and Matchmaker rank actions', status: 400 };
+}
+
+async function applyGatekeeperReview(supabase, id, action) {
   let decision = action.decision;
   if (typeof decision === 'string') { try { decision = JSON.parse(decision); } catch { decision = {}; } }
   const rec = decision?.recommendation;
@@ -164,6 +173,116 @@ async function applyAction(supabase, id) {
   });
 
   return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: newRole };
+}
+
+// Mirrors the existing accept-bid path used by members on the legacy
+// `bids` table (see www/members-packages.js#acceptBid):
+//   1) winning bid       -> status='accepted'
+//   2) all other pending -> status='rejected'
+//   3) parent care_plan  -> status='awarded'
+// Service-role client so it bypasses RLS the same way server-side admin
+// flows do. Idempotent enough — repeated applies short-circuit on the
+// review_status='executed' guard above.
+async function applyMatchmakerRank(supabase, id, action) {
+  let decision = action.decision;
+  if (typeof decision === 'string') { try { decision = JSON.parse(decision); } catch { decision = {}; } }
+  const winnerBidId = decision?.recommended_winner_bid_id;
+  const carePlanId  = decision?.payload?.care_plan_id;
+  if (!carePlanId) return { error: 'Action decision missing care_plan_id', status: 400 };
+  if (!winnerBidId) {
+    return { error: 'No recommended winner — Matchmaker proposed null. Re-list the auction or select a bid manually.', status: 400 };
+  }
+
+  const { data: winner, error: bErr } = await supabase
+    .from('plan_bids').select('id, care_plan_id, provider_id, status, amount')
+    .eq('id', winnerBidId).maybeSingle();
+  if (bErr) return { error: bErr.message, status: 500 };
+  if (!winner) return { error: 'Recommended winning bid no longer exists', status: 404 };
+  if (winner.care_plan_id !== carePlanId) {
+    return { error: 'Recommended bid does not belong to the care plan in the action payload', status: 400 };
+  }
+  if (winner.status !== 'pending') {
+    return { error: `Recommended bid is already ${winner.status}; nothing to apply`, status: 409 };
+  }
+
+  const { data: plan, error: pErr } = await supabase
+    .from('care_plans').select('id, member_id, status').eq('id', carePlanId).maybeSingle();
+  if (pErr) return { error: pErr.message, status: 500 };
+  if (!plan) return { error: 'Care plan no longer exists', status: 404 };
+
+  // Mark the winner accepted FIRST so a concurrent admin click on a different
+  // winner can't both succeed. We then sweep the losers. The .eq('status',
+  // 'pending') guard means a racing click that already flipped this row will
+  // produce a 0-row update; .select() lets us detect that and return 409
+  // BEFORE we touch the losers, the plan, or the audit trail. Without this
+  // check the action would get stamped 'executed' even though no bid moved.
+  const { data: accRows, error: accErr } = await supabase.from('plan_bids')
+    .update({ status: 'accepted' })
+    .eq('id', winnerBidId).eq('status', 'pending')
+    .select('id');
+  if (accErr) return { error: accErr.message, status: 500 };
+  if (!accRows || accRows.length === 0) {
+    return {
+      error: 'Recommended bid was no longer pending — another admin or process accepted/rejected it first.',
+      status: 409
+    };
+  }
+
+  const { data: losers, error: rejErr } = await supabase.from('plan_bids')
+    .update({ status: 'rejected' })
+    .eq('care_plan_id', carePlanId)
+    .neq('id', winnerBidId)
+    .eq('status', 'pending')
+    .select('id');
+  if (rejErr) return { error: rejErr.message, status: 500 };
+
+  // Care-plan status transition. Allowed enum values today are
+  // open|awarded|expired|cancelled (see 20260328_job_board.sql) plus
+  // auction_closed referenced by the Phase 1 trigger guard. 'awarded'
+  // is the canonical post-acceptance state — log+continue if the DB
+  // rejects it so the bid acceptance still stands.
+  const { error: planErr } = await supabase.from('care_plans')
+    .update({ status: 'awarded' }).eq('id', carePlanId);
+  if (planErr) {
+    console.warn(`[matchmaker apply] care_plan ${carePlanId} status update failed: ${planErr.message}`);
+  }
+
+  await supabase.from('agent_actions').update({
+    review_status: 'executed',
+    reviewed_at: new Date().toISOString(),
+    reviewed_by: 'admin',
+    needs_review: false
+  }).eq('id', id);
+
+  await supabase.from('agent_actions').insert({
+    agent_slug: 'matchmaker',
+    action_type: 'apply',
+    status: 'executed',
+    autonomy_used: 'admin',
+    decision: {
+      applied_action_id: id,
+      care_plan_id: carePlanId,
+      accepted_bid_id: winnerBidId,
+      provider_id: winner.provider_id,
+      amount: winner.amount,
+      rejected_bid_ids: (losers || []).map(b => b.id),
+      prior_plan_status: plan.status,
+      new_plan_status: planErr ? plan.status : 'awarded'
+    },
+    reasoning: `Admin accepted Matchmaker-recommended bid ${winnerBidId} for care plan ${carePlanId}. ${(losers || []).length} other pending bid(s) rejected.`
+  });
+
+  return {
+    ok: true,
+    care_plan_id: carePlanId,
+    accepted_bid_id: winnerBidId,
+    provider_id: winner.provider_id,
+    amount: winner.amount,
+    rejected_count: (losers || []).length,
+    prior_plan_status: plan.status,
+    new_plan_status: planErr ? plan.status : 'awarded',
+    plan_status_warning: planErr ? planErr.message : null
+  };
 }
 
 async function suspendProvider(supabase, providerId, body) {

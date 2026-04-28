@@ -195,10 +195,10 @@
       </div>
     </div>
 
-    <!-- Gatekeeper-only review queue card -->
+    <!-- Review-queue card (Gatekeeper + Matchmaker) -->
     <div class="card" id="reviewQueueCard" style="margin-bottom:20px; display:none;">
       <h3>Review queue (proposals from this agent)</h3>
-      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
+      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;" id="reviewQueueHelp">
         Items the agent flagged for human review. Approve or reject inline; full proposal context is in the action row below.
       </div>
       <div id="reviewQueueBody"><div class="empty">Loading…</div></div>
@@ -344,7 +344,14 @@ async function loadAgent() {
 
   // Conditional cards
   if (agent.slug === 'analyst') document.getElementById('briefingCard').style.display = '';
-  if (agent.slug === 'gatekeeper') document.getElementById('reviewQueueCard').style.display = '';
+  if (agent.slug === 'gatekeeper' || agent.slug === 'matchmaker') {
+    document.getElementById('reviewQueueCard').style.display = '';
+    if (agent.slug === 'matchmaker') {
+      document.getElementById('reviewQueueHelp').textContent =
+        'Closed auctions Matchmaker has scored. Apply accepts the recommended winning bid (and rejects the rest); ' +
+        'Reject marks the proposal reviewed without changing the auction.';
+    }
+  }
   return true;
 }
 
@@ -463,7 +470,7 @@ async function loadActions() {
           await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
           toast(`Action ${id} marked ${decision}`);
           loadActions();
-          if (agentSlug === 'gatekeeper') loadReviewQueue();
+          if (agentSlug === 'gatekeeper' || agentSlug === 'matchmaker') loadReviewQueue();
         } catch (e) { toast(e.message, true); }
       });
     });
@@ -521,7 +528,7 @@ async function loadBriefing() {
 }
 
 async function loadReviewQueue() {
-  if (agentSlug !== 'gatekeeper') return;
+  if (agentSlug !== 'gatekeeper' && agentSlug !== 'matchmaker') return;
   const body = document.getElementById('reviewQueueBody');
   try {
     const params = new URLSearchParams({ limit: '20', agent: agentSlug, review_only: '1' });
@@ -537,24 +544,51 @@ async function loadReviewQueue() {
       div.className = 'action-row';
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 6).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80))}</code>`).join(' ') : '';
-      const rec = dec && dec.recommendation;
-      const providerId = dec && dec.payload && dec.payload.provider_id;
-      const canApply = rec === 'approve' || rec === 'reject';
-      const recPill = rec ? `<span class="kbd" style="margin-left:6px;">rec: ${escapeHtml(rec)}</span>` : '';
-      const applyBtn = canApply
-        ? `<button class="btn" data-q-apply="${a.id}" style="padding:4px 10px; font-size:12px;" title="Execute the recommendation (sets provider role to ${rec === 'approve' ? 'provider' : 'member'})">Apply (${escapeHtml(rec)})</button>`
-        : '';
-      const suspendBtn = providerId
-        ? `<button class="btn btn-danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`
-        : '';
+
+      // Per-agent action affordances. Gatekeeper proposes a role change for a
+      // provider profile; Matchmaker proposes a winning bid on a closed auction.
+      let recPill = '';
+      let applyBtn = '';
+      let extraBtn = '';
+
+      if (agentSlug === 'gatekeeper') {
+        const rec = dec && dec.recommendation;
+        const providerId = dec && dec.payload && dec.payload.provider_id;
+        const canApply = rec === 'approve' || rec === 'reject';
+        recPill = rec ? `<span class="kbd" style="margin-left:6px;">rec: ${escapeHtml(rec)}</span>` : '';
+        if (canApply) {
+          applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="gatekeeper" style="padding:4px 10px; font-size:12px;" title="Execute the recommendation (sets provider role to ${rec === 'approve' ? 'provider' : 'member'})">Apply (${escapeHtml(rec)})</button>`;
+        }
+        if (providerId) {
+          extraBtn = `<button class="btn btn-danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`;
+        }
+      } else if (agentSlug === 'matchmaker') {
+        const winnerBidId = dec && dec.recommended_winner_bid_id;
+        const carePlanId  = dec && dec.payload && dec.payload.care_plan_id;
+        const concerns    = Array.isArray(dec && dec.concerns) ? dec.concerns : [];
+        recPill = winnerBidId
+          ? `<span class="kbd" style="margin-left:6px;">winner: ${escapeHtml(String(winnerBidId).slice(0, 8))}…</span>`
+          : `<span class="kbd" style="margin-left:6px;">no winner proposed</span>`;
+        if (carePlanId) {
+          recPill += ` <span class="kbd" style="margin-left:4px;">plan: ${escapeHtml(String(carePlanId).slice(0, 8))}…</span>`;
+        }
+        if (winnerBidId) {
+          applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="matchmaker" style="padding:4px 10px; font-size:12px;" title="Accept this bid (rejects the others) and mark the care plan awarded">Accept winning bid</button>`;
+        }
+        if (concerns.length) {
+          // Show concerns inline so the operator sees them before approving.
+          recPill += ` <span class="kbd" style="margin-left:4px; color:var(--warn);" title="${escapeHtml(concerns.join(' • '))}">⚠ ${concerns.length} concern${concerns.length === 1 ? '' : 's'}</span>`;
+        }
+      }
+
       div.innerHTML = `
         <div class="action-head">
           <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
           <div class="row">
             ${applyBtn}
-            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without changing provider state">Approve</button>
-            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without changing provider state">Reject</button>
-            ${suspendBtn}
+            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Mark approved</button>
+            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Reject</button>
+            ${extraBtn}
           </div>
         </div>
         <div class="action-reason">${escapeHtml(a.reasoning || '') || '<span style="color:var(--muted);">(no reasoning)</span>'}</div>
@@ -577,11 +611,19 @@ async function loadReviewQueue() {
     body.querySelectorAll('[data-q-apply]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const id = btn.getAttribute('data-q-apply');
-        if (!confirm('Execute this recommendation against the provider profile? This will change the provider\u2019s role.')) return;
+        const kind = btn.getAttribute('data-q-kind');
+        const promptMsg = kind === 'matchmaker'
+          ? 'Accept this bid and reject the others on the care plan? The auction will be marked awarded.'
+          : 'Execute this recommendation against the provider profile? This will change the provider\u2019s role.';
+        if (!confirm(promptMsg)) return;
         btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Applying\u2026';
         try {
           const r = await api(`/actions/${id}/apply`, { method: 'POST' });
-          toast(`Applied: ${r.prior_role} \u2192 ${r.new_role}`);
+          if (kind === 'matchmaker') {
+            toast(`Bid accepted · ${r.rejected_count} other(s) rejected`);
+          } else {
+            toast(`Applied: ${r.prior_role} \u2192 ${r.new_role}`);
+          }
           loadReviewQueue();
           loadActions();
         } catch (e) { toast(e.message, true); btn.disabled = false; btn.textContent = orig; }
