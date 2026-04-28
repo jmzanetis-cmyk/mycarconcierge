@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS survey_responses (
   decision_maker        text,   -- yes_primary / shared / mostly_me / not_me
   near_term_need        text,   -- yes_urgent / yes_routine / not_right_now / no_need
   top_priority          text,   -- trust / pricing / convenience / quality / proximity
-  vehicle_count         text    -- 1 / 2 / 3plus
+  vehicle_count         text,   -- 1 / 2 / 3_or_more
   raw                   jsonb,
   ip_hash               text,   -- hashed IP for dedup (no PII stored)
   created_at            timestamptz NOT NULL DEFAULT now()
@@ -67,9 +67,9 @@ CREATE TABLE IF NOT EXISTS member_onboarding (
 );
 
 -- Indexes
-CREATE INDEX IF NOT EXISTS idx_survey_responses_user_id    ON survey_responses(user_id);
-CREATE INDEX IF NOT EXISTS idx_survey_responses_pain_point ON survey_responses(pain_point);
-CREATE INDEX IF NOT EXISTS idx_survey_responses_created_at ON survey_responses(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_user_id      ON survey_responses(user_id);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_top_priority ON survey_responses(top_priority);
+CREATE INDEX IF NOT EXISTS idx_survey_responses_created_at   ON survey_responses(created_at DESC);
 
 -- RLS
 ALTER TABLE survey_responses ENABLE ROW LEVEL SECURITY;

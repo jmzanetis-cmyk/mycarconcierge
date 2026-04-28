@@ -11871,29 +11871,31 @@
     window.loadSurveyAnalytics = loadSurveyAnalytics;
 
     // ===== MEMBER SURVEY ANALYTICS =====
+    // Labels MUST match the enum values accepted by POST /api/member/survey
+    // (server.js ALLOWED map). Unknown values fall back to the raw enum code.
     const MS_LABELS = {
-      provider_discovery: { word_of_mouth: 'Word of mouth', online_search: 'Online search', stick_with_known: 'Stick with known', trial_error: 'Trial & error' },
-      provider_satisfaction: { very_satisfied: 'Very satisfied', somewhat_satisfied: 'Somewhat satisfied', not_satisfied: 'Not satisfied', avoid_service: 'Avoids service' },
-      service_frequency: { monthly_plus: 'Monthly+', every_2_3_months: 'Every 2-3 months', few_times_year: 'Few times/year', once_a_year: 'Once a year', only_problems: 'Only when broken' },
-      service_types: { routine: 'Routine maintenance', repairs: 'Repairs/diagnostics', cosmetic: 'Detailing/cosmetic', mixed: 'Mixed/varies' },
-      pricing_confidence: { very_fair: 'Very fair', mostly_fair: 'Mostly fair', not_sure: 'Not sure', not_fair: 'Not fair' },
-      estimate_surprise: { yes_regularly: 'Yes, regularly', yes_once: 'Yes, once', rarely: 'Rarely', never: 'Never' },
-      quote_behavior: { trust_one: 'Trust one shop', compare_few: 'Compare 2-3', online_research: 'Research online', just_pay: 'Just pay' },
-      provider_honesty: { very_honest: 'Very honest', mostly_honest: 'Mostly honest', skeptical: 'Skeptical', very_skeptical: 'Very skeptical' },
-      provider_vetting: { yes_nervous: 'Yes, concerned me', yes_went_anyway: 'Yes, went anyway', rarely: 'Rarely', never: 'Never' },
-      history_tracking: { no_system: 'No system', manual: 'Manual notes', mechanic_tracks: 'Mechanic tracks it', app: 'Uses an app' },
-      maintenance_avoidance: { yes_regularly: 'Yes, regularly', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
-      job_status_updates: { i_call: 'I call the shop', they_call: 'They call when ready', just_show_up: 'Just show up', has_system: 'Shop has a system' },
-      maintenance_reminders: { from_shop: 'From shop/dealer', self_set: 'Self-set reminders', no_try_to_remember: 'Tries to remember', dashboard_light: 'Waits for warning light' },
-      competitive_bids: { love_it: 'Love it', open_to_it: 'Open to it', unsure: 'Unsure', prefer_one_shop: 'Prefer one shop' },
-      app_usage: { yes_regularly: 'Uses app regularly', tried_none_stuck: 'Tried, nothing stuck', no_old_fashioned: 'No app', didnt_know: "Didn't know apps exist" },
-      payment_comfort: { very_comfortable: 'Very comfortable', open_to_it: 'Open to it', prefer_in_person: 'Prefers in-person', not_comfortable: 'Not comfortable' },
-      dispute_history: { yes_hard_to_resolve: 'Yes, hard to resolve', yes_resolved: 'Yes, resolved', concerns_not_voiced: 'Concerns not voiced', never: 'Never' },
+      provider_discovery: { word_of_mouth: 'Word of mouth', google_search: 'Google search', social_media: 'Social media', ad: 'Advertising', app_store: 'App store', other: 'Other' },
+      provider_satisfaction: { very_satisfied: 'Very satisfied', somewhat_satisfied: 'Somewhat satisfied', neutral: 'Neutral', somewhat_dissatisfied: 'Somewhat dissatisfied', very_dissatisfied: 'Very dissatisfied' },
+      service_frequency: { monthly_or_more: 'Monthly or more', every_2_3_months: 'Every 2-3 months', twice_a_year: 'Twice a year', once_a_year: 'Once a year', less_often: 'Less often' },
+      service_types: { routine: 'Routine maintenance', tires_brakes: 'Tires & brakes', repairs: 'Repairs/diagnostics', detailing: 'Detailing/cosmetic', body_work: 'Body work', mix: 'Mixed/varies' },
+      pricing_confidence: { very_fair: 'Very fair', mostly_fair: 'Mostly fair', sometimes_questionable: 'Sometimes questionable', often_too_high: 'Often too high' },
+      estimate_surprise: { yes_regularly: 'Yes, regularly', yes_once: 'Yes, once', no_never: 'No, never' },
+      quote_behavior: { go_with_first: 'Go with first quote', compare_few: 'Compare a few', always_shop: 'Always shop around' },
+      provider_honesty: { very_honest: 'Very honest', mostly_honest: 'Mostly honest', sometimes_questionable: 'Sometimes questionable', often_dishonest: 'Often dishonest' },
+      provider_vetting: { always: 'Always vet', sometimes: 'Sometimes', rarely: 'Rarely', never: 'Never' },
+      history_tracking: { spreadsheet: 'Spreadsheet', notes_app: 'Notes app', memory: 'From memory', no_system: 'No system' },
+      maintenance_avoidance: { yes_often: 'Yes, often', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
+      job_status_updates: { they_call: 'Shop calls me', i_call: 'I call the shop', no_updates: 'No updates' },
+      maintenance_reminders: { yes_use_them: 'Yes, use them', no_try_to_remember: 'Try to remember', no_just_go: 'Just go when needed' },
+      competitive_bids: { yes_always: 'Yes, always', open_to_it: 'Open to it', prefer_one_provider: 'Prefer one provider', never_tried: 'Never tried' },
+      app_usage: { yes_multiple: 'Multiple apps', yes_one: 'One app', no_old_fashioned: 'No app' },
+      payment_comfort: { already_do: 'Already do', open_to_it: 'Open to it', prefer_traditional: 'Prefer traditional' },
+      dispute_history: { never: 'Never', once: 'Once', multiple_times: 'Multiple times' },
       annual_spend: { under_500: 'Under $500', '500_to_1500': '$500-$1,500', '1500_to_3000': '$1,500-$3,000', over_3000: 'Over $3,000' },
-      decision_maker: { yes_primary: 'Yes, entirely', shared: 'Shared', mostly_me: 'Mostly me', not_me: 'Not usually me' },
-      near_term_need: { yes_urgent: 'Urgent need', yes_routine: 'Routine due soon', not_right_now: 'Just exploring', no_need: 'No need right now' },
+      decision_maker: { yes_primary: 'Yes, primary', shared: 'Shared', no_someone_else: 'Someone else' },
+      near_term_need: { yes_routine: 'Yes, routine', yes_repair: 'Yes, repair', yes_shopping: 'Yes, shopping', no_not_now: 'Not right now' },
       top_priority: { trust: 'Trustworthiness', pricing: 'Fair pricing', convenience: 'Convenience', quality: 'Work quality', proximity: 'Location/proximity' },
-      vehicle_count: { '1': '1 vehicle', '2': '2 vehicles', '3plus': '3+ vehicles' }
+      vehicle_count: { '1': '1 vehicle', '2': '2 vehicles', '3_or_more': '3+ vehicles' }
     };
     const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
     let _msCharts = {};
@@ -11940,14 +11942,21 @@
     }
 
     async function loadMemberSurveyAnalytics() {
+      const el = id => document.getElementById(id);
+      const banner = el('ms-error-banner');
+      // Reset banner on every load
+      if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
       try {
         const headers = getAdminHeaders();
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
-        if (!res.ok) throw new Error('fetch failed');
+        if (!res.ok) {
+          let serverMsg = '';
+          try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch (_) {}
+          throw new Error(`HTTP ${res.status}${serverMsg ? ' — ' + serverMsg : ''}`);
+        }
         const data = await res.json();
 
-        const el = id => document.getElementById(id);
         if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
         if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
 
@@ -11968,8 +11977,26 @@
         for (const [canvasId, key] of CHART_MAP) {
           buildMsDoughnut(canvasId, MS_LABELS[key] || {}, data['by_' + key] || {});
         }
+
+        // Surface "schema not yet migrated" hint to the admin if the server told us so
+        if (data.schema_pending && banner) {
+          banner.style.display = 'block';
+          banner.style.color = '#fbbf24';
+          banner.style.background = 'rgba(251,191,36,0.10)';
+          banner.style.borderColor = 'rgba(251,191,36,0.40)';
+          banner.textContent = 'survey_responses table is missing expected columns. Apply supabase/migrations/20260428_survey_responses_columns_fix.sql in Supabase SQL Editor, then refresh this page.';
+        }
       } catch (err) {
         console.error('[MemberSurveys] load error:', err.message);
+        if (banner) {
+          banner.style.display = 'block';
+          banner.textContent = 'Could not load survey analytics: ' + err.message + '. Check server logs and try Refresh.';
+        }
+        // Reset headline cards to a clear "error" sentinel rather than stale numbers
+        if (el('ms-total')) el('ms-total').textContent = '—';
+        if (el('ms-week')) el('ms-week').textContent = '—';
+        if (el('ms-top-pain')) el('ms-top-pain').textContent = '—';
+        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = '—';
       }
     }
     window.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;

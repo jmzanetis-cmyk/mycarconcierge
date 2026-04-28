@@ -1522,6 +1522,9 @@
 
     async function submitSurveyAndClose() {
       document.getElementById('survey-progress-fill').style.width = '100%';
+      // Submit survey but keep UX flowing regardless — log failures so we can diagnose.
+      // (Task #166: previously this swallowed every error silently, which masked schema
+      // drift and made the admin Survey Analytics page perpetually empty.)
       try {
         let token = null;
         try {
@@ -1530,12 +1533,24 @@
         } catch (_) {}
         const headers = { 'Content-Type': 'application/json' };
         if (token) headers['Authorization'] = 'Bearer ' + token;
-        await fetch('/api/member/survey', {
+        const resp = await fetch('/api/member/survey', {
           method: 'POST',
           headers,
           body: JSON.stringify(surveyAnswers)
         });
-      } catch (_) {}
+        if (!resp.ok) {
+          let detail = '';
+          try { const j = await resp.json(); detail = j.detail || j.error || ''; } catch (_) {}
+          console.warn('[Survey] submission failed: HTTP ' + resp.status + (detail ? ' — ' + detail : ''));
+        } else {
+          try {
+            const j = await resp.json();
+            if (j && j.fallback) console.warn('[Survey] server reported fallback:', j.reason || '(unspecified)');
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.warn('[Survey] submission threw:', err && err.message);
+      }
 
       // Show thank-you screen instead of immediately closing
       const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
