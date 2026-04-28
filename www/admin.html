@@ -4202,10 +4202,14 @@
           <div style="padding-top:20px;border-top:1px solid var(--border-subtle);margin-top:8px;">
             <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-primary);">Manual Triggers</h3>
             <div style="background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:14px 16px;margin-bottom:12px;color:var(--text-secondary);font-size:0.85rem;line-height:1.5;">
-              Dispute Resolver and Payment Tracker now run against the
-              <code>care_plan_completions</code> table (Light fix). The resolver
-              recommends actions only — admins still execute refunds manually
-              via Stripe. The tracker is a daily anomaly scanner.
+              Dispute Resolver and Payment Tracker run against the
+              <code>care_plan_completions</code> table. Stripe escrow is now
+              wired (Task #155): when a member accepts a bid, funds are held
+              via a manual-capture PaymentIntent and routed to the provider's
+              Connect account. Admins can capture or refund held funds
+              directly from the Care Plan Completions panel below — no
+              manual Stripe Dashboard work needed. Founder commission (90% to
+              Chris Agrapidis, else 50%) auto-pays on capture.
             </div>
             <div style="display:flex;gap:16px;flex-wrap:wrap;">
               <div style="flex:1;min-width:240px;">

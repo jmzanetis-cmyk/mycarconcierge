@@ -10739,38 +10739,99 @@
         const fmt = v => v == null ? '—' : `$${Number(v).toFixed(2)}`;
         const dt = s => s ? new Date(s).toLocaleString() : '—';
         const statusColor = s => ({pending:'var(--text-muted)',completed:'var(--accent-green)',disputed:'var(--accent-red)',resolved:'var(--accent-blue)',cancelled:'var(--text-muted)'})[s] || 'var(--text-muted)';
+        const payColor = s => ({pending:'var(--text-muted)',captured:'var(--accent-green)',refunded:'var(--accent-red)',partially_refunded:'var(--accent-orange)'})[s] || 'var(--text-muted)';
         contentEl.innerHTML = `
           <div style="overflow-x:auto;">
             <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
               <thead>
                 <tr style="text-align:left;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);">
-                  <th style="padding:8px;">ID</th><th style="padding:8px;">Status</th><th style="padding:8px;">Bid</th><th style="padding:8px;">Paid</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th>
+                  <th style="padding:8px;">ID</th><th style="padding:8px;">Status</th><th style="padding:8px;">Bid</th><th style="padding:8px;">Paid/Captured</th><th style="padding:8px;">Escrow</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th>
                 </tr>
               </thead>
               <tbody>
-                ${rows.map(r => `
+                ${rows.map(r => {
+                  const hasPI = !!r.stripe_payment_intent_id;
+                  const escrowState = r.payment_capture_status || (hasPI ? 'pending' : null);
+                  const canCapture = hasPI && r.payment_capture_status !== 'captured' && r.payment_capture_status !== 'refunded';
+                  const canRefund = hasPI && r.payment_capture_status !== 'refunded';
+                  return `
                   <tr style="border-bottom:1px solid var(--border-subtle);">
                     <td style="padding:8px;font-family:monospace;font-size:0.78rem;">${esc(r.id).slice(0,8)}…</td>
                     <td style="padding:8px;color:${statusColor(r.status)};font-weight:600;">${esc(r.status)}</td>
                     <td style="padding:8px;">${fmt(r.bid_amount)}</td>
-                    <td style="padding:8px;">${fmt(r.actual_paid_amount)}</td>
+                    <td style="padding:8px;">${fmt(r.captured_amount != null ? r.captured_amount : r.actual_paid_amount)}</td>
+                    <td style="padding:8px;color:${payColor(escrowState)};font-weight:600;font-size:0.8rem;">${escrowState ? esc(escrowState) : '—'}</td>
                     <td style="padding:8px;color:var(--text-muted);">${dt(r.created_at)}</td>
-                    <td style="padding:8px;">
+                    <td style="padding:8px;display:flex;gap:4px;flex-wrap:wrap;">
                       <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';window.scrollTo({top:0,behavior:'smooth'});">Use ID</button>
                       ${r.status === 'disputed' ? `<button class="btn btn-primary btn-sm" onclick="(async()=>{document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';await runAiOpsDisputeResolver();})()">Resolve</button>` : ''}
+                      ${canCapture ? `<button class="btn btn-primary btn-sm" style="background:var(--accent-green);" onclick="captureCarePlanEscrow('${esc(r.id)}')">Capture</button>` : ''}
+                      ${canRefund ? `<button class="btn btn-secondary btn-sm" style="border-color:var(--accent-red);color:var(--accent-red);" onclick="refundCarePlanEscrow('${esc(r.id)}')">Refund</button>` : ''}
                     </td>
                   </tr>
-                `).join('')}
+                `;}).join('')}
               </tbody>
             </table>
           </div>
-          <div style="color:var(--text-muted);font-size:0.78rem;padding:8px;">${rows.length} record${rows.length === 1 ? '' : 's'}</div>
+          <div style="color:var(--text-muted);font-size:0.78rem;padding:8px;">${rows.length} record${rows.length === 1 ? '' : 's'} · Capture/Refund actions hit Stripe live — held funds get released immediately.</div>
         `;
       } catch (err) {
         contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${err.message}</div>`;
       }
     }
     window.loadCarePlanCompletions = loadCarePlanCompletions;
+
+    async function captureCarePlanEscrow(completionId) {
+      if (!completionId) return;
+      if (!confirm('Capture held escrow funds for this completion? This will release payment to the provider AND trigger founder commission. Cannot be undone.')) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions/${completionId}/capture`, {
+          method: 'POST',
+          headers: getAiOpsHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        alert(data.already_captured ? 'Already captured.' : `Captured $${(data.captured_amount || 0).toFixed(2)}` + (data.commission?.amount ? ` (commission: $${data.commission.amount.toFixed(2)})` : ''));
+        await loadCarePlanCompletions();
+      } catch (err) {
+        alert(`Capture failed: ${err.message}`);
+      }
+    }
+    window.captureCarePlanEscrow = captureCarePlanEscrow;
+
+    async function refundCarePlanEscrow(completionId) {
+      if (!completionId) return;
+      const amountStr = prompt('Refund amount in dollars (leave blank for full refund):', '');
+      if (amountStr === null) return;
+      const body = {};
+      const cleaned = String(amountStr).replace(/[\s$,]/g, '');
+      if (cleaned !== '') {
+        const amt = Number(cleaned);
+        if (!Number.isFinite(amt) || amt <= 0) { alert('Invalid amount.'); return; }
+        body.amount = amt;
+      }
+      if (!confirm(`Refund ${body.amount ? '$' + body.amount.toFixed(2) : 'FULL amount'} to member? If funds are still held (uncaptured), the authorization will be cancelled. Cannot be undone.`)) return;
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      try {
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions/${completionId}/refund`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+        if (data.cancelled) {
+          alert('Held authorization cancelled — member was never charged.');
+        } else {
+          alert(`Refunded $${(data.refunded_amount || 0).toFixed(2)}${data.is_full ? ' (full)' : ' (partial)'}`);
+        }
+        await loadCarePlanCompletions();
+      } catch (err) {
+        alert(`Refund failed: ${err.message}`);
+      }
+    }
+    window.refundCarePlanEscrow = refundCarePlanEscrow;
 
     async function loadAiOpsSettings() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
