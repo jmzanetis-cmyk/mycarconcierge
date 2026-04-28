@@ -55,14 +55,58 @@ require.cache[RESEND_PATH] = {
 // Force the email helper to actually call Resend.
 process.env.RESEND_API_KEY = 'test-key';
 
+// ----------------------------- FCM stub ------------------------------------
+// Stub global fetch so the FCM v1 helper never reaches the network. Each test
+// case can swap `fcmFetchHandler` to control responses. Default returns a
+// successful 200 OAuth-token response and a successful 200 send response.
+let fcmCalls = [];
+let fcmFetchHandler = async (url) => {
+  if (String(url).includes('oauth2.googleapis.com')) {
+    return {
+      status: 200, ok: true,
+      json: async () => ({ access_token: 'fake-access-token', expires_in: 3600 })
+    };
+  }
+  if (String(url).includes('fcm.googleapis.com')) {
+    return {
+      status: 200, ok: true,
+      json: async () => ({ name: 'projects/test/messages/fake-id' })
+    };
+  }
+  // Pass through anything else (none expected in tests).
+  return { status: 404, ok: false, json: async () => ({}) };
+};
+const _origFetch = global.fetch;
+global.fetch = async (url, opts) => {
+  fcmCalls.push({ url: String(url), method: opts && opts.method, body: opts && opts.body });
+  return fcmFetchHandler(url, opts);
+};
+
+// Synthetic FCM service-account JSON (private key is a real RSA PEM so the
+// JWT signing step in getFCMAccessToken doesn't throw). Generated once at
+// startup so every test case can rely on it.
+const _crypto = require('crypto');
+const { privateKey: _pk } = _crypto.generateKeyPairSync('rsa', {
+  modulusLength: 2048,
+  privateKeyEncoding: { type: 'pkcs8', format: 'pem' },
+  publicKeyEncoding:  { type: 'spki',  format: 'pem' }
+});
+const FAKE_SA_JSON = JSON.stringify({
+  type: 'service_account',
+  project_id: 'mcc-test',
+  private_key: _pk,
+  client_email: 'test@mcc-test.iam.gserviceaccount.com'
+});
+
 // ----------------------------- Supabase mock --------------------------------
 function makeSupabaseMock(initial) {
   const state = {
-    agent_actions: initial.agent_actions ? initial.agent_actions.slice() : [],
-    plan_bids:     initial.plan_bids     ? initial.plan_bids.slice()     : [],
-    care_plans:    initial.care_plans    ? initial.care_plans.slice()    : [],
-    profiles:      initial.profiles      ? initial.profiles.slice()      : [],
-    notifications: []
+    agent_actions:      initial.agent_actions      ? initial.agent_actions.slice()      : [],
+    plan_bids:          initial.plan_bids          ? initial.plan_bids.slice()          : [],
+    care_plans:         initial.care_plans         ? initial.care_plans.slice()         : [],
+    profiles:           initial.profiles           ? initial.profiles.slice()           : [],
+    device_push_tokens: initial.device_push_tokens ? initial.device_push_tokens.slice() : [],
+    notifications:      []
   };
 
   function from(table) {
@@ -188,7 +232,10 @@ function freshSupabase() {
   const { applyMatchmakerRank } = admin.__test;
 
   // ── Case 1: happy-path award fans out 4 notifications + 3 emails ─────────
+  // FCM not configured → push fields should be false with reason 'not_configured'.
   resendCalls = [];
+  fcmCalls = [];
+  delete process.env.FCM_SERVICE_ACCOUNT_JSON;
   const supabase = freshSupabase();
   const action = supabase.state.agent_actions[0];
   const result = await applyMatchmakerRank(supabase, ACTION_ID, action);
@@ -238,9 +285,18 @@ function freshSupabase() {
   assertEq(sum.member_emailed,       true, 'summary: member emailed');
   assertEq(sum.loser_emailed_count,  1,    'summary: loser_emailed_count=1');
 
+  // FCM not configured this case → push fields false, reason 'not_configured'.
+  assertEq(sum.winner_pushed,        false, '[no-fcm] summary: winner not pushed');
+  assertEq(sum.member_pushed,        false, '[no-fcm] summary: member not pushed');
+  assertEq(sum.loser_pushed_count,   0,     '[no-fcm] summary: loser_pushed_count=0');
+  assertEq(sum.push_skipped_reason,  'not_configured', '[no-fcm] push_skipped_reason=not_configured');
+  assertEq(fcmCalls.length,          0,     '[no-fcm] no fetch calls to FCM endpoints');
+
   // ── Case 2: Resend disabled → notifications still inserted ───────────────
   resendCalls = [];
+  fcmCalls = [];
   delete process.env.RESEND_API_KEY;
+  delete process.env.FCM_SERVICE_ACCOUNT_JSON;
   const sb2 = freshSupabase();
   const action2 = sb2.state.agent_actions[0];
   const r2 = await applyMatchmakerRank(sb2, ACTION_ID, action2);
@@ -249,15 +305,130 @@ function freshSupabase() {
   assertEq(resendCalls.length, 0, '[no-email] zero Resend calls');
   const auditRow2 = sb2.state.agent_actions.find(r => r.action_type === 'apply');
   assertEq(auditRow2.decision.notifications.winner_emailed, false, '[no-email] summary records winner not emailed');
+  assertEq(auditRow2.decision.notifications.winner_pushed,  false, '[no-email] summary records winner not pushed');
+
+  // ── Case 3: FCM enabled with active device tokens → push fans out ────────
+  // Members + providers each have 1+ device token; some have multiple devices.
+  resendCalls = [];
+  fcmCalls = [];
+  process.env.RESEND_API_KEY = 'test-key';
+  process.env.FCM_SERVICE_ACCOUNT_JSON = FAKE_SA_JSON;
+  fcmFetchHandler = async (url) => {
+    if (String(url).includes('oauth2.googleapis.com')) {
+      return { status: 200, ok: true,
+        json: async () => ({ access_token: 'fake-access-token', expires_in: 3600 }) };
+    }
+    return { status: 200, ok: true,
+      json: async () => ({ name: 'projects/mcc-test/messages/fake-id' }) };
+  };
+
+  const sb3 = makeSupabaseMock({
+    agent_actions: [{
+      id: ACTION_ID, agent_slug: 'matchmaker', action_type: 'rank',
+      review_status: null,
+      decision: { recommended_winner_bid_id: WIN_BID, payload: { care_plan_id: PLAN_ID } }
+    }],
+    plan_bids: [
+      { id: WIN_BID,    care_plan_id: PLAN_ID, provider_id: WIN_PID,    status: 'pending', amount: 250 },
+      { id: LOSE_BID_A, care_plan_id: PLAN_ID, provider_id: LOSE_PID_A, status: 'pending', amount: 300 },
+      { id: LOSE_BID_B, care_plan_id: PLAN_ID, provider_id: LOSE_PID_B, status: 'pending', amount: 280 }
+    ],
+    care_plans: [{
+      id: PLAN_ID, member_id: MEMBER_ID, status: 'open', title: 'Brake Job & Inspection'
+    }],
+    profiles: [
+      { id: MEMBER_ID,  email: 'member@example.com',  full_name: 'Mia Member',     business_name: null         },
+      { id: WIN_PID,    email: 'winner@example.com',  full_name: 'Wendy Winner',   business_name: 'Win Garage' },
+      { id: LOSE_PID_A, email: 'losera@example.com',  full_name: 'Larry Loser',    business_name: 'A Auto'     },
+      { id: LOSE_PID_B, email: null,                  full_name: 'Bart Bidder',    business_name: 'B Brakes'   }
+    ],
+    device_push_tokens: [
+      { token: 'tok-mem-ios',   member_id: MEMBER_ID,  platform: 'ios',     active: true  },
+      { token: 'tok-mem-and',   member_id: MEMBER_ID,  platform: 'android', active: true  },
+      { token: 'tok-win-ios',   member_id: WIN_PID,    platform: 'ios',     active: true  },
+      { token: 'tok-loseA-and', member_id: LOSE_PID_A, platform: 'android', active: true  },
+      { token: 'tok-loseB-ios', member_id: LOSE_PID_B, platform: 'ios',     active: true  },
+      { token: 'tok-stale',     member_id: WIN_PID,    platform: 'ios',     active: false } // filtered out
+    ]
+  });
+  const r3 = await applyMatchmakerRank(sb3, ACTION_ID, sb3.state.agent_actions[0]);
+  assertTrue(r3.ok === true, '[fcm] applyMatchmakerRank ok:true');
+
+  const auditRow3 = sb3.state.agent_actions.find(r => r.action_type === 'apply');
+  const sum3 = auditRow3.decision.notifications;
+  assertEq(sum3.winner_pushed,       true, '[fcm] summary: winner pushed');
+  assertEq(sum3.member_pushed,       true, '[fcm] summary: member pushed');
+  assertEq(sum3.loser_pushed_count,  2,    '[fcm] summary: loser_pushed_count=2');
+  assertEq(sum3.push_skipped_reason, null, '[fcm] no push_skipped_reason recorded');
+
+  // FCM v1 send calls: 2 (member) + 1 (winner) + 1 (loseA) + 1 (loseB) = 5
+  // Plus 1 OAuth token request (cached after first call).
+  const sendCalls = fcmCalls.filter(c => c.url.includes('fcm.googleapis.com'));
+  assertEq(sendCalls.length, 5, '[fcm] 5 FCM v1 send calls (2 member devices + 1 winner + 2 loser providers)');
+  const oauthCalls = fcmCalls.filter(c => c.url.includes('oauth2.googleapis.com'));
+  assertTrue(oauthCalls.length >= 1, '[fcm] at least 1 OAuth token request');
+
+  // Stale 'tok-stale' (active=false) must NOT be sent.
+  const targetedTokens = sendCalls.map(c => {
+    try { return JSON.parse(c.body).message.token; } catch { return null; }
+  });
+  assertTrue(!targetedTokens.includes('tok-stale'), '[fcm] inactive tokens are filtered out');
+
+  // Notification titles propagate into FCM payloads.
+  const winnerSend = sendCalls.find(c => JSON.parse(c.body).message.token === 'tok-win-ios');
+  assertTrue(winnerSend && JSON.parse(winnerSend.body).message.notification.title === 'Your bid was accepted',
+    '[fcm] winner FCM message has correct title');
+  const memberSend = sendCalls.find(c => JSON.parse(c.body).message.token === 'tok-mem-ios');
+  assertTrue(memberSend && JSON.parse(memberSend.body).message.notification.title === 'Your auction has been awarded',
+    '[fcm] member FCM message has correct title');
+  const loserSend = sendCalls.find(c => JSON.parse(c.body).message.token === 'tok-loseA-and');
+  assertTrue(loserSend && JSON.parse(loserSend.body).message.notification.title === 'Bid not selected',
+    '[fcm] loser FCM message has correct title');
+
+  // Bid acceptance should still have completed normally on top of push.
+  assertEq(sb3.state.care_plans[0].status, 'awarded', '[fcm] care plan still flipped to awarded');
+  assertEq(sb3.state.notifications.length, 4, '[fcm] in-app notifications still inserted');
+
+  // ── Case 4: FCM enabled but no device tokens for any user → graceful skip ─
+  resendCalls = [];
+  fcmCalls = [];
+  const sb4 = makeSupabaseMock({
+    agent_actions: [{
+      id: ACTION_ID, agent_slug: 'matchmaker', action_type: 'rank',
+      review_status: null,
+      decision: { recommended_winner_bid_id: WIN_BID, payload: { care_plan_id: PLAN_ID } }
+    }],
+    plan_bids: [
+      { id: WIN_BID,    care_plan_id: PLAN_ID, provider_id: WIN_PID,    status: 'pending', amount: 250 },
+      { id: LOSE_BID_A, care_plan_id: PLAN_ID, provider_id: LOSE_PID_A, status: 'pending', amount: 300 }
+    ],
+    care_plans: [{ id: PLAN_ID, member_id: MEMBER_ID, status: 'open', title: 'Tire Rotation' }],
+    profiles: [
+      { id: MEMBER_ID, email: 'm@example.com',  full_name: 'Mia',  business_name: null   },
+      { id: WIN_PID,   email: 'w@example.com',  full_name: 'Wendy', business_name: 'WG'  },
+      { id: LOSE_PID_A,email: null,             full_name: 'Larry', business_name: 'A'   }
+    ]
+    // device_push_tokens omitted → [] by default
+  });
+  const r4 = await applyMatchmakerRank(sb4, ACTION_ID, sb4.state.agent_actions[0]);
+  assertTrue(r4.ok === true, '[fcm-no-tokens] applyMatchmakerRank ok:true');
+  const sum4 = sb4.state.agent_actions.find(r => r.action_type === 'apply').decision.notifications;
+  assertEq(sum4.winner_pushed,        false,        '[fcm-no-tokens] winner_pushed=false');
+  assertEq(sum4.member_pushed,        false,        '[fcm-no-tokens] member_pushed=false');
+  assertEq(sum4.loser_pushed_count,   0,            '[fcm-no-tokens] loser_pushed_count=0');
+  assertEq(sum4.push_skipped_reason,  'no_tokens',  '[fcm-no-tokens] push_skipped_reason=no_tokens');
+  assertEq(sum4.errors.length,        0,            '[fcm-no-tokens] no errors recorded');
 
   // restore for any downstream tests
   process.env.RESEND_API_KEY = 'test-key';
+  delete process.env.FCM_SERVICE_ACCOUNT_JSON;
+  global.fetch = _origFetch;
 
   if (failures > 0) {
     console.error(`\n${failures} check(s) failed.`);
     process.exit(1);
   }
-  console.log('\nAll Task #153 award notification checks passed.');
+  console.log('\nAll Task #153 + Task #197 award notification checks passed.');
 })().catch(err => {
   console.error('Test threw:', err);
   process.exit(1);

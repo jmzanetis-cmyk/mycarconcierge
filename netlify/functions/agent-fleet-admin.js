@@ -34,12 +34,140 @@ const {
   sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
 const { Resend } = require('resend');
+const crypto = require('crypto');
 
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
 const MCC_FROM_EMAIL = process.env.RESEND_FROM_EMAIL
   || process.env.MCC_FROM_EMAIL
   || 'My Car Concierge <noreply@mycarconcierge.com>';
 const MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
+
+// ─── FCM v1 mobile push helpers (Task #197) ─────────────────────────────────
+// Mirrors www/server.js#sendFCMPushNotification but trimmed for this function:
+// no in-app preference check (the device_push_tokens.active flag plus the
+// caller-side category is sufficient for the matchmaker award flow).  All
+// helpers are best-effort: any failure returns a structured reason instead of
+// throwing so notifyMatchmakerAward never rolls back the bid acceptance.
+let _fcmAccessToken = null;
+let _fcmAccessTokenExpiry = 0;
+
+async function getFCMAccessToken() {
+  const now = Date.now();
+  if (_fcmAccessToken && _fcmAccessTokenExpiry > now + 60000) return _fcmAccessToken;
+
+  const saJson = process.env.FCM_SERVICE_ACCOUNT_JSON;
+  if (!saJson) throw new Error('FCM_SERVICE_ACCOUNT_JSON not set');
+
+  let sa;
+  try { sa = JSON.parse(saJson); }
+  catch { throw new Error('FCM_SERVICE_ACCOUNT_JSON is not valid JSON'); }
+
+  const iat = Math.floor(now / 1000);
+  const exp = iat + 3600;
+  const header  = Buffer.from(JSON.stringify({ alg: 'RS256', typ: 'JWT' })).toString('base64url');
+  const payload = Buffer.from(JSON.stringify({
+    iss: sa.client_email,
+    sub: sa.client_email,
+    aud: 'https://oauth2.googleapis.com/token',
+    iat, exp,
+    scope: 'https://www.googleapis.com/auth/firebase.messaging'
+  })).toString('base64url');
+  const signingInput = `${header}.${payload}`;
+  const sign = crypto.createSign('RSA-SHA256');
+  sign.update(signingInput);
+  const signature = sign.sign(sa.private_key, 'base64url');
+  const jwt = `${signingInput}.${signature}`;
+
+  const tokenResp = await fetch('https://oauth2.googleapis.com/token', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: `grant_type=urn%3Aietf%3Aparams%3Aoauth%3Agrant-type%3Ajwt-bearer&assertion=${jwt}`
+  });
+  const tokenData = await tokenResp.json();
+  if (!tokenData.access_token) throw new Error(`FCM OAuth token error: ${JSON.stringify(tokenData)}`);
+
+  _fcmAccessToken = tokenData.access_token;
+  _fcmAccessTokenExpiry = now + (tokenData.expires_in || 3600) * 1000;
+  return _fcmAccessToken;
+}
+
+async function sendFCMv1Message(token, title, body, data, projectId) {
+  const accessToken = await getFCMAccessToken();
+  const message = {
+    message: {
+      token,
+      notification: { title, body },
+      data: Object.fromEntries(Object.entries({ ...(data || {}), title, body }).map(([k, v]) => [k, String(v)])),
+      android: { priority: 'HIGH' },
+      apns:    { payload: { aps: { sound: 'default', 'content-available': 1 } } }
+    }
+  };
+  const resp = await fetch(`https://fcm.googleapis.com/v1/projects/${projectId}/messages:send`, {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(message)
+  });
+  let respBody = null;
+  try { respBody = await resp.json(); } catch { respBody = null; }
+  return { status: resp.status, body: respBody };
+}
+
+// Send a push to every active device token belonging to the given user IDs.
+// Returns { sent: boolean, success, failure, reason? } — best-effort.
+async function sendMatchmakerFCMPush(supabase, userIds, title, body, data) {
+  if (!process.env.FCM_SERVICE_ACCOUNT_JSON) return { sent: false, reason: 'not_configured', success: 0, failure: 0 };
+  if (!Array.isArray(userIds) || userIds.length === 0) return { sent: false, reason: 'no_recipients', success: 0, failure: 0 };
+  if (!supabase) return { sent: false, reason: 'no_db', success: 0, failure: 0 };
+
+  let tokenRows = [];
+  try {
+    const { data: rows, error } = await supabase
+      .from('device_push_tokens')
+      .select('token, member_id, platform')
+      .in('member_id', userIds)
+      .eq('active', true);
+    if (error) return { sent: false, reason: 'token_lookup_error:' + error.message, success: 0, failure: 0 };
+    tokenRows = rows || [];
+  } catch (e) {
+    return { sent: false, reason: 'token_lookup_exception:' + e.message, success: 0, failure: 0 };
+  }
+  if (tokenRows.length === 0) return { sent: false, reason: 'no_tokens', success: 0, failure: 0 };
+
+  let projectId;
+  try { projectId = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON).project_id; }
+  catch { return { sent: false, reason: 'invalid_service_account', success: 0, failure: 0 }; }
+
+  const stale = [];
+  let success = 0, failure = 0;
+  await Promise.all(tokenRows.map(async (row) => {
+    try {
+      const result = await sendFCMv1Message(row.token, title, body, data || {}, projectId);
+      if (result.status === 200) {
+        success++;
+      } else {
+        failure++;
+        const errCode = result.body?.error?.details?.[0]?.errorCode || result.body?.error?.status;
+        if (errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT') stale.push(row.token);
+        console.warn(`[FCM v1] matchmaker push failed (${row.platform}): ${errCode}`);
+      }
+    } catch (err) {
+      failure++;
+      console.error('[FCM v1] matchmaker push send error:', err.message);
+    }
+  }));
+
+  if (stale.length > 0) {
+    try {
+      await supabase.from('device_push_tokens').update({ active: false }).in('token', stale);
+    } catch (e) {
+      console.error('[FCM v1] failed to deactivate stale tokens:', e.message);
+    }
+  }
+  return { sent: success > 0, success, failure };
+}
 
 // Best-effort transactional email via Resend. Returns boolean. Never throws.
 // Mirrors the helper in netlify/functions/provider-admin.js so admin-driven
@@ -92,6 +220,10 @@ async function notifyMatchmakerAward(supabase, {
     member_emailed: false,
     winner_emailed: false,
     loser_emailed_count: 0,
+    member_pushed: false,
+    winner_pushed: false,
+    loser_pushed_count: 0,
+    push_skipped_reason: null,
     errors: []
   };
 
@@ -246,6 +378,68 @@ async function notifyMatchmakerAward(supabase, {
     } catch (e) {
       summary.errors.push('email:' + e.message);
     }
+  }
+
+  // ── Mobile push fan-out (Task #197) ──────────────────────────────────────
+  // Best-effort FCM v1 push to every active device token belonging to the
+  // winner / each loser / the member.  Failures here NEVER affect the bid
+  // acceptance — they're recorded in summary.errors and summary.push_skipped_reason
+  // so admins can see them in the audit trail.
+  try {
+    const pushData = {
+      type: 'matchmaker_award',
+      care_plan_id: planId || '',
+      amount: String(amount || 0)
+    };
+
+    const pushJobs = [];
+
+    if (winnerProviderId) {
+      pushJobs.push((async () => {
+        const r = await sendMatchmakerFCMPush(
+          supabase,
+          [winnerProviderId],
+          'Your bid was accepted',
+          `${amountLabel} for "${planTitle}". Tap to contact the member and schedule the work.`,
+          { ...pushData, role: 'winner', deeplink: '/providers.html#bids' }
+        );
+        if (r.sent) summary.winner_pushed = true;
+        if (!r.sent && r.reason && !summary.push_skipped_reason) summary.push_skipped_reason = r.reason;
+      })());
+    }
+
+    const loserIds = loserRows.map(l => l.id).filter(Boolean);
+    if (loserIds.length) {
+      pushJobs.push((async () => {
+        const r = await sendMatchmakerFCMPush(
+          supabase,
+          loserIds,
+          'Bid not selected',
+          `Your bid on "${planTitle}" wasn't selected this time. Keep an eye on new auctions.`,
+          { ...pushData, role: 'loser', deeplink: '/providers.html#bids' }
+        );
+        if (r.sent) summary.loser_pushed_count = r.success || loserIds.length;
+        if (!r.sent && r.reason && !summary.push_skipped_reason) summary.push_skipped_reason = r.reason;
+      })());
+    }
+
+    if (memberId) {
+      pushJobs.push((async () => {
+        const r = await sendMatchmakerFCMPush(
+          supabase,
+          [memberId],
+          'Your auction has been awarded',
+          `${winnerDisplay} won "${planTitle}" at ${amountLabel}. Tap to authorize payment.`,
+          { ...pushData, role: 'member', deeplink: '/members.html#packages' }
+        );
+        if (r.sent) summary.member_pushed = true;
+        if (!r.sent && r.reason && !summary.push_skipped_reason) summary.push_skipped_reason = r.reason;
+      })());
+    }
+
+    if (pushJobs.length) await Promise.all(pushJobs);
+  } catch (e) {
+    summary.errors.push('push:' + e.message);
   }
 
   return summary;
@@ -1496,5 +1690,6 @@ exports.handler = async function(event) {
 // of the public Netlify function surface — only the `handler` export is.
 exports.__test = {
   applyMatchmakerRank,
-  notifyMatchmakerAward
+  notifyMatchmakerAward,
+  sendMatchmakerFCMPush
 };
