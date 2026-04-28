@@ -24,8 +24,19 @@
     try { return new Date(iso).toLocaleDateString(); } catch { return '—'; }
   }
 
+  // The provider portal exposes the authenticated Supabase client as
+  // `window.supabaseClient` (see www/supabaseclient.js). We accept a few
+  // alternate globals defensively so this script also works on other pages.
   function getSupabase() {
-    return window.supabase || (window.sb && window.sb.client) || null;
+    const c = window.supabaseClient
+      || (window.sb && window.sb.client)
+      || null;
+    // `window.supabase` is the UMD SDK namespace (has createClient), not a
+    // client — only return it if it actually quacks like a client.
+    if (!c && window.supabase && typeof window.supabase.from === 'function') {
+      return window.supabase;
+    }
+    return c;
   }
 
   async function getProviderId() {
@@ -79,25 +90,19 @@
     critical: { bg: 'rgba(220, 80, 80, 0.10)',  border: '#dc5050', fg: '#f0a0a0' }
   };
 
-  async function loadAlerts(providerId) {
-    const sb = getSupabase();
-    const panel = document.getElementById('bgc-alerts-panel');
-    if (!panel) return;
-    const { data: alerts, error } = await sb
-      .from('provider_alerts')
-      .select('id, alert_type, severity, title, body, action_url, created_at')
-      .eq('provider_id', providerId)
-      .is('resolved_at', null)
-      .eq('is_dismissed', false)
-      .order('severity', { ascending: false })
-      .order('created_at', { ascending: false });
-    if (error || !alerts || alerts.length === 0) {
-      panel.style.display = 'none';
-      panel.innerHTML = '';
-      return;
-    }
-    panel.style.display = '';
-    panel.innerHTML = alerts.map(a => {
+  // We render the same alert list into BOTH the dashboard banner slot
+  // (#bgc-alerts-panel-overview, top of the Overview section) and the
+  // Compliance section's panel (#bgc-alerts-panel). Either may be absent
+  // depending on the page; missing slots are silently skipped.
+  function _alertPanels() {
+    return [
+      document.getElementById('bgc-alerts-panel-overview'),
+      document.getElementById('bgc-alerts-panel')
+    ].filter(Boolean);
+  }
+
+  function _renderAlertsHtml(alerts) {
+    return alerts.map(a => {
       const palette = SEV[a.severity] || SEV.info;
       const cta = a.action_url
         ? '<a href="' + escapeHtml(a.action_url) + '" style="display:inline-block;margin-top:8px;padding:8px 14px;border-radius:8px;background:' + palette.border + ';color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;">Renew now →</a>'
@@ -111,6 +116,26 @@
         '<button onclick="window.bgcCompliance.dismissAlert(\'' + a.id + '\')" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;line-height:1;">×</button>' +
       '</div>';
     }).join('');
+  }
+
+  async function loadAlerts(providerId) {
+    const sb = getSupabase();
+    const panels = _alertPanels();
+    if (panels.length === 0) return;
+    const { data: alerts, error } = await sb
+      .from('provider_alerts')
+      .select('id, alert_type, severity, title, body, action_url, created_at')
+      .eq('provider_id', providerId)
+      .is('resolved_at', null)
+      .eq('is_dismissed', false)
+      .order('severity', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error || !alerts || alerts.length === 0) {
+      panels.forEach(p => { p.style.display = 'none'; p.innerHTML = ''; });
+      return;
+    }
+    const html = _renderAlertsHtml(alerts);
+    panels.forEach(p => { p.style.display = ''; p.innerHTML = html; });
   }
 
   async function dismissAlert(alertId) {
@@ -220,6 +245,16 @@
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
 
+  // Lightweight refresh: only the alerts banner. Used on every dashboard
+  // load so providers see the banner without first navigating to the
+  // Compliance section. The full `refresh()` (summary + employees + alerts)
+  // is reserved for the Compliance section itself, where its DOM nodes live.
+  async function refreshAlertsOnly() {
+    const providerId = await getProviderId();
+    if (!providerId) return;
+    await loadAlerts(providerId);
+  }
+
   async function refresh() {
     const providerId = await getProviderId();
     if (!providerId) return;
@@ -282,7 +317,7 @@
     }
   }
 
-  window.bgcCompliance = { refresh, openAddEmployee, initiate, dismissAlert };
+  window.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {
@@ -290,10 +325,28 @@
     if (item) setTimeout(refresh, 50);
   });
 
-  // First load if the page boots straight onto #compliance.
+  // ── Initial load ────────────────────────────────────────────────────────
+  // - On the Compliance section itself: do a full refresh (summary, employee
+  //   table, alerts).
+  // - Anywhere else on the provider portal: just load the alerts banner so
+  //   it appears at the top of the dashboard from the moment the page loads.
+  //   The Supabase client may not be ready yet on DOMContentLoaded, so we
+  //   poll briefly until it's available before firing.
   document.addEventListener('DOMContentLoaded', function () {
-    if (location.hash === '#compliance' || document.querySelector('#compliance.section.active')) {
-      setTimeout(refresh, 200);
-    }
+    const onCompliance =
+      location.hash === '#compliance' ||
+      document.querySelector('#compliance.section.active');
+
+    let tries = 0;
+    const tick = () => {
+      tries++;
+      if (getSupabase()) {
+        if (onCompliance) refresh();
+        else refreshAlertsOnly();
+        return;
+      }
+      if (tries < 30) setTimeout(tick, 200);
+    };
+    setTimeout(tick, 200);
   });
 })();
