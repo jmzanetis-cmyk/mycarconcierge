@@ -32,27 +32,14 @@ CREATE INDEX IF NOT EXISTS admin_audit_log_action_idx
   ON public.admin_audit_log (action, performed_at DESC);
 
 -- ============================================================================
--- RLS HARDENING — apply AFTER one clean rollout cycle has confirmed the new
--- server-side endpoints are working in production. Until then, the existing
--- RLS policies must remain in place so the old browser code keeps working
--- during the rollout window.
---
--- To apply, paste the statements below (un-commented) into the Supabase SQL
--- Editor:
---
---   -- 1. Block direct inserts into provider_applications from anon/authenticated
---   --    (forces all creates through netlify/functions/provider-application.js):
---   DROP POLICY IF EXISTS "Users can create their own application" ON public.provider_applications;
---   DROP POLICY IF EXISTS "Users insert own provider_applications" ON public.provider_applications;
---   -- (Service role bypasses RLS entirely, so no replacement insert policy is needed.)
---
---   -- 2. Block direct updates to suspension_reason / suspended_at on profiles
---   --    (forces all suspend/activate through netlify/functions/provider-admin.js).
---   --    Postgres has no native column-level WITH CHECK, so the cleanest pattern is
---   --    to deny non-service-role updates entirely on profiles and rely on the
---   --    existing server endpoints for any admin-driven changes:
---   DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
---   -- (Keep "Users can update own profile" as-is — that policy already excludes
---   --  suspension_reason via the WITH CHECK clause if it was authored correctly.
---   --  Audit it before applying this DROP.)
+-- RLS HARDENING — shipped in 20260428e_provider_writes_rls_lockdown.sql
+-- (Task #132). That migration:
+--   1. Drops the anon/authenticated INSERT policies on provider_applications
+--      so all creates must flow through netlify/functions/provider-application.js.
+--   2. Installs a column-scoped BEFORE UPDATE trigger on profiles that rejects
+--      any non-service-role write to suspension_reason or suspended_at, forcing
+--      all suspend/activate through netlify/functions/provider-admin.js. The
+--      trigger approach was chosen over dropping "Admins can update any profile"
+--      wholesale so the legacy admin.js writes for bid_credits and approval
+--      role flips continue to work (those flows are out of scope for #132).
 -- ============================================================================
