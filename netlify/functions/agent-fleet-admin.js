@@ -33,8 +33,223 @@ const {
   getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent,
   sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
+const { Resend } = require('resend');
 
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
+const MCC_FROM_EMAIL = process.env.RESEND_FROM_EMAIL
+  || process.env.MCC_FROM_EMAIL
+  || 'My Car Concierge <noreply@mycarconcierge.com>';
+const MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
+
+// Best-effort transactional email via Resend. Returns boolean. Never throws.
+// Mirrors the helper in netlify/functions/provider-admin.js so admin-driven
+// award notifications behave identically to the suspension/activation path.
+async function sendAwardEmail(to, subject, html) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !to) return false;
+  try {
+    const resend = new Resend(apiKey);
+    await resend.emails.send({ from: MCC_FROM_EMAIL, to, subject, html });
+    return true;
+  } catch (e) {
+    console.error('[agent-fleet-admin] award email send failed:', e.message);
+    return false;
+  }
+}
+
+function escapeHtml(value) {
+  return String(value == null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function formatAmount(amount) {
+  const num = Number(amount);
+  if (!Number.isFinite(num)) return '$0.00';
+  return '$' + num.toFixed(2);
+}
+
+// Fan out winner / loser / member notifications + emails after an admin
+// applies a Matchmaker rank recommendation. Mirrors the legacy member-side
+// acceptBid() path in www/members-packages.js so admin-driven awards behave
+// identically to member-driven awards. All work is best-effort — a single
+// row failure must not roll back the bid acceptance, which has already been
+// committed by applyMatchmakerRank before we are called.
+//
+// Returns a summary object describing what was attempted, suitable for the
+// audit-trail decision payload.
+async function notifyMatchmakerAward(supabase, {
+  carePlan,            // { id, title, member_id }
+  winnerBidId,
+  winnerProviderId,
+  amount,
+  loserBids            // [{ id, provider_id }]
+}) {
+  const summary = {
+    member_notified: false,
+    winner_notified: false,
+    loser_notified_count: 0,
+    member_emailed: false,
+    winner_emailed: false,
+    loser_emailed_count: 0,
+    errors: []
+  };
+
+  const planTitle = (carePlan && carePlan.title) || 'your auction';
+  const planId = carePlan && carePlan.id;
+  const memberId = carePlan && carePlan.member_id;
+  const amountLabel = formatAmount(amount);
+
+  // ── Look up the people we need to message in one round trip per role ───
+  const loserProviderIds = Array.from(new Set(
+    (loserBids || []).map(b => b && b.provider_id).filter(Boolean)
+  ));
+
+  const profileSelect = 'id, email, full_name, business_name';
+  const lookups = [
+    memberId
+      ? supabase.from('profiles').select(profileSelect).eq('id', memberId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    winnerProviderId
+      ? supabase.from('profiles').select(profileSelect).eq('id', winnerProviderId).maybeSingle()
+      : Promise.resolve({ data: null }),
+    loserProviderIds.length
+      ? supabase.from('profiles').select(profileSelect).in('id', loserProviderIds)
+      : Promise.resolve({ data: [] })
+  ];
+
+  let memberRow = null;
+  let winnerRow = null;
+  let loserRows = [];
+  try {
+    const [memberRes, winnerRes, loserRes] = await Promise.all(lookups);
+    memberRow = memberRes && memberRes.data ? memberRes.data : null;
+    winnerRow = winnerRes && winnerRes.data ? winnerRes.data : null;
+    loserRows = (loserRes && loserRes.data) || [];
+  } catch (e) {
+    summary.errors.push('profile_lookup:' + e.message);
+  }
+
+  const winnerDisplay = winnerRow
+    ? (winnerRow.business_name || winnerRow.full_name || 'A provider')
+    : 'A provider';
+  const memberDisplay = memberRow
+    ? (memberRow.full_name || 'there')
+    : 'there';
+  const memberDashboardUrl = `${MCC_APP_URL}/members.html#packages`;
+  const providerDashboardUrl = `${MCC_APP_URL}/providers.html#bids`;
+
+  // ── In-app notifications (winner / losers / member) ───────────────────
+  const notificationRows = [];
+  if (winnerProviderId) {
+    notificationRows.push({
+      user_id: winnerProviderId,
+      type: 'bid_accepted',
+      title: 'Your bid was accepted',
+      message: `Your bid of ${amountLabel} for "${planTitle}" was accepted. Contact the member to schedule the work.`,
+      link_type: 'care_plan',
+      link_id: planId
+    });
+  }
+  for (const loser of loserRows) {
+    notificationRows.push({
+      user_id: loser.id,
+      type: 'bid_not_selected',
+      title: 'Bid not selected',
+      message: `Thanks for bidding on "${planTitle}". The member selected another provider this time — keep an eye out for new auctions.`,
+      link_type: 'care_plan',
+      link_id: planId
+    });
+  }
+  if (memberId) {
+    notificationRows.push({
+      user_id: memberId,
+      type: 'auction_awarded',
+      title: 'Your auction has been awarded',
+      message: `${winnerDisplay} won your "${planTitle}" auction at ${amountLabel}. Authorize payment to start the work.`,
+      link_type: 'care_plan',
+      link_id: planId
+    });
+  }
+
+  if (notificationRows.length) {
+    try {
+      const { error } = await supabase.from('notifications').insert(notificationRows);
+      if (error) {
+        summary.errors.push('notifications:' + error.message);
+      } else {
+        if (winnerProviderId) summary.winner_notified = true;
+        summary.loser_notified_count = loserRows.length;
+        if (memberId) summary.member_notified = true;
+      }
+    } catch (e) {
+      summary.errors.push('notifications:' + e.message);
+    }
+  }
+
+  // ── Email fan-out (best-effort, skipped silently if Resend unconfigured) ──
+  const safePlanTitle = escapeHtml(planTitle);
+  const safeWinnerName = escapeHtml(winnerDisplay);
+  const safeAmountLabel = escapeHtml(amountLabel);
+
+  const emailJobs = [];
+
+  if (winnerRow && winnerRow.email) {
+    emailJobs.push((async () => {
+      const ok = await sendAwardEmail(
+        winnerRow.email,
+        `Your bid was accepted on ${planTitle}`,
+        `<p>Hi ${escapeHtml(winnerRow.business_name || winnerRow.full_name || 'there')},</p>
+         <p>Great news — your bid of <strong>${safeAmountLabel}</strong> for <strong>${safePlanTitle}</strong> was accepted.</p>
+         <p>Please reach out to the member to schedule the work. You can review the details from your provider dashboard:</p>
+         <p><a href="${providerDashboardUrl}" style="display:inline-block;padding:10px 18px;background:#b8942d;color:#fff;text-decoration:none;border-radius:6px;">Open my bids</a></p>
+         <p>— My Car Concierge</p>`
+      );
+      if (ok) summary.winner_emailed = true;
+    })());
+  }
+
+  for (const loser of loserRows) {
+    if (!loser.email) continue;
+    emailJobs.push((async () => {
+      const ok = await sendAwardEmail(
+        loser.email,
+        `Update on your bid for ${planTitle}`,
+        `<p>Hi ${escapeHtml(loser.business_name || loser.full_name || 'there')},</p>
+         <p>Thanks for bidding on <strong>${safePlanTitle}</strong>. The member selected another provider this time, so your bid was not accepted.</p>
+         <p>New auctions go out to qualified providers regularly — keep your auto-bid settings sharp and you'll see the next match soon.</p>
+         <p><a href="${providerDashboardUrl}" style="display:inline-block;padding:10px 18px;background:#1e3a5f;color:#fff;text-decoration:none;border-radius:6px;">View open auctions</a></p>
+         <p>— My Car Concierge</p>`
+      );
+      if (ok) summary.loser_emailed_count += 1;
+    })());
+  }
+
+  if (memberRow && memberRow.email) {
+    emailJobs.push((async () => {
+      const ok = await sendAwardEmail(
+        memberRow.email,
+        `Your auction has been awarded — ${planTitle}`,
+        `<p>Hi ${escapeHtml(memberDisplay)},</p>
+         <p><strong>${safeWinnerName}</strong> won your <strong>${safePlanTitle}</strong> auction at <strong>${safeAmountLabel}</strong>.</p>
+         <p>Open your dashboard to authorize payment so funds can be held in escrow and work can begin:</p>
+         <p><a href="${memberDashboardUrl}" style="display:inline-block;padding:10px 18px;background:#b8942d;color:#fff;text-decoration:none;border-radius:6px;">Authorize payment</a></p>
+         <p>— My Car Concierge</p>`
+      );
+      if (ok) summary.member_emailed = true;
+    })());
+  }
+
+  if (emailJobs.length) {
+    try {
+      await Promise.all(emailJobs);
+    } catch (e) {
+      summary.errors.push('email:' + e.message);
+    }
+  }
+
+  return summary;
+}
 
 function siteBaseUrl(event) {
   return process.env.URL
@@ -209,7 +424,7 @@ async function applyMatchmakerRank(supabase, id, action) {
   }
 
   const { data: plan, error: pErr } = await supabase
-    .from('care_plans').select('id, member_id, status').eq('id', carePlanId).maybeSingle();
+    .from('care_plans').select('id, member_id, status, title').eq('id', carePlanId).maybeSingle();
   if (pErr) return { error: pErr.message, status: 500 };
   if (!plan) return { error: 'Care plan no longer exists', status: 404 };
 
@@ -236,7 +451,7 @@ async function applyMatchmakerRank(supabase, id, action) {
     .eq('care_plan_id', carePlanId)
     .neq('id', winnerBidId)
     .eq('status', 'pending')
-    .select('id');
+    .select('id, provider_id');
   if (rejErr) return { error: rejErr.message, status: 500 };
 
   // Care-plan status transition. Allowed enum values today are
@@ -257,6 +472,24 @@ async function applyMatchmakerRank(supabase, id, action) {
     needs_review: false
   }).eq('id', id);
 
+  // Task #153 — fan out award notifications + emails before we write the
+  // audit row so the audit decision can record what was actually delivered.
+  // notifyMatchmakerAward is best-effort and never throws; the bid acceptance
+  // above is already committed and stands on its own.
+  let notifySummary = null;
+  try {
+    notifySummary = await notifyMatchmakerAward(supabase, {
+      carePlan: plan,
+      winnerBidId,
+      winnerProviderId: winner.provider_id,
+      amount: winner.amount,
+      loserBids: losers || []
+    });
+  } catch (e) {
+    console.error('[matchmaker apply] notifyMatchmakerAward threw:', e.message);
+    notifySummary = { error: e.message };
+  }
+
   await supabase.from('agent_actions').insert({
     agent_slug: 'matchmaker',
     action_type: 'apply',
@@ -270,7 +503,8 @@ async function applyMatchmakerRank(supabase, id, action) {
       amount: winner.amount,
       rejected_bid_ids: (losers || []).map(b => b.id),
       prior_plan_status: plan.status,
-      new_plan_status: planErr ? plan.status : 'awarded'
+      new_plan_status: planErr ? plan.status : 'awarded',
+      notifications: notifySummary
     },
     reasoning: `Admin accepted Matchmaker-recommended bid ${winnerBidId} for care plan ${carePlanId}. ${(losers || []).length} other pending bid(s) rejected.`
   });
@@ -284,7 +518,8 @@ async function applyMatchmakerRank(supabase, id, action) {
     rejected_count: (losers || []).length,
     prior_plan_status: plan.status,
     new_plan_status: planErr ? plan.status : 'awarded',
-    plan_status_warning: planErr ? planErr.message : null
+    plan_status_warning: planErr ? planErr.message : null,
+    notifications: notifySummary
   };
 }
 
@@ -1255,4 +1490,11 @@ exports.handler = async function(event) {
     console.error('[agent-fleet-admin] error:', e.message);
     return jsonResponse(500, { error: e.message });
   }
+};
+
+// Exposed for unit tests (scripts/matchmaker-award-notify-test.js). Not part
+// of the public Netlify function surface — only the `handler` export is.
+exports.__test = {
+  applyMatchmakerRank,
+  notifyMatchmakerAward
 };
