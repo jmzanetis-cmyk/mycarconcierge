@@ -1673,7 +1673,7 @@
       const competitionHtml = bidCount > 0 ? `
         <div style="margin-top:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-            <span style="font-size:0.85rem;`>${mccIcon('trophy', 14)} <strong>${bidCount}</strong> bid${bidCount !== 1 ? 's' : ''} ${lowestBid ? `• Lowest: <strong style=`color:var(--accent-gold);">$${lowestBid}</strong>` : ''}</span>
+            <span style="font-size:0.85rem;">${mccIcon('trophy', 14)} <strong>${bidCount}</strong> bid${bidCount !== 1 ? 's' : ''} ${lowestBid ? `• Lowest: <strong style="color:var(--accent-gold);">$${lowestBid}</strong>` : ''}</span>
             ${isLowestBidder ? '<span style="color:var(--accent-green);font-size:0.8rem;">✓ You\'re the lowest!</span>' : ''}
             ${canBeatLowest ? '<span style="color:var(--accent-orange);font-size:0.8rem;">⚡ You can beat this!</span>' : ''}
           </div>
@@ -6153,11 +6153,11 @@
         case 'accepted':
           statusButtons = `
             ${markArrivedBtn}
-            <button class="btn btn-secondary" onclick="updateMyEmergencyStatus('${e.id}', 'en_route`)">${mccIcon('car', 14)} I`m En Route</button>
+            <button class="btn btn-secondary" onclick="updateMyEmergencyStatus('${e.id}', 'en_route')">${mccIcon('car', 14)} I'm En Route</button>
           `;
           break;
         case 'en_route':
-          statusButtons = markArrivedBtn || `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'arrived`)">${mccIcon('map-pin', 14)} I`ve Arrived</button>`;
+          statusButtons = markArrivedBtn || `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'arrived')">${mccIcon('map-pin', 14)} I've Arrived</button>`;
           break;
         case 'arrived':
           statusButtons = `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'in_progress')">${mccIcon('wrench', 14)} Start Work</button>`;

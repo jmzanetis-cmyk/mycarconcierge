@@ -435,7 +435,6 @@ async function handlePay() {
         successLink.textContent = 'Visit My Car Concierge';
         successLink.href = '/';
       }
-    }
   } catch (err) {
     console.error('Payment error:', err);
     if (errorEl) errorEl.textContent = err.message || 'Payment failed. Please try again.';
@@ -443,6 +442,8 @@ async function handlePay() {
       btn.disabled = false;
       btn.innerHTML = mccIcon("credit-card", 16) + ` Pay Now`;
     }
+  }
+}
 
 async function fetchStripeKey() {
   try {
