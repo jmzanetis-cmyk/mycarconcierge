@@ -15,9 +15,14 @@
 // provider state — Phase 2 is recommendation-only. Operator promotes a winner
 // from the existing review surface (or future Matchmaker-specific UI).
 //
-// Idempotency note: the orchestrator marks events processed after dispatch.
-// On the rare retry path a duplicate rank row is acceptable; event_id is
-// stamped on agent_actions for audit so dupes are obvious.
+// Idempotency: the orchestrator marks events processed after dispatch, but
+// retries, manual replays, or re-triggers can still re-deliver the same
+// `auction_closed` payload. Before calling Claude we look up agent_actions
+// for an existing matchmaker row tied to the same care_plan_id (status in
+// proposed/executed/approved) and short-circuit with a `skipped` audit row +
+// `{ success:true, reason:'already_ranked', cost_usd:0 }`. Care plans whose
+// status is already `awarded` are also short-circuited (`already_awarded`).
+// See findExistingMatchmakerAction below.
 // ============================================================================
 
 const {
@@ -61,6 +66,40 @@ async function loadCarePlan(supabase, carePlanId) {
   return data || { id: carePlanId, missing: true };
 }
 
+// Idempotency guard. The orchestrator's at-least-once delivery (and any manual
+// replay of an `auction_closed` event) can re-invoke the handler for the same
+// care plan. Without this check we would burn another spend-cap allotment and
+// write a second `proposed` row, confusing the operator review queue.
+//
+// Returns the existing matchmaker action row when one is found, otherwise null.
+// Match conditions (PostgREST AND of three .or() / .eq() blocks):
+//   - agent_slug = 'matchmaker'
+//   - action_type in (rank, apply)  — only the two action types that signify
+//     "we have already ranked / acted on this care plan". Skipped/error rows
+//     don't count: a previous failure should not block a fresh attempt.
+//   - care_plan_id matches at EITHER `decision->payload->>care_plan_id`
+//     (the rank-row shape this handler writes) OR `decision->>care_plan_id`
+//     (the top-level shape that agent-fleet-admin.js's `apply` rows use).
+//   - status in (proposed, executed, approved) OR review_status = 'approved'
+//     — captures rows that are still "live" in the review queue or already
+//     promoted, and skips terminal skipped/error rows.
+async function findExistingMatchmakerAction(supabase, carePlanId) {
+  const { data, error } = await supabase
+    .from('agent_actions')
+    .select('id, status, review_status, action_type, created_at')
+    .eq('agent_slug', SLUG)
+    .in('action_type', ['rank', 'apply'])
+    .or(`decision->payload->>care_plan_id.eq.${carePlanId},decision->>care_plan_id.eq.${carePlanId}`)
+    .or('status.in.(proposed,executed,approved),review_status.eq.approved')
+    .order('created_at', { ascending: false })
+    .limit(1);
+  if (error) {
+    console.warn(`[${SLUG}] dedupe lookup failed: ${error.message}`);
+    return null;
+  }
+  return (data && data[0]) || null;
+}
+
 async function loadBids(supabase, carePlanId) {
   // Auctions on the job board live in plan_bids (defined in
   // supabase/migrations/20260328_job_board.sql) — NOT the legacy bids table,
@@ -87,9 +126,9 @@ async function loadProviders(supabase, providerIds) {
   return map;
 }
 
-async function buildPrompt(supabase, payload) {
+async function buildPrompt(supabase, payload, preloadedCarePlan = null) {
   const carePlanId = payload.care_plan_id;
-  const carePlan = await loadCarePlan(supabase, carePlanId);
+  const carePlan = preloadedCarePlan || await loadCarePlan(supabase, carePlanId);
   const bids = await loadBids(supabase, carePlanId);
   const providers = await loadProviders(supabase, [...new Set(bids.map(b => b.provider_id).filter(Boolean))]);
 
@@ -164,7 +203,54 @@ async function handleEvent(supabase, agent, eventEnvelope) {
     return { error: 'missing_care_plan_id' };
   }
 
-  const built = await buildPrompt(supabase, payload);
+  // ---------- Idempotency guards (run BEFORE the LLM call) ----------------
+  // 1) If the care plan is already in a terminal awarded state, the operator
+  //    has promoted a winner and there is nothing left to rank. Short-circuit.
+  // 2) If we have already produced (or executed) a rank for this care plan,
+  //    short-circuit. A retry/replay must not write a second `proposed` row
+  //    or burn another spend-cap allotment.
+  //
+  // Both branches log a `skipped` action so the audit trail captures the
+  // duplicate dispatch without polluting the review queue.
+  const carePlanRow = await loadCarePlan(supabase, payload.care_plan_id);
+  if (carePlanRow && carePlanRow.status === 'awarded') {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank', status: 'skipped',
+      autonomyUsed: agent.autonomy,
+      decision: { event_type: eventType, payload, care_plan_status: 'awarded' },
+      reasoning: 'Care plan is already awarded — nothing to rank.',
+      durationMs: Date.now() - t0
+    });
+    return { success: true, reason: 'already_awarded', care_plan_id: payload.care_plan_id, cost_usd: 0, ms: Date.now() - t0 };
+  }
+
+  const existing = await findExistingMatchmakerAction(supabase, payload.care_plan_id);
+  if (existing) {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank', status: 'skipped',
+      autonomyUsed: agent.autonomy,
+      decision: {
+        event_type: eventType, payload,
+        existing_action_id: existing.id,
+        existing_action_status: existing.status,
+        existing_action_type: existing.action_type
+      },
+      reasoning: `Care plan already ranked by matchmaker (action #${existing.id}, status=${existing.status}). Short-circuiting to avoid duplicate proposal.`,
+      durationMs: Date.now() - t0
+    });
+    return {
+      success: true,
+      reason: 'already_ranked',
+      care_plan_id: payload.care_plan_id,
+      existing_action_id: existing.id,
+      cost_usd: 0,
+      ms: Date.now() - t0
+    };
+  }
+
+  const built = await buildPrompt(supabase, payload, carePlanRow);
 
   // Skip the LLM call entirely on a 0-bid auction — there is nothing to rank.
   if (built.bidCount === 0) {
