@@ -30,7 +30,7 @@ Key architectural patterns and features include:
 - **E-commerce**: Integrated Merch Store.
 - **Lead Capture**: Public survey page for prospect lead generation.
 - **Referral & Commission System**: Founder referral program with lifetime commissions.
-- **Payment System**: Escrow payment system using Stripe Connect with manual capture, additional work, discounts, refunds, and split payments.
+- **Payment System**: Care plan completion lifecycle (`care_plan_completions` table — pending/completed/disputed/resolved) with member-side complete & dispute endpoints, admin-side oversight (list/create/patch), AI-assisted dispute resolution and a daily payment-anomaly scanner. Stripe Connect escrow / payouts are deferred to the Medium/Full payment fix; current admin actions are recommendation-only and admins execute refunds manually. SQL: `supabase/migrations/20260428_care_plan_completions.sql` (run via Supabase SQL Editor).
 - **SaaS Billing Foundation**: Configurable plans, access control, and subscription management.
 - **White-label Platform**: Custom branding, domains, and plan limits for tenants.
 - **Fleet SaaS**: Subscription management for fleets with vehicle/driver limits and invitation systems.

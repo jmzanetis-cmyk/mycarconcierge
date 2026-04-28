@@ -108,258 +108,249 @@ async function aiOpsSendSMS(toPhone, body) {
   } catch { return { sent: false }; }
 }
 
-async function runDisputeResolver(supabase, disputeId) {
+// Task #150 Light fix: rewritten against care_plan_completions + care_plans
+// + plan_bids. No Stripe refund (no payment integration in Light) — the AI
+// only recommends and the completion is marked resolved with the
+// recommendation captured in ai_resolution.
+async function runDisputeResolver(supabase, completionId) {
   const t0 = Date.now();
-  const { threshold, maxRefund } = await getAiOpsSettings(supabase);
-  const maxRefundCents = maxRefund * 100;
+  const { threshold } = await getAiOpsSettings(supabase);
 
-  const { data: dispute } = await supabase
-    .from('disputes')
-    .select('*, packages(*), profiles!disputes_member_id_fkey(id, email, phone, created_at), profiles!disputes_provider_id_fkey(id, email, phone, created_at, bid_credits)')
-    .eq('id', disputeId)
+  const { data: completion } = await supabase
+    .from('care_plan_completions')
+    .select('*')
+    .eq('id', completionId)
     .single();
 
-  if (!dispute) return { error: 'Dispute not found' };
+  if (!completion) return { error: 'Completion not found', completionId };
+  if (completion.status !== 'disputed') {
+    return { error: 'Completion is not in disputed state', status: completion.status };
+  }
 
-  const pkg = dispute.packages || {};
-  const memberProfile = dispute['profiles!disputes_member_id_fkey'] || {};
-  const providerProfile = dispute['profiles!disputes_provider_id_fkey'] || {};
+  const [planRes, bidRes, memberRes, providerRes] = await Promise.all([
+    supabase.from('care_plans').select('id, title, description, services, value_min, value_max, service_types, city, state, created_at').eq('id', completion.care_plan_id).single(),
+    completion.accepted_bid_id
+      ? supabase.from('plan_bids').select('id, amount, note, created_at').eq('id', completion.accepted_bid_id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from('profiles').select('id, email, phone, full_name, created_at').eq('id', completion.member_id).maybeSingle(),
+    completion.provider_id
+      ? supabase.from('profiles').select('id, email, phone, business_name, full_name, created_at, bid_credits').eq('id', completion.provider_id).maybeSingle()
+      : Promise.resolve({ data: null })
+  ]);
 
-  // Order history disabled (Task #149): the `packages` table this targeted
-  // was never created. The marketplace runs on care_plans + plan_bids.
-  // Returning empty arrays keeps any caller alive without a 42P01 crash.
-  const [memberHistory, providerHistory] = [[], []];
+  const plan = planRes.data || {};
+  const bid = bidRes.data || {};
+  const memberProfile = memberRes.data || {};
+  const providerProfile = providerRes.data || {};
 
-  const memberPastDisputes = await supabase.from('disputes').select('id, reason, status, created_at').eq('member_id', memberProfile.id || '').limit(5).then(r => r.data || []);
-  const providerPastDisputes = await supabase.from('disputes').select('id, reason, status, created_at').eq('provider_id', providerProfile.id || '').limit(5).then(r => r.data || []);
+  const [memberHistoryRes, providerHistoryRes] = await Promise.all([
+    supabase.from('care_plan_completions').select('id, status, bid_amount, actual_paid_amount, created_at')
+      .eq('member_id', completion.member_id).neq('id', completionId)
+      .order('created_at', { ascending: false }).limit(10),
+    completion.provider_id
+      ? supabase.from('care_plan_completions').select('id, status, bid_amount, actual_paid_amount, created_at')
+        .eq('provider_id', completion.provider_id).neq('id', completionId)
+        .order('created_at', { ascending: false }).limit(10)
+      : Promise.resolve({ data: [] })
+  ]);
+  const memberHistory = memberHistoryRes.data || [];
+  const providerHistory = providerHistoryRes.data || [];
+
+  const fmtMoney = v => (v == null ? 'unknown' : `$${Number(v).toFixed(2)}`);
+  const completedCount = arr => arr.filter(o => o.status === 'completed' || o.status === 'resolved').length;
+  const disputedCount = arr => arr.filter(o => o.status === 'disputed').length;
 
   const prompt = `You are the AI Ops Dispute Resolver for My Car Concierge, an automotive service marketplace.
-Analyze this dispute and provide a resolution recommendation.
+Analyze this disputed care plan completion and recommend a resolution.
 
 DISPUTE:
-- ID: ${disputeId}
-- Reason: ${dispute.reason || 'Not specified'}
-- Description: ${dispute.description || 'No description'}
-- Status: ${dispute.status}
-- Service: ${pkg.title || 'Unknown'} — $${((pkg.amount || 0) / 100).toFixed(2)}
-- Created: ${dispute.created_at}
+- Completion ID: ${completionId}
+- Care plan: ${plan.title || 'Unknown'} (${(plan.services || []).join?.(', ') || 'unspecified services'})
+- Plan budget range: ${fmtMoney(plan.value_min)} – ${fmtMoney(plan.value_max)}
+- Accepted bid amount: ${fmtMoney(bid.amount || completion.bid_amount)}
+- Actual amount paid: ${fmtMoney(completion.actual_paid_amount)}
+- Payment method: ${completion.payment_method || 'unspecified'}
+- Dispute reason category: ${completion.dispute_reason || 'unspecified'}
+- Dispute description: ${completion.dispute_description || 'no description'}
+- Disputed at: ${completion.disputed_at || completion.created_at}
 
-MEMBER HISTORY:
+MEMBER HISTORY (last 10 completions, excluding this one):
 - Account created: ${memberProfile.created_at || 'unknown'}
-- Recent orders: ${memberHistory.length} (${memberHistory.filter(o => o.status === 'completed').length} completed)
-- Past disputes: ${memberPastDisputes.length} (${memberPastDisputes.filter(d => d.status === 'resolved_by_ai').length} auto-resolved)
+- Total prior completions: ${memberHistory.length} (${completedCount(memberHistory)} resolved cleanly, ${disputedCount(memberHistory)} disputed)
+- Pattern: ${disputedCount(memberHistory) >= 3 ? 'frequent disputer — be cautious' : disputedCount(memberHistory) === 0 ? 'no prior disputes — low-risk member' : 'occasional disputer'}
 
-PROVIDER HISTORY:
+PROVIDER HISTORY (last 10 completions, excluding this one):
 - Account created: ${providerProfile.created_at || 'unknown'}
-- Bid credits tier: ${providerProfile.bid_credits || 0} credits
-- Recent orders: ${providerHistory.length} (${providerHistory.filter(o => o.status === 'completed').length} completed, ${providerHistory.filter(o => o.status === 'cancelled').length} cancelled)
-- Past disputes: ${providerPastDisputes.length} (${providerPastDisputes.filter(d => ['full_refund', 'partial_refund'].includes(d.status)).length} resulted in refunds)
+- Bid credits: ${providerProfile.bid_credits || 0}
+- Total prior completions: ${providerHistory.length} (${completedCount(providerHistory)} resolved cleanly, ${disputedCount(providerHistory)} disputed)
+- Pattern: ${disputedCount(providerHistory) >= 3 ? 'high dispute rate — investigate carefully' : disputedCount(providerHistory) === 0 ? 'no prior disputes — generally reliable' : 'occasional disputes'}
 
 Respond ONLY with valid JSON:
-{"recommendation":"full_refund"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"refund_amount_cents":number,"reasoning":"one concise sentence","member_message":"brief message to member","provider_message":"brief message to provider"}
+{"recommendation":"refund_member"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"suggested_refund_amount":number_or_null,"reasoning":"one concise sentence explaining the recommendation","member_message":"brief sympathetic message to member","provider_message":"brief professional message to provider","admin_action_required":"e.g. 'manually refund $X via Stripe' or 'no action needed' or 'follow up with provider by phone'"}
 
-Rules: escalate if complex or conflicting evidence. full_refund if provider clearly failed. partial_refund if partial delivery. deny_refund if claim is unfounded. When in doubt, escalate.`;
+Rules:
+- escalate if evidence is conflicting, the dispute is complex, or amounts exceed $500
+- refund_member if provider clearly failed (no_show, damaged property, work was incomplete after agreed price)
+- partial_refund if partial delivery or amount mismatch (suggest a fair $ amount)
+- deny_refund if member's claim seems unfounded or member shows pattern of frequent disputes
+- always escalate if either party has 3+ disputes in their history
+- ALL refund actions are RECOMMENDATIONS only — admins execute via Stripe dashboard manually (Light fix has no automated Stripe integration).`;
 
   let result;
   try {
-    const response = await callAI(prompt, 512);
+    const response = await callAI(prompt, 700);
     const m = response.text.match(/\{[\s\S]*\}/);
     result = JSON.parse(m ? m[0] : response.text);
   } catch {
-    result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed', member_message: '', provider_message: '' };
+    result = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed', member_message: '', provider_message: '', admin_action_required: 'manually review — AI was unavailable' };
   }
 
-  const confidence = result.confidence || 0;
+  const confidence = Number(result.confidence) || 0;
   const autoExecute = threshold < 1.0 && confidence >= threshold && result.recommendation !== 'escalate';
   const ms = Date.now() - t0;
 
   await logAiAction(supabase, {
-    module: 'dispute_resolver', actionType: result.recommendation, targetId: disputeId,
+    module: 'dispute_resolver', actionType: result.recommendation, targetId: completionId,
     decision: result, confidence, autoExecuted: autoExecute, escalated: !autoExecute,
     outcome: autoExecute ? 'executed' : 'escalated', executionTimeMs: ms
   });
 
   if (!autoExecute) {
     await supabase.from('ai_escalations').insert({
-      module: 'dispute_resolver', target_id: String(disputeId),
+      module: 'dispute_resolver', target_id: String(completionId),
       recommendation: result, confidence, status: 'pending', created_at: new Date().toISOString()
     });
-    return { success: true, action: 'escalated', confidence, reasoning: result.reasoning };
+    return { success: true, action: 'escalated', confidence, reasoning: result.reasoning, admin_action_required: result.admin_action_required };
   }
 
-  let stripeRefundId = null;
-  const refundable = ['full_refund', 'partial_refund'];
-  const stripeKey = process.env.STRIPE_SECRET_KEY;
-
-  if (refundable.includes(result.recommendation) && pkg.payment_intent_id && stripeKey) {
-    const refundAmountCents = Math.min(
-      result.refund_amount_cents || (result.recommendation === 'full_refund' ? (pkg.amount || 0) : 0),
-      maxRefundCents
-    );
-    if (refundAmountCents > 0) {
-      try {
-        const stripe = require('stripe')(stripeKey);
-        const refund = await stripe.refunds.create({
-          payment_intent: pkg.payment_intent_id,
-          amount: refundAmountCents,
-          metadata: { dispute_id: String(disputeId), resolved_by: 'ai_ops', confidence: String(confidence) }
-        });
-        stripeRefundId = refund.id;
-      } catch (refundErr) {
-        console.error('[AiOpsAdmin] Stripe refund error:', refundErr.message);
-      }
-    }
-  }
-
-  await supabase.from('disputes').update({
-    status: 'resolved_by_ai',
-    resolution: result.reasoning,
-    metadata: { ai_recommendation: result.recommendation, ai_confidence: confidence, stripe_refund_id: stripeRefundId },
-    updated_at: new Date().toISOString()
-  }).eq('id', disputeId);
+  // Auto-execute: mark completion resolved with the AI's recommendation captured.
+  // No Stripe refund — admin still has to act on the admin_action_required field.
+  await supabase.from('care_plan_completions').update({
+    status: 'resolved',
+    ai_resolution: { ...result, resolved_by: 'ai_ops_dispute_resolver', resolved_at: new Date().toISOString() },
+    resolved_at: new Date().toISOString()
+  }).eq('id', completionId);
 
   if (memberProfile.phone && result.member_message) {
-    await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: Your dispute has been resolved. ${result.member_message}`);
+    await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`);
   }
   if (providerProfile.phone && result.provider_message) {
-    await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your service has been resolved. ${result.provider_message}`);
+    await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`);
   }
 
-  return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, auto_executed: true, stripe_refund_id: stripeRefundId };
+  return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, admin_action_required: result.admin_action_required, auto_executed: true };
 }
 
+// Task #150 Light fix: rewritten against care_plan_completions. No Stripe
+// payouts (Light has no payment integration). This is a daily anomaly
+// scanner — finds aging pending completions, bid-vs-paid mismatches, and
+// completions missing actual_paid_amount. Each finding is logged once to
+// ai_action_log so the admin sees it on the AI Ops dashboard.
 async function runPaymentTracker(supabase) {
   const t0 = Date.now();
-  const { threshold, maxRefund } = await getAiOpsSettings(supabase);
+  const AGING_DAYS = 7;
+  const MISMATCH_THRESHOLD = 0.20;
+  const sevenDaysAgo = new Date(Date.now() - AGING_DAYS * 86400000).toISOString();
 
-  function getBidCreditTierRate(bidCredits) {
-    if (bidCredits >= 50) return { tier: 'Championship', rate: 0.08 };
-    if (bidCredits >= 25) return { tier: 'Pole Position', rate: 0.10 };
-    if (bidCredits >= 10) return { tier: 'Pit Stop', rate: 0.12 };
-    return { tier: 'Dipstick', rate: 0.15 };
-  }
-
-  const { data: orders } = await supabase
-    .from('packages')
-    .select('id, provider_id, amount, status, created_at, payment_intent_id, profiles!packages_provider_id_fkey(id, email, bid_credits, stripe_connect_account_id)')
-    .eq('status', 'completed')
-    .is('metadata->>ai_reconciled', null)
+  // 1) Aging pending completions — bid was accepted but member never
+  // confirmed completion within AGING_DAYS days.
+  const { data: aging } = await supabase
+    .from('care_plan_completions')
+    .select('id, care_plan_id, member_id, provider_id, bid_amount, created_at')
+    .eq('status', 'pending')
+    .lt('created_at', sevenDaysAgo)
+    .order('created_at', { ascending: true })
     .limit(50);
 
-  if (!orders || orders.length === 0) {
-    return { success: true, message: 'No unreconciled orders', processed: 0 };
-  }
+  // 2) Completions with a significant bid vs paid mismatch (>MISMATCH_THRESHOLD).
+  const { data: completed } = await supabase
+    .from('care_plan_completions')
+    .select('id, care_plan_id, member_id, provider_id, bid_amount, actual_paid_amount, payment_method, completed_at')
+    .eq('status', 'completed')
+    .not('actual_paid_amount', 'is', null)
+    .order('completed_at', { ascending: false })
+    .limit(200);
 
-  const byProvider = {};
-  for (const o of orders) {
-    if (!o.provider_id) continue;
-    if (!byProvider[o.provider_id]) {
-      const prof = o['profiles!packages_provider_id_fkey'] || {};
-      const { tier, rate } = getBidCreditTierRate(prof.bid_credits || 0);
-      byProvider[o.provider_id] = {
-        total: 0, orders: [], email: prof.email,
-        bid_credits: prof.bid_credits || 0, tier, commission_rate: rate,
-        stripe_connect_account_id: prof.stripe_connect_account_id
-      };
-    }
-    byProvider[o.provider_id].total += (o.amount || 0);
-    byProvider[o.provider_id].orders.push(o.id);
-  }
-
-  const summary = Object.entries(byProvider).map(([pid, v]) => ({
-    provider_id: pid, total_cents: v.total, order_count: v.orders.length,
-    tier: v.tier, commission_rate: v.commission_rate,
-    commission_cents: Math.round(v.total * v.commission_rate),
-    net_payout_cents: Math.round(v.total * (1 - v.commission_rate)),
-    has_stripe_connect: !!v.stripe_connect_account_id
-  }));
-
-  let aiResult;
-  try {
-    const response = await callAI(`You are the AI Ops Payment Tracker for My Car Concierge. Review this provider payout batch and flag anomalies.
-BATCH: ${JSON.stringify(summary)}
-Respond ONLY with valid JSON: {"anomalies":[{"provider_id":"...","reason":"..."}],"confidence":0.0-1.0,"recommendation":"process_all"|"flag_anomalies"|"hold_batch","notes":"brief summary"}`, 512);
-    const m = response.text.match(/\{[\s\S]*\}/);
-    aiResult = JSON.parse(m ? m[0] : response.text);
-  } catch {
-    aiResult = { anomalies: [], confidence: 0.5, recommendation: 'flag_anomalies', notes: 'AI unavailable' };
-  }
-
-  const autoExecute = threshold < 1.0 && aiResult.confidence >= threshold && aiResult.recommendation === 'process_all';
-  const anomalousPids = new Set((aiResult.anomalies || []).map(a => a.provider_id));
-
-  await logAiAction(supabase, {
-    module: 'payment_tracker', actionType: aiResult.recommendation, targetId: 'batch',
-    decision: { ...aiResult, summary }, confidence: aiResult.confidence || 0,
-    autoExecuted: autoExecute, escalated: anomalousPids.size > 0,
-    outcome: autoExecute ? 'processed' : 'flagged', executionTimeMs: Date.now() - t0
-  });
-
-  if (anomalousPids.size > 0) {
-    await supabase.from('ai_escalations').insert({
-      module: 'payment_tracker', target_id: 'batch',
-      recommendation: aiResult, confidence: aiResult.confidence || 0,
-      status: 'pending', created_at: new Date().toISOString()
-    });
-  }
-
-  let payoutsInitiated = 0;
-  const payoutErrors = [];
-
-  if (autoExecute) {
-    const stripeKey = process.env.STRIPE_SECRET_KEY;
-    if (stripeKey) {
-      const stripe = require('stripe')(stripeKey);
-      const today = new Date().toISOString().split('T')[0];
-      const batchId = `${Date.now()}`;
-
-      for (const [pid, v] of Object.entries(byProvider)) {
-        if (anomalousPids.has(pid)) continue;
-        if (!v.stripe_connect_account_id) continue;
-        const netCents = Math.round(v.total * (1 - v.commission_rate));
-        if (netCents < 5000) continue;
-        if (netCents > 100000) continue;
-
-        const { data: lastPayoutLog } = await supabase
-          .from('ai_action_log').select('created_at')
-          .eq('module', 'payment_tracker').eq('action_type', 'payout_initiated')
-          .eq('auto_executed', true).eq('target_id', pid)
-          .order('created_at', { ascending: false }).limit(1).maybeSingle();
-
-        if (lastPayoutLog) {
-          const daysSince = (Date.now() - new Date(lastPayoutLog.created_at).getTime()) / 86400000;
-          if (daysSince < 14) continue;
-        }
-
-        try {
-          await stripe.transfers.create({
-            amount: netCents, currency: 'usd', destination: v.stripe_connect_account_id,
-            metadata: { provider_id: pid, batch_id: batchId, commission_rate: String(v.commission_rate), tier: v.tier }
-          }, { idempotencyKey: `mcc-payout-${pid}-${today}-${batchId}` });
-          payoutsInitiated++;
-          await logAiAction(supabase, { module: 'payment_tracker', actionType: 'payout_initiated', targetId: pid, decision: { provider_id: pid, net_cents: netCents, tier: v.tier, batch_id: batchId }, confidence: 1.0, autoExecuted: true, escalated: false, outcome: 'executed', executionTimeMs: Date.now() - t0 });
-          for (const orderId of v.orders) {
-            await supabase.rpc('merge_package_metadata', {
-              p_id: orderId,
-              p_metadata: { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId }
-            }).then(({ error: rpcErr }) => {
-              if (rpcErr) {
-                return supabase.from('packages').select('metadata').eq('id', orderId).single()
-                  .then(({ data: pkg }) => {
-                    const merged = Object.assign({}, pkg?.metadata || {}, { ai_reconciled: true, reconciled_at: new Date().toISOString(), payout_batch: batchId });
-                    return supabase.from('packages').update({ metadata: merged }).eq('id', orderId);
-                  });
-              }
-            });
-          }
-        } catch (payErr) {
-          payoutErrors.push({ provider_id: pid, error: payErr.message });
-        }
+  const mismatches = [];
+  const missingAmount = [];
+  for (const c of (completed || [])) {
+    const bid = Number(c.bid_amount || 0);
+    const paid = Number(c.actual_paid_amount || 0);
+    if (bid > 0) {
+      const ratio = Math.abs(paid - bid) / bid;
+      if (ratio > MISMATCH_THRESHOLD) {
+        mismatches.push({ ...c, mismatch_ratio: ratio });
       }
     }
   }
 
-  return { success: true, processed: orders.length, anomalies: aiResult.anomalies?.length || 0, recommendation: aiResult.recommendation, payouts_initiated: payoutsInitiated, shadow_mode: threshold >= 1.0 };
+  // 3) Completions marked completed but missing actual_paid_amount entirely.
+  const { data: missing } = await supabase
+    .from('care_plan_completions')
+    .select('id, care_plan_id, member_id, provider_id, bid_amount, completed_at')
+    .eq('status', 'completed')
+    .is('actual_paid_amount', null)
+    .order('completed_at', { ascending: false })
+    .limit(50);
+  for (const c of (missing || [])) missingAmount.push(c);
+
+  const findings = [];
+
+  // De-duplicate: only log a finding if there isn't already an
+  // ai_action_log entry for the same completion in the last 24h.
+  const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+  async function alreadyLogged(actionType, targetId) {
+    const { data } = await supabase.from('ai_action_log')
+      .select('id')
+      .eq('module', 'payment_tracker')
+      .eq('action_type', actionType)
+      .eq('target_id', String(targetId))
+      .gte('created_at', oneDayAgo)
+      .limit(1)
+      .maybeSingle();
+    return !!data;
+  }
+
+  for (const c of (aging || [])) {
+    if (await alreadyLogged('aging_pending', c.id)) continue;
+    const ageDays = Math.floor((Date.now() - new Date(c.created_at).getTime()) / 86400000);
+    await logAiAction(supabase, {
+      module: 'payment_tracker', actionType: 'aging_pending', targetId: String(c.id),
+      decision: { care_plan_id: c.care_plan_id, member_id: c.member_id, provider_id: c.provider_id, bid_amount: c.bid_amount, age_days: ageDays, recommendation: 'Nudge member to confirm completion or contact provider.' },
+      confidence: 1.0, autoExecuted: false, escalated: true, outcome: 'flagged', executionTimeMs: Date.now() - t0
+    });
+    findings.push({ type: 'aging_pending', completion_id: c.id, age_days: ageDays });
+  }
+
+  for (const c of mismatches) {
+    if (await alreadyLogged('amount_mismatch', c.id)) continue;
+    await logAiAction(supabase, {
+      module: 'payment_tracker', actionType: 'amount_mismatch', targetId: String(c.id),
+      decision: { care_plan_id: c.care_plan_id, member_id: c.member_id, provider_id: c.provider_id, bid_amount: c.bid_amount, actual_paid_amount: c.actual_paid_amount, payment_method: c.payment_method, mismatch_ratio: Number(c.mismatch_ratio.toFixed(3)), recommendation: 'Confirm with member and provider why amount differed from bid.' },
+      confidence: 1.0, autoExecuted: false, escalated: true, outcome: 'flagged', executionTimeMs: Date.now() - t0
+    });
+    findings.push({ type: 'amount_mismatch', completion_id: c.id, ratio: c.mismatch_ratio });
+  }
+
+  for (const c of missingAmount) {
+    if (await alreadyLogged('missing_amount', c.id)) continue;
+    await logAiAction(supabase, {
+      module: 'payment_tracker', actionType: 'missing_amount', targetId: String(c.id),
+      decision: { care_plan_id: c.care_plan_id, member_id: c.member_id, provider_id: c.provider_id, bid_amount: c.bid_amount, recommendation: 'Member marked complete but did not record payment amount. Contact member to capture amount paid.' },
+      confidence: 1.0, autoExecuted: false, escalated: true, outcome: 'flagged', executionTimeMs: Date.now() - t0
+    });
+    findings.push({ type: 'missing_amount', completion_id: c.id });
+  }
+
+  return {
+    success: true,
+    aging_pending: (aging || []).length,
+    amount_mismatches: mismatches.length,
+    missing_amount: missingAmount.length,
+    new_findings_logged: findings.length,
+    execution_time_ms: Date.now() - t0,
+    note: 'Light fix: this is an analytical scanner — admins act on findings via the AI Ops dashboard. No automated Stripe payouts.'
+  };
 }
 
 async function runDailyDigest(supabase) {
@@ -538,29 +529,85 @@ exports.handler = async function(event, context) {
     }
 
     // POST /api/admin/ai-ops/dispute-resolver/trigger
-    // Disabled — Task #149. Original `runDisputeResolver` queries a `packages`
-    // table that was never created. Will be re-enabled when the marketplace
-    // payments layer ships and the resolver is rewritten against
-    // care_plans + plan_bids.
+    // Task #150 Light fix: now wired to care_plan_completions schema.
+    // Body: { completion_id: "<uuid>" }
     if (method === 'POST' && path === 'dispute-resolver/trigger') {
-      return jsonResponse(501, {
-        error: 'Not yet wired to current schema',
-        detail: 'Dispute resolver depends on a packages/orders table that does not exist. Will be re-enabled when the marketplace payments layer ships.',
-        code: 'feature_paused',
-        task: 149
-      });
+      const completionId = body.completion_id || body.completionId;
+      if (!completionId) {
+        return jsonResponse(400, { error: 'completion_id required' });
+      }
+      const result = await runDisputeResolver(supabase, completionId);
+      return jsonResponse(result.error ? 400 : 200, result);
     }
 
     // POST /api/admin/ai-ops/payment-tracker/run
-    // Disabled — Task #149. See above; runPaymentTracker reconciles `packages`
-    // rows with payment_intent_id which the live schema does not have.
+    // Task #150 Light fix: anomaly scanner over care_plan_completions.
+    // Findings are logged to ai_action_log for admin review.
     if (method === 'POST' && path === 'payment-tracker/run') {
-      return jsonResponse(501, {
-        error: 'Not yet wired to current schema',
-        detail: 'Payment tracker depends on packages.payment_intent_id which does not exist yet. Will be re-enabled when the marketplace payments layer ships.',
-        code: 'feature_paused',
-        task: 149
-      });
+      const result = await runPaymentTracker(supabase);
+      return jsonResponse(200, result);
+    }
+
+    // GET /api/admin/ai-ops/care-plan-completions?status=&aging_days=&limit=
+    // Task #150 Light: list completions with optional status filter.
+    if (method === 'GET' && path === 'care-plan-completions') {
+      const status = (params.status || '').trim();
+      const limit = Math.min(parseInt(params.limit || '50'), 200);
+      const agingDays = parseInt(params.aging_days || '0');
+      let q = supabase.from('care_plan_completions')
+        .select('*, care_plans!care_plan_completions_care_plan_id_fkey(id, title, services, value_min, value_max), member:profiles!care_plan_completions_member_id_fkey(id, email, full_name, phone), provider:profiles!care_plan_completions_provider_id_fkey(id, email, business_name, full_name, phone)')
+        .order('created_at', { ascending: false })
+        .limit(limit);
+      if (status) q = q.eq('status', status);
+      if (agingDays > 0) {
+        const cutoff = new Date(Date.now() - agingDays * 86400000).toISOString();
+        q = q.lt('created_at', cutoff);
+      }
+      const { data, error } = await q;
+      if (error) return jsonResponse(500, { error: error.message });
+      return jsonResponse(200, { completions: data || [] });
+    }
+
+    // POST /api/admin/ai-ops/care-plan-completions
+    // Admin creates a completion record on behalf of a member (Light: no
+    // public member UI yet — admin captures the data manually).
+    if (method === 'POST' && path === 'care-plan-completions') {
+      const { care_plan_id, accepted_bid_id, member_id, provider_id, status, bid_amount, actual_paid_amount, payment_method, completion_notes, dispute_reason, dispute_description, admin_notes } = body;
+      if (!care_plan_id || !member_id) {
+        return jsonResponse(400, { error: 'care_plan_id and member_id required' });
+      }
+      const insertRow = {
+        care_plan_id, accepted_bid_id: accepted_bid_id || null, member_id, provider_id: provider_id || null,
+        status: status || 'pending',
+        bid_amount: bid_amount != null ? Number(bid_amount) : null,
+        actual_paid_amount: actual_paid_amount != null ? Number(actual_paid_amount) : null,
+        payment_method: payment_method || null,
+        completion_notes: completion_notes || null,
+        dispute_reason: dispute_reason || null,
+        dispute_description: dispute_description || null,
+        admin_notes: admin_notes || null
+      };
+      if (insertRow.status === 'completed') insertRow.completed_at = new Date().toISOString();
+      if (insertRow.status === 'disputed') insertRow.disputed_at = new Date().toISOString();
+      const { data, error } = await supabase.from('care_plan_completions').insert(insertRow).select().single();
+      if (error) return jsonResponse(error.code === '23505' ? 409 : 500, { error: error.message });
+      return jsonResponse(201, { completion: data });
+    }
+
+    // PATCH /api/admin/ai-ops/care-plan-completions/:id — admin update
+    const completionMatch = path.match(/^care-plan-completions\/([^/]+)$/);
+    if (method === 'PATCH' && completionMatch) {
+      const id = completionMatch[1];
+      const allowed = {};
+      const fields = ['status', 'actual_paid_amount', 'payment_method', 'completion_notes', 'dispute_reason', 'dispute_description', 'admin_notes', 'ai_resolution'];
+      for (const f of fields) if (body[f] !== undefined) allowed[f] = body[f];
+      if (allowed.status === 'completed' && !allowed.completed_at) allowed.completed_at = new Date().toISOString();
+      if (allowed.status === 'disputed' && !allowed.disputed_at) allowed.disputed_at = new Date().toISOString();
+      if (allowed.status === 'resolved' && !allowed.resolved_at) allowed.resolved_at = new Date().toISOString();
+      if (!Object.keys(allowed).length) return jsonResponse(400, { error: 'No valid fields' });
+      const { data, error } = await supabase.from('care_plan_completions').update(allowed).eq('id', id).select().single();
+      if (error) return jsonResponse(500, { error: error.message });
+      return jsonResponse(200, { completion: data });
     }
 
     // POST /api/admin/ai-ops/daily-digest/run

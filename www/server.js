@@ -34825,34 +34825,44 @@ const server = http.createServer(async (req, res) => {
       }
 
       // POST /api/admin/ai-ops/dispute-resolver/trigger
-      // Disabled — Task #149. runDisputeResolver targets a `packages` table
-      // that was never created (marketplace runs on care_plans + plan_bids).
-      // Will be re-enabled once the marketplace payments layer ships and the
-      // resolver is rewritten against the real schema.
+      // Task #150 Light fix: now wired to care_plan_completions schema.
+      // Body: { completion_id }
       if (req.method === 'POST' && req.url === '/api/admin/ai-ops/dispute-resolver/trigger') {
-        res.writeHead(501, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          error: 'Not yet wired to current schema',
-          detail: 'Dispute resolver depends on a packages/orders table that does not exist. Will be re-enabled when the marketplace payments layer ships.',
-          code: 'feature_paused',
-          task: 149
-        }));
+        let drBody = '';
+        req.on('data', c => { drBody += c.toString(); });
+        req.on('end', async () => {
+          try {
+            const { completion_id } = JSON.parse(drBody || '{}');
+            if (!completion_id) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'completion_id required' }));
+              return;
+            }
+            const result = await runDisputeResolverForCompletion(supabase, completion_id);
+            res.writeHead(result.error ? 400 : 200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify(result));
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
         return;
       }
 
       // POST /api/admin/ai-ops/payment-tracker/run
-      // Disabled — Task #149. See above; runPaymentTracker reconciles
-      // `packages` rows with payment_intent_id which the live schema lacks.
+      // Task #150 Light fix: anomaly scanner over care_plan_completions.
       if (req.method === 'POST' && req.url === '/api/admin/ai-ops/payment-tracker/run') {
-        res.writeHead(501, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-          error: 'Not yet wired to current schema',
-          detail: 'Payment tracker depends on packages.payment_intent_id which does not exist yet. Will be re-enabled when the marketplace payments layer ships.',
-          code: 'feature_paused',
-          task: 149
-        }));
+        try {
+          const result = await runPaymentTrackerScan(supabase);
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify(result));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
         return;
       }
+
 
       // POST /api/admin/ai-ops/daily-digest/run
       if (req.method === 'POST' && req.url === '/api/admin/ai-ops/daily-digest/run') {
@@ -34867,12 +34877,121 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
+      // GET /api/admin/ai-ops/care-plan-completions?status=&aging_days=&limit=
+      // Task #150 Light fix: list completions for admin oversight.
+      if (req.method === 'GET' && req.url.startsWith('/api/admin/ai-ops/care-plan-completions') && !req.url.match(/care-plan-completions\/[^/?]+/)) {
+        try {
+          const u = new URL(req.url, 'http://localhost');
+          const status = (u.searchParams.get('status') || '').trim();
+          const limit = Math.min(parseInt(u.searchParams.get('limit') || '50'), 200);
+          const agingDays = parseInt(u.searchParams.get('aging_days') || '0');
+          let q = supabase.from('care_plan_completions')
+            .select('*, care_plans!care_plan_completions_care_plan_id_fkey(id, title, services, value_min, value_max), member:profiles!care_plan_completions_member_id_fkey(id, email, full_name, phone), provider:profiles!care_plan_completions_provider_id_fkey(id, email, business_name, full_name, phone)')
+            .order('created_at', { ascending: false }).limit(limit);
+          if (status) q = q.eq('status', status);
+          if (agingDays > 0) {
+            const cutoff = new Date(Date.now() - agingDays * 86400000).toISOString();
+            q = q.lt('created_at', cutoff);
+          }
+          const { data, error } = await q;
+          if (error && isTableMissingError(error)) {
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ completions: [], setup_required: true, setup_sql: 'supabase/migrations/20260428_care_plan_completions.sql' }));
+            return;
+          }
+          if (error) throw error;
+          res.writeHead(200, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ completions: data || [] }));
+        } catch (err) {
+          res.writeHead(500, { 'Content-Type': 'application/json' });
+          res.end(JSON.stringify({ error: err.message }));
+        }
+        return;
+      }
+  
+      // POST /api/admin/ai-ops/care-plan-completions — admin creates completion on behalf of member
+      if (req.method === 'POST' && req.url === '/api/admin/ai-ops/care-plan-completions') {
+        let cBody = '';
+        req.on('data', c => { cBody += c.toString(); });
+        req.on('end', async () => {
+          try {
+            const b = JSON.parse(cBody || '{}');
+            if (!b.care_plan_id || !b.member_id) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'care_plan_id and member_id required' }));
+              return;
+            }
+            const insertRow = {
+              care_plan_id: b.care_plan_id, accepted_bid_id: b.accepted_bid_id || null,
+              member_id: b.member_id, provider_id: b.provider_id || null,
+              status: b.status || 'pending',
+              bid_amount: b.bid_amount != null ? Number(b.bid_amount) : null,
+              actual_paid_amount: b.actual_paid_amount != null ? Number(b.actual_paid_amount) : null,
+              payment_method: b.payment_method || null,
+              completion_notes: b.completion_notes || null,
+              dispute_reason: b.dispute_reason || null,
+              dispute_description: b.dispute_description || null,
+              admin_notes: b.admin_notes || null
+            };
+            if (insertRow.status === 'completed') insertRow.completed_at = new Date().toISOString();
+            if (insertRow.status === 'disputed') insertRow.disputed_at = new Date().toISOString();
+            const { data, error } = await supabase.from('care_plan_completions').insert(insertRow).select().single();
+            if (error) {
+              res.writeHead(error.code === '23505' ? 409 : 500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+              return;
+            }
+            res.writeHead(201, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ completion: data }));
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+  
+      // PATCH /api/admin/ai-ops/care-plan-completions/:id — admin update
+      const cpcMatch = req.url.match(/^\/api\/admin\/ai-ops\/care-plan-completions\/([^/?]+)$/);
+      if (req.method === 'PATCH' && cpcMatch) {
+        const id = cpcMatch[1];
+        let pBody = '';
+        req.on('data', c => { pBody += c.toString(); });
+        req.on('end', async () => {
+          try {
+            const b = JSON.parse(pBody || '{}');
+            const allowed = {};
+            const fields = ['status', 'actual_paid_amount', 'payment_method', 'completion_notes', 'dispute_reason', 'dispute_description', 'admin_notes', 'ai_resolution'];
+            for (const f of fields) if (b[f] !== undefined) allowed[f] = b[f];
+            if (allowed.status === 'completed' && !allowed.completed_at) allowed.completed_at = new Date().toISOString();
+            if (allowed.status === 'disputed' && !allowed.disputed_at) allowed.disputed_at = new Date().toISOString();
+            if (allowed.status === 'resolved' && !allowed.resolved_at) allowed.resolved_at = new Date().toISOString();
+            if (!Object.keys(allowed).length) {
+              res.writeHead(400, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: 'No valid fields' }));
+              return;
+            }
+            const { data, error } = await supabase.from('care_plan_completions').update(allowed).eq('id', id).select().single();
+            if (error) {
+              res.writeHead(500, { 'Content-Type': 'application/json' });
+              res.end(JSON.stringify({ error: error.message }));
+              return;
+            }
+            res.writeHead(200, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ completion: data }));
+          } catch (err) {
+            res.writeHead(500, { 'Content-Type': 'application/json' });
+            res.end(JSON.stringify({ error: err.message }));
+          }
+        });
+        return;
+      }
+
       res.writeHead(404, { 'Content-Type': 'application/json' });
+
       res.end(JSON.stringify({ error: 'Not found' }));
     }, 'ai-ops');
   }
-
-
   if (req.method === 'OPTIONS' && (req.url === '/api/analytics/track' || req.url.startsWith('/api/analytics/data'))) {
     setCorsHeaders(res, req);
     res.writeHead(200);
@@ -44839,6 +44958,142 @@ Generate 3-5 relevant services based on vehicle age and mileage.`;
     return;
   }
 
+  // ====================================================================
+  // Care Plan Completions — Task #150 Light fix (member-side endpoints)
+  // Note: there is no public member care plan UI yet — these endpoints
+  // exist so that any internal tooling, the admin portal, or future
+  // member UI can drive the completion lifecycle. Public "Mark Complete"
+  // and "Raise Dispute" buttons are deferred to a follow-up task.
+  // ====================================================================
+
+  // POST /api/care-plans/:id/complete — member marks the accepted bid completed
+  // Body: { accepted_bid_id?, actual_paid_amount?, payment_method?, completion_notes? }
+  const careCompMatch = req.url.match(/^\/api\/care-plans\/([^/?]+)\/complete$/);
+  if (req.method === 'POST' && careCompMatch) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const carePlanId = careCompMatch[1];
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        const { data: plan } = await supabase.from('care_plans').select('id, member_id').eq('id', carePlanId).single();
+        if (!plan) { res.writeHead(404); res.end(JSON.stringify({ error: 'Care plan not found' })); return; }
+        if (plan.member_id !== user.id) { res.writeHead(403); res.end(JSON.stringify({ error: 'Only the plan owner can mark completion' })); return; }
+
+        let acceptedBid = null;
+        if (b.accepted_bid_id) {
+          // Explicit bid id supplied: must belong to this plan AND be in 'accepted' status.
+          const { data } = await supabase.from('plan_bids').select('id, provider_id, amount, status').eq('id', b.accepted_bid_id).eq('care_plan_id', carePlanId).maybeSingle();
+          if (data && data.status === 'accepted') acceptedBid = data;
+        } else {
+          // No id supplied: look up the (single) bid the member previously accepted on this plan.
+          const { data } = await supabase.from('plan_bids').select('id, provider_id, amount, status').eq('care_plan_id', carePlanId).eq('status', 'accepted').limit(2);
+          if (data && data.length === 1) acceptedBid = data[0];
+          else if (data && data.length > 1) { res.writeHead(409); res.end(JSON.stringify({ error: 'Multiple accepted bids on this plan — pass accepted_bid_id explicitly' })); return; }
+        }
+        if (!acceptedBid) { res.writeHead(400); res.end(JSON.stringify({ error: 'No accepted bid found for this plan. Accept a bid before marking complete.' })); return; }
+
+        const insertRow = {
+          care_plan_id: carePlanId,
+          accepted_bid_id: acceptedBid.id,
+          member_id: user.id,
+          provider_id: acceptedBid.provider_id,
+          status: 'completed',
+          bid_amount: Number(acceptedBid.amount),
+          actual_paid_amount: b.actual_paid_amount != null ? Number(b.actual_paid_amount) : null,
+          payment_method: b.payment_method || null,
+          completion_notes: b.completion_notes || null,
+          completed_at: new Date().toISOString()
+        };
+        const { data, error } = await supabase.from('care_plan_completions').insert(insertRow).select().single();
+        if (error) {
+          if (error.code === '23505') { res.writeHead(409); res.end(JSON.stringify({ error: 'Completion already recorded for this care plan' })); return; }
+          if (isTableMissingError(error)) { res.writeHead(503); res.end(JSON.stringify({ error: 'care_plan_completions table not yet created — run supabase/migrations/20260428_care_plan_completions.sql' })); return; }
+          throw error;
+        }
+        res.writeHead(201, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ completion: data }));
+      } catch (err) {
+        console.error('[CarePlanCompletion] POST /complete error:', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to record completion' }));
+      }
+    });
+    return;
+  }
+
+  // POST /api/care-plans/:id/dispute — member marks completion disputed
+  // Body: { dispute_reason, dispute_description }
+  const careDispMatch = req.url.match(/^\/api\/care-plans\/([^/?]+)\/dispute$/);
+  if (req.method === 'POST' && careDispMatch) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const carePlanId = careDispMatch[1];
+    let body = '';
+    req.on('data', c => { body += c; });
+    req.on('end', async () => {
+      try {
+        const b = JSON.parse(body || '{}');
+        if (!b.dispute_reason && !b.dispute_description) {
+          res.writeHead(400); res.end(JSON.stringify({ error: 'dispute_reason or dispute_description required' })); return;
+        }
+        const { data: completion, error: cErr } = await supabase.from('care_plan_completions').select('id, member_id, status').eq('care_plan_id', carePlanId).maybeSingle();
+        if (cErr && isTableMissingError(cErr)) { res.writeHead(503); res.end(JSON.stringify({ error: 'care_plan_completions table not yet created' })); return; }
+        if (!completion) { res.writeHead(404); res.end(JSON.stringify({ error: 'No completion record exists for this plan — mark complete first' })); return; }
+        if (completion.member_id !== user.id) { res.writeHead(403); res.end(JSON.stringify({ error: 'Only the plan owner can raise a dispute' })); return; }
+        if (!['completed', 'pending'].includes(completion.status)) { res.writeHead(409); res.end(JSON.stringify({ error: `Cannot dispute completion in status: ${completion.status}` })); return; }
+
+        const { data, error } = await supabase.from('care_plan_completions').update({
+          status: 'disputed',
+          dispute_reason: b.dispute_reason || null,
+          dispute_description: b.dispute_description || null,
+          disputed_at: new Date().toISOString()
+        }).eq('id', completion.id).select().single();
+        if (error) throw error;
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ completion: data }));
+      } catch (err) {
+        console.error('[CarePlanCompletion] POST /dispute error:', err.message);
+        res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to raise dispute' }));
+      }
+    });
+    return;
+  }
+
+  // GET /api/care-plans/:id/completion — member or assigned provider can read
+  const careGetCompMatch = req.url.match(/^\/api\/care-plans\/([^/?]+)\/completion$/);
+  if (req.method === 'GET' && careGetCompMatch) {
+    setSecurityHeaders(res, true);
+    setCorsHeaders(res);
+    const user = await authenticateRequest(req);
+    if (!user) { res.writeHead(401); res.end(JSON.stringify({ error: 'Unauthorized' })); return; }
+    const carePlanId = careGetCompMatch[1];
+    try {
+      const { data: completion, error } = await supabase.from('care_plan_completions').select('*').eq('care_plan_id', carePlanId).maybeSingle();
+      if (error && isTableMissingError(error)) {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ completion: null, setup_required: true }));
+        return;
+      }
+      if (error) throw error;
+      if (!completion) { res.writeHead(404); res.end(JSON.stringify({ error: 'No completion record' })); return; }
+      if (completion.member_id !== user.id && completion.provider_id !== user.id) {
+        res.writeHead(403); res.end(JSON.stringify({ error: 'Forbidden' })); return;
+      }
+      res.writeHead(200, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ completion }));
+    } catch (err) {
+      console.error('[CarePlanCompletion] GET /completion error:', err.message);
+      res.writeHead(500); res.end(JSON.stringify({ error: 'Failed to load completion' }));
+    }
+    return;
+  }
+
   // GET /api/care-plans/preview — count of open plans matching auto-bid criteria (providers only)
   if (req.method === 'GET' && req.url.startsWith('/api/care-plans/preview')) {
     setSecurityHeaders(res, true);
@@ -46152,6 +46407,200 @@ async function runDailyDigest(supabase, requestId = 'ai-ops') {
     console.error('[AI_OPS] Daily digest error:', err.message);
     return { error: err.message };
   }
+}
+
+// Task #150 Light fix: care_plan_completions helpers
+// Used by /api/admin/ai-ops/dispute-resolver/trigger and
+// /api/admin/ai-ops/payment-tracker/run.
+async function runDisputeResolverForCompletion(supabase, completionId) {
+  const t0 = Date.now();
+
+  const { data: completion, error: cErr } = await supabase
+    .from('care_plan_completions').select('*').eq('id', completionId).single();
+  if (cErr || !completion) return { error: 'Completion not found', completionId };
+  if (completion.status !== 'disputed') {
+    return { error: 'Completion is not in disputed state', status: completion.status };
+  }
+
+  const [planRes, bidRes, memberRes, providerRes] = await Promise.all([
+    supabase.from('care_plans').select('id, title, description, services, value_min, value_max, service_types').eq('id', completion.care_plan_id).single(),
+    completion.accepted_bid_id
+      ? supabase.from('plan_bids').select('id, amount, note').eq('id', completion.accepted_bid_id).single()
+      : Promise.resolve({ data: null }),
+    supabase.from('profiles').select('id, email, phone, full_name, created_at').eq('id', completion.member_id).maybeSingle(),
+    completion.provider_id
+      ? supabase.from('profiles').select('id, email, phone, business_name, full_name, created_at, bid_credits').eq('id', completion.provider_id).maybeSingle()
+      : Promise.resolve({ data: null })
+  ]);
+  const plan = planRes.data || {};
+  const bid = bidRes.data || {};
+  const memberProfile = memberRes.data || {};
+  const providerProfile = providerRes.data || {};
+
+  const [memHist, provHist] = await Promise.all([
+    supabase.from('care_plan_completions').select('id, status').eq('member_id', completion.member_id).neq('id', completionId).limit(10),
+    completion.provider_id
+      ? supabase.from('care_plan_completions').select('id, status').eq('provider_id', completion.provider_id).neq('id', completionId).limit(10)
+      : Promise.resolve({ data: [] })
+  ]);
+  const memberHist = memHist.data || [];
+  const providerHist = provHist.data || [];
+  const fmtMoney = v => (v == null ? 'unknown' : `$${Number(v).toFixed(2)}`);
+  const disputed = arr => arr.filter(o => o.status === 'disputed').length;
+
+  const prompt = `You are the AI Ops Dispute Resolver for My Car Concierge. Analyze this disputed care plan completion and recommend a resolution.
+
+DISPUTE:
+- Completion ID: ${completionId}
+- Care plan: ${plan.title || 'Unknown'}
+- Services: ${(plan.services || []).join(', ') || 'unspecified'}
+- Plan budget: ${fmtMoney(plan.value_min)} – ${fmtMoney(plan.value_max)}
+- Accepted bid: ${fmtMoney(bid.amount || completion.bid_amount)}
+- Actual paid: ${fmtMoney(completion.actual_paid_amount)}
+- Payment method: ${completion.payment_method || 'unspecified'}
+- Dispute reason: ${completion.dispute_reason || 'unspecified'}
+- Description: ${completion.dispute_description || 'no description'}
+
+MEMBER: ${memberHist.length} prior completions, ${disputed(memberHist)} disputed
+PROVIDER: ${providerHist.length} prior completions, ${disputed(providerHist)} disputed; ${providerProfile.bid_credits || 0} bid credits
+
+Respond ONLY with valid JSON:
+{"recommendation":"refund_member"|"partial_refund"|"deny_refund"|"escalate","confidence":0.0-1.0,"suggested_refund_amount":number_or_null,"reasoning":"one sentence","member_message":"brief","provider_message":"brief","admin_action_required":"e.g. 'manually refund $X via Stripe' or 'no action needed'"}
+
+Rules: escalate if conflicting evidence, complex, amounts >$500, or either party has 3+ prior disputes. All refunds are RECOMMENDATIONS — admin executes manually.`;
+
+  let aiResult;
+  try {
+    const aiResp = await generateAIContent(prompt, { maxTokens: 700, preferredProvider: 'anthropic' });
+    const m = aiResp.text.match(/\{[\s\S]*\}/);
+    aiResult = JSON.parse(m ? m[0] : aiResp.text);
+  } catch {
+    aiResult = { recommendation: 'escalate', confidence: 0, reasoning: 'AI parse failed', member_message: '', provider_message: '', admin_action_required: 'manually review — AI unavailable' };
+  }
+
+  const confidence = Number(aiResult.confidence) || 0;
+  // Read threshold from ai_ops_settings (fall back to env)
+  let threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  try {
+    const { data: settingRow } = await supabase.from('ai_ops_settings').select('value').eq('key', 'confidence_threshold').maybeSingle();
+    if (settingRow && settingRow.value) threshold = parseFloat(settingRow.value);
+  } catch {}
+  const autoExecute = threshold < 1.0 && confidence >= threshold && aiResult.recommendation !== 'escalate';
+  const ms = Date.now() - t0;
+
+  try {
+    await supabase.from('ai_action_log').insert({
+      module: 'dispute_resolver', action_type: aiResult.recommendation, target_id: String(completionId),
+      decision: aiResult, confidence,
+      auto_executed: autoExecute, escalated: !autoExecute,
+      outcome: autoExecute ? 'executed' : 'escalated',
+      execution_time_ms: ms, created_at: new Date().toISOString()
+    });
+  } catch {}
+
+  if (!autoExecute) {
+    try {
+      await supabase.from('ai_escalations').insert({
+        module: 'dispute_resolver', target_id: String(completionId),
+        recommendation: aiResult, confidence, status: 'pending',
+        created_at: new Date().toISOString()
+      });
+    } catch {}
+    return { success: true, action: 'escalated', confidence, reasoning: aiResult.reasoning, admin_action_required: aiResult.admin_action_required };
+  }
+
+  await supabase.from('care_plan_completions').update({
+    status: 'resolved',
+    ai_resolution: { ...aiResult, resolved_by: 'ai_ops_dispute_resolver', resolved_at: new Date().toISOString() },
+    resolved_at: new Date().toISOString()
+  }).eq('id', completionId);
+
+  if (memberProfile.phone && aiResult.member_message) {
+    try { await sendSms(memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${aiResult.member_message}`); } catch {}
+  }
+  if (providerProfile.phone && aiResult.provider_message) {
+    try { await sendSms(providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${aiResult.provider_message}`); } catch {}
+  }
+
+  return { success: true, action: aiResult.recommendation, confidence, reasoning: aiResult.reasoning, admin_action_required: aiResult.admin_action_required, auto_executed: true };
+}
+
+async function runPaymentTrackerScan(supabase) {
+  const t0 = Date.now();
+  const AGING_DAYS = 7;
+  const MISMATCH_THRESHOLD = 0.20;
+  const sevenDaysAgo = new Date(Date.now() - AGING_DAYS * 86400000).toISOString();
+  const oneDayAgo = new Date(Date.now() - 86400000).toISOString();
+
+  async function alreadyLogged(actionType, targetId) {
+    try {
+      const { data } = await supabase.from('ai_action_log').select('id')
+        .eq('module', 'payment_tracker').eq('action_type', actionType)
+        .eq('target_id', String(targetId)).gte('created_at', oneDayAgo).limit(1).maybeSingle();
+      return !!data;
+    } catch { return false; }
+  }
+  async function logFinding(actionType, targetId, decision) {
+    try {
+      await supabase.from('ai_action_log').insert({
+        module: 'payment_tracker', action_type: actionType, target_id: String(targetId),
+        decision, confidence: 1.0, auto_executed: false, escalated: true,
+        outcome: 'flagged', execution_time_ms: Date.now() - t0, created_at: new Date().toISOString()
+      });
+    } catch {}
+  }
+
+  const { data: aging, error: agingErr } = await supabase.from('care_plan_completions')
+    .select('id, care_plan_id, member_id, provider_id, bid_amount, created_at')
+    .eq('status', 'pending').lt('created_at', sevenDaysAgo).limit(50);
+  if (agingErr && isTableMissingError(agingErr)) {
+    return { success: false, setup_required: true, setup_sql: 'supabase/migrations/20260428_care_plan_completions.sql' };
+  }
+
+  const { data: completed } = await supabase.from('care_plan_completions')
+    .select('id, care_plan_id, member_id, provider_id, bid_amount, actual_paid_amount, payment_method, completed_at')
+    .eq('status', 'completed').not('actual_paid_amount', 'is', null).limit(200);
+  const { data: missing } = await supabase.from('care_plan_completions')
+    .select('id, care_plan_id, member_id, provider_id, bid_amount, completed_at')
+    .eq('status', 'completed').is('actual_paid_amount', null).limit(50);
+
+  const findings = [];
+
+  for (const c of (aging || [])) {
+    if (await alreadyLogged('aging_pending', c.id)) continue;
+    const ageDays = Math.floor((Date.now() - new Date(c.created_at).getTime()) / 86400000);
+    await logFinding('aging_pending', c.id, { care_plan_id: c.care_plan_id, member_id: c.member_id, provider_id: c.provider_id, bid_amount: c.bid_amount, age_days: ageDays, recommendation: 'Nudge member to confirm completion or contact provider.' });
+    findings.push({ type: 'aging_pending', completion_id: c.id });
+  }
+
+  let mismatchCount = 0;
+  for (const c of (completed || [])) {
+    const bid = Number(c.bid_amount || 0);
+    const paid = Number(c.actual_paid_amount || 0);
+    if (bid <= 0) continue;
+    const ratio = Math.abs(paid - bid) / bid;
+    if (ratio <= MISMATCH_THRESHOLD) continue;
+    mismatchCount++;
+    if (await alreadyLogged('amount_mismatch', c.id)) continue;
+    await logFinding('amount_mismatch', c.id, { care_plan_id: c.care_plan_id, member_id: c.member_id, provider_id: c.provider_id, bid_amount: bid, actual_paid_amount: paid, payment_method: c.payment_method, mismatch_ratio: Number(ratio.toFixed(3)), recommendation: 'Confirm with member and provider why amount differed from bid.' });
+    findings.push({ type: 'amount_mismatch', completion_id: c.id });
+  }
+
+  for (const c of (missing || [])) {
+    if (await alreadyLogged('missing_amount', c.id)) continue;
+    await logFinding('missing_amount', c.id, { care_plan_id: c.care_plan_id, member_id: c.member_id, provider_id: c.provider_id, bid_amount: c.bid_amount, recommendation: 'Member marked complete but did not record payment amount.' });
+    findings.push({ type: 'missing_amount', completion_id: c.id });
+  }
+
+  return {
+    success: true,
+    aging_pending: (aging || []).length,
+    amount_mismatches: mismatchCount,
+    missing_amount: (missing || []).length,
+    new_findings_logged: findings.length,
+    execution_time_ms: Date.now() - t0,
+    note: 'Light fix: analytical scanner only — no automated Stripe payouts.'
+  };
 }
 
 // These are registered in the main request handler below via the ai-ops route block

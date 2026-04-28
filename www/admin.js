@@ -10671,6 +10671,107 @@
     }
     window.runAiOpsDigest = runAiOpsDigest;
 
+    // === Task #150 Light: Dispute Resolver / Payment Tracker / Care Plan Completions ===
+    async function runAiOpsDisputeResolver() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const resultEl = document.getElementById('ai-ops-dispute-trigger-result');
+      const idEl = document.getElementById('ai-ops-dispute-completion-id');
+      const completionId = (idEl?.value || '').trim();
+      if (!completionId) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Enter a completion UUID first.'; }
+        return;
+      }
+      try {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Resolving…'; }
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/dispute-resolver/trigger`, {
+          method: 'POST', headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ completion_id: completionId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast(`Dispute ${data.action || 'processed'}`, 'success');
+        if (resultEl) { resultEl.style.color = 'var(--accent-green)'; resultEl.textContent = `${data.action} (conf ${(data.confidence || 0).toFixed(2)}) — ${data.reasoning || ''}`; }
+        if (typeof loadCarePlanCompletions === 'function') loadCarePlanCompletions();
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.runAiOpsDisputeResolver = runAiOpsDisputeResolver;
+
+    async function runAiOpsPaymentTracker() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const resultEl = document.getElementById('ai-ops-payment-trigger-result');
+      try {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Scanning…'; }
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        if (window.showToast) showToast('Payment scan complete', 'success');
+        if (resultEl) {
+          resultEl.style.color = 'var(--accent-green)';
+          resultEl.textContent = `Aging: ${data.aging_pending || 0} · Mismatches: ${data.amount_mismatches || 0} · Missing amount: ${data.missing_amount || 0} · New findings: ${data.new_findings_logged || 0}`;
+        }
+      } catch (err) {
+        if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
+        if (window.showToast) showToast('Error: ' + err.message, 'error');
+      }
+    }
+    window.runAiOpsPaymentTracker = runAiOpsPaymentTracker;
+
+    async function loadCarePlanCompletions() {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const contentEl = document.getElementById('ai-ops-completions-content');
+      if (!contentEl) return;
+      const status = (document.getElementById('ai-ops-completions-status-filter')?.value || '').trim();
+      contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;">Loading…</div>';
+      try {
+        const qs = status ? `?status=${encodeURIComponent(status)}` : '';
+        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed');
+        const rows = data.completions || [];
+        if (!rows.length) {
+          contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;font-size:0.9rem;">No completions found.</div>';
+          return;
+        }
+        const esc = s => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+        const fmt = v => v == null ? '—' : `$${Number(v).toFixed(2)}`;
+        const dt = s => s ? new Date(s).toLocaleString() : '—';
+        const statusColor = s => ({pending:'var(--text-muted)',completed:'var(--accent-green)',disputed:'var(--accent-red)',resolved:'var(--accent-blue)',cancelled:'var(--text-muted)'})[s] || 'var(--text-muted)';
+        contentEl.innerHTML = `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+              <thead>
+                <tr style="text-align:left;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);">
+                  <th style="padding:8px;">ID</th><th style="padding:8px;">Status</th><th style="padding:8px;">Bid</th><th style="padding:8px;">Paid</th><th style="padding:8px;">Created</th><th style="padding:8px;">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map(r => `
+                  <tr style="border-bottom:1px solid var(--border-subtle);">
+                    <td style="padding:8px;font-family:monospace;font-size:0.78rem;">${esc(r.id).slice(0,8)}…</td>
+                    <td style="padding:8px;color:${statusColor(r.status)};font-weight:600;">${esc(r.status)}</td>
+                    <td style="padding:8px;">${fmt(r.bid_amount)}</td>
+                    <td style="padding:8px;">${fmt(r.actual_paid_amount)}</td>
+                    <td style="padding:8px;color:var(--text-muted);">${dt(r.created_at)}</td>
+                    <td style="padding:8px;">
+                      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';window.scrollTo({top:0,behavior:'smooth'});">Use ID</button>
+                      ${r.status === 'disputed' ? `<button class="btn btn-primary btn-sm" onclick="(async()=>{document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';await runAiOpsDisputeResolver();})()">Resolve</button>` : ''}
+                    </td>
+                  </tr>
+                `).join('')}
+              </tbody>
+            </table>
+          </div>
+          <div style="color:var(--text-muted);font-size:0.78rem;padding:8px;">${rows.length} record${rows.length === 1 ? '' : 's'}</div>
+        `;
+      } catch (err) {
+        contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${err.message}</div>`;
+      }
+    }
+    window.loadCarePlanCompletions = loadCarePlanCompletions;
+
     async function loadAiOpsSettings() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       const contentEl = document.getElementById('ai-ops-settings-content');

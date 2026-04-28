@@ -21,9 +21,11 @@
 [functions."outreach-cleanup"]
   schedule = "0 0 * * 0"
 
-# payment-tracker-scheduled cron disabled — module targets a `packages` table
-# that was never created (marketplace runs on care_plans + plan_bids instead).
-# Re-enable once the marketplace payments layer ships. See Task #149.
+# Task #150 Light fix: payment-tracker-scheduled re-enabled, rewritten as a
+# daily anomaly scanner over care_plan_completions. Findings are logged to
+# ai_action_log for admin review on the AI Ops dashboard.
+[functions."payment-tracker-scheduled"]
+  schedule = "0 3 * * *"
 
 [functions."daily-digest-scheduled"]
   schedule = "0 1 * * *"

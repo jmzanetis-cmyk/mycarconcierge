@@ -4119,6 +4119,8 @@
               </select>
               <select id="ai-ops-module-filter" onchange="loadAiOpsActivity()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
                 <option value="">All modules / agents</option>
+                <option value="dispute_resolver">Dispute Resolver</option>
+                <option value="payment_tracker">Payment Tracker</option>
                 <option value="outreach_engine">Outreach Engine</option>
                 <option value="daily_digest">Daily Digest</option>
                 <option value="ai_helpdesk">AI Helpdesk</option>
@@ -4199,17 +4201,53 @@
 
           <div style="padding-top:20px;border-top:1px solid var(--border-subtle);margin-top:8px;">
             <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-primary);">Manual Triggers</h3>
-            <div style="background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:14px 16px;margin-bottom:12px;color:var(--text-secondary);font-size:0.88rem;line-height:1.5;">
-              <strong style="color:var(--text-primary);">Dispute Resolver and Payment Tracker are paused.</strong>
-              They target a payments schema that hasn't shipped yet. Daily Digest below still works, and the Agent Fleet (Gatekeeper, Hunter, Promoter, Analyst, Matchmaker…) handles all current automation.
+            <div style="background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:14px 16px;margin-bottom:12px;color:var(--text-secondary);font-size:0.85rem;line-height:1.5;">
+              Dispute Resolver and Payment Tracker now run against the
+              <code>care_plan_completions</code> table (Light fix). The resolver
+              recommends actions only — admins still execute refunds manually
+              via Stripe. The tracker is a daily anomaly scanner.
             </div>
-            <div style="display:flex;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:200px;">
+            <div style="display:flex;gap:16px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:240px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Dispute Resolver</div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+                  <input type="text" id="ai-ops-dispute-completion-id" placeholder="completion UUID" style="flex:1;min-width:160px;padding:6px 10px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;" />
+                  <button class="btn btn-primary btn-sm" onclick="runAiOpsDisputeResolver()">Resolve</button>
+                </div>
+                <div id="ai-ops-dispute-trigger-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
+              </div>
+              <div style="flex:1;min-width:240px;">
+                <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Payment Tracker</div>
+                <button class="btn btn-primary btn-sm" onclick="runAiOpsPaymentTracker()">Run Scan</button>
+                <div id="ai-ops-payment-trigger-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
+              </div>
+              <div style="flex:1;min-width:240px;">
                 <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;">Daily Digest</div>
                 <button class="btn btn-primary btn-sm" onclick="runAiOpsDigest()">Generate Digest</button>
                 <div id="ai-ops-digest-trigger-result" style="margin-top:8px;font-size:0.85rem;display:none;"></div>
               </div>
             </div>
+          </div>
+        </div>
+
+        <!-- Care Plan Completions admin panel — Task #150 Light fix -->
+        <div class="card" style="margin-top:16px;">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
+            <h2 class="card-title">Care Plan Completions</h2>
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
+              <select id="ai-ops-completions-status-filter" onchange="loadCarePlanCompletions()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="completed">Completed</option>
+                <option value="disputed">Disputed</option>
+                <option value="resolved">Resolved</option>
+                <option value="cancelled">Cancelled</option>
+              </select>
+              <button class="btn btn-secondary btn-sm" onclick="loadCarePlanCompletions()">Refresh</button>
+            </div>
+          </div>
+          <div id="ai-ops-completions-content" style="padding:0 0 16px;">
+            <div style="color:var(--text-muted);padding:24px;text-align:center;font-size:0.9rem;">Click Refresh to load completions.</div>
           </div>
         </div>
 
