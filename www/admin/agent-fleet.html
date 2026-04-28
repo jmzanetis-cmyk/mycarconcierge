@@ -922,20 +922,20 @@ async function loadPosts() {
   }
 }
 
-async function fetchHunterReasoning(eventPayloadLeadId) {
-  // Best-effort: list recent Hunter actions and pick the one whose decision references this lead.
+async function fetchHunterReasoning(leadId) {
+  // Task #130: deterministic lookup — go straight to the lead-scoped admin
+  // endpoint (indexed query on agent_actions.decision->>'social_lead_id')
+  // instead of scanning the most recent 50 hunter actions and matching
+  // client-side. The old approach silently dropped reasoning for any lead
+  // older than the 50-row window.
   try {
-    const { rows } = await api('/actions?agent=hunter&limit=50');
-    if (!rows) return null;
-    return rows.find(a => {
-      try {
-        const d = a.decision || {};
-        return d.social_lead_id === eventPayloadLeadId
-            || d.lead_id === eventPayloadLeadId
-            || (d.payload && d.payload.social_lead_id === eventPayloadLeadId);
-      } catch { return false; }
-    }) || null;
-  } catch { return null; }
+    const r = await api(`/social/leads/${encodeURIComponent(leadId)}/reasoning`);
+    return r && r.action ? r.action : null;
+  } catch (e) {
+    // 404 = no Hunter action exists for this lead yet (still queued); any
+    // other error we swallow so the drawer still renders the rest of the lead.
+    return null;
+  }
 }
 
 function renderLeadDrawer(l, hunterAction) {

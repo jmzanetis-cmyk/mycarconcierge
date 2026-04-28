@@ -245,6 +245,65 @@ async function callPromoterDirect(eventRow) {
   const r14 = await call('DELETE', `social/channels/${channelId}`);
   console.log(`  status=${r14.status} ${r14.status === 200 ? '✓ deleted id=' + r14.body.id : '✗ ' + JSON.stringify(r14.body).slice(0,200)}`);
 
+  // ──────────────────────────────────────────────────────────────────────
+  // Task #130 — deterministic Hunter-reasoning lookup by social_lead_id.
+  // Validates GET /social/leads/:id/reasoning returns the reasoning row
+  // even when the hunter action is far outside the recent-50-actions window
+  // the old client-side scan used.
+  // ──────────────────────────────────────────────────────────────────────
+  console.log('\n━━━ STEP 14b: GET /social/leads/:id/reasoning — direct lookup ━━━');
+  try {
+    const { createClient: ccLead } = require('@supabase/supabase-js');
+    const sbLead = ccLead(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false } });
+
+    // 1. Seed a synthetic social_leads row.
+    const extId = 'smoke-t130-' + Date.now();
+    const { data: leadRow, error: leadErr } = await sbLead.from('social_leads').insert({
+      platform: 'reddit', external_id: extId, lead_type: 'member',
+      raw_text: 'smoke t#130 — looking for a mechanic in NJ',
+      status: 'pending'
+    }).select('id').single();
+    if (leadErr) throw new Error('seed lead: ' + leadErr.message);
+    const newLeadId = leadRow.id;
+
+    // 2. 404 path — no hunter action exists yet for this lead.
+    const r404 = await call('GET', `social/leads/${newLeadId}/reasoning`);
+    if (r404.status === 404) {
+      console.log(`  ✓ unscored lead returns 404 (id=${newLeadId})`);
+    } else {
+      console.log(`  ✗ expected 404 for unscored lead, got ${r404.status}: ${JSON.stringify(r404.body).slice(0,200)}`);
+    }
+
+    // 3. Seed a hunter agent_actions row with decision.social_lead_id set.
+    const { data: actRow, error: actErr } = await sbLead.from('agent_actions').insert({
+      agent_slug: 'hunter', action_type: 'score', status: 'proposed',
+      autonomy_used: 'propose', confidence: 0.82, needs_review: true,
+      decision: { event_type: 'social.lead_discovered', social_lead_id: newLeadId,
+                  platform: 'reddit', lead_type: 'member', score: 0.82 },
+      reasoning: 'smoke t#130 — synthetic Hunter justification used by lookup test.',
+      tokens_in: 100, tokens_out: 50, cost_usd: 0.0123, duration_ms: 1234
+    }).select('id').single();
+    if (actErr) throw new Error('seed action: ' + actErr.message);
+    const newActId = actRow.id;
+
+    // 4. Direct lookup must now return that exact action.
+    const r200 = await call('GET', `social/leads/${newLeadId}/reasoning`);
+    if (r200.status === 200
+        && r200.body?.action?.id === newActId
+        && (r200.body?.reasoning || '').startsWith('smoke t#130')) {
+      console.log(`  ✓ direct lookup returned action id=${newActId} reasoning="${r200.body.reasoning.slice(0,40)}…" model=${r200.body.model || '—'}`);
+    } else {
+      console.log(`  ✗ unexpected: status=${r200.status} body=${JSON.stringify(r200.body).slice(0,300)}`);
+    }
+
+    // 5. Cleanup.
+    await sbLead.from('agent_actions').delete().eq('id', newActId);
+    await sbLead.from('social_leads').delete().eq('id', newLeadId);
+  } catch (e) {
+    console.log(`  ✗ step 14b threw: ${e.message}`);
+  }
+
   console.log('\n━━━ STEP 15: cleanup — disable Hunter & Promoter again ━━━');
   for (const slug of ['hunter','promoter']) {
     await call('PUT', 'agents/' + slug, { enabled: false });

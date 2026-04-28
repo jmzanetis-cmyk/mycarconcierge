@@ -24,6 +24,9 @@
 //   POST /actions/:id/apply              — execute the recommendation (Gatekeeper)
 //   POST /providers/:id/suspend          — { reason } admin suspension; the
 //                                          DB trigger emits provider.flagged
+//   GET  /social/leads/:id/reasoning     — latest Hunter agent_action for a
+//                                          social lead (deterministic lookup
+//                                          on decision->>'social_lead_id')
 // ============================================================================
 
 const {
@@ -796,6 +799,39 @@ exports.handler = async function(event) {
       const { data, count, error } = await q;
       if (error) throw new Error(error.message);
       return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
+    }
+
+    // Task #130: deterministic Hunter-reasoning lookup for a single social
+    // lead. The frontend lead drawer used to scan the most recent 50 hunter
+    // actions and try to match by decision.social_lead_id, which silently
+    // returned "No Hunter reasoning yet" for older leads. This route does a
+    // direct indexed query on agent_actions and returns the latest scoring
+    // row for that lead.
+    const leadReasoningMatch = route.match(/^social\/leads\/(\d+)\/reasoning$/);
+    if (leadReasoningMatch && method === 'GET') {
+      const leadId = leadReasoningMatch[1];
+      const [actionRes, agentRes] = await Promise.all([
+        supabase.from('agent_actions')
+          .select('id, agent_slug, action_type, status, autonomy_used, decision, ' +
+                  'reasoning, confidence, tokens_in, tokens_out, cost_usd, ' +
+                  'duration_ms, needs_review, reviewed_at, review_status, ' +
+                  'review_notes, error_message, event_id, created_at')
+          .eq('agent_slug', 'hunter')
+          .filter('decision->>social_lead_id', 'eq', leadId)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .maybeSingle(),
+        supabase.from('agents').select('model').eq('slug', 'hunter').maybeSingle()
+      ]);
+      if (actionRes.error) return jsonResponse(500, { error: actionRes.error.message });
+      if (!actionRes.data) return jsonResponse(404, { error: 'no hunter reasoning found for this lead', social_lead_id: leadId });
+      return jsonResponse(200, {
+        action: actionRes.data,
+        reasoning: actionRes.data.reasoning || null,
+        cost_usd: actionRes.data.cost_usd,
+        model: agentRes.data?.model || null,
+        social_lead_id: leadId
+      });
     }
 
     const leadActionMatch = route.match(/^social\/leads\/(\d+)\/(approve|reject|contacted)$/);
