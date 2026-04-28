@@ -555,7 +555,7 @@ exports.handler = async function(event, context) {
       const limit = Math.min(parseInt(params.limit || '50'), 200);
       const agingDays = parseInt(params.aging_days || '0');
       let q = supabase.from('care_plan_completions')
-        .select('*, care_plans!care_plan_completions_care_plan_id_fkey(id, title, services, value_min, value_max), member:profiles!care_plan_completions_member_id_fkey(id, email, full_name, phone), provider:profiles!care_plan_completions_provider_id_fkey(id, email, business_name, full_name, phone)')
+        .select('*, care_plans(id, title, services, value_min, value_max)')
         .order('created_at', { ascending: false })
         .limit(limit);
       if (status) q = q.eq('status', status);
@@ -565,7 +565,24 @@ exports.handler = async function(event, context) {
       }
       const { data, error } = await q;
       if (error) return jsonResponse(500, { error: error.message });
-      return jsonResponse(200, { completions: data || [] });
+      // FK joins to profiles can't be expressed via PostgREST because
+      // member_id/provider_id reference auth.users(id), not profiles(id).
+      // Fetch profiles separately and stitch in.
+      const rows = data || [];
+      const ids = [...new Set(rows.flatMap(r => [r.member_id, r.provider_id]).filter(Boolean))];
+      let profilesById = {};
+      if (ids.length > 0) {
+        const { data: profs } = await supabase.from('profiles')
+          .select('id, email, full_name, business_name, phone')
+          .in('id', ids);
+        profilesById = Object.fromEntries((profs || []).map(p => [p.id, p]));
+      }
+      const completions = rows.map(r => ({
+        ...r,
+        member: r.member_id ? (profilesById[r.member_id] || null) : null,
+        provider: r.provider_id ? (profilesById[r.provider_id] || null) : null
+      }));
+      return jsonResponse(200, { completions });
     }
 
     // POST /api/admin/ai-ops/care-plan-completions
