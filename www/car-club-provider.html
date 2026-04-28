@@ -589,6 +589,10 @@
     <div class="page-header">
       <h1 class="page-title">Car Club Management</h1>
       <p class="page-subtitle">Build loyalty and reward your best customers</p>
+      <!-- MCC Verified compliance badge area on the Car Club profile.
+           Reads bgc_* (read-only). Populated by mccBgcCarClubInit() below. -->
+      <!-- TODO ES -->
+      <div id="mcc-bgc-carclub-slot" style="margin-top:14px;"></div>
     </div>
 
     <div class="how-it-works" id="howItWorks">
@@ -1166,6 +1170,7 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260213"></script>
   <script src="mcc-config.js?v=20260213"></script>
+  <script src="/bgc-badge.js?v=20260428"></script>
   <script>
     function toggleHowItWorks() {
       const body = document.getElementById('howItWorksBody');
@@ -1279,7 +1284,35 @@
       setTimeout(() => html.classList.remove('theme-transition'), 400);
     }
 
+    // Render the MCC Verified badge area in the page header from
+    // the provider's profile (read-only on bgc_* columns). Fails silently if
+    // the badge module or supabase client is unavailable so it never blocks
+    // the rest of the Car Club page.
+    async function mccBgcCarClubInit() {
+      try {
+        const slot = document.getElementById('mcc-bgc-carclub-slot');
+        if (!slot || !window.MCC_BGC) return;
+        const sb = window.supabaseClient;
+        if (!sb) return;
+        const { data: u } = await sb.auth.getUser();
+        if (!u || !u.user) return;
+        const { data: prof } = await sb
+          .from('profiles')
+          .select('bgc_badge_verified, bgc_compliant_employees, bgc_total_employees, bgc_last_verified_at')
+          .eq('id', u.user.id)
+          .maybeSingle();
+        if (!prof) return;
+        slot.innerHTML = window.MCC_BGC.renderCarClubBlock({
+          verified: !!prof.bgc_badge_verified,
+          compliantEmployees: prof.bgc_compliant_employees || 0,
+          totalEmployees: prof.bgc_total_employees || 0,
+          lastVerified: prof.bgc_last_verified_at || null
+        });
+      } catch (e) { /* non-fatal */ }
+    }
+
     async function loadClub() {
+      mccBgcCarClubInit();
       try {
         const data = await apiFetch('/api/car-club/my-club');
         if (!data) return;

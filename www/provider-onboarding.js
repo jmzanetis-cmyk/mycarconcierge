@@ -1,7 +1,7 @@
 class ProviderOnboarding {
   constructor() {
     this.currentStep = 0;
-    this.totalSteps = 7;
+    this.totalSteps = this.getSteps().length;
     this.storageKey = 'mcc-provider-onboarding-completed';
   }
 
@@ -59,12 +59,32 @@ class ProviderOnboarding {
         detail: 'Members auto-join your club on their first job. You also earn 10 free bids every time a referred customer books with you. It\'s retention built right in.',
         action: { label: 'Set Up Your Car Club', section: 'car-club' }
       },
+      // MCC Verified onboarding screens. <!-- TODO ES -->
       {
-        title: 'Build Your Car Club',
-        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
-        content: 'Your customers stay YOUR customers. Create a Car Club loyalty program — set up punch cards, reward repeat visits, and give customers a reason to keep coming back to you.',
-        detail: 'Members auto-join your club on their first job. You also earn 10 free bids every time a referred customer books with you. It\'s retention built right in.',
-        action: { label: 'Set Up Your Car Club', section: 'car-club' }
+        title: 'Get MCC Verified',
+        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>',
+        content: 'The MCC Verified badge appears on your listing and Car Club profile when at least 90% of your customer-facing employees have a current background check on file. Checks are valid for 12 months.',
+        detail: 'What\u2019s screened: National criminal records \u00B7 County-level records \u00B7 Sex offender registry \u00B7 Identity verification. What it costs: $[XX] per employee \u00B7 Results in 1\u20133 business days.'
+      },
+      {
+        title: 'Add your team',
+        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>',
+        content: 'Add each customer-facing employee who will be working directly with MCC customers. Back-office staff who don\u2019t interact with customers can be excluded.',
+        detail: 'You\u2019ll need each employee\u2019s full name, date of birth, email, and current address. You\u2019ll also need their consent (we provide the form).',
+        action: { label: 'Add Employees in Dashboard', section: 'compliance' }
+      },
+      {
+        title: 'Employee consent',
+        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>',
+        content: 'Background checks require each employee\u2019s written consent under the Fair Credit Reporting Act (FCRA). We\u2019ll send each employee a secure consent form via email.',
+        detail: 'By proceeding, you confirm that you have authorization to submit background checks on behalf of the listed employees.'
+      },
+      {
+        title: 'You\u2019re on your way to Verified',
+        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>',
+        content: 'Each employee will receive a consent form via email. Once consent is confirmed and the check completes, results update automatically. When 90% of your team is cleared, your Verified badge goes live.',
+        detail: 'You\u2019ll get an email when your badge is active. Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.',
+        action: { label: 'Go to Dashboard', section: 'compliance' }
       },
       {
         title: 'You\'re All Set!',

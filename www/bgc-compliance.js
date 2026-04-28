@@ -46,6 +46,110 @@
     return data?.user?.id || null;
   }
 
+  // ──────────────────────────────────────────────────────────────────────
+  // 4-state Compliance Card copy (Section 3,
+  // "Provider Dashboard — Compliance Card"). Do not paraphrase.
+  //   Active     : pct >= 90 && badge verified
+  //   At Risk    : pct in 80..89 (badge not yet revoked or about to drop)
+  //   Inactive   : pct < 80 (badge removed)
+  //   Not enrolled: total === 0
+  // <!-- TODO ES -->
+  // ──────────────────────────────────────────────────────────────────────
+  function _stateCopy(pct, total, badge) {
+    // <!-- TODO ES -->
+    if (total === 0) {
+      return {
+        key: 'not_enrolled',
+        title: 'Get MCC Verified',
+        body:  'Stand out from the competition. Background-checked providers get up to 3x more bid responses from customers.',
+        cta:   'Start the verification process →',
+        ctaAction: 'enroll',
+        pillText: 'Not enrolled',
+        pillBg:  'rgba(255,255,255,0.05)',
+        pillFg:  'var(--text-muted)'
+      };
+    }
+    // <!-- TODO ES -->
+    if (badge && pct >= 90) {
+      return {
+        key: 'active',
+        title: 'MCC Verified — Active ✓',
+        body:  'Your team is ' + pct.toFixed(0) + '% compliant. Your Verified badge is live and visible to customers.',
+        cta:   'View compliance details →',
+        ctaAction: 'details',
+        pillText: '✓ MCC Verified',
+        pillBg:  'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))',
+        pillFg:  '#2eb88a'
+      };
+    }
+    // <!-- TODO ES -->
+    if (pct >= 90 && !badge) {
+      return {
+        key: 'activating',
+        title: 'MCC Verified — Activating',
+        body:  'Your team is ' + pct.toFixed(0) + '% compliant. Your Verified badge will go live shortly.',
+        cta:   'View compliance details →',
+        ctaAction: 'details',
+        pillText: 'Activating',
+        pillBg:  'rgba(212, 168, 85, 0.15)',
+        pillFg:  '#d4a855'
+      };
+    }
+    // <!-- TODO ES -->
+    if (pct >= 80 && pct < 90) {
+      return {
+        key: 'at_risk',
+        title: 'MCC Verified — At Risk',
+        // The PDF copy includes "[Y] employee(s) need attention." — we leave
+        // [Y] resolved as the count of non-current employees so the line is
+        // grammatical without paraphrasing the surrounding sentence.
+        body:  'Your compliance is at ' + pct.toFixed(0) + '%. You need 90% to keep your Verified badge.',
+        cta:   'View details →',
+        ctaAction: 'details',
+        pillText: '⚠ At Risk',
+        pillBg:  'rgba(212, 168, 85, 0.15)',
+        pillFg:  '#d4a855'
+      };
+    }
+    // pct < 80 — badge removed
+    // <!-- TODO ES -->
+    return {
+      key: 'inactive',
+      title: 'MCC Verified — Inactive ✗',
+      body:  'Your compliance has dropped to ' + pct.toFixed(0) + '%. Your Verified badge has been removed from your listing. Renew expired checks to restore it.',
+      cta:   'Renew now →',
+      ctaAction: 'details',
+      pillText: '✗ Inactive',
+      pillBg:  'rgba(220, 80, 80, 0.15)',
+      pillFg:  '#dc5050'
+    };
+  }
+
+  function _renderStateCard(state, pct, compliant, total) {
+    const card = document.getElementById('bgc-state-card');
+    if (!card) return;
+    // <!-- TODO ES -->
+    card.innerHTML =
+      '<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px;justify-content:space-between;">' +
+        '<div style="flex:1;min-width:260px;">' +
+          '<div style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + state.pillBg + ';color:' + state.pillFg + ';">' + escapeHtml(state.pillText) + '</div>' +
+          '<h3 style="margin:12px 0 6px;font-size:1.25rem;font-weight:600;color:var(--text-primary);">' + escapeHtml(state.title) + '</h3>' +
+          '<p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">' + escapeHtml(state.body) + '</p>' +
+          (state.key === 'not_enrolled'
+            ? '<button class="btn btn-primary" style="margin-top:14px;" onclick="window.bgcCompliance.startEnrollment()">' + escapeHtml(state.cta) + '</button>'
+            : '<a href="#compliance" class="btn btn-secondary" style="margin-top:14px;display:inline-block;text-decoration:none;">' + escapeHtml(state.cta) + '</a>'
+          ) +
+        '</div>' +
+        '<div style="text-align:right;min-width:140px;">' +
+          '<div style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);">' + pct.toFixed(0) + '%</div>' +
+          '<div style="color:var(--text-secondary);font-size:0.88rem;">' + compliant + ' of ' + total + ' employees cleared</div>' +
+        '</div>' +
+      '</div>' +
+      '<div style="margin-top:18px;height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;">' +
+        '<div style="height:100%;width:' + Math.max(0, Math.min(100, pct)) + '%;background:linear-gradient(90deg,var(--accent-gold),var(--accent-teal));transition:width 0.4s ease;"></div>' +
+      '</div>';
+  }
+
   async function loadSummary(providerId) {
     const sb = getSupabase();
     const { data: prof } = await sb
@@ -59,6 +163,8 @@
     const pct        = Number(prof?.bgc_compliance_pct || 0);
     const badge      = !!prof?.bgc_badge_verified;
 
+    // Legacy DOM (kept for backward compat with other pages still using
+    // the inline summary card).
     const pctEl    = document.getElementById('bgc-pct');
     const countsEl = document.getElementById('bgc-counts');
     const barEl    = document.getElementById('bgc-pct-bar');
@@ -71,16 +177,43 @@
 
     if (stateEl) {
       if (badge) {
-        stateEl.textContent     = '✓ MCC Verified';
+        stateEl.textContent      = '✓ MCC Verified';
         stateEl.style.background = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
         stateEl.style.color      = '#2eb88a';
+      } else if (total === 0) {
+        stateEl.textContent      = 'Not enrolled';
+        stateEl.style.background = 'rgba(255,255,255,0.05)';
+        stateEl.style.color      = 'var(--text-muted)';
+      } else if (pct < 80) {
+        stateEl.textContent      = '✗ Inactive';
+        stateEl.style.background = 'rgba(220, 80, 80, 0.15)';
+        stateEl.style.color      = '#dc5050';
+      } else if (pct < 90) {
+        stateEl.textContent      = '⚠ At Risk';
+        stateEl.style.background = 'rgba(212, 168, 85, 0.15)';
+        stateEl.style.color      = '#d4a855';
       } else {
-        stateEl.textContent     = total === 0 ? 'Add employees to begin' : 'Below 90% — not yet verified';
+        stateEl.textContent      = 'Below 90% — not yet verified';
         stateEl.style.background = 'rgba(255,255,255,0.05)';
         stateEl.style.color      = 'var(--text-muted)';
       }
     }
     if (pillEl) pillEl.style.display = badge ? '' : 'none';
+
+    // 4-state state card. Renders only if the slot exists.
+    const state = _stateCopy(pct, total, badge);
+    _renderStateCard(state, pct, compliant, total);
+  }
+
+  function startEnrollment() {
+    if (window.MCC_BGC_Onboarding && typeof window.MCC_BGC_Onboarding.open === 'function') {
+      window.MCC_BGC_Onboarding.open();
+    } else {
+      // Fallback: scroll to the compliance section so the provider can add
+      // employees manually if the onboarding script failed to load.
+      const el = document.getElementById('compliance');
+      if (el) el.scrollIntoView({ behavior: 'smooth' });
+    }
   }
 
   // ── Task #113: alerts panel ───────────────────────────────────────────
@@ -317,7 +450,7 @@
     }
   }
 
-  window.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert };
+  window.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {

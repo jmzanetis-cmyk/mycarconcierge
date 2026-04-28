@@ -25,6 +25,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared-styles.css">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/bgc-badge.js?v=20260428"></script>
   <style>
     :root {
       --bg-deep: #12161c;
@@ -417,10 +418,17 @@
 
       let badgesHtml = '';
       const badges = [];
-      if (p.background_verified) {
+      const __mccVerified = !!p.bgc_badge_verified;
+      if (window.MCC_BGC) {
+        const __pill = window.MCC_BGC.renderBadge({
+          verified: __mccVerified,
+          variant: 'full',
+          compliantEmployees: p.bgc_compliant_employees,
+          totalEmployees: p.bgc_total_employees
+        });
+        if (__pill) badges.push('<div class="badge-card bgc-badge-lg">' + __pill + '</div>');
+      } else if (__mccVerified) {
         badges.push('<div class="badge-card bgc-badge-verified bgc-badge-lg" title="MCC Verified — at least 90% of this team have completed an active background check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</div>');
-      } else if (p.background_check_status === 'pending') {
-        badges.push('<div class="badge-card bgc-badge-pending bgc-badge-lg" title="Background check in progress"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Verification Pending</div>');
       }
       if (p.years_in_business && p.years_in_business >= 1) {
         const label = p.years_in_business >= 20 ? '20+ years in business' : p.years_in_business + '+ years in business';
@@ -455,6 +463,42 @@
       let bioHtml = '';
       if (p.description) {
         bioHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> About</h2><div class="bio-text">' + escapeHtml(p.description) + '</div></div>';
+      }
+
+      // "About MCC Verified" section + neutral non-verified copy. <!-- TODO ES -->
+      let mccVerifiedSectionHtml = '';
+      if (__mccVerified) {
+        mccVerifiedSectionHtml =
+          '<div class="card" id="about-mcc-verified">' +
+            '<h2><svg viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> About MCC Verified</h2>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
+              escapeHtml(p.business_name) + ' is an MCC Verified provider. This means at least 90% of their customer-facing team has passed a comprehensive background check through our nationally accredited screening partner. These checks are renewed annually to ensure ongoing compliance.' +
+            '</p>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
+              '<strong>What\u2019s included in the screening:</strong> \u2022 Criminal history search (national + county level) \u2022 Sex offender registry check \u2022 Identity verification' +
+            '</p>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
+              'MCC takes your safety seriously. The Verified badge gives you confidence that the people working on your vehicle have been professionally screened.' +
+            '</p>' +
+            '<details style="margin-top:8px;">' +
+              '<summary style="cursor:pointer;font-weight:600;color:var(--text-primary);">Why does this matter?</summary>' +
+              '<p style="margin-top:10px;color:var(--text-secondary);line-height:1.65;">' +
+                'You\u2019re trusting someone with your vehicle \u2014 often at your home or workplace. MCC Verified providers have gone the extra mile to prove they\u2019re trustworthy. Background checks aren\u2019t required to join MCC, but providers who complete them earn the Verified badge, giving you an easy way to choose with confidence.' +
+              '</p>' +
+            '</details>' +
+            '<p style="margin-top:18px;font-size:0.78rem;color:var(--text-muted);line-height:1.55;">' +
+              (window.MCC_BGC ? window.MCC_BGC.COPY.consumerDisclosure :
+                'Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.') +
+            '</p>' +
+          '</div>';
+      } else {
+        mccVerifiedSectionHtml =
+          '<div class="card" id="about-mcc-verified">' +
+            '<h2 style="color:var(--text-secondary);">About MCC Verified</h2>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;">' +
+              'This provider has not yet completed the MCC Verified program. You can still request bids from them \u2014 many great providers are in the process of getting verified.' +
+            '</p>' +
+          '</div>';
       }
 
       let galleryHtml = '';
@@ -535,6 +579,7 @@
         '</div>' +
         badgesHtml +
         bioHtml +
+        mccVerifiedSectionHtml +
         servicesHtml +
         certsHtml +
         galleryHtml +
