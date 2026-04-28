@@ -156,23 +156,16 @@
     </div>
 
     <div class="card" style="margin-bottom:20px;">
-      <h3>Events / hour <span style="font-size:12px; color:var(--muted); font-weight:400;" id="eventsTotal"></span></h3>
-      <div class="row" style="margin-bottom:10px;">
-        <select id="eventsRange" class="input" style="max-width:160px;">
-          <option value="1" selected>Last 24 hours</option>
-          <option value="3">Last 3 days</option>
-          <option value="7">Last 7 days</option>
-          <option value="14">Last 14 days</option>
-          <option value="30">Last 30 days</option>
-        </select>
-        <select id="eventsGroupBy" class="input" style="max-width:200px;">
-          <option value="event_type" selected>Group by event type</option>
-          <option value="status">Group by routing status</option>
-        </select>
-        <button class="btn btn-ghost" id="eventsReload" style="margin-left:auto;">Reload</button>
-        <button class="btn btn-ghost" id="refreshAll">Refresh all</button>
+      <div class="row" style="align-items:center; gap:18px;">
+        <div>
+          <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Events · last 24 hours</div>
+          <div id="eventsTotal" style="font-size:32px; font-weight:700; line-height:1.1; margin-top:4px;">—</div>
+        </div>
+        <div style="margin-left:auto; display:flex; gap:8px;">
+          <button class="btn btn-ghost" id="eventsReload">Reload</button>
+          <button class="btn btn-ghost" id="refreshAll">Refresh all</button>
+        </div>
       </div>
-      <div style="position:relative; height:220px;"><canvas id="eventsChart"></canvas></div>
     </div>
 
     <div class="card" style="margin-bottom:20px;">
@@ -506,46 +499,15 @@ async function loadRegistry() {
   }
 }
 
-let eventsChart = null;
 async function loadEventsChart() {
+  const el = document.getElementById('eventsTotal');
   try {
-    const days = document.getElementById('eventsRange').value || '7';
-    const groupBy = document.getElementById('eventsGroupBy').value || 'event_type';
-    const params = new URLSearchParams({ days, group_by: groupBy });
-    const resp = await api(`/events/timeseries?${params.toString()}`);
-    if (!window.Chart) { setTimeout(loadEventsChart, 300); return; }
-    const buckets = resp.buckets || [];
-    const series = resp.series || [];
-    document.getElementById('eventsTotal').textContent = resp.total ? `· ${resp.total} events in last ${resp.days}d` : '';
-    const palette = ['#c9a84c','#4cc9c1','#22c55e','#f59e0b','#818cf8','#ef4444','#ec4899','#94a3b8','#fb923c'];
-    const datasets = series.map((s, i) => ({
-      label: s.name,
-      data: s.data,
-      backgroundColor: palette[i % palette.length],
-      borderColor: palette[i % palette.length],
-      stack: 'events',
-      borderWidth: 0
-    }));
-    // Compress hour labels to readable form (e.g. "Apr 22 14:00")
-    const labels = buckets.map(b => {
-      const d = new Date(b);
-      return d.toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-    });
-    if (eventsChart) eventsChart.destroy();
-    eventsChart = new Chart(document.getElementById('eventsChart'), {
-      type: 'bar',
-      data: { labels, datasets },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        plugins: { legend: { labels: { color: '#94a3b8', font: { size: 11 } } } },
-        scales: {
-          x: { stacked: true, ticks: { color: '#94a3b8', maxTicksLimit: 12, autoSkip: true }, grid: { color: '#2d343f' } },
-          y: { stacked: true, ticks: { color: '#94a3b8', precision: 0 }, grid: { color: '#2d343f' } }
-        }
-      }
-    });
-  } catch (e) { /* ignore */ }
+    const resp = await api('/events/timeseries?days=1&group_by=event_type');
+    const total = Number(resp && resp.total) || 0;
+    el.textContent = total.toLocaleString();
+  } catch (e) {
+    el.textContent = '—';
+  }
 }
 
 function escapeHtml(s) {
@@ -1085,8 +1047,6 @@ document.getElementById('logoutLink').addEventListener('click', e => {
 });
 document.getElementById('refreshAll').addEventListener('click', refreshAll);
 document.getElementById('eventsReload').addEventListener('click', loadEventsChart);
-document.getElementById('eventsRange').addEventListener('change', loadEventsChart);
-document.getElementById('eventsGroupBy').addEventListener('change', loadEventsChart);
 document.getElementById('runAnalyst').addEventListener('click', async () => {
   try { toast('Running analyst…'); const r = await api('/run/analyst', { method: 'POST' }); toast(r.result?.success ? `Analyst done · ${fmt$(r.result.cost_usd || 0)}` : (r.result?.reason || 'Done')); refreshAll(); }
   catch (e) { toast(e.message, true); }
