@@ -24,6 +24,16 @@
  *   - Email match wins over phone match
  *   - Oldest lead wins on ties
  *
+ * AMBIGUITY (backfill-only):
+ *   The live trigger fires once per signup and just picks the oldest matching
+ *   lead — it has no second chance. The backfill, however, is a one-shot pass
+ *   over historical data, so wrong attribution is permanent. To avoid that, we
+ *   detect when MORE THAN ONE distinct lead matches a given application
+ *   (e.g. email match → lead A, phone match → lead B; or two leads share the
+ *   same email) and SKIP the write, counting it under `ambiguous`. These rows
+ *   are surfaced in the dry-run output so a human can resolve them by hand
+ *   (typically by deleting the dupe lead, then re-running with --apply).
+ *
  * IMPORTANT — contact-info source:
  *   The live trigger fires on `profiles INSERT` and reads NEW.email / NEW.phone
  *   from the profile row. `provider_applications` itself has NO `email` column
@@ -65,13 +75,25 @@ function normPhone(p) {
   return v || null;
 }
 
-// Look up a candidate outreach_leads row that satisfies the same predicates
-// as the live `auto_link_outreach_lead` trigger:
+// Look up candidate outreach_leads that satisfy the same predicates as the
+// live `auto_link_outreach_lead` trigger:
 //   crm_profile_id IS NULL AND crm_sync_status != 'duplicate'
-// AND matches the given email/phone, oldest first. Email is queried FIRST as
-// its own request (deterministic) before falling back to phone.
+// AND match the given email/phone.
+//
+// Returns one of:
+//   { status: 'no_match' }
+//   { status: 'matched',   lead, matchedOn }
+//   { status: 'ambiguous', leadIds: [...], matchedOn }   // ≥2 distinct leads
+//
+// Ambiguity rule: if email-match and phone-match resolve to DIFFERENT lead
+// ids, OR if email alone matches ≥2 leads, OR phone alone matches ≥2 leads,
+// we surface it as ambiguous instead of silently picking one. Email is still
+// queried first (preferred), and within a single contact channel we pull
+// limit:2 and order by created_at so a true single-match case is unaffected.
 async function findCandidateLead(supabase, email, phone) {
   const sel = 'id, email, phone, created_at, crm_profile_id, crm_sync_status';
+  let emailMatches = [];
+  let phoneMatches = [];
 
   if (email) {
     const { data, error } = await supabase
@@ -81,9 +103,9 @@ async function findCandidateLead(supabase, email, phone) {
       .is('crm_profile_id', null)
       .neq('crm_sync_status', 'duplicate')
       .order('created_at', { ascending: true })
-      .limit(1);
+      .limit(2);
     if (error) throw error;
-    if (data && data.length > 0) return { lead: data[0], matchedOn: 'email' };
+    emailMatches = data || [];
   }
 
   if (phone) {
@@ -94,12 +116,32 @@ async function findCandidateLead(supabase, email, phone) {
       .is('crm_profile_id', null)
       .neq('crm_sync_status', 'duplicate')
       .order('created_at', { ascending: true })
-      .limit(1);
+      .limit(2);
     if (error) throw error;
-    if (data && data.length > 0) return { lead: data[0], matchedOn: 'phone' };
+    phoneMatches = data || [];
   }
 
-  return null;
+  // Email wins over phone (matches trigger ordering of the OR clauses).
+  if (emailMatches.length >= 2) {
+    return { status: 'ambiguous', leadIds: emailMatches.map((l) => l.id), matchedOn: 'email' };
+  }
+  if (emailMatches.length === 1) {
+    const emailLead = emailMatches[0];
+    // If phone resolves to a DIFFERENT lead, that's also ambiguous.
+    const phoneOther = phoneMatches.find((l) => l.id !== emailLead.id);
+    if (phoneOther) {
+      return { status: 'ambiguous', leadIds: [emailLead.id, phoneOther.id], matchedOn: 'email+phone' };
+    }
+    return { status: 'matched', lead: emailLead, matchedOn: 'email' };
+  }
+  if (phoneMatches.length >= 2) {
+    return { status: 'ambiguous', leadIds: phoneMatches.map((l) => l.id), matchedOn: 'phone' };
+  }
+  if (phoneMatches.length === 1) {
+    return { status: 'matched', lead: phoneMatches[0], matchedOn: 'phone' };
+  }
+
+  return { status: 'no_match' };
 }
 
 async function main() {
@@ -135,10 +177,14 @@ async function main() {
 
   console.log(`Mode: ${APPLY ? 'APPLY (writes enabled)' : 'DRY-RUN (no writes; pass --apply to commit)'}`);
 
+  // Detailed breakdown — kept for operator visibility. The condensed
+  // { scanned, matched, ambiguous, skipped } summary required by Task #136 is
+  // derived from this at the end.
   const stats = {
     scanned: 0,
     matched_by_email: 0,
     matched_by_phone: 0,
+    ambiguous: 0,
     skipped_no_contact: 0,
     skipped_no_match: 0,
     written: 0,
@@ -212,8 +258,19 @@ async function main() {
         continue;
       }
 
-      if (!candidate) { stats.skipped_no_match++; continue; }
+      if (candidate.status === 'no_match') { stats.skipped_no_match++; continue; }
 
+      if (candidate.status === 'ambiguous') {
+        stats.ambiguous++;
+        if (stats.ambiguous <= 10) {
+          console.log(
+            `  [ambiguous] app ${app.id} matches multiple leads on ${candidate.matchedOn}: ${candidate.leadIds.join(', ')} — skipping`
+          );
+        }
+        continue;
+      }
+
+      // candidate.status === 'matched'
       if (candidate.matchedOn === 'email') stats.matched_by_email++;
       else stats.matched_by_phone++;
 
@@ -241,11 +298,31 @@ async function main() {
     if (apps.length < PAGE) break;
   }
 
-  console.log('\nSummary:');
-  console.log(JSON.stringify(stats, null, 2));
   const totalMatched = stats.matched_by_email + stats.matched_by_phone;
+
+  // Spec-required condensed summary (Task #136). `skipped` rolls up rows that
+  // had no contact info OR no candidate lead — i.e. anything we passed over
+  // that wasn't a match and wasn't ambiguous.
+  const summary = {
+    scanned: stats.scanned,
+    matched: totalMatched,
+    ambiguous: stats.ambiguous,
+    skipped: stats.skipped_no_contact + stats.skipped_no_match
+  };
+  console.log('\nSummary:');
+  console.log(JSON.stringify(summary, null, 2));
+
+  console.log('\nDetail:');
+  console.log(JSON.stringify(stats, null, 2));
+
   if (!APPLY && totalMatched > 0) {
     console.log(`\n${totalMatched} potential matches found. Re-run with --apply to commit.`);
+  }
+  if (stats.ambiguous > 0) {
+    console.log(
+      `\n${stats.ambiguous} application(s) matched more than one lead and were skipped. ` +
+      'Resolve those leads manually (e.g. mark dupes as crm_sync_status=duplicate) and re-run.'
+    );
   }
 }
 
