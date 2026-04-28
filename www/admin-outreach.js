@@ -49,9 +49,14 @@
         <div style="padding:40px;text-align:center;">
           <span class="icon-inline" data-icon="alert-triangle" style="width:48px;height:48px;color:var(--accent-gold);"></span>
           <h2 style="margin:16px 0 8px;">Database Schema Required</h2>
-          <p style="color:var(--text-muted);max-width:500px;margin:0 auto 20px;">The Outreach Engine tables have not been created yet. Copy the SQL below and run it in your Supabase SQL Editor.</p>
-          <button class="btn btn-primary" onclick="window.copyOutreachSchema()">Copy Schema SQL</button>
-          <button class="btn" onclick="window.initOutreachEngine()" style="margin-left:8px;">Check Again</button>
+          <p style="color:var(--text-muted);max-width:560px;margin:0 auto 12px;">The Outreach Engine tables have not been created yet. Open the Supabase SQL Editor and apply the migration files below in order:</p>
+          <pre style="display:inline-block;text-align:left;background:var(--bg-elevated);padding:12px 16px;border-radius:6px;margin:0 auto 20px;font-size:13px;line-height:1.6;">supabase/migrations/20260420_outreach_engine_initial.sql
+supabase/migrations/20260424_outreach_email_events.sql
+supabase/migrations/20260425_outreach_crm_bridge.sql
+(plus any later 20260*_outreach_*.sql)</pre>
+          <div>
+            <button class="btn" onclick="window.initOutreachEngine()">Check Again</button>
+          </div>
         </div>
       `;
       if (!container.querySelector('.outreach-schema-notice')) container.appendChild(notice);
@@ -63,17 +68,6 @@
     await loadEngineState();
     switchOutreachTab('pipeline');
     setupOutreachRealtime();
-  }
-
-  async function copyOutreachSchema() {
-    try {
-      const res = await fetch(`${apiBase}/outreach-schema.sql`);
-      const sql = await res.text();
-      await navigator.clipboard.writeText(sql);
-      if (typeof showToast !== 'undefined') showToast('Schema SQL copied to clipboard');
-    } catch (e) {
-      if (typeof showToast !== 'undefined') showToast('Failed to copy schema', 'error');
-    }
   }
 
   async function loadEngineState() {
@@ -1132,7 +1126,6 @@
 
   window.previewMessage = previewMessage;
   window.initOutreachEngine = initOutreachEngine;
-  window.copyOutreachSchema = copyOutreachSchema;
   async function clearAndRedraft() {
     if (!confirm('This will delete all unsent draft messages and re-draft them using the latest template. Already-sent messages are not affected. Continue?')) return;
     if (typeof showToast !== 'undefined') showToast('Clearing old drafts and re-drafting...');

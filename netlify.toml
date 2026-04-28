@@ -1,6 +1,6 @@
 [build]
   base       = "/"
-  command    = "cd netlify/functions && npm install && cd ../.. && cp supabase/migrations/20260420_outreach_engine_initial.sql www/outreach-schema.sql"
+  command    = "cd netlify/functions && npm install"
   publish    = "www"
   functions  = "netlify/functions"
 

@@ -1,17 +1,20 @@
 -- ============================================================================
 -- 20260420_outreach_engine_initial.sql
 -- ----------------------------------------------------------------------------
--- Canonical schema for the AI Outreach Engine (renamed from www/outreach-schema.sql
--- by Task #137 to consolidate around a single source of truth).
+-- Canonical schema for the AI Outreach Engine.
+--
+-- Task #137 consolidated the previously dual source of truth into this single
+-- migration file. The old www/outreach-schema.sql is now just a 1-line stub
+-- pointing here.
 --
 -- IMPORTANT:
---   - This file IS the schema. www/outreach-schema.sql is now a SYMLINK to
---     this file so the admin "Copy Schema SQL" button (which fetches that URL)
---     still works without code changes.
---   - All bridge fixes layered on top live in 20260425_outreach_crm_bridge.sql
---     and any later 20260*_outreach_*.sql migrations.
---   - Apply manually via the Supabase SQL Editor (this codebase does not run
---     migrations automatically). Idempotent — every CREATE uses IF NOT EXISTS.
+--   - This file IS the schema. Apply manually via the Supabase SQL Editor
+--     (this codebase does not run migrations automatically). Idempotent —
+--     every CREATE uses IF NOT EXISTS, and the trailing DO block re-asserts
+--     the CHECK constraints so re-running is safe and self-correcting.
+--   - All bridge fixes layered on top live in 20260424_outreach_email_events.sql,
+--     20260425_outreach_crm_bridge.sql, and any later 20260*_outreach_*.sql
+--     migrations. Apply those after this one.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS engine_state (
@@ -46,7 +49,7 @@ CREATE TABLE IF NOT EXISTS outreach_leads (
     company TEXT,
     location TEXT,
     source TEXT,
-    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'queued', 'contacted', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead')),
+    status TEXT DEFAULT 'new' CHECK (status IN ('new', 'queued', 'contacted', 'clicked', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead')),
     notes TEXT,
     metadata JSONB DEFAULT '{}',
     crm_profile_id UUID,
@@ -326,7 +329,7 @@ UPDATE engine_state SET is_running = TRUE, auto_send = TRUE WHERE id = 1;
 DO $$
 BEGIN
   ALTER TABLE outreach_leads DROP CONSTRAINT IF EXISTS outreach_leads_status_check;
-  ALTER TABLE outreach_leads ADD CONSTRAINT outreach_leads_status_check CHECK (status IN ('new', 'queued', 'contacted', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead'));
+  ALTER TABLE outreach_leads ADD CONSTRAINT outreach_leads_status_check CHECK (status IN ('new', 'queued', 'contacted', 'clicked', 'responded', 'converted', 'unsubscribed', 'bounced', 'dead'));
   ALTER TABLE outreach_messages DROP CONSTRAINT IF EXISTS outreach_messages_status_check;
   ALTER TABLE outreach_messages ADD CONSTRAINT outreach_messages_status_check CHECK (status IN ('draft', 'approved', 'sent', 'failed', 'skipped', 'bounced'));
 EXCEPTION WHEN OTHERS THEN NULL;

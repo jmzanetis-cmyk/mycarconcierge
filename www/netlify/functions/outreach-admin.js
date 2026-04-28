@@ -70,7 +70,7 @@ exports.handler = async function(event, context) {
   try {
     if (method === 'GET' && path === 'schema-status') {
       const ready = await checkSchemaExists(supabase);
-      return jsonResponse(200, { schema_ready: ready, message: ready ? 'Schema is set up' : 'Run supabase/migrations/20260420_outreach_engine_initial.sql AND 20260425_outreach_crm_bridge.sql in your Supabase SQL Editor' });
+      return jsonResponse(200, { schema_ready: ready, message: ready ? 'Schema is set up' : 'Apply the outreach migrations in supabase/migrations/ in order via the Supabase SQL Editor: 20260420_outreach_engine_initial.sql, 20260424_outreach_email_events.sql, 20260425_outreach_crm_bridge.sql, plus any later 20260*_outreach_*.sql files' });
     }
 
     if (method === 'GET' && path === 'engine-state') {
