@@ -252,6 +252,80 @@
 
     .btn-skip:hover { color: #1a1a2e; }
 
+    /* ─── BGC onboarding panels (Task #115) ─── */
+    .bgc-detail-block { margin: 18px 0; }
+    .bgc-detail-label {
+      font-size: 0.78rem; font-weight: 600; text-transform: uppercase;
+      letter-spacing: 0.06em; color: #b88c2c; margin-top: 14px;
+    }
+    .bgc-detail-text {
+      margin: 4px 0 0; color: #1a1a2e; font-size: 0.95rem; line-height: 1.5;
+    }
+    .bgc-helper-text {
+      font-size: 0.9rem; color: #6b7280; margin: 8px 0 16px;
+    }
+    .bgc-employee-row {
+      border: 1px solid #e5e7eb; border-radius: 12px; padding: 14px;
+      margin-bottom: 12px; background: #f9fafb; position: relative;
+    }
+    .bgc-employee-row .row-header {
+      display: flex; justify-content: space-between; align-items: center;
+      margin-bottom: 10px; font-weight: 600; color: #1a1a2e; font-size: 0.9rem;
+    }
+    .bgc-employee-row .row-grid {
+      display: grid; grid-template-columns: 1fr 1fr; gap: 10px;
+    }
+    .bgc-employee-row .row-grid .full { grid-column: 1 / -1; }
+    .bgc-employee-row .row-input {
+      width: 100%; padding: 10px 12px; border: 1px solid #d1d5db;
+      border-radius: 8px; font-size: 0.92rem; font-family: inherit;
+      box-sizing: border-box;
+    }
+    .bgc-employee-row .row-input:focus {
+      outline: none; border-color: #d4a855;
+    }
+    .bgc-employee-row .row-remove {
+      background: transparent; border: none; color: #dc5050; cursor: pointer;
+      font-size: 0.85rem; font-weight: 500; padding: 4px 8px;
+    }
+    .bgc-add-row-btn {
+      width: 100%; padding: 12px; background: transparent;
+      border: 1px dashed #d4a855; border-radius: 12px; color: #b88c2c;
+      font-weight: 600; cursor: pointer; font-family: inherit; font-size: 0.92rem;
+      margin-bottom: 16px;
+    }
+    .bgc-add-row-btn:hover { background: rgba(212, 168, 85, 0.06); }
+    .bgc-row-error {
+      color: #dc5050; font-size: 0.85rem; margin-top: 6px; display: none;
+    }
+    .bgc-authorize-box {
+      background: #f9fafb; border-left: 3px solid #d4a855;
+      padding: 12px 14px; border-radius: 8px; margin: 14px 0;
+      font-size: 0.9rem; color: #4b5563; line-height: 1.5;
+    }
+    .bgc-bullets {
+      margin: 8px 0 0; padding-left: 20px; line-height: 1.7;
+      color: #1a1a2e; font-size: 0.95rem;
+    }
+    .bgc-confirm-pill {
+      display: inline-block; padding: 8px 16px;
+      background: rgba(46, 184, 138, 0.12); color: #1f7a5e;
+      border-radius: 999px; font-weight: 600; font-size: 0.9rem;
+      margin-bottom: 14px;
+    }
+    .bgc-toast {
+      position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+      background: #1a1a2e; color: #fff; padding: 14px 18px; border-radius: 10px;
+      box-shadow: 0 8px 24px rgba(0,0,0,0.25); z-index: 9999;
+      max-width: 92vw; display: flex; gap: 12px; align-items: center;
+      font-size: 0.9rem;
+    }
+    .bgc-toast button {
+      background: #d4a855; color: #1a1a2e; border: none; border-radius: 6px;
+      padding: 6px 12px; font-weight: 600; cursor: pointer; font-family: inherit;
+      font-size: 0.85rem;
+    }
+
     .type-grid {
       display: grid;
       grid-template-columns: repeat(2, 1fr);
@@ -825,7 +899,7 @@
           <svg viewBox="0 0 24 24"><path d="M19 12H5M12 19l-7-7 7-7"/></svg>
           Back
         </button>
-        <span id="step-counter">Step 1 of 9</span>
+        <span id="step-counter">Step 1 of 10</span>
       </div>
       <div class="progress-track">
         <div class="progress-fill" id="progress-fill"></div>
@@ -1113,6 +1187,89 @@
         </div>
       </div>
 
+      <!-- ─── Task #115: MCC Verified background-check signup (4 panels) ───
+           Copy is sourced verbatim from window.MCC_BGC_Onboarding.COPY
+           (see www/bgc-onboarding.js). Hard-coded labels carry TODO ES. -->
+
+      <!-- BGC Step 1: Intro -->
+      <div class="step" data-step="bgc-1">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-s1-title"></h2>
+          <p class="step-subtitle" id="bgc-s1-body"></p>
+          <div class="bgc-detail-block">
+            <div class="bgc-detail-label" id="bgc-s1-screened-label"></div>
+            <div class="bgc-detail-text" id="bgc-s1-screened-text"></div>
+            <div class="bgc-detail-label" id="bgc-s1-cost-label"></div>
+            <div class="bgc-detail-text" id="bgc-s1-cost-text"></div>
+            <div class="bgc-detail-label" id="bgc-s1-need-label"></div>
+            <div class="bgc-detail-text" id="bgc-s1-need-text"></div>
+          </div>
+          <button class="btn-next" id="bgc-s1-cta" onclick="bgcStep1Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <!-- TODO ES -->
+          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+        </div>
+      </div>
+
+      <!-- BGC Step 2: Add team -->
+      <div class="step" data-step="bgc-2">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><path d="M20 8v6M23 11h-6"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-s2-title"></h2>
+          <p class="step-subtitle" id="bgc-s2-body"></p>
+          <p class="bgc-helper-text" id="bgc-s2-helper"></p>
+          <div id="bgc-employee-rows"></div>
+          <!-- TODO ES -->
+          <button type="button" class="bgc-add-row-btn" onclick="bgcAddRow()">+ Add another employee</button>
+          <!-- TODO ES -->
+          <div class="bgc-row-error" id="bgc-s2-error">Please complete at least one employee row (name, date of birth, email, and address) before continuing.</div>
+          <button class="btn-next" id="bgc-s2-cta" onclick="bgcStep2Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <!-- TODO ES -->
+          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+        </div>
+      </div>
+
+      <!-- BGC Step 3: Consent -->
+      <div class="step" data-step="bgc-3">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="15" y2="17"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-s3-title"></h2>
+          <p class="step-subtitle" id="bgc-s3-body"></p>
+          <div class="bgc-authorize-box" id="bgc-s3-authorize"></div>
+          <!-- TODO ES -->
+          <p class="bgc-helper-text" id="bgc-s3-summary">You're about to start checks for <span id="bgc-s3-count">0</span> employee(s).</p>
+          <button class="btn-next" id="bgc-s3-cta" onclick="bgcStep3Confirm()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <!-- TODO ES -->
+          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+        </div>
+      </div>
+
+      <!-- BGC Step 4: Confirmation -->
+      <div class="step" data-step="bgc-4">
+        <div class="step-content">
+          <div class="step-icon">
+            <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+          </div>
+          <h2 class="step-question" id="bgc-s4-title"></h2>
+          <!-- Body text comes from window.MCC_BGC_Onboarding.COPY.s4.body(n)
+               and includes the count of checks initiated. -->
+          <p class="step-subtitle" id="bgc-s4-body"></p>
+          <div class="bgc-detail-label" id="bgc-s4-next-label"></div>
+          <ul class="bgc-bullets" id="bgc-s4-bullets"></ul>
+          <button class="btn-next" id="bgc-s4-cta" onclick="bgcFinish()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <!-- TODO ES -->
+          <!-- T001 acceptance: every BGC panel ships with Continue + Skip.
+               On step 4 both routes land on the same success screen. -->
+          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+        </div>
+      </div>
+
       <div class="step" data-step="12">
         <div class="step-content success-screen">
           <div class="success-icon">
@@ -1154,9 +1311,16 @@
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
+  <script src="bgc-onboarding.js"></script>
   <script>
     let currentStep = 0;
-    const totalSteps = 13;
+    // 14 original panels (data-step 0-12 with one duplicated id) + 4 BGC
+    // panels inserted before the success screen (Task #115). Success is now
+    // the last DOM-index step, computed dynamically below.
+    let totalSteps = 17;
+    // DOM indices of the inserted BGC panels and the success screen,
+    // resolved at DOMContentLoaded so we tolerate future panel reordering.
+    let BGC_STEP_DOM = { s1: -1, s2: -1, s3: -1, s4: -1, success: -1 };
     let userId = null;
     let vehicleId = null;
     let selectedCategory = '';
@@ -1217,15 +1381,22 @@
     }
 
     function updateProgress() {
-      const preAccountSteps = 10;
+      const preAccountSteps = 10; // DOM 0-9 = pre-account form (Step N of 10)
       const pct = Math.min(((currentStep) / totalSteps) * 100, 100);
       document.getElementById('progress-fill').style.width = pct + '%';
-      if (currentStep < preAccountSteps) {
-        document.getElementById('step-counter').textContent = 'Step ' + (currentStep + 1);
+      const counter = document.getElementById('step-counter');
+      // BGC sub-flow gets its own counter so providers see how far they are
+      // through the MCC Verified signup (4 panels).
+      // <!-- TODO ES -->
+      if (BGC_STEP_DOM.s1 !== -1 && currentStep >= BGC_STEP_DOM.s1 && currentStep <= BGC_STEP_DOM.s4) {
+        const n = (currentStep - BGC_STEP_DOM.s1) + 1;
+        counter.textContent = 'MCC Verified · Step ' + n + ' of 4';
+      } else if (currentStep < preAccountSteps) {
+        counter.textContent = 'Step ' + (currentStep + 1) + ' of ' + preAccountSteps;
       } else if (currentStep < totalSteps) {
-        document.getElementById('step-counter').textContent = 'Almost done';
+        counter.textContent = 'Almost done';
       } else {
-        document.getElementById('step-counter').textContent = 'Complete';
+        counter.textContent = 'Complete';
       }
       const canGoBack = currentStep > 0 && currentStep <= 9;
       document.getElementById('back-btn').style.visibility = canGoBack ? 'visible' : 'hidden';
@@ -1498,7 +1669,17 @@
 
     function skipRequest() {
       showSuccessScreen();
-      showStep(totalSteps);
+      // Task #115: route through the BGC sub-flow before the success screen.
+      goToBgcOrSuccess();
+    }
+
+    // Helper: go to first BGC panel if it's mounted, else straight to success.
+    function goToBgcOrSuccess() {
+      if (BGC_STEP_DOM.s1 !== -1) {
+        showStep(BGC_STEP_DOM.s1);
+      } else {
+        showStep(BGC_STEP_DOM.success !== -1 ? BGC_STEP_DOM.success : totalSteps);
+      }
     }
 
     async function submitRequest() {
@@ -1527,7 +1708,8 @@
         console.error('Request insert error:', err);
       }
       showSuccessScreen();
-      showStep(totalSteps);
+      // Task #115: route through the BGC sub-flow before the success screen.
+      goToBgcOrSuccess();
     }
 
     function showSuccessScreen() {
@@ -1624,8 +1806,320 @@
       formData.state = '';
     });
 
+    // ─── Task #115: BGC onboarding sub-flow ──────────────────────────────
+    // Renders the four "MCC Verified" panels using verbatim copy from
+    // window.MCC_BGC_Onboarding.COPY (loaded by bgc-onboarding.js). On step 3
+    // confirm we INSERT each row into provider_employees and POST one
+    // /api/provider/initiate-background-check call per employee, batched with
+    // Promise.allSettled so a single failure doesn't block the others. <!-- TODO ES -->
+
+    let bgcEmployees = [];   // Local form state: [{first, last, dob, email, address}, ...]
+    let bgcRowSeq = 0;
+
+    function bgcResolveDomIndices() {
+      const steps = document.querySelectorAll('.step');
+      steps.forEach((s, i) => {
+        const d = s.getAttribute('data-step');
+        if      (d === 'bgc-1') BGC_STEP_DOM.s1 = i;
+        else if (d === 'bgc-2') BGC_STEP_DOM.s2 = i;
+        else if (d === 'bgc-3') BGC_STEP_DOM.s3 = i;
+        else if (d === 'bgc-4') BGC_STEP_DOM.s4 = i;
+      });
+      // Success screen is the last panel in the DOM.
+      BGC_STEP_DOM.success = steps.length - 1;
+      totalSteps = steps.length - 1;
+    }
+
+    function bgcPopulateCopy() {
+      const COPY = (window.MCC_BGC_Onboarding && window.MCC_BGC_Onboarding.COPY) || null;
+      if (!COPY) {
+        console.warn('[BGC onboarding] MCC_BGC_Onboarding.COPY not loaded; panels will be blank.');
+        return;
+      }
+      const set = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+      const setHtml = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+
+      // Step 1
+      set('bgc-s1-title',          COPY.s1.title);
+      set('bgc-s1-body',           COPY.s1.body);
+      set('bgc-s1-screened-label', COPY.s1.whatScreenedLabel);
+      set('bgc-s1-screened-text',  COPY.s1.whatScreened);
+      set('bgc-s1-cost-label',     COPY.s1.whatItCostsLabel);
+      set('bgc-s1-cost-text',      COPY.s1.whatItCosts);
+      set('bgc-s1-need-label',     COPY.s1.whatYouNeedLabel);
+      set('bgc-s1-need-text',      COPY.s1.whatYouNeed);
+      const s1cta = document.getElementById('bgc-s1-cta');
+      if (s1cta) s1cta.firstChild.textContent = COPY.s1.cta + ' ';
+
+      // Step 2
+      set('bgc-s2-title',  COPY.s2.title);
+      set('bgc-s2-body',   COPY.s2.body);
+      set('bgc-s2-helper', COPY.s2.helper);
+      const s2cta = document.getElementById('bgc-s2-cta');
+      if (s2cta) s2cta.firstChild.textContent = COPY.s2.cta + ' ';
+
+      // Step 3
+      set('bgc-s3-title',     COPY.s3.title);
+      set('bgc-s3-body',      COPY.s3.body);
+      set('bgc-s3-authorize', COPY.s3.authorize);
+      const s3cta = document.getElementById('bgc-s3-cta');
+      if (s3cta) s3cta.firstChild.textContent = COPY.s3.cta + ' ';
+
+      // Step 4 — body is rendered count-aware via COPY.s4.body(n) at the
+      // moment we navigate to the panel (see bgcShowStep4WithCount).
+      set('bgc-s4-title',      COPY.s4.title);
+      set('bgc-s4-body',       COPY.s4.body(0));
+      set('bgc-s4-next-label', COPY.s4.whatNextLabel);
+      const ul = document.getElementById('bgc-s4-bullets');
+      if (ul) {
+        ul.innerHTML = '';
+        (COPY.s4.bullets || []).forEach(b => {
+          const li = document.createElement('li');
+          li.textContent = b;
+          ul.appendChild(li);
+        });
+      }
+      const s4cta = document.getElementById('bgc-s4-cta');
+      if (s4cta) s4cta.firstChild.textContent = COPY.s4.cta + ' ';
+    }
+
+    function bgcAddRow() {
+      bgcEmployees.push({ id: ++bgcRowSeq, first: '', last: '', dob: '', email: '', address: '' });
+      bgcRenderRows();
+    }
+
+    function bgcRemoveRow(id) {
+      bgcEmployees = bgcEmployees.filter(r => r.id !== id);
+      if (bgcEmployees.length === 0) bgcAddRow();
+      else bgcRenderRows();
+    }
+
+    function bgcOnRowChange(id, field, value) {
+      const row = bgcEmployees.find(r => r.id === id);
+      if (row) row[field] = value;
+    }
+
+    function bgcEscape(s) {
+      return String(s == null ? '' : s)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    }
+
+    function bgcRenderRows() {
+      const host = document.getElementById('bgc-employee-rows');
+      if (!host) return;
+      host.innerHTML = bgcEmployees.map((r, i) => {
+        // <!-- TODO ES -->
+        const removeBtn = bgcEmployees.length > 1
+          ? '<button type="button" class="row-remove" onclick="bgcRemoveRow(' + r.id + ')">Remove</button>'
+          : '';
+        return (
+          '<div class="bgc-employee-row">' +
+            '<div class="row-header"><span>Employee ' + (i + 1) + '</span>' + removeBtn + '</div>' +
+            '<div class="row-grid">' +
+              // <!-- TODO ES -->
+              '<input class="row-input" placeholder="First name" value="' + bgcEscape(r.first) + '" oninput="bgcOnRowChange(' + r.id + ', \'first\', this.value)">' +
+              '<input class="row-input" placeholder="Last name" value="' + bgcEscape(r.last) + '" oninput="bgcOnRowChange(' + r.id + ', \'last\', this.value)">' +
+              // <!-- TODO ES -->
+              '<input class="row-input" type="date" placeholder="Date of birth" value="' + bgcEscape(r.dob) + '" oninput="bgcOnRowChange(' + r.id + ', \'dob\', this.value)">' +
+              // <!-- TODO ES -->
+              '<input class="row-input" type="email" placeholder="Email" value="' + bgcEscape(r.email) + '" oninput="bgcOnRowChange(' + r.id + ', \'email\', this.value)">' +
+              // <!-- TODO ES -->
+              '<input class="row-input full" placeholder="Current address" value="' + bgcEscape(r.address) + '" oninput="bgcOnRowChange(' + r.id + ', \'address\', this.value)">' +
+            '</div>' +
+          '</div>'
+        );
+      }).join('');
+    }
+
+    function bgcStep1Continue() {
+      if (bgcEmployees.length === 0) bgcAddRow();
+      else bgcRenderRows();
+      showStep(BGC_STEP_DOM.s2);
+    }
+
+    function bgcRowComplete(r) {
+      return r && r.first.trim() && r.last.trim() && r.dob.trim() && r.email.trim() && r.address.trim();
+    }
+
+    function bgcStep2Continue() {
+      const errEl = document.getElementById('bgc-s2-error');
+      if (errEl) errEl.style.display = 'none';
+      const complete = bgcEmployees.filter(bgcRowComplete);
+      if (complete.length === 0) {
+        if (errEl) errEl.style.display = 'block';
+        return;
+      }
+      // Drop incomplete trailing rows so they don't get sent.
+      bgcEmployees = complete;
+      const cnt = document.getElementById('bgc-s3-count');
+      if (cnt) cnt.textContent = String(bgcEmployees.length);
+      showStep(BGC_STEP_DOM.s3);
+    }
+
+    function bgcSkip() {
+      showStep(BGC_STEP_DOM.success);
+    }
+
+    function bgcFinish() {
+      showStep(BGC_STEP_DOM.success);
+    }
+
+    function bgcShowToast(message, retryCb) {
+      const existing = document.getElementById('bgc-toast');
+      if (existing) existing.remove();
+      const t = document.createElement('div');
+      t.id = 'bgc-toast';
+      t.className = 'bgc-toast';
+      const span = document.createElement('span');
+      span.textContent = message;
+      t.appendChild(span);
+      if (typeof retryCb === 'function') {
+        const btn = document.createElement('button');
+        // <!-- TODO ES -->
+        btn.textContent = 'Retry';
+        btn.onclick = function () { t.remove(); retryCb(); };
+        t.appendChild(btn);
+      }
+      const closeBtn = document.createElement('button');
+      closeBtn.textContent = '×';
+      closeBtn.style.background = 'transparent';
+      closeBtn.style.color = '#fff';
+      closeBtn.onclick = function () { t.remove(); };
+      t.appendChild(closeBtn);
+      document.body.appendChild(t);
+    }
+
+    // Per-row state used to make this flow idempotent across retries:
+    //   r.employeeId — set after a successful provider_employees insert; on
+    //                  retry we skip the insert so we never create duplicate
+    //                  employee rows (a single failed initiate previously
+    //                  produced one orphan per retry attempt).
+    //   r.initiated  — set after a successful initiate-background-check POST.
+    //                  Rows already initiated are filtered out so retries
+    //                  only touch the failed subset.
+    //   r.lastError  — last error message (for the retry toast).
+    async function bgcInitiateForRows(rows) {
+      const sb = window.supabaseClient;
+      const session = sb ? (await sb.auth.getSession()).data.session : null;
+      const token = session?.access_token;
+      if (!token) {
+        return { ok: [], failed: rows.map(r => ({ row: r, error: 'Not signed in' })) };
+      }
+
+      const results = await Promise.allSettled(rows.map(async (r) => {
+        // 1) Create the employee row only if we don't already have an id
+        //    from a prior attempt. (provider_employees only stores
+        //    first/last/email — DOB and address are passed straight through
+        //    to BGC and not persisted on the employee row.)
+        if (!r.employeeId) {
+          const { data: emp, error: insErr } = await sb
+            .from('provider_employees')
+            .insert({
+              provider_id: userId,
+              first_name: r.first.trim(),
+              last_name: r.last.trim(),
+              email: r.email.trim() || null,
+              is_customer_facing: true,
+              is_active: true
+            })
+            .select('id')
+            .single();
+          if (insErr || !emp) {
+            throw new Error(insErr?.message || 'Could not create employee');
+          }
+          r.employeeId = emp.id;
+        }
+        // 2) Initiate the BGC report. Safe to retry on failure: the endpoint
+        //    will create a new pending check row each time, but it always
+        //    supersedes prior `is_current` rows for the same employee, so
+        //    the dashboard only shows the latest attempt.
+        const resp = await fetch('/api/provider/initiate-background-check', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: 'Bearer ' + token },
+          body: JSON.stringify({
+            employeeId: r.employeeId,
+            dob: r.dob,
+            address: r.address
+          })
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          throw new Error(body.error || ('HTTP ' + resp.status));
+        }
+        return { row: r, employeeId: r.employeeId, body };
+      }));
+
+      const ok = [];
+      const failed = [];
+      results.forEach((res, i) => {
+        if (res.status === 'fulfilled') ok.push(res.value);
+        else failed.push({ row: rows[i], error: res.reason?.message || String(res.reason) });
+      });
+      return { ok, failed };
+    }
+
+    function bgcShowStep4() {
+      const COPY = window.MCC_BGC_Onboarding && window.MCC_BGC_Onboarding.COPY;
+      const initiatedCount = bgcEmployees.filter(r => r.initiated).length;
+      const bodyEl = document.getElementById('bgc-s4-body');
+      if (bodyEl && COPY && typeof COPY.s4.body === 'function') {
+        bodyEl.textContent = COPY.s4.body(initiatedCount);
+      }
+      showStep(BGC_STEP_DOM.s4);
+    }
+
+    async function bgcStep3Confirm() {
+      // Only process rows that haven't already succeeded — this is what
+      // makes the retry flow idempotent and lets us retry just the failed
+      // subset without re-initiating the ones that already went through.
+      const pending = bgcEmployees.filter(r => !r.initiated);
+      if (pending.length === 0) {
+        bgcShowStep4();
+        return;
+      }
+
+      const btn = document.getElementById('bgc-s3-cta');
+      const orig = btn ? btn.innerHTML : '';
+      if (btn) {
+        btn.disabled = true;
+        // <!-- TODO ES -->
+        btn.innerHTML = '<div class="loading-spinner"></div> Sending consent forms...';
+      }
+
+      const { ok, failed } = await bgcInitiateForRows(pending);
+
+      if (btn) {
+        btn.disabled = false;
+        btn.innerHTML = orig;
+      }
+
+      // Mark per-row outcomes so a follow-up retry only touches !initiated.
+      ok.forEach(o => { o.row.initiated = true; o.row.lastError = null; });
+      failed.forEach(f => { f.row.lastError = f.error; });
+
+      if (failed.length > 0) {
+        // <!-- TODO ES -->
+        const names = failed.map(f => (f.row.first + ' ' + f.row.last).trim()).join(', ');
+        const successNote = ok.length > 0
+          ? ' (' + ok.length + ' already started)'
+          : '';
+        // Retry button re-enters bgcStep3Confirm, which only processes the
+        // still-pending rows — so partial failures get a retry too.
+        bgcShowToast(
+          'Could not start checks for ' + names + ': ' + (failed[0].error || 'unknown error') + successNote,
+          bgcStep3Confirm
+        );
+        return; // Stay on step 3 so the user can retry the failed subset.
+      }
+
+      bgcShowStep4();
+    }
+
     initServices();
     initPlacesAutocomplete();
+    bgcResolveDomIndices();
+    bgcPopulateCopy();
     updateProgress();
   </script>
 </body>

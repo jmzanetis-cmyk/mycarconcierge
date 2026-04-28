@@ -46,9 +46,20 @@
     // <!-- TODO ES -->
     s4: {
       title: 'You\u2019re on your way to Verified',
-      body:
-        'Add your team from the provider dashboard to start their background checks. ' +
-        'Most results come back within 1\u20133 business days.',
+      // body(n) returns count-aware confirmation copy. Pass the number of
+      // checks just initiated; pass 0 (or omit) for the count-agnostic
+      // version used by the post-signup tour modal where no employees
+      // have been added yet.
+      body: function (n) {
+        n = (n | 0);
+        if (n > 0) {
+          return 'Background checks have been initiated for ' + n +
+            (n === 1 ? ' employee.' : ' employees.') +
+            ' Most results come back within 1\u20133 business days.';
+        }
+        return 'Add your team from the provider dashboard to start their background checks. ' +
+          'Most results come back within 1\u20133 business days.';
+      },
       whatNextLabel: 'What happens next:',
       bullets: [
         'Each employee will receive a consent form via email',
@@ -149,7 +160,8 @@
     return (
       '<div class="mcc-bgc-body">' +
         '<h2>' + escapeHtml(c.title) + '</h2>' +
-        '<p>' + escapeHtml(c.body) + '</p>' +
+        // Tour modal has no count yet — pass 0 for the count-agnostic copy.
+        '<p>' + escapeHtml(c.body(0)) + '</p>' +
         '<span class="mcc-bgc-label">' + escapeHtml(c.whatNextLabel) + '</span>' +
         '<ul style="margin:8px 0 0;padding-left:20px;color:#e8eaed;line-height:1.7;">' + bullets + '</ul>' +
       '</div>'
