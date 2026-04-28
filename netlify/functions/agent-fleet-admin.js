@@ -142,6 +142,8 @@ async function sendMatchmakerFCMPush(supabase, userIds, title, body, data) {
 
   const stale = [];
   let success = 0, failure = 0;
+  let lastErrCode = null;
+  let oauthFailed = false;
   await Promise.all(tokenRows.map(async (row) => {
     try {
       const result = await sendFCMv1Message(row.token, title, body, data || {}, projectId);
@@ -149,12 +151,28 @@ async function sendMatchmakerFCMPush(supabase, userIds, title, body, data) {
         success++;
       } else {
         failure++;
-        const errCode = result.body?.error?.details?.[0]?.errorCode || result.body?.error?.status;
-        if (errCode === 'UNREGISTERED' || errCode === 'INVALID_ARGUMENT') stale.push(row.token);
-        console.warn(`[FCM v1] matchmaker push failed (${row.platform}): ${errCode}`);
+        // Only deactivate on definitive token-invalid signals. UNREGISTERED
+        // (FCM error code) or NOT_FOUND (token not on FCM servers) mean the
+        // token is permanently dead. INVALID_ARGUMENT in v1 can also indicate
+        // payload/auth/request-shape problems, so we ONLY deactivate when
+        // the per-detail errorCode is explicitly UNREGISTERED — not when the
+        // top-level status is INVALID_ARGUMENT (which would mass-deactivate
+        // valid tokens during a payload/config bug).
+        const detailErrCode = result.body?.error?.details?.[0]?.errorCode;
+        const topStatus     = result.body?.error?.status;
+        lastErrCode = detailErrCode || topStatus || `http_${result.status}`;
+        if (detailErrCode === 'UNREGISTERED' || topStatus === 'NOT_FOUND') {
+          stale.push(row.token);
+        }
+        console.warn(`[FCM v1] matchmaker push failed (${row.platform}): ${lastErrCode}`);
       }
     } catch (err) {
       failure++;
+      // Token-acquisition (OAuth) failures bubble up here as the message
+      // includes 'FCM OAuth' from getFCMAccessToken. Surface that distinctly
+      // so push_skipped_reason reflects the root cause.
+      if (/FCM OAuth|FCM_SERVICE_ACCOUNT_JSON/.test(err.message)) oauthFailed = true;
+      lastErrCode = lastErrCode || 'send_exception';
       console.error('[FCM v1] matchmaker push send error:', err.message);
     }
   }));
@@ -165,6 +183,12 @@ async function sendMatchmakerFCMPush(supabase, userIds, title, body, data) {
     } catch (e) {
       console.error('[FCM v1] failed to deactivate stale tokens:', e.message);
     }
+  }
+  // When every send failed we still need a structured reason so the audit row
+  // shows WHY push was skipped instead of leaving push_skipped_reason null.
+  if (success === 0 && failure > 0) {
+    const reason = oauthFailed ? 'oauth_failed' : (lastErrCode ? `send_failed:${lastErrCode}` : 'send_failed');
+    return { sent: false, reason, success, failure };
   }
   return { sent: success > 0, success, failure };
 }

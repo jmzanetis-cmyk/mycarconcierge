@@ -389,6 +389,114 @@ function freshSupabase() {
   assertEq(sb3.state.care_plans[0].status, 'awarded', '[fcm] care plan still flipped to awarded');
   assertEq(sb3.state.notifications.length, 4, '[fcm] in-app notifications still inserted');
 
+  // Per-recipient data payloads (deeplink / role / care_plan_id / amount).
+  const winnerData = JSON.parse(winnerSend.body).message.data;
+  assertEq(winnerData.deeplink,     '/providers.html#bids', '[fcm] winner data.deeplink');
+  assertEq(winnerData.role,         'winner',               '[fcm] winner data.role');
+  assertEq(winnerData.care_plan_id, PLAN_ID,                '[fcm] winner data.care_plan_id');
+  assertEq(winnerData.amount,       '250',                  '[fcm] winner data.amount');
+  assertEq(winnerData.type,         'matchmaker_award',     '[fcm] winner data.type');
+  const memberData = JSON.parse(memberSend.body).message.data;
+  assertEq(memberData.deeplink,     '/members.html#packages','[fcm] member data.deeplink');
+  assertEq(memberData.role,         'member',               '[fcm] member data.role');
+  const loserData = JSON.parse(loserSend.body).message.data;
+  assertEq(loserData.role,          'loser',                '[fcm] loser data.role');
+
+  // ── Case 3b: stale-token cleanup is precise ──────────────────────────────
+  // Only UNREGISTERED (per-detail errorCode) deactivates the token. A
+  // top-level INVALID_ARGUMENT status (which can mean payload/auth issues)
+  // must NOT mass-deactivate valid tokens.
+  resendCalls = [];
+  fcmCalls = [];
+  fcmFetchHandler = async (url, opts) => {
+    if (String(url).includes('oauth2.googleapis.com')) {
+      return { status: 200, ok: true,
+        json: async () => ({ access_token: 'fake-access-token', expires_in: 3600 }) };
+    }
+    const body = JSON.parse(opts.body);
+    const token = body.message.token;
+    if (token === 'tok-unregistered') {
+      return { status: 404, ok: false,
+        json: async () => ({ error: { status: 'NOT_FOUND', details: [{ errorCode: 'UNREGISTERED' }] } }) };
+    }
+    if (token === 'tok-bad-payload') {
+      // INVALID_ARGUMENT at top-level — typically a payload/config bug, NOT a
+      // dead token. Must NOT be deactivated.
+      return { status: 400, ok: false,
+        json: async () => ({ error: { status: 'INVALID_ARGUMENT' } }) };
+    }
+    return { status: 200, ok: true, json: async () => ({ name: 'ok' }) };
+  };
+  const sb3b = makeSupabaseMock({
+    agent_actions: [{
+      id: ACTION_ID, agent_slug: 'matchmaker', action_type: 'rank',
+      review_status: null,
+      decision: { recommended_winner_bid_id: WIN_BID, payload: { care_plan_id: PLAN_ID } }
+    }],
+    plan_bids: [
+      { id: WIN_BID,    care_plan_id: PLAN_ID, provider_id: WIN_PID,    status: 'pending', amount: 250 },
+      { id: LOSE_BID_A, care_plan_id: PLAN_ID, provider_id: LOSE_PID_A, status: 'pending', amount: 300 }
+    ],
+    care_plans: [{ id: PLAN_ID, member_id: MEMBER_ID, status: 'open', title: 'Oil Change' }],
+    profiles: [
+      { id: MEMBER_ID, email: 'm@x.com', full_name: 'Mia',  business_name: null },
+      { id: WIN_PID,   email: 'w@x.com', full_name: 'Wendy',business_name: 'WG' },
+      { id: LOSE_PID_A,email: 'a@x.com', full_name: 'Larry',business_name: 'A' }
+    ],
+    device_push_tokens: [
+      { token: 'tok-unregistered', member_id: WIN_PID,    platform: 'ios',     active: true },
+      { token: 'tok-bad-payload',  member_id: LOSE_PID_A, platform: 'android', active: true },
+      { token: 'tok-good',         member_id: MEMBER_ID,  platform: 'ios',     active: true }
+    ]
+  });
+  await applyMatchmakerRank(sb3b, ACTION_ID, sb3b.state.agent_actions[0]);
+  const tokens3b = sb3b.state.device_push_tokens.reduce((acc, t) => { acc[t.token] = t; return acc; }, {});
+  assertEq(tokens3b['tok-unregistered'].active, false, '[stale] UNREGISTERED token deactivated');
+  assertEq(tokens3b['tok-bad-payload'].active,  true,  '[stale] INVALID_ARGUMENT (top-level) NOT deactivated');
+  assertEq(tokens3b['tok-good'].active,         true,  '[stale] healthy token left active');
+
+  // ── Case 3c: all sends fail → push_skipped_reason carries failure code ──
+  resendCalls = [];
+  fcmCalls = [];
+  fcmFetchHandler = async (url) => {
+    if (String(url).includes('oauth2.googleapis.com')) {
+      return { status: 200, ok: true,
+        json: async () => ({ access_token: 'fake-access-token', expires_in: 3600 }) };
+    }
+    return { status: 503, ok: false,
+      json: async () => ({ error: { status: 'UNAVAILABLE' } }) };
+  };
+  const sb3c = makeSupabaseMock({
+    agent_actions: [{
+      id: ACTION_ID, agent_slug: 'matchmaker', action_type: 'rank',
+      review_status: null,
+      decision: { recommended_winner_bid_id: WIN_BID, payload: { care_plan_id: PLAN_ID } }
+    }],
+    plan_bids: [
+      { id: WIN_BID, care_plan_id: PLAN_ID, provider_id: WIN_PID, status: 'pending', amount: 250 }
+    ],
+    care_plans: [{ id: PLAN_ID, member_id: MEMBER_ID, status: 'open', title: 'Oil Change' }],
+    profiles: [
+      { id: MEMBER_ID, email: 'm@x.com', full_name: 'Mia',  business_name: null },
+      { id: WIN_PID,   email: 'w@x.com', full_name: 'Wendy',business_name: 'WG' }
+    ],
+    device_push_tokens: [
+      // Both recipients have tokens so neither push call short-circuits with
+      // 'no_tokens' before the upstream FCM failure surfaces. This keeps the
+      // assertion focused on the all-send-fail summary path.
+      { token: 'tok-x', member_id: WIN_PID,    platform: 'ios', active: true },
+      { token: 'tok-y', member_id: MEMBER_ID,  platform: 'ios', active: true }
+    ]
+  });
+  await applyMatchmakerRank(sb3c, ACTION_ID, sb3c.state.agent_actions[0]);
+  const sum3c = sb3c.state.agent_actions.find(r => r.action_type === 'apply').decision.notifications;
+  assertEq(sum3c.winner_pushed, false, '[all-fail] winner_pushed=false');
+  assertEq(sum3c.member_pushed, false, '[all-fail] member_pushed=false');
+  assertTrue(/^send_failed:/.test(sum3c.push_skipped_reason || ''),
+    `[all-fail] push_skipped_reason starts with send_failed: (got ${sum3c.push_skipped_reason})`);
+  assertTrue(sum3c.push_skipped_reason.includes('UNAVAILABLE'),
+    '[all-fail] push_skipped_reason includes upstream error code');
+
   // ── Case 4: FCM enabled but no device tokens for any user → graceful skip ─
   resendCalls = [];
   fcmCalls = [];
