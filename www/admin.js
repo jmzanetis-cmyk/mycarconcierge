@@ -1110,9 +1110,149 @@
     async function loadApplications() {
       const { data } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
       applications = data || [];
+      // Task #189 — surface the originating cold-outreach lead on each
+      // application. The browser admin client uses the anon JWT and so can
+      // not SELECT from outreach_leads (RLS only grants service_role), so we
+      // batch-fetch the lead rows through the privileged
+      // provider-application-review endpoint and decorate each application
+      // with `_outreach_lead`. Failures here never block the table render —
+      // worst case the badge falls back to "Direct signup" / "Lead linked".
+      await hydrateApplicationOutreachLeads(applications);
       renderApplications();
       document.getElementById('app-count').textContent = applications.filter(a => a.status === 'pending').length;
     }
+
+    async function hydrateApplicationOutreachLeads(apps) {
+      if (!Array.isArray(apps) || !apps.length) return;
+      const leadIds = Array.from(new Set(
+        apps.map(a => a && a.outreach_lead_id).filter(Boolean)
+      ));
+      if (!leadIds.length) return;
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/provider-application/outreach-leads`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lead_ids: leadIds })
+        });
+        if (!res.ok) {
+          console.warn('[admin] outreach-leads fetch failed:', res.status);
+          return;
+        }
+        const json = await res.json();
+        const map = new Map((json.leads || []).map(l => [l.id, l]));
+        apps.forEach(a => {
+          a._outreach_lead = a.outreach_lead_id ? (map.get(a.outreach_lead_id) || null) : null;
+        });
+      } catch (e) {
+        console.warn('[admin] outreach-leads fetch errored:', e);
+      }
+    }
+
+    // Task #189 — formats the originating-lead chip shown in the
+    // applications table and detail modal. Returns a small HTML snippet that
+    // is safe to drop into innerHTML; everything user-controlled is run
+    // through escapeHtml first.
+    function renderApplicationLeadBadge(app) {
+      const lead = app && app._outreach_lead;
+      if (!app || !app.outreach_lead_id) {
+        return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:rgba(100,100,120,0.12);color:var(--text-muted);border:1px solid var(--border-subtle);" title="No matching outreach lead — applicant signed up without ever being contacted by the cold-outreach engine.">${mccIcon('user', 14)} Direct signup</span>`;
+      }
+      if (!lead) {
+        // Application has an outreach_lead_id but the row could not be loaded
+        // (RLS denial, deleted lead, lookup failure). Treat as linked-but-
+        // unreadable so reviewers still see the attribution exists.
+        return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:rgba(56,189,248,0.10);color:var(--accent-blue);border:1px solid rgba(56,189,248,0.25);" title="Linked to outreach lead ${escapeHtml(app.outreach_lead_id)} but the lead row could not be loaded.">${mccIcon('link', 14)} Lead linked</span>`;
+      }
+      const sourceLabel = (lead.source || 'outreach').toString();
+      // Title-case the source code for display ("hunter" → "Hunter").
+      const sourceDisplay = sourceLabel.charAt(0).toUpperCase() + sourceLabel.slice(1).replace(/_/g, ' ');
+      const parts = [sourceDisplay];
+      if (lead.location) parts.push(lead.location);
+      if (lead.created_at) {
+        try { parts.push(new Date(lead.created_at).toLocaleDateString()); } catch (e) {}
+      }
+      const label = parts.join(' — ');
+      const tooltip = `From cold-outreach lead "${lead.name || 'Unknown'}" (${lead.type || '?'}) — click to open the lead`;
+      // Use data-* attributes (encoded for attribute context) instead of an
+      // inline JS handler so apostrophes / quotes / backslashes / angle
+      // brackets in untrusted lead fields can't break the attribute boundary
+      // or inject script. The repo-wide escapeHtml helper relies on the HTML
+      // serializer, which escapes & < > but NOT " or ' — unsafe for raw
+      // attribute interpolation. encodeAttr handles the additional chars.
+      const encodeAttr = (v) => String(v == null ? '' : v)
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+      const safeId = encodeAttr(lead.id);
+      const safeName = encodeAttr(lead.name || '');
+      const safeEmail = encodeAttr(lead.email || '');
+      const safeTooltip = encodeAttr(tooltip);
+      // The `mcc-outreach-lead-link` class is wired to a single delegated
+      // click handler installed below (no inline handler in markup).
+      return `<a href="#" class="mcc-outreach-lead-link" data-lead-id="${safeId}" data-lead-name="${safeName}" data-lead-email="${safeEmail}" title="${safeTooltip}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:rgba(201,162,39,0.12);color:var(--accent-gold);border:1px solid rgba(201,162,39,0.3);text-decoration:none;">${mccIcon('mail', 14)} ${escapeHtml(label)}</a>`;
+    }
+    // Test seam: exposed so unit tests can exercise the real renderer
+    // against full DOM output instead of a re-implemented stub.
+    window.renderApplicationLeadBadge = renderApplicationLeadBadge;
+
+    // Delegated click handler for outreach-lead badges (Task #189). Installed
+    // once per page load — guarded by a window flag so repeated re-renders or
+    // hot-reloads don't stack listeners. Reads data-* attributes (which the
+    // browser already decodes back to plain text) and dispatches to
+    // viewOutreachLead, so untrusted values never touch a JS literal.
+    if (!window.__mccOutreachLeadLinkBound) {
+      document.addEventListener('click', function(e) {
+        const el = e.target && e.target.closest && e.target.closest('.mcc-outreach-lead-link');
+        if (!el) return;
+        e.preventDefault();
+        const id = el.getAttribute('data-lead-id') || '';
+        const name = el.getAttribute('data-lead-name') || '';
+        const email = el.getAttribute('data-lead-email') || '';
+        if (typeof window.viewOutreachLead === 'function') {
+          window.viewOutreachLead(id, name, email);
+        }
+      });
+      window.__mccOutreachLeadLinkBound = true;
+    }
+
+    // Task #189 — deep-link from the application row's source badge into the
+    // outreach engine's Leads tab, with the lead's email pre-filled in the
+    // search box so the operator immediately sees the matching row. We do not
+    // try to open the edit modal directly because editLead() reads from the
+    // local outreachLeads cache and that cache is only populated after
+    // loadLeads() resolves; instead we navigate, switch tabs, set the search
+    // box, and let the operator click through.
+    async function viewOutreachLead(leadId, leadName, leadEmail) {
+      try {
+        // 1. Navigate to the marketing-outreach section.
+        if (typeof showSection === 'function') {
+          await showSection('marketing-outreach');
+        }
+        // 2. Make sure the Outreach Engine sub-tab is active (it's the
+        //    default but a previous session may have switched away).
+        const moTab = document.querySelector('.mo-tab[data-tab="outreach-engine"]');
+        if (moTab && !moTab.classList.contains('active')) moTab.click();
+        // 3. Switch to the Leads sub-tab inside Outreach Engine.
+        if (typeof window.switchOutreachTab === 'function') {
+          window.switchOutreachTab('leads');
+        }
+        // 4. Pre-fill the leads search input. Email is the most precise
+        //    match; fall back to name. loadLeads() reads the input value
+        //    when called, so we trigger it after setting.
+        await new Promise(r => setTimeout(r, 50));
+        const searchEl = document.getElementById('leads-search');
+        if (searchEl) {
+          searchEl.value = leadEmail || leadName || '';
+          searchEl.dispatchEvent(new Event('input', { bubbles: true }));
+        }
+        if (typeof window.loadLeads === 'function') {
+          await window.loadLeads();
+        }
+      } catch (e) {
+        console.warn('[admin] viewOutreachLead failed:', e);
+      }
+    }
+    window.viewOutreachLead = viewOutreachLead;
 
     async function loadProviders(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
@@ -2055,7 +2195,7 @@
       const tbody = document.getElementById('applications-table');
       
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No applications</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No applications</td></tr>';
         return;
       }
 
@@ -2065,6 +2205,7 @@
           <td>${escapeHtml(app.business_type) || 'N/A'}</td>
           <td>${escapeHtml(app.city) || ''}, ${escapeHtml(app.state) || ''}</td>
           <td>${new Date(app.created_at).toLocaleDateString()}</td>
+          <td>${renderApplicationLeadBadge(app)}</td>
           <td><span class="status-badge ${escapeHtml(app.status)}">${escapeHtml(app.status)}</span></td>
           <td><button class="btn btn-secondary btn-sm" onclick="viewApplication('${escapeHtml(app.id)}')">Review</button></td>
         </tr>
@@ -2914,6 +3055,25 @@
         <div class="form-group">
           <label class="form-label">Admin Notes</label>
           <textarea class="form-textarea" id="admin-notes" placeholder="Internal notes about this application...">${app.admin_notes || ''}</textarea>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('user-check', 24)} Originating Lead</div>
+          <div style="font-size:0.9rem;line-height:1.6;">
+            ${renderApplicationLeadBadge(app)}
+            ${app._outreach_lead ? `
+              <div style="margin-top:10px;color:var(--text-secondary);">
+                <div><strong style="color:var(--text-primary);">${escapeHtml(app._outreach_lead.name || 'Unknown')}</strong>${app._outreach_lead.type ? ` <span style="color:var(--text-muted);font-size:0.85em;">(${escapeHtml(app._outreach_lead.type)})</span>` : ''}</div>
+                ${app._outreach_lead.email ? `<div style="font-size:0.85em;color:var(--text-muted);">${escapeHtml(app._outreach_lead.email)}</div>` : ''}
+                ${app._outreach_lead.location ? `<div style="font-size:0.85em;color:var(--text-muted);">${escapeHtml(app._outreach_lead.location)}</div>` : ''}
+                ${app._outreach_lead.status ? `<div style="font-size:0.85em;color:var(--text-muted);margin-top:4px;">Lead status: <span style="font-weight:600;color:var(--text-primary);">${escapeHtml(app._outreach_lead.status)}</span></div>` : ''}
+              </div>
+            ` : (!app.outreach_lead_id ? `
+              <div style="margin-top:8px;color:var(--text-muted);font-size:0.85em;">
+                This applicant signed up directly — no record of cold-outreach contact in the engine.
+              </div>
+            ` : '')}
+          </div>
         </div>
 
         <div class="form-section" style="border-bottom:none;">

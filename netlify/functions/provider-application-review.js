@@ -282,6 +282,34 @@ async function requestApplicationInfo(supabase, body) {
   return jsonResponse(200, { application_id: applicationId, status: 'more_info_needed' });
 }
 
+// Batched fetch of originating outreach lead rows for the admin
+// provider-application review queue (Task #189). The browser admin client
+// uses the anon JWT, so it cannot SELECT from outreach_leads (RLS only
+// grants service_role). This endpoint accepts the small set of
+// outreach_lead_id values referenced by the currently-loaded applications
+// and returns just the columns needed to render the source badge and the
+// detail-modal "Originating Lead" block. Read-only — never mutates.
+async function listOutreachLeads(supabase, body) {
+  const rawIds = Array.isArray(body && body.lead_ids) ? body.lead_ids : [];
+  // Dedupe + filter to UUIDs so a malformed id can't slip into the IN clause.
+  const ids = Array.from(new Set(rawIds.filter(isUuid)));
+  if (!ids.length) return jsonResponse(200, { leads: [] });
+  // Hard cap: the admin queue is paginated client-side, but defend against a
+  // pathological payload regardless.
+  if (ids.length > 500) {
+    return jsonResponse(400, { error: 'too many lead_ids (max 500)' });
+  }
+
+  const { data, error } = await supabase
+    .from('outreach_leads')
+    .select('id, name, source, location, type, created_at, status, email')
+    .in('id', ids);
+  if (error) {
+    return jsonResponse(500, { error: 'failed to load outreach leads', details: error.message });
+  }
+  return jsonResponse(200, { leads: data || [] });
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
 
@@ -313,6 +341,9 @@ exports.handler = async function(event) {
     }
     if (route === 'request-info' && method === 'POST') {
       return await requestApplicationInfo(supabase, body);
+    }
+    if (route === 'outreach-leads' && method === 'POST') {
+      return await listOutreachLeads(supabase, body);
     }
     return jsonResponse(404, { error: 'Not found', path: route, method });
   } catch (e) {
