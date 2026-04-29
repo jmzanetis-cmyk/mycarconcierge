@@ -1958,7 +1958,7 @@ Then a blank line, then the email body starting with "Hi ${firstName},"`;
     if (!anthropic) return { error: 'AI not configured' };
 
     const resp = await anthropic.messages.create({
-      model: 'claude-3-5-haiku-20241022',
+      model: 'claude-haiku-4-5-20251001',
       max_tokens: 700,
       messages: [{ role: 'user', content: prompt }]
     });
