@@ -233,6 +233,9 @@ async function checkIntegrity(planIds) {
     completionByPlan[c.care_plan_id].push(c.status);
   }
   const validPaymentStates = new Set(['none', 'captured', 'disputed', 'held', 'refunded']);
+  // Terminal states a plan MUST be in if a completion row exists.
+  const terminalStates = new Set(['captured', 'disputed', 'refunded']);
+  let stuckCompletedPlans = 0;
   for (const p of (plans || [])) {
     const planCompletions = completionByPlan[p.id] || [];
     if (planCompletions.length > 1) {
@@ -241,10 +244,18 @@ async function checkIntegrity(planIds) {
     if (!validPaymentStates.has(p.payment_status)) {
       inconsistent.push({ planId: p.id, reason: `invalid payment_status: ${p.payment_status}` });
     }
+    // If a completion row was written but payment_status is still 'none' or
+    // 'held', the lifecycle update was lost — flag as inconsistent so the
+    // 'none' state cannot silently mask a failed capture.
+    if (planCompletions.length > 0 && !terminalStates.has(p.payment_status)) {
+      stuckCompletedPlans++;
+      inconsistent.push({ planId: p.id, reason: `completion exists but payment_status=${p.payment_status} (expected captured/disputed/refunded)` });
+    }
   }
   return {
     totalPlans: (plans || []).length,
     totalCompletions: (completions || []).length,
+    stuckCompletedPlans,
     inconsistent,
   };
 }
@@ -295,6 +306,7 @@ function printResults(testDurationSec, integrity) {
     { name: 'p95 (/dispute)  < 2000ms',           value: `${dP95}ms`,                       pass: dP95 < 2000 },
     { name: '5xx rate < 2%',                      value: `${errRate.toFixed(2)}%`,           pass: errRate < 2 },
     { name: 'No double-completion rows',          value: `${integrity.inconsistent.length} inconsistent`, pass: integrity.inconsistent.length === 0 },
+    { name: 'No stuck completions (none/held)',   value: `${integrity.stuckCompletedPlans} stuck`,         pass: integrity.stuckCompletedPlans === 0 },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);

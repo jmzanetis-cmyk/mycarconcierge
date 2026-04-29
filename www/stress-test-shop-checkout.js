@@ -88,6 +88,16 @@ function recordMetric(m, lat, status) {
   // (and timeouts) count as errors for this test.
   else if (status >= 500 || status === 0) m.errors++;
 }
+function recordCheckoutAuthOutcome(status) {
+  // Sim users have no 2FA token configured. enforce2fa() MUST reject every
+  // checkout with 401 or 403. A 200/201 here would mean the 2FA gate was
+  // bypassed under load — count it as a security failure separate from 5xx.
+  if (status === 401 || status === 403) {
+    metrics.checkout.gateBlocked = (metrics.checkout.gateBlocked || 0) + 1;
+  } else if (status === 200 || status === 201) {
+    metrics.checkout.gateBypassed = (metrics.checkout.gateBypassed || 0) + 1;
+  }
+}
 function getLatencies(m) {
   const len = Math.min(m.latencyCount, RESERVOIR_SIZE);
   return Array.from(m.latencies.subarray(0, len));
@@ -181,6 +191,7 @@ async function doCheckout(member, sample) {
     body: JSON.stringify(body),
   });
   recordMetric(metrics.checkout, latency, status);
+  recordCheckoutAuthOutcome(status);
 }
 
 async function runPhase(name, concurrency, durationMs, members, sample) {
@@ -267,9 +278,13 @@ function printResults(durationSec, integrity) {
   console.log(`  /checkout reqs:  ${metrics.checkout.requests}, p95=${cP95}ms`);
   console.log(`    statusCodes:   ${JSON.stringify(metrics.checkout.statusCodes)}`);
   console.log(`  5xx error rate:  ${errRate.toFixed(2)}%`);
+  const gateBlocked = metrics.checkout.gateBlocked || 0;
+  const gateBypassed = metrics.checkout.gateBypassed || 0;
   console.log(`  Stress orders:   ${integrity.stressOrders}`);
   console.log(`  Unique sessions: ${integrity.uniqueSessionIds}`);
   console.log(`  Dup sessions:    ${integrity.dupSessionIds}`);
+  console.log(`  2FA blocked:     ${gateBlocked} (401/403)`);
+  console.log(`  2FA bypassed:    ${gateBypassed} (200/201 — security failure if > 0)`);
 
   console.log('\n  PASS/FAIL CRITERIA');
   console.log('  ' + '-'.repeat(60));
@@ -278,6 +293,7 @@ function printResults(durationSec, integrity) {
     { name: 'p95 (/checkout) < 3000ms',  value: `${cP95}ms`,                pass: cP95 < 3000 },
     { name: '5xx rate < 2%',             value: `${errRate.toFixed(2)}%`,    pass: errRate < 2 },
     { name: 'No duplicate session IDs',  value: `${integrity.dupSessionIds}`, pass: integrity.dupSessionIds === 0 },
+    { name: '2FA gate not bypassed',     value: `${gateBypassed} bypass(es)`, pass: gateBypassed === 0 },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);

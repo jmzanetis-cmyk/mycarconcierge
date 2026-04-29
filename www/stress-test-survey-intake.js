@@ -86,6 +86,9 @@ function recordMetric(m, lat, status) {
   m.statusCodes[status] = (m.statusCodes[status] || 0) + 1;
   if (status === 429) m.rateLimited++;
   else if (status >= 500 || status === 0) m.errors++;
+  // Track 4xx (excl. 429) separately. Payloads are well-formed so a non-trivial
+  // 400/422 rate would indicate a schema/validation regression hiding under load.
+  else if (status >= 400 && status < 500) m.clientErrors = (m.clientErrors || 0) + 1;
 }
 function getLatencies(m) {
   const len = Math.min(m.latencyCount, RESERVOIR_SIZE);
@@ -189,8 +192,12 @@ function printResults(durationSec, integrity) {
   const p95 = percentile(arr, 95);
   const p99 = percentile(arr, 99);
   const success200 = metrics.post.statusCodes[200] || 0;
+  const clientErrors = metrics.post.clientErrors || 0;
   const errRate = metrics.post.requests > 0
     ? (metrics.post.errors / metrics.post.requests) * 100
+    : 0;
+  const clientErrRate = metrics.post.requests > 0
+    ? (clientErrors / metrics.post.requests) * 100
     : 0;
   const insertRatio = success200 > 0 ? integrity.totalInserted / success200 : 0;
 
@@ -201,6 +208,7 @@ function printResults(durationSec, integrity) {
   console.log(`  Total POSTs:        ${metrics.post.requests}`);
   console.log(`  200s:               ${success200}`);
   console.log(`  429s (rate limit):  ${metrics.post.rateLimited}`);
+  console.log(`  4xx (excl. 429):    ${clientErrors} (${clientErrRate.toFixed(2)}%)`);
   console.log(`  Status codes:       ${JSON.stringify(metrics.post.statusCodes)}`);
   console.log(`  Latency p50/p95/p99: ${p50}/${p95}/${p99}ms`);
   console.log(`  Rows inserted:      ${integrity.totalInserted}`);
@@ -214,6 +222,7 @@ function printResults(durationSec, integrity) {
   const criteria = [
     { name: 'p95 < 1000ms',                   value: `${p95}ms`,                                       pass: p95 < 1000 },
     { name: '5xx error rate < 1%',            value: `${errRate.toFixed(2)}%`,                         pass: errRate < 1 },
+    { name: '4xx (excl. 429) rate < 1%',      value: `${clientErrRate.toFixed(2)}%`,                   pass: clientErrRate < 1 },
     { name: 'Insert ratio >= 95% of 200s',    value: success200 > 0 ? `${(insertRatio*100).toFixed(1)}%` : 'no 200s', pass: success200 === 0 || insertRatio >= 0.95 },
     { name: 'All sampled rows have 22 dims',  value: integrity.sampleSize === 0 ? 'no inserts to sample' : `${integrity.rowsMissingDimensions} missing`, pass: integrity.rowsMissingDimensions === 0 },
   ];
