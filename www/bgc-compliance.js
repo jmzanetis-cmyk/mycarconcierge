@@ -394,8 +394,108 @@
     await Promise.all([
       loadSummary(providerId),
       loadEmployees(providerId),
-      loadAlerts(providerId)
+      loadAlerts(providerId),
+      loadNotificationPrefs(providerId)
     ]);
+  }
+
+  // ── Task #159: BGC reminder-email preferences ─────────────────────────
+  // Each toggle maps 1:1 to a column on provider_notification_prefs. The
+  // four legacy thresholds default to true; the optional 1-day final-nudge
+  // defaults to false. Defaults must mirror the migration so the UI shows
+  // the same state the cron job will act on for providers who never opened
+  // this panel.
+  const PREF_THRESHOLDS = [
+    { col: 'bgc_reminder_60', days: 60, label: '60 days before expiry', help: 'Early heads-up — useful for shops that schedule renewals weeks in advance.', defaultOn: true },
+    { col: 'bgc_reminder_30', days: 30, label: '30 days before expiry', help: 'Standard renewal window for most providers.', defaultOn: true },
+    { col: 'bgc_reminder_14', days: 14, label: '14 days before expiry', help: 'Time is getting tight — most renewals clear within 1–2 weeks.', defaultOn: true },
+    { col: 'bgc_reminder_7',  days:  7, label: '7 days before expiry',  help: 'Final warning before the check expires and the badge is at risk.', defaultOn: true },
+    { col: 'bgc_reminder_1',  days:  1, label: '1 day before expiry',   help: 'Last-chance nudge the day before — opt in if your team needs the extra prompt.', defaultOn: false }
+  ];
+
+  function _defaultPrefs() {
+    const out = {};
+    for (const t of PREF_THRESHOLDS) out[t.col] = t.defaultOn;
+    return out;
+  }
+
+  async function loadNotificationPrefs(providerId) {
+    const slot = document.getElementById('bgc-notif-prefs-card');
+    if (!slot) return;
+    const sb = getSupabase();
+    if (!sb) return;
+    const { data, error } = await sb
+      .from('provider_notification_prefs')
+      .select('bgc_reminder_60,bgc_reminder_30,bgc_reminder_14,bgc_reminder_7,bgc_reminder_1')
+      .eq('provider_id', providerId)
+      .maybeSingle();
+
+    const prefs = _defaultPrefs();
+    if (!error && data) {
+      for (const t of PREF_THRESHOLDS) {
+        if (data[t.col] !== null && data[t.col] !== undefined) prefs[t.col] = !!data[t.col];
+      }
+    }
+
+    const rows = PREF_THRESHOLDS.map(t => {
+      const checked = prefs[t.col] ? 'checked' : '';
+      return '' +
+        '<label style="display:flex;gap:14px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);cursor:pointer;">' +
+          '<input type="checkbox" data-pref-col="' + t.col + '" ' + checked + ' style="margin-top:3px;cursor:pointer;width:18px;height:18px;flex:0 0 auto;" />' +
+          '<span style="flex:1;">' +
+            '<span style="display:block;font-weight:600;color:var(--text-primary);">' + escapeHtml(t.label) + '</span>' +
+            '<span style="display:block;margin-top:2px;font-size:0.85rem;color:var(--text-secondary);">' + escapeHtml(t.help) + '</span>' +
+          '</span>' +
+        '</label>';
+    }).join('');
+
+    slot.innerHTML =
+      '<div class="card-header" style="margin-bottom:6px;">' +
+        '<h2 class="card-title">Reminder email preferences</h2>' +
+      '</div>' +
+      '<p style="margin:0 0 14px;color:var(--text-secondary);font-size:0.9rem;">' +
+        'Choose which background-check expiry reminders we email you. ' +
+        'In-dashboard alerts and expired-check / badge-removal emails are always sent — they cannot be muted.' +
+      '</p>' +
+      '<div style="display:grid;gap:10px;">' + rows + '</div>' +
+      '<div style="display:flex;align-items:center;gap:12px;margin-top:16px;">' +
+        '<button class="btn btn-primary" id="bgc-prefs-save-btn" onclick="window.bgcCompliance.saveNotificationPrefs()">Save preferences</button>' +
+        '<span id="bgc-prefs-status" style="font-size:0.85rem;color:var(--text-muted);"></span>' +
+      '</div>';
+  }
+
+  async function saveNotificationPrefs() {
+    const sb = getSupabase();
+    const providerId = await getProviderId();
+    if (!sb || !providerId) { alert('Not signed in.'); return; }
+
+    const slot = document.getElementById('bgc-notif-prefs-card');
+    if (!slot) return;
+
+    const payload = { provider_id: providerId };
+    for (const t of PREF_THRESHOLDS) {
+      const cb = slot.querySelector('input[data-pref-col="' + t.col + '"]');
+      payload[t.col] = !!(cb && cb.checked);
+    }
+
+    const btn = document.getElementById('bgc-prefs-save-btn');
+    const status = document.getElementById('bgc-prefs-status');
+    if (btn) btn.disabled = true;
+    if (status) { status.textContent = 'Saving…'; status.style.color = 'var(--text-muted)'; }
+
+    // Upsert by provider_id so the very first save creates the row and
+    // subsequent saves overwrite it. RLS limits inserts/updates to the
+    // signed-in provider's own row (see migration 20260428i).
+    const { error } = await sb
+      .from('provider_notification_prefs')
+      .upsert(payload, { onConflict: 'provider_id' });
+
+    if (btn) btn.disabled = false;
+    if (error) {
+      if (status) { status.textContent = 'Could not save: ' + (error.message || 'unknown error'); status.style.color = '#dc5050'; }
+      return;
+    }
+    if (status) { status.textContent = 'Saved.'; status.style.color = '#2eb88a'; }
   }
 
   async function openAddEmployee() {
@@ -450,7 +550,7 @@
     }
   }
 
-  window.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment };
+  window.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {

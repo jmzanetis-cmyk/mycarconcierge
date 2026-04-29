@@ -25,11 +25,15 @@ const { createSupabaseClient } = require('./utils');
 const APP_URL    = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
 const FROM_EMAIL = process.env.MCC_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
+// Each threshold maps to a column on provider_notification_prefs. The four
+// original thresholds default to ON (so existing providers see no change);
+// the new 1-day final-nudge defaults to OFF and is opt-in (Task #159).
 const THRESHOLDS = [
-  { days: 60, type: 'reminder_60', severity: 'info' },
-  { days: 30, type: 'reminder_30', severity: 'warning' },
-  { days: 14, type: 'reminder_14', severity: 'critical' },
-  { days:  7, type: 'reminder_7',  severity: 'critical' }
+  { days: 60, type: 'reminder_60', severity: 'info',     prefCol: 'bgc_reminder_60', defaultOn: true  },
+  { days: 30, type: 'reminder_30', severity: 'warning',  prefCol: 'bgc_reminder_30', defaultOn: true  },
+  { days: 14, type: 'reminder_14', severity: 'critical', prefCol: 'bgc_reminder_14', defaultOn: true  },
+  { days:  7, type: 'reminder_7',  severity: 'critical', prefCol: 'bgc_reminder_7',  defaultOn: true  },
+  { days:  1, type: 'reminder_1',  severity: 'critical', prefCol: 'bgc_reminder_1',  defaultOn: false }
 ];
 
 function escapeHtml(s) {
@@ -48,12 +52,15 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
   const urgency = days <= 7  ? 'URGENT — '
                : days <= 14 ? 'Action required — '
                : '';
-  const subject = `${urgency}Background check for ${employeeName} expires in ${days} days`;
+  // Grammatical "1 day" vs "N days" — matters now that we support a
+  // 1-day final-nudge reminder (Task #159).
+  const dayWord = days === 1 ? 'day' : 'days';
+  const subject = `${urgency}Background check for ${employeeName} expires in ${days} ${dayWord}`;
   const intro = days <= 7
-    ? `<strong style="color:#c0392b;">Your team member's background check expires in ${days} days.</strong> Falling out of compliance will remove your MCC Verified badge.`
+    ? `<strong style="color:#c0392b;">Your team member's background check expires in ${days} ${dayWord}.</strong> Falling out of compliance will remove your MCC Verified badge.`
     : days <= 14
-      ? `Your team member's background check expires in ${days} days. Renew now to keep your MCC Verified badge.`
-      : `Heads up — a background check on your team will expire in ${days} days.`;
+      ? `Your team member's background check expires in ${days} ${dayWord}. Renew now to keep your MCC Verified badge.`
+      : `Heads up — a background check on your team will expire in ${days} ${dayWord}.`;
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;color:#222;">
       <h2 style="color:#1e3a5f;">Background Check Expiring</h2>
@@ -169,6 +176,40 @@ exports.handler = async function() {
   let alertsCreated = 0;
   const renewUrl = `${APP_URL}/providers.html#compliance`;
 
+  // ── Per-provider preferences cache (Task #159) ─────────────────────────
+  // We look up provider_notification_prefs lazily per provider_id and cache
+  // the result for the lifetime of this run. Missing rows fall back to the
+  // hard-coded defaults (all four legacy thresholds ON, 1-day OFF), which
+  // matches the behaviour from before this preferences UI shipped.
+  const prefsCache = new Map();
+  async function loadPrefs(providerId) {
+    if (prefsCache.has(providerId)) return prefsCache.get(providerId);
+    let data = null;
+    try {
+      const res = await supabase
+        .from('provider_notification_prefs')
+        .select('bgc_reminder_60,bgc_reminder_30,bgc_reminder_14,bgc_reminder_7,bgc_reminder_1')
+        .eq('provider_id', providerId)
+        .maybeSingle();
+      data = res.data || null;
+      // If the table simply doesn't exist yet (deployment-ordering edge
+      // case where this function ships before the migration), fall through
+      // to defaults so the cron keeps working instead of throwing.
+      if (res.error) console.warn('[BGC reminders] prefs lookup soft-failed:', res.error.message);
+    } catch (e) {
+      console.warn('[BGC reminders] prefs lookup threw, falling back to defaults:', e.message);
+    }
+    const prefs = {};
+    for (const t of THRESHOLDS) {
+      // Treat NULL / missing row as the default. Only an explicit `false`
+      // mutes a threshold.
+      const v = data ? data[t.prefCol] : null;
+      prefs[t.prefCol] = v === null || v === undefined ? t.defaultOn : !!v;
+    }
+    prefsCache.set(providerId, prefs);
+    return prefs;
+  }
+
   // ── Helper: load provider + employee context for a check row ──────────
   async function loadCtx(check) {
     const { data: emp } = await supabase
@@ -226,18 +267,30 @@ exports.handler = async function() {
       const ctx = await loadCtx(c);
       if (!ctx) continue;
 
+      // Task #159: Respect provider notification preferences. A provider may
+      // have muted this threshold (e.g. the 60-day early heads-up). The task
+      // is specifically about *email* volume, so we still surface the
+      // in-portal expiring alert — providers can dismiss those individually
+      // if they don't want them. The bgc_expired / compliance_lost paths
+      // below are unaffected and never user-mutable.
+      const prefs = await loadPrefs(ctx.prof.id);
+      const emailEnabled = !!prefs[t.prefCol];
+
       const employeeName = `${ctx.emp.first_name} ${ctx.emp.last_name}`;
       const providerName = ctx.prof.business_name || ctx.prof.full_name || 'there';
-      const { subject, html } = reminderEmail({
-        providerName, employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
-      });
 
-      const ok = await sendEmail(ctx.prof.email, subject, html);
-      if (!ok) {
-        // Email failed — skip the dedupe write so we retry tomorrow.
-        // Still surface the alert so the provider sees urgency in the dashboard.
-      } else {
-        await logSent(supabase, c.employee_id, t.type, c.id, ctx.prof.email);
+      if (emailEnabled) {
+        const { subject, html } = reminderEmail({
+          providerName, employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
+        });
+
+        const ok = await sendEmail(ctx.prof.email, subject, html);
+        if (!ok) {
+          // Email failed — skip the dedupe write so we retry tomorrow.
+          // Still surface the alert so the provider sees urgency in the dashboard.
+        } else {
+          await logSent(supabase, c.employee_id, t.type, c.id, ctx.prof.email);
+        }
       }
 
       await upsertAlert(supabase, {
@@ -246,7 +299,7 @@ exports.handler = async function() {
         bgc_check_id: c.id,
         alert_type:   'bgc_expiring',
         severity:     t.severity,
-        title:        `${employeeName}'s background check expires in ${t.days} days`,
+        title:        `${employeeName}'s background check expires in ${t.days} ${t.days === 1 ? 'day' : 'days'}`,
         body:         `Renew before ${fmtDate(c.expires_at)} to keep your MCC Verified badge.`,
         action_url:   renewUrl,
         auto_resolve_on: 'new_clear_check'
