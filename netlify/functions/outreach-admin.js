@@ -594,6 +594,104 @@ exports.handler = async function(event, context) {
       });
     }
 
+    if (method === 'GET' && path === 'conversion-report') {
+      // Task #190 — outreach → application funnel by source.
+      // Driven by the outreach_conversion_report() RPC (single SQL aggregation,
+      // no per-row Node loops). Optional date_from / date_to filter the leads
+      // by their created_at; provider_applications joined via outreach_lead_id
+      // are NOT date-filtered themselves so a lead contacted in the window
+      // still counts even if the application landed later.
+      const { date_from, date_to } = params;
+
+      // Strict YYYY-MM-DD parsing. Anything that isn't an empty value or a
+      // valid calendar date returns 400 instead of silently degrading to
+      // "all time" — operators always want to know if their filter was
+      // ignored. Treat YYYY-MM-DD as UTC; upper bound advances one day so
+      // the SQL function's `< p_to` filter is end-day-inclusive.
+      function parseDate(input, endOfDay) {
+        if (input === undefined || input === null || input === '') {
+          return { ok: true, value: null };
+        }
+        const s = String(input).trim();
+        const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+        if (!m) return { ok: false };
+        const y  = Number(m[1]);
+        const mo = Number(m[2]);
+        const dd = Number(m[3]);
+        const d  = new Date(Date.UTC(y, mo - 1, dd));
+        if (
+          isNaN(d.getTime()) ||
+          d.getUTCFullYear() !== y ||
+          d.getUTCMonth()    !== mo - 1 ||
+          d.getUTCDate()     !== dd
+        ) {
+          return { ok: false };
+        }
+        if (endOfDay) d.setUTCDate(d.getUTCDate() + 1);
+        return { ok: true, value: d.toISOString() };
+      }
+
+      const fromParsed = parseDate(date_from, false);
+      const toParsed   = parseDate(date_to,   true);
+      if (!fromParsed.ok || !toParsed.ok) {
+        return jsonResponse(400, {
+          error: 'Invalid date filter. date_from / date_to must be YYYY-MM-DD.',
+          got: { date_from: date_from || null, date_to: date_to || null }
+        });
+      }
+      const pFrom = fromParsed.value;
+      const pTo   = toParsed.value;
+      if (pFrom && pTo && pFrom >= pTo) {
+        return jsonResponse(400, {
+          error: 'date_from must be on or before date_to.',
+          got: { date_from, date_to }
+        });
+      }
+
+      const { data, error } = await supabase.rpc('outreach_conversion_report', {
+        p_from: pFrom,
+        p_to:   pTo
+      });
+      if (error) {
+        return jsonResponse(500, {
+          error: error.message,
+          hint: 'If this references outreach_conversion_report, apply supabase/migrations/20260429_outreach_conversion_report.sql in the Supabase SQL Editor.'
+        });
+      }
+
+      const rows = (data || []).map(r => ({
+        source:                          r.source,
+        leads_contacted:                 Number(r.leads_contacted || 0),
+        profiles_created:                Number(r.profiles_created || 0),
+        provider_applications_submitted: Number(r.provider_applications_submitted || 0),
+        lead_to_profile_pct:             Number(r.lead_to_profile_pct || 0),
+        profile_to_application_pct:      Number(r.profile_to_application_pct || 0),
+        lead_to_application_pct:         Number(r.lead_to_application_pct || 0)
+      }));
+
+      const totals = rows.reduce((acc, r) => {
+        acc.leads_contacted                 += r.leads_contacted;
+        acc.profiles_created                += r.profiles_created;
+        acc.provider_applications_submitted += r.provider_applications_submitted;
+        return acc;
+      }, { leads_contacted: 0, profiles_created: 0, provider_applications_submitted: 0 });
+
+      const pct = (num, den) => (den > 0 ? Number(((num / den) * 100).toFixed(2)) : 0);
+      totals.lead_to_profile_pct        = pct(totals.profiles_created,                totals.leads_contacted);
+      totals.profile_to_application_pct = pct(totals.provider_applications_submitted, totals.profiles_created);
+      totals.lead_to_application_pct    = pct(totals.provider_applications_submitted, totals.leads_contacted);
+
+      return jsonResponse(200, {
+        by_source: rows,
+        totals,
+        date_from: pFrom,
+        date_to:   pTo,
+        // Echo the raw user-provided values too so the UI can reflect what was
+        // actually filtered (vs. the +1-day-shifted upper bound).
+        filter: { date_from: date_from || null, date_to: date_to || null }
+      });
+    }
+
     if (method === 'GET' && path.match(/^history\/[a-f0-9-]+$/)) {
       const profileId = path.split('/')[1];
       const { data: lead } = await supabase.from('outreach_leads').select('*').eq('crm_profile_id', profileId).maybeSingle();

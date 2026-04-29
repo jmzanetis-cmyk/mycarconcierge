@@ -307,8 +307,179 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       case 'leads': await loadLeads(); break;
       case 'campaigns': await loadCampaigns(); break;
       case 'analytics': await loadAnalytics(); break;
+      case 'funnel': await loadConversionFunnel(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Task #190 — outreach → application conversion funnel by source.
+  // Calls /api/admin/outreach/conversion-report (SQL-driven via the
+  // outreach_conversion_report() RPC) and renders a per-source table
+  // plus an overall totals row.
+  // ------------------------------------------------------------------
+  function fmtPct(v) {
+    const n = Number(v);
+    if (!isFinite(n)) return '0.0%';
+    return n.toFixed(1) + '%';
+  }
+
+  function fmtSourceLabel(src) {
+    if (!src) return 'Unknown';
+    // The SQL function lowercases source for grouping, so we lookup by
+    // the lowercase key. Anything unmapped falls back to title-case.
+    const key = String(src).toLowerCase();
+    const map = {
+      google_places:       'Google Places',
+      community_discovery: 'Community Discovery',
+      crm_reengagement:    'CRM Re-engagement',
+      referral_nudge:      'Referral Nudge',
+      apollo:              'Apollo',
+      hunter:              'Hunter',
+      manual:              'Manual',
+      csv_import:          'CSV Import',
+      unknown:             'Unknown'
+    };
+    if (map[key]) return map[key];
+    return key.split(/[_\s]+/)
+      .map(w => w.charAt(0).toUpperCase() + w.slice(1))
+      .join(' ');
+  }
+
+  function resetConversionFunnelDates(days) {
+    const fromInput = document.getElementById('funnel-date-from');
+    const toInput   = document.getElementById('funnel-date-to');
+    if (!fromInput || !toInput) return;
+    if (!days) {
+      fromInput.value = '';
+      toInput.value = '';
+    } else {
+      const today = new Date();
+      const from = new Date(today.getTime() - (days - 1) * 24 * 60 * 60 * 1000);
+      const iso = (d) => d.toISOString().slice(0, 10);
+      fromInput.value = iso(from);
+      toInput.value = iso(today);
+    }
+    loadConversionFunnel();
+  }
+
+  async function loadConversionFunnel() {
+    const container = document.getElementById('outreach-funnel-content');
+    if (!container) return;
+    container.innerHTML = '<div class="loading-spinner" style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
+
+    const dateFrom = document.getElementById('funnel-date-from')?.value || '';
+    const dateTo   = document.getElementById('funnel-date-to')?.value || '';
+    const params = new URLSearchParams();
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo)   params.set('date_to',   dateTo);
+
+    let res, data;
+    try {
+      res = await outreachFetch('/conversion-report' + (params.toString() ? '?' + params.toString() : ''));
+      data = await res.json();
+    } catch (e) {
+      container.innerHTML = `<div class="card" style="padding:24px;color:var(--accent-red,#ef4444);">Failed to load: ${e.message}</div>`;
+      return;
+    }
+    if (!res.ok) {
+      const hint = data?.hint ? `<div style="margin-top:8px;font-size:0.82rem;color:var(--text-muted);">${data.hint}</div>` : '';
+      container.innerHTML = `<div class="card" style="padding:24px;color:var(--accent-red,#ef4444);">Error: ${data?.error || res.status}${hint}</div>`;
+      return;
+    }
+
+    const rows = data.by_source || [];
+    const totals = data.totals || {};
+
+    const labelEl = document.getElementById('funnel-date-label');
+    if (labelEl) {
+      const f = data.filter?.date_from;
+      const t = data.filter?.date_to;
+      labelEl.textContent = (f || t) ? `Filtered: ${f || '—'} → ${t || 'now'}` : 'All time';
+    }
+
+    const summaryCards = `
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:14px;margin-bottom:18px;">
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-teal-soft,rgba(45,212,191,0.15));color:var(--accent-teal,#2dd4bf);"><span class="icon-inline" data-icon="users"></span></div>
+          <div class="stat-value">${totals.leads_contacted?.toLocaleString() || 0}</div>
+          <div class="stat-label">Leads Contacted</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-blue-soft,rgba(99,179,237,0.15));color:var(--accent-blue,#63b3ed);"><span class="icon-inline" data-icon="user-check"></span></div>
+          <div class="stat-value">${totals.profiles_created?.toLocaleString() || 0}</div>
+          <div class="stat-label">Profiles Created (${fmtPct(totals.lead_to_profile_pct)})</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-gold-soft,rgba(201,168,76,0.15));color:var(--accent-gold,#c9a84c);"><span class="icon-inline" data-icon="file-text"></span></div>
+          <div class="stat-value">${totals.provider_applications_submitted?.toLocaleString() || 0}</div>
+          <div class="stat-label">Applications Submitted (${fmtPct(totals.profile_to_application_pct)} of profiles)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-icon" style="background:var(--accent-green-soft,rgba(34,197,94,0.15));color:var(--accent-green,#22c55e);"><span class="icon-inline" data-icon="trending-up"></span></div>
+          <div class="stat-value">${fmtPct(totals.lead_to_application_pct)}</div>
+          <div class="stat-label">Cold Outreach → Application</div>
+        </div>
+      </div>
+    `;
+
+    let tableBody;
+    if (!rows.length) {
+      tableBody = `<tr><td colspan="7" style="text-align:center;color:var(--text-muted);padding:30px;">No outreach leads in this date range.</td></tr>`;
+    } else {
+      tableBody = rows.map(r => `
+        <tr>
+          <td><span class="status-badge" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);">${fmtSourceLabel(r.source)}</span></td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;">${(r.leads_contacted || 0).toLocaleString()}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;">${(r.profiles_created || 0).toLocaleString()}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--accent-blue,#63b3ed);">${fmtPct(r.lead_to_profile_pct)}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;">${(r.provider_applications_submitted || 0).toLocaleString()}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--accent-gold,#c9a84c);">${fmtPct(r.profile_to_application_pct)}</td>
+          <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:600;color:var(--accent-green,#22c55e);">${fmtPct(r.lead_to_application_pct)}</td>
+        </tr>
+      `).join('');
+    }
+
+    const totalsRow = rows.length ? `
+      <tr style="border-top:2px solid var(--border-subtle);font-weight:600;background:var(--bg-elevated);">
+        <td>All sources</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;">${(totals.leads_contacted || 0).toLocaleString()}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;">${(totals.profiles_created || 0).toLocaleString()}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--accent-blue,#63b3ed);">${fmtPct(totals.lead_to_profile_pct)}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;">${(totals.provider_applications_submitted || 0).toLocaleString()}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;color:var(--accent-gold,#c9a84c);">${fmtPct(totals.profile_to_application_pct)}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;font-weight:700;color:var(--accent-green,#22c55e);">${fmtPct(totals.lead_to_application_pct)}</td>
+      </tr>
+    ` : '';
+
+    container.innerHTML = `
+      ${summaryCards}
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="card-header" style="padding:14px 18px;border-bottom:1px solid var(--border-subtle);">
+          <h2 class="card-title" style="margin:0;"><span class="icon-inline" data-icon="bar-chart-2"></span> Funnel by Outreach Source</h2>
+        </div>
+        <div style="overflow-x:auto;">
+          <table style="width:100%;border-collapse:collapse;">
+            <thead>
+              <tr style="background:var(--bg-elevated);font-size:0.78rem;text-transform:uppercase;letter-spacing:0.04em;color:var(--text-muted);">
+                <th style="text-align:left;padding:10px 14px;">Source</th>
+                <th style="text-align:right;padding:10px 14px;">Leads Contacted</th>
+                <th style="text-align:right;padding:10px 14px;">Profiles Created</th>
+                <th style="text-align:right;padding:10px 14px;">→ Profile %</th>
+                <th style="text-align:right;padding:10px 14px;">Applications</th>
+                <th style="text-align:right;padding:10px 14px;">Profile → App %</th>
+                <th style="text-align:right;padding:10px 14px;">Lead → App %</th>
+              </tr>
+            </thead>
+            <tbody style="font-size:0.9rem;">
+              ${tableBody}
+              ${totalsRow}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    `;
+    if (typeof initInlineIcons !== 'undefined') initInlineIcons(container);
   }
 
   async function loadPipeline() {
@@ -1383,6 +1554,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   window.pauseCampaign = pauseCampaign;
   window.resumeCampaign = resumeCampaign;
   window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
+  window.loadConversionFunnel = loadConversionFunnel;
+  window.resetConversionFunnelDates = resetConversionFunnelDates;
 
   // ===================================================================
   // Task #243 — Facebook Page admin OAuth picker

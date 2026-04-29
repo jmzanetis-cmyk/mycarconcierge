@@ -1064,6 +1064,7 @@
               <button class="btn btn-sm outreach-tab" data-tab="campaigns" onclick="switchOutreachTab('campaigns')"><span class="icon-inline" data-icon="target"></span> Campaigns</button>
               <button class="btn btn-sm outreach-tab" data-tab="import" onclick="switchOutreachTab('import')"><span class="icon-inline" data-icon="download"></span> Import</button>
               <button class="btn btn-sm outreach-tab" data-tab="analytics" onclick="switchOutreachTab('analytics')"><span class="icon-inline" data-icon="bar-chart"></span> Analytics</button>
+              <button class="btn btn-sm outreach-tab" data-tab="funnel" onclick="switchOutreachTab('funnel')"><span class="icon-inline" data-icon="filter"></span> Funnel by Source</button>
               <button class="btn btn-sm outreach-tab" data-tab="instantly" onclick="switchOutreachTab('instantly')"><span class="icon-inline" data-icon="send"></span> Instantly.ai</button>
               <button class="btn btn-sm outreach-tab" data-tab="apollo" onclick="switchOutreachTab('apollo')"><span class="icon-inline" data-icon="search"></span> Apollo.io</button>
               <button class="btn btn-sm outreach-tab" data-tab="conversions" onclick="switchOutreachTab('conversions')"><span class="icon-inline" data-icon="trending-up"></span> Conversions</button>
@@ -1239,6 +1240,28 @@
 
           <div id="outreach-analytics" class="outreach-panel" style="display:none;">
             <div id="outreach-analytics-content"></div>
+          </div>
+
+          <div id="outreach-funnel" class="outreach-panel" style="display:none;">
+            <!-- Task #190 — outreach → application conversion funnel by source -->
+            <div class="card" style="margin-bottom:16px;padding:14px 20px;">
+              <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
+                <span style="font-weight:600;font-size:0.9rem;color:var(--text-secondary);white-space:nowrap;">Lead created:</span>
+                <input type="date" id="funnel-date-from" class="form-input" style="max-width:160px;font-size:0.88rem;">
+                <span style="color:var(--text-muted);">to</span>
+                <input type="date" id="funnel-date-to" class="form-input" style="max-width:160px;font-size:0.88rem;">
+                <button class="btn btn-sm btn-primary" onclick="loadConversionFunnel()"><span class="icon-inline" data-icon="refresh-cw"></span> Apply</button>
+                <button class="btn btn-sm" onclick="resetConversionFunnelDates(30)">Last 30d</button>
+                <button class="btn btn-sm" onclick="resetConversionFunnelDates(90)">Last 90d</button>
+                <button class="btn btn-sm" onclick="resetConversionFunnelDates(0)">All time</button>
+                <span id="funnel-date-label" style="font-size:0.82rem;color:var(--text-muted);margin-left:4px;"></span>
+              </div>
+              <p style="margin:10px 0 0;font-size:0.78rem;color:var(--text-muted);">Filters by <code>outreach_leads.created_at</code>. Provider applications submitted later by the same lead still count. Driven entirely by the <code>outreach_conversion_report()</code> SQL function.</p>
+            </div>
+
+            <div id="outreach-funnel-content">
+              <p style="color:var(--text-muted);text-align:center;padding:30px;">Loading…</p>
+            </div>
           </div>
 
           <div id="outreach-instantly" class="outreach-panel" style="display:none;">
@@ -5308,7 +5331,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="mcc-config.js?v=20260204"></script>
   <script src="supabaseclient.js?v=20260122"></script>
-  <script src="admin-outreach.js?v=20260317a"></script>
+  <script src="admin-outreach.js?v=20260429b"></script>
   <script src="admin-agent-activity.js?v=20260424a"></script>
   <script src="shared/survey-questions.js?v=20260429a"></script>
   <script src="admin.js?v=20260429a"></script>
