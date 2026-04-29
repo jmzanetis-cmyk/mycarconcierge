@@ -41,8 +41,6 @@ module.exports = [
       'netlify/**',
       '.local/**',
       '.playwright/**',
-      'admin.html',
-      'providers.js',
       '**/*.min.js',
     ],
   },

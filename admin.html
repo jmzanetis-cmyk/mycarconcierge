@@ -912,13 +912,13 @@
     // ========== INIT ==========
     window.addEventListener('load', async () => {
       const user = await getCurrentUser();
-      if (!user) return window.location.href = 'login.html';
+      if (!user) return globalThis.location.href = 'login.html';
       currentUser = user;
 
       const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', user.id).single();
       if (!profile || profile.role !== 'admin') {
         alert('Admin access required.');
-        return window.location.href = 'login.html';
+        return globalThis.location.href = 'login.html';
       }
 
       await loadAllData();
@@ -1230,7 +1230,7 @@
       if (e.target.classList.contains('analytics-range')) {
         document.querySelectorAll('.analytics-range').forEach(btn => btn.classList.remove('active'));
         e.target.classList.add('active');
-        analyticsDateRange = parseInt(e.target.dataset.days);
+        analyticsDateRange = Number.parseInt(e.target.dataset.days);
         loadAnalytics();
       }
     });
@@ -1490,7 +1490,7 @@
     }
 
     // ========== DASHBOARD ==========
-    function updateDashboard() {
+    async function updateDashboard() {
       document.getElementById('stat-pending-apps').textContent = applications.filter(a => a.status === 'pending').length;
       document.getElementById('stat-active-providers').textContent = providers.length;
       
@@ -1791,9 +1791,9 @@
     async function bulkAddCredits() {
       const count = selectedProviders.size;
       const credits = prompt(`Add bid credits to ${count} provider(s):\n\nEnter number of credits to add:`);
-      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
-      const creditsToAdd = parseInt(credits);
+      const creditsToAdd = Number.parseInt(credits);
       let success = 0;
 
       for (const providerId of selectedProviders) {
@@ -1972,9 +1972,9 @@
       const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
       
       const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
-      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
-      const creditsToAdd = parseInt(credits);
+      const creditsToAdd = Number.parseInt(credits);
       const newCredits = (provider?.bid_credits || 0) + creditsToAdd;
 
       const { error } = await supabaseClient.from('profiles').update({
@@ -2365,7 +2365,7 @@
 
     async function resolveDispute(winner) {
       if (!currentDispute) return;
-      const resolutionAmount = parseFloat(document.getElementById('resolution-amount').value) || 0;
+      const resolutionAmount = Number.parseFloat(document.getElementById('resolution-amount').value) || 0;
       const notes = document.getElementById('resolution-notes').value;
 
       if (!notes) return showToast('Please provide resolution notes', 'error');
@@ -2744,7 +2744,7 @@
       const updates = {
         status: 'confirmed',
         resolved_at: new Date().toISOString(),
-        reward_amount: rewardAmount ? parseFloat(rewardAmount) : null
+        reward_amount: rewardAmount ? Number.parseFloat(rewardAmount) : null
       };
 
       const { error } = await supabaseClient
@@ -2825,7 +2825,7 @@
       }
     });
 
-    async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+    async function logout() { await supabaseClient.auth.signOut(); globalThis.location.href = 'login.html'; }
   </script>
   <script src="/pwa-init.js"></script>
   <script>

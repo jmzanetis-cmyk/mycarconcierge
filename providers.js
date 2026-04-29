@@ -92,19 +92,19 @@
     async function checkAccessAuthorization() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
-        window.location.href = 'login.html';
+        globalThis.location.href = 'login.html';
         return false;
       }
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/auth/check-access`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         const result = await response.json();
         
         if (!result.authorized && result.reason === '2fa_required') {
-          window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
+          globalThis.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(globalThis.location.pathname);
           return false;
         }
         return true;
@@ -117,7 +117,7 @@
     window.addEventListener('load', async () => {
       try {
         const user = await getCurrentUser();
-        if (!user) return window.location.href = 'login.html';
+        if (!user) return globalThis.location.href = 'login.html';
         currentUser = user;
 
         // Check 2FA authorization before loading dashboard
@@ -143,7 +143,7 @@
           providerProfile = newProfile;
         } else if (profile.role !== 'provider' && !profile.is_also_provider) {
           showToast('This account does not have provider access. Please contact support.', 'error');
-          return window.location.href = 'login.html';
+          return globalThis.location.href = 'login.html';
         } else {
           providerProfile = profile;
         }
@@ -362,7 +362,7 @@
         connectBtn.innerHTML = '<span class="clover-sync-spinner"></span> Connecting...';
 
         const { data: { session } } = await supabaseClient.auth.getSession();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/clover/connect`, {
           method: 'POST',
           headers: { 
@@ -375,7 +375,7 @@
         const data = await response.json();
         
         if (data.redirect_url) {
-          window.location.href = data.redirect_url;
+          globalThis.location.href = data.redirect_url;
         } else if (data.success) {
           showToast('Clover connected successfully!', 'success');
           await loadCloverStatus();
@@ -512,7 +512,7 @@
         const data = await response.json();
         
         if (data.redirect_url || data.authorization_url) {
-          window.location.href = data.redirect_url || data.authorization_url;
+          globalThis.location.href = data.redirect_url || data.authorization_url;
         } else if (data.success) {
           showToast('⬛ Square connected successfully!', 'success');
           await loadSquareStatus();
@@ -623,7 +623,7 @@
 
         tbody.innerHTML = data.transactions.map(tx => {
           const date = new Date(tx.created_at || tx.timestamp || tx.transaction_date).toLocaleDateString();
-          const amount = typeof tx.amount === 'number' ? (tx.amount / 100).toFixed(2) : parseFloat(tx.amount || 0).toFixed(2);
+          const amount = typeof tx.amount === 'number' ? (tx.amount / 100).toFixed(2) : Number.parseFloat(tx.amount || 0).toFixed(2);
           const card = tx.card_last_four ? `•••• ${tx.card_last_four}` : '—';
           const statusClass = tx.status === 'success' || tx.status === 'completed' ? 'status-success' : tx.status === 'pending' ? 'status-pending' : 'status-failed';
           const source = tx.pos_provider || tx.source || 'unknown';
@@ -874,7 +874,7 @@
           suspensionAlert.style.display = 'none';
           carFormContainer.style.display = 'none';
           carSubmittedStatus.style.display = 'none';
-          const avgRating = parseFloat(current_rating) || 0;
+          const avgRating = Number.parseFloat(current_rating) || 0;
           const reviewCount = myReviews.length;
           if (avgRating >= 3.0 && avgRating < 3.5 && reviewCount >= 2) {
             ratingWarning.style.display = 'block';
@@ -961,7 +961,7 @@
       const card = document.getElementById('ai-review-summary-card');
       if (!card || !data.summary_text) return;
 
-      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const esc = (s) => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 
       card.style.display = 'block';
       document.getElementById('ai-summary-text').textContent = data.summary_text;
@@ -1423,7 +1423,7 @@
           if (!p.member_zip) return true; // Show packages without location (legacy)
           const dist = estimateZipDistance(providerProfile.zip_code, p.member_zip);
           p._estimatedDistance = dist; // Store for display and sorting
-          return dist <= parseInt(distance);
+          return dist <= Number.parseInt(distance);
         });
       } else {
         // Calculate distance for display even if not filtering
@@ -1494,11 +1494,11 @@
       
       // Same first 3 digits = roughly same area (0-25 miles)
       if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
-        return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5; // Rough estimate
+        return Math.abs(Number.parseInt(zip1) - Number.parseInt(zip2)) * 0.5; // Rough estimate
       }
       
       // Different first 3 digits - use a rough approximation based on ZIP difference
-      const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
+      const diff = Math.abs(Number.parseInt(zip1.substring(0, 3)) - Number.parseInt(zip2.substring(0, 3)));
       
       // Very rough estimate: each ZIP prefix represents ~20-50 miles
       if (diff <= 2) return 15 + (diff * 10);
@@ -1594,7 +1594,7 @@
       const competitionHtml = bidCount > 0 ? `
         <div style="margin-top:10px;padding:10px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
-            <span style="font-size:0.85rem;`>${mccIcon('trophy', 14)} <strong>${bidCount}</strong> bid${bidCount !== 1 ? 's' : ''} ${lowestBid ? `• Lowest: <strong style=`color:var(--accent-gold);">$${lowestBid}</strong>` : ''}</span>
+            <span style="font-size:0.85rem;">${mccIcon('trophy', 14)} <strong>${bidCount}</strong> bid${bidCount !== 1 ? 's' : ''} ${lowestBid ? `• Lowest: <strong style="color:var(--accent-gold);">$${lowestBid}</strong>` : ''}</span>
             ${isLowestBidder ? '<span style="color:var(--accent-green);font-size:0.8rem;">✓ You\'re the lowest!</span>' : ''}
             ${canBeatLowest ? '<span style="color:var(--accent-orange);font-size:0.8rem;">⚡ You can beat this!</span>' : ''}
           </div>
@@ -1714,9 +1714,9 @@
               ${showBidButton && !biddingExpired ? `
                 ${alreadyBid ? `
                   <span style="color:var(--accent-green);font-size:0.85rem;margin-right:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
-                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
                 ` : `
-                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')">Submit Bid</button>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}')">Submit Bid</button>
                 `}
               ` : ''}
               ${biddingExpired && !alreadyBid ? '<span style="color:var(--text-muted);font-size:0.85rem;">Bidding closed</span>' : ''}
@@ -1834,9 +1834,9 @@
         
         try {
           const [apptResult, transferResult, locationResult] = await Promise.all([
-            window.getAppointment(b.package_id),
-            window.getVehicleTransfer(b.package_id),
-            window.getActiveLocationShare(b.package_id)
+            globalThis.getAppointment(b.package_id),
+            globalThis.getVehicleTransfer(b.package_id),
+            globalThis.getActiveLocationShare(b.package_id)
           ]);
           appointment = apptResult.data;
           transfer = transferResult.data;
@@ -1940,12 +1940,12 @@
       const desc = 'Service appointment booked via My Car Concierge';
 
       function toISODate(ds) {
-        try { const d = new Date(ds); return d.toISOString().split('T')[0].replace(/-/g, ''); } catch { return ''; }
+        try { const d = new Date(ds); return d.toISOString().split('T')[0].replaceAll('-', ''); } catch { return ''; }
       }
       function to24h(t) {
         const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
         if (!m) return '120000';
-        let h = parseInt(m[1]); const min = m[2];
+        let h = Number.parseInt(m[1]); const min = m[2];
         if (m[3] && m[3].toUpperCase() === 'PM' && h < 12) h += 12;
         if (m[3] && m[3].toUpperCase() === 'AM' && h === 12) h = 0;
         return String(h).padStart(2, '0') + min + '00';
@@ -1962,7 +1962,7 @@
           <div class="modal-header"><h3 class="modal-title">Add to Calendar</h3><button class="modal-close" onclick="document.getElementById('provider-cal-modal').remove()">×</button></div>
           <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
             <button class="btn btn-primary" onclick="(function(){
-              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replace(/'/g, '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
+              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replaceAll('\'', '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
               const blob=new Blob([ics],{type:'text/calendar'});
               const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mcc-appointment.ics';a.click();
               document.getElementById('provider-cal-modal').remove();
@@ -2041,7 +2041,7 @@
               <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Proposed by: ${proposedBy}</div>
               ${appointment.provider_notes || appointment.member_notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">${mccIcon('file-text', 14)} ${appointment.provider_notes || appointment.member_notes}</div>` : ''}
               <div style="margin-top:10px;">
-                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replace(/'/g, '')}', '${(timeRange || '').replace(/'/g, '')}')">
+                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replaceAll('\'', '')}', '${(timeRange || '').replaceAll('\'', '')}')">
                   ${mccIcon('calendar', 14)} Add to Calendar
                 </button>
               </div>
@@ -2291,7 +2291,7 @@
       if (!lastTrackingPosition && navigator.geolocation) {
         navigator.geolocation.getCurrentPosition(
           async (position) => {
-            const { data, error } = await window.updateDriverLocation(
+            const { data, error } = await globalThis.updateDriverLocation(
               packageId,
               position.coords.latitude,
               position.coords.longitude,
@@ -2305,7 +2305,7 @@
           { enableHighAccuracy: true, timeout: 10000 }
         );
       } else if (lastTrackingPosition) {
-        const { data, error } = await window.updateDriverLocation(
+        const { data, error } = await globalThis.updateDriverLocation(
           packageId,
           lastTrackingPosition.lat,
           lastTrackingPosition.lng,
@@ -2329,7 +2329,7 @@
       }
       
       if (activeTrackingPackageId) {
-        await window.clearDriverLocation(activeTrackingPackageId);
+        await globalThis.clearDriverLocation(activeTrackingPackageId);
       }
       
       activeTrackingPackageId = null;
@@ -2349,7 +2349,7 @@
 
       // Notify member
       try {
-        await window.notifyWorkStarted(packageId);
+        await globalThis.notifyWorkStarted(packageId);
       } catch (e) {
         console.log('Notification error (non-critical):', e);
       }
@@ -2368,7 +2368,7 @@
 
       // Notify member
       try {
-        await window.notifyWorkCompleted(packageId);
+        await globalThis.notifyWorkCompleted(packageId);
       } catch (e) {
         console.log('Notification error (non-critical):', e);
       }
@@ -2401,7 +2401,7 @@
       const duration = document.getElementById('schedule-duration').value;
       const notes = document.getElementById('schedule-notes').value;
       if (!date) return showToast('Please select a date', 'error');
-      const { error } = await window.createAppointment(packageId, memberId, providerId, date, timeStart, timeEnd, parseInt(duration), notes);
+      const { error } = await globalThis.createAppointment(packageId, memberId, providerId, date, timeStart, timeEnd, Number.parseInt(duration), notes);
       if (error) return showToast('Failed to propose appointment: ' + error.message, 'error');
       closeModal('provider-schedule-modal');
       showToast('Appointment proposal sent!', 'success');
@@ -2410,7 +2410,7 @@
 
     async function confirmScheduleFromProvider(appointmentId, packageId) {
       if (!confirm('Confirm this appointment?')) return;
-      const { error } = await window.confirmAppointment(appointmentId, packageId);
+      const { error } = await globalThis.confirmAppointment(appointmentId, packageId);
       if (error) return showToast('Failed: ' + error.message, 'error');
       showToast('Appointment confirmed!', 'success');
       await renderActiveJobs();
@@ -2434,7 +2434,7 @@
       const timeEnd = document.getElementById('counter-time-end').value;
       const notes = document.getElementById('counter-notes').value;
       if (!date) return showToast('Please select a date', 'error');
-      const { error } = await window.proposeNewTime(appointmentId, packageId, date, timeStart, timeEnd, notes);
+      const { error } = await globalThis.proposeNewTime(appointmentId, packageId, date, timeStart, timeEnd, notes);
       if (error) return showToast('Failed: ' + error.message, 'error');
       closeModal('provider-counter-modal');
       showToast('New time proposed!', 'success');
@@ -2443,7 +2443,7 @@
 
     async function acceptCounterFromProvider(appointmentId, packageId) {
       if (!confirm('Accept this proposed time?')) return;
-      const { error } = await window.acceptCounterProposal(appointmentId, packageId);
+      const { error } = await globalThis.acceptCounterProposal(appointmentId, packageId);
       if (error) return showToast('Failed: ' + error.message, 'error');
       showToast('Time accepted!', 'success');
       await renderActiveJobs();
@@ -2452,7 +2452,7 @@
     async function updateJobVehicleStatus(transferId, packageId, newStatus) {
       const labels = { 'in_transit_to_provider': 'picked up', 'at_provider': 'received', 'work_in_progress': 'started', 'work_complete': 'completed', 'ready_for_return': 'ready', 'returned': 'returned' };
       if (!confirm(`Mark vehicle as ${labels[newStatus] || newStatus}?`)) return;
-      const { error } = await window.updateVehicleStatus(transferId, packageId, newStatus);
+      const { error } = await globalThis.updateVehicleStatus(transferId, packageId, newStatus);
       if (error) return showToast('Failed: ' + error.message, 'error');
       showToast('Status updated!', 'success');
       await renderActiveJobs();
@@ -2478,7 +2478,7 @@
       btn.textContent = 'Getting location...';
       statusDiv.style.display = 'block';
       statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('map-pin', 14)} Getting your location...</p>`;
-      const { error, mapsLink } = await window.shareLocation(packageId, memberId, context, message);
+      const { error, mapsLink } = await globalThis.shareLocation(packageId, memberId, context, message);
       btn.disabled = false;
       btn.innerHTML = `${mccIcon('map-pin', 14)} Share My Location`;
       if (error) { statusDiv.innerHTML = `<p style="color:var(--accent-red);">❌ ${error}</p>`; return; }
@@ -2488,13 +2488,13 @@
     }
 
     async function viewMemberLocation(packageId) {
-      const { data: location, error } = await window.getActiveLocationShare(packageId, 'provider');
+      const { data: location, error } = await globalThis.getActiveLocationShare(packageId, 'provider');
       if (error || !location) {
         showToast('No active location shared by member', 'error');
         return;
       }
       if (location.maps_link) {
-        await window.markLocationViewed(location.id);
+        await globalThis.markLocationViewed(location.id);
         window.open(location.maps_link, '_blank');
       } else {
         showToast('Location link not available', 'error');
@@ -2569,7 +2569,7 @@
       statusDiv.innerHTML = `<p style="color:var(--accent-gold);">${mccIcon('upload', 14)} Uploading photos...</p>`;
 
       try {
-        const photoUrls = await window.uploadEvidencePhotos(packageId, files);
+        const photoUrls = await globalThis.uploadEvidencePhotos(packageId, files);
         if (photoUrls.length === 0) {
           throw new Error('Failed to upload photos');
         }
@@ -2585,11 +2585,11 @@
           lng = pos.coords.longitude;
         } catch (e) { }
 
-        const { data, error } = await window.saveEvidence({
+        const { data, error } = await globalThis.saveEvidence({
           packageId,
           type,
           photos: photoUrls,
-          odometer: parseInt(odometer),
+          odometer: Number.parseInt(odometer),
           fuelLevel,
           exteriorCondition,
           interiorCondition,
@@ -2619,7 +2619,7 @@
     }
 
     async function renderEvidenceSection(packageId) {
-      const { data: evidence } = await window.getPackageEvidence(packageId);
+      const { data: evidence } = await globalThis.getPackageEvidence(packageId);
       
       if (!evidence || evidence.length === 0) {
         return `
@@ -3032,7 +3032,7 @@
       const config = updateTypeConfig[updateType];
       const title = document.getElementById('upsell-title').value.trim();
       const description = document.getElementById('upsell-description').value.trim();
-      const cost = parseFloat(document.getElementById('upsell-cost').value) || 0;
+      const cost = Number.parseFloat(document.getElementById('upsell-cost').value) || 0;
       const urgency = document.getElementById('upsell-urgency').value;
       const isUrgent = document.getElementById('upsell-urgent').checked;
 
@@ -3087,7 +3087,7 @@
             estimatedCost: cost || null,
             isUrgent: finalIsUrgent,
             packageTitle: packageTitle,
-            dashboardUrl: ((window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com') + '/members.html',
+            dashboardUrl: ((globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com') + '/members.html',
             deadlineHours: deadlineHours
           })
         });
@@ -3153,7 +3153,7 @@
               description: 'Work has been suspended pending your approval of the price adjustment. Please respond as soon as possible.',
               isUrgent: true,
               packageTitle: pkg.title || 'Your Service Request',
-              dashboardUrl: ((window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com') + '/members.html'
+              dashboardUrl: ((globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com') + '/members.html'
             })
           });
         } catch (e) {
@@ -3344,7 +3344,7 @@
               ⚡ Accept Private Job
             </button>
           ` : `
-            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replace(/'/g, "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
+            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replaceAll('\'', "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
           `}
         </div>
       `;
@@ -3571,14 +3571,14 @@
     
     function updateBidCalculation() {
       // Get values
-      const parts = parseFloat(document.getElementById('calc-parts').value) || 0;
-      const laborHours = parseFloat(document.getElementById('calc-labor-hours').value) || 0;
-      const laborRate = parseFloat(document.getElementById('calc-labor-rate').value) || 75;
-      const profitMargin = parseFloat(document.getElementById('calc-profit-margin').value) || 20;
+      const parts = Number.parseFloat(document.getElementById('calc-parts').value) || 0;
+      const laborHours = Number.parseFloat(document.getElementById('calc-labor-hours').value) || 0;
+      const laborRate = Number.parseFloat(document.getElementById('calc-labor-rate').value) || 75;
+      const profitMargin = Number.parseFloat(document.getElementById('calc-profit-margin').value) || 20;
       const travelEnabled = document.getElementById('calc-travel-enabled').checked;
-      const travel = travelEnabled ? (parseFloat(document.getElementById('calc-travel').value) || 0) : 0;
+      const travel = travelEnabled ? (Number.parseFloat(document.getElementById('calc-travel').value) || 0) : 0;
       const transportEnabled = document.getElementById('calc-transport-enabled').checked;
-      const transport = transportEnabled ? (parseFloat(document.getElementById('calc-transport').value) || 0) : 0;
+      const transport = transportEnabled ? (Number.parseFloat(document.getElementById('calc-transport').value) || 0) : 0;
       const urgencyEnabled = document.getElementById('calc-urgency').checked;
       
       // Update profit margin display
@@ -3688,8 +3688,8 @@
           const avgBid = prices.reduce((a, b) => a + b, 0) / prices.length;
           
           // Store for gauge calculation
-          window.competitionData = { minBid, maxBid, avgBid, bidCount: bidCount || 0 };
-          calculatorCompetitionData = window.competitionData;
+          globalThis.competitionData = { minBid, maxBid, avgBid, bidCount: bidCount || 0 };
+          calculatorCompetitionData = globalThis.competitionData;
           
           // Update UI
           document.getElementById('calc-comp-category').textContent = category || 'this category';
@@ -3698,7 +3698,7 @@
           document.getElementById('calc-comp-count').textContent = bidCount || 0;
         } else {
           // No historical data - show placeholder
-          window.competitionData = null;
+          globalThis.competitionData = null;
           calculatorCompetitionData = { minBid: 100, maxBid: 500, avgBid: 250, count: 0 };
           
           document.getElementById('calc-comp-category').textContent = category || 'this category';
@@ -3710,7 +3710,7 @@
       } catch (err) {
         console.error('Error loading competition data:', err);
         // Graceful fallback - calculator still works
-        window.competitionData = null;
+        globalThis.competitionData = null;
         calculatorCompetitionData = { minBid: 100, maxBid: 500, avgBid: 250, count: 0 };
         document.getElementById('calc-comp-range').textContent = 'Unavailable';
         document.getElementById('calc-comp-count').textContent = '--';
@@ -3724,7 +3724,7 @@
       
       if (!marker || !fill || !positionEl) return;
       
-      const data = window.competitionData || calculatorCompetitionData;
+      const data = globalThis.competitionData || calculatorCompetitionData;
       
       if (!data || !bidAmount || bidAmount <= 0) {
         marker.style.left = '50%';
@@ -3777,14 +3777,14 @@
     
     function applyCalculatorToForm() {
       // Get calculated values
-      const parts = parseFloat(document.getElementById('calc-parts').value) || 0;
-      const laborHours = parseFloat(document.getElementById('calc-labor-hours').value) || 0;
-      const laborRate = parseFloat(document.getElementById('calc-labor-rate').value) || 75;
+      const parts = Number.parseFloat(document.getElementById('calc-parts').value) || 0;
+      const laborHours = Number.parseFloat(document.getElementById('calc-labor-hours').value) || 0;
+      const laborRate = Number.parseFloat(document.getElementById('calc-labor-rate').value) || 75;
       const labor = laborHours * laborRate;
       
       // Get total from display (parse it back)
       const totalText = document.getElementById('calc-display-total').textContent;
-      const total = parseFloat(totalText.replace('$', '').replace(',', '')) || 0;
+      const total = Number.parseFloat(totalText.replace('$', '').replace(',', '')) || 0;
       
       if (total <= 0) {
         showToast('Please enter values in the calculator first', 'error');
@@ -3796,7 +3796,7 @@
       
       // Set the price field
       const priceSelect = document.getElementById('bid-price');
-      const priceOptions = Array.from(priceSelect.options).map(o => parseFloat(o.value));
+      const priceOptions = Array.from(priceSelect.options).map(o => Number.parseFloat(o.value));
       const matchingOption = priceOptions.find(p => p === roundedTotal);
       
       if (matchingOption) {
@@ -4375,7 +4375,7 @@
         }
         
         if (data.url) {
-          window.location.href = data.url;
+          globalThis.location.href = data.url;
         } else {
           throw new Error('No onboarding URL received');
         }
@@ -4388,7 +4388,7 @@
     }
 
     async function checkStripeConnectReturn() {
-      const urlParams = new URLSearchParams(window.location.search);
+      const urlParams = new URLSearchParams(globalThis.location.search);
       const stripeConnect = urlParams.get('stripe_connect');
       
       if (stripeConnect === 'complete') {
@@ -4401,11 +4401,11 @@
           showToast('Stripe setup is incomplete. Please complete all required steps.', 'error');
         }
         
-        window.history.replaceState({}, document.title, window.location.pathname);
+        globalThis.history.replaceState({}, document.title, globalThis.location.pathname);
       } else if (stripeConnect === 'refresh') {
         showToast('Stripe session expired. Please try again.', 'error');
         await loadStripeConnectStatus();
-        window.history.replaceState({}, document.title, window.location.pathname);
+        globalThis.history.replaceState({}, document.title, globalThis.location.pathname);
       }
     }
 
@@ -4591,7 +4591,7 @@
         full_name: document.getElementById('profile-full-name').value.trim() || null,
         business_phone: document.getElementById('profile-phone').value.trim() || null,
         business_address: document.getElementById('profile-address').value.trim() || null,
-        years_in_business: document.getElementById('profile-years').value ? parseInt(document.getElementById('profile-years').value) : null,
+        years_in_business: document.getElementById('profile-years').value ? Number.parseInt(document.getElementById('profile-years').value) : null,
         services_offered: services.length > 0 ? services : null,
         certifications: certs.length > 0 ? certs : null,
         service_areas: zipCodes.length > 0 ? zipCodes : null,
@@ -4599,7 +4599,7 @@
         business_hours: getBusinessHours(),
         emergency_enabled: document.getElementById('emergency-accept-calls')?.checked || false,
         emergency_services: emergencyServices.length > 0 ? emergencyServices : null,
-        emergency_radius: parseInt(document.getElementById('emergency-radius')?.value) || 15,
+        emergency_radius: Number.parseInt(document.getElementById('emergency-radius')?.value) || 15,
         is_24_seven: document.getElementById('emergency-24-7')?.checked || false,
         can_tow: document.getElementById('emergency-can-tow')?.checked || false,
         updated_at: new Date().toISOString()
@@ -4873,7 +4873,7 @@
       container.innerHTML = html;
     }
     
-    window.toggleMorePacks = function() {
+    globalThis.toggleMorePacks = function() {
       const grid = document.getElementById('more-packs-grid');
       const arrow = document.getElementById('more-packs-arrow');
       const btn = document.getElementById('toggle-more-packs');
@@ -5023,7 +5023,7 @@
           if (!data.url) throw new Error('No checkout URL returned');
           
           // Redirect to Stripe Checkout
-          window.location.href = data.url;
+          globalThis.location.href = data.url;
           
         } catch (err) {
           console.error('Checkout error:', err);
@@ -5067,19 +5067,19 @@
         showToast('Failed to process purchase. Please try again.', 'error');
       }
     }
-    window.purchaseBidPack = purchaseBidPack;
+    globalThis.purchaseBidPack = purchaseBidPack;
 
     // Handle return from Stripe Checkout
     function checkPurchaseStatus() {
-      const params = new URLSearchParams(window.location.search);
+      const params = new URLSearchParams(globalThis.location.search);
       if (params.get('purchase') === 'success') {
         showToast('Purchase successful! Credits added to your account.', 'success');
-        window.history.replaceState({}, '', 'providers.html');
+        globalThis.history.replaceState({}, '', 'providers.html');
         // Refresh to show updated credits
         setTimeout(() => loadSubscription(), 1000);
       } else if (params.get('purchase') === 'cancelled') {
         showToast('Purchase cancelled.', 'error');
-        window.history.replaceState({}, '', 'providers.html');
+        globalThis.history.replaceState({}, '', 'providers.html');
       }
     }
 
@@ -5341,7 +5341,7 @@
         name,
         role,
         bio: bio || null,
-        years_experience: experience ? parseInt(experience) : null,
+        years_experience: experience ? Number.parseInt(experience) : null,
         certifications,
         specialties,
         photo_url: photoUrl,
@@ -5856,7 +5856,7 @@
       container.innerHTML = nearbyEmergencies.map(e => {
         const timeAgo = formatTimeAgo(e.created_at);
         const distance = e.distance_miles ? `${e.distance_miles.toFixed(1)} mi away` : 'Nearby';
-        const escrowAmount = e.escrow_amount ? `$${parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
+        const escrowAmount = e.escrow_amount ? `$${Number.parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
         
         // Calculate time remaining for claim
         let countdownHtml = '';
@@ -6012,11 +6012,11 @@
         case 'accepted':
           statusButtons = `
             ${markArrivedBtn}
-            <button class="btn btn-secondary" onclick="updateMyEmergencyStatus('${e.id}', 'en_route`)">${mccIcon('car', 14)} I`m En Route</button>
+            <button class="btn btn-secondary" onclick="updateMyEmergencyStatus('${e.id}', 'en_route')">${mccIcon('car', 14)} I'm En Route</button>
           `;
           break;
         case 'en_route':
-          statusButtons = markArrivedBtn || `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'arrived`)">${mccIcon('map-pin', 14)} I`ve Arrived</button>`;
+          statusButtons = markArrivedBtn || `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'arrived')">${mccIcon('map-pin', 14)} I've Arrived</button>`;
           break;
         case 'arrived':
           statusButtons = `<button class="btn btn-primary" onclick="updateMyEmergencyStatus('${e.id}', 'in_progress')">${mccIcon('wrench', 14)} Start Work</button>`;
@@ -6055,7 +6055,7 @@
           ${e.escrow_amount ? `
             <div style="margin-bottom:16px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);">
               <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('dollar-sign', 14)} Member Escrow Authorized</div>
-              <div style="font-size:1.2rem;font-weight:600;color:var(--accent-green);">$${parseFloat(e.escrow_amount).toFixed(2)}</div>
+              <div style="font-size:1.2rem;font-weight:600;color:var(--accent-green);">$${Number.parseFloat(e.escrow_amount).toFixed(2)}</div>
             </div>
           ` : ''}
           
@@ -6097,7 +6097,7 @@
 
     async function confirmAcceptEmergency() {
       const emergencyId = document.getElementById('accept-emergency-id').value;
-      const eta = parseInt(document.getElementById('accept-eta').value);
+      const eta = Number.parseInt(document.getElementById('accept-eta').value);
       
       if (!eta) {
         showToast('Please select your ETA', 'error');
@@ -6234,7 +6234,7 @@
       // Show escrow amount
       const escrowDisplay = document.getElementById('complete-escrow-display');
       if (myActiveEmergency?.escrow_amount) {
-        escrowDisplay.textContent = `$${parseFloat(myActiveEmergency.escrow_amount).toFixed(2)}`;
+        escrowDisplay.textContent = `$${Number.parseFloat(myActiveEmergency.escrow_amount).toFixed(2)}`;
       } else {
         escrowDisplay.textContent = 'Not set';
       }
@@ -6245,9 +6245,9 @@
     async function confirmCompleteEmergency() {
       const emergencyId = document.getElementById('complete-emergency-id').value;
       const notes = document.getElementById('complete-notes').value;
-      const amount = parseFloat(document.getElementById('complete-amount').value) || 0;
+      const amount = Number.parseFloat(document.getElementById('complete-amount').value) || 0;
       const isTowing = document.getElementById('complete-is-towing').value === 'true';
-      const actualMiles = isTowing ? parseFloat(document.getElementById('complete-actual-miles').value) || null : null;
+      const actualMiles = isTowing ? Number.parseFloat(document.getElementById('complete-actual-miles').value) || null : null;
       
       if (amount <= 0) {
         showToast('Please enter a valid invoice amount', 'error');
@@ -6297,11 +6297,11 @@
       }
     }
 
-    async function logout() { await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
+    async function logout() { await supabaseClient.auth.signOut(); globalThis.location.href = 'login.html'; }
     
     function switchToMember() {
       localStorage.setItem('mcc_portal', 'member');
-      window.location.href = 'members.html';
+      globalThis.location.href = 'members.html';
     }
 
     document.querySelectorAll('.modal-backdrop').forEach(b => b.addEventListener('click', e => { if (e.target === b) b.classList.remove('active'); }));
@@ -6446,13 +6446,13 @@
         technician_notes: document.getElementById('inspection-notes').value || null,
         recommendations: document.getElementById('inspection-recommendations').value || null,
         ...inspectionData,
-        brake_pads_front_percent: parseInt(document.getElementById('brake_pads_front_percent').value) || null,
-        brake_pads_rear_percent: parseInt(document.getElementById('brake_pads_rear_percent').value) || null,
-        tire_front_left_tread: parseInt(document.getElementById('tire_front_left_tread').value) || null,
-        tire_front_right_tread: parseInt(document.getElementById('tire_front_right_tread').value) || null,
-        tire_rear_left_tread: parseInt(document.getElementById('tire_rear_left_tread').value) || null,
-        tire_rear_right_tread: parseInt(document.getElementById('tire_rear_right_tread').value) || null,
-        battery_voltage: parseFloat(document.getElementById('battery_voltage').value) || null,
+        brake_pads_front_percent: Number.parseInt(document.getElementById('brake_pads_front_percent').value) || null,
+        brake_pads_rear_percent: Number.parseInt(document.getElementById('brake_pads_rear_percent').value) || null,
+        tire_front_left_tread: Number.parseInt(document.getElementById('tire_front_left_tread').value) || null,
+        tire_front_right_tread: Number.parseInt(document.getElementById('tire_front_right_tread').value) || null,
+        tire_rear_left_tread: Number.parseInt(document.getElementById('tire_rear_left_tread').value) || null,
+        tire_rear_right_tread: Number.parseInt(document.getElementById('tire_rear_right_tread').value) || null,
+        battery_voltage: Number.parseFloat(document.getElementById('battery_voltage').value) || null,
         updated_at: new Date().toISOString()
       };
       
@@ -7101,19 +7101,19 @@
         if (notes) extraData.notes = notes;
         if (parkingSpot) extraData.parking_spot = parkingSpot;
         if (lat && lng) {
-          extraData.last_location_lat = parseFloat(lat);
-          extraData.last_location_lng = parseFloat(lng);
+          extraData.last_location_lat = Number.parseFloat(lat);
+          extraData.last_location_lng = Number.parseFloat(lng);
         }
         
         // Capture odometer and fuel level for pickup
         if (newStatus === 'picked_up') {
-          if (odometerReading) extraData.pickup_odometer = parseInt(odometerReading);
+          if (odometerReading) extraData.pickup_odometer = Number.parseInt(odometerReading);
           if (fuelLevel) extraData.pickup_fuel_level = fuelLevel;
         }
         
         // Capture final odometer for completion
         if (newStatus === 'completed') {
-          if (finalOdometer) extraData.dropoff_odometer = parseInt(finalOdometer);
+          if (finalOdometer) extraData.dropoff_odometer = Number.parseInt(finalOdometer);
           if (notes) extraData.delivery_notes = notes;
         }
         
@@ -7727,7 +7727,7 @@
 
     function updateFleetBidTotal() {
       const pricingType = document.querySelector('input[name="fleet-pricing-type"]:checked')?.value || 'per_vehicle';
-      const price = parseFloat(document.getElementById('fleet-bid-price').value) || 0;
+      const price = Number.parseFloat(document.getElementById('fleet-bid-price').value) || 0;
       const vehicleCount = currentFleetBidBatch?.items?.length || currentFleetBidBatch?.vehicle_count || 0;
 
       const label = document.getElementById('fleet-bid-price-label');
@@ -7747,7 +7747,7 @@
 
     async function submitFleetBulkBid() {
       const batchId = document.getElementById('fleet-bid-batch-id').value;
-      const price = parseFloat(document.getElementById('fleet-bid-price').value);
+      const price = Number.parseFloat(document.getElementById('fleet-bid-price').value);
       const pricingType = document.querySelector('input[name="fleet-pricing-type"]:checked')?.value;
       const duration = document.getElementById('fleet-bid-duration').value;
       const notes = document.getElementById('fleet-bid-notes').value;
@@ -7954,11 +7954,11 @@
       
       (data || []).forEach(payment => {
         const month = new Date(payment.created_at).getMonth();
-        const total = parseFloat(payment.amount) || 0;
+        const total = Number.parseFloat(payment.amount) || 0;
         const providerAmount = total * 0.925;
-        const tip = parseFloat(payment.tip_amount) || 0;
-        const upsell = parseFloat(payment.upsell_amount) || 0;
-        const reimbursement = parseFloat(payment.reimbursement_amount) || 0;
+        const tip = Number.parseFloat(payment.tip_amount) || 0;
+        const upsell = Number.parseFloat(payment.upsell_amount) || 0;
+        const reimbursement = Number.parseFloat(payment.reimbursement_amount) || 0;
         
         monthlyData[month].revenue += providerAmount;
         monthlyData[month].tips += tip;
@@ -8400,7 +8400,7 @@
               }),
               datasets: [{
                 label: 'Average Rating',
-                data: trendData.map(t => parseFloat(t.average)),
+                data: trendData.map(t => Number.parseFloat(t.average)),
                 borderColor: '#d4a855',
                 backgroundColor: 'rgba(212, 168, 85, 0.2)',
                 tension: 0.3,
@@ -8639,7 +8639,7 @@
     }
 
     function formatReferralCurrency(amount) {
-      return '$' + parseFloat(amount || 0).toFixed(2);
+      return '$' + Number.parseFloat(amount || 0).toFixed(2);
     }
 
     async function getOrCreateFounderProfile() {
@@ -8736,7 +8736,7 @@
       const canvas = document.getElementById('provider-qr-code');
       if (!canvas) return;
 
-      const siteUrl = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
+      const siteUrl = (globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
       const referralUrl = `${siteUrl}/provider-pilot.html?ref=${providerFounderProfile.referral_code}`;
 
       try {
@@ -8785,7 +8785,7 @@
     function shareProviderReferral(method) {
       if (!providerFounderProfile?.referral_code) return;
 
-      const siteUrl = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
+      const siteUrl = (globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
       const referralUrl = `${siteUrl}/provider-pilot.html?ref=${providerFounderProfile.referral_code}`;
       const message = `Join My Car Concierge as a founding provider! Use my referral code ${providerFounderProfile.referral_code} to get started: ${referralUrl}`;
 
@@ -9007,7 +9007,7 @@
         
         const data = await response.json();
         
-        const siteUrl = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
+        const siteUrl = (globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
         referralCodesData.loyalCustomer = {
           code: data.loyal_customer?.code || generateReferralCode(),
           url: data.loyal_customer?.url || `${siteUrl}/signup-loyal-customer.html?ref=${currentUser?.id}`
@@ -9026,7 +9026,7 @@
         
       } catch (error) {
         console.error('Error loading referral codes:', error);
-        const siteUrl = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
+        const siteUrl = (globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
         referralCodesData.loyalCustomer = {
           code: generateReferralCode(),
           url: `${siteUrl}/signup-loyal-customer.html?ref=${currentUser?.id}`
@@ -9300,7 +9300,7 @@
       document.querySelectorAll('.pos-step-content').forEach(el => el.classList.remove('active'));
       document.getElementById(`pos-step-${step}`)?.classList.add('active');
       document.querySelectorAll('.pos-step').forEach(el => {
-        const s = parseInt(el.dataset.step);
+        const s = Number.parseInt(el.dataset.step);
         el.classList.remove('active', 'completed');
         if (s < step) el.classList.add('completed');
         if (s === step) el.classList.add('active');
@@ -9442,7 +9442,7 @@
               </div>
               <div style="display:flex;gap:8px;flex-wrap:wrap;">
                 ${item.options.map(opt => {
-                  const optClass = opt.toLowerCase().replace(/\s+/g, '_');
+                  const optClass = opt.toLowerCase().replaceAll(/\s+/g, '_');
                   const color = opt === 'Good' || opt === 'Working' || opt === 'Full' || opt === 'Clean' ? 'var(--accent-green)' :
                                opt === 'Fair' || opt === 'Low' || opt === 'Worn' || opt === 'Dirty' || opt === 'Weak' || opt === 'Dark' || opt === 'Corroded' || opt === 'High' ? 'var(--accent-orange)' :
                                opt === 'Poor' || opt === 'Empty' || opt === 'Replace' || opt === 'Not Working' ? 'var(--accent-red)' : 'var(--text-secondary)';
@@ -9863,7 +9863,7 @@
 
     function posPlaySuccessSound() {
       try {
-        const audioContext = new (window.AudioContext || window.webkitAudioContext)();
+        const audioContext = new (globalThis.AudioContext || globalThis.webkitAudioContext)();
         const oscillator = audioContext.createOscillator();
         const gainNode = audioContext.createGain();
         oscillator.connect(gainNode);
@@ -9898,7 +9898,7 @@
     }
 
     function posFormatPhone(value) {
-      const digits = value.replace(/\D/g, '');
+      const digits = value.replaceAll(/\D/g, '');
       if (digits.length <= 3) return digits;
       if (digits.length <= 6) return `(${digits.slice(0,3)}) ${digits.slice(3)}`;
       return `(${digits.slice(0,3)}) ${digits.slice(3,6)}-${digits.slice(6,10)}`;
@@ -9930,7 +9930,7 @@
     async function posLookupCustomer() {
       const phoneInput = document.getElementById('pos-phone');
       const errorEl = document.getElementById('pos-phone-error');
-      const phone = phoneInput.value.replace(/\D/g, '');
+      const phone = phoneInput.value.replaceAll(/\D/g, '');
       
       if (phone.length < 10) {
         errorEl.textContent = 'Please enter a valid 10-digit phone number';
@@ -10305,7 +10305,7 @@
           return;
         }
         
-        posState.newVehicle = { year: parseInt(year), make, model, color, license_plate: plate, vin };
+        posState.newVehicle = { year: Number.parseInt(year), make, model, color, license_plate: plate, vin };
       } else if (!posState.selectedVehicleId) {
         errorEl.textContent = 'Please select a vehicle or add a new one';
         errorEl.style.display = 'block';
@@ -10346,8 +10346,8 @@
       
       const category = document.getElementById('pos-service-category').value;
       const description = document.getElementById('pos-service-description').value.trim();
-      const laborPrice = parseFloat(document.getElementById('pos-labor-price').value) || 0;
-      const partsPrice = parseFloat(document.getElementById('pos-parts-price').value) || 0;
+      const laborPrice = Number.parseFloat(document.getElementById('pos-labor-price').value) || 0;
+      const partsPrice = Number.parseFloat(document.getElementById('pos-parts-price').value) || 0;
       const notes = document.getElementById('pos-service-notes').value.trim();
       
       if (!category) {
@@ -10582,7 +10582,7 @@
         return;
       }
       
-      const stripeKey = window.STRIPE_PUBLIC_KEY || 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
+      const stripeKey = globalThis.STRIPE_PUBLIC_KEY || 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
       const stripe = Stripe(stripeKey);
       const elements = stripe.elements({
         clientSecret: posState.paymentIntentClientSecret,
@@ -10617,13 +10617,13 @@
       try {
         if (!posState.stripeElements) throw new Error('Payment not initialized');
         
-        const stripeKey = window.STRIPE_PUBLIC_KEY || 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
+        const stripeKey = globalThis.STRIPE_PUBLIC_KEY || 'pk_live_51Sa0fg0V5HwfygbhAapjgXWedMWajevRvx0DNz26w21kVEMCM7zvldoRytCaKy2vArn3duePaywnaQ32V620qK71ze0VbG9NvSH';
         const stripe = Stripe(stripeKey);
         
         const { error, paymentIntent } = await stripe.confirmPayment({
           elements: posState.stripeElements,
           confirmParams: {
-            return_url: window.location.href
+            return_url: globalThis.location.href
           },
           redirect: 'if_required'
         });
@@ -10885,7 +10885,7 @@
     let queueRefreshInterval = null;
     
     function getKioskUrl() {
-      return `${window.location.origin}/check-in.html?provider=${currentUser?.id || ''}`;
+      return `${globalThis.location.origin}/check-in.html?provider=${currentUser?.id || ''}`;
     }
     
     function updateKioskUrlDisplay() {
@@ -11179,7 +11179,7 @@
     }
 
     function format2FAPhoneInput(input) {
-      let value = input.value.replace(/\D/g, '');
+      let value = input.value.replaceAll(/\D/g, '');
       if (value.length > 10) value = value.slice(0, 10);
       
       if (value.length >= 6) {
@@ -11193,7 +11193,7 @@
 
     async function initiate2FAEnable() {
       const phoneInput = document.getElementById('2fa-phone-input');
-      const phone = phoneInput.value.replace(/\D/g, '');
+      const phone = phoneInput.value.replaceAll(/\D/g, '');
       
       if (phone.length !== 10) {
         showToast('Please enter a valid 10-digit phone number', 'error');
@@ -11265,7 +11265,7 @@
     }
 
     function handle2FADigitInput(input, position) {
-      const value = input.value.replace(/\D/g, '');
+      const value = input.value.replaceAll(/\D/g, '');
       input.value = value.slice(0, 1);
       
       if (value && position < 6) {
@@ -11798,7 +11798,7 @@
       const notSupportedEl = document.getElementById('provider-push-not-supported');
       const contentEl = document.getElementById('provider-push-content');
       
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) {
         if (notSupportedEl) notSupportedEl.style.display = 'block';
         if (contentEl) contentEl.style.display = 'none';
         return;
@@ -12023,8 +12023,8 @@
     
     function urlBase64ToUint8ArrayProvider(base64String) {
       const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
+      const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
+      const rawData = globalThis.atob(base64);
       const outputArray = new Uint8Array(rawData.length);
       for (let i = 0; i < rawData.length; ++i) {
         outputArray[i] = rawData.charCodeAt(i);
@@ -12466,7 +12466,7 @@
             is_active: document.getElementById('day-active-' + d).checked,
             start_time: document.getElementById('day-start-' + d).value,
             end_time: document.getElementById('day-end-' + d).value,
-            bay_capacity: parseInt(document.getElementById('day-bays-' + d).value) || 1
+            bay_capacity: Number.parseInt(document.getElementById('day-bays-' + d).value) || 1
           });
         }
         const response = await fetch('/api/provider/availability', {
