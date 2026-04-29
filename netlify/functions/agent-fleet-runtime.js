@@ -192,7 +192,11 @@ async function logAction(supabase, {
       console.error(`[runtime] logAction error: ${error.message}`);
       return null;
     }
-    return data.id;
+    // Return the inserted row's id wrapped in an object so callers can do
+    // `inserted.id` (e.g. agent-hunter and agent-promoter use this id to
+    // populate the agent_action_id FK on social_leads / social_posts). Other
+    // callers that ignore the return value are unaffected.
+    return { id: data.id };
   } catch (e) {
     console.error('[runtime] logAction crash:', e.message);
     return null;

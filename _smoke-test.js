@@ -1,6 +1,7 @@
 // Direct handler invocation — bypasses HTTP, simulates Netlify Lambda event.
 const adminHandler = require('./netlify/functions/agent-fleet-admin').handler;
 const promoterHandler = require('./netlify/functions/agent-promoter').handler;
+const hunterHandler = require('./netlify/functions/agent-hunter').handler;
 const providerAdminHandler = require('./netlify/functions/provider-admin').handler;
 const providerApplicationHandler = require('./netlify/functions/provider-application').handler;
 const PW = process.env.ADMIN_PASSWORD;
@@ -50,6 +51,29 @@ async function call(method, path, body) {
     }
   }
   const r = await adminHandler(event);
+  let body_;
+  try { body_ = JSON.parse(r.body); } catch { body_ = r.body; }
+  return { status: r.statusCode, body: body_ };
+}
+
+async function callHunterDirect(eventRow) {
+  // Mirror callPromoterDirect — invoke Hunter handler in-process with the
+  // exact envelope the orchestrator would dispatch.
+  const lambdaEvent = {
+    httpMethod: 'POST',
+    path: '/.netlify/functions/agent-hunter',
+    headers: {
+      'x-admin-password': PW,
+      'x-fleet-source': 'orchestrator',
+      'content-type': 'application/json'
+    },
+    body: JSON.stringify({
+      event_id: eventRow.id,
+      event_type: eventRow.event_type,
+      payload: eventRow.payload
+    })
+  };
+  const r = await hunterHandler(lambdaEvent);
   let body_;
   try { body_ = JSON.parse(r.body); } catch { body_ = r.body; }
   return { status: r.statusCode, body: body_ };
@@ -126,6 +150,36 @@ async function callPromoterDirect(eventRow) {
     console.log(`    ✓ result: ${JSON.stringify(r.body).slice(0, 400)}`);
   } else {
     console.log(`    ✗ ${JSON.stringify(r.body).slice(0, 400)}`);
+  }
+
+  // Task #178 — assert that the new social_posts row was linked back to the
+  // agent_actions row that produced it (agent_action_id FK populated).
+  if (r.status === 200 && r.body?.success && r.body?.social_post_id) {
+    try {
+      const { createClient: ccFk } = require('@supabase/supabase-js');
+      const sbFk = ccFk(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+        { auth: { persistSession: false } });
+      const { data: postRow } = await sbFk.from('social_posts')
+        .select('id,agent_action_id').eq('id', r.body.social_post_id).maybeSingle();
+      if (postRow?.agent_action_id) {
+        // Confirm the FK actually points at a real Promoter draft action.
+        const { data: actRow } = await sbFk.from('agent_actions')
+          .select('id,agent_slug,action_type').eq('id', postRow.agent_action_id).maybeSingle();
+        if (actRow?.agent_slug === 'promoter' && actRow.action_type === 'draft') {
+          console.log(`    ✓ T#178 FK link: social_posts.${postRow.id}.agent_action_id=${postRow.agent_action_id} → promoter.draft`);
+        } else {
+          console.log(`    ✗ T#178 FK points at unexpected action: ${JSON.stringify(actRow)}`);
+          // Hard-fail: this is a correctness regression CI must catch.
+          process.exitCode = 1;
+        }
+      } else {
+        console.log(`    ✗ T#178 FK NOT populated on social_posts.${r.body.social_post_id} (agent_action_id is NULL — logAction return shape regression)`);
+        process.exitCode = 1;
+      }
+    } catch (e) {
+      console.log(`    ⚠ T#178 FK check threw: ${e.message}`);
+      process.exitCode = 1;
+    }
   }
 
   console.log('\n━━━ STEP 5: list posts (Promoter output) ━━━');
@@ -302,6 +356,66 @@ async function callPromoterDirect(eventRow) {
     await sbLead.from('social_leads').delete().eq('id', newLeadId);
   } catch (e) {
     console.log(`  ✗ step 14b threw: ${e.message}`);
+  }
+
+  // ──────────────────────────────────────────────────────────────────────
+  // Task #178 — Hunter must populate social_leads.agent_action_id when it
+  // scores a lead. Seeds a real social_leads row, invokes Hunter directly
+  // (which calls Anthropic), then asserts the FK is now non-NULL and points
+  // at the Hunter score action that was just written.
+  // ──────────────────────────────────────────────────────────────────────
+  console.log('\n━━━ STEP 14c: invoke Hunter on a seeded lead — verify agent_action_id FK ━━━');
+  try {
+    const { createClient: ccH } = require('@supabase/supabase-js');
+    const sbH = ccH(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY,
+      { auth: { persistSession: false } });
+
+    const extId = 'smoke-t178-' + Date.now();
+    const { data: leadRow, error: leadErr } = await sbH.from('social_leads').insert({
+      platform: 'reddit', external_id: extId, lead_type: 'member',
+      raw_text: 'Looking for a trustworthy mechanic in north NJ — anyone have recommendations? Need an oil change and brake pad inspection this week.',
+      status: 'pending'
+    }).select('id').single();
+    if (leadErr) throw new Error('seed lead: ' + leadErr.message);
+    const newLeadId = leadRow.id;
+
+    const hunterEvent = {
+      id: null,
+      event_type: 'social.lead_discovered',
+      payload: { social_lead_id: newLeadId }
+    };
+    console.log('  calling Hunter handler (Anthropic — 5-15s)…');
+    const tH = Date.now();
+    const rH = await callHunterDirect(hunterEvent);
+    console.log(`  status=${rH.status} ms=${Date.now() - tH}`);
+    if (rH.status !== 200 || !rH.body?.success) {
+      console.log(`  ✗ Hunter call failed: ${JSON.stringify(rH.body).slice(0, 300)}`);
+      process.exitCode = 1;
+    } else {
+      const { data: refreshed } = await sbH.from('social_leads')
+        .select('id,status,agent_action_id').eq('id', newLeadId).maybeSingle();
+      if (refreshed?.agent_action_id) {
+        const { data: act } = await sbH.from('agent_actions')
+          .select('id,agent_slug,action_type').eq('id', refreshed.agent_action_id).maybeSingle();
+        if (act?.agent_slug === 'hunter' && act.action_type === 'score') {
+          console.log(`  ✓ T#178 FK link: social_leads.${refreshed.id}.agent_action_id=${refreshed.agent_action_id} → hunter.score (status=${refreshed.status})`);
+        } else {
+          console.log(`  ✗ T#178 FK points at unexpected action: ${JSON.stringify(act)}`);
+          process.exitCode = 1;
+        }
+      } else {
+        console.log(`  ✗ T#178 FK NOT populated on social_leads.${newLeadId} (agent_action_id is NULL — logAction return shape regression)`);
+        process.exitCode = 1;
+      }
+      // Best-effort cleanup of the action row Hunter wrote.
+      if (refreshed?.agent_action_id) {
+        await sbH.from('agent_actions').delete().eq('id', refreshed.agent_action_id);
+      }
+    }
+    await sbH.from('social_leads').delete().eq('id', newLeadId);
+  } catch (e) {
+    console.log(`  ✗ step 14c threw: ${e.message}`);
+    process.exitCode = 1;
   }
 
   console.log('\n━━━ STEP 15: cleanup — disable Hunter & Promoter again ━━━');
