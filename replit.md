@@ -53,7 +53,7 @@ Key architectural patterns and features include:
 - **Blog (`/blog/`)**: SEO-driven editorial pillar with evergreen posts, static HTML generation, JSON-LD, SEO meta injection, and sitemap generation.
 - **Provider Onboarding Walkthrough**: 7-step interactive guided tour for new providers.
 - **E2E Testing**: Playwright with system Chromium for automated testing.
-- **Mobile App Architecture**: Capacitor apps load from live URL (`mycarconcierge.com`).
+- **Mobile App Architecture**: Capacitor apps load from live URL (`mycarconcierge.com`). Note: a stale dev-only tree at `www-ios/` (frozen March 2026 snapshot of `www/` with `webDir: "."`) was removed as a 1.2 GB local-only cleanup; the `.gitignore` entry for `www-ios/` remains harmless and prevents accidental re-tracking if a future build tool re-creates the path.
 - **Server Stability**: Uncaught exception/rejection handlers, EADDRINUSE retry logic, graceful shutdown.
 - **Deployment Architecture**: GitHub for source control, Netlify for production hosting, Replit for development.
 
