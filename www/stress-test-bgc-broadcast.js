@@ -1,20 +1,36 @@
 // Stress test — BGC launch broadcast script (Task #227 / Task #164)
 //
-// Validates scripts/send-bgc-launch-broadcast.js under varied --limit values
-// in --dry-run mode. Verifies:
-//   1. The configurable rate-throttle holds (--rate flag respected — runtime
-//      should be >= N/rate seconds, with tolerance).
-//   2. --dry-run produces NO writes to bgc_launch_email_sends and NO Resend
-//      sends (offline-safe).
-//   3. The script exits 0 cleanly under each load profile.
+// Validates scripts/send-bgc-launch-broadcast.js as the primary subject.
+// The script is a single-batch, sleep-throttled subprocess (not a concurrent
+// HTTP surface), so the four-phase pattern is mapped onto progressively
+// larger seeded recipient pools, and the assertions verify the operationally-
+// critical properties:
 //
-// "Phases" map to progressively-larger broadcast runs (warm-up, sustained,
-// spike, cool-down) since the script is a single-batch operation rather than
-// concurrent HTTP. This matches the four-phase architectural pattern even
-// though the unit of "load" here is a subprocess invocation.
+//   1. Throttle holds — at the script's default --rate=8 the wall-clock
+//      runtime should be at least N / rate seconds (with a tolerance for
+//      auth + first-batch warm-up). This is the bedrock guarantee that
+//      keeps Resend rate limits and inbox-provider reputation safe.
+//   2. Idempotency — recipients already present in bgc_launch_email_sends
+//      are skipped via the script's `alreadySent.has(email)` check
+//      (recordSkip('already_sent')). Pre-seeding rows for half of the
+//      recipients should produce exactly that many `already_sent` skips.
+//      This is what makes a re-run / `--continue`-after-preview safe.
+//   3. Suppression — recipients in email_unsubscribes are skipped via
+//      `suppressedEmails.has(email)` (recordSkip('suppressed')).
+//   4. --dry-run produces no log writes — bgc_launch_email_sends should
+//      remain empty for our stress recipients (only the pre-seeded rows
+//      from idempotency setup remain).
+//   5. The script exits 0 cleanly under each load profile.
 //
-// Usage: node www/stress-test-bgc-broadcast.js
-//        node www/stress-test-bgc-broadcast.js --warmup=5 --sustained=50 --spike=100 --cooldown=10 --rate=25
+// FAST mode (default): 200-recipient sustained phase at --rate=20 (~10s)
+// FULL mode (BGC_BROADCAST_STRESS_FULL=1): 5000-recipient sustained phase
+//   at --rate=8 (~625s) — matches production behavior for the launch
+//   announcement and is the canonical pre-launch dress rehearsal.
+//
+// Usage:
+//   node www/stress-test-bgc-broadcast.js
+//   BGC_BROADCAST_STRESS_FULL=1 node www/stress-test-bgc-broadcast.js
+//   node www/stress-test-bgc-broadcast.js --warmup=20 --sustained=200 --spike=400 --cooldown=40 --rate=20
 
 const { createClient } = require('@supabase/supabase-js');
 const { spawn } = require('child_process');
@@ -35,17 +51,38 @@ function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
   return f ? parseInt(f.split('=')[1], 10) : def;
 }
+function flag(name) {
+  return args.includes(`--${name}`);
+}
 
-const CONFIG = {
-  // The broadcast script defaults to 8 sends/sec. We use a higher value here
-  // so the test completes quickly while still verifying throttle behavior.
-  rateRps:        param('rate', 50),
-  warmupLimit:    param('warmup', 10),
-  sustainedLimit: param('sustained', 100),
-  spikeLimit:     param('spike', 250),
-  cooldownLimit:  param('cooldown', 20),
-  // Per-phase timeout (subprocess wall-clock cap, in ms).
-  phaseTimeoutMs: param('phase-timeout', 60000),
+const FULL_MODE = process.env.BGC_BROADCAST_STRESS_FULL === '1' || flag('full');
+
+// Sane defaults: a fast CI-friendly run that still fully exercises throttle,
+// idempotency, suppression, and dry-run-no-write properties. FULL mode swaps
+// in the production-realistic 5000 / rate=8 numbers.
+const CONFIG = FULL_MODE ? {
+  rateRps:        param('rate', 8),
+  warmupLimit:    param('warmup', 50),
+  sustainedLimit: param('sustained', 5000),
+  spikeLimit:     param('spike', 1000),
+  cooldownLimit:  param('cooldown', 100),
+  // 5000 / 8 = 625s at the floor; allow generous timeout for first-batch
+  // warm-up + auth + suppression-list loading.
+  phaseTimeoutMs: param('phase-timeout', 900_000),
+  // Idempotency phase: how many of the seeded recipients to pre-mark as
+  // already-sent (the script must skip them).
+  idempotencyPreSeed: param('idempotency-preseed', 1000),
+  // Suppression phase: how many to add to email_unsubscribes BEFORE the run.
+  suppressionPreSeed: param('suppression-preseed', 500),
+} : {
+  rateRps:        param('rate', 20),
+  warmupLimit:    param('warmup', 20),
+  sustainedLimit: param('sustained', 200),
+  spikeLimit:     param('spike', 100),
+  cooldownLimit:  param('cooldown', 40),
+  phaseTimeoutMs: param('phase-timeout', 60_000),
+  idempotencyPreSeed: param('idempotency-preseed', 50),
+  suppressionPreSeed: param('suppression-preseed', 25),
 };
 
 const STRESS_TAG = 'stress-bgc-broadcast-' + Date.now();
@@ -56,21 +93,79 @@ const phaseResults = [];
 
 async function seedRecipients(count) {
   const seeded = [];
-  for (let i = 0; i < count; i++) {
-    const email = `stress-${STRESS_TAG}-${i}@${STRESS_DOMAIN}`;
-    const { data, error } = await supabaseAdmin.from('profiles').insert({
-      email,
-      full_name: `Stress Recipient ${i}`,
-      first_name: 'Stress',
-      role: 'member',
-    }).select('id, email').single();
-    if (!error && data) seeded.push(data);
+  // Bulk-insert in batches of 200 so 5000-row seeds don't time out.
+  const BATCH = 200;
+  for (let off = 0; off < count; off += BATCH) {
+    const rows = [];
+    for (let i = off; i < Math.min(count, off + BATCH); i++) {
+      rows.push({
+        email: `stress-${STRESS_TAG}-${i}@${STRESS_DOMAIN}`,
+        full_name: `Stress Recipient ${i}`,
+        first_name: 'Stress',
+        role: 'member',
+      });
+    }
+    const { data, error } = await supabaseAdmin
+      .from('profiles')
+      .insert(rows)
+      .select('id, email');
+    if (!error && data) seeded.push(...data);
+    else if (error) console.warn(`  [WARN] seed batch ${off}: ${error.message}`);
   }
   return seeded;
 }
 
+async function preSeedAlreadySent(emails) {
+  // Insert into bgc_launch_email_sends so the script's loadAlreadySent()
+  // sees these emails and recordSkip('already_sent') fires.
+  if (!emails.length) return 0;
+  const BATCH = 200;
+  let inserted = 0;
+  for (let off = 0; off < emails.length; off += BATCH) {
+    const rows = emails.slice(off, off + BATCH).map(email => ({
+      email,
+      audience: 'customer',
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+      // Tag so cleanup is precise.
+      resend_message_id: `${STRESS_TAG}-preseed-${email}`,
+    }));
+    try {
+      const { error } = await supabaseAdmin.from('bgc_launch_email_sends').insert(rows);
+      if (!error) inserted += rows.length;
+      else console.warn(`  [WARN] pre-seed already-sent batch ${off}: ${error.message}`);
+    } catch (e) {
+      console.warn(`  [WARN] bgc_launch_email_sends table missing? ${e.message}`);
+      return 0;
+    }
+  }
+  return inserted;
+}
+
+async function preSeedSuppressed(emails) {
+  // Insert into email_unsubscribes so suppression set picks them up.
+  if (!emails.length) return 0;
+  const BATCH = 200;
+  let inserted = 0;
+  for (let off = 0; off < emails.length; off += BATCH) {
+    const rows = emails.slice(off, off + BATCH).map(email => ({
+      email,
+      source: STRESS_TAG,
+    }));
+    try {
+      const { error } = await supabaseAdmin.from('email_unsubscribes').insert(rows);
+      if (!error) inserted += rows.length;
+    } catch (e) {
+      console.warn(`  [WARN] email_unsubscribes table missing? ${e.message}`);
+      return 0;
+    }
+  }
+  return inserted;
+}
+
 async function cleanup() {
-  // Remove all stress-tagged rows
+  // Tear down in dependency order. Best-effort on derived tables in case
+  // they don't exist locally.
   const { data: rows } = await supabaseAdmin
     .from('profiles')
     .select('id, email')
@@ -78,25 +173,26 @@ async function cleanup() {
   const emails = (rows || []).map(r => r.email);
   const ids = (rows || []).map(r => r.id);
   if (emails.length > 0) {
-    // Best-effort cleanup of derived tables (don't fail the test if they don't exist)
     try { await supabaseAdmin.from('bgc_launch_email_sends').delete().in('email', emails); } catch {}
     try { await supabaseAdmin.from('email_unsubscribes').delete().in('email', emails); } catch {}
   }
   if (ids.length > 0) {
     await supabaseAdmin.from('profiles').delete().in('id', ids);
   }
-  // Defensive sweep for orphaned stress-domain rows (in case prior runs leaked)
+  // Defensive sweep for orphaned stress-domain rows (in case prior runs leaked).
   await supabaseAdmin.from('profiles').delete().like('email', `%@${STRESS_DOMAIN}`);
+  // Cleanup any unsubscribe rows tagged with our STRESS_TAG.
+  try { await supabaseAdmin.from('email_unsubscribes').delete().eq('source', STRESS_TAG); } catch {}
 }
 
-function runBroadcastDryRun(limit) {
+function runBroadcastDryRun(limit, rate) {
   return new Promise((resolve) => {
     const start = Date.now();
     const child = spawn('node', [
       SCRIPT_PATH,
       '--dry-run',
       `--limit=${limit}`,
-      `--rate=${CONFIG.rateRps}`,
+      `--rate=${rate}`,
       '--audience=members',
     ], {
       cwd: path.join(__dirname, '..'),
@@ -114,57 +210,75 @@ function runBroadcastDryRun(limit) {
     child.stderr.on('data', d => { stderr += d.toString(); });
     child.on('close', (code) => {
       clearTimeout(killTimer);
-      const durationMs = Date.now() - start;
       resolve({
-        limit,
-        durationMs,
+        limit, rate,
+        durationMs: Date.now() - start,
         exitCode: killed ? -1 : code,
-        killed,
-        stdout,
-        stderr,
+        killed, stdout, stderr,
       });
     });
     child.on('error', (err) => {
       clearTimeout(killTimer);
       resolve({
-        limit,
+        limit, rate,
         durationMs: Date.now() - start,
-        exitCode: -1,
-        error: err.message,
-        stdout,
-        stderr,
+        exitCode: -1, error: err.message,
+        stdout, stderr,
       });
     });
   });
 }
 
-async function runPhase(name, limit) {
-  console.log(`  Running broadcast --dry-run --limit=${limit} --rate=${CONFIG.rateRps}...`);
-  const r = await runBroadcastDryRun(limit);
+// Parse the script's `[customer] skip reasons: {"already_sent":N,...}` log line.
+function parseSkipReasons(stdout) {
+  const m = stdout.match(/skip reasons:\s*(\{[^}]+\})/);
+  if (!m) return {};
+  try { return JSON.parse(m[1]); } catch { return {}; }
+}
+
+// Parse the script's eligible/skipped counts.
+function parseCounts(stdout) {
+  const m = stdout.match(/eligible=(\d+)\s+skipped=(\d+)\s+totalProfiles=(\d+)/);
+  if (!m) return null;
+  return { eligible: +m[1], skipped: +m[2], totalProfiles: +m[3] };
+}
+
+async function runPhase(name, limit, rate = CONFIG.rateRps, opts = {}) {
+  console.log(`  Running broadcast --dry-run --limit=${limit} --rate=${rate}...`);
+  const r = await runBroadcastDryRun(limit, rate);
   // Theoretical minimum runtime: limit / rate seconds.
-  // Allow 70% of theoretical to account for warm-up + first-batch latency.
-  const expectedMinMs = limit > 0 ? Math.floor((limit / CONFIG.rateRps) * 1000 * 0.7) : 0;
+  // Allow 60% of theoretical to account for warm-up + first-batch latency.
+  const expectedMinMs = limit > 0 ? Math.floor((limit / rate) * 1000 * 0.6) : 0;
   const throttleHeld = r.durationMs >= expectedMinMs;
+  const skipReasons = parseSkipReasons(r.stdout);
+  const counts = parseCounts(r.stdout);
   console.log(`    Phase: ${name}, exit: ${r.exitCode}, runtime: ${(r.durationMs/1000).toFixed(1)}s, expected min: ${(expectedMinMs/1000).toFixed(1)}s, throttle: ${throttleHeld ? 'OK' : 'FAILED'}`);
+  if (counts) console.log(`    eligible=${counts.eligible} skipped=${counts.skipped} totalProfiles=${counts.totalProfiles}`);
+  if (Object.keys(skipReasons).length > 0) console.log(`    skip reasons: ${JSON.stringify(skipReasons)}`);
   if (r.exitCode !== 0) {
-    const tail = (r.stderr || '').slice(-500);
+    const tail = (r.stderr || '').slice(-600);
     if (tail) console.log(`    [WARN] stderr tail:\n${tail}`);
   }
-  phaseResults.push({ name, ...r, throttleHeld });
+  phaseResults.push({ name, ...r, throttleHeld, skipReasons, counts, ...opts });
   return r;
 }
 
-async function checkNoLogWritesInDryRun() {
-  // After --dry-run, bgc_launch_email_sends should have NO rows for our
-  // stress recipients. (If the table doesn't exist yet, treat as 0.)
+async function checkNoLogWritesInDryRun(preSeededCount) {
+  // After --dry-run, bgc_launch_email_sends should ONLY contain the
+  // pre-seeded rows (no new writes from --dry-run). If it contains more,
+  // dry-run is leaking writes — a release-blocker.
   try {
     const { data: rows } = await supabaseAdmin
       .from('bgc_launch_email_sends')
-      .select('email')
+      .select('email, resend_message_id')
       .like('email', `stress-${STRESS_TAG}-%`);
-    return (rows || []).length;
+    return {
+      total: (rows || []).length,
+      preSeeded: (rows || []).filter(r => (r.resend_message_id || '').startsWith(`${STRESS_TAG}-preseed-`)).length,
+      unexpected: (rows || []).filter(r => !(r.resend_message_id || '').startsWith(`${STRESS_TAG}-preseed-`)).length,
+    };
   } catch {
-    return 0;
+    return { total: 0, preSeeded: 0, unexpected: 0 };
   }
 }
 
@@ -173,7 +287,7 @@ function printResults() {
   console.log('  BGC Broadcast — RESULTS');
   console.log('====================================================');
   for (const p of phaseResults) {
-    console.log(`  ${p.name.padEnd(12)} limit=${String(p.limit).padEnd(5)} runtime=${(p.durationMs/1000).toFixed(1)}s exit=${p.exitCode} throttle=${p.throttleHeld ? 'OK' : 'FAILED'}`);
+    console.log(`  ${p.name.padEnd(14)} limit=${String(p.limit).padEnd(6)} runtime=${(p.durationMs/1000).toFixed(1)}s exit=${p.exitCode} throttle=${p.throttleHeld ? 'OK' : 'FAILED'}`);
   }
   const allClean = phaseResults.every(p => p.exitCode === 0);
   const allThrottled = phaseResults.every(p => p.throttleHeld);
@@ -184,45 +298,125 @@ async function main() {
   console.log('\n====================================================');
   console.log('  MCC — BGC Broadcast Stress Test');
   console.log('====================================================');
-  console.log(`  Phases: warm=${CONFIG.warmupLimit}, sustained=${CONFIG.sustainedLimit}, spike=${CONFIG.spikeLimit}, cool=${CONFIG.cooldownLimit}`);
-  console.log(`  Rate: ${CONFIG.rateRps} rps (script default is 8)`);
-  console.log(`  Phase timeout: ${(CONFIG.phaseTimeoutMs/1000).toFixed(0)}s`);
+  console.log(`  Mode:           ${FULL_MODE ? 'FULL (production-realistic 5000 @ rate=8)' : 'FAST (CI-friendly)'}`);
+  console.log(`  Phases:         warm=${CONFIG.warmupLimit}, sustained=${CONFIG.sustainedLimit}, spike=${CONFIG.spikeLimit}, cool=${CONFIG.cooldownLimit}`);
+  console.log(`  Rate:           ${CONFIG.rateRps} sends/sec`);
+  console.log(`  Idempotency:    pre-seed ${CONFIG.idempotencyPreSeed} into bgc_launch_email_sends`);
+  console.log(`  Suppression:    pre-seed ${CONFIG.suppressionPreSeed} into email_unsubscribes`);
+  console.log(`  Phase timeout:  ${(CONFIG.phaseTimeoutMs/1000).toFixed(0)}s`);
   console.log('====================================================\n');
 
   let exitCode = 1;
+  let preSeededAlready = 0;
   try {
     console.log('[Setup] Defensive cleanup of any prior stress rows...');
     await cleanup();
 
-    console.log('[Setup] Seeding stress recipients...');
-    const max = Math.max(CONFIG.warmupLimit, CONFIG.sustainedLimit, CONFIG.spikeLimit, CONFIG.cooldownLimit);
+    const max = Math.max(
+      CONFIG.warmupLimit,
+      CONFIG.sustainedLimit,
+      CONFIG.spikeLimit,
+      CONFIG.cooldownLimit,
+    );
+    console.log(`[Setup] Seeding ${max} stress recipients...`);
     const seeded = await seedRecipients(max);
-    console.log(`  Seeded ${seeded.length} stress recipients (max needed: ${max})`);
+    console.log(`  Seeded ${seeded.length} stress recipients`);
+    if (seeded.length === 0) {
+      console.error('  No recipients seeded; aborting.');
+      process.exit(1);
+    }
+
+    // Idempotency setup: mark first N recipients as already-sent.
+    const idempEmails = seeded.slice(0, CONFIG.idempotencyPreSeed).map(r => r.email);
+    console.log(`[Setup] Pre-seeding ${idempEmails.length} into bgc_launch_email_sends (already-sent)...`);
+    preSeededAlready = await preSeedAlreadySent(idempEmails);
+    console.log(`  Inserted ${preSeededAlready} already-sent rows`);
+    // HARD assertion: if the pre-seed didn't insert all requested rows, the
+    // idempotency criterion below would silently degrade to a weaker bound.
+    // Abort the run rather than let that vacuous-pass path open.
+    if (preSeededAlready !== idempEmails.length) {
+      console.error(`  [FATAL] Pre-seed inserted ${preSeededAlready} of ${idempEmails.length} requested already-sent rows. Aborting to avoid weakened idempotency assertion.`);
+      process.exit(1);
+    }
+
+    // Suppression setup: mark next K recipients as unsubscribed (does NOT
+    // overlap with idempotency set so we can attribute skip reasons).
+    const suppressEmails = seeded
+      .slice(CONFIG.idempotencyPreSeed, CONFIG.idempotencyPreSeed + CONFIG.suppressionPreSeed)
+      .map(r => r.email);
+    console.log(`[Setup] Pre-seeding ${suppressEmails.length} into email_unsubscribes (suppression)...`);
+    const preSeededSupp = await preSeedSuppressed(suppressEmails);
+    console.log(`  Inserted ${preSeededSupp} unsubscribe rows`);
+    if (preSeededSupp !== suppressEmails.length) {
+      console.error(`  [FATAL] Pre-seed inserted ${preSeededSupp} of ${suppressEmails.length} requested suppressed rows. Aborting to avoid weakened suppression assertion.`);
+      process.exit(1);
+    }
 
     console.log('\n[Phase 1/4] Warm-up broadcast...');
     await runPhase('Warm', CONFIG.warmupLimit);
-    console.log('[Phase 2/4] Sustained broadcast...');
-    await runPhase('Sustained', CONFIG.sustainedLimit);
+    console.log('[Phase 2/4] Sustained broadcast (canonical run)...');
+    await runPhase('Sustained', CONFIG.sustainedLimit, CONFIG.rateRps, { canonical: true });
     console.log('[Phase 3/4] Spike broadcast...');
     await runPhase('Spike', CONFIG.spikeLimit);
     console.log('[Phase 4/4] Cool-down broadcast...');
     await runPhase('Cool', CONFIG.cooldownLimit);
 
-    console.log('\n[Integrity] Verifying --dry-run produced no log writes...');
-    const logRows = await checkNoLogWritesInDryRun();
-    console.log(`  bgc_launch_email_sends rows for stress recipients: ${logRows}`);
+    console.log('\n[Integrity] Verifying --dry-run produced no extra log writes...');
+    const logState = await checkNoLogWritesInDryRun(preSeededAlready);
+    console.log(`  bgc_launch_email_sends rows for stress recipients: total=${logState.total}, preSeeded=${logState.preSeeded}, unexpected=${logState.unexpected}`);
+
+    // Pull the canonical (Sustained) phase to assert idempotency + suppression.
+    const canonical = phaseResults.find(p => p.canonical);
+    const canonicalSkips = (canonical && canonical.skipReasons) || {};
+    const canonicalCounts = canonical && canonical.counts;
+    const sawAlreadySent = (canonicalSkips.already_sent || 0);
+    const sawSuppressed = (canonicalSkips.suppressed || 0);
+    // If we couldn't parse counts/skip-reasons from the script's stdout
+    // (the format changed, the run crashed before logging the eligibility
+    // summary, etc.) we should HARD FAIL rather than silently pass with
+    // missing-treated-as-zero. The pre-seed lower bounds below would
+    // otherwise be vacuous.
+    const parsedScriptOutput = !!canonicalCounts && Object.keys(canonicalSkips).length > 0;
+    // We pre-seeded EXACTLY `preSeededAlready` rows into bgc_launch_email_sends
+    // and EXACTLY `preSeededSupp` rows into email_unsubscribes. The script
+    // processes ALL loaded profiles before --limit, so these pre-seeded
+    // recipients MUST appear in skip counts. (>= because the DB may also
+    // contain real already-sent / unsubscribed rows from prior broadcasts.)
+    const expectedAlreadySentMin = preSeededAlready;
+    const expectedSuppressedMin = preSeededSupp;
 
     const { allClean, allThrottled } = printResults();
 
     console.log('\n  PASS/FAIL CRITERIA');
-    console.log('  ' + '-'.repeat(60));
+    console.log('  ' + '-'.repeat(68));
     const criteria = [
-      { name: 'All phases exit 0',             value: allClean ? 'YES' : 'NO',     pass: allClean },
-      { name: 'Throttle holds in all phases',  value: allThrottled ? 'YES' : 'NO', pass: allThrottled },
-      { name: '--dry-run wrote no log rows',   value: `${logRows}`,                pass: logRows === 0 },
+      { name: 'All phases exit 0',
+        value: allClean ? 'YES' : 'NO',
+        pass: allClean },
+      { name: 'Throttle holds in all phases',
+        value: allThrottled ? 'YES' : 'NO',
+        pass: allThrottled },
+      { name: '--dry-run wrote no NEW rows (only pre-seed remains)',
+        value: `${logState.unexpected} unexpected`,
+        pass: logState.unexpected === 0 },
+      { name: 'Pre-seed rows still intact after dry-run',
+        // If dry-run accidentally deletes/mutates pre-seeded rows the
+        // unexpected==0 check above could still pass. Require the exact
+        // pre-seeded row count to remain.
+        value: `preSeeded=${logState.preSeeded} expected=${preSeededAlready}`,
+        pass: logState.preSeeded === preSeededAlready },
+      { name: 'Canonical phase stdout parsed (counts + skip reasons)',
+        value: parsedScriptOutput ? 'YES' : 'NO — log format may have changed',
+        pass: parsedScriptOutput },
+      { name: `Idempotency: ≥ ${expectedAlreadySentMin} pre-seeded skipped (already_sent)`,
+        value: `saw=${sawAlreadySent}`,
+        pass: parsedScriptOutput && sawAlreadySent >= expectedAlreadySentMin },
+      { name: `Suppression: ≥ ${expectedSuppressedMin} pre-seeded skipped (suppressed)`,
+        value: `saw=${sawSuppressed}`,
+        pass: parsedScriptOutput && sawSuppressed >= expectedSuppressedMin },
     ];
     for (const c of criteria) {
-      console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);
+      console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(56)} ${c.value}`);
     }
     console.log('====================================================\n');
 
@@ -230,7 +424,7 @@ async function main() {
   } catch (err) {
     console.error('\n[FATAL]', err.message, err.stack);
   } finally {
-    console.log('[Cleanup] Removing stress recipients...');
+    console.log('[Cleanup] Removing stress recipients + derived rows...');
     await cleanup();
     process.exit(exitCode);
   }

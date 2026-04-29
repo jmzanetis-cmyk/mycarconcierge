@@ -74,6 +74,9 @@ const CONFIG = {
 
 const STRESS_TAG = 'stress-bgc-' + Date.now();
 const RESERVOIR_SIZE = 50000;
+// Captured at module load so the provider_documents `created_at >= testStartIso`
+// filter scopes only to writes that happened during this test run.
+const testStartIso = new Date().toISOString();
 
 function createMetric(name) {
   return {
@@ -171,6 +174,44 @@ async function deliverWebhook(reportId) {
   }
 }
 
+// Deterministic per-candidate duplicate-burst phase. For each seeded
+// report_id, fire `duplicatesPerCandidate` signed deliveries concurrently
+// with a bounded fan-out. This is the core idempotency / retry-storm
+// pressure: it guarantees every candidate gets the same N duplicate
+// deliveries (instead of relying on random sampling, which can leave some
+// candidates with 0 or 1 deliveries and silently miss per-report races).
+async function runDuplicateBurst(name, concurrency, candidates, dupesPerCandidate) {
+  // Build the full delivery list up front: N copies of every candidate.
+  const deliveries = [];
+  for (const cand of candidates) {
+    for (let i = 0; i < dupesPerCandidate; i++) deliveries.push(cand.reportId);
+  }
+  // Shuffle so concurrent workers don't hammer the same report_id back-to-back
+  // sequentially — interleaving across candidates is closer to real retry storms.
+  for (let i = deliveries.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [deliveries[i], deliveries[j]] = [deliveries[j], deliveries[i]];
+  }
+  let cursor = 0;
+  let active = 0;
+  await new Promise(resolve => {
+    const tick = () => {
+      while (active < concurrency && cursor < deliveries.length) {
+        const reportId = deliveries[cursor++];
+        active++;
+        deliverWebhook(reportId).then(() => {
+          active--;
+          if (cursor < deliveries.length) tick();
+          else if (active === 0) resolve();
+        });
+      }
+      if (cursor >= deliveries.length && active === 0) resolve();
+    };
+    tick();
+  });
+  console.log(`  [${name}] sent ${deliveries.length} deliveries (${candidates.length} candidates × ${dupesPerCandidate}); requests so far: ${metrics.webhook.requests}`);
+}
+
 async function runPhase(name, concurrency, durationMs, candidates) {
   const endTime = Date.now() + durationMs;
   let active = 0;
@@ -193,9 +234,10 @@ async function runPhase(name, concurrency, durationMs, candidates) {
 
 async function checkIntegrity(seeded) {
   const ids = seeded.map(c => c.id);
+  const reportIds = seeded.map(c => c.reportId);
   const { data: rows } = await supabaseAdmin
     .from('employee_background_checks')
-    .select('id, bgc_report_id, status, completed_at, expires_at')
+    .select('id, bgc_report_id, status, completed_at, expires_at, provider_id')
     .in('id', ids);
   const stats = { updated: 0, stillPending: 0, badStatus: 0 };
   for (const r of (rows || [])) {
@@ -213,14 +255,96 @@ async function checkIntegrity(seeded) {
     reportCounts[r.bgc_report_id] = (reportCounts[r.bgc_report_id] || 0) + 1;
   }
   const duplicates = Object.entries(reportCounts).filter(([, v]) => v > 1).length;
+
+  // Downstream side-effect audit. The current webhook handler:
+  //   - DOES insert one row into `agent_events` per successful (200) delivery
+  //     (background-check-webhook.js — "agent_events emit"). N successful
+  //     deliveries for the same reportId therefore produces N agent_events
+  //     rows by design. We assert the row count is bounded by the number
+  //     of successful deliveries (not 0) and that no provider sees > the
+  //     200-count for the test.
+  //   - Does NOT touch `provider_documents`, so the spec's "no duplicate
+  //     provider_documents rows" requirement is trivially satisfied
+  //     (count must remain 0 for these report_ids).
+  //   - Does NOT call Resend, so the spec's "no duplicate Resend sends"
+  //     requirement is also trivially satisfied. No Resend call site is
+  //     wired into the handler.
+  // Pull provider_id from one of the seeded BGC rows so we can scope the
+  // provider_documents check to a real-world key (the handler doesn't
+  // currently write provider_documents at all, but if a future regression
+  // does, it will land linked to the same provider_id).
+  const providerId = (rows && rows[0] && rows[0].provider_id)
+    || (await supabaseAdmin
+      .from('employee_background_checks')
+      .select('provider_id')
+      .in('id', ids)
+      .limit(1)
+      .maybeSingle()).data?.provider_id;
+
+  let agentEventsForOurReports = 0;
+  let providerDocsForProvider = 0;
+  let agentEventsQueryFailed = false;
+  let providerDocsQueryFailed = false;
+
+  // Use head:true exact count + filter on payload jsonb; if the query path
+  // fails we mark it failed (rather than silently passing as 0).
+  {
+    const { count, error } = await supabaseAdmin
+      .from('agent_events')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_type', 'provider.bgc_completed')
+      .in('payload->>bgc_report_id', reportIds);
+    if (error) {
+      agentEventsQueryFailed = true;
+      console.warn(`  [WARN] agent_events count query failed: ${error.message}`);
+    } else {
+      agentEventsForOurReports = count || 0;
+    }
+  }
+  if (providerId) {
+    const { count, error } = await supabaseAdmin
+      .from('provider_documents')
+      .select('id', { count: 'exact', head: true })
+      .eq('provider_id', providerId)
+      .gte('created_at', testStartIso);
+    if (error) {
+      providerDocsQueryFailed = true;
+      console.warn(`  [WARN] provider_documents count query failed: ${error.message}`);
+    } else {
+      providerDocsForProvider = count || 0;
+    }
+  }
+
+  const successfulDeliveries = metrics.webhook.statusCodes[200] || 0;
+
   return {
     ...stats,
     duplicates,
     totalRows: (rows || []).length,
+    agentEventsForOurReports,
+    providerDocsForProvider,
+    agentEventsQueryFailed,
+    providerDocsQueryFailed,
+    successfulDeliveries,
   };
 }
 
 async function cleanup() {
+  // Clean up agent_events FIRST (FK-free table; safe to delete first).
+  // We filter by event_type + payload report_id so we only touch our rows.
+  const { data: seededReports } = await supabaseAdmin
+    .from('employee_background_checks')
+    .select('bgc_report_id')
+    .like('bgc_report_id', `${STRESS_TAG}-%`);
+  const reportIds = (seededReports || []).map(r => r.bgc_report_id);
+  if (reportIds.length > 0) {
+    try {
+      await supabaseAdmin.from('agent_events')
+        .delete()
+        .eq('event_type', 'provider.bgc_completed')
+        .in('payload->>bgc_report_id', reportIds);
+    } catch { /* table may not exist; ignore */ }
+  }
   await supabaseAdmin.from('employee_background_checks')
     .delete()
     .like('bgc_report_id', `${STRESS_TAG}-%`);
@@ -245,14 +369,28 @@ function printResults(durationSec, integrity) {
   console.log(`  Still pending:      ${integrity.stillPending}`);
   console.log(`  Bad status:         ${integrity.badStatus}`);
   console.log(`  Duplicate report_id rows: ${integrity.duplicates}`);
+  console.log(`  agent_events rows:        ${integrity.agentEventsForOurReports} (expected ≤ ${integrity.successfulDeliveries} successful deliveries)${integrity.agentEventsQueryFailed ? ' [QUERY FAILED]' : ''}`);
+  console.log(`  provider_documents rows:  ${integrity.providerDocsForProvider} (expected 0 for this provider during run — handler doesn't touch this table)${integrity.providerDocsQueryFailed ? ' [QUERY FAILED]' : ''}`);
 
   console.log('\n  PASS/FAIL CRITERIA');
   console.log('  ' + '-'.repeat(60));
   const criteria = [
-    { name: 'p95 < 2000ms',                  value: `${p95}ms`,                                      pass: p95 < 2000 },
-    { name: 'Non-401 error rate < 5%',       value: `${errRate.toFixed(2)}%`,                        pass: errRate < 5 },
-    { name: 'No duplicate report_id rows',   value: `${integrity.duplicates}`,                       pass: integrity.duplicates === 0 },
-    { name: 'All seeded rows updated',       value: `${integrity.updated}/${integrity.totalRows}`,   pass: integrity.totalRows > 0 && integrity.updated === integrity.totalRows },
+    { name: 'p95 < 2000ms',                       value: `${p95}ms`,                                      pass: p95 < 2000 },
+    { name: 'Non-401 error rate < 5%',            value: `${errRate.toFixed(2)}%`,                        pass: errRate < 5 },
+    { name: 'No duplicate report_id rows',        value: `${integrity.duplicates}`,                       pass: integrity.duplicates === 0 },
+    { name: 'All seeded rows updated',            value: `${integrity.updated}/${integrity.totalRows}`,   pass: integrity.totalRows > 0 && integrity.updated === integrity.totalRows },
+    { name: 'agent_events ≤ successful deliveries (query OK)',
+      value: integrity.agentEventsQueryFailed
+        ? 'QUERY FAILED'
+        : `${integrity.agentEventsForOurReports}/${integrity.successfulDeliveries}`,
+      pass: !integrity.agentEventsQueryFailed
+        && integrity.agentEventsForOurReports <= integrity.successfulDeliveries },
+    { name: 'No provider_documents writes (n/a in handler) (query OK)',
+      value: integrity.providerDocsQueryFailed
+        ? 'QUERY FAILED'
+        : `${integrity.providerDocsForProvider}`,
+      pass: !integrity.providerDocsQueryFailed
+        && integrity.providerDocsForProvider === 0 },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);
@@ -283,13 +421,18 @@ async function main() {
     }
 
     const start = Date.now();
-    console.log('\n[Phase 1/4] Ramp-up...');
+    console.log('\n[Phase 0/5] Duplicate burst (deterministic per-candidate)...');
+    // Runs BEFORE the random phases so every candidate is guaranteed N duplicate
+    // deliveries (the core idempotency claim) regardless of how the random
+    // phases sample the candidate pool afterwards.
+    await runDuplicateBurst('DupBurst', CONFIG.concurrency, seeded, CONFIG.duplicatesPerCandidate);
+    console.log('[Phase 1/5] Ramp-up...');
     await runPhase('Ramp', Math.ceil(CONFIG.concurrency * 0.3), CONFIG.rampUpTime * 1000, seeded);
-    console.log('[Phase 2/4] Sustained...');
+    console.log('[Phase 2/5] Sustained...');
     await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, seeded);
-    console.log('[Phase 3/4] Spike...');
+    console.log('[Phase 3/5] Spike...');
     await runPhase('Spike', CONFIG.concurrency * CONFIG.spikeMultiplier, CONFIG.spikeDuration * 1000, seeded);
-    console.log('[Phase 4/4] Cool-down...');
+    console.log('[Phase 4/5] Cool-down...');
     await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, seeded);
     const dur = (Date.now() - start) / 1000;
 

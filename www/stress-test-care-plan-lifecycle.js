@@ -299,6 +299,41 @@ function printResults(testDurationSec, integrity) {
     }
   }
 
+  // Authentication / mutation-success accounting. 4xx (esp. 401/403/409)
+  // is "expected" for races (only one of complete-vs-dispute can win), but
+  // if EVERY request is 4xx then the test is vacuous — auth could have
+  // collapsed and we'd still PASS the latency + 5xx criteria. So we
+  // explicitly require:
+  //   (a) at least N successful 2xx outcomes across the two endpoints, and
+  //   (b) at least M plans reached a terminal payment_status (captured /
+  //       disputed / refunded), proving rows actually mutated end-to-end.
+  // These thresholds scale with the seeded plan count so a small/local run
+  // still has meaningful gates without flaking on stochastic 409 splits.
+  const cSuccess = Object.entries(metrics.complete.statusCodes)
+    .filter(([code]) => Number(code) >= 200 && Number(code) < 300)
+    .reduce((sum, [, n]) => sum + n, 0);
+  const dSuccess = Object.entries(metrics.dispute.statusCodes)
+    .filter(([code]) => Number(code) >= 200 && Number(code) < 300)
+    .reduce((sum, [, n]) => sum + n, 0);
+  const totalSuccess = cSuccess + dSuccess;
+  // At least one mutation per seeded plan would be the ideal floor; we
+  // settle for >= seeded plan count (each plan can only ever be terminally
+  // mutated once before subsequent attempts return 4xx) so the threshold
+  // can never silently skip.
+  const MIN_TOTAL_SUCCESS = Math.max(5, integrity.totalPlans);
+  // At least 50% of seeded plans should reach a terminal payment_status by
+  // run end. Below that, either the endpoint regressed or auth is broken.
+  const MIN_TERMINAL_FRACTION = 0.5;
+  const terminalPaymentStates = new Set(['captured', 'disputed', 'refunded']);
+  // We only have the integrity payload's `stuckCompletedPlans` and
+  // `totalCompletions`; reuse `totalCompletions` as the terminal floor
+  // (one row per plan that reached terminal state).
+  const terminalReached = integrity.totalCompletions;
+  const terminalFloor = Math.ceil(integrity.totalPlans * MIN_TERMINAL_FRACTION);
+
+  console.log(`  Successful 2xx (complete+dispute): ${totalSuccess} (need ≥ ${MIN_TOTAL_SUCCESS})`);
+  console.log(`  Plans reaching terminal state:     ${terminalReached}/${integrity.totalPlans} (need ≥ ${terminalFloor})`);
+
   console.log('\n  PASS/FAIL CRITERIA');
   console.log('  ' + '-'.repeat(60));
   const criteria = [
@@ -307,6 +342,18 @@ function printResults(testDurationSec, integrity) {
     { name: '5xx rate < 2%',                      value: `${errRate.toFixed(2)}%`,           pass: errRate < 2 },
     { name: 'No double-completion rows',          value: `${integrity.inconsistent.length} inconsistent`, pass: integrity.inconsistent.length === 0 },
     { name: 'No stuck completions (none/held)',   value: `${integrity.stuckCompletedPlans} stuck`,         pass: integrity.stuckCompletedPlans === 0 },
+    { name: `≥ ${MIN_TOTAL_SUCCESS} successful 2xx mutations`,
+      // Without this, a regression that returns 401/403/409 on every
+      // request would silently PASS (low 5xx + zero inconsistent rows
+      // because nothing mutated).
+      value: `${totalSuccess} (complete=${cSuccess}, dispute=${dSuccess})`,
+      pass: totalSuccess >= MIN_TOTAL_SUCCESS },
+    { name: `≥ ${terminalFloor}/${integrity.totalPlans} plans reached terminal state`,
+      // Proves the lifecycle actually ran end-to-end on real rows, not
+      // just that we got 2xx responses (an endpoint could 200 without
+      // persisting).
+      value: `${terminalReached}/${integrity.totalPlans}`,
+      pass: integrity.totalPlans > 0 && terminalReached >= terminalFloor },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);

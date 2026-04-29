@@ -1,20 +1,33 @@
 // Stress test — Provider Shop / Merch Store checkout (Task #227)
 //
-// Validates concurrent /api/shop/products + /api/shop/checkout from sim
-// members. Verifies:
-//   1. Each successful checkout creates a unique merch_orders row.
-//   2. No duplicate stripe_session_id rows (Stripe idempotency holds under
-//      concurrent requests from the same member).
-//   3. /api/shop/products handles burst public reads gracefully.
+// Validates concurrent reads against /api/shop/profile/:slug + /api/shop/products
+// AND POST /api/shop/checkout from sim members. The traffic mix is:
+//   ~1/3 GET /api/shop/profile/:slug   (public shop landing page)
+//   ~1/3 GET /api/shop/products        (public catalog)
+//   ~1/3 POST /api/shop/checkout       (authed sim member)
 //
-// Note: handleShopCheckout calls enforce2fa(); sim members may not have 2FA
-// enabled, so most checkout attempts will return 403. The test treats 403/401
-// as expected (recorded in statusCodes) and only fails on 5xx. Inventory
-// integrity check verifies that any 200s did create unique orders.
+// Verifies:
+//   1. Each successful checkout creates a unique merch_orders row.
+//   2. No duplicate stripe_session_id rows under concurrent requests from
+//      the same member with identical cart payloads (Stripe-side
+//      idempotency for back-to-back calls). The current /api/shop/checkout
+//      handler does NOT pass an idempotency_key to Stripe, so this surfaces
+//      the gap if duplicate sessions ever appear (PASS criterion fails).
+//   3. /api/shop/products and /api/shop/profile/:slug handle burst public
+//      reads gracefully.
+//   4. The 2FA gate is never bypassed under load — sim members have no 2FA
+//      token configured, so any 200/201 from /api/shop/checkout is a
+//      security failure (PASS criterion fails).
+//   5. Inventory integrity: this product line is print-on-demand via
+//      Printful, so there is no per-SKU inventory counter to oversell.
+//      The integrity check therefore verifies the *order-level* invariant
+//      (no duplicate stripe_session_id rows) which is the operational
+//      equivalent for this product surface.
 //
 // Endpoints under test:
-//   GET  /api/shop/products  (server.js:39953)
-//   POST /api/shop/checkout  (server.js:39958)
+//   GET  /api/shop/profile/:slug  (server.js:43025)
+//   GET  /api/shop/products       (server.js:39953)
+//   POST /api/shop/checkout       (server.js:39958)
 //
 // Usage: node www/stress-test-shop-checkout.js
 //        node www/stress-test-shop-checkout.js --concurrency=20 --duration=20
@@ -67,6 +80,7 @@ function createMetric(name) {
 }
 const metrics = {
   products: createMetric('GET /api/shop/products'),
+  profile:  createMetric('GET /api/shop/profile/:slug'),
   checkout: createMetric('POST /api/shop/checkout'),
 };
 
@@ -158,9 +172,32 @@ async function fetchProductCatalog() {
   };
 }
 
+async function loadShopSlugs() {
+  // Pull a small set of provider directory_slugs so the profile reads
+  // exercise real DB rows (not 404s). 2-10 slugs is plenty — the test
+  // rotates through them.
+  const { data } = await supabaseAdmin
+    .from('profiles')
+    .select('directory_slug')
+    .in('role', ['provider', 'pending_provider'])
+    .not('directory_slug', 'is', null)
+    .limit(10);
+  return (data || []).map(p => p.directory_slug).filter(Boolean);
+}
+
 async function doProductsRead() {
   const { status, latency } = await timedFetch(`${BASE_URL}/api/shop/products`);
   recordMetric(metrics.products, latency, status);
+}
+
+async function doProfileRead(slugs) {
+  if (!slugs || slugs.length === 0) return;
+  const slug = pick(slugs);
+  const { status, latency } = await timedFetch(
+    `${BASE_URL}/api/shop/profile/${encodeURIComponent(slug)}`
+  );
+  // 404 is acceptable (slug pool may include a deleted shop); only 5xx counts.
+  recordMetric(metrics.profile, latency, status);
 }
 
 async function doCheckout(member, sample) {
@@ -194,18 +231,24 @@ async function doCheckout(member, sample) {
   recordCheckoutAuthOutcome(status);
 }
 
-async function runPhase(name, concurrency, durationMs, members, sample) {
+async function runPhase(name, concurrency, durationMs, members, sample, slugs) {
   const endTime = Date.now() + durationMs;
   let active = 0;
   await new Promise(resolve => {
     const tick = () => {
       while (active < concurrency && Date.now() < endTime) {
         active++;
-        // 2/3 reads, 1/3 checkouts (real traffic mix). If no sample
-        // catalog is available, all workers do reads.
-        const op = (sample && Math.random() >= 0.66)
-          ? doCheckout(pick(members), sample)
-          : doProductsRead();
+        // 1/3 profile reads, 1/3 product reads, 1/3 checkouts. Falls back to
+        // pure reads if catalog/slugs unavailable.
+        const r = Math.random();
+        let op;
+        if (sample && r >= 0.66) {
+          op = doCheckout(pick(members), sample);
+        } else if (slugs && slugs.length > 0 && r < 0.33) {
+          op = doProfileRead(slugs);
+        } else {
+          op = doProductsRead();
+        }
         op.then(() => {
           active--;
           if (Date.now() < endTime) tick();
@@ -216,7 +259,20 @@ async function runPhase(name, concurrency, durationMs, members, sample) {
     };
     tick();
   });
-  console.log(`  [${name}] products: ${metrics.products.requests}, checkout: ${metrics.checkout.requests}`);
+  console.log(`  [${name}] profile: ${metrics.profile.requests}, products: ${metrics.products.requests}, checkout: ${metrics.checkout.requests}`);
+}
+
+// Idempotency burst — drive N concurrent identical-cart checkouts from the
+// SAME sim member and verify each gets a unique stripe_session_id (the
+// invariant we care about; the current handler does NOT pass an
+// idempotency_key to Stripe so this asserts that under load no
+// duplicate session-id rows ever appear in merch_orders).
+async function idempotencyBurst(member, sample, n = 20) {
+  if (!member || !sample) return { issued: 0 };
+  const tasks = [];
+  for (let i = 0; i < n; i++) tasks.push(doCheckout(member, sample));
+  await Promise.all(tasks);
+  return { issued: n };
 }
 
 async function checkIntegrity() {
@@ -263,10 +319,12 @@ async function cleanup() {
 function printResults(durationSec, integrity) {
   const productsArr = getLatencies(metrics.products);
   const checkoutArr = getLatencies(metrics.checkout);
+  const profileArr = getLatencies(metrics.profile);
   const pP95 = percentile(productsArr, 95);
   const cP95 = percentile(checkoutArr, 95);
-  const totalReq = metrics.products.requests + metrics.checkout.requests;
-  const totalErr = metrics.products.errors + metrics.checkout.errors;
+  const ppP95 = percentile(profileArr, 95);
+  const totalReq = metrics.products.requests + metrics.checkout.requests + metrics.profile.requests;
+  const totalErr = metrics.products.errors + metrics.checkout.errors + metrics.profile.errors;
   const errRate = totalReq > 0 ? (totalErr / totalReq) * 100 : 0;
 
   console.log('\n====================================================');
@@ -288,12 +346,67 @@ function printResults(durationSec, integrity) {
 
   console.log('\n  PASS/FAIL CRITERIA');
   console.log('  ' + '-'.repeat(60));
+  // Idempotency / duplicate-session-id criterion is only meaningful if at
+  // least one successful checkout occurred (i.e. some 200/201 escaped the
+  // 2FA gate). When every attempt is blocked by 2FA — which is the
+  // expected steady-state for sim accounts that lack a TOTP secret — the
+  // check is vacuous and we report it as N/A rather than letting it
+  // silently auto-pass. This avoids a false-positive "no duplicates" PASS
+  // that masks a regression in the order-write path.
+  const checkoutBypassed = integrity.stressOrders > 0;
+  const checkoutAttempted = metrics.checkout.requests > 0;
+  // Minimum checkout traffic to consider the checkout path "meaningfully
+  // sampled." 20 attempts at 1/3 of the workload mix easily clears this in
+  // a few seconds, but a degraded path (missing catalog, broken auth,
+  // immediate aborts) won't — surfacing the under-sampling instead of a
+  // silent vacuous PASS. Includes the dedicated 20-request idempotency
+  // burst, so even a small sustained mix will safely clear the floor.
+  const MIN_CHECKOUT_REQUESTS = 20;
+  const checkoutSampleAdequate = metrics.checkout.requests >= MIN_CHECKOUT_REQUESTS;
+  // Sum every server-side failure mode: status===0 (timeout/abort/network)
+  // PLUS any 5xx (501/505 etc., not just the common 500/502/503/504). This
+  // mirrors recordMetric's m.errors classification but scoped to checkout,
+  // so checkout-path instability can't hide behind catalog-read traffic in
+  // the blended overall error-rate criterion.
+  let checkout5xx = 0;
+  for (const [codeStr, count] of Object.entries(metrics.checkout.statusCodes)) {
+    const code = Number(codeStr);
+    if (code === 0 || code >= 500) checkout5xx += count;
+  }
+  const checkout5xxRate = checkoutAttempted ? (checkout5xx / metrics.checkout.requests) * 100 : 0;
   const criteria = [
-    { name: 'p95 (/products) < 1500ms',  value: `${pP95}ms`,                pass: pP95 < 1500 },
-    { name: 'p95 (/checkout) < 3000ms',  value: `${cP95}ms`,                pass: cP95 < 3000 },
-    { name: '5xx rate < 2%',             value: `${errRate.toFixed(2)}%`,    pass: errRate < 2 },
-    { name: 'No duplicate session IDs',  value: `${integrity.dupSessionIds}`, pass: integrity.dupSessionIds === 0 },
-    { name: '2FA gate not bypassed',     value: `${gateBypassed} bypass(es)`, pass: gateBypassed === 0 },
+    { name: 'Checkout endpoint was actually exercised',
+      // Without this, a missing catalog or skipped checkout phase would
+      // silently let the rest of the criteria pass with checkout uninvolved.
+      value: `${metrics.checkout.requests} request(s)`,
+      pass: checkoutAttempted },
+    { name: `Checkout sample ≥ ${MIN_CHECKOUT_REQUESTS} requests`,
+      // Defends against a checkout path that fails almost immediately and
+      // generates only a handful of attempts before workers exit.
+      value: `${metrics.checkout.requests}`,
+      pass: checkoutSampleAdequate },
+    { name: 'Checkout 5xx rate < 1%',
+      // Distinct from the overall 5xx criterion (which is dominated by
+      // catalog reads); this isolates checkout-path errors.
+      value: checkoutAttempted ? `${checkout5xxRate.toFixed(2)}% (${checkout5xx}/${metrics.checkout.requests})` : 'no requests',
+      pass: !checkoutAttempted || checkout5xxRate < 1 },
+    { name: 'p95 (/profile) < 1500ms',
+      value: profileArr.length > 0 ? `${ppP95}ms` : 'no requests',
+      pass: profileArr.length === 0 || ppP95 < 1500 },
+    { name: 'p95 (/products) < 1500ms', value: `${pP95}ms`,                pass: pP95 < 1500 },
+    { name: 'p95 (/checkout) < 3000ms',
+      value: checkoutAttempted ? `${cP95}ms` : 'no requests',
+      pass: checkoutAttempted && cP95 < 3000 },
+    { name: '5xx rate < 2%',            value: `${errRate.toFixed(2)}%`,    pass: errRate < 2 },
+    { name: '2FA gate not bypassed',    value: `${gateBypassed} bypass(es)`, pass: gateBypassed === 0 },
+    { name: 'No duplicate session IDs (only meaningful when ≥1 order created)',
+      value: checkoutBypassed
+        ? `${integrity.dupSessionIds} dup(s) across ${integrity.stressOrders} order(s)`
+        : 'N/A — 2FA blocked all checkouts',
+      // Pass if either (a) no orders ever made it past 2FA (vacuous — handled
+      // by the 2FA-not-bypassed criterion) or (b) at least one order was
+      // created and zero duplicate stripe_session_id rows exist.
+      pass: !checkoutBypassed || integrity.dupSessionIds === 0 },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);
@@ -335,15 +448,29 @@ async function main() {
       console.log(`  Will use product ${sample.productId} variant ${sample.variantId} for checkouts`);
     }
 
+    console.log('[Setup] Loading shop directory slugs for /api/shop/profile/:slug reads...');
+    const slugs = await loadShopSlugs();
+    console.log(`  Loaded ${slugs.length} slug(s)`);
+
     const start = Date.now();
     console.log('\n[Phase 1/4] Ramp-up...');
-    await runPhase('Ramp', Math.ceil(CONFIG.concurrency * 0.3), CONFIG.rampUpTime * 1000, sessions, sample);
+    await runPhase('Ramp', Math.ceil(CONFIG.concurrency * 0.3), CONFIG.rampUpTime * 1000, sessions, sample, slugs);
     console.log('[Phase 2/4] Sustained...');
-    await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, sessions, sample);
+    await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, sessions, sample, slugs);
     console.log('[Phase 3/4] Spike...');
-    await runPhase('Spike', CONFIG.concurrency * CONFIG.spikeMultiplier, CONFIG.spikeDuration * 1000, sessions, sample);
+    await runPhase('Spike', CONFIG.concurrency * CONFIG.spikeMultiplier, CONFIG.spikeDuration * 1000, sessions, sample, slugs);
     console.log('[Phase 4/4] Cool-down...');
-    await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, sessions, sample);
+    await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, sessions, sample, slugs);
+
+    // Idempotency burst: 20 concurrent identical-cart checkouts from one
+    // sim member. Verify (in checkIntegrity) that no two share a
+    // stripe_session_id row. The burst itself is small so it doesn't
+    // dominate the run, but it's the surface that exercises the
+    // back-to-back duplicate-prevention claim.
+    if (sample) {
+      console.log('\n[Idempotency] Bursting 20 identical-cart checkouts from a single sim member...');
+      await idempotencyBurst(sessions[0], sample, 20);
+    }
     const dur = (Date.now() - start) / 1000;
 
     await new Promise(r => setTimeout(r, 1500));

@@ -2,11 +2,20 @@
 //
 // The public POST endpoint /api/survey/response is the prospect lead-capture
 // surface and a known abuse target (no auth). This test validates:
-//   1. Concurrent POSTs persist all 22 dimensions correctly under load.
+//   1. Concurrent POSTs from many simulated anonymous IPs persist all 22
+//      dimensions correctly under load (each request rotates through a pool
+//      of fake IPs via X-Forwarded-For — the per-IP rate-limit bucket
+//      `survey:<ip>` is keyed off this).
 //   2. Rate-limit returns clean 429 (not 500) when triggered.
 //   3. Inserted rows match successful POST count (no silent drops).
+//   4. The expanded admin survey-analytics aggregation (Task #167) stays
+//      responsive while intake load is sustained — a separate phase drives
+//      GET /api/admin/survey-analytics with an admin sim token in parallel
+//      with the cool-down POSTs and asserts p95 < 5s + zero 5xx.
 //
-// Endpoint under test: POST /api/survey/response (server.js:44087)
+// Endpoints under test:
+//   POST /api/survey/response       (server.js:44087)
+//   GET  /api/admin/survey-analytics (server.js:45120)
 //
 // Usage: node www/stress-test-survey-intake.js
 //        node www/stress-test-survey-intake.js --concurrency=20 --duration=20
@@ -25,6 +34,8 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 });
 
 const args = process.argv.slice(2);
+function flag(name) { return args.includes(`--${name}`); }
+const ALLOW_ANALYTICS_SKIP = flag('allow-analytics-skip');
 function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
   return f ? parseInt(f.split('=')[1], 10) : def;
@@ -69,7 +80,21 @@ function createMetric(name) {
     statusCodes: {}
   };
 }
-const metrics = { post: createMetric('POST /api/survey/response') };
+const metrics = {
+  post: createMetric('POST /api/survey/response'),
+  analytics: createMetric('GET /api/admin/survey-analytics'),
+};
+
+// Pool of fake source IPs. The server keys its survey rate-limit bucket on
+// `survey:<client-ip>` (server.js:44093) and resolves client-ip via
+// X-Forwarded-For (server.js:340). Rotating through a pool spreads load
+// across many buckets exactly the way real public traffic does.
+// RFC-5737 TEST-NET-1 (192.0.2.0/24) — reserved for documentation/examples;
+// guaranteed to never collide with a real client IP. We rotate through all
+// 254 host addresses (1..254 — .0 network and .255 broadcast are excluded).
+const IP_POOL_SIZE = 254;
+const IP_POOL = Array.from({ length: IP_POOL_SIZE }, (_, i) => `192.0.2.${i + 1}`);
+function pickIP() { return IP_POOL[Math.floor(Math.random() * IP_POOL.length)]; }
 
 function addLatency(m, lat) {
   if (m.latencyCount < RESERVOIR_SIZE) {
@@ -113,17 +138,12 @@ function buildPayload(idx) {
   };
 }
 
-async function timedFetch(url, body) {
+async function timedFetch(url, opts = {}) {
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), CONFIG.requestTimeout);
   const start = Date.now();
   try {
-    const res = await fetch(url, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(body),
-      signal: controller.signal,
-    });
+    const res = await fetch(url, { ...opts, signal: controller.signal });
     clearTimeout(timeout);
     return { status: res.status, latency: Date.now() - start };
   } catch (err) {
@@ -136,28 +156,75 @@ let postCounter = 0;
 async function doPost() {
   const idx = postCounter++;
   const payload = buildPayload(idx);
-  const { status, latency } = await timedFetch(`${BASE_URL}/api/survey/response`, payload);
+  const ip = pickIP();
+  const { status, latency } = await timedFetch(`${BASE_URL}/api/survey/response`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      // Spoof source IP so the per-IP rate-limit bucket rotates across the pool.
+      'X-Forwarded-For': ip,
+    },
+    body: JSON.stringify(payload),
+  });
   recordMetric(metrics.post, latency, status);
 }
 
-async function runPhase(name, concurrency, durationMs) {
+let adminToken = null;
+async function loadAdminToken() {
+  // Find a sim admin from the existing sim pool. We do NOT create one — the
+  // suite assumes sim accounts are persistent across runs.
+  const { data } = await supabaseAdmin.auth.admin.listUsers({ page: 1, perPage: 1000 });
+  const adminUser = (data?.users || []).find(u =>
+    u.email && u.email.endsWith('@mcc-sim.test') && u.email.startsWith('sim-admin-')
+  );
+  if (!adminUser) return null;
+  const c = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
+    auth: { autoRefreshToken: false, persistSession: false }
+  });
+  const { data: sess } = await c.auth.signInWithPassword({
+    email: adminUser.email, password: 'SimPass123!'
+  });
+  return sess?.session?.access_token || null;
+}
+
+async function doAnalyticsRead() {
+  if (!adminToken) return;
+  const { status, latency } = await timedFetch(
+    `${BASE_URL}/api/admin/survey-analytics`,
+    { method: 'GET', headers: { 'Authorization': `Bearer ${adminToken}` } }
+  );
+  recordMetric(metrics.analytics, latency, status);
+}
+
+async function runPhase(name, concurrency, durationMs, withAnalytics = false) {
   const endTime = Date.now() + durationMs;
   let active = 0;
+  let analyticsActive = 0;
   await new Promise(resolve => {
+    const allDone = () => active === 0 && analyticsActive === 0;
     const tick = () => {
       while (active < concurrency && Date.now() < endTime) {
         active++;
+        // Mix in 1 analytics read per ~10 posts so the admin aggregation
+        // path is exercised concurrently with the public intake load.
+        if (withAnalytics && adminToken && Math.random() < 0.1) {
+          analyticsActive++;
+          doAnalyticsRead().then(() => {
+            analyticsActive--;
+            if (Date.now() >= endTime && allDone()) resolve();
+          });
+        }
         doPost().then(() => {
           active--;
           if (Date.now() < endTime) tick();
-          else if (active === 0) resolve();
+          else if (allDone()) resolve();
         });
       }
-      if (Date.now() >= endTime && active === 0) resolve();
+      if (Date.now() >= endTime && allDone()) resolve();
     };
     tick();
   });
-  console.log(`  [${name}] requests so far: ${metrics.post.requests}`);
+  console.log(`  [${name}] posts: ${metrics.post.requests}, analytics: ${metrics.analytics.requests}`);
 }
 
 async function checkIntegrity() {
@@ -217,6 +284,24 @@ function printResults(durationSec, integrity) {
   console.log(`  Avg dims/row:       ${integrity.avgDimensionsPerRow}/22`);
   console.log(`  Rows missing dims:  ${integrity.rowsMissingDimensions}`);
 
+  // Analytics aggregation path (Task #167) — exercised in the cool-down phase.
+  const aArr = getLatencies(metrics.analytics);
+  const aP95 = percentile(aArr, 95);
+  const a200 = metrics.analytics.statusCodes[200] || 0;
+  const a401 = metrics.analytics.statusCodes[401] || 0;
+  const a403 = metrics.analytics.statusCodes[403] || 0;
+  const aAuthFail = a401 + a403;
+  const aErr = metrics.analytics.errors; // 5xx + timeouts (non-401-counted via recordMetric)
+  const aErrRate = metrics.analytics.requests > 0 ? (aErr / metrics.analytics.requests) * 100 : 0;
+  const aAuthFailRate = metrics.analytics.requests > 0 ? (aAuthFail / metrics.analytics.requests) * 100 : 0;
+  console.log(`  Analytics calls:    ${metrics.analytics.requests} (200s=${a200}, 401/403=${aAuthFail}, 5xx=${aErr})`);
+  console.log(`  Analytics p95:      ${aP95}ms`);
+  // If analytics requests never happened (no admin sim, server down, etc.),
+  // surface that as a clean skip — but tighten authentication assertions
+  // when analytics DID run so a misconfigured admin token can't silently
+  // pass with all 401/403 responses.
+  const analyticsRan = metrics.analytics.requests > 0;
+
   console.log('\n  PASS/FAIL CRITERIA');
   console.log('  ' + '-'.repeat(60));
   const criteria = [
@@ -225,6 +310,41 @@ function printResults(durationSec, integrity) {
     { name: '4xx (excl. 429) rate < 1%',      value: `${clientErrRate.toFixed(2)}%`,                   pass: clientErrRate < 1 },
     { name: 'Insert ratio >= 95% of 200s',    value: success200 > 0 ? `${(insertRatio*100).toFixed(1)}%` : 'no 200s', pass: success200 === 0 || insertRatio >= 0.95 },
     { name: 'All sampled rows have 22 dims',  value: integrity.sampleSize === 0 ? 'no inserts to sample' : `${integrity.rowsMissingDimensions} missing`, pass: integrity.rowsMissingDimensions === 0 },
+    { name: 'Successful 200 floor (≥ max(10, 1% of POSTs))',
+      // Without a hard 200-floor, an all-429 / all-4xx run could silently
+      // PASS (insert ratio + dim-check both pass when success200 === 0).
+      // Floor is the larger of 10 absolute or 1% of total POSTs so a small
+      // local run still has a meaningful gate without flaking on bursty
+      // 429 spikes during the spike phase.
+      value: `${success200} 200(s) of ${metrics.post.requests} POSTs`,
+      pass: success200 >= Math.max(10, Math.ceil(metrics.post.requests * 0.01)) },
+    { name: 'Inserted rows floor (≥ max(10, 95% of 200s))',
+      // Belt-and-suspenders alongside insert-ratio: even if the 200 floor
+      // is met, we explicitly require the row count itself to clear a
+      // numeric floor so a degraded write path producing 200 OK with no
+      // row insert can't slip through.
+      value: `${integrity.totalInserted} rows`,
+      pass: integrity.totalInserted >= Math.max(10, Math.ceil(success200 * 0.95)) },
+    { name: 'Analytics p95 < 5000ms',         value: analyticsRan ? `${aP95}ms` : 'no admin sim',     pass: !analyticsRan || aP95 < 5000 },
+    { name: 'Analytics 5xx rate < 1%',        value: analyticsRan ? `${aErrRate.toFixed(2)}%` : 'no admin sim', pass: !analyticsRan || aErrRate < 1 },
+    { name: 'Analytics auth (401/403) rate < 1%',
+      // If the admin token is misconfigured we will see an avalanche of
+      // 401/403s; without this assertion the analytics phase would silently
+      // pass with zero authenticated success.
+      value: analyticsRan ? `${aAuthFailRate.toFixed(2)}% (${aAuthFail}/${metrics.analytics.requests})` : 'no admin sim',
+      pass: !analyticsRan || aAuthFailRate < 1 },
+    { name: 'Analytics had ≥ 1 successful 200',
+      value: analyticsRan ? `${a200} 200(s)` : 'no admin sim',
+      pass: !analyticsRan || a200 >= 1 },
+    { name: 'Analytics phase actually exercised (admin token resolved)',
+      // Mandatory by default. If your environment has no sim-admin-* user
+      // (e.g. local dev), pass --allow-analytics-skip to opt out — but in
+      // CI / pre-launch this should always run, otherwise the analytics
+      // assertions above are vacuous.
+      value: analyticsRan
+        ? 'YES'
+        : (ALLOW_ANALYTICS_SKIP ? 'NO (skip allowed via --allow-analytics-skip)' : 'NO — no admin sim found'),
+      pass: analyticsRan || ALLOW_ANALYTICS_SKIP },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);
@@ -247,6 +367,12 @@ async function main() {
   try {
     await cleanup();  // defensive
 
+    console.log('[Setup] Loading admin sim token for analytics aggregation phase...');
+    adminToken = await loadAdminToken();
+    if (!adminToken) {
+      console.warn('  No sim-admin-* user found in @mcc-sim.test pool — analytics phase will be skipped.');
+    }
+
     const start = Date.now();
     console.log('[Phase 1/4] Ramp-up...');
     await runPhase('Ramp', Math.ceil(CONFIG.concurrency * 0.3), CONFIG.rampUpTime * 1000);
@@ -254,8 +380,8 @@ async function main() {
     await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000);
     console.log('[Phase 3/4] Spike...');
     await runPhase('Spike', CONFIG.concurrency * CONFIG.spikeMultiplier, CONFIG.spikeDuration * 1000);
-    console.log('[Phase 4/4] Cool-down...');
-    await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000);
+    console.log('[Phase 4/4] Cool-down (with admin analytics aggregation)...');
+    await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, true);
     const dur = (Date.now() - start) / 1000;
 
     await new Promise(r => setTimeout(r, 1500));
