@@ -7,10 +7,17 @@
 
 const {
   getSupabase, getAgent, callLLM, logAction, saveMemory,
-  authorizeAgentInvocation, assertRateLimit, jsonResponse, SpendCapError
+  authorizeAgentInvocation, assertRateLimit, jsonResponse, SpendCapError,
+  loadActivePrompt
 } = require('./agent-fleet-runtime');
 
 const SLUG = 'analyst';
+
+const SYSTEM_PROMPT =
+  'You are the Analyst agent for My Car Concierge, an automotive service marketplace. ' +
+  'Write a 3-4 sentence briefing for the admin Jordan based on the last 24 hours. ' +
+  'Specifically call out: marketplace match rate, failed payments, open disputes, the agent fleet\'s pending review queue, and today\'s agent spend. ' +
+  'Highlight anything anomalous and end with one specific recommendation. Be concrete; no fluff.';
 
 async function safeCount(supabase, table, since, dateColumn = 'created_at', filters = null) {
   try {
@@ -118,11 +125,7 @@ async function gatherMetrics(supabase) {
 }
 
 function buildPrompt(metrics) {
-  return `You are the Analyst agent for My Car Concierge, an automotive service marketplace. ` +
-    `Write a 3-4 sentence briefing for the admin Jordan based on the last 24 hours. ` +
-    `Specifically call out: marketplace match rate, failed payments, open disputes, the agent fleet's pending review queue, and today's agent spend. ` +
-    `Highlight anything anomalous and end with one specific recommendation. Be concrete; no fluff.\n\n` +
-    `METRICS (last 24h):\n${JSON.stringify(metrics, null, 2)}`;
+  return `METRICS (last 24h):\n${JSON.stringify(metrics, null, 2)}`;
 }
 
 async function runOnce(triggeredBy = 'scheduled') {
@@ -153,7 +156,10 @@ async function runOnce(triggeredBy = 'scheduled') {
 
   let llmResult;
   try {
-    llmResult = await callLLM(supabase, agent, { prompt, maxTokens: 600, temperature: 0.5 });
+    const activeSystem = await loadActivePrompt(supabase, SLUG, SYSTEM_PROMPT);
+    llmResult = await callLLM(supabase, agent, {
+      prompt, system: activeSystem, maxTokens: 600, temperature: 0.5
+    });
   } catch (e) {
     const isCap = e instanceof SpendCapError;
     await logAction(supabase, {
