@@ -32,3 +32,5 @@
 /api/webhooks/resend /.netlify/functions/outreach-resend-webhook 200
 /api/webhooks/background-check /.netlify/functions/background-check-webhook 200
 /api/provider/initiate-background-check /.netlify/functions/initiate-background-check 200
+/api/auth/facebook/data-deletion /.netlify/functions/facebook-data-deletion 200
+/api/auth/facebook/data-deletion/status /.netlify/functions/facebook-data-deletion 200
