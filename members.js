@@ -987,11 +987,12 @@
         if (payment) {
           const newTotal = (payment.amount_total || 0) + (upsell.estimated_cost || 0);
           
-          await supabaseClient.from('payments').update({
-            amount_total: newTotal,
-            amount_provider: newTotal,
-            amount_mcc_fee: 0
-          }).eq('id', payment.id);
+          await supabaseClient.rpc('member_approve_additional_work', {
+            p_payment_id: payment.id,
+            p_new_total: newTotal,
+            p_new_provider: newTotal,
+            p_new_mcc_fee: 0
+          });
         }
       }
 
@@ -6763,10 +6764,7 @@
         }).eq('id', packageId);
 
         // Release payment
-        await supabaseClient.from('payments').update({
-          status: 'released',
-          released_at: new Date().toISOString()
-        }).eq('package_id', packageId);
+        await supabaseClient.rpc('member_release_payment', { p_package_id: packageId });
 
         // Record commission for member founder (if member was referred)
         // The RPC function fetches the actual platform fee from the database for security
@@ -6971,7 +6969,7 @@
 
       // Update payment status
       if (payment) {
-        await supabaseClient.from('payments').update({ status: 'disputed' }).eq('id', payment.id);
+        await supabaseClient.rpc('member_mark_payment_disputed', { p_payment_id: payment.id });
       }
 
       closeModal('dispute-modal');
@@ -6986,12 +6984,7 @@
       const { data: payment } = await supabaseClient.from('payments').select('*').eq('package_id', packageId).single();
       
       if (payment) {
-        await supabaseClient.from('payments').update({
-          status: 'refunded',
-          refund_amount: payment.amount_total,
-          refund_reason: 'Provider unable to start work',
-          refunded_at: new Date().toISOString()
-        }).eq('id', payment.id);
+        await supabaseClient.rpc('member_refund_payment_unable_to_start', { p_payment_id: payment.id });
       }
 
       // Update package

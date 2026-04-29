@@ -1250,11 +1250,12 @@ async function approveUpsell(upsellId) {
       const mccFee = newTotal * 0.075;
       const providerAmount = newTotal - mccFee;
       
-      await supabaseClient.from('payments').update({
-        amount_total: newTotal,
-        amount_provider: providerAmount,
-        amount_mcc_fee: mccFee
-      }).eq('id', payment.id);
+      await supabaseClient.rpc('member_approve_additional_work', {
+        p_payment_id: payment.id,
+        p_new_total: newTotal,
+        p_new_provider: providerAmount,
+        p_new_mcc_fee: mccFee
+      });
     }
   }
 
