@@ -190,7 +190,10 @@ async function logAction(supabase, {
     }).select('id').single();
     if (error) {
       console.error(`[runtime] logAction error: ${error.message}`);
-      return null;
+      // Surface the Postgres error code (e.g. '23505' for unique_violation)
+      // so callers that need to react to specific failures can do so.
+      // Existing callers that only read `.id` are unaffected (it's null).
+      return { id: null, error: { code: error.code || null, message: error.message } };
     }
     // Return the inserted row's id wrapped in an object so callers can do
     // `inserted.id` (e.g. agent-hunter and agent-promoter use this id to
@@ -199,7 +202,7 @@ async function logAction(supabase, {
     return { id: data.id };
   } catch (e) {
     console.error('[runtime] logAction crash:', e.message);
-    return null;
+    return { id: null, error: { code: null, message: e.message } };
   }
 }
 

@@ -294,7 +294,7 @@ async function handleEvent(supabase, agent, eventEnvelope) {
   const ranked = Array.isArray(parsed?.ranked_bids) ? parsed.ranked_bids : [];
   const concerns = Array.isArray(parsed?.concerns) ? parsed.concerns : [];
 
-  await logAction(supabase, {
+  const proposedInsert = await logAction(supabase, {
     agentSlug: SLUG, eventId: evt?.event_id,
     actionType: 'rank',
     status: 'proposed',
@@ -313,6 +313,41 @@ async function handleEvent(supabase, agent, eventEnvelope) {
     tokensIn: llmResult.tokensIn, tokensOut: llmResult.tokensOut,
     costUsd: llmResult.costUsd, durationMs: Date.now() - t0
   });
+
+  // DB-level dedupe (Task #195): a unique partial index on agent_actions
+  // (`agent_actions_matchmaker_rank_unique`, see migration
+  // 20260429f_matchmaker_rank_unique.sql) guarantees only one
+  // proposed/executed matchmaker rank row can exist per care_plan_id.
+  // The application-level guard above (findExistingMatchmakerAction) catches
+  // sequential retries, but two near-simultaneous invocations can both pass
+  // that check and both attempt to INSERT a `proposed` row. Postgres rejects
+  // the second one with a 23505 unique-violation; we treat that as a
+  // successful "already_ranked" short-circuit (cost 0 in the response,
+  // identical to the application-level dedupe path) and write a `skipped`
+  // audit row so the duplicate dispatch is visible and the LLM cost we
+  // already burned is recorded against the daily spend rollup.
+  if (proposedInsert?.error?.code === '23505') {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: evt?.event_id,
+      actionType: 'rank', status: 'skipped',
+      autonomyUsed: agent.autonomy,
+      decision: {
+        event_type: eventType, payload,
+        dedupe_source: 'db_unique_index',
+        unique_violation: proposedInsert.error.message
+      },
+      reasoning: 'Concurrent matchmaker invocation already wrote a proposed row for this care_plan_id; DB unique index rejected the duplicate. Treating as already_ranked.',
+      tokensIn: llmResult.tokensIn, tokensOut: llmResult.tokensOut,
+      costUsd: llmResult.costUsd, durationMs: Date.now() - t0
+    });
+    return {
+      success: true,
+      reason: 'already_ranked',
+      care_plan_id: payload.care_plan_id,
+      cost_usd: 0,
+      ms: Date.now() - t0
+    };
+  }
 
   return {
     success: true,

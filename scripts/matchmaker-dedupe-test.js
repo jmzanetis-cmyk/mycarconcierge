@@ -139,7 +139,18 @@ function makeSupabaseMock(initialState) {
 }
 
 // ----------------------------- Runtime stub ---------------------------------
-function installRuntimeStub({ supabase, agent }) {
+// Options:
+//   llmGate — optional async function awaited inside the LLM stub. Tests use
+//             this to pause both racers between the application-level dedupe
+//             check and the proposed-row insert, simulating the
+//             check-then-act window the DB unique index protects against.
+//   enforceUnique — when true, the logAction stub mirrors the unique partial
+//             index agent_actions_matchmaker_rank_unique: a second
+//             proposed/executed matchmaker `rank` row for the same
+//             decision.payload.care_plan_id is rejected with a 23505
+//             unique-violation, just like Postgres does (see
+//             supabase/migrations/20260429f_matchmaker_rank_unique.sql).
+function installRuntimeStub({ supabase, agent, llmGate = null, enforceUnique = false }) {
   llmCalls = 0;
   loggedActions.length = 0;
 
@@ -153,6 +164,7 @@ function installRuntimeStub({ supabase, agent }) {
     getAgent: async () => agent,
     callLLM: async () => {
       llmCalls++;
+      if (llmGate) await llmGate();
       return {
         text: '{"recommended_winner_bid_id":"bid-aaaaaaaa","confidence":0.9,"reasoning":"ok","ranked_bids":[],"concerns":[]}',
         tokensIn: 100, tokensOut: 50, costUsd: 0.001
@@ -160,6 +172,31 @@ function installRuntimeStub({ supabase, agent }) {
     },
     logAction: async (sb, payload) => {
       loggedActions.push(payload);
+      // Simulate the unique partial index. Only proposed/executed
+      // matchmaker rank rows participate; skipped/error rows are ignored,
+      // matching the real index's WHERE clause.
+      if (
+        enforceUnique
+        && payload.agentSlug === 'matchmaker'
+        && payload.actionType === 'rank'
+        && (payload.status === 'proposed' || payload.status === 'executed')
+      ) {
+        const cpId = payload.decision?.payload?.care_plan_id;
+        if (cpId) {
+          const dup = supabase.state.agent_actions.find(r =>
+            r.agent_slug === 'matchmaker'
+            && r.action_type === 'rank'
+            && (r.status === 'proposed' || r.status === 'executed')
+            && r.decision?.payload?.care_plan_id === cpId
+          );
+          if (dup) {
+            return {
+              id: null,
+              error: { code: '23505', message: 'duplicate key value violates unique constraint "agent_actions_matchmaker_rank_unique"' }
+            };
+          }
+        }
+      }
       // Mirror what the real logAction would write into agent_actions so
       // the dedupe lookup on subsequent invocations sees the row.
       const row = {
@@ -172,6 +209,7 @@ function installRuntimeStub({ supabase, agent }) {
         created_at: new Date().toISOString()
       };
       supabase.state.agent_actions.push(row);
+      return { id: row.id };
     },
     authorizeAgentInvocation: () => true,
     jsonResponse: (status, body) => ({ statusCode: status, body: JSON.stringify(body) }),
@@ -331,6 +369,54 @@ async function runHandler(envelope) {
   assertEq(llmCalls, 1, 'LLM called once for unrelated care plan');
   assertEq(r.parsed.success, true, 'response success');
   assertEq(r.parsed.bid_count, 1, 'bid count surfaced');
+
+  // ───────────────────────────────────────────────────────────────
+  // Test 6 (Task #195): two CONCURRENT POSTs against the same care_plan
+  // both pass the application-level dedupe check (the row hasn't been
+  // written yet) and race to INSERT a `proposed` row. The DB unique
+  // partial index `agent_actions_matchmaker_rank_unique` rejects the
+  // second insert with 23505 unique_violation; the matchmaker handler
+  // catches that, returns `already_ranked` (cost 0) and writes a
+  // `skipped` audit row. Final state: exactly ONE proposed row.
+  // ───────────────────────────────────────────────────────────────
+  console.log('\nTest 6: concurrent invocations — DB unique index keeps it to one proposed row');
+  supabase = freshSupabase();
+  // Gate both LLM calls until BOTH have entered, so the two handlers race
+  // through the post-LLM insert path together (the application-level
+  // dedupe check has already passed for both at this point).
+  let releaseLlm;
+  const llmReady = new Promise(res => { releaseLlm = res; });
+  let llmEnteredCount = 0;
+  let bothEntered;
+  const bothEnteredPromise = new Promise(res => { bothEntered = res; });
+  const llmGate = async () => {
+    llmEnteredCount++;
+    if (llmEnteredCount === 2) bothEntered();
+    await llmReady;
+  };
+  installRuntimeStub({ supabase, agent: baseAgent, llmGate, enforceUnique: true });
+  const env = { event_type: 'care_plan.auction_closed', payload: { care_plan_id: CARE_PLAN_ID } };
+  const p1 = runHandler({ event: { ...env, event_id: 60 } });
+  const p2 = runHandler({ event: { ...env, event_id: 61 } });
+  // Wait until both racers are inside the LLM call, then release them
+  // simultaneously so they both proceed to the proposed insert.
+  await bothEnteredPromise;
+  releaseLlm();
+  const [r1, r2] = await Promise.all([p1, p2]);
+  assertEq(llmCalls, 2, 'both racers called the LLM (passed the application-level guard)');
+  const proposed = supabase.state.agent_actions.filter(a => a.agent_slug === 'matchmaker' && a.action_type === 'rank' && a.status === 'proposed');
+  assertEq(proposed.length, 1, 'exactly one proposed row exists in agent_actions');
+  // One winner returns the normal success shape (no `reason` key); the
+  // loser returns reason='already_ranked'. Order is non-deterministic.
+  const winners = [r1, r2].filter(r => !r.parsed.reason);
+  const losers = [r1, r2].filter(r => r.parsed.reason === 'already_ranked');
+  assertEq(winners.length, 1, 'exactly one racer wins (response has no reason key)');
+  assertEq(losers.length, 1, 'exactly one racer reports already_ranked');
+  assertEq(losers[0].parsed.cost_usd, 0, 'losing racer reports cost_usd=0');
+  assertEq(losers[0].parsed.success, true, 'losing racer reports success=true');
+  const skipped = supabase.state.agent_actions.filter(a => a.agent_slug === 'matchmaker' && a.action_type === 'rank' && a.status === 'skipped');
+  assertEq(skipped.length, 1, 'one skipped audit row written for the duplicate concurrent dispatch');
+  assertEq(skipped[0].decision?.dedupe_source, 'db_unique_index', 'skipped row records db_unique_index as the dedupe source');
 
   // ───────────────────────────────────────────────────────────────
   console.log('');
