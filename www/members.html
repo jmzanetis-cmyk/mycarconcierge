@@ -1085,6 +1085,7 @@
     
     <div class="nav-label" data-i18n="member.navServices">Services</div>
     <div class="nav-item" data-section="packages" onclick="showSection('packages')"><span data-i18n="member.maintenancePackages"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> Maintenance Packages</span></div>
+    <div class="nav-item" data-section="care-plans" onclick="showSection('care-plans')"><span data-i18n="member.carePlans"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 11.12a8.5 8.5 0 1 1-9.91-9.91"/><path d="M22 4 12 14.01l-3-3"/></svg></span> Care Plans</span> <span class="nav-badge" id="care-plans-count" style="display:none;background:var(--accent-gold);">0</span></div>
     <div class="nav-item" data-section="shop" onclick="showSection('shop')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></svg></span> Shop</span></div>
     <div class="nav-item" data-section="order-history" onclick="showSection('order-history')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span> Order History</span></div>
     <div class="nav-item" data-section="cost-estimator" onclick="showSection('cost-estimator')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg></span> Cost Estimator</span></div>
@@ -2315,6 +2316,31 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- Care Plans Section (Task #156) -->
+    <section id="care-plans" class="section">
+      <div class="page-header">
+        <h1 class="page-title" data-i18n="member.carePlans">Care Plans</h1>
+        <p class="page-subtitle" data-i18n="member.carePlansSubtitle">Manage your care-plan bids, accept providers, and release escrow when work is complete.</p>
+      </div>
+
+      <div id="care-plans-toolbar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+        <button class="btn" id="care-plans-refresh-btn" type="button">
+          <span data-i18n="member.refresh">Refresh</span>
+        </button>
+        <a class="btn btn-primary" href="/job-board.html" data-i18n="member.browseJobBoard">Browse Job Board</a>
+      </div>
+
+      <div id="care-plans-list">
+        <div class="empty-state">
+          <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 11.12a8.5 8.5 0 1 1-9.91-9.91"/><path d="M22 4 12 14.01l-3-3"/></svg></div>
+          <p data-i18n="member.carePlansLoading">Loading your care plans…</p>
+        </div>
+      </div>
+
+      <!-- Detail / accept / complete / dispute panel renders inline here -->
+      <div id="care-plan-detail" style="display:none;margin-top:24px;"></div>
     </section>
 
     <!-- Shop Section -->

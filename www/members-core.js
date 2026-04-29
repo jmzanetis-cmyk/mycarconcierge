@@ -2724,6 +2724,8 @@ function loadModuleForSection(section) {
     case 'view-package':
     case 'upsells':
       return loadModule('packages');
+    case 'care-plans':
+      return loadModule('care-plans');
     case 'settings':
     case 'notifications':
     case 'qr-checkin':
@@ -2823,6 +2825,9 @@ async function showSection(sectionId) {
   }
   if (sectionId === 'dream-car-finder' && typeof loadDreamCarFinderSection === 'function') {
     loadDreamCarFinderSection();
+  }
+  if (sectionId === 'care-plans' && typeof loadCarePlansSection === 'function') {
+    loadCarePlansSection();
   }
 }
 
