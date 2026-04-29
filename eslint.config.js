@@ -9,6 +9,8 @@ const sharedRules = {
   'unicorn/prefer-global-this': 'warn',
   'unicorn/prefer-string-replace-all': 'warn',
   'unicorn/prefer-class-fields': 'warn',
+  // `prefer-object-has-own` lives in core ESLint, not in eslint-plugin-unicorn v64
+  // (the unicorn package has no such rule); reference the core rule directly.
   'prefer-object-has-own': 'warn',
   'no-unused-vars': ['warn', {
     args: 'none',
