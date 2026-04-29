@@ -516,6 +516,14 @@ async function main() {
   console.log('====================================================\n');
 
   let exitCode = 1;
+  // Declared in function scope (NOT inside try) so the finally block can
+  // ALWAYS see the list of profiles whose 2FA flag was flipped at setup.
+  // A previous version declared this with `const` inside the try block,
+  // which silently no-op'd the restore path because the identifier was
+  // out of scope in finally and `typeof X !== 'undefined'` evaluated to
+  // false for the block-scoped binding — leaving sim accounts in a
+  // weakened auth posture across runs. Keep this declaration here.
+  let restored2faState = [];
   try {
     console.log('[Setup] Loading sim members...');
     const memberUsers = await loadSimMembers();
@@ -539,7 +547,7 @@ async function main() {
     const bypassPoolSize = Math.min(3, sessions.length);
     const bypassUserIds = sessions.slice(0, bypassPoolSize).map(s => s.userId);
     console.log(`[Setup] Disabling 2FA on ${bypassPoolSize} sim profile(s) for the successful-checkout sub-test...`);
-    const restored2faState = await disable2faOnSims(bypassUserIds);
+    restored2faState = await disable2faOnSims(bypassUserIds);
     console.log(`  Recorded ${restored2faState.length} profile(s) for restoration at teardown`);
     if (restored2faState.length === 0) {
       console.error('  [FATAL] Could not disable 2FA on any sim profiles — successful-checkout sub-test cannot run.');
@@ -595,9 +603,34 @@ async function main() {
   } finally {
     console.log('[Cleanup] Removing stress orders...');
     await cleanup();
-    if (typeof restored2faState !== 'undefined' && restored2faState.length > 0) {
+    if (restored2faState.length > 0) {
       console.log(`[Cleanup] Restoring 2FA on ${restored2faState.length} sim profile(s)...`);
       await restore2faOnSims(restored2faState);
+      // Hard verify: re-read the profiles we flipped and assert each one
+      // is back to two_factor_enabled=true. If even one remains false we
+      // exit non-zero regardless of the test outcome — leaving sim
+      // accounts in a weakened auth posture is a fixture-leak we will
+      // not paper over.
+      const ids = restored2faState.filter(r => r.wasEnabled).map(r => r.id);
+      if (ids.length > 0) {
+        try {
+          const { data: post } = await supabaseAdmin
+            .from('profiles')
+            .select('id, two_factor_enabled')
+            .in('id', ids);
+          const stillDisabled = (post || []).filter(p => !p.two_factor_enabled).map(p => p.id);
+          if (stillDisabled.length > 0) {
+            console.error(`  [FATAL] 2FA restore failed for ${stillDisabled.length}/${ids.length} sim profile(s) — auth state drift detected. ids=${stillDisabled.join(',')}`);
+            // Force non-zero exit even if the test itself passed.
+            exitCode = 1;
+          } else {
+            console.log(`  Verified 2FA restored on ${ids.length} sim profile(s)`);
+          }
+        } catch (e) {
+          console.error(`  [FATAL] Could not verify 2FA restoration (${e.message}) — exiting non-zero out of caution.`);
+          exitCode = 1;
+        }
+      }
     }
     process.exit(exitCode);
   }
