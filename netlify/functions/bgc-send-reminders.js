@@ -28,13 +28,64 @@ const FROM_EMAIL = process.env.MCC_FROM_EMAIL || 'My Car Concierge <noreply@myca
 // Each threshold maps to a column on provider_notification_prefs. The four
 // original thresholds default to ON (so existing providers see no change);
 // the new 1-day final-nudge defaults to OFF and is opt-in (Task #159).
+//
+// Task #201: each threshold also has a sibling SMS column. SMS is strictly
+// opt-in for every threshold (defaultSms: false) — we never want to send a
+// text without an explicit per-threshold flip. The dedupe row for an SMS
+// send uses a `_sms` suffix so re-running the cron the same day cannot
+// double-text even if email also went out.
 const THRESHOLDS = [
-  { days: 60, type: 'reminder_60', severity: 'info',     prefCol: 'bgc_reminder_60', defaultOn: true  },
-  { days: 30, type: 'reminder_30', severity: 'warning',  prefCol: 'bgc_reminder_30', defaultOn: true  },
-  { days: 14, type: 'reminder_14', severity: 'critical', prefCol: 'bgc_reminder_14', defaultOn: true  },
-  { days:  7, type: 'reminder_7',  severity: 'critical', prefCol: 'bgc_reminder_7',  defaultOn: true  },
-  { days:  1, type: 'reminder_1',  severity: 'critical', prefCol: 'bgc_reminder_1',  defaultOn: false }
+  { days: 60, type: 'reminder_60', smsType: 'reminder_60_sms', severity: 'info',     prefCol: 'bgc_reminder_60', prefColSms: 'bgc_reminder_60_sms', defaultOn: true,  defaultSms: false },
+  { days: 30, type: 'reminder_30', smsType: 'reminder_30_sms', severity: 'warning',  prefCol: 'bgc_reminder_30', prefColSms: 'bgc_reminder_30_sms', defaultOn: true,  defaultSms: false },
+  { days: 14, type: 'reminder_14', smsType: 'reminder_14_sms', severity: 'critical', prefCol: 'bgc_reminder_14', prefColSms: 'bgc_reminder_14_sms', defaultOn: true,  defaultSms: false },
+  { days:  7, type: 'reminder_7',  smsType: 'reminder_7_sms',  severity: 'critical', prefCol: 'bgc_reminder_7',  prefColSms: 'bgc_reminder_7_sms',  defaultOn: true,  defaultSms: false },
+  { days:  1, type: 'reminder_1',  smsType: 'reminder_1_sms',  severity: 'critical', prefCol: 'bgc_reminder_1',  prefColSms: 'bgc_reminder_1_sms',  defaultOn: false, defaultSms: false }
 ];
+
+// ─── Twilio SMS helper (Task #201) ──────────────────────────────────────────
+// Mirrors the small inline helper used by daily-digest-scheduled.js — kept
+// local so this function stays a single drop-in file. Returns true on a
+// successful Twilio 2xx, false otherwise (so callers can decide whether to
+// write the dedupe row). If TWILIO_* env vars are unset we silently no-op
+// and return false, matching the existing "dry run when creds missing"
+// behaviour for emails.
+async function sendSms(toPhone, body) {
+  const sid   = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const from  = process.env.TWILIO_PHONE_NUMBER;
+  if (!sid || !token || !from || !toPhone) return false;
+  try {
+    const clean = String(toPhone).replaceAll(/\D/g, '');
+    if (clean.length < 10) return false;
+    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const form = new URLSearchParams({ To: to, From: from, Body: body });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method:  'POST',
+      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body:    form.toString()
+    });
+    if (!r.ok) {
+      const txt = await r.text().catch(() => '');
+      console.error('[BGC reminders] Twilio non-2xx:', r.status, txt.slice(0, 200));
+      return false;
+    }
+    return true;
+  } catch (e) {
+    console.error('[BGC reminders] Twilio send threw:', e.message);
+    return false;
+  }
+}
+
+function reminderSmsBody({ employeeName, days, expiresAt, renewUrl }) {
+  const dayWord = days === 1 ? 'day' : 'days';
+  const urgency = days <= 1
+    ? 'URGENT'
+    : days <= 7
+      ? 'Action required'
+      : 'Heads up';
+  return `MCC: ${urgency} — ${employeeName}'s background check expires in ${days} ${dayWord} (${fmtDate(expiresAt)}). Renew: ${renewUrl}`;
+}
 
 function escapeHtml(s) {
   return String(s == null ? '' : s)
@@ -173,14 +224,16 @@ exports.handler = async function() {
   }
 
   let emailsSent = 0;
+  let smsSent = 0;
   let alertsCreated = 0;
   const renewUrl = `${APP_URL}/providers.html#compliance`;
 
-  // ── Per-provider preferences cache (Task #159) ─────────────────────────
+  // ── Per-provider preferences cache (Task #159 / extended Task #201) ────
   // We look up provider_notification_prefs lazily per provider_id and cache
   // the result for the lifetime of this run. Missing rows fall back to the
-  // hard-coded defaults (all four legacy thresholds ON, 1-day OFF), which
-  // matches the behaviour from before this preferences UI shipped.
+  // hard-coded defaults (all four legacy thresholds ON, 1-day OFF, every
+  // SMS toggle OFF), which matches the behaviour from before each
+  // preferences shipment.
   const prefsCache = new Map();
   async function loadPrefs(providerId) {
     if (prefsCache.has(providerId)) return prefsCache.get(providerId);
@@ -188,23 +241,28 @@ exports.handler = async function() {
     try {
       const res = await supabase
         .from('provider_notification_prefs')
-        .select('bgc_reminder_60,bgc_reminder_30,bgc_reminder_14,bgc_reminder_7,bgc_reminder_1')
+        .select('bgc_reminder_60,bgc_reminder_30,bgc_reminder_14,bgc_reminder_7,bgc_reminder_1,'
+              + 'bgc_reminder_60_sms,bgc_reminder_30_sms,bgc_reminder_14_sms,bgc_reminder_7_sms,bgc_reminder_1_sms,'
+              + 'sms_phone')
         .eq('provider_id', providerId)
         .maybeSingle();
       data = res.data || null;
-      // If the table simply doesn't exist yet (deployment-ordering edge
-      // case where this function ships before the migration), fall through
-      // to defaults so the cron keeps working instead of throwing.
+      // If the table (or the new SMS columns) don't exist yet (deployment-
+      // ordering edge case where this function ships before the migration),
+      // fall through to defaults so the cron keeps working instead of
+      // throwing.
       if (res.error) console.warn('[BGC reminders] prefs lookup soft-failed:', res.error.message);
     } catch (e) {
       console.warn('[BGC reminders] prefs lookup threw, falling back to defaults:', e.message);
     }
-    const prefs = {};
+    const prefs = { sms_phone: data ? (data.sms_phone || null) : null };
     for (const t of THRESHOLDS) {
       // Treat NULL / missing row as the default. Only an explicit `false`
       // mutes a threshold.
-      const v = data ? data[t.prefCol] : null;
-      prefs[t.prefCol] = v === null || v === undefined ? t.defaultOn : !!v;
+      const vEmail = data ? data[t.prefCol]    : null;
+      const vSms   = data ? data[t.prefColSms] : null;
+      prefs[t.prefCol]    = vEmail === null || vEmail === undefined ? t.defaultOn  : !!vEmail;
+      prefs[t.prefColSms] = vSms   === null || vSms   === undefined ? t.defaultSms : !!vSms;
     }
     prefsCache.set(providerId, prefs);
     return prefs;
@@ -220,10 +278,16 @@ exports.handler = async function() {
     if (!emp) return null;
     const { data: prof } = await supabase
       .from('profiles')
-      .select('id, business_name, full_name, email, bgc_badge_verified')
+      .select('id, business_name, full_name, email, phone, bgc_badge_verified')
       .eq('id', emp.provider_id)
       .maybeSingle();
-    if (!prof || !prof.email) return null;
+    // We need a profile row to know who to notify, but we no longer hard-
+    // require an email here: Task #201 lets a provider rely on SMS only,
+    // so a missing email shouldn't block SMS delivery or alert creation.
+    // Each downstream channel checks for its own destination (email vs
+    // phone) before sending, and the expired-email path explicitly skips
+    // the email send when prof.email is absent.
+    if (!prof) return null;
     return { emp, prof };
   }
 
@@ -263,33 +327,60 @@ exports.handler = async function() {
     if (error) { console.error('[BGC reminders] threshold query failed:', error.message); continue; }
 
     for (const c of (checks || [])) {
-      if (await alreadySent(supabase, c.employee_id, t.type, c.id)) continue;
       const ctx = await loadCtx(c);
       if (!ctx) continue;
 
       // Task #159: Respect provider notification preferences. A provider may
-      // have muted this threshold (e.g. the 60-day early heads-up). The task
-      // is specifically about *email* volume, so we still surface the
-      // in-portal expiring alert — providers can dismiss those individually
-      // if they don't want them. The bgc_expired / compliance_lost paths
-      // below are unaffected and never user-mutable.
+      // have muted this threshold (e.g. the 60-day early heads-up). Task
+      // #201 added a parallel SMS opt-in per threshold. We still surface
+      // the in-portal expiring alert regardless — providers can dismiss
+      // those individually if they don't want them. The bgc_expired /
+      // compliance_lost paths below are unaffected and never user-mutable.
       const prefs = await loadPrefs(ctx.prof.id);
       const emailEnabled = !!prefs[t.prefCol];
+      const smsEnabled   = !!prefs[t.prefColSms];
 
       const employeeName = `${ctx.emp.first_name} ${ctx.emp.last_name}`;
       const providerName = ctx.prof.business_name || ctx.prof.full_name || 'there';
 
-      if (emailEnabled) {
+      // Each channel is gated on its OWN dedupe row so the two are fully
+      // independent: an already-sent email never blocks an SMS retry, and
+      // a failed-and-not-deduped SMS doesn't force the email to re-send.
+      // This matters most when (a) email was sent yesterday but SMS failed
+      // (Twilio outage / bad creds), or (b) the provider toggled SMS on
+      // *after* an email had already gone out for this check.
+      if (emailEnabled && ctx.prof.email && !(await alreadySent(supabase, c.employee_id, t.type, c.id))) {
         const { subject, html } = reminderEmail({
           providerName, employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
         });
 
         const ok = await sendEmail(ctx.prof.email, subject, html);
-        if (!ok) {
-          // Email failed — skip the dedupe write so we retry tomorrow.
-          // Still surface the alert so the provider sees urgency in the dashboard.
-        } else {
+        if (ok) {
           await logSent(supabase, c.employee_id, t.type, c.id, ctx.prof.email);
+        }
+        // On email failure, skip the dedupe write so we retry tomorrow.
+        // Still surface the alert below so the provider sees urgency.
+      }
+
+      // Task #201: SMS fan-out. Same independent-dedupe pattern as above.
+      // Phone resolution falls back to the profile phone when the
+      // provider hasn't set an explicit override — keeping the UI
+      // promise ("re-uses the existing provider phone when present")
+      // true on the sending side too. Missing-phone short-circuits
+      // before the dedupe write so a later phone update can still send.
+      if (smsEnabled) {
+        const phone = (prefs.sms_phone && prefs.sms_phone.trim()) || ctx.prof.phone || null;
+        if (phone && !(await alreadySent(supabase, c.employee_id, t.smsType, c.id))) {
+          const body = reminderSmsBody({
+            employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
+          });
+          const okSms = await sendSms(phone, body);
+          if (okSms) {
+            smsSent++;
+            await logSent(supabase, c.employee_id, t.smsType, c.id, phone);
+          }
+          // On failure (or dry-run with no Twilio creds), do NOT write
+          // the dedupe row so tomorrow's run gets another chance.
         }
       }
 
@@ -316,20 +407,26 @@ exports.handler = async function() {
     .eq('is_current', true);
 
   for (const c of (expiredChecks || [])) {
-    if (await alreadySent(supabase, c.employee_id, 'expired', c.id)) continue;
     const ctx = await loadCtx(c);
     if (!ctx) continue;
 
     const badgeLost = ctx.prof.bgc_badge_verified === false;
     const employeeName = `${ctx.emp.first_name} ${ctx.emp.last_name}`;
     const providerName = ctx.prof.business_name || ctx.prof.full_name || 'there';
-    const { subject, html } = expiredEmail({
-      providerName, employeeName, expiresAt: c.expires_at, renewUrl, badgeLost
-    });
 
-    const okExp = await sendEmail(ctx.prof.email, subject, html);
-    if (okExp) {
-      await logSent(supabase, c.employee_id, 'expired', c.id, ctx.prof.email);
+    // Email send is gated on (a) an address being on file and (b) we
+    // haven't already deduped this expiry — this path was never user-
+    // mutable so there is no preference flag to consult. The alert
+    // upsert below still runs even when there is no email to send,
+    // because the in-portal banner is the primary surface.
+    if (ctx.prof.email && !(await alreadySent(supabase, c.employee_id, 'expired', c.id))) {
+      const { subject, html } = expiredEmail({
+        providerName, employeeName, expiresAt: c.expires_at, renewUrl, badgeLost
+      });
+      const okExp = await sendEmail(ctx.prof.email, subject, html);
+      if (okExp) {
+        await logSent(supabase, c.employee_id, 'expired', c.id, ctx.prof.email);
+      }
     }
 
     await upsertAlert(supabase, {
@@ -370,9 +467,9 @@ exports.handler = async function() {
     }
   }
 
-  console.log('[BGC reminders] sent', emailsSent, 'emails;', alertsCreated, 'alerts created/escalated');
+  console.log('[BGC reminders] sent', emailsSent, 'emails;', smsSent, 'SMS;', alertsCreated, 'alerts created/escalated');
   return {
     statusCode: 200,
-    body: JSON.stringify({ emailsSent, alertsCreated })
+    body: JSON.stringify({ emailsSent, smsSent, alertsCreated })
   };
 };
