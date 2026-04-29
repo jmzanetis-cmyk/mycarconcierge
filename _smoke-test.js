@@ -450,6 +450,91 @@ async function callPromoterDirect(eventRow) {
     console.log('\n━━━ STEP 23-24: SKIPPED — no JWT (SUPABASE_ANON_KEY misconfigured in workspace) ━━━');
   }
 
+  // ============================================================================
+  // Task #175 — In-process /api/provider/apply route in www/server.js.
+  // Mirrors STEPs 23-24 (which exercise the Netlify lambda) over real HTTP
+  // against a locally-running server, proving the parallel code path used
+  // when no Netlify proxy is in front (local dev, Replit hosting). Skips
+  // cleanly if no server is reachable at SMOKE_LOCAL_BASE.
+  // ============================================================================
+  console.log('\n━━━ STEP 24b: in-process /api/provider/apply route over HTTP ━━━');
+  try {
+    const baseUrl = process.env.SMOKE_LOCAL_BASE || 'http://127.0.0.1:5000';
+    const ping = await fetch(baseUrl + '/api/provider/apply', { method: 'POST' }).catch(() => null);
+    if (!ping) {
+      console.log(`  ⚠ no local server reachable at ${baseUrl} — skipping`);
+      console.log('     Start: `node www/server.js` (or set SMOKE_LOCAL_BASE) to enable.');
+    } else {
+      // 24b-1 — POST without Authorization header → 401.
+      const r1 = await fetch(baseUrl + '/api/provider/apply', {
+        method: 'POST', headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ business_name: 'X' })
+      });
+      if (r1.status === 401) console.log('  ✓ no-auth blocked (401)');
+      else console.log(`  ✗ no-auth: expected 401, got ${r1.status}`);
+
+      // 24b-2 — Bogus JWT → 401.
+      const r2 = await fetch(baseUrl + '/api/provider/apply', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json', authorization: 'Bearer eyJ.bogus.token' },
+        body: JSON.stringify({ business_name: 'X' })
+      });
+      if (r2.status === 401) console.log('  ✓ bogus-token blocked (401)');
+      else console.log(`  ✗ bogus-token: expected 401, got ${r2.status}`);
+
+      // 24b-3..4 — JWT-required checks. Only run when STEP 22 minted a real
+      // session token (skipped in workspaces where SUPABASE_ANON_KEY is not a
+      // proper JWT — same limitation as STEPs 23-24).
+      if (testUserId && testJwt) {
+        // 24b-3 — Bad payload (missing required fields) → 400 validation failed.
+        const r3 = await fetch(baseUrl + '/api/provider/apply', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + testJwt },
+          body: JSON.stringify({ business_name: 'X' })
+        });
+        const r3Body = await r3.json().catch(() => ({}));
+        if (r3.status === 400 && r3Body?.error === 'validation failed' && Array.isArray(r3Body.details)) {
+          console.log(`  ✓ bad payload rejected (400, ${r3Body.details.length} detail(s))`);
+        } else {
+          console.log(`  ✗ bad payload: expected 400 validation failed, got ${r3.status} ${JSON.stringify(r3Body).slice(0, 160)}`);
+        }
+
+        // 24b-4 — Valid payload by the same JWT user. STEP 23 (lambda path)
+        // already inserted a row for this user, so the in-process route's
+        // 24h rate-limit + the partial unique index MUST return 429 here.
+        // This proves both code paths read the same DB and enforce the same
+        // rule — i.e. an attacker can't sidestep the rate-limit by switching
+        // which endpoint they hit.
+        const r4 = await fetch(baseUrl + '/api/provider/apply', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json', authorization: 'Bearer ' + testJwt },
+          body: JSON.stringify({
+            business_name: 'Smoke Test Garage', contact_name: 'Smoke Tester',
+            phone: '5551234567', email: testEmail,
+            services_offered: ['oil_change', 'brakes'],
+            legal_signatory_name: 'Smoke Tester',
+            agreement_signed_at: new Date().toISOString()
+          })
+        });
+        const r4Body = await r4.json().catch(() => ({}));
+        if (r4.status === 429) {
+          console.log(`  ✓ in-process route honors 24h rate-limit (existing_id=${r4Body.existing_application_id || 'n/a'})`);
+        } else if (r4.status === 200 && r4Body.application_id) {
+          // STEP 23 didn't create a row (e.g. it failed) — this is a fresh
+          // happy-path success. Track for cleanup.
+          console.log(`  ✓ created application_id=${r4Body.application_id} (STEP 23 must not have inserted)`);
+          await adminSb.from('provider_applications').delete().eq('id', r4Body.application_id);
+        } else {
+          console.log(`  ✗ rate-limit/happy-path: expected 429 or 200, got ${r4.status} ${JSON.stringify(r4Body).slice(0, 200)}`);
+        }
+      } else {
+        console.log('  ⚠ JWT-gated HTTP checks skipped (no JWT — same reason as STEP 23-24)');
+      }
+    }
+  } catch (e) {
+    console.log(`  ✗ STEP 24b threw: ${e.message}`);
+  }
+
   if (testUserId) {
     console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
     const sus = await callProviderAdmin('POST', 'suspend', { provider_ids: [testUserId], reason: 'smoke test suspension' });

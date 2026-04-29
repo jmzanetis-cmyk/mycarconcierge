@@ -322,3 +322,11 @@ exports.handler = async function(event) {
 
   return jsonResponse(200, { application_id: app.id, business_name: app.business_name });
 };
+
+// Re-exported so www/server.js can share the same payload contract when it
+// serves /api/provider/apply directly (no Netlify proxy in local dev). Keep
+// these in lockstep with the validation logic above — both code paths must
+// accept and reject the exact same payloads.
+module.exports.ALLOWED_SERVICES = ALLOWED_SERVICES;
+module.exports.validateAndClean = validateAndClean;
+module.exports.validateServices = validateServices;

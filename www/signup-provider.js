@@ -543,6 +543,12 @@
         // takes user_id from the JWT (so client cannot spoof it), captures the
         // real client IP, validates payload server-side, and rate-limits to one
         // application per user per 24h.
+        // Posts to /api/provider/apply — served in-process by www/server.js
+        // (handleProviderApply) and also reachable via the Netlify
+        // _redirects → provider-application function on prod. Using this path
+        // (not the legacy /api/provider-application alias) means the form works
+        // end-to-end in local dev / Replit hosting where there is no Netlify
+        // proxy. Both code paths share the same validation rules.
         const sessionRes = await supabaseClient.auth.getSession();
         const accessToken = sessionRes?.data?.session?.access_token;
         if (!accessToken) throw new Error('Your session has expired. Please sign in again.');
@@ -585,7 +591,7 @@
           founding_agreement_id: foundingAgreementId || null
         };
 
-        const appResp = await fetch('/api/provider-application', {
+        const appResp = await fetch('/api/provider/apply', {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' },
           body: JSON.stringify(applicationPayload)
