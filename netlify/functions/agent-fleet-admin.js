@@ -1328,11 +1328,24 @@ exports.handler = async function(event) {
       const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 50, 1), 200);
       const off = Math.max(Number.parseInt(qs.offset, 10) || 0, 0);
       const openOnly = qs.open === '1' || qs.open === 'true';
+      // Optional `event_ids=1,2,3` filter (max 200 ids) used by the inline
+      // Agent Activity panel to deterministically check which visible cards
+      // are backed by an open DLQ row, even when the global backlog exceeds
+      // the page size. Non-numeric ids are silently dropped.
+      let eventIdFilter = null;
+      if (typeof qs.event_ids === 'string' && qs.event_ids.length) {
+        eventIdFilter = qs.event_ids.split(',')
+          .map(s => Number.parseInt(s, 10))
+          .filter(n => Number.isInteger(n) && n > 0)
+          .slice(0, 200);
+        if (eventIdFilter.length === 0) eventIdFilter = null;
+      }
       let q = supabase.from('agent_dead_letter')
         .select('*', { count: 'exact' })
         .order('failed_at', { ascending: false })
         .range(off, off + lim - 1);
       if (openOnly) q = q.is('replayed_at', null);
+      if (eventIdFilter) q = q.in('event_id', eventIdFilter);
       const { data, count, error } = await q;
       if (error) throw new Error(error.message);
       return jsonResponse(200, { entries: data || [], total: count || 0, limit: lim, offset: off });

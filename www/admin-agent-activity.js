@@ -150,13 +150,42 @@
       </details>`;
   }
 
-  function renderFleetCard(a) {
+  // Build the inline action-button row for a fleet card. Approve / Reject
+  // are shown for proposals still flagged needs_review (the same gate the
+  // /admin/agent-fleet review queue uses). Replay is shown when the card's
+  // event_id matches an open dead-letter row (replayed_at IS NULL).
+  // All three call existing /admin/agent-fleet endpoints — see
+  // netlify/functions/agent-fleet-admin.js.
+  function fleetActionButtons(a, dlqEntry) {
+    const btns = [];
+    const canReview = (a.status === 'proposed') && a.needs_review === true && !a.reviewed_at;
+    if (canReview) {
+      btns.push(`<button type="button" class="aap-action-btn aap-action-approve" data-aap-action="approve" data-aap-id="${esc(String(a.id))}">Approve</button>`);
+      btns.push(`<button type="button" class="aap-action-btn aap-action-reject" data-aap-action="reject" data-aap-id="${esc(String(a.id))}">Reject</button>`);
+    }
+    if (dlqEntry && dlqEntry.id != null) {
+      btns.push(`<button type="button" class="aap-action-btn aap-action-replay" data-aap-action="replay" data-aap-dlq-id="${esc(String(dlqEntry.id))}">Replay</button>`);
+    }
+    if (!btns.length) return '';
+    return `
+      <div class="aap-action-row" data-aap-action-row="1">
+        ${btns.join('')}
+        <span class="aap-action-status" data-aap-status></span>
+      </div>`;
+  }
+
+  function renderFleetCard(a, dlqByEventId) {
     const sc = statusColor(a.status);
     const reviewBadge = a.needs_review
       ? `<span style="background:var(--accent-gold, #b8942d);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;margin-left:6px;">NEEDS REVIEW</span>`
       : '';
     const reviewedBadge = (a.reviewed_at && a.review_status)
       ? `<span style="background:var(--bg-tertiary);color:var(--text-muted);font-size:0.7rem;padding:2px 8px;border-radius:999px;margin-left:6px;">REVIEWED: ${esc(a.review_status)}</span>`
+      : '';
+    const dlqEntry = (dlqByEventId && a.event_id != null)
+      ? dlqByEventId.get(String(a.event_id)) : null;
+    const dlqBadge = dlqEntry
+      ? `<span style="background:var(--accent-red, #c0392b);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;margin-left:6px;">DEAD-LETTER</span>`
       : '';
     return `
       <div class="agent-activity-card" style="border:1px solid var(--border-subtle);border-left:3px solid #3b82f6;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
@@ -167,7 +196,7 @@
             <span style="color:var(--text-muted);font-size:0.82rem;">·</span>
             <span style="font-size:0.85rem;">${esc(a.action_type || '—')}</span>
             <span style="background:${sc.bg};color:${sc.fg};font-size:0.7rem;padding:2px 8px;border-radius:999px;">${esc(a.status || 'pending')}</span>
-            ${reviewBadge}${reviewedBadge}
+            ${reviewBadge}${reviewedBadge}${dlqBadge}
           </div>
           <span style="color:var(--text-muted);font-size:0.78rem;">${fmtTime(a.created_at)}</span>
         </div>
@@ -180,6 +209,7 @@
           <span>autonomy: ${esc(a.autonomy_used || '—')}</span>
           <span>cost: $${Number(a.cost_usd || 0).toFixed(4)} · ${a.duration_ms || 0}ms</span>
         </div>
+        ${fleetActionButtons(a, dlqEntry)}
         ${drawerShell('fleet', a.id, a.reasoning, a.decision)}
       </div>`;
   }
@@ -308,6 +338,33 @@
     }
   }
 
+  // Pull open dead-letter rows for ONLY the event_ids attached to the
+  // fleet cards we're about to render. This makes Replay-button eligibility
+  // deterministic regardless of how big the global DLQ backlog is — a card
+  // tied to event #500 is found even if the most recent 200 DLQ rows are
+  // all newer. Returns a Map<event_id, dlqRow>. Failure is non-fatal
+  // (cards still render, we just don't show Replay buttons).
+  async function fetchOpenDeadLetter(eventIds) {
+    if (!eventIds || !eventIds.length) return new Map();
+    // Cap matches the server-side cap on the event_ids filter.
+    const ids = eventIds.slice(0, 200).join(',');
+    const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    try {
+      const r = await fetch(
+        `${apiBase}/api/admin/agent-fleet/dead-letter?open=1&limit=200&event_ids=${encodeURIComponent(ids)}`,
+        { headers: authHeaders() });
+      if (!r.ok) return new Map();
+      const j = await r.json();
+      const map = new Map();
+      for (const entry of (j.entries || [])) {
+        if (entry && entry.event_id != null && entry.replayed_at == null) {
+          map.set(String(entry.event_id), entry);
+        }
+      }
+      return map;
+    } catch { return new Map(); }
+  }
+
   async function fetchLegacy(opts) {
     if (!opts.includeAiOpsModule) return [];
     const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
@@ -350,6 +407,28 @@
         font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
       }
       .aap-drawer-empty { font-size: 0.8rem; color: var(--text-muted, #9ca3af); font-style: italic; }
+      .aap-action-row {
+        display: flex; align-items: center; flex-wrap: wrap; gap: 6px;
+        margin-top: 10px; padding-top: 8px;
+        border-top: 1px dashed var(--border-subtle, #2a2f37);
+      }
+      .aap-action-btn {
+        font-size: 0.78rem; font-weight: 600;
+        padding: 5px 12px; border-radius: 6px; cursor: pointer;
+        border: 1px solid transparent; color: #fff;
+        transition: opacity 0.12s ease, filter 0.12s ease;
+      }
+      .aap-action-btn:hover:not(:disabled) { filter: brightness(1.1); }
+      .aap-action-btn:disabled { opacity: 0.55; cursor: not-allowed; }
+      .aap-action-approve { background: var(--accent-green, #10b981); }
+      .aap-action-reject  { background: var(--accent-red, #c0392b); }
+      .aap-action-replay  { background: var(--accent-blue, #3b82f6); }
+      .aap-action-status {
+        font-size: 0.78rem; color: var(--text-muted, #9ca3af);
+        margin-left: 4px;
+      }
+      .aap-action-status[data-aap-state="error"]   { color: var(--accent-red, #c0392b); }
+      .aap-action-status[data-aap-state="success"] { color: var(--accent-green, #10b981); }
     `;
     document.head.appendChild(style);
   }
@@ -368,6 +447,103 @@
     }, true); // capture phase — `toggle` does not bubble
   }
 
+  // POST helper for the three review/replay endpoints. Returns
+  // { ok, status, data } so callers can surface error messages from the
+  // server without leaking exceptions through the click handler.
+  async function postAction(url, body) {
+    const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    const headers = Object.assign({ 'Content-Type': 'application/json' }, authHeaders());
+    try {
+      const r = await fetch(`${apiBase}${url}`, {
+        method: 'POST',
+        headers,
+        body: body ? JSON.stringify(body) : '{}'
+      });
+      let data = null;
+      try { data = await r.json(); } catch { /* non-JSON body — leave null */ }
+      return { ok: r.ok, status: r.status, data };
+    } catch (e) {
+      return { ok: false, status: 0, data: { error: e.message || 'Network error' } };
+    }
+  }
+
+  // Click delegation for Approve / Reject / Replay buttons. Bound once per
+  // panel container alongside bindDrawerToggles. On success the panel is
+  // re-rendered using the stored opts so the card reflects its new state
+  // (review_status set, DLQ row replayed, etc.).
+  function bindActionButtons(rootEl, containerId) {
+    if (!rootEl || rootEl.__aapActionBound) return;
+    rootEl.__aapActionBound = true;
+    rootEl.addEventListener('click', async (ev) => {
+      const btn = ev.target.closest('button.aap-action-btn');
+      if (!btn || !rootEl.contains(btn)) return;
+      const action = btn.getAttribute('data-aap-action');
+      if (!action) return;
+      ev.preventDefault();
+
+      const row = btn.closest('.aap-action-row');
+      const statusEl = row ? row.querySelector('[data-aap-status]') : null;
+      const allBtns = row ? Array.from(row.querySelectorAll('button.aap-action-btn')) : [btn];
+
+      // Reject confirmation — Approve and Replay are non-destructive enough
+      // to fire on the first click; Reject closes out the recommendation.
+      if (action === 'reject' && !window.confirm('Reject this agent recommendation? It will be marked reviewed and removed from the queue.')) {
+        return;
+      }
+
+      allBtns.forEach(b => { b.disabled = true; });
+      if (statusEl) {
+        statusEl.removeAttribute('data-aap-state');
+        statusEl.textContent = action === 'replay' ? 'Replaying…' : 'Submitting…';
+      }
+
+      let result;
+      if (action === 'approve' || action === 'reject') {
+        const id = btn.getAttribute('data-aap-id');
+        if (!id) {
+          result = { ok: false, status: 0, data: { error: 'Missing action id' } };
+        } else {
+          result = await postAction(
+            `/api/admin/agent-fleet/actions/${encodeURIComponent(id)}/review`,
+            { decision: action === 'approve' ? 'approved' : 'rejected' }
+          );
+        }
+      } else if (action === 'replay') {
+        const dlqId = btn.getAttribute('data-aap-dlq-id');
+        if (!dlqId) {
+          result = { ok: false, status: 0, data: { error: 'Missing DLQ id' } };
+        } else {
+          result = await postAction(
+            `/api/admin/agent-fleet/dead-letter/${encodeURIComponent(dlqId)}/replay`, null);
+        }
+      } else {
+        result = { ok: false, status: 0, data: { error: `Unknown action: ${action}` } };
+      }
+
+      if (result.ok) {
+        if (statusEl) {
+          statusEl.setAttribute('data-aap-state', 'success');
+          statusEl.textContent = action === 'replay' ? 'Replayed' :
+                                 action === 'approve' ? 'Approved' : 'Rejected';
+        }
+        // Re-render the whole panel so badges / button visibility / DLQ
+        // status all sync up. Stored opts are preserved by the container.
+        const opts = rootEl.__aapOpts || {};
+        // Tiny delay so the user sees the success label flash before the
+        // panel repaints from scratch.
+        setTimeout(() => { renderAgentActivityPanel(containerId, opts); }, 250);
+      } else {
+        const msg = (result.data && (result.data.error || result.data.message)) ||
+                    `HTTP ${result.status || 'error'}`;
+        if (statusEl) {
+          statusEl.setAttribute('data-aap-state', 'error');
+          statusEl.textContent = `Failed: ${msg}`;
+        }
+        allBtns.forEach(b => { b.disabled = false; });
+      }
+    });
+  }
+
   async function renderAgentActivityPanel(containerId, opts) {
     opts = opts || {};
     const container = document.getElementById(containerId);
@@ -384,10 +560,25 @@
       </div>`;
     const bodyEl = document.getElementById(containerId + '-body');
     const countEl = document.getElementById(containerId + '-count');
+    // Stash opts on the body element so the click handler can re-render
+    // the panel after a successful Approve/Reject/Replay without callers
+    // having to re-pass the original options.
+    bodyEl.__aapOpts = opts;
     bindDrawerToggles(bodyEl);
+    bindActionButtons(bodyEl, containerId);
 
     try {
-      const [fleet, legacy] = await Promise.all([fetchFleet(opts), fetchLegacy(opts)]);
+      // Fetch fleet + legacy in parallel, then DLQ filtered by the
+      // event_ids we actually need to know about (deterministic, not
+      // capped by global backlog size).
+      const [fleet, legacy] = await Promise.all([
+        fetchFleet(opts),
+        fetchLegacy(opts)
+      ]);
+      const fleetEventIds = Array.from(new Set(
+        fleet.map(a => a.event_id).filter(id => id != null)
+      ));
+      const dlqByEventId = await fetchOpenDeadLetter(fleetEventIds);
       const merged = [
         ...fleet.map(a => ({ __src: 'fleet', __ts: a.created_at, row: a })),
         ...legacy.map(a => ({ __src: 'legacy', __ts: a.created_at, row: a }))
@@ -401,7 +592,7 @@
         return;
       }
       bodyEl.innerHTML = merged.map(m =>
-        m.__src === 'fleet' ? renderFleetCard(m.row) : renderLegacyCard(m.row)
+        m.__src === 'fleet' ? renderFleetCard(m.row, dlqByEventId) : renderLegacyCard(m.row)
       ).join('');
       countEl.textContent = `${merged.length} ${merged.length === 1 ? 'entry' : 'entries'}`;
     } catch (e) {
