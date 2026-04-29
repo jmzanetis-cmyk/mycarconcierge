@@ -49,6 +49,7 @@ Key architectural patterns and features include:
 - **Car Club Loyalty System**: Per-provider loyalty clubs with punch card rewards.
 - **Smart Service Recommendations**: AI-driven service suggestions based on vehicle make/model.
 - **AI Helpdesk Widget**: Anthropic Claude-powered chat with Car Expert, Provider Support, and Car Academy modes.
+- **Anthropic Model Health Check**: `netlify/functions/anthropic-health-scheduled.js` pings every Claude model listed in `MODELS_IN_USE` with a 1-token probe daily at 04:00 UTC. Failures (e.g. `model_not_found` after a deprecation) write to `ai_action_log` and trigger a Resend alert to `ADMIN_EMAIL`. On-demand: `POST` with `x-admin-password` header. When rotating Claude model literals in production code, also update `MODELS_IN_USE` in that file.
 - **AI Marketing Hub**: Admin portal section for AI-powered marketing and business development, including content generation, email campaigns, campaign strategy, and fundraising modules. Integrates research and outreach agents.
 - **Blog (`/blog/`)**: SEO-driven editorial pillar with evergreen posts, static HTML generation, JSON-LD, SEO meta injection, and sitemap generation.
 - **Provider Onboarding Walkthrough**: 7-step interactive guided tour for new providers.

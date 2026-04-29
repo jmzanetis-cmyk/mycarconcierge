@@ -68,6 +68,14 @@
 [functions."gatekeeper-smoke-scheduled"]
   schedule = "0 9 * * *"
 
+# Task #217 — Anthropic model availability smoke runs daily at 04:00 UTC.
+# Pings every Claude model in MODELS_IN_USE with a 1-token request and alerts
+# the admin (Resend + ai_action_log) if any model returns model_not_found,
+# invalid_request_error, etc. Catches silent deprecations within 24h instead
+# of waiting for a user to complain that a feature is broken.
+[functions."anthropic-health-scheduled"]
+  schedule = "0 4 * * *"
+
 
 [[headers]]
   for = "/sw.js"
