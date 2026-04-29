@@ -122,9 +122,55 @@ async function sendFCMv1Message(token, title, body, data, projectId) {
   return { status: resp.status, body: respBody };
 }
 
+// Honour the same opt-out semantics as www/server.js#checkUserPushPreference
+// so admin-driven matchmaker pushes never bypass a user who has disabled this
+// category in their notification preferences. `category` keys must match the
+// PUSH_CATEGORY_*_KEYS maps in www/server.js. Best-effort: any DB failure or
+// missing preference row defaults to ALLOWED (matches the legacy server-side
+// helper) so a transient DB blip can't silently drop legitimate awards.
+const MATCHMAKER_MEMBER_PREF_COL = {
+  'bid_accepted': 'push_bid_accepted'
+};
+const MATCHMAKER_PROVIDER_PREF_COL = {
+  'bid_accepted':    'push_bid_accepted',
+  'bid_opportunity': 'push_bid_opportunities'
+};
+
+async function checkMatchmakerPushPreference(supabase, userId, category) {
+  if (!category) return true;
+  try {
+    const { data: memberPref } = await supabase
+      .from('member_notification_preferences')
+      .select('push_bid_accepted')
+      .eq('member_id', userId)
+      .maybeSingle();
+    if (memberPref) {
+      const colKey = MATCHMAKER_MEMBER_PREF_COL[category];
+      if (colKey && memberPref[colKey] === false) return false;
+      return true;
+    }
+    const { data: providerPref } = await supabase
+      .from('provider_notification_preferences')
+      .select('push_bid_accepted, push_bid_opportunities')
+      .eq('provider_id', userId)
+      .maybeSingle();
+    if (providerPref) {
+      const colKey = MATCHMAKER_PROVIDER_PREF_COL[category];
+      if (colKey && providerPref[colKey] === false) return false;
+    }
+    return true;
+  } catch {
+    return true;
+  }
+}
+
 // Send a push to every active device token belonging to the given user IDs.
 // Returns { sent: boolean, success, failure, reason? } — best-effort.
-async function sendMatchmakerFCMPush(supabase, userIds, title, body, data) {
+// `category` (optional) maps to the same notification-preference columns the
+// legacy member-side helper checks (push_bid_accepted, push_bid_opportunities).
+// When provided, recipients who have opted out of that category are filtered
+// out BEFORE sending — never silently overridden by the admin path.
+async function sendMatchmakerFCMPush(supabase, userIds, title, body, data, category = null) {
   if (!process.env.FCM_SERVICE_ACCOUNT_JSON) return { sent: false, reason: 'not_configured', success: 0, failure: 0 };
   if (!Array.isArray(userIds) || userIds.length === 0) return { sent: false, reason: 'no_recipients', success: 0, failure: 0 };
   if (!supabase) return { sent: false, reason: 'no_db', success: 0, failure: 0 };
@@ -142,6 +188,16 @@ async function sendMatchmakerFCMPush(supabase, userIds, title, body, data) {
     return { sent: false, reason: 'token_lookup_exception:' + e.message, success: 0, failure: 0 };
   }
   if (tokenRows.length === 0) return { sent: false, reason: 'no_tokens', success: 0, failure: 0 };
+
+  if (category) {
+    const allowedByUser = new Map();
+    await Promise.all(Array.from(new Set(tokenRows.map(r => r.member_id))).map(async (uid) => {
+      allowedByUser.set(uid, await checkMatchmakerPushPreference(supabase, uid, category));
+    }));
+    const filtered = tokenRows.filter(r => allowedByUser.get(r.member_id) !== false);
+    if (filtered.length === 0) return { sent: false, reason: 'push_disabled_by_user', success: 0, failure: 0 };
+    tokenRows = filtered;
+  }
 
   let projectId;
   try { projectId = JSON.parse(process.env.FCM_SERVICE_ACCOUNT_JSON).project_id; }
@@ -432,7 +488,8 @@ async function notifyMatchmakerAward(supabase, {
           [winnerProviderId],
           'Your bid was accepted',
           `${amountLabel} for "${planTitle}". Tap to contact the member and schedule the work.`,
-          { ...pushData, role: 'winner', deeplink: '/providers.html#bids' }
+          { ...pushData, role: 'winner', deeplink: '/providers.html#bids' },
+          'bid_accepted'
         );
         if (r.sent) summary.winner_pushed = true;
         if (!r.sent && r.reason && !summary.push_skipped_reason) summary.push_skipped_reason = r.reason;
@@ -447,7 +504,8 @@ async function notifyMatchmakerAward(supabase, {
           loserIds,
           'Bid not selected',
           `Your bid on "${planTitle}" wasn't selected this time. Keep an eye on new auctions.`,
-          { ...pushData, role: 'loser', deeplink: '/providers.html#bids' }
+          { ...pushData, role: 'loser', deeplink: '/providers.html#bids' },
+          'bid_opportunity'
         );
         if (r.sent) summary.loser_pushed_count = r.success || loserIds.length;
         if (!r.sent && r.reason && !summary.push_skipped_reason) summary.push_skipped_reason = r.reason;
@@ -461,7 +519,8 @@ async function notifyMatchmakerAward(supabase, {
           [memberId],
           'Your auction has been awarded',
           `${winnerDisplay} won "${planTitle}" at ${amountLabel}. Tap to authorize payment.`,
-          { ...pushData, role: 'member', deeplink: '/members.html#packages' }
+          { ...pushData, role: 'member', deeplink: '/members.html#packages' },
+          'bid_accepted'
         );
         if (r.sent) summary.member_pushed = true;
         if (!r.sent && r.reason && !summary.push_skipped_reason) summary.push_skipped_reason = r.reason;

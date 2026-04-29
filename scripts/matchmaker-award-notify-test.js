@@ -101,11 +101,13 @@ const FAKE_SA_JSON = JSON.stringify({
 // ----------------------------- Supabase mock --------------------------------
 function makeSupabaseMock(initial) {
   const state = {
-    agent_actions:      initial.agent_actions      ? initial.agent_actions.slice()      : [],
-    plan_bids:          initial.plan_bids          ? initial.plan_bids.slice()          : [],
-    care_plans:         initial.care_plans         ? initial.care_plans.slice()         : [],
-    profiles:           initial.profiles           ? initial.profiles.slice()           : [],
-    device_push_tokens: initial.device_push_tokens ? initial.device_push_tokens.slice() : [],
+    agent_actions:                     initial.agent_actions                     ? initial.agent_actions.slice()                     : [],
+    plan_bids:                         initial.plan_bids                         ? initial.plan_bids.slice()                         : [],
+    care_plans:                        initial.care_plans                        ? initial.care_plans.slice()                        : [],
+    profiles:                          initial.profiles                          ? initial.profiles.slice()                          : [],
+    device_push_tokens:                initial.device_push_tokens                ? initial.device_push_tokens.slice()                : [],
+    member_notification_preferences:   initial.member_notification_preferences   ? initial.member_notification_preferences.slice()   : [],
+    provider_notification_preferences: initial.provider_notification_preferences ? initial.provider_notification_preferences.slice() : [],
     notifications:      []
   };
 
@@ -526,6 +528,78 @@ function freshSupabase() {
   assertEq(sum4.loser_pushed_count,   0,            '[fcm-no-tokens] loser_pushed_count=0');
   assertEq(sum4.push_skipped_reason,  'no_tokens',  '[fcm-no-tokens] push_skipped_reason=no_tokens');
   assertEq(sum4.errors.length,        0,            '[fcm-no-tokens] no errors recorded');
+
+  // ── Case 5: opt-out preferences are honoured (Task #197 review fix) ──────
+  // The new admin push helper must NEVER push to a user who has explicitly
+  // disabled the matching push category in their preferences row. Member uses
+  // member_notification_preferences.push_bid_accepted; provider uses
+  // provider_notification_preferences.push_bid_accepted (winner) or
+  // push_bid_opportunities (loser). Users without a preferences row default
+  // to allowed (matches www/server.js#checkUserPushPreference).
+  resendCalls = [];
+  fcmCalls = [];
+  process.env.RESEND_API_KEY = 'test-key';
+  process.env.FCM_SERVICE_ACCOUNT_JSON = FAKE_SA_JSON;
+  fcmFetchHandler = async (url) => {
+    if (String(url).includes('oauth2.googleapis.com')) {
+      return { status: 200, ok: true,
+        json: async () => ({ access_token: 'fake-access-token', expires_in: 3600 }) };
+    }
+    return { status: 200, ok: true, json: async () => ({ name: 'ok' }) };
+  };
+
+  const sb5 = makeSupabaseMock({
+    agent_actions: [{
+      id: ACTION_ID, agent_slug: 'matchmaker', action_type: 'rank',
+      review_status: null,
+      decision: { recommended_winner_bid_id: WIN_BID, payload: { care_plan_id: PLAN_ID } }
+    }],
+    plan_bids: [
+      { id: WIN_BID,    care_plan_id: PLAN_ID, provider_id: WIN_PID,    status: 'pending', amount: 250 },
+      { id: LOSE_BID_A, care_plan_id: PLAN_ID, provider_id: LOSE_PID_A, status: 'pending', amount: 300 },
+      { id: LOSE_BID_B, care_plan_id: PLAN_ID, provider_id: LOSE_PID_B, status: 'pending', amount: 280 }
+    ],
+    care_plans: [{ id: PLAN_ID, member_id: MEMBER_ID, status: 'open', title: 'Brake Job' }],
+    profiles: [
+      { id: MEMBER_ID,  email: 'm@x.com', full_name: 'Mia',   business_name: null  },
+      { id: WIN_PID,    email: 'w@x.com', full_name: 'Wendy', business_name: 'WG'  },
+      { id: LOSE_PID_A, email: 'a@x.com', full_name: 'Larry', business_name: 'A'   },
+      { id: LOSE_PID_B, email: 'b@x.com', full_name: 'Bart',  business_name: 'B'   }
+    ],
+    device_push_tokens: [
+      { token: 'tok-mem',    member_id: MEMBER_ID,  platform: 'ios',     active: true },
+      { token: 'tok-win',    member_id: WIN_PID,    platform: 'ios',     active: true },
+      { token: 'tok-loseA',  member_id: LOSE_PID_A, platform: 'android', active: true },
+      { token: 'tok-loseB',  member_id: LOSE_PID_B, platform: 'ios',     active: true }
+    ],
+    // Member opted out of bid_accepted push.
+    member_notification_preferences: [
+      { member_id: MEMBER_ID, push_bid_accepted: false }
+    ],
+    // Winner provider opted out of bid_accepted; loser A opted out of
+    // bid_opportunities; loser B has no row → defaults to allowed.
+    provider_notification_preferences: [
+      { provider_id: WIN_PID,    push_bid_accepted: false, push_bid_opportunities: true  },
+      { provider_id: LOSE_PID_A, push_bid_accepted: true,  push_bid_opportunities: false }
+    ]
+  });
+  await applyMatchmakerRank(sb5, ACTION_ID, sb5.state.agent_actions[0]);
+  const sum5 = sb5.state.agent_actions.find(r => r.action_type === 'apply').decision.notifications;
+  assertEq(sum5.winner_pushed,      false, '[opt-out] winner with push_bid_accepted=false NOT pushed');
+  assertEq(sum5.member_pushed,      false, '[opt-out] member with push_bid_accepted=false NOT pushed');
+  assertEq(sum5.loser_pushed_count, 1,     '[opt-out] only loser B (no pref row) is pushed; loser A opted out');
+
+  const send5 = fcmCalls.filter(c => c.url.includes('fcm.googleapis.com'));
+  const sentTokens5 = send5.map(c => { try { return JSON.parse(c.body).message.token; } catch { return null; } });
+  assertTrue(!sentTokens5.includes('tok-win'),   '[opt-out] no FCM send to winner token');
+  assertTrue(!sentTokens5.includes('tok-mem'),   '[opt-out] no FCM send to member token');
+  assertTrue(!sentTokens5.includes('tok-loseA'), '[opt-out] no FCM send to loser A token');
+  assertTrue(sentTokens5.includes('tok-loseB'),  '[opt-out] loser B (no pref row) still pushed');
+  assertEq(send5.length, 1, '[opt-out] exactly 1 FCM send call (loser B only)');
+
+  // In-app notifications + emails are preference-independent — they should still go out.
+  assertEq(sb5.state.notifications.length, 4, '[opt-out] 4 in-app notification rows still inserted');
+  assertEq(resendCalls.length, 4, '[opt-out] 4 emails still sent (push opt-out does not silence email/in-app)');
 
   // restore for any downstream tests
   process.env.RESEND_API_KEY = 'test-key';
