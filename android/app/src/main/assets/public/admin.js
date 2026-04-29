@@ -25,6 +25,158 @@
     let disputes = [];
     let tickets = [];
     let members = [];
+    // Task #281 — capture loader errors so renderX functions can surface
+    // them instead of falling through to the generic empty-state row that
+    // makes failures look like "no data".
+    let loadErrors = { providers: null, members: null, payments: null, disputes: null, tickets: null };
+    function setLoadError(key, err) {
+      const msg = err && (err.message || err.error || err.hint) ? (err.message || err.error || err.hint) : (err ? String(err) : 'Unknown error');
+      loadErrors[key] = msg;
+    }
+    function renderTableLoadErrorRow(tbodyId, colspan, key, retryFn) {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      const msg = loadErrors[key] || 'Unknown error';
+      tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(220,53,69,0.06);border-left:3px solid #dc3545;">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:240px;">
+            <div style="font-weight:600;color:#dc3545;margin-bottom:4px;">Couldn't load ${escapeHtml(key)} — ${escapeHtml(msg)}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);">The list below is empty because the request failed, not because there are no records. Click Retry once you've checked your session / network.</div>
+          </div>
+          <button class="btn btn-sm" onclick="${escapeHtml(retryFn)}" style="background:var(--accent-blue);color:#fff;">Retry</button>
+        </div>
+      </td></tr>`;
+    }
+
+    // Task #281 — "Look up a user" verdict tool on the Active Providers
+    // panel. Answers the recurring question "is so-and-so on the platform?"
+    // by matching either profiles or provider_applications and emitting a
+    // single explicit verdict (no profile / wrong role / suspended /
+    // active / pending application status).
+    async function lookupUserOnProvidersPage() {
+      const input = document.getElementById('user-lookup-input');
+      const out = document.getElementById('user-lookup-result');
+      if (!input || !out) return;
+      const raw = (input.value || '').trim();
+      if (!raw) {
+        out.innerHTML = `<div style="padding:10px 12px;border-radius:6px;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);color:var(--accent-orange);font-size:0.85rem;">Enter a name or email to search.</div>`;
+        return;
+      }
+      out.innerHTML = `<div style="padding:10px 12px;color:var(--text-muted);font-size:0.85rem;">Searching for "${escapeHtml(raw)}"…</div>`;
+
+      const term = raw.toLowerCase();
+      const like = '%' + raw.replace(/[%_]/g, m => '\\' + m) + '%';
+      try {
+        const [profilesRes, appsRes] = await Promise.all([
+          supabaseClient
+            .from('profiles')
+            .select('id, full_name, email, role, suspension_reason, suspended_at, created_at')
+            .or(`email.ilike.${like},full_name.ilike.${like}`)
+            .limit(10),
+          supabaseClient
+            .from('provider_applications')
+            .select('id, business_name, contact_name, email, status, created_at, updated_at')
+            .or(`email.ilike.${like},contact_name.ilike.${like},business_name.ilike.${like}`)
+            .limit(10)
+        ]);
+
+        // Treat any single-source failure as degraded — don't emit a definitive
+        // "no profile found" verdict from partial data. Per code review (Task #281).
+        if (profilesRes.error || appsRes.error) {
+          const failedSources = [];
+          if (profilesRes.error) failedSources.push(`profiles: ${profilesRes.error.message || 'query error'}`);
+          if (appsRes.error) failedSources.push(`applications: ${appsRes.error.message || 'query error'}`);
+          out.innerHTML = `<div style="padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;font-size:0.9rem;">
+            <div style="font-weight:600;margin-bottom:4px;">Lookup failed — can't return a verdict</div>
+            <div style="font-size:0.82rem;color:var(--text-secondary);">One or more queries errored, so a "no profile found" answer would be unreliable. Click Look up again to retry.</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">${escapeHtml(failedSources.join(' · '))}</div>
+          </div>`;
+          return;
+        }
+
+        const profileRows = profilesRes.data || [];
+        const appRows = appsRes.data || [];
+
+        // Prefer an exact email match on the profile when present.
+        const exactProfile = profileRows.find(p => (p.email || '').toLowerCase() === term);
+        const profile = exactProfile || profileRows[0] || null;
+        const exactApp = appRows.find(a => (a.email || '').toLowerCase() === term);
+        const app = exactApp || appRows[0] || null;
+
+        if (!profile && !app) {
+          out.innerHTML = `<div style="padding:12px 14px;border-radius:6px;background:rgba(100,100,120,0.08);border:1px solid var(--border-subtle);font-size:0.9rem;">
+            <div style="font-weight:600;margin-bottom:4px;">No profile found</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);">No profile or provider application matches "${escapeHtml(raw)}". Double-check the spelling, or try the email they signed up with.</div>
+          </div>`;
+          return;
+        }
+
+        // Verdict computation
+        let verdict, badgeBg, badgeBorder, badgeColor, detail = '';
+        if (profile) {
+          const role = profile.role || '(none)';
+          const isSuspended = !!profile.suspension_reason;
+          if (isSuspended) {
+            verdict = `Suspended ${role === 'provider' || role === 'pending_provider' ? 'provider' : role}`;
+            badgeBg = 'rgba(239,95,95,0.12)'; badgeBorder = 'rgba(239,95,95,0.35)'; badgeColor = 'var(--accent-red)';
+            detail = `Reason: ${escapeHtml(profile.suspension_reason)}${profile.suspended_at ? ` (since ${new Date(profile.suspended_at).toLocaleDateString()})` : ''}`;
+          } else if (role === 'provider') {
+            verdict = 'Active provider';
+            badgeBg = 'rgba(74,200,140,0.12)'; badgeBorder = 'rgba(74,200,140,0.3)'; badgeColor = 'var(--accent-green)';
+            detail = `This profile has the provider role and is not suspended — should appear in the Active Providers list.`;
+          } else if (role === 'pending_provider') {
+            verdict = 'Pending provider (application in review)';
+            badgeBg = 'rgba(245,158,11,0.12)'; badgeBorder = 'rgba(245,158,11,0.3)'; badgeColor = 'var(--accent-orange)';
+            detail = `Profile role is pending_provider — they won't show up in Active Providers until their application is approved.`;
+          } else {
+            verdict = `Wrong role: ${role}`;
+            badgeBg = 'rgba(245,158,11,0.12)'; badgeBorder = 'rgba(245,158,11,0.3)'; badgeColor = 'var(--accent-orange)';
+            detail = `This person is registered, but as a ${escapeHtml(role)} — not a provider. They will not appear in the Active Providers list.`;
+          }
+        } else {
+          // No profile but an application exists.
+          verdict = `No profile yet — application status: ${app.status || 'unknown'}`;
+          badgeBg = 'rgba(56,189,248,0.10)'; badgeBorder = 'rgba(56,189,248,0.3)'; badgeColor = 'var(--accent-blue)';
+          detail = `A provider application exists for this email/name but no signed-in profile yet. They need to create an account to be activated.`;
+        }
+
+        const profileBlock = profile ? `
+          <div style="margin-top:10px;padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">PROFILE</div>
+            <div><strong>${escapeHtml(profile.full_name || '(no name)')}</strong> · ${escapeHtml(profile.email || '(no email)')}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">role: <code>${escapeHtml(profile.role || '(none)')}</code> · id: <code>${escapeHtml(profile.id)}</code> · created ${profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</div>
+          </div>` : '';
+
+        const appBlock = app ? `
+          <div style="margin-top:10px;padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);">
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">PROVIDER APPLICATION</div>
+            <div><strong>${escapeHtml(app.business_name || app.contact_name || '(no name)')}</strong> · ${escapeHtml(app.email || '(no email)')}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">status: <code>${escapeHtml(app.status || 'unknown')}</code> · submitted ${app.created_at ? new Date(app.created_at).toLocaleDateString() : '—'}${app.updated_at ? ` · updated ${new Date(app.updated_at).toLocaleDateString()}` : ''}</div>
+          </div>` : '';
+
+        const moreMatches = (profileRows.length + appRows.length) > ((profile ? 1 : 0) + (app ? 1 : 0)) ?
+          `<div style="margin-top:8px;font-size:0.78rem;color:var(--text-muted);">Showing best match. ${profileRows.length} profile / ${appRows.length} application result(s) total — refine your search if this isn't the right person.</div>` : '';
+
+        out.innerHTML = `
+          <div style="padding:12px 14px;border-radius:6px;background:${badgeBg};border:1px solid ${badgeBorder};">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+              <div style="font-weight:700;color:${badgeColor};font-size:0.95rem;">${escapeHtml(verdict)}</div>
+            </div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;">${detail}</div>
+            ${profileBlock}
+            ${appBlock}
+            ${moreMatches}
+          </div>`;
+      } catch (err) {
+        console.error('lookupUserOnProvidersPage failed:', err);
+        out.innerHTML = `<div style="padding:12px 14px;border-radius:6px;background:rgba(220,53,69,0.08);border:1px solid rgba(220,53,69,0.3);color:#dc3545;font-size:0.9rem;">
+          <div style="font-weight:600;margin-bottom:4px;">Lookup failed</div>
+          <div style="font-size:0.82rem;">${escapeHtml(err.message || String(err))}</div>
+        </div>`;
+      }
+    }
+    window.lookupUserOnProvidersPage = lookupUserOnProvidersPage;
+
     let registrationVerifications = [];
     let currentApplication = null;
     let currentDispute = null;
@@ -1256,26 +1408,29 @@
 
     async function loadProviders(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) return;
-      
+      if (!session) { setLoadError('providers', 'No active admin session — sign in again.'); renderProviders(); return; }
+
       const state = paginationState.providers;
       state.page = page;
-      
+
       const params = new URLSearchParams({
         page: state.page,
         limit: state.limit,
         search: state.search,
         filter: state.filter
       });
-      
+
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      // Task #281 — clear any prior load error before re-fetching so a
+      // successful retry repaints the table cleanly.
+      loadErrors.providers = null;
       try {
         const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
         const result = await response.json();
-        
+
         if (result.success) {
           providers = result.data || [];
           state.total = result.total;
@@ -1283,11 +1438,13 @@
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
+          setLoadError('providers', result.error || 'Server returned success=false');
           providers = [];
           renderProviders();
         }
       } catch (err) {
         console.error('Error loading providers:', err);
+        setLoadError('providers', err);
         providers = [];
         renderProviders();
       }
@@ -1329,7 +1486,10 @@
     // ALTER TABLE profiles ADD COLUMN IF NOT EXISTS suspended_at TIMESTAMPTZ;
 
     async function loadPayments() {
-      const { data } = await supabaseClient.from('payments').select('*, maintenance_packages(title), member:member_id(full_name), provider:provider_id(full_name)').order('created_at', { ascending: false });
+      // Task #281 — surface load errors instead of silently rendering "No payments".
+      loadErrors.payments = null;
+      const { data, error } = await supabaseClient.from('payments').select('*, maintenance_packages(title), member:member_id(full_name), provider:provider_id(full_name)').order('created_at', { ascending: false });
+      if (error) { console.error('loadPayments failed:', error); setLoadError('payments', error); payments = []; renderPayments(); return; }
       payments = data || [];
       renderPayments();
       // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
@@ -1343,14 +1503,20 @@
     }
 
     async function loadDisputes() {
-      const { data } = await supabaseClient.from('disputes').select('*, maintenance_packages(title), payments(amount_total), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
+      // Task #281 — surface load errors instead of silently rendering "No disputes".
+      loadErrors.disputes = null;
+      const { data, error } = await supabaseClient.from('disputes').select('*, maintenance_packages(title), payments(amount_total), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
+      if (error) { console.error('loadDisputes failed:', error); setLoadError('disputes', error); disputes = []; renderDisputes(); return; }
       disputes = data || [];
       renderDisputes();
       document.getElementById('dispute-count').textContent = disputes.filter(d => d.status === 'open').length;
     }
 
     async function loadTickets() {
-      const { data } = await supabaseClient.from('support_tickets').select('*, user:user_id(full_name, email)').order('created_at', { ascending: false });
+      // Task #281 — surface load errors instead of silently rendering "No tickets".
+      loadErrors.tickets = null;
+      const { data, error } = await supabaseClient.from('support_tickets').select('*, user:user_id(full_name, email)').order('created_at', { ascending: false });
+      if (error) { console.error('loadTickets failed:', error); setLoadError('tickets', error); tickets = []; renderTickets(); return; }
       tickets = data || [];
       renderTickets();
       document.getElementById('ticket-count').textContent = tickets.filter(t => t.status === 'open').length;
@@ -1358,25 +1524,28 @@
 
     async function loadMembers(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) return;
-      
+      if (!session) { setLoadError('members', 'No active admin session — sign in again.'); renderMembers(); return; }
+
       const state = paginationState.members;
       state.page = page;
-      
+
       const params = new URLSearchParams({
         page: state.page,
         limit: state.limit,
         search: state.search,
         filter: state.filter
       });
-      
+
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      // Task #281 — clear any prior load error before re-fetching.
+      loadErrors.members = null;
       try {
         const response = await fetch(`${apiBase}/api/admin/members?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`); }
         const result = await response.json();
-        
+
         if (result.success) {
           members = result.data || [];
           state.total = result.total;
@@ -1384,11 +1553,13 @@
           renderMembers();
         } else {
           console.error('Failed to load members:', result.error);
+          setLoadError('members', result.error || 'Server returned success=false');
           members = [];
           renderMembers();
         }
       } catch (err) {
         console.error('Error loading members:', err);
+        setLoadError('members', err);
         members = [];
         renderMembers();
       }
@@ -2237,8 +2408,15 @@
 
     function renderProviders() {
       const tbody = document.getElementById('providers-table');
+      // Task #281 — show load error before falling through to "No providers match filters",
+      // which previously masked a failed fetch as an empty result set.
+      if (loadErrors.providers) {
+        renderTableLoadErrorRow('providers-table', 9, 'providers', 'loadProviders()');
+        updateBulkBar();
+        return;
+      }
       filteredProviders = filterProvidersData();
-      
+
       if (!filteredProviders.length) {
         tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No providers match filters</td></tr>';
         updateBulkBar();
@@ -2609,6 +2787,12 @@
       document.getElementById('payments-refunded').textContent = '$' + payments.filter(p => p.status === 'refunded').reduce((s, p) => s + (p.refund_amount || 0), 0).toLocaleString();
       document.getElementById('payments-fees').textContent = '$' + payments.filter(p => p.status === 'released').reduce((s, p) => s + (p.amount_mcc_fee || 0), 0).toLocaleString();
 
+      // Task #281 — show load error before falling through to "No payments".
+      if (loadErrors.payments) {
+        renderTableLoadErrorRow('payments-table', 7, 'payments', 'loadPayments()');
+        return;
+      }
+
       if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No payments</td></tr>';
         return;
@@ -2846,6 +3030,12 @@
       const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
       document.getElementById('high-value-alert').style.display = highValue.length ? 'block' : 'none';
 
+      // Task #281 — show load error before falling through to "No disputes".
+      if (loadErrors.disputes) {
+        renderTableLoadErrorRow('disputes-table', 7, 'disputes', 'loadDisputes()');
+        return;
+      }
+
       if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No disputes</td></tr>';
         return;
@@ -2868,6 +3058,12 @@
       const filtered = tickets.filter(t => t.status === currentFilters.tickets || currentFilters.tickets === 'all');
       const tbody = document.getElementById('tickets-table');
 
+      // Task #281 — show load error before falling through to "No tickets".
+      if (loadErrors.tickets) {
+        renderTableLoadErrorRow('tickets-table', 7, 'tickets', 'loadTickets()');
+        return;
+      }
+
       if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No tickets</td></tr>';
         return;
@@ -2888,6 +3084,13 @@
 
     function renderMembers() {
       const tbody = document.getElementById('members-table');
+      // Task #281 — show load error before falling through to "No members".
+      if (loadErrors.members) {
+        renderTableLoadErrorRow('members-table', 7, 'members', 'loadMembers()');
+        const paginationContainer = document.getElementById('members-pagination');
+        if (paginationContainer) paginationContainer.innerHTML = '';
+        return;
+      }
       if (!members.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No members</td></tr>';
         // Still show pagination if there's state

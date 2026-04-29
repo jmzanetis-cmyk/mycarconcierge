@@ -2526,6 +2526,25 @@
         </div>
       </div>
 
+      <!-- Task #281 — Look up a user verdict tool. Quickly answers
+           "is so-and-so a provider on the platform?" without scrolling
+           the paginated list, and explains why a person isn't visible
+           (no profile / wrong role / suspended / pending application). -->
+      <div class="card" style="margin-bottom:16px;padding:16px 20px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+          <div>
+            <div style="font-weight:600;font-size:0.95rem;">Look up a user</div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">Search by name or email to see whether they have a profile, what role it is, and whether they're suspended or still mid-application.</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+          <input type="text" class="form-input" id="user-lookup-input" placeholder="Name or email (e.g. chris@example.com)" style="padding:8px 12px;flex:1;min-width:240px;" onkeydown="if(event.key==='Enter'){event.preventDefault();lookupUserOnProvidersPage();}">
+          <button class="btn btn-sm" style="background:var(--accent-blue);color:#fff;" onclick="lookupUserOnProvidersPage()">Look up</button>
+          <button class="btn btn-sm btn-secondary" onclick="document.getElementById('user-lookup-input').value='';document.getElementById('user-lookup-result').innerHTML='';">Clear</button>
+        </div>
+        <div id="user-lookup-result" style="margin-top:12px;"></div>
+      </div>
+
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
           <thead>

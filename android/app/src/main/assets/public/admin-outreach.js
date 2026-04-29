@@ -9,6 +9,10 @@
   let schemaReady = false;
   let realtimeChannel = null;
   let pipelineChannel = null;
+  // Loaded from /api/admin/apollo/config. Stays null until the first GET
+  // succeeds so the panel can show "Discovery — unavailable" instead of
+  // mis-rendering "Disabled" for a config it never tried to fetch.
+  let apolloConfig = null;
 
   function getOutreachHeaders() {
     const headers = { 'Content-Type': 'application/json' };
@@ -25,6 +29,176 @@
       headers: { ...getOutreachHeaders(), ...(options.headers || {}) }
     });
     return res;
+  }
+
+  // Sibling of outreachFetch for the Apollo admin endpoints proxied through
+  // /api/admin/apollo/* → netlify/functions/apollo-admin.js.
+  async function apolloFetch(endpoint, options = {}) {
+    const res = await fetch(`${apiBase}/api/admin/apollo${endpoint}`, {
+      ...options,
+      headers: { ...getOutreachHeaders(), ...(options.headers || {}) }
+    });
+    return res;
+  }
+
+  async function loadApolloConfig() {
+    try {
+      const res = await apolloFetch('/config');
+      if (!res.ok) {
+        // Leave apolloConfig at null so the badge renders as "unavailable".
+        // 401 here usually means the admin password header is missing/wrong;
+        // the admin already sees a separate auth banner so don't re-toast.
+        if (res.status !== 401) {
+          console.error('Failed to load Apollo config:', res.status);
+        }
+        apolloConfig = null;
+        return null;
+      }
+      const data = await res.json();
+      apolloConfig = data?.config || null;
+      return apolloConfig;
+    } catch (e) {
+      console.error('Failed to load Apollo config:', e);
+      apolloConfig = null;
+      return null;
+    }
+  }
+
+  async function setApolloEnabled(enabled) {
+    try {
+      const res = await apolloFetch('/config', {
+        method: 'PUT',
+        body: JSON.stringify({ enabled: !!enabled })
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (typeof showToast !== 'undefined') showToast(data.error || 'Failed to update Apollo discovery', 'error');
+        return false;
+      }
+      apolloConfig = data?.config || apolloConfig;
+      if (typeof showToast !== 'undefined') showToast(enabled ? 'Apollo discovery enabled' : 'Apollo discovery disabled');
+      renderEngineControlPanel();
+      return true;
+    } catch (e) {
+      if (typeof showToast !== 'undefined') showToast('Apollo update error: ' + e.message, 'error');
+      return false;
+    }
+  }
+
+  async function enableApolloDiscovery() {
+    await setApolloEnabled(true);
+  }
+
+  async function disableApolloDiscovery() {
+    if (!confirm('Pause Apollo discovery? Scheduled cycles will stop until re-enabled.')) return;
+    await setApolloEnabled(false);
+  }
+
+  async function runApolloNow() {
+    if (typeof showToast !== 'undefined') showToast('Running Apollo discovery cycle...');
+    try {
+      const res = await apolloFetch('/run-now', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      const r = data?.result || {};
+      if (!res.ok) {
+        if (typeof showToast !== 'undefined') showToast(data.error || `Apollo run failed (HTTP ${res.status})`, 'error');
+      } else if (r.skipped) {
+        if (typeof showToast !== 'undefined') showToast(`Cycle skipped: ${r.reason || 'unknown'}`, 'error');
+      } else if (r.success === false) {
+        if (typeof showToast !== 'undefined') showToast(`Apollo cycle error: ${r.error || r.error_kind || 'unknown'}`, 'error');
+      } else {
+        if (typeof showToast !== 'undefined') showToast(`Apollo cycle complete — ${r.search_results || 0} found, ${r.added || 0} added, ${r.enriched || 0} enriched`);
+      }
+    } catch (e) {
+      if (typeof showToast !== 'undefined') showToast('Apollo run error: ' + e.message, 'error');
+    }
+    await loadApolloConfig();
+    renderEngineControlPanel();
+  }
+
+  // Compact "Save Apollo Settings" modal — exposes the small set of safe
+  // tunables (interval/per-page/auto-enrich/instantly sync) so admin can
+  // adjust cadence without editing the database directly. Rotation indices
+  // and search_profiles are intentionally not exposed.
+  function showApolloSettings() {
+    if (!apolloConfig) {
+      if (typeof showToast !== 'undefined') showToast('Apollo config unavailable', 'error');
+      return;
+    }
+    const cfg = apolloConfig;
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay';
+    modal.id = 'apollo-settings-modal';
+    modal.innerHTML = `
+      <div class="modal-content" style="max-width:520px;">
+        <div class="modal-header"><h3>Apollo Discovery Settings</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div style="display:flex;flex-direction:column;gap:14px;padding:20px;">
+          <div>
+            <label style="font-weight:500;display:block;margin-bottom:6px;">Interval (hours between cycles)</label>
+            <input type="number" id="apollo-cfg-interval" class="form-input" value="${Number(cfg.interval_hours) || 6}" min="1" max="168" step="1">
+          </div>
+          <div>
+            <label style="font-weight:500;display:block;margin-bottom:6px;">Results per page</label>
+            <input type="number" id="apollo-cfg-per-page" class="form-input" value="${Number(cfg.per_page) || 25}" min="1" max="100" step="1">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-tertiary,#1a1f2e);border-radius:8px;">
+            <input type="checkbox" id="apollo-cfg-auto-enrich" ${cfg.auto_enrich !== false ? 'checked' : ''} style="width:18px;height:18px;">
+            <label for="apollo-cfg-auto-enrich" style="cursor:pointer;">Auto-enrich newly discovered leads</label>
+          </div>
+          <div>
+            <label style="font-weight:500;display:block;margin-bottom:6px;">Enrichment batch size</label>
+            <input type="number" id="apollo-cfg-enrich-batch" class="form-input" value="${Number(cfg.enrich_batch) || 15}" min="0" max="100" step="1">
+          </div>
+          <div style="display:flex;align-items:center;gap:10px;padding:10px;background:var(--bg-tertiary,#1a1f2e);border-radius:8px;">
+            <input type="checkbox" id="apollo-cfg-instantly-sync" ${cfg.instantly_auto_sync ? 'checked' : ''} style="width:18px;height:18px;">
+            <label for="apollo-cfg-instantly-sync" style="cursor:pointer;">Auto-sync provider leads to Instantly.ai</label>
+          </div>
+          <div>
+            <label style="font-weight:500;display:block;margin-bottom:6px;">Instantly provider campaign ID</label>
+            <input type="text" id="apollo-cfg-instantly-campaign" class="form-input" value="${cfg.instantly_provider_campaign_id ? String(cfg.instantly_provider_campaign_id).replace(/"/g, '&quot;') : ''}" placeholder="campaign_abc123...">
+          </div>
+          <button class="btn btn-primary" onclick="window.saveApolloSettings()">Save Apollo Settings</button>
+        </div>
+      </div>
+    `;
+    document.body.appendChild(modal);
+  }
+
+  async function saveApolloSettings() {
+    const intervalHours = parseInt(document.getElementById('apollo-cfg-interval').value, 10);
+    const perPage = parseInt(document.getElementById('apollo-cfg-per-page').value, 10);
+    const enrichBatch = parseInt(document.getElementById('apollo-cfg-enrich-batch').value, 10);
+    const autoEnrich = !!document.getElementById('apollo-cfg-auto-enrich').checked;
+    const instantlySync = !!document.getElementById('apollo-cfg-instantly-sync').checked;
+    const instantlyCampaignRaw = document.getElementById('apollo-cfg-instantly-campaign').value.trim();
+
+    const updates = {
+      interval_hours: intervalHours,
+      per_page: perPage,
+      enrich_batch: enrichBatch,
+      auto_enrich: autoEnrich,
+      instantly_auto_sync: instantlySync,
+      instantly_provider_campaign_id: instantlyCampaignRaw === '' ? null : instantlyCampaignRaw
+    };
+
+    try {
+      const res = await apolloFetch('/config', {
+        method: 'PUT',
+        body: JSON.stringify(updates)
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const detail = Array.isArray(data.details) ? ' — ' + data.details.join('; ') : '';
+        if (typeof showToast !== 'undefined') showToast((data.error || 'Save failed') + detail, 'error');
+        return;
+      }
+      apolloConfig = data?.config || apolloConfig;
+      document.getElementById('apollo-settings-modal')?.remove();
+      if (typeof showToast !== 'undefined') showToast('Apollo settings saved');
+      renderEngineControlPanel();
+    } catch (e) {
+      if (typeof showToast !== 'undefined') showToast('Save error: ' + e.message, 'error');
+    }
   }
 
   async function initOutreachEngine() {
@@ -76,8 +250,14 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
   async function loadEngineState() {
     try {
-      const res = await outreachFetch('/engine-state');
-      const data = await res.json();
+      // Load engine state and Apollo config in parallel — neither blocks the
+      // other and the panel reads both. If the Apollo fetch fails, the panel
+      // still renders with a "Discovery — unavailable" badge.
+      const [stateRes] = await Promise.all([
+        outreachFetch('/engine-state'),
+        loadApolloConfig()
+      ]);
+      const data = await stateRes.json();
       outreachState = data;
       renderEngineControlPanel();
     } catch (e) {
@@ -140,6 +320,14 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
            Discovery Disabled
          </span>
          <button class="btn btn-sm" onclick="window.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
+    // Action buttons rendered next to the Apollo discovery badge — Run Now,
+    // Settings, and Pause are only meaningful when discovery is enabled, so
+    // they only appear in that state.
+    const apolloActionsHtml = apolloConfigLoaded && apolloEnabled
+      ? `<button class="btn btn-sm" onclick="window.runApolloNow()" title="Trigger one Apollo discovery cycle now" style="font-size:12px;padding:3px 10px;background:var(--accent-gold,#d4a843);color:#000;border:none;">Run Now</button>
+         <button class="btn btn-sm" onclick="window.showApolloSettings()" title="Edit Apollo discovery settings" style="font-size:12px;padding:3px 10px;"><span class="icon-inline" data-icon="settings"></span> Settings</button>
+         <button class="btn btn-sm" onclick="window.disableApolloDiscovery()" title="Pause scheduled Apollo discovery" style="font-size:12px;padding:3px 10px;">Pause</button>`
+      : '';
     const apolloHealthHtml = apolloConfigLoaded && apolloEnabled
       ? `<span style="font-size:11px;color:${apolloStalled ? '#fbbf24' : 'var(--text-muted)'};margin-left:4px;">
            ${apolloLastSuccess
@@ -176,6 +364,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
         <span style="font-size:12px;color:var(--text-muted);font-weight:500;">Apollo Discovery:</span>
         ${apolloBadgeHtml}
+        ${apolloActionsHtml}
         ${apolloHealthHtml}
         ${apolloConfigLoaded && !apolloEnabled ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">After enabling, also add <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">&#123;&#123;ref_link&#125;&#125;</code> as a variable in your <a href="https://app.instantly.ai/app/campaigns" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue,#2563eb);text-decoration:underline;">Instantly.ai campaign template</a> to track provider signups.</span>` : ''}
       </div>
@@ -1531,6 +1720,12 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   window.runManualCycle = runManualCycle;
   window.showEngineSettings = showEngineSettings;
   window.saveEngineSettings = saveEngineSettings;
+  window.enableApolloDiscovery = enableApolloDiscovery;
+  window.disableApolloDiscovery = disableApolloDiscovery;
+  window.runApolloNow = runApolloNow;
+  window.showApolloSettings = showApolloSettings;
+  window.saveApolloSettings = saveApolloSettings;
+  window.loadApolloConfig = loadApolloConfig;
   window.switchOutreachTab = switchOutreachTab;
   window.draftForLead = draftForLead;
   window.editLead = editLead;
