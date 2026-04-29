@@ -1924,6 +1924,79 @@ async function saveApolloConfig(supabase, updates) {
   }
 }
 
+const APOLLO_LOCK_TTL_MS = 10 * 60 * 1000;
+
+async function tryAcquireApolloLock(supabase, { ttlMs = APOLLO_LOCK_TTL_MS } = {}) {
+  const now = new Date();
+  const nowIso = now.toISOString();
+  const nonce = `${now.getTime()}-${Math.random().toString(36).slice(2, 10)}`;
+
+  try {
+    const { data: row } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const meta = row?.metadata || {};
+    const cfg = meta.apollo_config || {};
+    const existingSince = cfg.running_since ? new Date(cfg.running_since) : null;
+    const existingValid = existingSince && !isNaN(existingSince.getTime());
+    const isStale = existingValid && (now - existingSince) > ttlMs;
+
+    if (existingValid && !isStale) {
+      return {
+        acquired: false,
+        reason: 'already_running',
+        running_since: cfg.running_since,
+        running_nonce: cfg.running_nonce || null
+      };
+    }
+
+    if (isStale) {
+      console.warn(`[Apollo] Clearing stale lock from ${cfg.running_since} (>${Math.round(ttlMs / 60000)}m old)`);
+    }
+
+    const newCfg = { ...cfg, running_since: nowIso, running_nonce: nonce };
+    await supabase.from('engine_state').update({ metadata: { ...meta, apollo_config: newCfg } }).eq('id', 1);
+
+    // Race check: re-read to ensure our nonce won. If a concurrent caller
+    // wrote at the same instant, only one nonce will survive.
+    const { data: verifyRow } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const verifyCfg = verifyRow?.metadata?.apollo_config || {};
+    if (verifyCfg.running_nonce !== nonce) {
+      return {
+        acquired: false,
+        reason: 'race_lost',
+        running_since: verifyCfg.running_since || null,
+        running_nonce: verifyCfg.running_nonce || null
+      };
+    }
+
+    return { acquired: true, nonce, since: nowIso };
+  } catch (err) {
+    console.error('[Apollo] Lock acquisition error:', err.message);
+    return { acquired: false, reason: 'lock_error', error: err.message };
+  }
+}
+
+async function releaseApolloLock(supabase, nonce) {
+  try {
+    const { data: row } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const meta = row?.metadata || {};
+    const cfg = meta.apollo_config || {};
+    // If the lock was reclaimed by someone else (e.g., stale-expired and a
+    // new cycle took over), don't clobber their lock.
+    if (nonce && cfg.running_nonce && cfg.running_nonce !== nonce) {
+      console.warn('[Apollo] Lock nonce mismatch on release — leaving newer lock alone');
+      return false;
+    }
+    const newCfg = { ...cfg };
+    delete newCfg.running_since;
+    delete newCfg.running_nonce;
+    await supabase.from('engine_state').update({ metadata: { ...meta, apollo_config: newCfg } }).eq('id', 1);
+    return true;
+  } catch (err) {
+    console.error('[Apollo] Lock release error:', err.message);
+    return false;
+  }
+}
+
 async function draftWefunderBlastEmail(lead) {
   const firstName = lead.name?.split(' ')[0] || 'there';
   const companyCtx = lead.company ? ` at ${lead.company}` : '';
@@ -2080,6 +2153,29 @@ async function runApolloDiscoveryCycle(supabase) {
   const hoursSinceLast = lastRun ? (now - lastRun) / 3600000 : Infinity;
   if (hoursSinceLast < cfg.interval_hours) {
     return { skipped: true, reason: 'not_due', next_run_in_hours: (cfg.interval_hours - hoursSinceLast).toFixed(1) };
+  }
+
+  // Concurrency guard: prevent the scheduled cycle and an admin-triggered
+  // "Run now" from racing each other (double-spending Apollo credits and
+  // producing duplicate apollo_discovery_cycle rows). Lock auto-expires
+  // after APOLLO_LOCK_TTL_MS so a crashed cycle can't permanently block.
+  const lock = await tryAcquireApolloLock(supabase);
+  if (!lock.acquired) {
+    // Distinguish "another cycle is genuinely running" from "we couldn't even
+    // talk to the lock storage" so operators can tell concurrency from
+    // infrastructure failure in the logs.
+    if (lock.reason === 'lock_error') {
+      console.error(`[Apollo] Lock storage error — skipping cycle: ${lock.error}`);
+    } else {
+      console.log(`[Apollo] Concurrent cycle detected (reason=${lock.reason}, running since ${lock.running_since}) — skipping`);
+    }
+    return {
+      skipped: true,
+      reason: 'already_running',
+      lock_reason: lock.reason || null,
+      running_since: lock.running_since || null,
+      lock_error: lock.error || null
+    };
   }
 
   console.log('[Apollo] Starting automated discovery cycle...');
@@ -2361,6 +2457,12 @@ async function runApolloDiscoveryCycle(supabase) {
       });
     } catch (_) {}
     return { success: false, error: err.message, error_kind: errorKind };
+  } finally {
+    // Always release the concurrency lock, including on early returns from
+    // inline HTTP/network error paths above. If our nonce was overwritten by
+    // a stale-expiry takeover, releaseApolloLock() will leave the newer
+    // lock alone.
+    await releaseApolloLock(supabase, lock.nonce);
   }
 }
 
@@ -2398,6 +2500,9 @@ module.exports = {
   DEFAULT_APOLLO_CONFIG,
   getApolloConfig,
   saveApolloConfig,
+  tryAcquireApolloLock,
+  releaseApolloLock,
+  APOLLO_LOCK_TTL_MS,
   draftWefunderBlastEmail,
   runWefunderBlastForEligible,
   runApolloDiscoveryCycle
