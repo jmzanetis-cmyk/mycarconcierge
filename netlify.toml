@@ -62,6 +62,12 @@
 [functions."social-monitor-scheduled"]
   schedule = "*/15 * * * *"
 
+# Task #161 — Gatekeeper smoke runs once a day off-hours (09:00 UTC ≈ 5am ET).
+# Catches silent breakage of the trigger → bus → orchestrator → handler → DB
+# pipeline within 24h. Failures alert the admin via the existing Resend path.
+[functions."gatekeeper-smoke-scheduled"]
+  schedule = "0 9 * * *"
+
 
 [[headers]]
   for = "/sw.js"

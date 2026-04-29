@@ -12,6 +12,8 @@
 //   POST /test-event                     — { event_type, payload? } emits a synthetic event
 //   POST /run/orchestrator               — fire orchestrator tick now
 //   POST /run/analyst                    — run analyst now
+//   POST /run/gatekeeper-smoke           — run the Gatekeeper smoke now (Task #161)
+//   GET  /smoke-runs?limit=20&agent=gatekeeper — recent smoke run log
 //   GET  /dead-letter?limit=50&offset=0&open=1   — list DLQ entries
 //   POST /dead-letter/:id/replay         — re-emit the event (attempts=0)
 //   GET  /spend-alerts?days=7            — recent spend-cap breach alerts
@@ -1036,6 +1038,45 @@ exports.handler = async function(event) {
       const text = await r.text();
       let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
       return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
+    }
+
+    // -------- manual run: gatekeeper smoke (Task #161)
+    if (route === 'run/gatekeeper-smoke' && method === 'POST') {
+      const baseUrl = siteBaseUrl(event);
+      const r = await fetch(`${baseUrl}/.netlify/functions/gatekeeper-smoke-scheduled`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-admin-password': process.env.ADMIN_PASSWORD || ''
+        },
+        body: JSON.stringify({ source: 'admin' })
+      });
+      const text = await r.text();
+      let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+      return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
+    }
+
+    // -------- gatekeeper smoke run log (Task #161)
+    if (route === 'smoke-runs' && method === 'GET') {
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 20, 1), 100);
+      const slug = (qs.agent || 'gatekeeper').trim();
+      const { data, error } = await supabase
+        .from('agent_smoke_runs')
+        .select('*')
+        .eq('agent_slug', slug)
+        .order('started_at', { ascending: false })
+        .limit(lim);
+      if (error) throw new Error(error.message);
+      const runs = data || [];
+      const lastPass = runs.find(r => r.status === 'passed') || null;
+      const lastFail = runs.find(r => r.status !== 'passed') || null;
+      return jsonResponse(200, {
+        agent_slug: slug,
+        runs,
+        last_pass: lastPass,
+        last_fail: lastFail,
+        latest: runs[0] || null
+      });
     }
 
     // -------- dead-letter queue

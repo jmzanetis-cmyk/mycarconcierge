@@ -441,11 +441,20 @@ async function loadActions() {
       div.className = 'action-row';
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 4).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : String(v).slice(0, 60))}</code>`).join(' ') : '';
+      // Task #161: synthetic events emitted by the Gatekeeper smoke carry
+      // __smoke=true on their payload (and the agent stores the input payload
+      // on decision.payload). Surface them with a Smoke badge so the admin
+      // can dismiss them at a glance without confusing them for real apps.
+      const isSmoke = !!(dec && dec.payload && dec.payload.__smoke);
+      const smokeBadge = isSmoke
+        ? `<span class="badge" title="Synthetic event from the daily Gatekeeper smoke" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+        : '';
       div.innerHTML = `
         <div class="action-head">
           <div>
             <span class="status-dot status-${a.status}"></span>
             <span class="action-agent">${escapeHtml(a.action_type)}</span>
+            ${smokeBadge}
           </div>
           <div class="action-time">${fmtTime(a.created_at)}</div>
         </div>
@@ -581,9 +590,14 @@ async function loadReviewQueue() {
         }
       }
 
+      // Task #161: tag synthetic smoke rows so admins can dismiss them fast.
+      const isSmoke = !!(dec && dec.payload && dec.payload.__smoke);
+      const smokeBadge = isSmoke
+        ? `<span class="badge" title="Synthetic event from the daily Gatekeeper smoke" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+        : '';
       div.innerHTML = `
         <div class="action-head">
-          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
+          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${smokeBadge}${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
           <div class="row">
             ${applyBtn}
             <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Mark approved</button>
