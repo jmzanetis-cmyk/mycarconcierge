@@ -9604,6 +9604,10 @@
       return headers;
     }
 
+    // Task #243 — Facebook Page connection picker lives in admin-outreach.js
+    // (renderFacebookPageCard / initFacebookPageConnection) and is auto-loaded
+    // when the Marketing & Outreach panel becomes visible. Do not add a second
+    // renderer here.
     async function generateMarketingContent() {
       const type = document.getElementById('mkt-content-type').value;
       const platform = document.getElementById('mkt-platform').value;

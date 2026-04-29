@@ -443,23 +443,27 @@
     ]);
   }
 
-  // ── Task #159: BGC reminder-email preferences ─────────────────────────
-  // Each toggle maps 1:1 to a column on provider_notification_prefs. The
-  // four legacy thresholds default to true; the optional 1-day final-nudge
-  // defaults to false. Defaults must mirror the migration so the UI shows
-  // the same state the cron job will act on for providers who never opened
-  // this panel.
+  // ── Task #159 (+ Task #201): BGC reminder preferences ─────────────────
+  // Each row maps 1:1 to a pair of columns on provider_notification_prefs:
+  //   col      — the email toggle (legacy, defaults OFF/ON per Task #159).
+  //   colSms   — the SMS toggle  (added in Task #201, always defaults OFF
+  //              so we never text without an explicit per-threshold flip).
+  // Defaults must mirror the migration so the UI shows the same state
+  // the cron job will act on for providers who never opened this panel.
   const PREF_THRESHOLDS = [
-    { col: 'bgc_reminder_60', days: 60, label: '60 days before expiry', help: 'Early heads-up — useful for shops that schedule renewals weeks in advance.', defaultOn: true },
-    { col: 'bgc_reminder_30', days: 30, label: '30 days before expiry', help: 'Standard renewal window for most providers.', defaultOn: true },
-    { col: 'bgc_reminder_14', days: 14, label: '14 days before expiry', help: 'Time is getting tight — most renewals clear within 1–2 weeks.', defaultOn: true },
-    { col: 'bgc_reminder_7',  days:  7, label: '7 days before expiry',  help: 'Final warning before the check expires and the badge is at risk.', defaultOn: true },
-    { col: 'bgc_reminder_1',  days:  1, label: '1 day before expiry',   help: 'Last-chance nudge the day before — opt in if your team needs the extra prompt.', defaultOn: false }
+    { col: 'bgc_reminder_60', colSms: 'bgc_reminder_60_sms', days: 60, label: '60 days before expiry', help: 'Early heads-up — useful for shops that schedule renewals weeks in advance.', defaultOn: true,  defaultSms: false },
+    { col: 'bgc_reminder_30', colSms: 'bgc_reminder_30_sms', days: 30, label: '30 days before expiry', help: 'Standard renewal window for most providers.',                              defaultOn: true,  defaultSms: false },
+    { col: 'bgc_reminder_14', colSms: 'bgc_reminder_14_sms', days: 14, label: '14 days before expiry', help: 'Time is getting tight — most renewals clear within 1–2 weeks.',          defaultOn: true,  defaultSms: false },
+    { col: 'bgc_reminder_7',  colSms: 'bgc_reminder_7_sms',  days:  7, label: '7 days before expiry',  help: 'Final warning before the check expires and the badge is at risk.',       defaultOn: true,  defaultSms: false },
+    { col: 'bgc_reminder_1',  colSms: 'bgc_reminder_1_sms',  days:  1, label: '1 day before expiry',   help: 'Last-chance nudge the day before — opt in if your team needs the extra prompt.', defaultOn: false, defaultSms: false }
   ];
 
   function _defaultPrefs() {
-    const out = {};
-    for (const t of PREF_THRESHOLDS) out[t.col] = t.defaultOn;
+    const out = { sms_phone: '' };
+    for (const t of PREF_THRESHOLDS) {
+      out[t.col]    = t.defaultOn;
+      out[t.colSms] = t.defaultSms;
+    }
     return out;
   }
 
@@ -468,40 +472,78 @@
     if (!slot) return;
     const sb = getSupabase();
     if (!sb) return;
-    const { data, error } = await sb
-      .from('provider_notification_prefs')
-      .select('bgc_reminder_60,bgc_reminder_30,bgc_reminder_14,bgc_reminder_7,bgc_reminder_1')
-      .eq('provider_id', providerId)
-      .maybeSingle();
+
+    // Pull the prefs row + the provider's existing profile phone in
+    // parallel. The profile phone is used as the placeholder/fallback for
+    // the SMS phone field — providers who never enter an override still
+    // get texted at the number already on file (Task #201).
+    const [{ data, error }, { data: prof }] = await Promise.all([
+      sb.from('provider_notification_prefs')
+        .select('bgc_reminder_60,bgc_reminder_30,bgc_reminder_14,bgc_reminder_7,bgc_reminder_1,'
+              + 'bgc_reminder_60_sms,bgc_reminder_30_sms,bgc_reminder_14_sms,bgc_reminder_7_sms,bgc_reminder_1_sms,'
+              + 'sms_phone')
+        .eq('provider_id', providerId)
+        .maybeSingle(),
+      sb.from('profiles').select('phone').eq('id', providerId).maybeSingle()
+    ]);
 
     const prefs = _defaultPrefs();
     if (!error && data) {
       for (const t of PREF_THRESHOLDS) {
-        if (data[t.col] !== null && data[t.col] !== undefined) prefs[t.col] = !!data[t.col];
+        if (data[t.col]    !== null && data[t.col]    !== undefined) prefs[t.col]    = !!data[t.col];
+        if (data[t.colSms] !== null && data[t.colSms] !== undefined) prefs[t.colSms] = !!data[t.colSms];
       }
+      if (data.sms_phone) prefs.sms_phone = data.sms_phone;
     }
 
+    // Resolve the phone field's initial value: explicit override wins, but
+    // when there isn't one we pre-fill the input with the existing profile
+    // phone so providers don't have to retype it. We also keep the profile
+    // phone in a data-attribute so the save path knows when the user left
+    // the input identical to it (and we can store NULL in that case to
+    // preserve the "always reuse profile phone" behaviour going forward).
+    const profilePhone = (prof && prof.phone) ? String(prof.phone) : '';
+    const phoneValue   = prefs.sms_phone || profilePhone;
+    const anySms       = PREF_THRESHOLDS.some(t => prefs[t.colSms]);
+    const phoneHint    = profilePhone
+      ? 'Defaults to your profile phone (' + escapeHtml(profilePhone) + '). Edit to send texts to a different number.'
+      : 'Add a phone number to receive any SMS reminders. We text the number on this row only.';
+
     const rows = PREF_THRESHOLDS.map(t => {
-      const checked = prefs[t.col] ? 'checked' : '';
+      const checkedEmail = prefs[t.col]    ? 'checked' : '';
+      const checkedSms   = prefs[t.colSms] ? 'checked' : '';
       return '' +
-        '<label style="display:flex;gap:14px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);cursor:pointer;">' +
-          '<input type="checkbox" data-pref-col="' + t.col + '" ' + checked + ' style="margin-top:3px;cursor:pointer;width:18px;height:18px;flex:0 0 auto;" />' +
-          '<span style="flex:1;">' +
-            '<span style="display:block;font-weight:600;color:var(--text-primary);">' + escapeHtml(t.label) + '</span>' +
-            '<span style="display:block;margin-top:2px;font-size:0.85rem;color:var(--text-secondary);">' + escapeHtml(t.help) + '</span>' +
-          '</span>' +
-        '</label>';
+        '<div style="display:flex;gap:14px;align-items:flex-start;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);">' +
+          '<div style="flex:1;">' +
+            '<div style="font-weight:600;color:var(--text-primary);">' + escapeHtml(t.label) + '</div>' +
+            '<div style="margin-top:2px;font-size:0.85rem;color:var(--text-secondary);">' + escapeHtml(t.help) + '</div>' +
+          '</div>' +
+          '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text-secondary);min-width:88px;justify-content:flex-end;" title="Email this reminder">' +
+            '<input type="checkbox" data-pref-col="' + t.col + '" ' + checkedEmail + ' style="cursor:pointer;width:16px;height:16px;flex:0 0 auto;" />' +
+            '<span>Email</span>' +
+          '</label>' +
+          '<label style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:0.82rem;color:var(--text-secondary);min-width:96px;justify-content:flex-end;" title="Also text this reminder">' +
+            '<input type="checkbox" data-pref-col-sms="' + t.colSms + '" ' + checkedSms + ' style="cursor:pointer;width:16px;height:16px;flex:0 0 auto;" />' +
+            '<span>Also text me</span>' +
+          '</label>' +
+        '</div>';
     }).join('');
 
     slot.innerHTML =
       '<div class="card-header" style="margin-bottom:6px;">' +
-        '<h2 class="card-title">Reminder email preferences</h2>' +
+        '<h2 class="card-title">Reminder preferences</h2>' +
       '</div>' +
       '<p style="margin:0 0 14px;color:var(--text-secondary);font-size:0.9rem;">' +
-        'Choose which background-check expiry reminders we email you. ' +
+        'Choose how we nudge you about expiring background checks. ' +
         'In-dashboard alerts and expired-check / badge-removal emails are always sent — they cannot be muted.' +
       '</p>' +
       '<div style="display:grid;gap:10px;">' + rows + '</div>' +
+      '<div style="margin-top:16px;padding:12px 14px;border-radius:10px;background:rgba(255,255,255,0.03);border:1px solid var(--border-subtle);">' +
+        '<label for="bgc-prefs-sms-phone" style="display:block;font-weight:600;color:var(--text-primary);font-size:0.9rem;">SMS phone number</label>' +
+        '<div style="margin-top:2px;font-size:0.82rem;color:var(--text-secondary);">' + phoneHint + '</div>' +
+        '<input type="tel" id="bgc-prefs-sms-phone" data-profile-phone="' + escapeHtml(profilePhone) + '" value="' + escapeHtml(phoneValue) + '" placeholder="(555) 123-4567" autocomplete="tel" style="margin-top:8px;width:100%;max-width:260px;padding:8px 12px;border-radius:8px;border:1px solid var(--border-subtle);background:rgba(255,255,255,0.04);color:var(--text-primary);font-size:0.95rem;" />' +
+        (anySms && !phoneValue ? '<div style="margin-top:8px;font-size:0.82rem;color:#d4a855;">⚠ Texts are turned on but no phone number is on file — add one above so we can reach you.</div>' : '') +
+      '</div>' +
       '<div style="display:flex;align-items:center;gap:12px;margin-top:16px;">' +
         '<button class="btn btn-primary" id="bgc-prefs-save-btn" onclick="window.bgcCompliance.saveNotificationPrefs()">Save preferences</button>' +
         '<span id="bgc-prefs-status" style="font-size:0.85rem;color:var(--text-muted);"></span>' +
@@ -518,9 +560,20 @@
 
     const payload = { provider_id: providerId };
     for (const t of PREF_THRESHOLDS) {
-      const cb = slot.querySelector('input[data-pref-col="' + t.col + '"]');
-      payload[t.col] = !!(cb && cb.checked);
+      const cbEmail = slot.querySelector('input[data-pref-col="' + t.col + '"]');
+      const cbSms   = slot.querySelector('input[data-pref-col-sms="' + t.colSms + '"]');
+      payload[t.col]    = !!(cbEmail && cbEmail.checked);
+      payload[t.colSms] = !!(cbSms   && cbSms.checked);
     }
+
+    // Phone resolution: empty input → store NULL (cron falls back to
+    // profile phone). Same value as profile phone → also NULL so future
+    // profile-phone updates flow through automatically. Anything else is
+    // saved as the explicit override.
+    const phoneEl = document.getElementById('bgc-prefs-sms-phone');
+    const typed   = phoneEl ? String(phoneEl.value || '').trim() : '';
+    const profilePhone = phoneEl ? String(phoneEl.dataset.profilePhone || '').trim() : '';
+    payload.sms_phone = !typed || typed === profilePhone ? null : typed;
 
     const btn = document.getElementById('bgc-prefs-save-btn');
     const status = document.getElementById('bgc-prefs-status');
@@ -529,7 +582,7 @@
 
     // Upsert by provider_id so the very first save creates the row and
     // subsequent saves overwrite it. RLS limits inserts/updates to the
-    // signed-in provider's own row (see migration 20260428i).
+    // signed-in provider's own row (see migrations 20260428i / 20260429g).
     const { error } = await sb
       .from('provider_notification_prefs')
       .upsert(payload, { onConflict: 'provider_id' });

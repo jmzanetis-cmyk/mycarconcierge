@@ -34,3 +34,4 @@
 /api/provider/initiate-background-check /.netlify/functions/initiate-background-check 200
 /api/auth/facebook/data-deletion /.netlify/functions/facebook-data-deletion 200
 /api/auth/facebook/data-deletion/status /.netlify/functions/facebook-data-deletion 200
+/api/admin/facebook/* /.netlify/functions/admin-facebook 200
