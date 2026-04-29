@@ -2596,8 +2596,11 @@
       }
     }
 
+    let filteredPayments = [];
+
     function renderPayments() {
       const filtered = payments.filter(p => p.status === currentFilters.payments || currentFilters.payments === 'all');
+      filteredPayments = filtered;
       const tbody = document.getElementById('payments-table');
 
       // Update stats
@@ -2619,8 +2622,10 @@
           <td>$${(p.amount_total || 0).toFixed(2)}</td>
           <td>$${(p.amount_mcc_fee || 0).toFixed(2)}</td>
           <td><span class="status-badge ${p.status}">${p.status}</span></td>
-          <td>
-            ${p.status === 'held' ? `<button class="btn btn-sm btn-success" onclick="releasePayment('${p.id}')">Release</button>` : '-'}
+          <td style="white-space:nowrap;">
+            ${p.status === 'held' ? `<button class="btn btn-sm btn-success" onclick="releasePayment('${p.id}')">Release</button> ` : ''}
+            <button class="btn btn-sm btn-secondary" onclick="editPayment('${p.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePayment('${p.id}')">Delete</button>
           </td>
         </tr>
       `).join('');
@@ -3474,6 +3479,147 @@
       showToast('Payment released');
       await loadPayments();
       updateDashboard();
+    }
+
+    function editPayment(paymentId) {
+      const p = payments.find(x => x.id === paymentId);
+      if (!p) {
+        showToast('Payment not found', 'error');
+        return;
+      }
+      document.getElementById('edit-payment-id').value = p.id;
+      document.getElementById('edit-payment-status').value = p.status || 'held';
+      document.getElementById('edit-payment-amount-total').value = p.amount_total ?? '';
+      document.getElementById('edit-payment-mcc-fee').value = p.amount_mcc_fee ?? '';
+      document.getElementById('edit-payment-refund-amount').value = p.refund_amount ?? '';
+      document.getElementById('edit-payment-admin-note').value = p.admin_note || '';
+      const modal = document.getElementById('edit-payment-modal');
+      modal.style.display = 'flex';
+      modal.classList.add('active');
+    }
+
+    async function saveEditPayment() {
+      const id = document.getElementById('edit-payment-id').value;
+      if (!id) return;
+
+      const status = document.getElementById('edit-payment-status').value;
+      const amountTotalRaw = document.getElementById('edit-payment-amount-total').value;
+      const mccFeeRaw = document.getElementById('edit-payment-mcc-fee').value;
+      const refundRaw = document.getElementById('edit-payment-refund-amount').value;
+      const note = document.getElementById('edit-payment-admin-note').value.trim();
+
+      const updates = {
+        status,
+        amount_total: amountTotalRaw === '' ? null : Number.parseFloat(amountTotalRaw),
+        amount_mcc_fee: mccFeeRaw === '' ? null : Number.parseFloat(mccFeeRaw),
+        refund_amount: refundRaw === '' ? null : Number.parseFloat(refundRaw),
+        admin_note: note || null
+      };
+
+      for (const k of ['amount_total', 'amount_mcc_fee', 'refund_amount']) {
+        if (updates[k] !== null && (Number.isNaN(updates[k]) || updates[k] < 0)) {
+          showToast(`Invalid value for ${k.replaceAll('_', ' ')}`, 'error');
+          return;
+        }
+      }
+
+      const { error } = await supabaseClient.rpc('admin_edit_payment', {
+        p_id: id,
+        p_status: updates.status,
+        p_amount_total: updates.amount_total,
+        p_amount_mcc_fee: updates.amount_mcc_fee,
+        p_refund_amount: updates.refund_amount,
+        p_admin_note: updates.admin_note
+      });
+      if (error) {
+        showToast('Failed to save: ' + error.message, 'error');
+        return;
+      }
+
+      closeModal('edit-payment-modal');
+      showToast('Payment updated');
+      await loadPayments();
+      updateDashboard();
+    }
+
+    async function deletePayment(paymentId) {
+      const p = payments.find(x => x.id === paymentId);
+      if (!p) {
+        showToast('Payment not found', 'error');
+        return;
+      }
+      if (!confirm(`Permanently delete this payment?\n\nPackage: ${p.maintenance_packages?.title || 'Package'}\nAmount: $${(p.amount_total || 0).toFixed(2)}\n\nThis cannot be undone.`)) return;
+
+      const { data: openDisputes, error: disputeErr } = await supabaseClient
+        .from('disputes')
+        .select('id')
+        .eq('payment_id', paymentId)
+        .eq('status', 'open')
+        .limit(1);
+      if (disputeErr) {
+        showToast('Could not check disputes: ' + disputeErr.message, 'error');
+        return;
+      }
+      if (openDisputes && openDisputes.length > 0) {
+        showToast('Cannot delete: an open dispute references this payment. Resolve the dispute first.', 'error');
+        return;
+      }
+
+      const { error } = await supabaseClient.rpc('admin_delete_payment', { p_id: paymentId });
+      if (error) {
+        showToast('Failed to delete: ' + error.message, 'error');
+        return;
+      }
+
+      // Audit log written atomically by admin_delete_payment RPC.
+
+      showToast('Payment deleted');
+      await loadPayments();
+      updateDashboard();
+    }
+
+    function csvEscapePayments(v) {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+        return `"${s.replaceAll('"', '""')}"`;
+      }
+      return s;
+    }
+
+    function exportPayments() {
+      const rows = filteredPayments;
+      if (!rows || !rows.length) {
+        showToast('No payments to export for the current filter', 'error');
+        return;
+      }
+      const header = ['Date', 'Package', 'Member', 'Provider', 'Amount', 'MCC Fee', 'Refund Amount', 'Status', 'Payment ID'];
+      const lines = [header.join(',')];
+      for (const p of rows) {
+        lines.push([
+          csvEscapePayments(p.created_at || ''),
+          csvEscapePayments(p.maintenance_packages?.title || ''),
+          csvEscapePayments(p.member?.full_name || ''),
+          csvEscapePayments(p.provider?.full_name || ''),
+          csvEscapePayments((p.amount_total ?? 0).toFixed(2)),
+          csvEscapePayments((p.amount_mcc_fee ?? 0).toFixed(2)),
+          csvEscapePayments((p.refund_amount ?? 0).toFixed(2)),
+          csvEscapePayments(p.status || ''),
+          csvEscapePayments(p.id || '')
+        ].join(','));
+      }
+      const csv = lines.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `payments-export-${today}.csv`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${rows.length} payment${rows.length === 1 ? '' : 's'}`);
     }
 
     // ========== NAVIGATION ==========
