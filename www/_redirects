@@ -27,6 +27,7 @@
 /api/provider-application /.netlify/functions/provider-application 200
 /api/provider/apply /.netlify/functions/provider-application 200
 /api/admin/outreach/* /.netlify/functions/outreach-admin/:splat 200
+/api/admin/apollo/* /.netlify/functions/apollo-admin/:splat 200
 /api/outreach/ref /.netlify/functions/outreach-ref 200
 /unsubscribe /.netlify/functions/outreach-unsubscribe 200
 /api/webhooks/resend /.netlify/functions/outreach-resend-webhook 200
