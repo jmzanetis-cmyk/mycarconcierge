@@ -1420,6 +1420,34 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     ));
   }
 
+  // Inline card-level banner replacing browser alert()s. `kind` is
+  // 'error' | 'warn' | 'info'. The banner is prepended to the card body
+  // so it survives connected/disconnected re-renders (which preserve
+  // existing innerHTML) and gets cleared on the next renderFacebookPageCard().
+  function fbFlash(message, kind) {
+    const body = document.getElementById('fb-page-card-body');
+    if (!body) return;
+    fbClearFlash();
+    const palette = {
+      error: { border: 'var(--accent-red,#c0392b)', bg: 'rgba(192,57,43,0.08)' },
+      warn:  { border: 'var(--accent-gold)',         bg: 'rgba(184,148,45,0.08)' },
+      info:  { border: 'var(--accent-blue,#3498db)', bg: 'rgba(52,152,219,0.08)' }
+    };
+    const c = palette[kind] || palette.error;
+    const banner = document.createElement('div');
+    banner.className = 'fb-flash';
+    banner.setAttribute('role', kind === 'error' ? 'alert' : 'status');
+    banner.style.cssText = `padding:10px 14px;border-left:3px solid ${c.border};background:${c.bg};margin-bottom:12px;border-radius:4px;color:var(--text-default);font-size:14px;`;
+    banner.textContent = String(message);
+    body.insertBefore(banner, body.firstChild);
+  }
+
+  function fbClearFlash() {
+    const body = document.getElementById('fb-page-card-body');
+    if (!body) return;
+    body.querySelectorAll('.fb-flash').forEach(el => el.remove());
+  }
+
   function fbCardEl() {
     return document.getElementById('facebook-page-connection-card');
   }
@@ -1471,14 +1499,17 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     `;
     if (flashError) {
       const body = document.getElementById('fb-page-card-body');
-      body.innerHTML = `<div style="padding:12px;border-left:3px solid var(--accent-red,#c0392b);background:rgba(192,57,43,0.08);margin-bottom:12px;border-radius:4px;color:var(--text-default);"><strong>Facebook OAuth error:</strong> ${fbEscape(flashError)}</div>` + body.innerHTML;
+      body.innerHTML = `<div class="fb-flash" role="alert" style="padding:10px 14px;border-left:3px solid var(--accent-red,#c0392b);background:rgba(192,57,43,0.08);margin-bottom:12px;border-radius:4px;color:var(--text-default);font-size:14px;"><strong>Facebook OAuth error:</strong> ${fbEscape(flashError)}</div>` + body.innerHTML;
     }
-    await renderFacebookPageCard();
+    await renderFacebookPageCard({ preserveFlash: true });
   }
 
-  async function renderFacebookPageCard() {
+  async function renderFacebookPageCard(opts) {
     const body = document.getElementById('fb-page-card-body');
     if (!body) return;
+    // Clear stale inline banners from prior actions unless the caller
+    // explicitly asked to keep them (e.g. a fresh OAuth-callback flash).
+    if (!(opts && opts.preserveFlash)) fbClearFlash();
 
     // 1. Schema/connection check
     const conn = await fbApi('GET', '/connection');
@@ -1594,7 +1625,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const res = await fbApi('POST', '/oauth-start');
     if (!res.ok || !res.json.oauth_url) {
       const msg = res.json.error || `Failed to start OAuth (HTTP ${res.status})`;
-      alert('Could not start Facebook OAuth: ' + msg);
+      fbFlash('Could not start Facebook OAuth: ' + msg, 'error');
       if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="link"></span> Connect Facebook Page'; }
       return;
     }
@@ -1604,12 +1635,12 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   async function confirmFacebookPagePick() {
     const sel = document.getElementById('fb-page-select');
     if (!sel || !sel.value) {
-      alert('Please pick a Page.');
+      fbFlash('Please pick a Page from the list above.', 'warn');
       return;
     }
     const res = await fbApi('POST', '/select-page', { page_id: sel.value });
     if (!res.ok) {
-      alert('Failed to save selection: ' + (res.json.error || `HTTP ${res.status}`));
+      fbFlash('Failed to save selection: ' + (res.json.error || `HTTP ${res.status}`), 'error');
       return;
     }
     fbClearPickingParam();
@@ -1625,7 +1656,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     if (!confirm('Disconnect the current Facebook Page? You can reconnect at any time.')) return;
     const res = await fbApi('POST', '/disconnect');
     if (!res.ok) {
-      alert('Failed to disconnect: ' + (res.json.error || `HTTP ${res.status}`));
+      fbFlash('Failed to disconnect: ' + (res.json.error || `HTTP ${res.status}`), 'error');
       return;
     }
     await renderFacebookPageCard();
