@@ -1802,6 +1802,25 @@ exports.handler = async function(event) {
       return jsonResponse(200, { versions: data || [] });
     }
 
+    // Task #176: per-version body fetch for the diff viewer in
+    // /admin/agent-fleet-detail.html. The list endpoint above deliberately
+    // omits `body` to keep the payload small for long Sonnet system prompts;
+    // the diff view loads bodies on-demand via this route.
+    const promptVersionMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt\/(\d+)$/i);
+    if (promptVersionMatch && method === 'GET') {
+      const slug = promptVersionMatch[1];
+      const version = parseInt(promptVersionMatch[2], 10);
+      const { data, error } = await supabase
+        .from('agent_prompt_versions')
+        .select('id, version, body, notes, is_active, created_at, created_by')
+        .eq('agent_slug', slug)
+        .eq('version', version)
+        .maybeSingle();
+      if (error) return jsonResponse(500, { error: error.message });
+      if (!data) return jsonResponse(404, { error: 'Version not found' });
+      return jsonResponse(200, { version: data });
+    }
+
     if (promptGetMatch && method === 'POST') {
       const slug = promptGetMatch[1];
       const body_ = (body.body || '').toString();

@@ -15,6 +15,8 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared-styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+  <!-- Task #176: jsdiff for side-by-side prompt-version diffing in the recent-versions list. -->
+  <script src="https://cdn.jsdelivr.net/npm/diff@5.2.0/dist/diff.min.js" defer></script>
   <style>
     :root {
       --slate-bg: #12161c; --slate-surface: #1a1f28; --slate-surface-2: #242a35;
@@ -95,6 +97,20 @@
     .memory-head { display:flex; justify-content:space-between; gap:10px; font-size:13px; }
     .memory-kind { color:var(--gold); font-weight:600; }
     .memory-key { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
+    /* Task #176 — prompt-version diff viewer */
+    .version-row { cursor:pointer; }
+    .version-row:hover { background:var(--slate-surface-2); }
+    .version-row.selected { background:rgba(201,168,76,0.08); }
+    .diff-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0; border:1px solid var(--slate-border); border-radius:8px; overflow:auto; max-height:520px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; background:var(--slate-surface-2); }
+    .diff-cell { padding:2px 8px 2px 4px; white-space:pre-wrap; word-break:break-word; border-bottom:1px solid rgba(45,52,63,0.4); min-height:18px; line-height:1.45; }
+    .diff-cell.diff-eq { color:var(--text); background:transparent; }
+    .diff-cell.diff-add { color:#bbf7d0; background:rgba(34,197,94,0.14); }
+    .diff-cell.diff-rem { color:#fecaca; background:rgba(239,68,68,0.14); }
+    .diff-cell.diff-pad { background:rgba(148,163,184,0.04); }
+    .diff-marker { color:var(--muted); display:inline-block; width:14px; user-select:none; }
+    .diff-headers { display:grid; grid-template-columns:1fr 1fr; gap:0; font-size:12px; color:var(--muted); border:1px solid var(--slate-border); border-bottom:none; border-top-left-radius:8px; border-top-right-radius:8px; background:var(--slate-surface-2); }
+    .diff-headers > div { padding:6px 10px; }
+    .diff-headers > div + div { border-left:1px solid var(--slate-border); }
   </style>
 </head>
 <body>
@@ -180,8 +196,27 @@
         <button class="btn btn-ghost" id="promptReload">Reload</button>
       </div>
       <div style="margin-top:14px;">
-        <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px; margin-bottom:6px;">Recent versions</div>
+        <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
+          <div style="font-size:12px; color:var(--muted); text-transform:uppercase; letter-spacing:1px;">Recent versions</div>
+          <div class="row" id="diffControls" style="gap:6px; display:none;">
+            <span style="font-size:12px; color:var(--muted);">Compare</span>
+            <select id="diffLeft" class="cell" title="Older version (shown on the left)" style="min-width:90px;"></select>
+            <span style="font-size:12px; color:var(--muted);">→</span>
+            <select id="diffRight" class="cell" title="Newer version (shown on the right)" style="min-width:90px;"></select>
+            <button class="btn btn-ghost" id="diffCompare" style="padding:3px 9px; font-size:12px;">Compare</button>
+          </div>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:6px;" id="diffHint" hidden>
+          Tip: click any row below to diff it against the active version.
+        </div>
         <div id="promptHistory" style="max-height:240px; overflow-y:auto;"><div class="empty">Loading…</div></div>
+        <div id="diffPanel" style="display:none; margin-top:12px;">
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
+            <div id="diffSummary" style="font-size:13px; color:var(--text);"></div>
+            <button class="btn btn-ghost" id="diffClose" style="padding:3px 9px; font-size:12px;">Close diff</button>
+          </div>
+          <div id="diffBody"></div>
+        </div>
       </div>
     </div>
 
@@ -682,18 +717,165 @@ async function loadPrompt() {
   loadPromptHistory();
 }
 
+// Task #176 — prompt-version diff state. Bodies are loaded on-demand and
+// memoized so the same version isn't re-fetched on every diff toggle.
+let lastVersions = [];
+const versionBodyCache = {};
+
+async function fetchVersionBody(version) {
+  if (versionBodyCache[version] != null) return versionBodyCache[version];
+  const { version: row } = await api(`/agents/${encodeURIComponent(agentSlug)}/prompt/${version}`);
+  versionBodyCache[version] = row && typeof row.body === 'string' ? row.body : '';
+  return versionBodyCache[version];
+}
+
+function renderSideBySideDiff(oldText, newText) {
+  if (!window.Diff || typeof Diff.diffLines !== 'function') {
+    return '<div class="empty">Diff library still loading — try again in a moment.</div>';
+  }
+  const parts = Diff.diffLines(oldText || '', newText || '');
+  const rows = [];
+  let i = 0;
+  while (i < parts.length) {
+    const p = parts[i];
+    const lines = (p.value || '').split('\n');
+    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    if (!p.added && !p.removed) {
+      for (const l of lines) rows.push({ left: l, right: l, leftKind: 'eq', rightKind: 'eq' });
+      i++;
+    } else if (p.removed) {
+      const next = parts[i + 1];
+      if (next && next.added) {
+        const aLines = lines;
+        const bLines = (next.value || '').split('\n');
+        if (bLines.length && bLines[bLines.length - 1] === '') bLines.pop();
+        const max = Math.max(aLines.length, bLines.length);
+        for (let k = 0; k < max; k++) {
+          rows.push({
+            left:  k < aLines.length ? aLines[k] : '',
+            right: k < bLines.length ? bLines[k] : '',
+            leftKind:  k < aLines.length ? 'rem' : 'pad',
+            rightKind: k < bLines.length ? 'add' : 'pad'
+          });
+        }
+        i += 2;
+      } else {
+        for (const l of lines) rows.push({ left: l, right: '', leftKind: 'rem', rightKind: 'pad' });
+        i++;
+      }
+    } else { // pure addition (no preceding removal)
+      for (const l of lines) rows.push({ left: '', right: l, leftKind: 'pad', rightKind: 'add' });
+      i++;
+    }
+  }
+  if (!rows.length) return '<div class="empty">Both versions are empty.</div>';
+  const adds = rows.filter(r => r.rightKind === 'add').length;
+  const dels = rows.filter(r => r.leftKind === 'rem').length;
+  let html = '';
+  if (adds === 0 && dels === 0) {
+    html += '<div style="font-size:12px; color:var(--muted); margin-bottom:8px;">No textual differences between these two versions.</div>';
+  } else {
+    html += `<div style="font-size:12px; color:var(--muted); margin-bottom:8px;"><span style="color:#86efac;">+${adds} added</span> · <span style="color:#fca5a5;">−${dels} removed</span></div>`;
+  }
+  html += '<div class="diff-grid">';
+  for (const r of rows) {
+    const leftMarker  = r.leftKind  === 'rem' ? '−' : ' ';
+    const rightMarker = r.rightKind === 'add' ? '+' : ' ';
+    html += `<div class="diff-cell diff-${r.leftKind}"><span class="diff-marker">${leftMarker}</span>${escapeHtml(r.left)}</div>`;
+    html += `<div class="diff-cell diff-${r.rightKind}"><span class="diff-marker">${rightMarker}</span>${escapeHtml(r.right)}</div>`;
+  }
+  html += '</div>';
+  return html;
+}
+
+function versionLabel(v) {
+  if (!v) return '';
+  return `v${v.version}` + (v.is_active ? ' (active)' : '') + (v.notes ? ` — ${v.notes}` : '');
+}
+
+async function showDiff(leftVersion, rightVersion) {
+  const panel = document.getElementById('diffPanel');
+  const body = document.getElementById('diffBody');
+  const summary = document.getElementById('diffSummary');
+  if (leftVersion == null || rightVersion == null) {
+    toast('Pick two versions to compare', true);
+    return;
+  }
+  if (Number(leftVersion) === Number(rightVersion)) {
+    panel.style.display = '';
+    summary.innerHTML = `Comparing <code class="kbd">v${leftVersion}</code> with itself.`;
+    body.innerHTML = '<div class="empty">Same version on both sides — nothing to diff.</div>';
+    return;
+  }
+  panel.style.display = '';
+  summary.innerHTML = `Loading diff: <code class="kbd">v${leftVersion}</code> → <code class="kbd">v${rightVersion}</code>…`;
+  body.innerHTML = '<div class="empty">Loading…</div>';
+  // Highlight the rows being compared.
+  document.querySelectorAll('#promptHistory .version-row').forEach(r => {
+    const ver = r.getAttribute('data-version');
+    if (ver === String(leftVersion) || ver === String(rightVersion)) r.classList.add('selected');
+    else r.classList.remove('selected');
+  });
+  try {
+    const [oldBody, newBody] = await Promise.all([
+      fetchVersionBody(leftVersion),
+      fetchVersionBody(rightVersion)
+    ]);
+    const meta = lastVersions.reduce((acc, v) => { acc[v.version] = v; return acc; }, {});
+    const lMeta = meta[leftVersion]; const rMeta = meta[rightVersion];
+    summary.innerHTML = `<strong>v${leftVersion}</strong> ${lMeta && lMeta.is_active ? '<span class="badge badge-on">active</span>' : ''} → <strong>v${rightVersion}</strong> ${rMeta && rMeta.is_active ? '<span class="badge badge-on">active</span>' : ''}`;
+    body.innerHTML =
+      `<div class="diff-headers"><div>v${leftVersion} · ${escapeHtml(lMeta ? fmtTime(lMeta.created_at) : '')} ${lMeta && lMeta.notes ? '· ' + escapeHtml(lMeta.notes) : ''}</div>` +
+      `<div>v${rightVersion} · ${escapeHtml(rMeta ? fmtTime(rMeta.created_at) : '')} ${rMeta && rMeta.notes ? '· ' + escapeHtml(rMeta.notes) : ''}</div></div>` +
+      renderSideBySideDiff(oldBody, newBody);
+    panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+  } catch (e) {
+    body.innerHTML = `<div class="empty">${escapeHtml(e.message)}</div>`;
+  }
+}
+
+function closeDiff() {
+  document.getElementById('diffPanel').style.display = 'none';
+  document.querySelectorAll('#promptHistory .version-row.selected').forEach(r => r.classList.remove('selected'));
+}
+
 async function loadPromptHistory() {
   const list = document.getElementById('promptHistory');
   try {
     const { versions } = await api(`/agents/${encodeURIComponent(agentSlug)}/prompt-history`);
-    if (!versions.length) {
+    lastVersions = Array.isArray(versions) ? versions : [];
+    closeDiff();
+    if (!lastVersions.length) {
       list.innerHTML = '<div class="empty">No saved versions yet.</div>';
+      document.getElementById('diffControls').style.display = 'none';
+      document.getElementById('diffHint').hidden = true;
       return;
     }
+    // Populate compare-picker dropdowns. Default left = the version
+    // immediately preceding the active version (or the second-most-recent if
+    // active is the latest), default right = active version.
+    const active = lastVersions.find(v => v.is_active) || lastVersions[0];
+    const others = lastVersions.filter(v => v.version !== active.version);
+    const defaultLeft = (others[0] || active).version;
+    const defaultRight = active.version;
+    const optsHtml = lastVersions
+      .map(v => `<option value="${v.version}">v${v.version}${v.is_active ? ' (active)' : ''}</option>`)
+      .join('');
+    const leftSel = document.getElementById('diffLeft');
+    const rightSel = document.getElementById('diffRight');
+    leftSel.innerHTML = optsHtml;
+    rightSel.innerHTML = optsHtml;
+    leftSel.value = String(defaultLeft);
+    rightSel.value = String(defaultRight);
+    document.getElementById('diffControls').style.display = lastVersions.length >= 2 ? '' : 'none';
+    document.getElementById('diffHint').hidden = lastVersions.length < 2;
+
     list.innerHTML = '';
-    for (const v of versions) {
+    for (const v of lastVersions) {
       const div = document.createElement('div');
-      div.className = 'memory-row';
+      div.className = 'memory-row version-row';
+      div.setAttribute('data-version', String(v.version));
+      div.title = 'Click to diff against the currently active version';
       const activeBadge = v.is_active ? '<span class="badge badge-on">active</span>' : '';
       const rollbackBtn = v.is_active ? '' : `<button class="btn btn-ghost" data-activate="${v.version}" style="padding:3px 9px; font-size:12px;">Roll back</button>`;
       div.innerHTML = `
@@ -708,14 +890,41 @@ async function loadPromptHistory() {
       list.appendChild(div);
     }
     list.querySelectorAll('[data-activate]').forEach(btn => {
-      btn.addEventListener('click', async () => {
+      btn.addEventListener('click', async (e) => {
+        e.stopPropagation();
         const version = btn.getAttribute('data-activate');
         if (!confirm(`Roll back to version ${version}? The current active version will be deactivated.`)) return;
         try {
           await api(`/agents/${encodeURIComponent(agentSlug)}/prompt/${version}/activate`, { method: 'POST' });
           toast(`Activated v${version}`);
           loadPrompt();
-        } catch (e) { toast(e.message, true); }
+        } catch (e2) { toast(e2.message, true); }
+      });
+    });
+    // Click a row to diff it against the active version (or, if it IS the
+    // active row, against the version immediately preceding it).
+    list.querySelectorAll('.version-row').forEach(row => {
+      row.addEventListener('click', (e) => {
+        if (e.target.closest('button')) return;
+        const ver = Number(row.getAttribute('data-version'));
+        if (!ver) return;
+        const activeRow = lastVersions.find(v => v.is_active);
+        let left, right;
+        if (activeRow && ver !== activeRow.version) {
+          left = ver;
+          right = activeRow.version;
+        } else {
+          // Clicking the active row (or no active row found) — diff against
+          // the version immediately preceding the clicked one.
+          const prior = lastVersions.find(v => v.version < ver);
+          if (!prior) {
+            toast('No earlier version to compare against.', true);
+            return;
+          }
+          left = prior.version;
+          right = ver;
+        }
+        showDiff(left, right);
       });
     });
   } catch (e) {
@@ -743,6 +952,12 @@ document.getElementById('runAnalyst').addEventListener('click', async () => {
   catch (e) { toast(e.message, true); }
 });
 document.getElementById('promptReload').addEventListener('click', loadPrompt);
+document.getElementById('diffCompare').addEventListener('click', () => {
+  const l = document.getElementById('diffLeft').value;
+  const r = document.getElementById('diffRight').value;
+  showDiff(l, r);
+});
+document.getElementById('diffClose').addEventListener('click', closeDiff);
 document.getElementById('promptSave').addEventListener('click', async () => {
   const body = document.getElementById('promptBody').value;
   if (!body.trim()) { toast('Prompt body cannot be empty', true); return; }
