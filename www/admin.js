@@ -2884,31 +2884,47 @@
       }
     }
 
+    // Provider application approve / reject / request-more-info now flow
+    // through the privileged /api/admin/provider-application endpoint
+    // (netlify/functions/provider-application-review.js). The browser no
+    // longer mutates provider_applications or profiles.role directly — see
+    // Task #179.
     async function approveApplication() {
       if (!currentApplication) return;
       if (!confirm('Approve this provider? They will gain access to the provider portal.')) return;
 
       const adminNotes = document.getElementById('admin-notes').value;
-
-      await supabaseClient.from('provider_applications').update({
-        status: 'approved',
-        admin_notes: adminNotes,
-        reviewed_by: currentUser.id,
-        reviewed_at: new Date().toISOString(),
-        license_verified: document.getElementById('chk-license').checked,
-        insurance_verified: document.getElementById('chk-insurance').checked,
-        certifications_verified: document.getElementById('chk-certs').checked,
-        reviews_checked: document.getElementById('chk-reviews').checked,
-        references_contacted: document.getElementById('chk-refs').checked
-      }).eq('id', currentApplication.id);
-
-      await supabaseClient.from('profiles').update({ role: 'provider' }).eq('id', currentApplication.user_id);
-
-      // Create provider_stats record
-      await supabaseClient.from('provider_stats').insert({ provider_id: currentApplication.user_id });
+      try {
+        const res = await fetch('/api/admin/provider-application/approve', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            application_id: currentApplication.id,
+            admin_notes: adminNotes,
+            reviewed_by: currentUser?.id || null,
+            license_verified:        document.getElementById('chk-license').checked,
+            insurance_verified:      document.getElementById('chk-insurance').checked,
+            certifications_verified: document.getElementById('chk-certs').checked,
+            reviews_checked:         document.getElementById('chk-reviews').checked,
+            references_contacted:    document.getElementById('chk-refs').checked
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(json.error || `Approve failed (${res.status})`, 'error');
+          return;
+        }
+        if (json.provider_stats_error) {
+          showToast(`Approved (provider_stats note: ${json.provider_stats_error})`, 'warning');
+        } else {
+          showToast('Provider approved!');
+        }
+      } catch (e) {
+        showToast(`Approve failed: ${e.message}`, 'error');
+        return;
+      }
 
       closeModal('application-modal');
-      showToast('Provider approved!');
       await loadApplications();
       await loadProviders();
       updateDashboard();
@@ -2919,13 +2935,26 @@
       const reason = prompt('Reason for rejection:');
       if (!reason) return;
 
-      await supabaseClient.from('provider_applications').update({
-        status: 'rejected',
-        rejection_reason: reason,
-        admin_notes: document.getElementById('admin-notes').value,
-        reviewed_by: currentUser.id,
-        reviewed_at: new Date().toISOString()
-      }).eq('id', currentApplication.id);
+      try {
+        const res = await fetch('/api/admin/provider-application/reject', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            application_id: currentApplication.id,
+            reason,
+            admin_notes: document.getElementById('admin-notes').value,
+            reviewed_by: currentUser?.id || null
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(json.error || `Reject failed (${res.status})`, 'error');
+          return;
+        }
+      } catch (e) {
+        showToast(`Reject failed: ${e.message}`, 'error');
+        return;
+      }
 
       closeModal('application-modal');
       showToast('Application rejected');
@@ -2938,10 +2967,26 @@
       const request = prompt('What additional information is needed?');
       if (!request) return;
 
-      await supabaseClient.from('provider_applications').update({
-        status: 'more_info_needed',
-        admin_notes: (document.getElementById('admin-notes').value || '') + '\n\nRequested: ' + request
-      }).eq('id', currentApplication.id);
+      try {
+        const res = await fetch('/api/admin/provider-application/request-info', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            application_id: currentApplication.id,
+            info_requested: request,
+            admin_notes: document.getElementById('admin-notes').value || '',
+            reviewed_by: currentUser?.id || null
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(json.error || `Request failed (${res.status})`, 'error');
+          return;
+        }
+      } catch (e) {
+        showToast(`Request failed: ${e.message}`, 'error');
+        return;
+      }
 
       closeModal('application-modal');
       showToast('Request sent to applicant');

@@ -12,6 +12,9 @@
 --   'check_low_rated'     | queried for low-rated providers (preview only)
 --   'autosuspend_low_rated' | bulk-suspended low-rated providers
 --   'create_provider_application' | server-side provider_application insert
+--   'approve_provider_application' | admin approved a provider application
+--   'reject_provider_application'  | admin rejected a provider application
+--   'request_application_info'     | admin asked the applicant for more info
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (

@@ -23,6 +23,7 @@
 /api/admin/provider-actions/* /.netlify/functions/provider-admin/:splat 200
 /api/admin/provider/suspend /.netlify/functions/provider-admin/suspend 200
 /api/admin/provider/activate /.netlify/functions/provider-admin/activate 200
+/api/admin/provider-application/* /.netlify/functions/provider-application-review/:splat 200
 /api/provider-application /.netlify/functions/provider-application 200
 /api/provider/apply /.netlify/functions/provider-application 200
 /api/admin/outreach/* /.netlify/functions/outreach-admin/:splat 200
