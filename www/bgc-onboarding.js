@@ -3,6 +3,11 @@
 (function (root) {
   'use strict';
 
+  // Per-employee price string. Sourced from bgc-pricing.js (window.MCC_BGC_PRICING)
+  // when loaded; falls back to the current finalized value if the script
+  // tag is missing. Update bgc-pricing.js to change the price everywhere.
+  const PRICE = (root.MCC_BGC_PRICING && root.MCC_BGC_PRICING.display) || '$70';
+
   // English copy (verbatim from PDF spec).
   const COPY_EN = {
     s1: {
@@ -14,7 +19,7 @@
       whatScreenedLabel: 'What\u2019s screened:',
       whatScreened: 'National criminal records \u00B7 County-level records \u00B7 Sex offender registry \u00B7 Identity verification',
       whatItCostsLabel: 'What it costs:',
-      whatItCosts: '$[XX] per employee \u00B7 Results in 1\u20133 business days',
+      whatItCosts: PRICE + ' per employee \u00B7 Results in 1\u20133 business days',
       whatYouNeedLabel: 'What you need:',
       whatYouNeed:
         'Each employee\u2019s full name, date of birth, email, and current address. You\u2019ll ' +
@@ -77,7 +82,7 @@
       whatScreenedLabel: '¿Qué se investiga?',
       whatScreened: 'Antecedentes penales nacionales \u00B7 Antecedentes penales del condado \u00B7 Registro de delincuentes sexuales \u00B7 Verificación de identidad',
       whatItCostsLabel: '¿Cuánto cuesta?',
-      whatItCosts: '$[XX] por empleado \u00B7 Resultados en 1 a 3 días hábiles',
+      whatItCosts: PRICE + ' por empleado \u00B7 Resultados en 1 a 3 días hábiles',
       whatYouNeedLabel: '¿Qué necesitas?',
       whatYouNeed:
         'Nombre completo, fecha de nacimiento, correo electrónico y domicilio ' +

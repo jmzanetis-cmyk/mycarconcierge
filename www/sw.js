@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v106';
+const CACHE_NAME = 'mcc-cache-v107';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -23,6 +23,7 @@ const STATIC_ASSETS = [
   '/chat-widget-base.js',
   '/helpdesk-widget.js',
   '/provider-onboarding.js',
+  '/bgc-pricing.js',
   '/pwa-init.js',
   '/i18n.js',
   '/agreement-form.js',

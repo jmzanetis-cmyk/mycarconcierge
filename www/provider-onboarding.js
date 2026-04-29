@@ -33,6 +33,10 @@ class ProviderOnboarding {
 
   _bgcSteps() {
     const isEs = this._lang() === 'es';
+    // Per-employee price string. Sourced from bgc-pricing.js when loaded;
+    // falls back to the current finalized value otherwise. To change the
+    // price everywhere, update window.MCC_BGC_PRICING.display in bgc-pricing.js.
+    const PRICE = (window.MCC_BGC_PRICING && window.MCC_BGC_PRICING.display) || '$70';
     const SHIELD = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>';
     const TEAM = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
     const DOC = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
@@ -44,7 +48,7 @@ class ProviderOnboarding {
           title: 'Obtén la insignia MCC Verificado',
           icon: SHIELD,
           content: 'La insignia MCC Verificado aparece en tu ficha y en tu perfil de Car Club cuando al menos el 90 % de tus empleados con contacto con clientes tiene una verificación de antecedentes vigente. Las verificaciones son válidas por 12 meses.',
-          detail: 'Qué se investiga: Antecedentes penales nacionales \u00B7 Antecedentes penales del condado \u00B7 Registro de delincuentes sexuales \u00B7 Verificación de identidad. Cuánto cuesta: $[XX] por empleado \u00B7 Resultados en 1 a 3 días hábiles.'
+          detail: 'Qué se investiga: Antecedentes penales nacionales \u00B7 Antecedentes penales del condado \u00B7 Registro de delincuentes sexuales \u00B7 Verificación de identidad. Cuánto cuesta: ' + PRICE + ' por empleado \u00B7 Resultados en 1 a 3 días hábiles.'
         },
         {
           title: 'Agrega a tu equipo',
@@ -74,7 +78,7 @@ class ProviderOnboarding {
         title: 'Get MCC Verified',
         icon: SHIELD,
         content: 'The MCC Verified badge appears on your listing and Car Club profile when at least 90% of your customer-facing employees have a current background check on file. Checks are valid for 12 months.',
-        detail: 'What\u2019s screened: National criminal records \u00B7 County-level records \u00B7 Sex offender registry \u00B7 Identity verification. What it costs: $[XX] per employee \u00B7 Results in 1\u20133 business days.'
+        detail: 'What\u2019s screened: National criminal records \u00B7 County-level records \u00B7 Sex offender registry \u00B7 Identity verification. What it costs: ' + PRICE + ' per employee \u00B7 Results in 1\u20133 business days.'
       },
       {
         title: 'Add your team',
