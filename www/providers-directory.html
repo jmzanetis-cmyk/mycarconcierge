@@ -256,12 +256,12 @@
       </select>
       <label class="verified-toggle" for="filter-verified" title="Show only Verified Providers" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;border:1px solid var(--border-subtle);background:var(--bg-elevated);cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
         <input type="checkbox" id="filter-verified" onchange="loadProviders(1)" style="accent-color:#4CAF50;cursor:pointer;">
-        <!-- TODO ES -->
-        <span>Show only Verified Providers</span>
+        <!-- Filled in from window.MCC_BGC.getFilterLabel() (bilingual EN / ES). -->
+        <span id="filter-verified-label">Show only Verified Providers</span>
       </label>
     </div>
-    <p class="filter-help" style="text-align:center;color:var(--text-muted);font-size:0.82rem;margin:-8px 0 18px;max-width:640px;margin-left:auto;margin-right:auto;">
-      <!-- TODO ES -->
+    <p class="filter-help" id="filter-verified-help" style="text-align:center;color:var(--text-muted);font-size:0.82rem;margin:-8px 0 18px;max-width:640px;margin-left:auto;margin-right:auto;">
+      <!-- Filled in from window.MCC_BGC.getFilterDescription() (bilingual EN / ES). -->
       Verified Providers maintain current background checks on their employees, renewed every year.
     </p>
 
@@ -494,6 +494,24 @@
       }
       const _qcity = _qs.get('city'); if (_qcity) document.getElementById('filter-city').value = _qcity;
       const _qcat  = _qs.get('category'); if (_qcat) document.getElementById('filter-category').value = _qcat;
+    } catch (e) {}
+
+    // Localize the Verified filter copy from MCC_BGC (bilingual EN / ES).
+    try {
+      if (window.MCC_BGC) {
+        const _lbl = document.getElementById('filter-verified-label');
+        const _hlp = document.getElementById('filter-verified-help');
+        const _wrap = document.querySelector('label.verified-toggle');
+        if (_lbl && typeof window.MCC_BGC.getFilterLabel === 'function') {
+          _lbl.textContent = window.MCC_BGC.getFilterLabel();
+        }
+        if (_hlp && typeof window.MCC_BGC.getFilterDescription === 'function') {
+          _hlp.textContent = window.MCC_BGC.getFilterDescription();
+        }
+        if (_wrap && _lbl) {
+          _wrap.setAttribute('title', _lbl.textContent);
+        }
+      }
     } catch (e) {}
 
     loadProviders(1);

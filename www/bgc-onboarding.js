@@ -1,10 +1,10 @@
 // MCC Verified educational modal. Read-only — employee adds + check
-// initiation live in bgc-compliance.js. <!-- TODO ES -->
+// initiation live in bgc-compliance.js. Bilingual (EN / ES).
 (function (root) {
   'use strict';
 
-  const COPY = {
-    // <!-- TODO ES -->
+  // English copy (verbatim from PDF spec).
+  const COPY_EN = {
     s1: {
       title: 'Get MCC Verified',
       body:
@@ -21,7 +21,6 @@
         'also need their consent (we provide the form).',
       cta: 'Continue \u2192'
     },
-    // <!-- TODO ES -->
     s2: {
       title: 'Add your team',
       body:
@@ -32,7 +31,6 @@
         'full name, date of birth, email, and current address.',
       cta: 'Continue \u2192'
     },
-    // <!-- TODO ES -->
     s3: {
       title: 'Employee consent',
       body:
@@ -43,13 +41,8 @@
         'checks on behalf of the listed employees.',
       cta: 'Continue \u2192'
     },
-    // <!-- TODO ES -->
     s4: {
       title: 'You\u2019re on your way to Verified',
-      // body(n) returns count-aware confirmation copy. Pass the number of
-      // checks just initiated; pass 0 (or omit) for the count-agnostic
-      // version used by the post-signup tour modal where no employees
-      // have been added yet.
       body: function (n) {
         n = (n | 0);
         if (n > 0) {
@@ -68,8 +61,97 @@
         'You\u2019ll get an email when your badge is active'
       ],
       cta: 'Go to Dashboard \u2192'
-    }
+    },
+    back: '\u2190 Back'
   };
+
+  // Spanish copy (human translation; do not machine-translate).
+  const COPY_ES = {
+    s1: {
+      title: 'Obtén la insignia MCC Verificado',
+      body:
+        'La insignia MCC Verificado aparece en tu ficha y en tu perfil de Car ' +
+        'Club cuando al menos el 90 % de tus empleados con contacto con clientes ' +
+        'tiene una verificación de antecedentes vigente. Las verificaciones son ' +
+        'válidas durante 12 meses.',
+      whatScreenedLabel: '¿Qué se investiga?',
+      whatScreened: 'Antecedentes penales nacionales \u00B7 Antecedentes penales del condado \u00B7 Registro de delincuentes sexuales \u00B7 Verificación de identidad',
+      whatItCostsLabel: '¿Cuánto cuesta?',
+      whatItCosts: '$[XX] por empleado \u00B7 Resultados en 1 a 3 días hábiles',
+      whatYouNeedLabel: '¿Qué necesitas?',
+      whatYouNeed:
+        'Nombre completo, fecha de nacimiento, correo electrónico y domicilio ' +
+        'actual de cada empleado. También necesitarás su consentimiento (nosotros ' +
+        'te proporcionamos el formulario).',
+      cta: 'Continuar \u2192'
+    },
+    s2: {
+      title: 'Agrega a tu equipo',
+      body:
+        'Agrega a cada empleado con contacto con clientes que vaya a trabajar ' +
+        'directamente con clientes de MCC. El personal administrativo que no ' +
+        'interactúa con clientes puede excluirse.',
+      helper:
+        'Agregarás a los empleados desde tu panel de proveedor. Recopilaremos el ' +
+        'nombre completo, fecha de nacimiento, correo electrónico y domicilio ' +
+        'actual de cada persona.',
+      cta: 'Continuar \u2192'
+    },
+    s3: {
+      title: 'Consentimiento del empleado',
+      body:
+        'Las verificaciones de antecedentes requieren el consentimiento por escrito ' +
+        'de cada empleado conforme a la Ley de Informes Crediticios Justos (FCRA). ' +
+        'Enviaremos a cada empleado un formulario de consentimiento seguro por correo electrónico.',
+      authorize:
+        'Al continuar, confirmas que tienes autorización para enviar ' +
+        'verificaciones de antecedentes en nombre de los empleados listados.',
+      cta: 'Continuar \u2192'
+    },
+    s4: {
+      title: 'Estás en camino a obtener tu Verificación',
+      body: function (n) {
+        n = (n | 0);
+        if (n > 0) {
+          return 'Se iniciaron verificaciones de antecedentes para ' + n +
+            (n === 1 ? ' empleado.' : ' empleados.') +
+            ' La mayoría de los resultados llegan en 1 a 3 días hábiles.';
+        }
+        return 'Agrega a tu equipo desde el panel de proveedor para iniciar sus ' +
+          'verificaciones de antecedentes. La mayoría de los resultados llegan en ' +
+          '1 a 3 días hábiles.';
+      },
+      whatNextLabel: 'Qué sigue:',
+      bullets: [
+        'Cada empleado recibirá un formulario de consentimiento por correo electrónico',
+        'Una vez confirmado el consentimiento y completada la verificación, los resultados se actualizan automáticamente',
+        'Cuando el 90 % de tu equipo esté autorizado, tu insignia Verificado se activará',
+        'Recibirás un correo electrónico cuando tu insignia esté activa'
+      ],
+      cta: 'Ir al panel \u2192'
+    },
+    back: '\u2190 Atrás'
+  };
+
+  function _lang() {
+    try {
+      if (root.I18n && typeof root.I18n.getCurrentLanguage === 'function') {
+        return root.I18n.getCurrentLanguage();
+      }
+      if (typeof root.localStorage !== 'undefined') {
+        const stored = root.localStorage.getItem('mcc_language');
+        if (stored) return stored;
+      }
+      if (typeof document !== 'undefined' && document.documentElement.lang) {
+        return document.documentElement.lang;
+      }
+    } catch (e) { /* ignore */ }
+    return 'en';
+  }
+
+  function _copy() {
+    return _lang() === 'es' ? COPY_ES : COPY_EN;
+  }
 
   let state = { open: false, step: 1 };
 
@@ -116,7 +198,7 @@
   }
 
   function _step1Body() {
-    const c = COPY.s1;
+    const c = _copy().s1;
     return (
       '<div class="mcc-bgc-body">' +
         '<h2>' + escapeHtml(c.title) + '</h2>' +
@@ -132,7 +214,7 @@
   }
 
   function _step2Body() {
-    const c = COPY.s2;
+    const c = _copy().s2;
     return (
       '<div class="mcc-bgc-body">' +
         '<h2>' + escapeHtml(c.title) + '</h2>' +
@@ -143,7 +225,7 @@
   }
 
   function _step3Body() {
-    const c = COPY.s3;
+    const c = _copy().s3;
     return (
       '<div class="mcc-bgc-body">' +
         '<h2>' + escapeHtml(c.title) + '</h2>' +
@@ -154,7 +236,7 @@
   }
 
   function _step4Body() {
-    const c = COPY.s4;
+    const c = _copy().s4;
     let bullets = '';
     c.bullets.forEach(b => { bullets += '<li>' + escapeHtml(b) + '</li>'; });
     return (
@@ -169,14 +251,15 @@
   }
 
   function _actions() {
+    const C = _copy();
     const back = state.step > 1
-      ? '<button type="button" class="mcc-bgc-btn mcc-bgc-btn-secondary" id="mcc-bgc-back">\u2190 Back</button>'
+      ? '<button type="button" class="mcc-bgc-btn mcc-bgc-btn-secondary" id="mcc-bgc-back">' + escapeHtml(C.back) + '</button>'
       : '<span></span>';
     let nextLabel;
-    if (state.step === 1) nextLabel = COPY.s1.cta;
-    else if (state.step === 2) nextLabel = COPY.s2.cta;
-    else if (state.step === 3) nextLabel = COPY.s3.cta;
-    else nextLabel = COPY.s4.cta;
+    if (state.step === 1) nextLabel = C.s1.cta;
+    else if (state.step === 2) nextLabel = C.s2.cta;
+    else if (state.step === 3) nextLabel = C.s3.cta;
+    else nextLabel = C.s4.cta;
     return (
       '<div class="mcc-bgc-actions">' +
         back +
@@ -246,5 +329,13 @@
     state.open = false;
   }
 
-  root.MCC_BGC_Onboarding = { open: open, close: close, COPY: COPY };
+  // `COPY` is exposed as a getter so external callers (e.g. the inline
+  // signup-flow code in www/onboarding-provider.html) read the strings in
+  // the currently active language.
+  const api = { open: open, close: close };
+  Object.defineProperty(api, 'COPY', {
+    enumerable: true,
+    get: function () { return _copy(); }
+  });
+  root.MCC_BGC_Onboarding = api;
 })(typeof window !== 'undefined' ? window : this);

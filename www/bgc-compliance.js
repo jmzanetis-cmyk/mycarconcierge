@@ -48,87 +48,129 @@
 
   // ──────────────────────────────────────────────────────────────────────
   // 4-state Compliance Card copy (Section 3,
-  // "Provider Dashboard — Compliance Card"). Do not paraphrase.
+  // "Provider Dashboard — Compliance Card"). Bilingual (EN / ES).
   //   Active     : pct >= 90 && badge verified
   //   At Risk    : pct in 80..89 (badge not yet revoked or about to drop)
   //   Inactive   : pct < 80 (badge removed)
   //   Not enrolled: total === 0
-  // <!-- TODO ES -->
   // ──────────────────────────────────────────────────────────────────────
-  function _stateCopy(pct, total, badge) {
-    // <!-- TODO ES -->
-    if (total === 0) {
-      return {
-        key: 'not_enrolled',
-        title: 'Get MCC Verified',
-        body:  'Stand out from the competition. Background-checked providers get up to 3x more bid responses from customers.',
-        cta:   'Start the verification process →',
-        ctaAction: 'enroll',
-        pillText: 'Not enrolled',
-        pillBg:  'rgba(255,255,255,0.05)',
-        pillFg:  'var(--text-muted)'
-      };
-    }
-    // <!-- TODO ES -->
-    if (badge && pct >= 90) {
-      return {
-        key: 'active',
-        title: 'MCC Verified — Active ✓',
-        body:  'Your team is ' + pct.toFixed(0) + '% compliant. Your Verified badge is live and visible to customers.',
-        cta:   'View compliance details →',
-        ctaAction: 'details',
-        pillText: '✓ MCC Verified',
-        pillBg:  'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))',
-        pillFg:  '#2eb88a'
-      };
-    }
-    // <!-- TODO ES -->
-    if (pct >= 90 && !badge) {
-      return {
-        key: 'activating',
-        title: 'MCC Verified — Activating',
-        body:  'Your team is ' + pct.toFixed(0) + '% compliant. Your Verified badge will go live shortly.',
-        cta:   'View compliance details →',
-        ctaAction: 'details',
-        pillText: 'Activating',
-        pillBg:  'rgba(212, 168, 85, 0.15)',
-        pillFg:  '#d4a855'
-      };
-    }
-    // <!-- TODO ES -->
-    if (pct >= 80 && pct < 90) {
-      return {
-        key: 'at_risk',
-        title: 'MCC Verified — At Risk',
-        // The PDF copy includes "[Y] employee(s) need attention." — we leave
-        // [Y] resolved as the count of non-current employees so the line is
-        // grammatical without paraphrasing the surrounding sentence.
-        body:  'Your compliance is at ' + pct.toFixed(0) + '%. You need 90% to keep your Verified badge.',
-        cta:   'View details →',
-        ctaAction: 'details',
-        pillText: '⚠ At Risk',
-        pillBg:  'rgba(212, 168, 85, 0.15)',
-        pillFg:  '#d4a855'
-      };
-    }
-    // pct < 80 — badge removed
-    // <!-- TODO ES -->
-    return {
-      key: 'inactive',
+  function _clearedLine(compliant, total) {
+    return _stateLang() === 'es'
+      ? compliant + ' de ' + total + ' empleados aprobados'
+      : compliant + ' of ' + total + ' employees cleared';
+  }
+
+  function _stateLang() {
+    try {
+      if (window.I18n && typeof window.I18n.getCurrentLanguage === 'function') {
+        return window.I18n.getCurrentLanguage();
+      }
+      const stored = window.localStorage && window.localStorage.getItem('mcc_language');
+      if (stored) return stored;
+      if (document.documentElement.lang) return document.documentElement.lang;
+    } catch (e) { /* ignore */ }
+    return 'en';
+  }
+
+  const STATE_COPY_EN = {
+    not_enrolled: {
+      title: 'Get MCC Verified',
+      body:  'Stand out from the competition. Background-checked providers get up to 3x more bid responses from customers.',
+      cta:   'Start the verification process →',
+      pillText: 'Not enrolled'
+    },
+    active: {
+      title: 'MCC Verified — Active ✓',
+      body:  function (pct) { return 'Your team is ' + pct.toFixed(0) + '% compliant. Your Verified badge is live and visible to customers.'; },
+      cta:   'View compliance details →',
+      pillText: '✓ MCC Verified'
+    },
+    activating: {
+      title: 'MCC Verified — Activating',
+      body:  function (pct) { return 'Your team is ' + pct.toFixed(0) + '% compliant. Your Verified badge will go live shortly.'; },
+      cta:   'View compliance details →',
+      pillText: 'Activating'
+    },
+    at_risk: {
+      title: 'MCC Verified — At Risk',
+      body:  function (pct) { return 'Your compliance is at ' + pct.toFixed(0) + '%. You need 90% to keep your Verified badge.'; },
+      cta:   'View details →',
+      pillText: '⚠ At Risk'
+    },
+    inactive: {
       title: 'MCC Verified — Inactive ✗',
-      body:  'Your compliance has dropped to ' + pct.toFixed(0) + '%. Your Verified badge has been removed from your listing. Renew expired checks to restore it.',
+      body:  function (pct) { return 'Your compliance has dropped to ' + pct.toFixed(0) + '%. Your Verified badge has been removed from your listing. Renew expired checks to restore it.'; },
       cta:   'Renew now →',
-      ctaAction: 'details',
-      pillText: '✗ Inactive',
-      pillBg:  'rgba(220, 80, 80, 0.15)',
-      pillFg:  '#dc5050'
+      pillText: '✗ Inactive'
+    }
+  };
+
+  const STATE_COPY_ES = {
+    not_enrolled: {
+      title: 'Obtén la insignia MCC Verificado',
+      body:  'Destácate frente a la competencia. Los proveedores con verificación de antecedentes reciben hasta 3 veces más respuestas a sus ofertas.',
+      cta:   'Iniciar el proceso de verificación →',
+      pillText: 'No inscrito'
+    },
+    active: {
+      title: 'MCC Verificado — Activo ✓',
+      body:  function (pct) { return 'Tu equipo cumple al ' + pct.toFixed(0) + ' %. Tu insignia Verificado está activa y visible para los clientes.'; },
+      cta:   'Ver detalles de cumplimiento →',
+      pillText: '✓ MCC Verificado'
+    },
+    activating: {
+      title: 'MCC Verificado — Activando',
+      body:  function (pct) { return 'Tu equipo cumple al ' + pct.toFixed(0) + ' %. Tu insignia Verificado se activará en breve.'; },
+      cta:   'Ver detalles de cumplimiento →',
+      pillText: 'Activando'
+    },
+    at_risk: {
+      title: 'MCC Verificado — En riesgo',
+      body:  function (pct) { return 'Tu cumplimiento está al ' + pct.toFixed(0) + ' %. Necesitas 90 % para mantener tu insignia Verificado.'; },
+      cta:   'Ver detalles →',
+      pillText: '⚠ En riesgo'
+    },
+    inactive: {
+      title: 'MCC Verificado — Inactivo ✗',
+      body:  function (pct) { return 'Tu cumplimiento bajó al ' + pct.toFixed(0) + ' %. Tu insignia Verificado ha sido retirada de tu ficha. Renueva las verificaciones vencidas para restablecerla.'; },
+      cta:   'Renovar ahora →',
+      pillText: '✗ Inactivo'
+    }
+  };
+
+  function _stateCopy(pct, total, badge) {
+    const dict = _stateLang() === 'es' ? STATE_COPY_ES : STATE_COPY_EN;
+    let key;
+    if (total === 0) key = 'not_enrolled';
+    else if (badge && pct >= 90) key = 'active';
+    else if (pct >= 90 && !badge) key = 'activating';
+    else if (pct >= 80 && pct < 90) key = 'at_risk';
+    else key = 'inactive'; // pct < 80 — badge removed
+
+    const c = dict[key];
+    const palette = {
+      not_enrolled: { bg: 'rgba(255,255,255,0.05)', fg: 'var(--text-muted)' },
+      active:       { bg: 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))', fg: '#2eb88a' },
+      activating:   { bg: 'rgba(212, 168, 85, 0.15)', fg: '#d4a855' },
+      at_risk:      { bg: 'rgba(212, 168, 85, 0.15)', fg: '#d4a855' },
+      inactive:     { bg: 'rgba(220, 80, 80, 0.15)', fg: '#dc5050' }
+    }[key];
+
+    return {
+      key:        key,
+      title:      c.title,
+      body:       (typeof c.body === 'function') ? c.body(pct) : c.body,
+      cta:        c.cta,
+      ctaAction:  key === 'not_enrolled' ? 'enroll' : 'details',
+      pillText:   c.pillText,
+      pillBg:     palette.bg,
+      pillFg:     palette.fg
     };
   }
 
   function _renderStateCard(state, pct, compliant, total) {
     const card = document.getElementById('bgc-state-card');
     if (!card) return;
-    // <!-- TODO ES -->
     card.innerHTML =
       '<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px;justify-content:space-between;">' +
         '<div style="flex:1;min-width:260px;">' +
@@ -142,7 +184,7 @@
         '</div>' +
         '<div style="text-align:right;min-width:140px;">' +
           '<div style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);">' + pct.toFixed(0) + '%</div>' +
-          '<div style="color:var(--text-secondary);font-size:0.88rem;">' + compliant + ' of ' + total + ' employees cleared</div>' +
+          '<div style="color:var(--text-secondary);font-size:0.88rem;">' + escapeHtml(_clearedLine(compliant, total)) + '</div>' +
         '</div>' +
       '</div>' +
       '<div style="margin-top:18px;height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;">' +
@@ -172,28 +214,29 @@
     const pillEl   = document.getElementById('bgc-badge-pill');
 
     if (pctEl)    pctEl.textContent    = pct.toFixed(0) + '%';
-    if (countsEl) countsEl.textContent = compliant + ' of ' + total + ' employees cleared';
+    if (countsEl) countsEl.textContent = _clearedLine(compliant, total);
     if (barEl)    barEl.style.width    = Math.max(0, Math.min(100, pct)) + '%';
 
     if (stateEl) {
+      const isEs = _stateLang() === 'es';
       if (badge) {
-        stateEl.textContent      = '✓ MCC Verified';
+        stateEl.textContent      = isEs ? '✓ MCC Verificado' : '✓ MCC Verified';
         stateEl.style.background = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
         stateEl.style.color      = '#2eb88a';
       } else if (total === 0) {
-        stateEl.textContent      = 'Not enrolled';
+        stateEl.textContent      = isEs ? 'No inscrito' : 'Not enrolled';
         stateEl.style.background = 'rgba(255,255,255,0.05)';
         stateEl.style.color      = 'var(--text-muted)';
       } else if (pct < 80) {
-        stateEl.textContent      = '✗ Inactive';
+        stateEl.textContent      = isEs ? '✗ Inactivo' : '✗ Inactive';
         stateEl.style.background = 'rgba(220, 80, 80, 0.15)';
         stateEl.style.color      = '#dc5050';
       } else if (pct < 90) {
-        stateEl.textContent      = '⚠ At Risk';
+        stateEl.textContent      = isEs ? '⚠ En riesgo' : '⚠ At Risk';
         stateEl.style.background = 'rgba(212, 168, 85, 0.15)';
         stateEl.style.color      = '#d4a855';
       } else {
-        stateEl.textContent      = 'Below 90% — not yet verified';
+        stateEl.textContent      = isEs ? 'Menos del 90 % — aún no verificado' : 'Below 90% — not yet verified';
         stateEl.style.background = 'rgba(255,255,255,0.05)';
         stateEl.style.color      = 'var(--text-muted)';
       }
@@ -237,8 +280,9 @@
   function _renderAlertsHtml(alerts) {
     return alerts.map(a => {
       const palette = SEV[a.severity] || SEV.info;
+      const renewLabel = _stateLang() === 'es' ? 'Renovar ahora →' : 'Renew now →';
       const cta = a.action_url
-        ? '<a href="' + escapeHtml(a.action_url) + '" style="display:inline-block;margin-top:8px;padding:8px 14px;border-radius:8px;background:' + palette.border + ';color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;">Renew now →</a>'
+        ? '<a href="' + escapeHtml(a.action_url) + '" style="display:inline-block;margin-top:8px;padding:8px 14px;border-radius:8px;background:' + palette.border + ';color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;">' + escapeHtml(renewLabel) + '</a>'
         : '';
       return '<div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;margin-bottom:10px;border-radius:10px;background:' + palette.bg + ';border-left:4px solid ' + palette.border + ';">' +
         '<div style="flex:1;">' +

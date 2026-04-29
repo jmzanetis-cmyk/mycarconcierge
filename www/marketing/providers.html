@@ -765,9 +765,11 @@
     </section>
 
     <!-- MCC Verified provider-marketing section.
-         (Section 4 — "For Providers (Homepage or Dedicated Landing Page)"). -->
-    <!-- TODO ES -->
-    <section class="section" id="mcc-verified">
+         (Section 4 — "For Providers (Homepage or Dedicated Landing Page)").
+         Bilingual EN / ES; the script at the bottom of this page uses
+         localStorage `mcc_language` to swap which [data-mcc-lang] block is
+         shown. -->
+    <section class="section" id="mcc-verified" data-mcc-lang="en">
       <div class="container">
         <div class="section-header">
           <span class="section-label">MCC Verified</span>
@@ -805,11 +807,50 @@
         </div>
       </div>
     </section>
+    <section class="section" id="mcc-verified-es" data-mcc-lang="es" hidden>
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">MCC Verificado</span>
+          <h2>Los proveedores verificados consiguen más trabajos</h2>
+        </div>
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+          La insignia MCC Verificado le indica a los clientes que tu equipo cuenta con verificación de antecedentes y es de confianza. Es la forma más rápida de generar credibilidad en la plataforma &mdash; y los proveedores verificados obtienen más ofertas aceptadas y más clientes recurrentes.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
+          <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Verificación integral</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Antecedentes penales a nivel nacional, registro de delincuentes sexuales y verificación de identidad &mdash; gestionados por nuestro socio acreditado.
+            </p>
+          </div>
+          <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Siempre vigente</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Las renovaciones anuales mantienen tu insignia al día. Te enviamos recordatorios 60, 30, 14 y 7 días antes del vencimiento &mdash; nunca te tomarán por sorpresa.
+            </p>
+          </div>
+          <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Tu panel de proveedor muestra exactamente dónde estás parado: quién está verificado, quién va a vencer y qué hacer a continuación.
+            </p>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <a href="/signup-provider.html" class="btn btn-primary">Inicia tu Verificación &rarr;</a>
+          <a href="/providers.html#compliance" class="btn btn-secondary">Administra tu Equipo &rarr;</a>
+        </div>
+      </div>
+    </section>
 
     <!-- "Earn the badge customers trust" provider-signup section.
-         Verbatim PDF copy (Section 3 — Provider Signup / Marketing Page). -->
-    <!-- TODO ES -->
-    <section class="section" id="mcc-verified-pitch" style="background:rgba(0,0,0,0.04);">
+         Verbatim PDF copy (Section 3 — Provider Signup / Marketing Page).
+         Bilingual EN / ES via [data-mcc-lang]. The literal `$[XX]` is
+         intentional and must remain unchanged until pricing is finalized. -->
+    <section class="section" id="mcc-verified-pitch" data-mcc-lang="en" style="background:rgba(0,0,0,0.04);">
       <div class="container">
         <div class="section-header">
           <span class="section-label">Earn the Badge</span>
@@ -847,6 +888,44 @@
         <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Placeholder stat &mdash; replace with actual survey/data when available</p>
       </div>
     </section>
+    <section class="section" id="mcc-verified-pitch-es" data-mcc-lang="es" hidden style="background:rgba(0,0,0,0.04);">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">Obtén la insignia</span>
+          <h2>Obtén la insignia en la que los clientes confían</h2>
+        </div>
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+          Los proveedores MCC Verificados tienen más visibilidad, más ofertas y más clientes recurrentes. Las verificaciones de antecedentes son rápidas, accesibles y se gestionan directamente desde tu panel.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Destácate en las búsquedas</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Los proveedores verificados se destacan en los resultados de búsqueda y se recomiendan primero a los clientes de tu zona.
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Genera confianza al instante</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              El 78 % de los propietarios de vehículos dice que es más probable que elija a un proveedor con verificación de antecedentes.*
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Agrega a tu equipo, inicia las verificaciones con un clic y nosotros nos encargamos del resto &mdash; incluyendo los recordatorios de renovación para que nunca pierdas tu insignia.
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Accesible</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Las verificaciones de antecedentes empiezan en $[XX] por empleado al año. Una pequeña inversión que se paga sola con tu primera reserva adicional.
+            </p>
+          </div>
+        </div>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Estadística provisional &mdash; se reemplazará con datos de encuesta reales cuando estén disponibles</p>
+      </div>
+    </section>
 
     <section class="cta-section">
       <div class="container">
@@ -879,6 +958,17 @@
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Bilingual visibility for [data-mcc-lang] blocks (page does not use i18n.js).
+    (function applyMccLang() {
+      try {
+        var lang = (localStorage.getItem('mcc_language') || 'en').toLowerCase();
+        if (lang !== 'es') lang = 'en';
+        document.querySelectorAll('[data-mcc-lang]').forEach(function (el) {
+          el.hidden = (el.getAttribute('data-mcc-lang') !== lang);
+        });
+      } catch (_) { /* localStorage unavailable */ }
+    })();
   </script>
 </body>
 </html>

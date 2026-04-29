@@ -1,11 +1,11 @@
 // MCC Verified badge renderer. Variants: 'full' (✓ Background Verified +
 // employee count line) and 'compact' (✓ Verified). Returns empty string
-// when the provider is not verified. <!-- TODO ES -->
+// when the provider is not verified. Bilingual (EN / ES).
 (function (root) {
   'use strict';
 
-  // <!-- TODO ES -->
-  const COPY = {
+  // ── English copy (verbatim from PDF spec) ─────────────────────────────
+  const COPY_EN = {
     fullLabel: '\u2713 Background Verified',
     compactLabel: '\u2713 Verified',
     pendingLabel: '\u23F3 Check Pending',
@@ -45,8 +45,94 @@
       'is not a guarantee, warranty, or endorsement of any provider\u2019s ' +
       'character, qualifications, or future conduct. My Car Concierge is not ' +
       'liable for the acts or omissions of any service provider. Consumers ' +
-      'should exercise their own judgment when selecting service providers.'
+      'should exercise their own judgment when selecting service providers.',
+    closeBtn: 'Close',
+    employeesScreenedSuffix: ' employees screened \u00B7 Renewed annually',
+    employeesScreenedJoiner: ' of ',
+    carClubVerifiedTitle: 'MCC Verified Provider',
+    carClubChecksCurrent: 'Background checks current for ',
+    carClubTeamMembersSuffix: ' team members',
+    carClubLastVerified: 'Last verified: ',
+    filterLabel: 'Show only Verified Providers',
+    filterDescription: 'Verified Providers maintain current background checks on their employees, renewed every year.'
   };
+
+  // ── Spanish copy (human translation; do not machine-translate) ────────
+  const COPY_ES = {
+    fullLabel: '\u2713 Antecedentes Verificados',
+    compactLabel: '\u2713 Verificado',
+    pendingLabel: '\u23F3 Verificación Pendiente',
+    tooltip:
+      'El equipo de este proveedor cuenta con verificación de antecedentes ' +
+      'realizada por nuestro socio acreditado de investigación. Las ' +
+      'verificaciones incluyen historial penal, registro de delincuentes ' +
+      'sexuales y verificación de identidad. Se renuevan cada año.',
+    tooltipListing:
+      'Este proveedor mantiene verificaciones de antecedentes vigentes en al ' +
+      'menos el 90 % de sus empleados que tienen contacto con clientes, ' +
+      'realizadas por una agencia de investigación acreditada a nivel ' +
+      'nacional. Las verificaciones se renuevan cada año.',
+    listingSubtitle: '\u2713 Antecedentes Verificados \u2014 empleados investigados y al día',
+    notVerifiedNeutral:
+      'Este proveedor aún no ha completado el programa MCC Verificado. ' +
+      'Puedes solicitarle cotizaciones de todas formas \u2014 muchos buenos ' +
+      'proveedores están en proceso de obtener su verificación.',
+    detailModalTitle: '¿Qué significa MCC Verificado?',
+    detailModalBody:
+      'Los proveedores con la insignia MCC Verificado mantienen ' +
+      'verificaciones de antecedentes vigentes en al menos el 90 % de sus ' +
+      'empleados que tienen contacto con clientes. Las verificaciones las ' +
+      'realiza un servicio de investigación acreditado a nivel nacional y ' +
+      'deben renovarse cada 12 meses.',
+    detailModalIncluded:
+      '¿Qué incluye la verificación? \u2022 Búsqueda nacional de historial ' +
+      'penal \u2022 Antecedentes penales a nivel del condado \u2022 Registro ' +
+      'nacional de delincuentes sexuales \u2022 Verificación de identidad',
+    detailModalGuarantee:
+      '¿Es esto una garantía? La insignia MCC Verificado indica que un ' +
+      'proveedor completó el proceso de investigación y mantiene su ' +
+      'cumplimiento. No es una garantía de su comportamiento futuro. Te ' +
+      'recomendamos usar tu propio criterio junto con esta información.',
+    consumerDisclosure:
+      'La información de verificación de antecedentes es proporcionada por ' +
+      'una agencia externa de informes al consumidor. My Car Concierge no ' +
+      'realiza verificaciones de antecedentes directamente. La insignia MCC ' +
+      'Verificado indica que un proveedor cumplió con los requisitos del ' +
+      'programa al momento de la verificación. No constituye garantía, ' +
+      'aval ni respaldo del carácter, las cualificaciones ni la conducta ' +
+      'futura del proveedor. My Car Concierge no se hace responsable de los ' +
+      'actos u omisiones de ningún proveedor de servicios. Los consumidores ' +
+      'deben usar su propio criterio al elegir un proveedor.',
+    closeBtn: 'Cerrar',
+    employeesScreenedSuffix: ' empleados investigados \u00B7 Renovado cada año',
+    employeesScreenedJoiner: ' de ',
+    carClubVerifiedTitle: 'Proveedor MCC Verificado',
+    carClubChecksCurrent: 'Verificaciones de antecedentes vigentes para ',
+    carClubTeamMembersSuffix: ' integrantes del equipo',
+    carClubLastVerified: 'Última verificación: ',
+    filterLabel: 'Mostrar solo Proveedores Verificados',
+    filterDescription: 'Los Proveedores Verificados mantienen verificaciones de antecedentes vigentes para sus empleados, renovadas cada año.'
+  };
+
+  function _lang() {
+    try {
+      if (root.I18n && typeof root.I18n.getCurrentLanguage === 'function') {
+        return root.I18n.getCurrentLanguage();
+      }
+      if (typeof root.localStorage !== 'undefined') {
+        const stored = root.localStorage.getItem('mcc_language');
+        if (stored) return stored;
+      }
+      if (typeof document !== 'undefined' && document.documentElement.lang) {
+        return document.documentElement.lang;
+      }
+    } catch (e) { /* ignore */ }
+    return 'en';
+  }
+
+  function _copy() {
+    return _lang() === 'es' ? COPY_ES : COPY_EN;
+  }
 
   // ── Inline styles (verified=green, pending=amber) ─────────────────────
   const STYLE = {
@@ -104,15 +190,16 @@
   function renderBadge(opts) {
     opts = opts || {};
     const variant = opts.variant === 'full' ? 'full' : 'compact';
+    const C = _copy();
 
     if (opts.verified) {
-      const label = variant === 'full' ? COPY.fullLabel : COPY.compactLabel;
-      const tip = variant === 'full' ? COPY.tooltip : COPY.tooltipListing;
+      const label = variant === 'full' ? C.fullLabel : C.compactLabel;
+      const tip = variant === 'full' ? C.tooltip : C.tooltipListing;
       const pill = _pillHtml(STYLE.verified, '\u2713', label, tip, 'mcc-bgc-verified', true);
       if (variant === 'full' && (opts.compliantEmployees != null || opts.totalEmployees != null)) {
         const x = Number(opts.compliantEmployees || 0);
         const y = Number(opts.totalEmployees || 0);
-        const detail = x + ' of ' + y + ' employees screened \u00B7 Renewed annually';
+        const detail = x + C.employeesScreenedJoiner + y + C.employeesScreenedSuffix;
         return (
           '<span class="mcc-bgc-fullinline" style="display:inline-flex;flex-direction:column;gap:4px;">' +
             pill +
@@ -133,6 +220,7 @@
     if (typeof document === 'undefined') return;
     const existing = document.getElementById('mcc-bgc-detail-modal');
     if (existing) { existing.remove(); }
+    const C = _copy();
 
     const overlay = document.createElement('div');
     overlay.id = 'mcc-bgc-detail-modal';
@@ -150,26 +238,28 @@
       'border-top:4px solid #4CAF50;">' +
         '<div style="display:flex;justify-content:space-between;align-items:flex-start;gap:16px;">' +
           '<h2 id="mcc-bgc-detail-title" style="margin:0;font-size:1.4rem;color:#2E7D32;font-weight:700;">' +
-            escapeHtml(COPY.detailModalTitle) +
+            escapeHtml(C.detailModalTitle) +
           '</h2>' +
-          '<button type="button" data-mcc-bgc-close="1" aria-label="Close" ' +
+          '<button type="button" data-mcc-bgc-close="1" aria-label="' + escapeHtml(C.closeBtn) + '" ' +
           'style="border:0;background:transparent;font-size:1.6rem;line-height:1;cursor:pointer;color:#6b7280;">&times;</button>' +
         '</div>' +
         '<p style="margin:14px 0 12px;font-size:0.95rem;line-height:1.55;">' +
-          escapeHtml(COPY.detailModalBody) +
+          escapeHtml(C.detailModalBody) +
         '</p>' +
         '<div style="margin:14px 0;padding:12px 14px;background:#F1F8E9;border-radius:10px;font-size:0.9rem;line-height:1.55;">' +
-          escapeHtml(COPY.detailModalIncluded) +
+          escapeHtml(C.detailModalIncluded) +
         '</div>' +
         '<div style="margin:14px 0;font-size:0.88rem;line-height:1.55;color:#374151;">' +
-          escapeHtml(COPY.detailModalGuarantee) +
+          escapeHtml(C.detailModalGuarantee) +
         '</div>' +
         '<div style="margin-top:18px;padding-top:14px;border-top:1px solid #e5e7eb;font-size:0.75rem;line-height:1.55;color:#6b7280;">' +
-          escapeHtml(COPY.consumerDisclosure) +
+          escapeHtml(C.consumerDisclosure) +
         '</div>' +
         '<div style="margin-top:18px;text-align:right;">' +
           '<button type="button" data-mcc-bgc-close="1" ' +
-          'style="background:#2E7D32;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer;">Close</button>' +
+          'style="background:#2E7D32;color:#fff;border:0;padding:10px 18px;border-radius:8px;font-weight:600;cursor:pointer;">' +
+            escapeHtml(C.closeBtn) +
+          '</button>' +
         '</div>' +
       '</div>';
 
@@ -231,9 +321,10 @@
   function renderFullBlock(opts) {
     opts = opts || {};
     if (!opts.verified) return '';
+    const C = _copy();
     const x = Number(opts.compliantEmployees || 0);
     const y = Number(opts.totalEmployees || 0);
-    const detail = x + ' of ' + y + ' employees screened \u00B7 Renewed annually';
+    const detail = x + C.employeesScreenedJoiner + y + C.employeesScreenedSuffix;
     return (
       '<div class="mcc-bgc-fullblock" style="display:inline-flex;flex-direction:column;gap:6px;">' +
         renderBadge({ verified: true, variant: 'full' }) +
@@ -247,17 +338,19 @@
    */
   function renderListingSubtitle(opts) {
     if (!opts || !opts.verified) return '';
+    const C = _copy();
     return (
       '<div class="mcc-bgc-subtitle" style="font-size:0.82rem;color:#2E7D32;font-weight:500;margin-top:4px;">' +
-        escapeHtml(COPY.listingSubtitle) +
+        escapeHtml(C.listingSubtitle) +
       '</div>'
     );
   }
 
   function renderListingNeutral() {
+    const C = _copy();
     return (
       '<div class="mcc-bgc-listing-neutral" style="font-size:0.78rem;color:#a0a8b8;line-height:1.5;margin-top:6px;">' +
-        escapeHtml(COPY.notVerifiedNeutral) +
+        escapeHtml(C.notVerifiedNeutral) +
       '</div>'
     );
   }
@@ -270,13 +363,15 @@
    */
   function renderCarClubBlock(opts) {
     opts = opts || {};
+    const C = _copy();
+    const lang = _lang() === 'es' ? 'es' : 'en';
     if (opts.verified) {
       const x = Number(opts.compliantEmployees || 0);
       const y = Number(opts.totalEmployees || 0);
       let when = '';
       if (opts.lastVerified) {
         try {
-          when = new Date(opts.lastVerified).toLocaleString(undefined, {
+          when = new Date(opts.lastVerified).toLocaleString(lang === 'es' ? 'es' : undefined, {
             month: 'long',
             year: 'numeric'
           });
@@ -288,14 +383,15 @@
           '<div style="display:flex;align-items:center;gap:10px;font-weight:600;color:#2E7D32;">' +
             '<span style="display:inline-flex;align-items:center;justify-content:center;' +
             'width:22px;height:22px;border-radius:50%;background:#4CAF50;color:#fff;font-weight:700;">\u2713</span>' +
-            'MCC Verified Provider' +
+            escapeHtml(C.carClubVerifiedTitle) +
           '</div>' +
           '<div style="margin-top:6px;font-size:0.88rem;color:#374151;">' +
-            'Background checks current for ' + escapeHtml(String(x)) +
-            ' of ' + escapeHtml(String(y)) + ' team members' +
+            escapeHtml(C.carClubChecksCurrent) + escapeHtml(String(x)) +
+            escapeHtml(C.employeesScreenedJoiner) + escapeHtml(String(y)) +
+            escapeHtml(C.carClubTeamMembersSuffix) +
           '</div>' +
           (when
-            ? '<div style="margin-top:2px;font-size:0.82rem;color:#6b7280;">Last verified: ' + escapeHtml(when) + '</div>'
+            ? '<div style="margin-top:2px;font-size:0.82rem;color:#6b7280;">' + escapeHtml(C.carClubLastVerified) + escapeHtml(when) + '</div>'
             : '') +
         '</div>'
       );
@@ -304,7 +400,7 @@
       '<div class="mcc-bgc-carclub mcc-bgc-carclub--neutral" style="padding:14px 18px;border-radius:12px;' +
       'background:rgba(160,168,184,0.08);border:1px solid rgba(160,168,184,0.18);">' +
         '<div style="font-size:0.88rem;color:#a0a8b8;line-height:1.5;">' +
-          escapeHtml(COPY.notVerifiedNeutral) +
+          escapeHtml(C.notVerifiedNeutral) +
         '</div>' +
       '</div>'
     );
@@ -314,16 +410,16 @@
    * Filter description copy (PDF Section 2 — Filter description).
    */
   function getFilterDescription() {
-    return 'Verified Providers maintain current background checks on their employees, renewed every year.';
+    return _copy().filterDescription;
   }
 
   function getFilterLabel() {
-    return 'Show only Verified Providers';
+    return _copy().filterLabel;
   }
 
-  // Expose
-  root.MCC_BGC = {
-    COPY: COPY,
+  // Expose. `COPY` is exposed as a getter so external callers always read the
+  // strings in the currently active language (English / Spanish).
+  const api = {
     renderBadge: renderBadge,
     renderFullBlock: renderFullBlock,
     renderListingSubtitle: renderListingSubtitle,
@@ -333,4 +429,9 @@
     openDetailModal: openDetailModal,
     renderListingNeutral: renderListingNeutral
   };
+  Object.defineProperty(api, 'COPY', {
+    enumerable: true,
+    get: function () { return _copy(); }
+  });
+  root.MCC_BGC = api;
 })(typeof window !== 'undefined' ? window : this);

@@ -465,38 +465,64 @@
         bioHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> About</h2><div class="bio-text">' + escapeHtml(p.description) + '</div></div>';
       }
 
-      // "About MCC Verified" section + neutral non-verified copy. <!-- TODO ES -->
+      // "About MCC Verified" section + neutral non-verified copy.
+      // Bilingual (EN / ES) — picks language from saved user preference.
+      const __aboutLang = (function () {
+        try {
+          var l = (localStorage.getItem('mcc_language') || 'en').toLowerCase();
+          return l === 'es' ? 'es' : 'en';
+        } catch (_) { return 'en'; }
+      })();
+      const __aboutCopy = __aboutLang === 'es' ? {
+        heading: 'Sobre MCC Verificado',
+        intro: ' es un proveedor MCC Verificado. Esto significa que al menos el 90 % de su equipo con contacto con clientes ha aprobado una verificación integral de antecedentes a través de nuestro socio acreditado a nivel nacional. Estas verificaciones se renuevan anualmente para garantizar el cumplimiento continuo.',
+        included: '<strong>Qué incluye la verificación:</strong> \u2022 Búsqueda de antecedentes penales (nivel nacional y de condado) \u2022 Consulta del registro de delincuentes sexuales \u2022 Verificación de identidad',
+        safety: 'Tu seguridad es importante para MCC. La insignia Verificado te da la confianza de saber que las personas que trabajan en tu vehículo han pasado una verificación profesional.',
+        whySummary: '¿Por qué importa esto?',
+        whyBody: 'Estás confiando tu vehículo a alguien — muchas veces en tu casa o lugar de trabajo. Los proveedores MCC Verificados han hecho un esfuerzo adicional para demostrar que son confiables. Las verificaciones de antecedentes no son obligatorias para unirse a MCC, pero los proveedores que las completan obtienen la insignia Verificado, dándote una forma sencilla de elegir con confianza.',
+        notVerifiedBody: 'Este proveedor aún no ha completado el programa MCC Verificado. Aún puedes solicitarle ofertas — muchos proveedores excelentes están en proceso de obtener su verificación.',
+        consumerDisclosureFallback: 'La información de verificación de antecedentes es proporcionada por una agencia externa de informes al consumidor. My Car Concierge no realiza verificaciones de antecedentes directamente.'
+      } : {
+        heading: 'About MCC Verified',
+        intro: ' is an MCC Verified provider. This means at least 90% of their customer-facing team has passed a comprehensive background check through our nationally accredited screening partner. These checks are renewed annually to ensure ongoing compliance.',
+        included: '<strong>What\u2019s included in the screening:</strong> \u2022 Criminal history search (national + county level) \u2022 Sex offender registry check \u2022 Identity verification',
+        safety: 'MCC takes your safety seriously. The Verified badge gives you confidence that the people working on your vehicle have been professionally screened.',
+        whySummary: 'Why does this matter?',
+        whyBody: 'You\u2019re trusting someone with your vehicle \u2014 often at your home or workplace. MCC Verified providers have gone the extra mile to prove they\u2019re trustworthy. Background checks aren\u2019t required to join MCC, but providers who complete them earn the Verified badge, giving you an easy way to choose with confidence.',
+        notVerifiedBody: 'This provider has not yet completed the MCC Verified program. You can still request bids from them \u2014 many great providers are in the process of getting verified.',
+        consumerDisclosureFallback: 'Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.'
+      };
+
       let mccVerifiedSectionHtml = '';
       if (__mccVerified) {
         mccVerifiedSectionHtml =
           '<div class="card" id="about-mcc-verified">' +
-            '<h2><svg viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> About MCC Verified</h2>' +
+            '<h2><svg viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> ' + __aboutCopy.heading + '</h2>' +
             '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
-              escapeHtml(p.business_name) + ' is an MCC Verified provider. This means at least 90% of their customer-facing team has passed a comprehensive background check through our nationally accredited screening partner. These checks are renewed annually to ensure ongoing compliance.' +
+              escapeHtml(p.business_name) + __aboutCopy.intro +
             '</p>' +
             '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
-              '<strong>What\u2019s included in the screening:</strong> \u2022 Criminal history search (national + county level) \u2022 Sex offender registry check \u2022 Identity verification' +
+              __aboutCopy.included +
             '</p>' +
             '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
-              'MCC takes your safety seriously. The Verified badge gives you confidence that the people working on your vehicle have been professionally screened.' +
+              __aboutCopy.safety +
             '</p>' +
             '<details style="margin-top:8px;">' +
-              '<summary style="cursor:pointer;font-weight:600;color:var(--text-primary);">Why does this matter?</summary>' +
+              '<summary style="cursor:pointer;font-weight:600;color:var(--text-primary);">' + __aboutCopy.whySummary + '</summary>' +
               '<p style="margin-top:10px;color:var(--text-secondary);line-height:1.65;">' +
-                'You\u2019re trusting someone with your vehicle \u2014 often at your home or workplace. MCC Verified providers have gone the extra mile to prove they\u2019re trustworthy. Background checks aren\u2019t required to join MCC, but providers who complete them earn the Verified badge, giving you an easy way to choose with confidence.' +
+                __aboutCopy.whyBody +
               '</p>' +
             '</details>' +
             '<p style="margin-top:18px;font-size:0.78rem;color:var(--text-muted);line-height:1.55;">' +
-              (window.MCC_BGC ? window.MCC_BGC.COPY.consumerDisclosure :
-                'Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.') +
+              (window.MCC_BGC ? window.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
             '</p>' +
           '</div>';
       } else {
         mccVerifiedSectionHtml =
           '<div class="card" id="about-mcc-verified">' +
-            '<h2 style="color:var(--text-secondary);">About MCC Verified</h2>' +
+            '<h2 style="color:var(--text-secondary);">' + __aboutCopy.heading + '</h2>' +
             '<p style="color:var(--text-secondary);line-height:1.65;">' +
-              'This provider has not yet completed the MCC Verified program. You can still request bids from them \u2014 many great providers are in the process of getting verified.' +
+              __aboutCopy.notVerifiedBody +
             '</p>' +
           '</div>';
       }

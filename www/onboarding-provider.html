@@ -1189,7 +1189,9 @@
 
       <!-- ─── Task #115: MCC Verified background-check signup (4 panels) ───
            Copy is sourced verbatim from window.MCC_BGC_Onboarding.COPY
-           (see www/bgc-onboarding.js). Hard-coded labels carry TODO ES. -->
+           (see www/bgc-onboarding.js); the inline labels on this page
+           (skip buttons, "Add another employee", etc.) are localized via
+           OBO_COPY_EN/OBO_COPY_ES below. -->
 
       <!-- BGC Step 1: Intro -->
       <div class="step" data-step="bgc-1">
@@ -1208,8 +1210,7 @@
             <div class="bgc-detail-text" id="bgc-s1-need-text"></div>
           </div>
           <button class="btn-next" id="bgc-s1-cta" onclick="bgcStep1Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <!-- TODO ES -->
-          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn-skip" id="bgc-s1-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1223,13 +1224,10 @@
           <p class="step-subtitle" id="bgc-s2-body"></p>
           <p class="bgc-helper-text" id="bgc-s2-helper"></p>
           <div id="bgc-employee-rows"></div>
-          <!-- TODO ES -->
-          <button type="button" class="bgc-add-row-btn" onclick="bgcAddRow()">+ Add another employee</button>
-          <!-- TODO ES -->
+          <button type="button" class="bgc-add-row-btn" id="bgc-s2-add-row" onclick="bgcAddRow()">+ Add another employee</button>
           <div class="bgc-row-error" id="bgc-s2-error">Please complete at least one employee row (name, date of birth, email, and address) before continuing.</div>
           <button class="btn-next" id="bgc-s2-cta" onclick="bgcStep2Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <!-- TODO ES -->
-          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn-skip" id="bgc-s2-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1242,11 +1240,9 @@
           <h2 class="step-question" id="bgc-s3-title"></h2>
           <p class="step-subtitle" id="bgc-s3-body"></p>
           <div class="bgc-authorize-box" id="bgc-s3-authorize"></div>
-          <!-- TODO ES -->
           <p class="bgc-helper-text" id="bgc-s3-summary">You're about to start checks for <span id="bgc-s3-count">0</span> employee(s).</p>
           <button class="btn-next" id="bgc-s3-cta" onclick="bgcStep3Confirm()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <!-- TODO ES -->
-          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn-skip" id="bgc-s3-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1263,10 +1259,9 @@
           <div class="bgc-detail-label" id="bgc-s4-next-label"></div>
           <ul class="bgc-bullets" id="bgc-s4-bullets"></ul>
           <button class="btn-next" id="bgc-s4-cta" onclick="bgcFinish()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <!-- TODO ES -->
           <!-- T001 acceptance: every BGC panel ships with Continue + Skip.
                On step 4 both routes land on the same success screen. -->
-          <button class="btn-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn-skip" id="bgc-s4-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1295,10 +1290,10 @@
               <div class="next-step-num">3</div>
               <div class="next-step-text"><strong>Complete your profile</strong> — add photos and certifications to stand out and win more jobs.</div>
             </div>
-            <!-- TODO ES -->
-            <div class="next-step-item">
+            <div class="next-step-item" id="next-step-mcc-verified">
               <div class="next-step-num">4</div>
-              <div class="next-step-text"><strong>Get MCC Verified</strong> — run background checks on your customer-facing employees and earn the MCC Verified badge on your listing and Car Club. Members can filter to verified-only providers, so the badge moves jobs your way.</div>
+              <div class="next-step-text" data-mcc-lang="en"><strong>Get MCC Verified</strong> — run background checks on your customer-facing employees and earn the MCC Verified badge on your listing and Car Club. Members can filter to verified-only providers, so the badge moves jobs your way.</div>
+              <div class="next-step-text" data-mcc-lang="es" hidden><strong>Obtén la Verificación MCC</strong> — realiza verificaciones de antecedentes a tus empleados con contacto con clientes y obtén la insignia MCC Verificado en tu ficha y en tu Car Club. Los miembros pueden filtrar para ver solo proveedores verificados, así que la insignia te trae más trabajos.</div>
             </div>
           </div>
           <button class="btn-next" onclick="window.location.href='login.html?returnTo=/providers.html'">Log In &amp; Start Bidding <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
@@ -1313,6 +1308,70 @@
   <script src="supabaseclient.js"></script>
   <script src="bgc-onboarding.js"></script>
   <script>
+    // ─── Bilingual labels for the BGC sub-flow (EN / ES) ──────────────────
+    // Reads the saved language preference (set elsewhere in the app via
+    // the language picker / I18n module). Defaults to English.
+    function oboLang() {
+      try {
+        if (window.I18n && typeof window.I18n.getCurrentLanguage === 'function') {
+          const l = (window.I18n.getCurrentLanguage() || '').toLowerCase();
+          if (l === 'es') return 'es';
+        }
+        const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+        if (stored === 'es') return 'es';
+      } catch (_) {}
+      return 'en';
+    }
+    const OBO_COPY_EN = {
+      skipForNow: 'Skip for now',
+      addAnother: '+ Add another employee',
+      rowError: 'Please complete at least one employee row (name, date of birth, email, and address) before continuing.',
+      step3Summary1: "You're about to start checks for ",
+      step3SummarySuffix: ' employee(s).',
+      mccVerifiedStepCounter: function (n) { return 'MCC Verified · Step ' + n + ' of 4'; },
+      stepCounter: function (n, total) { return 'Step ' + n + ' of ' + total; },
+      almostDone: 'Almost done',
+      complete: 'Complete',
+      remove: 'Remove',
+      employeeHeader: function (i) { return 'Employee ' + i; },
+      phFirst: 'First name',
+      phLast:  'Last name',
+      phDob:   'Date of birth',
+      phEmail: 'Email',
+      phAddress: 'Current address',
+      retry: 'Retry',
+      sendingConsent: 'Sending consent forms...',
+      couldNotStart: function (names, err, successNote) {
+        return 'Could not start checks for ' + names + ': ' + err + successNote;
+      },
+      alreadyStarted: function (n) { return ' (' + n + ' already started)'; }
+    };
+    const OBO_COPY_ES = {
+      skipForNow: 'Omitir por ahora',
+      addAnother: '+ Agregar otro empleado',
+      rowError: 'Por favor completa al menos un empleado (nombre, fecha de nacimiento, correo y dirección) antes de continuar.',
+      step3Summary1: 'Estás a punto de iniciar verificaciones para ',
+      step3SummarySuffix: ' empleado(s).',
+      mccVerifiedStepCounter: function (n) { return 'MCC Verificado · Paso ' + n + ' de 4'; },
+      stepCounter: function (n, total) { return 'Paso ' + n + ' de ' + total; },
+      almostDone: 'Casi terminamos',
+      complete: 'Completado',
+      remove: 'Eliminar',
+      employeeHeader: function (i) { return 'Empleado ' + i; },
+      phFirst: 'Nombre',
+      phLast:  'Apellido',
+      phDob:   'Fecha de nacimiento',
+      phEmail: 'Correo electrónico',
+      phAddress: 'Dirección actual',
+      retry: 'Reintentar',
+      sendingConsent: 'Enviando formularios de consentimiento...',
+      couldNotStart: function (names, err, successNote) {
+        return 'No se pudieron iniciar las verificaciones de ' + names + ': ' + err + successNote;
+      },
+      alreadyStarted: function (n) { return ' (' + n + ' ya iniciada' + (n === 1 ? '' : 's') + ')'; }
+    };
+    function oboCopy() { return oboLang() === 'es' ? OBO_COPY_ES : OBO_COPY_EN; }
+
     let currentStep = 0;
     // 14 original panels (data-step 0-12 with one duplicated id) + 4 BGC
     // panels inserted before the success screen (Task #115). Success is now
@@ -1385,18 +1444,18 @@
       const pct = Math.min(((currentStep) / totalSteps) * 100, 100);
       document.getElementById('progress-fill').style.width = pct + '%';
       const counter = document.getElementById('step-counter');
+      const C = oboCopy();
       // BGC sub-flow gets its own counter so providers see how far they are
-      // through the MCC Verified signup (4 panels).
-      // <!-- TODO ES -->
+      // through the MCC Verified signup (4 panels). Bilingual via oboCopy().
       if (BGC_STEP_DOM.s1 !== -1 && currentStep >= BGC_STEP_DOM.s1 && currentStep <= BGC_STEP_DOM.s4) {
         const n = (currentStep - BGC_STEP_DOM.s1) + 1;
-        counter.textContent = 'MCC Verified · Step ' + n + ' of 4';
+        counter.textContent = C.mccVerifiedStepCounter(n);
       } else if (currentStep < preAccountSteps) {
-        counter.textContent = 'Step ' + (currentStep + 1) + ' of ' + preAccountSteps;
+        counter.textContent = C.stepCounter(currentStep + 1, preAccountSteps);
       } else if (currentStep < totalSteps) {
-        counter.textContent = 'Almost done';
+        counter.textContent = C.almostDone;
       } else {
-        counter.textContent = 'Complete';
+        counter.textContent = C.complete;
       }
       const canGoBack = currentStep > 0 && currentStep <= 9;
       document.getElementById('back-btn').style.visibility = canGoBack ? 'visible' : 'hidden';
@@ -1813,7 +1872,7 @@
     // window.MCC_BGC_Onboarding.COPY (loaded by bgc-onboarding.js). On step 3
     // confirm we INSERT each row into provider_employees and POST one
     // /api/provider/initiate-background-check call per employee, batched with
-    // Promise.allSettled so a single failure doesn't block the others. <!-- TODO ES -->
+    // Promise.allSettled so a single failure doesn't block the others.
 
     let bgcEmployees = [];   // Local form state: [{first, last, dob, email, address}, ...]
     let bgcRowSeq = 0;
@@ -1883,6 +1942,30 @@
       }
       const s4cta = document.getElementById('bgc-s4-cta');
       if (s4cta) s4cta.firstChild.textContent = COPY.s4.cta + ' ';
+
+      // Localize the inline labels not driven by MCC_BGC_Onboarding.COPY:
+      // skip buttons, "Add another employee", row error, step-3 summary,
+      // and the success-screen "Get MCC Verified" item. Bilingual EN / ES.
+      const C = oboCopy();
+      ['bgc-s1-skip', 'bgc-s2-skip', 'bgc-s3-skip', 'bgc-s4-skip'].forEach(function (id) {
+        const el = document.getElementById(id);
+        if (el) el.textContent = C.skipForNow;
+      });
+      const addRow = document.getElementById('bgc-s2-add-row');
+      if (addRow) addRow.textContent = C.addAnother;
+      const rowErr = document.getElementById('bgc-s2-error');
+      if (rowErr) rowErr.textContent = C.rowError;
+      const s3sum = document.getElementById('bgc-s3-summary');
+      if (s3sum) {
+        // Preserve the live count <span> while replacing the surrounding text.
+        s3sum.innerHTML = C.step3Summary1 +
+          '<span id="bgc-s3-count">0</span>' + C.step3SummarySuffix;
+      }
+      // Show only the matching language for [data-mcc-lang] blocks on this page.
+      const lang = oboLang();
+      document.querySelectorAll('[data-mcc-lang]').forEach(function (el) {
+        el.hidden = (el.getAttribute('data-mcc-lang') !== lang);
+      });
     }
 
     function bgcAddRow() {
@@ -1910,24 +1993,20 @@
     function bgcRenderRows() {
       const host = document.getElementById('bgc-employee-rows');
       if (!host) return;
+      const C = oboCopy();
       host.innerHTML = bgcEmployees.map((r, i) => {
-        // <!-- TODO ES -->
         const removeBtn = bgcEmployees.length > 1
-          ? '<button type="button" class="row-remove" onclick="bgcRemoveRow(' + r.id + ')">Remove</button>'
+          ? '<button type="button" class="row-remove" onclick="bgcRemoveRow(' + r.id + ')">' + C.remove + '</button>'
           : '';
         return (
           '<div class="bgc-employee-row">' +
-            '<div class="row-header"><span>Employee ' + (i + 1) + '</span>' + removeBtn + '</div>' +
+            '<div class="row-header"><span>' + C.employeeHeader(i + 1) + '</span>' + removeBtn + '</div>' +
             '<div class="row-grid">' +
-              // <!-- TODO ES -->
-              '<input class="row-input" placeholder="First name" value="' + bgcEscape(r.first) + '" oninput="bgcOnRowChange(' + r.id + ', \'first\', this.value)">' +
-              '<input class="row-input" placeholder="Last name" value="' + bgcEscape(r.last) + '" oninput="bgcOnRowChange(' + r.id + ', \'last\', this.value)">' +
-              // <!-- TODO ES -->
-              '<input class="row-input" type="date" placeholder="Date of birth" value="' + bgcEscape(r.dob) + '" oninput="bgcOnRowChange(' + r.id + ', \'dob\', this.value)">' +
-              // <!-- TODO ES -->
-              '<input class="row-input" type="email" placeholder="Email" value="' + bgcEscape(r.email) + '" oninput="bgcOnRowChange(' + r.id + ', \'email\', this.value)">' +
-              // <!-- TODO ES -->
-              '<input class="row-input full" placeholder="Current address" value="' + bgcEscape(r.address) + '" oninput="bgcOnRowChange(' + r.id + ', \'address\', this.value)">' +
+              '<input class="row-input" placeholder="' + C.phFirst + '" value="' + bgcEscape(r.first) + '" oninput="bgcOnRowChange(' + r.id + ', \'first\', this.value)">' +
+              '<input class="row-input" placeholder="' + C.phLast + '" value="' + bgcEscape(r.last) + '" oninput="bgcOnRowChange(' + r.id + ', \'last\', this.value)">' +
+              '<input class="row-input" type="date" placeholder="' + C.phDob + '" value="' + bgcEscape(r.dob) + '" oninput="bgcOnRowChange(' + r.id + ', \'dob\', this.value)">' +
+              '<input class="row-input" type="email" placeholder="' + C.phEmail + '" value="' + bgcEscape(r.email) + '" oninput="bgcOnRowChange(' + r.id + ', \'email\', this.value)">' +
+              '<input class="row-input full" placeholder="' + C.phAddress + '" value="' + bgcEscape(r.address) + '" oninput="bgcOnRowChange(' + r.id + ', \'address\', this.value)">' +
             '</div>' +
           '</div>'
         );
@@ -1978,8 +2057,7 @@
       t.appendChild(span);
       if (typeof retryCb === 'function') {
         const btn = document.createElement('button');
-        // <!-- TODO ES -->
-        btn.textContent = 'Retry';
+        btn.textContent = oboCopy().retry;
         btn.onclick = function () { t.remove(); retryCb(); };
         t.appendChild(btn);
       }
@@ -2085,8 +2163,7 @@
       const orig = btn ? btn.innerHTML : '';
       if (btn) {
         btn.disabled = true;
-        // <!-- TODO ES -->
-        btn.innerHTML = '<div class="loading-spinner"></div> Sending consent forms...';
+        btn.innerHTML = '<div class="loading-spinner"></div> ' + oboCopy().sendingConsent;
       }
 
       const { ok, failed } = await bgcInitiateForRows(pending);
@@ -2101,15 +2178,13 @@
       failed.forEach(f => { f.row.lastError = f.error; });
 
       if (failed.length > 0) {
-        // <!-- TODO ES -->
+        const C = oboCopy();
         const names = failed.map(f => (f.row.first + ' ' + f.row.last).trim()).join(', ');
-        const successNote = ok.length > 0
-          ? ' (' + ok.length + ' already started)'
-          : '';
+        const successNote = ok.length > 0 ? C.alreadyStarted(ok.length) : '';
         // Retry button re-enters bgcStep3Confirm, which only processes the
         // still-pending rows — so partial failures get a retry too.
         bgcShowToast(
-          'Could not start checks for ' + names + ': ' + (failed[0].error || 'unknown error') + successNote,
+          C.couldNotStart(names, (failed[0].error || 'unknown error'), successNote),
           bgcStep3Confirm
         );
         return; // Stay on step 3 so the user can retry the failed subset.

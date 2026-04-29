@@ -521,11 +521,16 @@
       <h1 class="page-title">Car Club</h1>
       <p class="page-subtitle">Join clubs, earn rewards, and track your progress</p>
       <!-- MCC Verified explainer for members browsing Car Clubs.
-           Verbatim PDF copy (Section 2 — Customer-Facing). -->
-      <!-- TODO ES -->
-      <p style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;">
+           Verbatim PDF copy (Section 2 — Customer-Facing). Bilingual (EN / ES);
+           the script at the bottom of the page swaps which paragraph is shown
+           based on the user's saved language preference. -->
+      <p data-mcc-lang="en" style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#4CAF50;color:#fff;font-weight:700;font-size:11px;vertical-align:middle;margin-right:4px;">&#10003;</span>
         Look for the <strong>MCC Verified</strong> badge on Car Club profiles &mdash; it means the provider&rsquo;s team is background-checked and current.
+      </p>
+      <p data-mcc-lang="es" hidden style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;">
+        <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#4CAF50;color:#fff;font-weight:700;font-size:11px;vertical-align:middle;margin-right:4px;">&#10003;</span>
+        Busca la insignia <strong>MCC Verificado</strong> en los perfiles de Car Club &mdash; significa que el equipo del proveedor cuenta con verificación de antecedentes vigente.
       </p>
     </div>
 
@@ -1514,6 +1519,17 @@
     } else {
       setTimeout(wrappedInit, 300);
     }
+
+    // Bilingual visibility for [data-mcc-lang] blocks (page does not use i18n.js).
+    (function applyMccLang() {
+      try {
+        var lang = (localStorage.getItem('mcc_language') || 'en').toLowerCase();
+        if (lang !== 'es') lang = 'en';
+        document.querySelectorAll('[data-mcc-lang]').forEach(function (el) {
+          el.hidden = (el.getAttribute('data-mcc-lang') !== lang);
+        });
+      } catch (_) { /* localStorage unavailable */ }
+    })();
   </script>
 </body>
 </html>
