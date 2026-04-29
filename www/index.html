@@ -251,6 +251,100 @@
       border: 1px solid var(--border-subtle);
     }
 
+    /* Open-for-business announcement bar — sits above the hero badge to
+       signal that the marketplace is live and that both sides can sign up
+       and transact at no cost. */
+    .open-banner {
+      background: linear-gradient(135deg, rgba(76, 175, 80, 0.18), rgba(212, 168, 85, 0.12));
+      border-bottom: 1px solid rgba(76, 175, 80, 0.35);
+      color: var(--text-primary);
+      padding: 10px 16px;
+      text-align: center;
+      font-size: 0.92rem;
+      font-weight: 500;
+      line-height: 1.4;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    .open-banner-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #4CAF50;
+      box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.6);
+      animation: openBannerPulse 2s infinite;
+      flex-shrink: 0;
+    }
+    .open-banner-strong {
+      font-weight: 800;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      font-size: 0.78rem;
+    }
+    .open-banner-sep {
+      opacity: 0.55;
+      margin: 0 2px;
+    }
+    /* Inside the gold onboarding-banner, the pulsing dot needs to read as
+       a live "open" indicator against the gold gradient — switch to a
+       darker green ring + a clean inner dot so it stays readable. */
+    .onboarding-banner .open-banner-dot {
+      background: #1b5e20;
+      box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.6);
+      animation: openBannerPulseDark 2s infinite;
+    }
+    @keyframes openBannerPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.55); }
+      70%  { box-shadow: 0 0 0 8px rgba(76, 175, 80, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
+    }
+    @keyframes openBannerPulseDark {
+      0%   { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.65); }
+      70%  { box-shadow: 0 0 0 7px rgba(27, 94, 32, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0); }
+    }
+    @media (max-width: 600px) {
+      .open-banner { font-size: 0.84rem; padding: 9px 12px; gap: 8px; }
+      .open-banner-strong { font-size: 0.7rem; }
+      .open-banner-sep { display: none; }
+    }
+
+    /* Free-pricing strip under the hero CTAs — reinforces that both
+       member and provider sign-ups are free. */
+    .hero-free-strip {
+      display: inline-flex;
+      align-items: center;
+      gap: 14px;
+      margin: 18px auto 0;
+      padding: 10px 18px;
+      background: rgba(76, 175, 80, 0.08);
+      border: 1px solid rgba(76, 175, 80, 0.25);
+      border-radius: 100px;
+      font-size: 0.88rem;
+      color: var(--text-primary);
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .hero-free-strip svg {
+      width: 14px;
+      height: 14px;
+      color: #4CAF50;
+      flex-shrink: 0;
+    }
+    .hero-free-strip strong { color: #4CAF50; font-weight: 600; }
+    .hero-free-strip-sep {
+      width: 1px;
+      height: 14px;
+      background: rgba(160, 168, 184, 0.3);
+    }
+    @media (max-width: 540px) {
+      .hero-free-strip { font-size: 0.8rem; gap: 8px; padding: 9px 14px; }
+      .hero-free-strip-sep { display: none; }
+    }
+
     /* Hero Section */
     .hero {
       padding: 80px 0 100px;
@@ -1800,8 +1894,15 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
-    <span class="icon-inline" data-icon="rocket"></span> We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;" role="status" aria-live="polite">
+    <span class="open-banner-dot" aria-hidden="true"></span>
+    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Open for Business</span>
+    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
+    <span data-i18n="landing.openForBusinessBody">Members join free. Providers join free and start bidding today.</span>
+    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
+    <a href="/onboarding-member.html" data-i18n="landing.openForBusinessMemberCta">Create a member profile</a>
+    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
+    <a href="/onboarding-provider.html" data-i18n="landing.openForBusinessProviderCta">Create a provider profile</a>
     <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
   </div>
   <script>
@@ -1876,9 +1977,14 @@
           <a href="#" onclick="openFounderModal(); return false;" class="btn btn-outline-gold" data-i18n="nav.ourStory">
             About
           </a>
-          <a href="onboarding-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProvider">
-            Join as a Provider
+          <a href="onboarding-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProviderFree">
+            Join Free as a Provider
           </a>
+        </div>
+        <div class="hero-free-strip" role="note">
+          <span><strong data-i18n="landing.heroFreeMembers">Free</strong> <span data-i18n="landing.heroFreeMembersBody">to create a member profile</span></span>
+          <span class="hero-free-strip-sep" aria-hidden="true"></span>
+          <span><strong data-i18n="landing.heroFreeProviders">Free</strong> <span data-i18n="landing.heroFreeProvidersBody">to join &amp; bid on member packages</span></span>
         </div>
         
         <div class="trust-strip">
