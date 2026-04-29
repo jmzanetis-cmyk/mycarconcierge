@@ -11902,32 +11902,10 @@
     window.loadSurveyAnalytics = loadSurveyAnalytics;
 
     // ===== MEMBER SURVEY ANALYTICS =====
-    // Labels MUST match the enum values accepted by POST /api/member/survey
-    // (server.js ALLOWED map). Unknown values fall back to the raw enum code.
-    const MS_LABELS = {
-      provider_discovery: { word_of_mouth: 'Word of mouth', google_search: 'Google search', social_media: 'Social media', ad: 'Advertising', app_store: 'App store', other: 'Other' },
-      provider_satisfaction: { very_satisfied: 'Very satisfied', somewhat_satisfied: 'Somewhat satisfied', neutral: 'Neutral', somewhat_dissatisfied: 'Somewhat dissatisfied', very_dissatisfied: 'Very dissatisfied' },
-      service_frequency: { monthly_or_more: 'Monthly or more', every_2_3_months: 'Every 2-3 months', twice_a_year: 'Twice a year', once_a_year: 'Once a year', less_often: 'Less often' },
-      service_types: { routine: 'Routine maintenance', tires_brakes: 'Tires & brakes', repairs: 'Repairs/diagnostics', detailing: 'Detailing/cosmetic', body_work: 'Body work', mix: 'Mixed/varies' },
-      pricing_confidence: { very_fair: 'Very fair', mostly_fair: 'Mostly fair', sometimes_questionable: 'Sometimes questionable', often_too_high: 'Often too high' },
-      estimate_surprise: { yes_regularly: 'Yes, regularly', yes_once: 'Yes, once', no_never: 'No, never' },
-      quote_behavior: { go_with_first: 'Go with first quote', compare_few: 'Compare a few', always_shop: 'Always shop around' },
-      provider_honesty: { very_honest: 'Very honest', mostly_honest: 'Mostly honest', sometimes_questionable: 'Sometimes questionable', often_dishonest: 'Often dishonest' },
-      provider_vetting: { always: 'Always vet', sometimes: 'Sometimes', rarely: 'Rarely', never: 'Never' },
-      history_tracking: { spreadsheet: 'Spreadsheet', notes_app: 'Notes app', memory: 'From memory', no_system: 'No system' },
-      maintenance_avoidance: { yes_often: 'Yes, often', yes_sometimes: 'Yes, sometimes', rarely: 'Rarely', never: 'Never' },
-      job_status_updates: { they_call: 'Shop calls me', i_call: 'I call the shop', no_updates: 'No updates' },
-      maintenance_reminders: { yes_use_them: 'Yes, use them', no_try_to_remember: 'Try to remember', no_just_go: 'Just go when needed' },
-      competitive_bids: { yes_always: 'Yes, always', open_to_it: 'Open to it', prefer_one_provider: 'Prefer one provider', never_tried: 'Never tried' },
-      app_usage: { yes_multiple: 'Multiple apps', yes_one: 'One app', no_old_fashioned: 'No app' },
-      payment_comfort: { already_do: 'Already do', open_to_it: 'Open to it', prefer_traditional: 'Prefer traditional' },
-      dispute_history: { never: 'Never', once: 'Once', multiple_times: 'Multiple times' },
-      annual_spend: { under_500: 'Under $500', '500_to_1500': '$500-$1,500', '1500_to_3000': '$1,500-$3,000', over_3000: 'Over $3,000' },
-      decision_maker: { yes_primary: 'Yes, primary', shared: 'Shared', no_someone_else: 'Someone else' },
-      near_term_need: { yes_routine: 'Yes, routine', yes_repair: 'Yes, repair', yes_shopping: 'Yes, shopping', no_not_now: 'Not right now' },
-      top_priority: { trust: 'Trustworthiness', pricing: 'Fair pricing', convenience: 'Convenience', quality: 'Work quality', proximity: 'Location/proximity' },
-      vehicle_count: { '1': '1 vehicle', '2': '2 vehicles', '3_or_more': '3+ vehicles' }
-    };
+    // Labels come from the shared survey definition (www/shared/survey-questions.js)
+    // so they cannot drift from the form options (onboarding-member.html) or the
+    // server's ALLOWED enum map (server.js). Unknown values fall back to the raw enum code.
+    const MS_LABELS = (typeof window !== 'undefined' && window.MCCSurvey && window.MCCSurvey.LABELS) || {};
     const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
     let _msCharts = {};
 
