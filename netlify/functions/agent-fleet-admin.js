@@ -960,6 +960,29 @@ exports.handler = async function(event) {
       return jsonResponse(r.error ? 400 : 200, r);
     }
 
+    // -------- single action detail (Task #144): full row + originating event payload
+    // Used by the inline activity panel "Details" drawer to show the prompt /
+    // raw event the agent ingested. Safe to call on every expand because the
+    // panel caches the response client-side.
+    const actionDetailMatch = route.match(/^actions\/(\d+)$/);
+    if (actionDetailMatch && method === 'GET') {
+      const id = Number.parseInt(actionDetailMatch[1], 10);
+      const { data: action, error: aErr } = await supabase
+        .from('agent_actions').select('*').eq('id', id).maybeSingle();
+      if (aErr) return jsonResponse(500, { error: aErr.message });
+      if (!action) return jsonResponse(404, { error: 'Action not found' });
+      let eventRow = null;
+      if (action.event_id) {
+        const { data: ev, error: eErr } = await supabase
+          .from('agent_events')
+          .select('id, event_type, payload, source, created_at, processed_at')
+          .eq('id', action.event_id)
+          .maybeSingle();
+        if (!eErr) eventRow = ev || null;
+      }
+      return jsonResponse(200, { action, event: eventRow });
+    }
+
     // -------- spend
     if (route === 'spend' && method === 'GET') {
       return jsonResponse(200, await spendRollup(supabase));

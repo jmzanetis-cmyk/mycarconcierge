@@ -112,6 +112,44 @@
       ? `<div style="font-size:0.82rem;color:var(--text-secondary);">${bits.join('')}</div>` : '';
   }
 
+  // ----- Details drawer (Task #144) ----------------------------------------
+  // Built into every card. Reasoning + decision JSON are rendered from data we
+  // already have (the list endpoint returns them). The "Source / Prompt"
+  // section is lazy-loaded on first expand from the per-id detail endpoint.
+  function drawerShell(src, id, reasoning, decision) {
+    const reasoningBlock = reasoning
+      ? `<div class="aap-drawer-section">
+           <div class="aap-drawer-label">Full reasoning</div>
+           <div class="aap-drawer-text">${esc(reasoning)}</div>
+         </div>`
+      : `<div class="aap-drawer-section">
+           <div class="aap-drawer-label">Full reasoning</div>
+           <div class="aap-drawer-empty">No reasoning recorded.</div>
+         </div>`;
+    let decisionPretty;
+    try { decisionPretty = JSON.stringify(decision == null ? {} : decision, null, 2); }
+    catch { decisionPretty = String(decision); }
+    const decisionBlock = `
+      <div class="aap-drawer-section">
+        <div class="aap-drawer-label">Decision (JSON)</div>
+        <pre class="aap-drawer-pre">${esc(decisionPretty)}</pre>
+      </div>`;
+    const sourceBlock = `
+      <div class="aap-drawer-section" data-source-slot="1">
+        <div class="aap-drawer-label">Source / prompt the agent ingested</div>
+        <div class="aap-drawer-source aap-drawer-empty">Click "Show details" to load…</div>
+      </div>`;
+    return `
+      <details class="agent-activity-details" data-src="${esc(src)}" data-id="${esc(String(id))}">
+        <summary class="aap-drawer-summary">Show details</summary>
+        <div class="aap-drawer-body">
+          ${reasoningBlock}
+          ${decisionBlock}
+          ${sourceBlock}
+        </div>
+      </details>`;
+  }
+
   function renderFleetCard(a) {
     const sc = statusColor(a.status);
     const reviewBadge = a.needs_review
@@ -142,11 +180,13 @@
           <span>autonomy: ${esc(a.autonomy_used || '—')}</span>
           <span>cost: $${Number(a.cost_usd || 0).toFixed(4)} · ${a.duration_ms || 0}ms</span>
         </div>
+        ${drawerShell('fleet', a.id, a.reasoning, a.decision)}
       </div>`;
   }
 
   function renderLegacyCard(a) {
     const sc = statusColor(a.outcome);
+    const legacyReasoning = (a.decision && a.decision.reasoning) || '';
     return `
       <div class="agent-activity-card" style="border:1px solid var(--border-subtle);border-left:3px solid #7c3aed;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
@@ -162,10 +202,11 @@
           <span style="color:var(--text-muted);font-size:0.78rem;">${fmtTime(a.created_at)}</span>
         </div>
         ${recommendationLine(a.decision)}
-        ${a.decision && a.decision.reasoning ? `<div style="font-size:0.86rem;color:var(--text-secondary);line-height:1.5;margin-bottom:6px;">${esc(a.decision.reasoning)}</div>` : ''}
+        ${legacyReasoning ? `<div style="font-size:0.86rem;color:var(--text-secondary);line-height:1.5;margin-bottom:6px;">${esc(legacyReasoning)}</div>` : ''}
         ${decisionExtras(a.decision)}
         ${confidenceBar(a.confidence)}
         ${a.error_details ? `<div style="margin-top:6px;padding:6px 10px;background:rgba(192,57,43,0.1);color:var(--accent-red);border-radius:6px;font-size:0.8rem;">${esc(a.error_details)}</div>` : ''}
+        ${drawerShell('legacy', a.id, legacyReasoning, a.decision)}
       </div>`;
   }
 
@@ -204,6 +245,69 @@
     return j.actions || [];
   }
 
+  // ----- Per-card source/prompt loader (Task #144) -------------------------
+  // Called on first expand of a card's <details> drawer. Caches results on
+  // the DOM node via data-loaded so re-toggling never refires the request.
+  async function loadSourceForCard(detailsEl) {
+    if (detailsEl.getAttribute('data-loaded') === '1') return;
+    detailsEl.setAttribute('data-loaded', '1');
+    const slot = detailsEl.querySelector('.aap-drawer-source');
+    if (!slot) return;
+    slot.classList.remove('aap-drawer-empty');
+    slot.innerHTML = '<span style="color:var(--text-muted);font-size:0.82rem;">Loading…</span>';
+    const src = detailsEl.getAttribute('data-src');
+    const id  = detailsEl.getAttribute('data-id');
+    const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    const url = src === 'fleet'
+      ? `${apiBase}/api/admin/agent-fleet/actions/${encodeURIComponent(id)}`
+      : `${apiBase}/api/admin/ai-ops/actions/${encodeURIComponent(id)}`;
+    try {
+      const r = await fetch(url, { headers: authHeaders() });
+      if (!r.ok) {
+        slot.innerHTML = `<div class="aap-drawer-empty">Could not load source (HTTP ${r.status}).</div>`;
+        return;
+      }
+      const j = await r.json();
+      // Fleet detail returns { action, event } where event.payload is the
+      // raw event the agent ingested. Legacy returns { action } with no
+      // separate source — surface that explicitly so operators don't think
+      // it's a bug.
+      if (src === 'fleet') {
+        const ev = j.event;
+        if (!ev) {
+          slot.innerHTML = '<div class="aap-drawer-empty">No originating event payload was recorded for this action.</div>';
+          return;
+        }
+        let payloadPretty;
+        try { payloadPretty = JSON.stringify(ev.payload == null ? {} : ev.payload, null, 2); }
+        catch { payloadPretty = String(ev.payload); }
+        slot.innerHTML = `
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;">
+            event #${esc(String(ev.id))} · <strong>${esc(ev.event_type || '—')}</strong>
+            ${ev.source ? ` · source: ${esc(ev.source)}` : ''}
+            · ${esc(fmtTime(ev.created_at))}
+          </div>
+          <pre class="aap-drawer-pre">${esc(payloadPretty)}</pre>`;
+      } else {
+        // ai_action_log has no separate event — the inputs the agent saw are
+        // captured (when at all) in `decision`. Show a clear note + the
+        // target_id for cross-reference.
+        const a = j.action || {};
+        slot.innerHTML = `
+          <div class="aap-drawer-empty" style="margin-bottom:6px;">
+            Legacy AI Ops actions don't capture a separate prompt. The full
+            decision JSON above is the agent's complete record.
+          </div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">
+            target_id: <code>${esc(a.target_id || '—')}</code>
+            · execution: ${esc(String(a.execution_time_ms || 0))}ms
+          </div>`;
+      }
+    } catch (e) {
+      slot.innerHTML = `<div class="aap-drawer-empty">Failed to load source: ${esc(e.message)}</div>`;
+    }
+  }
+
   async function fetchLegacy(opts) {
     if (!opts.includeAiOpsModule) return [];
     const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
@@ -215,10 +319,60 @@
     return j.actions || [];
   }
 
+  // ----- One-time CSS injection for the drawer (Task #144) -----------------
+  // Idempotent: re-rendering the panel never duplicates the <style> tag.
+  function ensureDrawerStyles() {
+    if (document.getElementById('agent-activity-drawer-styles')) return;
+    const style = document.createElement('style');
+    style.id = 'agent-activity-drawer-styles';
+    style.textContent = `
+      .agent-activity-details { margin-top: 10px; border-top: 1px dashed var(--border-subtle, #2a2f37); padding-top: 8px; }
+      .agent-activity-details > .aap-drawer-summary {
+        cursor: pointer; user-select: none;
+        font-size: 0.78rem; color: var(--accent-blue, #3b82f6); font-weight: 600;
+        list-style: none; padding: 4px 0; outline: none;
+      }
+      .agent-activity-details > .aap-drawer-summary::-webkit-details-marker { display: none; }
+      .agent-activity-details > .aap-drawer-summary::before { content: '▸ '; display: inline-block; transition: transform 0.15s ease; }
+      .agent-activity-details[open] > .aap-drawer-summary::before { content: '▾ '; }
+      .agent-activity-details[open] > .aap-drawer-summary { color: var(--text-primary, #e5e7eb); }
+      .aap-drawer-body { margin-top: 8px; display: flex; flex-direction: column; gap: 10px; }
+      .aap-drawer-section { background: var(--bg-tertiary, #2a2f37); border-radius: 6px; padding: 8px 10px; }
+      .aap-drawer-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted, #9ca3af); margin-bottom: 4px; font-weight: 600; }
+      .aap-drawer-text { font-size: 0.84rem; color: var(--text-primary, #e5e7eb); white-space: pre-wrap; line-height: 1.5; }
+      .aap-drawer-pre {
+        margin: 0; font-size: 0.76rem; line-height: 1.4;
+        color: var(--text-primary, #e5e7eb);
+        background: var(--bg-primary, #0f1115);
+        border: 1px solid var(--border-subtle, #2a2f37);
+        border-radius: 4px; padding: 8px;
+        max-height: 320px; overflow: auto; white-space: pre;
+        font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      }
+      .aap-drawer-empty { font-size: 0.8rem; color: var(--text-muted, #9ca3af); font-style: italic; }
+    `;
+    document.head.appendChild(style);
+  }
+
+  // Lazy-load the source/prompt section the first time a card's drawer is
+  // expanded. Bound once per panel container via event delegation so we don't
+  // leak listeners across re-renders.
+  function bindDrawerToggles(rootEl) {
+    if (!rootEl || rootEl.__aapBound) return;
+    rootEl.__aapBound = true;
+    rootEl.addEventListener('toggle', (ev) => {
+      const t = ev.target;
+      if (!t || t.tagName !== 'DETAILS') return;
+      if (!t.classList.contains('agent-activity-details')) return;
+      if (t.open) loadSourceForCard(t);
+    }, true); // capture phase — `toggle` does not bubble
+  }
+
   async function renderAgentActivityPanel(containerId, opts) {
     opts = opts || {};
     const container = document.getElementById(containerId);
     if (!container) return;
+    ensureDrawerStyles();
     const title = opts.title || 'Agent Activity';
     container.innerHTML = `
       <div class="agent-activity-panel" style="margin-top:16px;">
@@ -230,6 +384,7 @@
       </div>`;
     const bodyEl = document.getElementById(containerId + '-body');
     const countEl = document.getElementById(containerId + '-count');
+    bindDrawerToggles(bodyEl);
 
     try {
       const [fleet, legacy] = await Promise.all([fetchFleet(opts), fetchLegacy(opts)]);

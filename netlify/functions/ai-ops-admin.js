@@ -454,6 +454,21 @@ exports.handler = async function(event, context) {
       return jsonResponse(200, { actions: data || [], total: count || 0, page, limit, totalPages: Math.ceil((count || 0) / limit) });
     }
 
+    // GET /api/admin/ai-ops/actions/:id  (Task #144)
+    // Returns the full ai_action_log row for the inline activity panel
+    // "Details" drawer. ai_action_log has no separate prompt column — the
+    // input the agent ingested is captured inside `decision` (or not at all
+    // for older rows), so this endpoint just returns the full row verbatim.
+    const actionDetailMatch = path.match(/^actions\/([0-9a-f-]{8,})$/i);
+    if (method === 'GET' && actionDetailMatch) {
+      const id = actionDetailMatch[1];
+      const { data, error } = await supabase
+        .from('ai_action_log').select('*').eq('id', id).maybeSingle();
+      if (error) return jsonResponse(500, { error: error.message });
+      if (!data) return jsonResponse(404, { error: 'Action not found' });
+      return jsonResponse(200, { action: data });
+    }
+
     // GET /api/admin/ai-ops/escalations
     if (method === 'GET' && (path === 'escalations' || path.startsWith('escalations') && !path.match(/escalations\/[^/]+\/resolve/))) {
       const status = params.status || 'pending';
