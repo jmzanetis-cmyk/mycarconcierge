@@ -10,6 +10,9 @@ echo "Syncing web assets and stripping admin/marketing files..."
 cd "$PROJECT_ROOT"
 npx cap sync ios
 
+echo "Stripping shared dev-only cruft (clean-mobile-bundle.sh)..."
+bash "$PROJECT_ROOT/scripts/clean-mobile-bundle.sh"
+
 echo "Removing admin portal files..."
 rm -f "$IOS_PUBLIC/admin.html"
 rm -f "$IOS_PUBLIC/admin.js"
