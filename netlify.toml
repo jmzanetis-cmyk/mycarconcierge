@@ -76,6 +76,14 @@
 [functions."anthropic-health-scheduled"]
   schedule = "0 4 * * *"
 
+# Director agent — acquisition-focused chief-of-staff. Runs every 15 minutes,
+# checks whether the other agents are actually pulling customers through the
+# funnel, and pages the admin (SMS via Twilio + email via Resend) with the
+# specific next action when any acquisition lever stalls. Daily digest fires
+# at the 11:00 UTC tick (~7am ET) so silence is never ambiguous.
+[functions."agent-director-scheduled"]
+  schedule = "*/15 * * * *"
+
 
 [[headers]]
   for = "/sw.js"

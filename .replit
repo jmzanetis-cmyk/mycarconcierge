@@ -50,6 +50,7 @@ GLOBAL_2FA_ENABLED = "false"
 RUNNER_BASE_URL = "https://my-car-concierge--jmzanetis.replit.app"
 PRINTFUL_STORE_ID = "17600926"
 ADMIN_PHONE_NUMBER = "8458210804"
+ADMIN_ALERT_PHONE = "+18458210804"
 
 [nix]
 channel = "stable-25_05"
