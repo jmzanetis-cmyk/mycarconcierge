@@ -2227,22 +2227,30 @@
       if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
 
       const creditsToAdd = parseInt(credits);
-      let success = 0;
 
-      for (const providerId of selectedProviders) {
-        const provider = providers.find(p => p.id === providerId);
-        const newCredits = (provider?.bid_credits || 0) + creditsToAdd;
-        
-        const { error } = await supabaseClient.from('profiles').update({
-          bid_credits: newCredits
-        }).eq('id', providerId);
-
-        if (!error) success++;
+      try {
+        const res = await fetch('/api/admin/provider-actions/adjust-credits', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider_ids: Array.from(selectedProviders),
+            delta: creditsToAdd,
+            reason: 'Bulk credit grant from admin UI'
+          })
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showToast(json.error || `Add credits failed (${res.status})`, 'error');
+          return;
+        }
+        const ok = json.updated || 0;
+        const failed = (json.failed || []).length;
+        showToast(`Added ${creditsToAdd} credits to ${ok} provider(s)${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
+        clearSelection();
+        await loadProviders();
+      } catch (e) {
+        showToast(`Add credits failed: ${e.message}`, 'error');
       }
-
-      showToast(`Added ${creditsToAdd} credits to ${success} provider(s)`, 'success');
-      clearSelection();
-      await loadProviders();
     }
 
     async function bulkSuspend() {
@@ -2418,22 +2426,32 @@
       const provider = providers.find(p => p.id === providerId);
       const name = provider?.business_name || provider?.full_name || 'Provider';
       const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
-      
+
       const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
       if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
 
       const creditsToAdd = parseInt(credits);
-      const newCredits = (provider?.bid_credits || 0) + creditsToAdd;
 
-      const { error } = await supabaseClient.from('profiles').update({
-        bid_credits: newCredits
-      }).eq('id', providerId);
-
-      if (error) {
-        showToast('Failed to add credits', 'error');
-      } else {
+      try {
+        const res = await fetch('/api/admin/provider-actions/adjust-credits', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            provider_ids: [providerId],
+            delta: creditsToAdd,
+            reason: `Quick credit grant for ${name}`
+          })
+        });
+        const json = await res.json();
+        if (!res.ok || (json.updated || 0) === 0) {
+          const detail = (json.failed && json.failed[0] && json.failed[0].error) || json.error || `status ${res.status}`;
+          showToast(`Failed to add credits: ${detail}`, 'error');
+          return;
+        }
         showToast(`Added ${creditsToAdd} credits to ${name}`, 'success');
         await loadProviders();
+      } catch (e) {
+        showToast(`Failed to add credits: ${e.message}`, 'error');
       }
     }
 

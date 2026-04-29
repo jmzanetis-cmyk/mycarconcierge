@@ -13,6 +13,7 @@
 //   POST /suspend           { provider_ids: uuid[], reason: string }
 //   POST /activate          { provider_ids: uuid[] }
 //   POST /check-low-rated   { rating_threshold?: number, autosuspend?: boolean, reason?: string }
+//   POST /adjust-credits    { provider_ids: uuid[], delta: integer, reason?: string }
 //
 // All routes require the x-admin-password header to match ADMIN_PASSWORD.
 // All routes use the service-role Supabase client so they bypass RLS.
@@ -203,6 +204,66 @@ async function activateProviders(supabase, providerIds) {
   return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
 }
 
+// Apply a signed integer delta to profiles.bid_credits for each provider id.
+// Returns { updated, failed: [{id,error}], updated_ids, results: [{id, before, after, delta}] }.
+// We read current values then write per-row so we can:
+//   * audit the before/after balance for each provider, and
+//   * skip rows whose resulting balance would be negative (returned in failed).
+// The race window between read and write is acceptable for an infrequent
+// admin action; the audit row records the values actually written.
+async function adjustCredits(supabase, providerIds, delta, reason) {
+  const { data: rows, error: readErr } = await supabase
+    .from('profiles')
+    .select('id, email, full_name, business_name, bid_credits')
+    .in('id', providerIds);
+
+  if (readErr) {
+    return { updated: 0, failed: providerIds.map(id => ({ id, error: readErr.message })), updated_ids: [], results: [] };
+  }
+
+  const byId = new Map((rows || []).map(r => [r.id, r]));
+  const updatedIdsArr = [];
+  const failed = [];
+  const results = [];
+
+  for (const id of providerIds) {
+    const row = byId.get(id);
+    if (!row) {
+      failed.push({ id, error: 'profile not found' });
+      continue;
+    }
+    const before = Number.isFinite(row.bid_credits) ? row.bid_credits : 0;
+    const after = before + delta;
+    if (after < 0) {
+      failed.push({ id, error: `would make balance negative (current=${before}, delta=${delta})` });
+      continue;
+    }
+
+    const { error: updErr } = await supabase
+      .from('profiles')
+      .update({ bid_credits: after })
+      .eq('id', id);
+
+    if (updErr) {
+      failed.push({ id, error: updErr.message });
+      continue;
+    }
+
+    updatedIdsArr.push(id);
+    results.push({ id, before, after, delta });
+
+    await audit(supabase, {
+      action: 'adjust_bid_credits',
+      target_id: id, target_type: 'profile',
+      reason: reason || null,
+      metadata: { before, after, delta },
+      performed_by: 'admin'
+    });
+  }
+
+  return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr, results };
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
 
@@ -306,6 +367,27 @@ exports.handler = async function(event) {
         providers: lowRated.map(p => ({ id: p.id, name: p.business_name || p.full_name, avg_rating: p.avg_rating })),
         autosuspend: false
       });
+    }
+
+    if (route === 'adjust-credits' && method === 'POST') {
+      const rawIds = [];
+      if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
+      if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
+      const ids = Array.from(new Set(rawIds.filter(isUuid)));
+      if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
+
+      // delta must be a finite, non-zero integer within sensible bounds. Bounds
+      // exist so a fat-fingered prompt() can't silently issue a million-credit
+      // grant or a negative balance the size of the universe.
+      const delta = Number(body.delta);
+      if (!Number.isInteger(delta) || delta === 0) return jsonResponse(400, { error: 'delta must be a non-zero integer' });
+      if (delta < -10000 || delta > 10000) return jsonResponse(400, { error: 'delta must be between -10000 and 10000' });
+
+      const reason = (body.reason || '').toString().trim();
+      if (reason.length > 500) return jsonResponse(400, { error: 'reason must be at most 500 characters' });
+
+      const result = await adjustCredits(supabase, ids, delta, reason);
+      return jsonResponse(200, result);
     }
 
     return jsonResponse(404, { error: 'Not found', path: route, method });

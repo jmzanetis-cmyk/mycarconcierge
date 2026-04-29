@@ -15,6 +15,9 @@
 --   'approve_provider_application' | admin approved a provider application
 --   'reject_provider_application'  | admin rejected a provider application
 --   'request_application_info'     | admin asked the applicant for more info
+--   'adjust_bid_credits'  | admin granted/deducted bid credits via the
+--                          /api/admin/provider-actions/adjust-credits endpoint
+--                          (metadata: { before, after, delta })
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (
