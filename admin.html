@@ -663,11 +663,14 @@
         </div>
       </div>
 
-      <div class="tabs">
-        <div class="tab active" data-filter="held">In Escrow</div>
-        <div class="tab" data-filter="released">Released</div>
-        <div class="tab" data-filter="refunded">Refunded</div>
-        <div class="tab" data-filter="all">All</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:8px;">
+        <div class="tabs" style="margin:0;">
+          <div class="tab active" data-filter="held">In Escrow</div>
+          <div class="tab" data-filter="released">Released</div>
+          <div class="tab" data-filter="refunded">Refunded</div>
+          <div class="tab" data-filter="all">All</div>
+        </div>
+        <button class="btn btn-secondary" onclick="exportPayments()">Export CSV</button>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
@@ -680,7 +683,7 @@
               <th>Amount</th>
               <th>MCC Fee</th>
               <th>Status</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="payments-table">
@@ -865,6 +868,48 @@
       </div>
       <div class="modal-footer" id="dispute-modal-footer">
         <!-- Dynamic buttons based on dispute state -->
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Payment Modal -->
+  <div class="modal-backdrop" id="edit-payment-modal">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Payment</h3>
+        <button class="modal-close" onclick="closeModal('edit-payment-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-payment-id" />
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Status</label>
+          <select id="edit-payment-status" class="form-control" style="width:100%;padding:8px;border-radius:6px;">
+            <option value="held">Held</option>
+            <option value="released">Released</option>
+            <option value="refunded">Refunded</option>
+            <option value="disputed">Disputed</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Amount Total ($)</label>
+          <input type="number" step="0.01" min="0" id="edit-payment-amount-total" class="form-control" style="width:100%;padding:8px;border-radius:6px;" />
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">MCC Fee ($)</label>
+          <input type="number" step="0.01" min="0" id="edit-payment-mcc-fee" class="form-control" style="width:100%;padding:8px;border-radius:6px;" />
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Refund Amount ($)</label>
+          <input type="number" step="0.01" min="0" id="edit-payment-refund-amount" class="form-control" style="width:100%;padding:8px;border-radius:6px;" />
+        </div>
+        <div style="margin-bottom:4px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Admin Note (optional)</label>
+          <textarea id="edit-payment-admin-note" rows="3" class="form-control" style="width:100%;padding:8px;border-radius:6px;resize:vertical;" placeholder="Internal bookkeeping note. Not shown to members or providers."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('edit-payment-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEditPayment()">Save Changes</button>
       </div>
     </div>
   </div>
@@ -1989,8 +2034,11 @@
       }
     }
 
+    let filteredPayments = [];
+
     function renderPayments() {
       const filtered = payments.filter(p => p.status === currentFilters.payments || currentFilters.payments === 'all');
+      filteredPayments = filtered;
       const tbody = document.getElementById('payments-table');
 
       // Update stats
@@ -2012,8 +2060,10 @@
           <td>$${(p.amount_total || 0).toFixed(2)}</td>
           <td>$${(p.amount_mcc_fee || 0).toFixed(2)}</td>
           <td><span class="status-badge ${p.status}">${p.status}</span></td>
-          <td>
-            ${p.status === 'held' ? `<button class="btn btn-sm btn-success" onclick="releasePayment('${p.id}')">Release</button>` : '-'}
+          <td style="white-space:nowrap;">
+            ${p.status === 'held' ? `<button class="btn btn-sm btn-success" onclick="releasePayment('${p.id}')">Release</button> ` : ''}
+            <button class="btn btn-sm btn-secondary" onclick="editPayment('${p.id}')">Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="deletePayment('${p.id}')">Delete</button>
           </td>
         </tr>
       `).join('');
@@ -2502,6 +2552,177 @@
       showToast('Payment released');
       await loadPayments();
       updateDashboard();
+    }
+
+    async function logAdminAction(action, targetId, metadata) {
+      try {
+        await supabaseClient.from('admin_audit_log').insert({
+          performed_by: currentUser?.id || null,
+          action,
+          target_type: 'payment',
+          target_id: targetId,
+          metadata: metadata || {}
+        });
+      } catch (err) {
+        console.warn('admin_audit_log insert failed', err);
+      }
+    }
+
+    function editPayment(paymentId) {
+      const p = payments.find(x => x.id === paymentId);
+      if (!p) {
+        showToast('Payment not found', 'error');
+        return;
+      }
+      document.getElementById('edit-payment-id').value = p.id;
+      document.getElementById('edit-payment-status').value = p.status || 'held';
+      document.getElementById('edit-payment-amount-total').value = p.amount_total ?? '';
+      document.getElementById('edit-payment-mcc-fee').value = p.amount_mcc_fee ?? '';
+      document.getElementById('edit-payment-refund-amount').value = p.refund_amount ?? '';
+      document.getElementById('edit-payment-admin-note').value = p.admin_note || '';
+      document.getElementById('edit-payment-modal').classList.add('active');
+    }
+
+    async function saveEditPayment() {
+      const id = document.getElementById('edit-payment-id').value;
+      if (!id) return;
+      const before = payments.find(x => x.id === id);
+
+      const status = document.getElementById('edit-payment-status').value;
+      const amountTotalRaw = document.getElementById('edit-payment-amount-total').value;
+      const mccFeeRaw = document.getElementById('edit-payment-mcc-fee').value;
+      const refundRaw = document.getElementById('edit-payment-refund-amount').value;
+      const note = document.getElementById('edit-payment-admin-note').value.trim();
+
+      const updates = {
+        status,
+        amount_total: amountTotalRaw === '' ? null : Number.parseFloat(amountTotalRaw),
+        amount_mcc_fee: mccFeeRaw === '' ? null : Number.parseFloat(mccFeeRaw),
+        refund_amount: refundRaw === '' ? null : Number.parseFloat(refundRaw),
+        admin_note: note || null
+      };
+
+      for (const k of ['amount_total', 'amount_mcc_fee', 'refund_amount']) {
+        if (updates[k] !== null && (Number.isNaN(updates[k]) || updates[k] < 0)) {
+          showToast(`Invalid value for ${k.replaceAll('_', ' ')}`, 'error');
+          return;
+        }
+      }
+
+      const { error } = await supabaseClient.from('payments').update(updates).eq('id', id);
+      if (error) {
+        showToast('Failed to save: ' + error.message, 'error');
+        return;
+      }
+
+      await logAdminAction('edit_payment', id, {
+        before: before ? {
+          status: before.status,
+          amount_total: before.amount_total,
+          amount_mcc_fee: before.amount_mcc_fee,
+          refund_amount: before.refund_amount,
+          admin_note: before.admin_note || null
+        } : null,
+        after: updates
+      });
+
+      closeModal('edit-payment-modal');
+      showToast('Payment updated');
+      await loadPayments();
+      updateDashboard();
+    }
+
+    async function deletePayment(paymentId) {
+      const p = payments.find(x => x.id === paymentId);
+      if (!p) {
+        showToast('Payment not found', 'error');
+        return;
+      }
+      if (!confirm(`Permanently delete this payment?\n\nPackage: ${p.maintenance_packages?.title || 'Package'}\nAmount: $${(p.amount_total || 0).toFixed(2)}\n\nThis cannot be undone.`)) return;
+
+      // Pre-flight: block delete if an open dispute references this payment.
+      const { data: openDisputes, error: disputeErr } = await supabaseClient
+        .from('disputes')
+        .select('id')
+        .eq('payment_id', paymentId)
+        .eq('status', 'open')
+        .limit(1);
+      if (disputeErr) {
+        showToast('Could not check disputes: ' + disputeErr.message, 'error');
+        return;
+      }
+      if (openDisputes && openDisputes.length > 0) {
+        showToast('Cannot delete: an open dispute references this payment. Resolve the dispute first.', 'error');
+        return;
+      }
+
+      const { error } = await supabaseClient.from('payments').delete().eq('id', paymentId);
+      if (error) {
+        showToast('Failed to delete: ' + error.message, 'error');
+        return;
+      }
+
+      await logAdminAction('delete_payment', paymentId, {
+        before: {
+          status: p.status,
+          amount_total: p.amount_total,
+          amount_mcc_fee: p.amount_mcc_fee,
+          refund_amount: p.refund_amount,
+          admin_note: p.admin_note || null,
+          member_id: p.member_id,
+          provider_id: p.provider_id,
+          package_id: p.package_id
+        },
+        after: null
+      });
+
+      showToast('Payment deleted');
+      await loadPayments();
+      updateDashboard();
+    }
+
+    function csvEscape(v) {
+      if (v === null || v === undefined) return '';
+      const s = String(v);
+      if (s.includes(',') || s.includes('"') || s.includes('\n') || s.includes('\r')) {
+        return `"${s.replaceAll('"', '""')}"`;
+      }
+      return s;
+    }
+
+    function exportPayments() {
+      const rows = filteredPayments;
+      if (!rows || !rows.length) {
+        showToast('No payments to export for the current filter', 'error');
+        return;
+      }
+      const header = ['Date', 'Package', 'Member', 'Provider', 'Amount', 'MCC Fee', 'Refund Amount', 'Status', 'Payment ID'];
+      const lines = [header.join(',')];
+      for (const p of rows) {
+        lines.push([
+          csvEscape(p.created_at || ''),
+          csvEscape(p.maintenance_packages?.title || ''),
+          csvEscape(p.member?.full_name || ''),
+          csvEscape(p.provider?.full_name || ''),
+          csvEscape((p.amount_total ?? 0).toFixed(2)),
+          csvEscape((p.amount_mcc_fee ?? 0).toFixed(2)),
+          csvEscape((p.refund_amount ?? 0).toFixed(2)),
+          csvEscape(p.status || ''),
+          csvEscape(p.id || '')
+        ].join(','));
+      }
+      const csv = lines.join('\n');
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      const today = new Date().toISOString().split('T')[0];
+      a.href = url;
+      a.download = `payments-export-${today}.csv`;
+      document.body.append(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${rows.length} payment${rows.length === 1 ? '' : 's'}`);
     }
 
     // ========== NAVIGATION ==========

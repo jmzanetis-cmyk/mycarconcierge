@@ -2690,11 +2690,14 @@
         </div>
       </div>
 
-      <div class="tabs">
-        <div class="tab active" data-filter="held">In Escrow</div>
-        <div class="tab" data-filter="released">Released</div>
-        <div class="tab" data-filter="refunded">Refunded</div>
-        <div class="tab" data-filter="all">All</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:8px;">
+        <div class="tabs" style="margin:0;">
+          <div class="tab active" data-filter="held">In Escrow</div>
+          <div class="tab" data-filter="released">Released</div>
+          <div class="tab" data-filter="refunded">Refunded</div>
+          <div class="tab" data-filter="all">All</div>
+        </div>
+        <button class="btn btn-secondary" onclick="exportPayments()">Export CSV</button>
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
@@ -2707,7 +2710,7 @@
               <th>Amount</th>
               <th>MCC Fee</th>
               <th>Status</th>
-              <th>Action</th>
+              <th>Actions</th>
             </tr>
           </thead>
           <tbody id="payments-table">
@@ -5125,6 +5128,48 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('ticket-modal')">Close</button>
         <button class="btn btn-primary" onclick="sendTicketReply()">Send Reply</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Edit Payment Modal -->
+  <div class="modal-backdrop" id="edit-payment-modal" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Edit Payment</h3>
+        <button class="modal-close" onclick="closeModal('edit-payment-modal')"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="edit-payment-id" />
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Status</label>
+          <select id="edit-payment-status" class="form-control" style="width:100%;padding:8px;border-radius:6px;">
+            <option value="held">Held</option>
+            <option value="released">Released</option>
+            <option value="refunded">Refunded</option>
+            <option value="disputed">Disputed</option>
+          </select>
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Amount Total ($)</label>
+          <input type="number" step="0.01" min="0" id="edit-payment-amount-total" class="form-control" style="width:100%;padding:8px;border-radius:6px;" />
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">MCC Fee ($)</label>
+          <input type="number" step="0.01" min="0" id="edit-payment-mcc-fee" class="form-control" style="width:100%;padding:8px;border-radius:6px;" />
+        </div>
+        <div style="margin-bottom:14px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Refund Amount ($)</label>
+          <input type="number" step="0.01" min="0" id="edit-payment-refund-amount" class="form-control" style="width:100%;padding:8px;border-radius:6px;" />
+        </div>
+        <div style="margin-bottom:4px;">
+          <label style="display:block;font-weight:600;margin-bottom:4px;">Admin Note (optional)</label>
+          <textarea id="edit-payment-admin-note" rows="3" class="form-control" style="width:100%;padding:8px;border-radius:6px;resize:vertical;" placeholder="Internal bookkeeping note. Not shown to members or providers."></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('edit-payment-modal')">Cancel</button>
+        <button class="btn btn-primary" onclick="saveEditPayment()">Save Changes</button>
       </div>
     </div>
   </div>
