@@ -134,6 +134,34 @@
     .divider { display: flex; align-items: center; gap: 16px; margin: 24px 0; color: var(--text-muted); font-size: 0.82rem; }
     .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
 
+    .social-divider { display: flex; align-items: center; gap: 16px; margin: 20px 0 16px; color: var(--text-muted); font-size: 0.82rem; }
+    .social-divider::before, .social-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+
+    .btn-facebook-signin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: #1877F2;
+      border: none;
+      border-radius: var(--radius-lg);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-facebook-signin:hover {
+      background: #166FE5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3);
+    }
+    .btn-facebook-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-facebook-signin .facebook-icon { flex-shrink: 0; }
+
     .signup-links { display: flex; gap: 12px; }
     .signup-link {
       flex: 1;
@@ -233,6 +261,16 @@
         </form>
 
         <div class="login-message" id="message"></div>
+
+        <div class="social-divider">
+          <span data-i18n="common.or">or</span>
+        </div>
+        <button type="button" class="btn-facebook-signin" id="facebook-signin-btn" onclick="signInWithFacebook()">
+          <svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span data-i18n="auth.signInWithFacebook">Continue with Facebook</span>
+        </button>
 
         <div class="divider" data-i18n="common.or">or</div>
 
@@ -339,13 +377,48 @@
     }
 
     async function handleUserRedirect(user) {
-      
-      const { data: profile, error } = await supabaseClient
+
+      let { data: profile, error } = await supabaseClient
         .from('profiles')
         .select('role, is_also_member, is_also_provider')
         .eq('id', user.id)
         .single();
 
+      // New OAuth user (e.g. first Facebook sign-in): no profile row yet.
+      // Create a member profile so existing-email accounts get linked by Supabase
+      // via shared email and brand-new accounts can complete onboarding.
+      if (error && error.code === 'PGRST116') {
+        const fullName = user.user_metadata?.full_name
+          || user.user_metadata?.name
+          || (user.email ? user.email.split('@')[0] : 'Member');
+        const { data: newProfile, error: createError } = await supabaseClient
+          .from('profiles')
+          .insert({
+            id: user.id,
+            email: user.email,
+            role: 'member',
+            full_name: fullName,
+            created_at: new Date().toISOString()
+          })
+          .select('role, is_also_member, is_also_provider')
+          .single();
+
+        if (createError) {
+          console.error('Failed to create profile for OAuth user:', createError);
+          showMessage('Unable to complete sign-in. Please try again.');
+          return;
+        }
+        profile = newProfile;
+        error = null;
+
+        // Send brand-new Facebook signups through the onboarding survey first
+        const params = new URLSearchParams(window.location.search);
+        if (params.get('oauth') === 'facebook') {
+          localStorage.setItem('mcc_portal', 'member');
+          globalThis.location.href = 'onboarding-member.html?source=facebook';
+          return;
+        }
+      }
 
       if (error || !profile) {
         showMessage('Unable to load profile. Please try again.');
@@ -428,6 +501,46 @@
       await supabaseClient.auth.signOut();
       showScreen('login-form-container');
     }
+
+    const FACEBOOK_BTN_LABEL = 'Continue with Facebook';
+    const FACEBOOK_BTN_ICON_SVG = '<svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>';
+
+    function resetFacebookButton(btn) {
+      if (!btn) return;
+      btn.disabled = false;
+      btn.innerHTML = FACEBOOK_BTN_ICON_SVG + '<span>' + FACEBOOK_BTN_LABEL + '</span>';
+    }
+
+    async function signInWithFacebook() {
+      const fbBtn = document.getElementById('facebook-signin-btn');
+      if (fbBtn) {
+        fbBtn.disabled = true;
+        fbBtn.innerHTML = '<span class="spinner"></span>Connecting...';
+      }
+
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'facebook',
+          options: {
+            redirectTo: globalThis.location.origin + '/login.html?oauth=facebook',
+            scopes: 'email,public_profile'
+          }
+        });
+
+        if (error) {
+          console.error('Facebook Sign In error:', error);
+          showMessage('Failed to connect to Facebook. Please try again.');
+          resetFacebookButton(fbBtn);
+        }
+        // On success the browser is redirected to facebook.com.
+      } catch (err) {
+        console.error('Facebook Sign In exception:', err);
+        showMessage('An error occurred. Please try again.');
+        resetFacebookButton(fbBtn);
+      }
+    }
+
+    globalThis.signInWithFacebook = signInWithFacebook;
   </script>
   <script src="/pwa-init.js"></script>
   <script src="/ai-chat.js"></script>

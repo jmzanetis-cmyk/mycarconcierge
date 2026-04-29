@@ -837,6 +837,9 @@
     let skippedVehicle = false;
     let skippedRequest = false;
     let requestSaved = false;
+    // Set when arriving here already authenticated via Facebook OAuth.
+    // We skip the email/password steps and just collect remaining info.
+    let oauthSource = null;
     const formData = {
       name: '',
       email: '',
@@ -958,7 +961,10 @@
     }
 
     function goBack() {
-      if (currentStep > 0 && currentStep <= 4) showStep(currentStep - 1);
+      // OAuth users start at step 3 (phone) — don't let them back into the
+      // unused email/password steps.
+      const minStep = oauthSource ? 3 : 0;
+      if (currentStep > minStep && currentStep <= 4) showStep(currentStep - 1);
     }
 
     function toggleReferral() {
@@ -1000,36 +1006,51 @@
       btn.innerHTML = '<div class="loading-spinner"></div> Creating account...';
 
       try {
-        const { data, error } = await supabaseClient.auth.signUp({
-          email: formData.email,
-          password: formData.password
-        });
-
-        if (error) throw error;
-
-        if (data.user) {
-          userId = data.user.id;
-
-          const { error: profileError } = await supabaseClient.from('profiles').insert({
-            id: userId,
+        // OAuth signups (e.g. Facebook) are already authenticated and have a
+        // profile row from login.html; we just need to fill in the survey
+        // fields the user provided here.
+        if (oauthSource && userId) {
+          const { error: updateError } = await supabaseClient
+            .from('profiles')
+            .update({
+              full_name: formData.name || undefined,
+              phone: formData.phone || null,
+              sms_consent: formData.smsConsent || false
+            })
+            .eq('id', userId);
+          if (updateError) console.error('Profile update error:', updateError);
+        } else {
+          const { data, error } = await supabaseClient.auth.signUp({
             email: formData.email,
-            role: 'member',
-            full_name: formData.name,
-            phone: formData.phone || null,
-            sms_consent: formData.smsConsent || false
+            password: formData.password
           });
 
-          if (profileError) console.error('Profile insert error:', profileError);
+          if (error) throw error;
 
-          if (formData.referral) {
-            try {
-              await supabaseClient.rpc('register_member_referral', {
-                p_member_id: userId,
-                p_referral_code: formData.referral
-              });
-            } catch (refErr) {
-              console.error('Referral error:', refErr);
-            }
+          if (data.user) {
+            userId = data.user.id;
+
+            const { error: profileError } = await supabaseClient.from('profiles').insert({
+              id: userId,
+              email: formData.email,
+              role: 'member',
+              full_name: formData.name,
+              phone: formData.phone || null,
+              sms_consent: formData.smsConsent || false
+            });
+
+            if (profileError) console.error('Profile insert error:', profileError);
+          }
+        }
+
+        if (userId && formData.referral) {
+          try {
+            await supabaseClient.rpc('register_member_referral', {
+              p_member_id: userId,
+              p_referral_code: formData.referral
+            });
+          } catch (refErr) {
+            console.error('Referral error:', refErr);
           }
         }
 
@@ -1210,6 +1231,45 @@
     pwConfirm.addEventListener('input', checkPasswordRules);
 
     updateProgress();
+
+    // If the user lands here already authenticated via Facebook OAuth
+    // (?source=facebook from login.html / signup-member.html), skip the
+    // name/email/password steps and pre-fill what we know from Facebook.
+    async function maybeStartFromOAuth() {
+      const params = new URLSearchParams(globalThis.location.search);
+      const source = params.get('source');
+      if (source !== 'facebook') return;
+
+      let user = null;
+      for (let i = 0; i < 20 && !user; i++) {
+        try {
+          const { data } = await supabaseClient.auth.getUser();
+          user = data?.user || null;
+        } catch (_e) { /* not ready yet */ }
+        if (!user) await new Promise(r => setTimeout(r, 150));
+      }
+      if (!user) return;
+
+      oauthSource = 'facebook';
+      userId = user.id;
+
+      const fbName = user.user_metadata?.full_name
+        || user.user_metadata?.name
+        || (user.email ? user.email.split('@')[0] : '');
+      formData.name = fbName;
+      formData.email = user.email || '';
+
+      const nameInput = document.getElementById('input-name');
+      if (nameInput) nameInput.value = fbName;
+      const emailInput = document.getElementById('input-email');
+      if (emailInput) emailInput.value = formData.email;
+
+      // Jump straight to the phone step (step 3); name/email/password aren't
+      // needed for OAuth users.
+      showStep(3);
+    }
+
+    maybeStartFromOAuth();
   </script>
 </body>
 </html>

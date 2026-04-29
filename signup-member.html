@@ -239,6 +239,34 @@
       color: var(--text-muted);
     }
 
+    .social-divider { display: flex; align-items: center; gap: 16px; margin: 20px 0 16px; color: var(--text-muted); font-size: 0.82rem; }
+    .social-divider::before, .social-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+
+    .btn-facebook-signin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: #1877F2;
+      border: none;
+      border-radius: var(--radius-lg);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-facebook-signin:hover {
+      background: #166FE5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3);
+    }
+    .btn-facebook-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-facebook-signin .facebook-icon { flex-shrink: 0; }
+
     .signup-footer a {
       color: var(--text-secondary);
       text-decoration: none;
@@ -419,6 +447,16 @@
 
       <div class="signup-message" id="message"></div>
 
+      <div class="social-divider">
+        <span data-i18n="common.or">or</span>
+      </div>
+      <button type="button" class="btn-facebook-signin" id="facebook-signin-btn" onclick="signUpWithFacebook()">
+        <svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+          <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+        </svg>
+        <span data-i18n="auth.signUpWithFacebook">Continue with Facebook</span>
+      </button>
+
       <div class="signup-footer">
         <span data-i18n="auth.hasAccount">Already have an account?</span> <a href="login.html" data-i18n="common.signIn">Sign in</a>
       </div>
@@ -440,6 +478,96 @@
       messageEl.textContent = text;
       messageEl.className = `signup-message show ${type}`;
     }
+
+    // Facebook OAuth signup -------------------------------------------------
+    const FACEBOOK_BTN_ICON_SVG = '<svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>';
+
+    function resetFacebookButton(btn) {
+      if (!btn) return;
+      btn.disabled = false;
+      btn.innerHTML = FACEBOOK_BTN_ICON_SVG + '<span>Continue with Facebook</span>';
+    }
+
+    async function signUpWithFacebook() {
+      const fbBtn = document.getElementById('facebook-signin-btn');
+      if (fbBtn) {
+        fbBtn.disabled = true;
+        fbBtn.innerHTML = '<span class="spinner"></span>Connecting...';
+      }
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'facebook',
+          options: {
+            redirectTo: globalThis.location.origin + '/signup-member.html?oauth=facebook',
+            scopes: 'email,public_profile'
+          }
+        });
+        if (error) {
+          console.error('Facebook Sign Up error:', error);
+          showMessage('Failed to connect to Facebook. Please try again.', 'error');
+          resetFacebookButton(fbBtn);
+        }
+      } catch (err) {
+        console.error('Facebook Sign Up exception:', err);
+        showMessage('An error occurred. Please try again.', 'error');
+        resetFacebookButton(fbBtn);
+      }
+    }
+
+    globalThis.signUpWithFacebook = signUpWithFacebook;
+
+    // After the Facebook redirect lands back here, finalize the profile
+    // and send the new member to the onboarding survey.
+    async function handleFacebookReturn() {
+      const params = new URLSearchParams(globalThis.location.search);
+      if (params.get('oauth') !== 'facebook') return;
+
+      // Wait briefly for supabase to detect the session from the URL hash.
+      let user = null;
+      for (let i = 0; i < 20 && !user; i++) {
+        try {
+          const { data } = await supabaseClient.auth.getUser();
+          user = data?.user || null;
+        } catch (_e) { /* ignore until ready */ }
+        if (!user) await new Promise(r => setTimeout(r, 150));
+      }
+      if (!user) return;
+
+      showMessage('Connecting your Facebook account...', 'info');
+
+      const { data: existing } = await supabaseClient
+        .from('profiles')
+        .select('id, role')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (!existing) {
+        const fullName = user.user_metadata?.full_name
+          || user.user_metadata?.name
+          || (user.email ? user.email.split('@')[0] : 'Member');
+        const { error: insertErr } = await supabaseClient.from('profiles').insert({
+          id: user.id,
+          email: user.email,
+          role: 'member',
+          full_name: fullName,
+          created_at: new Date().toISOString()
+        });
+        if (insertErr) {
+          console.error('Profile insert error after Facebook signup:', insertErr);
+          showMessage('Could not finish creating your account. Please try again.', 'error');
+          return;
+        }
+      }
+
+      localStorage.setItem('mcc_portal', 'member');
+      // New Facebook signups land on the onboarding survey, just like email signups.
+      const dest = existing
+        ? 'members.html'
+        : 'onboarding-member.html?source=facebook';
+      globalThis.location.href = dest;
+    }
+
+    handleFacebookReturn();
 
     function setLoading(loading) {
       if (loading) {
