@@ -60,7 +60,7 @@ exports.handler = async function(event) {
       });
     }
 
-    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
     var account = await stripe.accounts.retrieve(founder.stripe_connect_account_id);
 
     return utils.successResponse({

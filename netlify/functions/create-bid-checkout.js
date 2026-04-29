@@ -59,7 +59,7 @@ exports.handler = async function(event) {
   var totalBids = pack.bid_count + (pack.bonus_bids || 0);
 
   try {
-    var stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
+    var stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
     var domain = 'https://www.mycarconcierge.com';
 
     var session = await stripe.checkout.sessions.create({

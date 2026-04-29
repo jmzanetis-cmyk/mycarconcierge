@@ -56,7 +56,7 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'This split payment is no longer accepting payments');
     }
 
-    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
+    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
     var clientSecret;
     var paymentIntentId;
 

@@ -28,7 +28,7 @@ exports.handler = async function(event) {
   if (stripeAccountId && process.env.STRIPE_SECRET_KEY) {
     try {
       var Stripe = require('stripe');
-      var stripe = Stripe(process.env.STRIPE_SECRET_KEY);
+      var stripe = Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
       var account = await stripe.accounts.retrieve(stripeAccountId);
 
       if (account && account.id) {
