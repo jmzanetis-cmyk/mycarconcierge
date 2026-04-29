@@ -3481,20 +3481,6 @@
       updateDashboard();
     }
 
-    async function logAdminAction(action, targetId, metadata) {
-      try {
-        await supabaseClient.from('admin_audit_log').insert({
-          performed_by: currentUser?.id || null,
-          action,
-          target_type: 'payment',
-          target_id: targetId,
-          metadata: metadata || {}
-        });
-      } catch (err) {
-        console.warn('admin_audit_log insert failed', err);
-      }
-    }
-
     function editPayment(paymentId) {
       const p = payments.find(x => x.id === paymentId);
       if (!p) {
@@ -3515,7 +3501,6 @@
     async function saveEditPayment() {
       const id = document.getElementById('edit-payment-id').value;
       if (!id) return;
-      const before = payments.find(x => x.id === id);
 
       const status = document.getElementById('edit-payment-status').value;
       const amountTotalRaw = document.getElementById('edit-payment-amount-total').value;
