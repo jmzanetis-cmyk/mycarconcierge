@@ -2556,9 +2556,9 @@
         const amount = (r.amount_cents || 0) / 100;
         const statusClass = r.status === 'processed' ? 'released' : r.status === 'requested' ? 'held' : r.status === 'cancelled' ? 'refunded' : 'pending';
         
-        let actionHtml = '-';
+        let actionHtml = `<button class="btn btn-sm btn-secondary" onclick="viewRefund('${escapeHtml(r.id)}')">View</button>`;
         if (r.status === 'requested') {
-          actionHtml = `
+          actionHtml += `
             <button class="btn btn-sm btn-success" onclick="approveRefund('${escapeHtml(r.id)}', ${r.amount_cents})">Approve</button>
             <button class="btn btn-sm btn-secondary" onclick="denyRefund('${escapeHtml(r.id)}')">Deny</button>
           `;
@@ -2613,6 +2613,52 @@
       }
     }
     
+    async function viewRefund(refundId) {
+      const r = allRefunds.find(x => x.id === refundId);
+      if (!r) return;
+
+      const memberName = r.member?.full_name || r.member?.email || 'Unknown';
+      const pkgTitle = r.package?.title || r.package_id || '-';
+      const amount = ((r.amount_cents || 0) / 100).toFixed(2);
+      const statusClass = r.status === 'processed' ? 'released' : r.status === 'requested' ? 'held' : r.status === 'cancelled' ? 'refunded' : 'pending';
+
+      document.getElementById('refund-modal-body').innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">Refund Details</div>
+          <div class="detail-grid">
+            <span class="detail-label">Member:</span><span class="detail-value">${escapeHtml(memberName)}</span>
+            <span class="detail-label">Package:</span><span class="detail-value">${escapeHtml(pkgTitle)}</span>
+            <span class="detail-label">Type:</span><span class="detail-value">${escapeHtml(r.refund_type || 'full')}</span>
+            <span class="detail-label">Amount:</span><span class="detail-value">$${amount}</span>
+            <span class="detail-label">Status:</span><span class="detail-value"><span class="status-badge ${statusClass}">${escapeHtml(r.status)}</span></span>
+            <span class="detail-label">Requested:</span><span class="detail-value">${r.requested_at ? new Date(r.requested_at).toLocaleString() : '-'}</span>
+            ${r.processed_at ? `<span class="detail-label">Processed:</span><span class="detail-value">${new Date(r.processed_at).toLocaleString()}</span>` : ''}
+          </div>
+          ${r.reason ? `<p style="margin-top:16px;color:var(--text-secondary);background:var(--bg-input);padding:16px;border-radius:var(--radius-md);">${escapeHtml(r.reason)}</p>` : ''}
+        </div>
+
+        ${(r.user_id || r.requested_by) ? `
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">${mccIcon('mail', 24)} Outreach History</div>
+          <div id="refund-outreach-history-body-${r.id}" style="font-size:0.9rem;color:var(--text-muted);">Loading…</div>
+        </div>
+        ` : ''}
+      `;
+
+      document.getElementById('refund-modal-footer').innerHTML = r.status === 'requested' ? `
+        <button class="btn btn-secondary" onclick="denyRefund('${escapeHtml(r.id)}')">Deny</button>
+        <button class="btn btn-success" onclick="approveRefund('${escapeHtml(r.id)}', ${r.amount_cents})">Approve</button>
+      ` : '';
+
+      const refundUserId = r.user_id || r.requested_by;
+      if (refundUserId && typeof window.renderOutreachHistoryPanel === 'function') {
+        try { window.renderOutreachHistoryPanel(`refund-outreach-history-body-${r.id}`, refundUserId); }
+        catch (e) { console.warn('[admin] refund outreach history panel failed:', e); }
+      }
+
+      document.getElementById('refund-modal').classList.add('active');
+    }
+
     async function denyRefund(refundId) {
       if (!confirm('Deny this refund request? The member will be notified.')) return;
       
@@ -3061,6 +3107,13 @@
           <label class="form-label">Resolution Notes</label>
           <textarea class="form-textarea" id="resolution-notes" placeholder="Explain the resolution decision...">${d.resolution_notes || ''}</textarea>
         </div>
+
+        ${(d.user_id || d.filed_by) ? `
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">${mccIcon('mail', 24)} Outreach History</div>
+          <div id="dispute-outreach-history-body-${d.id}" style="font-size:0.9rem;color:var(--text-muted);">Loading…</div>
+        </div>
+        ` : ''}
       `;
 
       document.getElementById('dispute-modal-footer').innerHTML = `
@@ -3068,6 +3121,12 @@
         <button class="btn btn-danger" onclick="resolveDispute('provider')">Resolve for Provider</button>
         <button class="btn btn-success" onclick="resolveDispute('member')">Resolve for Member</button>
       `;
+
+      const disputeUserId = d.user_id || d.filed_by;
+      if (disputeUserId && typeof window.renderOutreachHistoryPanel === 'function') {
+        try { window.renderOutreachHistoryPanel(`dispute-outreach-history-body-${d.id}`, disputeUserId); }
+        catch (e) { console.warn('[admin] dispute outreach history panel failed:', e); }
+      }
 
       // Task #139: AI dispute analysis panel (legacy ai_ops dispute_resolver + Advocate fleet agent).
       const dBody = document.getElementById('dispute-modal-body');
@@ -7078,6 +7137,7 @@
     window.changeRefundsPage = changeRefundsPage;
     window.approveRefund = approveRefund;
     window.denyRefund = denyRefund;
+    window.viewRefund = viewRefund;
 
     async function logout() { localStorage.removeItem('mcc_admin_pass'); localStorage.removeItem('mcc_admin_team_token'); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
     window.logout = logout;

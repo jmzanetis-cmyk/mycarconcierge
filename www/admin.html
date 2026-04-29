@@ -5056,6 +5056,22 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
     </div>
   </div>
 
+  <!-- Refund Detail Modal -->
+  <div class="modal-backdrop" id="refund-modal" style="display:none;">
+    <div class="modal">
+      <div class="modal-header">
+        <h3 class="modal-title">Refund Details</h3>
+        <button class="modal-close" onclick="closeModal('refund-modal')"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></button>
+      </div>
+      <div class="modal-body" id="refund-modal-body">
+        <!-- Populated by JS -->
+      </div>
+      <div class="modal-footer" id="refund-modal-footer">
+        <!-- Dynamic buttons based on refund state -->
+      </div>
+    </div>
+  </div>
+
   <!-- Dispute Review Modal -->
   <div class="modal-backdrop" id="dispute-modal" style="display:none;">
     <div class="modal">
