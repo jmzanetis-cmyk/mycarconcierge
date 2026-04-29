@@ -1,0 +1,124 @@
+<!--
+  MCC Verified — Launch Email (Customers)
+  Resend-ready transactional template. VERBATIM PDF copy (Section 7,
+  "To Customers: Feature Announcement"). This customer-facing template
+  does not display the per-employee price; it only describes the badge.
+  Spanish counterpart: bgc-launch-customer-es.html.
+
+  Resend variables:
+    {{first_name}}     — recipient first name (replaces "[Name]")
+    {{browse_url}}     — link target for "Browse Verified Providers →"
+                         (e.g. https://www.mycarconcierge.com/providers-directory.html?verified=true)
+
+  Subject:        Now you can see which providers are background-checked
+  Preview text:   Look for the ✓ badge on MCC
+-->
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Now you can see which providers are background-checked</title>
+  <meta name="x-resend-subject" content="Now you can see which providers are background-checked">
+  <meta name="x-resend-preview" content="Look for the ✓ badge on MCC">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0D0D0D; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+
+  <!-- Hidden preview text (controls inbox snippet) -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0D0D0D;">
+    Look for the ✓ badge on MCC
+  </div>
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #0D0D0D; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px;">
+
+          <!-- Logo -->
+          <tr>
+            <td align="center" style="padding-bottom: 40px;">
+              <span style="font-family: Georgia, serif; font-size: 24px; color: #FAF9F6;">
+                My Car <span style="color: #C9A227;">Concierge</span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Main Content Box -->
+          <tr>
+            <td style="background-color: #1A1A1A; padding: 50px 40px; border-top: 3px solid #4CAF50;">
+
+              <!-- MCC Verified Badge Pill -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding-bottom: 28px;">
+                    <span style="display: inline-block; padding: 8px 20px; background-color: rgba(76, 175, 80, 0.15); border: 1px solid rgba(76, 175, 80, 0.45); color: #4CAF50; font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;">
+                      ✓ MCC VERIFIED
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Headline -->
+              <h1 style="margin: 0 0 24px 0; font-family: Georgia, serif; font-size: 28px; line-height: 1.3; color: #FAF9F6; text-align: center;">
+                Now you can see which providers are background-checked
+              </h1>
+
+              <!-- VERBATIM Body — do not paraphrase -->
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Hi {{first_name}},
+              </p>
+
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                We&rsquo;re excited to announce MCC Verified &mdash; a new way to choose providers with confidence.
+              </p>
+
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Providers who earn the MCC Verified badge have completed background checks for their customer-facing team members, verified by our nationally accredited screening partner. Checks are renewed every year to keep them current.
+              </p>
+
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                <strong style="color: #FAF9F6;">How to find Verified providers:</strong> Look for the ✓ Background Verified badge on provider listings and Car Club profiles. You can also filter search results to show only Verified providers.
+              </p>
+
+              <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Your safety matters to us. MCC Verified is one more way we&rsquo;re building a marketplace you can trust.
+              </p>
+
+              <!-- CTA -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 8px 0;">
+                    <a href="{{browse_url}}" style="display: inline-block; padding: 14px 32px; background-color: #4CAF50; color: #FFFFFF; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; text-decoration: none; border-radius: 4px;">
+                      Browse Verified Providers →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 32px 0 0 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                — The My Car Concierge Team
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Disclosure / Footer -->
+          <tr>
+            <td style="padding: 28px 8px 0 8px;">
+              <p style="margin: 0 0 12px 0; font-size: 11px; line-height: 1.6; color: #888888; text-align: center;">
+                Background check information is provided by a third-party consumer reporting agency.
+                My Car Concierge does not conduct background checks directly.
+              </p>
+              <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #666666; text-align: center;">
+                My Car Concierge &middot; <a href="{{unsubscribe_url}}" style="color: #888888; text-decoration: underline;">Unsubscribe</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

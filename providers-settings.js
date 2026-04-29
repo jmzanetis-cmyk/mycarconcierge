@@ -11,7 +11,7 @@ async function saveProviderProfile() {
     state: document.getElementById('profile-state')?.value,
     zip_code: document.getElementById('profile-zip-code')?.value,
     bio: document.getElementById('profile-bio')?.value,
-    hourly_rate: parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
+    hourly_rate: Number.parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
   };
   
   try {
@@ -43,7 +43,7 @@ async function saveProviderProfile() {
 
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
-  const radius = parseInt(document.getElementById('emergency-radius')?.value) || 15;
+  const radius = Number.parseInt(document.getElementById('emergency-radius')?.value) || 15;
   const is24Seven = document.getElementById('emergency-24-7')?.checked;
   const canTow = document.getElementById('emergency-can-tow')?.checked;
   
@@ -367,7 +367,7 @@ async function submitBackgroundCheck() {
   }
 
   try {
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/initiate-background-check`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -600,7 +600,7 @@ async function loadLoyaltyQrCode() {
   if (!container) return;
   
   try {
-    const referralLink = `${window.location.origin}/signup-loyal-customer.html?ref=${currentUser.id}`;
+    const referralLink = `${globalThis.location.origin}/signup-loyal-customer.html?ref=${currentUser.id}`;
     
     container.innerHTML = `
       <div style="text-align:center;padding:20px;">
@@ -628,7 +628,7 @@ async function loadLoyaltyQrCode() {
 }
 
 function copyLoyaltyLink() {
-  const link = `${window.location.origin}/signup-loyal-customer.html?ref=${currentUser.id}`;
+  const link = `${globalThis.location.origin}/signup-loyal-customer.html?ref=${currentUser.id}`;
   navigator.clipboard.writeText(link).then(() => {
     showToast('Link copied!', 'success');
   }).catch(() => {
@@ -744,7 +744,7 @@ async function toggleQrCheckin(enabled) {
       return;
     }
     
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/provider/settings/qr-checkin`, {
       method: 'POST',
       headers: {
@@ -778,7 +778,7 @@ function initPublicProfileCard() {
 
   checkbox.checked = !!providerProfile.directory_opt_in;
   if (providerProfile.directory_opt_in && providerProfile.directory_slug) {
-    const baseUrl = window.location.origin;
+    const baseUrl = globalThis.location.origin;
     const profileUrl = baseUrl + '/p/' + providerProfile.directory_slug;
     document.getElementById('public-profile-url').value = profileUrl;
     document.getElementById('preview-profile-link').href = '/p/' + providerProfile.directory_slug;
@@ -796,7 +796,7 @@ async function toggleDirectoryOptIn() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) throw new Error('Not authenticated');
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const resp = await fetch(apiBase + '/api/provider/profile/publish', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
@@ -811,7 +811,7 @@ async function toggleDirectoryOptIn() {
 
     const linkSection = document.getElementById('public-profile-link-section');
     if (data.directory_opt_in && data.directory_slug) {
-      const baseUrl = window.location.origin;
+      const baseUrl = globalThis.location.origin;
       const profileUrl = baseUrl + '/p/' + data.directory_slug;
       document.getElementById('public-profile-url').value = profileUrl;
       document.getElementById('preview-profile-link').href = '/p/' + data.directory_slug;
@@ -869,7 +869,7 @@ async function loadProviderNotificationSettings() {
   const pushContent = document.getElementById('provider-push-content');
   const nativeCard = document.getElementById('provider-native-push-card');
 
-  if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+  if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) {
     if (notSupported) notSupported.style.display = 'block';
     if (pushContent) pushContent.style.display = 'none';
   } else {
@@ -884,10 +884,10 @@ async function loadProviderNotificationSettings() {
   }
 
   if (nativeCard) {
-    const isNative = !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    const isNative = !!(globalThis.Capacitor && globalThis.Capacitor.isNativePlatform && globalThis.Capacitor.isNativePlatform());
     nativeCard.style.display = isNative ? 'block' : 'none';
-    if (isNative && typeof window.initCapacitorPush === 'function') {
-      window.initCapacitorPush('provider');
+    if (isNative && typeof globalThis.initCapacitorPush === 'function') {
+      globalThis.initCapacitorPush('provider');
     }
   }
 }
@@ -897,7 +897,7 @@ async function enableProviderPushNotifications() {
   if (btn) { btn.disabled = true; btn.textContent = 'Enabling…'; }
 
   try {
-    if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+    if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) {
       showToast('Push notifications are not supported in this browser.', 'error');
       return;
     }
@@ -912,7 +912,7 @@ async function enableProviderPushNotifications() {
       return;
     }
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const vapidResp = await fetch(`${apiBase}/api/push/vapid-key`);
     const vapidData = await vapidResp.json();
     if (!vapidData.publicKey) {
@@ -954,13 +954,13 @@ async function enableProviderPushNotifications() {
 
 async function disableProviderPushNotifications() {
   try {
-    if ('serviceWorker' in navigator && 'PushManager' in window) {
+    if ('serviceWorker' in navigator && 'PushManager' in globalThis) {
       const registration = await navigator.serviceWorker.ready;
       const subscription = await registration.pushManager.getSubscription();
       if (subscription) await subscription.unsubscribe();
     }
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const { data: { session } } = await supabaseClient.auth.getSession();
     await fetch(`${apiBase}/api/provider/push/unsubscribe`, {
       method: 'POST',
@@ -977,8 +977,8 @@ async function disableProviderPushNotifications() {
 
 function urlBase64ToUint8Array(base64String) {
   const padding = '='.repeat((4 - base64String.length % 4) % 4);
-  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-  const rawData = window.atob(base64);
+  const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
+  const rawData = globalThis.atob(base64);
   const outputArray = new Uint8Array(rawData.length);
   for (let i = 0; i < rawData.length; ++i) {
     outputArray[i] = rawData.charCodeAt(i);
@@ -1002,7 +1002,7 @@ async function loadProviderPushPreferences() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const resp = await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
@@ -1024,7 +1024,7 @@ async function saveProviderPushPreferences() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const preferences = {};
     PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
       preferences[key] = document.getElementById(id)?.checked ?? true;

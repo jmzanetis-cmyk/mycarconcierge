@@ -234,7 +234,7 @@ async function setupAuthenticatedCdnMocks(page, role) {
   });
 
   await page.addInitScript(() => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,
@@ -350,14 +350,14 @@ test.describe('Protected Pages - Access Control Without Auth', () => {
   test('members.html redirects to login when no auth token is present', async ({ page }) => {
     await setupCdnMocks(page);
     await page.goto('/members.html', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => window.location.pathname.includes('login'), { timeout: 15000 });
+    await page.waitForFunction(() => globalThis.location.pathname.includes('login'), { timeout: 15000 });
     expect(page.url()).toContain('login');
   });
 
   test('providers.html redirects to login when no auth token is present', async ({ page }) => {
     await setupCdnMocks(page);
     await page.goto('/providers.html', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => window.location.pathname.includes('login'), { timeout: 15000 });
+    await page.waitForFunction(() => globalThis.location.pathname.includes('login'), { timeout: 15000 });
     expect(page.url()).toContain('login');
   });
 
@@ -371,7 +371,7 @@ test.describe('Protected Pages - Access Control Without Auth', () => {
   test('founder-dashboard.html redirects to login when no auth token is present', async ({ page }) => {
     await setupCdnMocks(page);
     await page.goto('/founder-dashboard.html', { waitUntil: 'domcontentloaded' });
-    await page.waitForFunction(() => window.location.pathname.includes('login'), { timeout: 15000 });
+    await page.waitForFunction(() => globalThis.location.pathname.includes('login'), { timeout: 15000 });
     expect(page.url()).toContain('login');
   });
 });

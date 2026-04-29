@@ -25,6 +25,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared-styles.css">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/bgc-badge.js"></script>
   <style>
     :root {
       --bg-deep: #12161c;
@@ -179,6 +180,26 @@
     }
     .theme-toggle-pill:hover { border-color: var(--accent-gold); }
   </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/providers-directory.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Browse vetted automotive service providers on My Car Concierge. Get quotes for maintenance, repairs, detailing, and more from trusted professionals near you." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/providers-directory.html" />
+  <meta property="og:title" content="Find Auto Service Providers | My Car Concierge" />
+  <meta property="og:description" content="Browse vetted automotive service providers on My Car Concierge. Get quotes for maintenance, repairs, detailing, and more from trusted professionals near you." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="Find Auto Service Providers | My Car Concierge" />
+  <meta name="twitter:description" content="Browse vetted automotive service providers on My Car Concierge. Get quotes for maintenance, repairs, detailing, and more from trusted professionals near you." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <header>
@@ -233,7 +254,16 @@
         <option value="Mobile Service">Mobile Service</option>
         <option value="Snow Plowing">Snow Plowing</option>
       </select>
+      <label class="verified-toggle" for="filter-verified" title="Show only Verified Providers" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;border:1px solid var(--border-subtle);background:var(--bg-elevated);cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
+        <input type="checkbox" id="filter-verified" onchange="loadProviders(1)" style="accent-color:#4CAF50;cursor:pointer;">
+        <!-- Filled in from window.MCC_BGC.getFilterLabel() (bilingual EN / ES). -->
+        <span id="filter-verified-label">Show only Verified Providers</span>
+      </label>
     </div>
+    <p class="filter-help" id="filter-verified-help" style="text-align:center;color:var(--text-muted);font-size:0.82rem;margin:-8px 0 18px;max-width:640px;margin-left:auto;margin-right:auto;">
+      <!-- Filled in from window.MCC_BGC.getFilterDescription() (bilingual EN / ES). -->
+      Verified Providers maintain current background checks on their employees, renewed every year.
+    </p>
 
     <div class="results-count" id="results-count"></div>
     <div id="providers-container"></div>
@@ -315,6 +345,31 @@
 
       let badgesHtml = '';
       const badges = [];
+      const mccVerified = !!p.bgc_badge_verified;
+      if (window.MCC_BGC) {
+        const mccPill = window.MCC_BGC.renderBadge({
+          verified: mccVerified,
+          variant: 'full',
+          compliantEmployees: p.bgc_compliant_employees,
+          totalEmployees: p.bgc_total_employees
+        });
+        if (mccPill) badges.push(mccPill);
+      } else if (mccVerified) {
+        badges.push('<span class="badge-item bgc-badge-verified" title="This provider has completed background verification"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Background Verified</span>');
+      }
+      // Neutral subtitle for non-verified cards.
+      let mccSubtitleHtml = '';
+      if (window.MCC_BGC && mccVerified) {
+        mccSubtitleHtml = window.MCC_BGC.renderListingSubtitle({ verified: true });
+      } else if (window.MCC_BGC && !mccVerified && window.MCC_BGC.COPY) {
+        const neutralCopy = window.MCC_BGC.COPY.notVerifiedNeutral || '';
+        if (neutralCopy) {
+          mccSubtitleHtml =
+            '<div class="mcc-bgc-card-neutral" style="font-size:0.78rem;color:var(--text-muted);line-height:1.5;margin-top:8px;">' +
+              neutralCopy +
+            '</div>';
+        }
+      }
       if (p.years_in_business && p.years_in_business >= 5) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ' + p.years_in_business + '+ years</span>');
       if (p.emergency_enabled) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg> Emergency</span>');
       if ((p.certifications || []).length > 0) badges.push('<span class="badge-item"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m15.477 12.89 1.515 8.526a.5.5 0 0 1-.81.47l-3.58-2.687a1 1 0 0 0-1.197 0l-3.586 2.686a.5.5 0 0 1-.81-.469l1.514-8.526"/><circle cx="12" cy="8" r="6"/></svg> Certified</span>');
@@ -326,12 +381,14 @@
           '<div>' +
             '<div class="provider-name">' + escapeHtml(p.business_name) + '</div>' +
             (location ? '<div class="provider-location"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg> ' + escapeHtml(location) + '</div>' : '') +
+            (p.team_count > 0 ? '<div class="provider-team-count"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> ' + p.team_count + ' team member' + (p.team_count !== 1 ? 's' : '') + '</div>' : '') +
           '</div>' +
         '</div>' +
         ratingHtml +
         '<div class="provider-services">' + services.map(s => '<span class="service-tag">' + escapeHtml(s) + '</span>').join('') + (extraCount > 0 ? '<span class="service-tag">+' + extraCount + ' more</span>' : '') + '</div>' +
         (p.description ? '<div class="provider-bio">' + escapeHtml(p.description) + '</div>' : '') +
         badgesHtml +
+        mccSubtitleHtml +
         '<button class="btn-quote" onclick="event.stopPropagation(); requestQuote(\'' + escapeHtml(p.slug) + '\')">Request a Quote</button>' +
       '</div>';
     }
@@ -341,6 +398,7 @@
       const container = document.getElementById('providers-container');
       const city = document.getElementById('filter-city').value.trim();
       const category = document.getElementById('filter-category').value;
+      const verifiedOnly = !!(document.getElementById('filter-verified') && document.getElementById('filter-verified').checked);
 
       if (currentPage === 1) {
         container.innerHTML = '<div class="loading-spinner"><div class="spinner"></div></div>';
@@ -350,8 +408,23 @@
         const params = new URLSearchParams();
         if (city) params.set('city', city);
         if (category) params.set('category', category);
+        if (verifiedOnly) params.set('verified', 'true');
         params.set('page', currentPage);
         params.set('limit', '24');
+
+        // Keep the URL in sync with the active filters so links
+        // are shareable/bookmarkable (e.g. ?verified=true).
+        try {
+          const urlParams = new URLSearchParams();
+          if (city) urlParams.set('city', city);
+          if (category) urlParams.set('category', category);
+          if (verifiedOnly) urlParams.set('verified', 'true');
+          const qs = urlParams.toString();
+          const newUrl = window.location.pathname + (qs ? ('?' + qs) : '');
+          if (newUrl !== window.location.pathname + window.location.search) {
+            window.history.replaceState(null, '', newUrl);
+          }
+        } catch (_) { /* non-fatal */ }
 
         const resp = await fetch(apiBase + '/api/directory/providers?' + params.toString());
         const data = await resp.json();
@@ -411,6 +484,35 @@
       localStorage.setItem('preferred_provider_slug', slug);
       window.location.href = '/onboarding-member.html?provider=' + encodeURIComponent(slug);
     }
+
+    // Honor ?verified=true URL param (e.g. from homepage CTA "Browse Verified Providers").
+    try {
+      const _qs = new URLSearchParams(window.location.search);
+      if (_qs.get('verified') === 'true' || _qs.get('verified') === '1') {
+        const _vc = document.getElementById('filter-verified');
+        if (_vc) _vc.checked = true;
+      }
+      const _qcity = _qs.get('city'); if (_qcity) document.getElementById('filter-city').value = _qcity;
+      const _qcat  = _qs.get('category'); if (_qcat) document.getElementById('filter-category').value = _qcat;
+    } catch (e) {}
+
+    // Localize the Verified filter copy from MCC_BGC (bilingual EN / ES).
+    try {
+      if (window.MCC_BGC) {
+        const _lbl = document.getElementById('filter-verified-label');
+        const _hlp = document.getElementById('filter-verified-help');
+        const _wrap = document.querySelector('label.verified-toggle');
+        if (_lbl && typeof window.MCC_BGC.getFilterLabel === 'function') {
+          _lbl.textContent = window.MCC_BGC.getFilterLabel();
+        }
+        if (_hlp && typeof window.MCC_BGC.getFilterDescription === 'function') {
+          _hlp.textContent = window.MCC_BGC.getFilterDescription();
+        }
+        if (_wrap && _lbl) {
+          _wrap.setAttribute('title', _lbl.textContent);
+        }
+      }
+    } catch (e) {}
 
     loadProviders(1);
   </script>

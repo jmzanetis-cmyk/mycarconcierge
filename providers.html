@@ -6159,8 +6159,8 @@
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
-        if (window._providerOnboarding && window._providerOnboarding.shouldShow()) {
-          window._providerOnboarding.show();
+        if (globalThis._providerOnboarding && globalThis._providerOnboarding.shouldShow()) {
+          globalThis._providerOnboarding.show();
         }
       }, 1500);
     });

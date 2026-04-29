@@ -25,6 +25,7 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared-styles.css">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="/bgc-badge.js?v=20260428"></script>
   <style>
     :root {
       --bg-deep: #12161c;
@@ -187,6 +188,10 @@
       .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
     }
   </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/p.html" />
+  <meta name="robots" content="noindex, nofollow" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <header>
@@ -363,8 +368,9 @@
     }
 
     function injectJsonLd(p) {
-      const location = [p.city, p.state].filter(Boolean).join(', ');
-      const jsonLd = {
+      var roleLabelsLd = { lead_tech: 'Lead Technician', technician: 'Technician', apprentice: 'Apprentice', manager: 'Manager', advisor: 'Service Advisor', detailer: 'Detailer', body_tech: 'Body Technician', painter: 'Painter', custom: 'Team Member' };
+      var location = [p.city, p.state].filter(Boolean).join(', ');
+      var jsonLd = {
         '@context': 'https://schema.org',
         '@type': 'LocalBusiness',
         'name': p.business_name,
@@ -382,6 +388,15 @@
       }
       if (p.avatar_url) {
         jsonLd.image = p.avatar_url;
+      }
+      if (p.team_members && p.team_members.length > 0) {
+        jsonLd.numberOfEmployees = { '@type': 'QuantitativeValue', 'value': p.team_members.length };
+        jsonLd.employee = p.team_members.map(function(tm) {
+          var person = { '@type': 'Person', 'name': tm.name };
+          if (tm.role) person.jobTitle = roleLabelsLd[tm.role] || tm.role;
+          if (tm.bio) person.description = tm.bio;
+          return person;
+        });
       }
       document.getElementById('jsonld-data').textContent = JSON.stringify(jsonLd);
     }
@@ -403,6 +418,18 @@
 
       let badgesHtml = '';
       const badges = [];
+      const __mccVerified = !!p.bgc_badge_verified;
+      if (window.MCC_BGC) {
+        const __pill = window.MCC_BGC.renderBadge({
+          verified: __mccVerified,
+          variant: 'full',
+          compliantEmployees: p.bgc_compliant_employees,
+          totalEmployees: p.bgc_total_employees
+        });
+        if (__pill) badges.push('<div class="badge-card bgc-badge-lg">' + __pill + '</div>');
+      } else if (__mccVerified) {
+        badges.push('<div class="badge-card bgc-badge-verified bgc-badge-lg" title="MCC Verified — at least 90% of this team have completed an active background check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</div>');
+      }
       if (p.years_in_business && p.years_in_business >= 1) {
         const label = p.years_in_business >= 20 ? '20+ years in business' : p.years_in_business + '+ years in business';
         badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg> ' + label + '</div>');
@@ -438,6 +465,68 @@
         bioHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg> About</h2><div class="bio-text">' + escapeHtml(p.description) + '</div></div>';
       }
 
+      // "About MCC Verified" section + neutral non-verified copy.
+      // Bilingual (EN / ES) — picks language from saved user preference.
+      const __aboutLang = (function () {
+        try {
+          var l = (localStorage.getItem('mcc_language') || 'en').toLowerCase();
+          return l === 'es' ? 'es' : 'en';
+        } catch (_) { return 'en'; }
+      })();
+      const __aboutCopy = __aboutLang === 'es' ? {
+        heading: 'Sobre MCC Verificado',
+        intro: ' es un proveedor MCC Verificado. Esto significa que al menos el 90 % de su equipo con contacto con clientes ha aprobado una verificación integral de antecedentes a través de nuestro socio acreditado a nivel nacional. Estas verificaciones se renuevan anualmente para garantizar el cumplimiento continuo.',
+        included: '<strong>Qué incluye la verificación:</strong> \u2022 Búsqueda de antecedentes penales (nivel nacional y de condado) \u2022 Consulta del registro de delincuentes sexuales \u2022 Verificación de identidad',
+        safety: 'Tu seguridad es importante para MCC. La insignia Verificado te da la confianza de saber que las personas que trabajan en tu vehículo han pasado una verificación profesional.',
+        whySummary: '¿Por qué importa esto?',
+        whyBody: 'Estás confiando tu vehículo a alguien — muchas veces en tu casa o lugar de trabajo. Los proveedores MCC Verificados han hecho un esfuerzo adicional para demostrar que son confiables. Las verificaciones de antecedentes no son obligatorias para unirse a MCC, pero los proveedores que las completan obtienen la insignia Verificado, dándote una forma sencilla de elegir con confianza.',
+        notVerifiedBody: 'Este proveedor aún no ha completado el programa MCC Verificado. Aún puedes solicitarle ofertas — muchos proveedores excelentes están en proceso de obtener su verificación.',
+        consumerDisclosureFallback: 'La información de verificación de antecedentes es proporcionada por una agencia externa de informes al consumidor. My Car Concierge no realiza verificaciones de antecedentes directamente.'
+      } : {
+        heading: 'About MCC Verified',
+        intro: ' is an MCC Verified provider. This means at least 90% of their customer-facing team has passed a comprehensive background check through our nationally accredited screening partner. These checks are renewed annually to ensure ongoing compliance.',
+        included: '<strong>What\u2019s included in the screening:</strong> \u2022 Criminal history search (national + county level) \u2022 Sex offender registry check \u2022 Identity verification',
+        safety: 'MCC takes your safety seriously. The Verified badge gives you confidence that the people working on your vehicle have been professionally screened.',
+        whySummary: 'Why does this matter?',
+        whyBody: 'You\u2019re trusting someone with your vehicle \u2014 often at your home or workplace. MCC Verified providers have gone the extra mile to prove they\u2019re trustworthy. Background checks aren\u2019t required to join MCC, but providers who complete them earn the Verified badge, giving you an easy way to choose with confidence.',
+        notVerifiedBody: 'This provider has not yet completed the MCC Verified program. You can still request bids from them \u2014 many great providers are in the process of getting verified.',
+        consumerDisclosureFallback: 'Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.'
+      };
+
+      let mccVerifiedSectionHtml = '';
+      if (__mccVerified) {
+        mccVerifiedSectionHtml =
+          '<div class="card" id="about-mcc-verified">' +
+            '<h2><svg viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="2"><path d="M20 6 9 17l-5-5"/></svg> ' + __aboutCopy.heading + '</h2>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
+              escapeHtml(p.business_name) + __aboutCopy.intro +
+            '</p>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
+              __aboutCopy.included +
+            '</p>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;margin-bottom:14px;">' +
+              __aboutCopy.safety +
+            '</p>' +
+            '<details style="margin-top:8px;">' +
+              '<summary style="cursor:pointer;font-weight:600;color:var(--text-primary);">' + __aboutCopy.whySummary + '</summary>' +
+              '<p style="margin-top:10px;color:var(--text-secondary);line-height:1.65;">' +
+                __aboutCopy.whyBody +
+              '</p>' +
+            '</details>' +
+            '<p style="margin-top:18px;font-size:0.78rem;color:var(--text-muted);line-height:1.55;">' +
+              (window.MCC_BGC ? window.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
+            '</p>' +
+          '</div>';
+      } else {
+        mccVerifiedSectionHtml =
+          '<div class="card" id="about-mcc-verified">' +
+            '<h2 style="color:var(--text-secondary);">' + __aboutCopy.heading + '</h2>' +
+            '<p style="color:var(--text-secondary);line-height:1.65;">' +
+              __aboutCopy.notVerifiedBody +
+            '</p>' +
+          '</div>';
+      }
+
       let galleryHtml = '';
       if (p.gallery && p.gallery.length > 0) {
         galleryHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg> Gallery</h2><div class="gallery-grid">' + p.gallery.map(function(g) { return '<div class="gallery-item"><img src="' + escapeHtml(g.image_url) + '" alt="' + escapeHtml(g.caption || p.business_name) + '" loading="lazy"></div>'; }).join('') + '</div></div>';
@@ -467,6 +556,38 @@
         reviewsHtml = '<div class="card reviews-section"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Reviews (' + p.review_count + ')</h2>' + reviewCards + '</div>';
       }
 
+      let teamHtml = '';
+      if (p.team_members && p.team_members.length > 0) {
+        const roleLabels = { lead_tech: 'Lead Technician', technician: 'Technician', apprentice: 'Apprentice', manager: 'Manager', advisor: 'Service Advisor', detailer: 'Detailer', body_tech: 'Body Technician', painter: 'Painter', custom: 'Team Member' };
+        const teamCards = p.team_members.map(function(tm) {
+          const photoEl = tm.photo_url
+            ? '<img src="' + escapeHtml(tm.photo_url) + '" alt="' + escapeHtml(tm.name) + '" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">'
+            : '<span style="font-size:20px;font-weight:600;color:var(--accent-gold);">' + escapeHtml(tm.name.charAt(0).toUpperCase()) + '</span>';
+          let bgcBadge = '';
+          if (tm.background_verified) {
+            bgcBadge = '<span class="bgc-badge-verified" style="font-size:0.75rem;margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</span>';
+          } else if (tm.background_check_pending) {
+            bgcBadge = '<span class="bgc-badge-pending" style="font-size:0.75rem;margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending</span>';
+          }
+          let certsHtml = '';
+          const certs = (tm.certifications || []).concat(tm.specialties || []).slice(0, 3);
+          if (certs.length > 0) {
+            certsHtml = '<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:8px;">' + certs.map(function(c) { return '<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-gold-soft);color:var(--accent-gold);">' + escapeHtml(c) + '</span>'; }).join('') + '</div>';
+          }
+          return '<div style="display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">' +
+            '<div style="width:48px;height:48px;min-width:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold-soft),var(--bg-elevated));display:flex;align-items:center;justify-content:center;overflow:hidden;">' + photoEl + '</div>' +
+            '<div style="flex:1;min-width:0;">' +
+              '<div style="font-weight:600;font-size:0.95rem;">' + escapeHtml(tm.name) + '</div>' +
+              '<div style="font-size:0.82rem;color:var(--text-muted);">' + (roleLabels[tm.role] || tm.role || 'Team Member') + (tm.years_experience ? ' &middot; ' + tm.years_experience + ' yrs exp' : '') + '</div>' +
+              bgcBadge +
+              (tm.bio ? '<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">' + escapeHtml(tm.bio) + '</div>' : '') +
+              certsHtml +
+            '</div>' +
+          '</div>';
+        }).join('');
+        teamHtml = '<div class="card"><h2><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg> Meet the Team</h2><div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:12px;">' + teamCards + '</div></div>';
+      }
+
       let ctaCardHtml = '<div class="card" style="text-align:center;padding:32px;">' +
         '<h2 style="justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Ready to get started?</h2>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px;">Get a competitive quote from ' + escapeHtml(p.business_name) + ' with escrow payment protection and verified reviews.</p>' +
@@ -484,9 +605,11 @@
         '</div>' +
         badgesHtml +
         bioHtml +
+        mccVerifiedSectionHtml +
         servicesHtml +
         certsHtml +
         galleryHtml +
+        teamHtml +
         reviewsHtml +
         ctaCardHtml;
     }

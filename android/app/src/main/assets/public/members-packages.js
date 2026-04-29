@@ -1,5 +1,313 @@
-// ========== MY CAR CONCIERGE - PACKAGES MODULE ==========
 // Package management, bids, upsells, destination services, reviews
+
+    let aiSuggestionDebounceTimer = null;
+    let aiAssistantExpanded = true;
+    let lastAiRequestHash = '';
+    let aiSuggestionAbortController = null;
+
+    function initAiPackageAssistant() {
+      const descField = document.getElementById('p-description');
+      const titleField = document.getElementById('p-title');
+      if (descField) {
+        descField.addEventListener('input', () => debounceAiSuggestions());
+      }
+      if (titleField) {
+        titleField.addEventListener('input', () => debounceAiSuggestions());
+      }
+    }
+
+    function debounceAiSuggestions() {
+      clearTimeout(aiSuggestionDebounceTimer);
+      aiSuggestionDebounceTimer = setTimeout(() => {
+        fetchAiSuggestions();
+      }, 1200);
+    }
+
+    function getAiRequestHash() {
+      const desc = (document.getElementById('p-description')?.value || '').trim();
+      const title = (document.getElementById('p-title')?.value || '').trim();
+      const category = document.getElementById('p-category')?.value || '';
+      return `${desc}|${title}|${category}`;
+    }
+
+    async function fetchAiSuggestions() {
+      const desc = (document.getElementById('p-description')?.value || '').trim();
+      const title = (document.getElementById('p-title')?.value || '').trim();
+
+      if (desc.length < 5 && title.length < 3) {
+        document.getElementById('ai-assistant-panel').style.display = 'none';
+        if (aiSuggestionAbortController) {
+          aiSuggestionAbortController.abort();
+          aiSuggestionAbortController = null;
+        }
+        lastAiRequestHash = '';
+        return;
+      }
+
+      const hash = getAiRequestHash();
+      if (hash === lastAiRequestHash) return;
+      lastAiRequestHash = hash;
+
+      if (aiSuggestionAbortController) {
+        aiSuggestionAbortController.abort();
+      }
+      aiSuggestionAbortController = new AbortController();
+
+      const panel = document.getElementById('ai-assistant-panel');
+      const loading = document.getElementById('ai-assistant-loading');
+      const content = document.getElementById('ai-suggestions-content');
+
+      panel.style.display = 'block';
+      if (aiAssistantExpanded) {
+        panel.classList.remove('collapsed');
+      }
+      loading.style.display = 'block';
+      content.innerHTML = '';
+
+      const vehicleId = document.getElementById('p-vehicle')?.value;
+      let vehicleInfo = null;
+      if (vehicleId && typeof vehicles !== 'undefined') {
+        const v = vehicles.find(vh => vh.id === vehicleId);
+        if (v) {
+          vehicleInfo = { year: v.year, make: v.make, model: v.model, trim: v.trim, mileage: v.mileage };
+        }
+      }
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) {
+          loading.style.display = 'none';
+          panel.style.display = 'none';
+          return;
+        }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/package/ai-suggestions`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            description: desc,
+            title: title,
+            category: document.getElementById('p-category')?.value || '',
+            serviceType: document.getElementById('p-service-type')?.value || '',
+            vehicleInfo: vehicleInfo
+          }),
+          signal: aiSuggestionAbortController.signal
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to get suggestions');
+        }
+
+        const data = await response.json();
+        loading.style.display = 'none';
+        renderAiSuggestions(data.suggestions);
+      } catch (err) {
+        if (err.name === 'AbortError') return;
+        loading.style.display = 'none';
+        content.innerHTML = '<div style="padding:8px 0;font-size:0.82rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="8" y2="12"/><line x1="12" x2="12.01" y1="16" y2="16"/></svg> Could not load suggestions. You can continue without them.</div>';
+        console.log('AI suggestions error:', err);
+      }
+    }
+
+    const checkSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+    const xSvg = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg>';
+
+    function createAiSuggestionItem(id, label, text, chips) {
+      const item = document.createElement('div');
+      item.className = 'ai-suggestion-item';
+      item.id = id;
+
+      const labelEl = document.createElement('div');
+      labelEl.className = 'ai-suggestion-label';
+      labelEl.textContent = label;
+      item.appendChild(labelEl);
+
+      const textEl = document.createElement('div');
+      textEl.className = 'ai-suggestion-text';
+      textEl.textContent = text;
+      item.appendChild(textEl);
+
+      const chipRow = document.createElement('div');
+      chipRow.style.cssText = 'display:flex;gap:8px;flex-wrap:wrap;';
+      chips.forEach(chip => {
+        const span = document.createElement('span');
+        span.className = `ai-chip ${chip.className}`;
+        span.innerHTML = chip.icon;
+        span.appendChild(document.createTextNode(' ' + chip.label));
+        span.addEventListener('click', chip.handler);
+        chipRow.appendChild(span);
+      });
+      item.appendChild(chipRow);
+
+      return item;
+    }
+
+    function showAcceptedFeedback(el, message) {
+      el.innerHTML = '';
+      const div = document.createElement('div');
+      div.style.cssText = 'padding:4px 0;font-size:0.82rem;color:var(--accent-green);display:flex;align-items:center;gap:6px;';
+      div.innerHTML = checkSvg;
+      div.appendChild(document.createTextNode(' ' + message));
+      el.appendChild(div);
+      setTimeout(() => el.remove(), 2000);
+    }
+
+    function renderAiSuggestions(suggestions) {
+      const content = document.getElementById('ai-suggestions-content');
+      const badge = document.getElementById('ai-suggestion-count');
+      if (!suggestions) {
+        content.innerHTML = '';
+        badge.style.display = 'none';
+        return;
+      }
+
+      content.innerHTML = '';
+      let count = 0;
+
+      if (suggestions.suggestedCategory && suggestions.suggestedCategory !== document.getElementById('p-category')?.value) {
+        count++;
+        const catKey = String(suggestions.suggestedCategory);
+        const catLabel = String(suggestions.suggestedCategoryLabel || catKey);
+        content.appendChild(createAiSuggestionItem('ai-cat-suggestion', 'Category Suggestion',
+          suggestions.categoryReason || ('This looks like it belongs in ' + catLabel),
+          [
+            { className: 'ai-chip-accept', icon: checkSvg, label: 'Use ' + catLabel, handler: () => {
+              const sel = document.getElementById('p-category');
+              if (sel) { sel.value = catKey; sel.dispatchEvent(new Event('change')); }
+              const el = document.getElementById('ai-cat-suggestion');
+              if (el) showAcceptedFeedback(el, 'Category updated!');
+              updateAiBadgeCount();
+            }},
+            { className: 'ai-chip-dismiss', icon: xSvg, label: 'Ignore', handler: () => dismissAiSuggestion('ai-cat-suggestion') }
+          ]
+        ));
+      }
+
+      if (suggestions.improvedTitle) {
+        count++;
+        const titleVal = String(suggestions.improvedTitle);
+        content.appendChild(createAiSuggestionItem('ai-title-suggestion', 'Better Title',
+          '"' + titleVal + '"',
+          [
+            { className: 'ai-chip-accept', icon: checkSvg, label: 'Use this title', handler: () => {
+              const f = document.getElementById('p-title');
+              if (f) f.value = titleVal;
+              const el = document.getElementById('ai-title-suggestion');
+              if (el) showAcceptedFeedback(el, 'Title updated!');
+              updateAiBadgeCount();
+            }},
+            { className: 'ai-chip-dismiss', icon: xSvg, label: 'Ignore', handler: () => dismissAiSuggestion('ai-title-suggestion') }
+          ]
+        ));
+      }
+
+      if (suggestions.missingFields && suggestions.missingFields.length > 0) {
+        suggestions.missingFields.forEach((mf, idx) => {
+          count++;
+          const elId = 'ai-missing-' + idx;
+          const promptText = String(mf.prompt || '');
+          const suggVal = mf.suggestedValue ? String(mf.suggestedValue) : null;
+          const displayText = suggVal ? promptText + ' Suggested: "' + suggVal + '"' : promptText;
+          const chips = [];
+          if (suggVal) {
+            chips.push({ className: 'ai-chip-accept', icon: checkSvg, label: 'Add this detail', handler: () => {
+              const descField = document.getElementById('p-description');
+              if (descField) {
+                const current = descField.value.trim();
+                descField.value = current ? current + '\n' + suggVal : suggVal;
+              }
+              const el = document.getElementById(elId);
+              if (el) showAcceptedFeedback(el, 'Detail added!');
+              updateAiBadgeCount();
+            }});
+          }
+          chips.push({ className: 'ai-chip-dismiss', icon: xSvg, label: suggVal ? 'Ignore' : 'Got it', handler: () => dismissAiSuggestion(elId) });
+          content.appendChild(createAiSuggestionItem(elId, 'Missing Detail', displayText, chips));
+        });
+      }
+
+      if (suggestions.clarifyingQuestion) {
+        count++;
+        content.appendChild(createAiSuggestionItem('ai-clarify', 'Clarifying Question',
+          String(suggestions.clarifyingQuestion),
+          [{ className: 'ai-chip-dismiss', icon: xSvg, label: 'Dismiss', handler: () => dismissAiSuggestion('ai-clarify') }]
+        ));
+      }
+
+      if (count === 0) {
+        const okDiv = document.createElement('div');
+        okDiv.style.cssText = 'padding:8px 0;font-size:0.82rem;color:var(--accent-green);display:flex;align-items:center;gap:6px;';
+        okDiv.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg>';
+        okDiv.appendChild(document.createTextNode(' Your request looks great! No suggestions needed.'));
+        content.appendChild(okDiv);
+        badge.style.display = 'none';
+      } else {
+        badge.textContent = count;
+        badge.style.display = 'inline';
+      }
+    }
+
+    function toggleAiAssistantPanel() {
+      const panel = document.getElementById('ai-assistant-panel');
+      aiAssistantExpanded = !aiAssistantExpanded;
+      if (aiAssistantExpanded) {
+        panel.classList.remove('collapsed');
+      } else {
+        panel.classList.add('collapsed');
+      }
+    }
+
+    function dismissAiSuggestion(elementId) {
+      const el = document.getElementById(elementId);
+      if (el) {
+        el.style.opacity = '0';
+        el.style.transform = 'translateX(10px)';
+        el.style.transition = 'all 0.2s ease';
+        setTimeout(() => el.remove(), 200);
+      }
+      setTimeout(() => updateAiBadgeCount(), 250);
+    }
+
+    function updateAiBadgeCount() {
+      const content = document.getElementById('ai-suggestions-content');
+      const badge = document.getElementById('ai-suggestion-count');
+      if (!content || !badge) return;
+      const remaining = content.querySelectorAll('.ai-suggestion-item').length;
+      if (remaining > 0) {
+        badge.textContent = remaining;
+        badge.style.display = 'inline';
+      } else {
+        badge.style.display = 'none';
+      }
+    }
+
+    function resetAiAssistant() {
+      clearTimeout(aiSuggestionDebounceTimer);
+      if (aiSuggestionAbortController) {
+        aiSuggestionAbortController.abort();
+        aiSuggestionAbortController = null;
+      }
+      lastAiRequestHash = '';
+      aiAssistantExpanded = true;
+      const panel = document.getElementById('ai-assistant-panel');
+      if (panel) {
+        panel.style.display = 'none';
+        panel.classList.remove('collapsed');
+      }
+      const content = document.getElementById('ai-suggestions-content');
+      if (content) content.innerHTML = '';
+      const loading = document.getElementById('ai-assistant-loading');
+      if (loading) loading.style.display = 'none';
+      const badge = document.getElementById('ai-suggestion-count');
+      if (badge) badge.style.display = 'none';
+    }
+
+    window.toggleAiAssistantPanel = toggleAiAssistantPanel;
+    window.dismissAiSuggestion = dismissAiSuggestion;
 
     async function loadUpsellRequests() {
       const { data } = await supabaseClient.from('upsell_requests')
@@ -300,6 +608,7 @@
 
 
     let packagePaymentStatuses = {};
+    const _providerNotifyCounts = {};
 
     async function loadPackagePaymentStatuses() {
       if (!packages.length) return;
@@ -366,7 +675,7 @@
         const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
         
         // Check if bidding has expired (but package still shows as 'open')
-        const isExpired = p.status === 'open' && p.bidding_deadline && new Date(p.bidding_deadline) < new Date();
+        const isExpired = (p.status === 'open' && p.bidding_deadline && new Date(p.bidding_deadline) < new Date()) || p.status === 'bidding_closed';
         const displayStatus = isExpired ? 'expired' : p.status;
         const statusClass = displayStatus === 'open' ? 'open' : displayStatus === 'completed' ? 'completed' : displayStatus === 'expired' ? 'expired' : ['pending', 'accepted'].includes(displayStatus) ? 'pending' : 'accepted';
         
@@ -581,7 +890,6 @@
       `).join('');
     }
 
-    // ========== DESTINATION SERVICE HANDLING ==========
     function handlePickupChange() {
       const pickup = document.getElementById('p-pickup').value;
       const destFields = document.getElementById('destination-service-fields');
@@ -631,9 +939,15 @@
       }
     }
 
-    function createPackageForVehicle(vehicleId) {
+    function createPackageForVehicle(vehicleId, opts) {
       openPackageModal();
       document.getElementById('p-vehicle').value = vehicleId;
+      if (opts && opts.title) document.getElementById('p-title').value = opts.title;
+      if (opts && opts.description) document.getElementById('p-description').value = opts.description;
+      if (opts && opts.category) {
+        const catEl = document.getElementById('p-category');
+        if (catEl) catEl.value = opts.category;
+      }
     }
 
     function createPackageFromReminder(vehicleId, title) {
@@ -642,7 +956,6 @@
       document.getElementById('p-title').value = title;
     }
 
-    // ========== PACKAGE PHOTO HANDLING ==========
     function handlePackagePhotoSelect(event) {
       const files = Array.from(event.target.files);
       const maxPhotos = 5;
@@ -732,7 +1045,6 @@
     }
 
 
-    // ========== SAVE FUNCTIONS ==========
     async function saveVehicle() {
       const make = document.getElementById('v-make').value.trim();
       const model = document.getElementById('v-model').value.trim();
@@ -804,6 +1116,205 @@
       await loadVehicles();
       await loadReminders();
       updateStats();
+    }
+
+    function toggleAiDescribePanel() {
+      const body = document.getElementById('ai-describe-body');
+      const chevron = document.getElementById('ai-describe-chevron');
+      const open = body.style.display === 'none';
+      body.style.display = open ? 'block' : 'none';
+      if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+      if (open) document.getElementById('ai-describe-input')?.focus();
+    }
+
+    async function aiDescribeToPackage() {
+      const input = document.getElementById('ai-describe-input');
+      const text = (input?.value || '').trim();
+      if (!text) { showToast('Please describe your issue first.', 'error'); return; }
+
+      const btn = document.getElementById('ai-describe-btn');
+      const status = document.getElementById('ai-describe-status');
+      btn.disabled = true;
+      btn.textContent = 'Thinking...';
+      status.style.display = 'inline';
+      status.textContent = 'AI is analyzing your description...';
+      status.style.color = 'var(--accent-teal)';
+
+      try {
+        const vehicleId = document.getElementById('p-vehicle')?.value;
+        let vehicleInfo = null;
+        if (vehicleId && typeof vehicles !== 'undefined') {
+          const v = vehicles.find(x => x.id === vehicleId);
+          if (v) vehicleInfo = { make: v.make, model: v.model, year: v.year, trim: v.trim || null };
+        }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const resp = await fetch(`${apiBase}/api/ai/describe-to-package`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+          body: JSON.stringify({ text, vehicle: vehicleInfo })
+        });
+        if (!resp.ok) {
+          let errMsg = 'Server error';
+          try { const errData = await resp.json(); errMsg = errData.error || errMsg; } catch (_) {}
+          const e = new Error(errMsg);
+          e.serverMessage = errMsg;
+          throw e;
+        }
+        const result = await resp.json();
+
+        function flashField(el) {
+          if (!el) return;
+          el.style.transition = 'box-shadow 0.4s ease, border-color 0.4s ease';
+          el.style.boxShadow = '0 0 0 2px rgba(34,211,238,0.5)';
+          el.style.borderColor = 'var(--accent-teal)';
+          setTimeout(() => { el.style.boxShadow = ''; el.style.borderColor = ''; }, 1200);
+        }
+
+        if (result.category) {
+          const sel = document.getElementById('p-category');
+          if (sel) {
+            const match = Array.from(sel.options).find(o => o.value === result.category);
+            if (match) { sel.value = result.category; sel.dispatchEvent(new Event('change')); flashField(sel); }
+          }
+        }
+        if (result.title) {
+          const titleEl = document.getElementById('p-title');
+          titleEl.value = result.title;
+          flashField(titleEl);
+        }
+        if (result.description) {
+          const descEl = document.getElementById('p-description');
+          descEl.value = result.description;
+          flashField(descEl);
+        }
+
+        status.textContent = 'Fields filled — review and adjust if needed.';
+        status.style.color = 'var(--accent-green)';
+
+        setTimeout(() => {
+          const body = document.getElementById('ai-describe-body');
+          const chevron = document.getElementById('ai-describe-chevron');
+          if (body) body.style.display = 'none';
+          if (chevron) chevron.style.transform = '';
+        }, 1500);
+      } catch (err) {
+        console.error('AI describe error:', err);
+        const msg = err.serverMessage || 'Could not process — please fill in manually.';
+        status.textContent = msg;
+        status.style.color = 'var(--accent-red)';
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> Let AI fill this in';
+      }
+    }
+
+    async function aiPhotoDiagnose(fileInput) {
+      const file = fileInput?.files?.[0];
+      if (!file) return;
+      if (!file.type.startsWith('image/')) { showToast('Please select an image file.', 'error'); fileInput.value = ''; return; }
+      if (file.size > 10 * 1024 * 1024) { showToast('Image too large (max 10 MB).', 'error'); fileInput.value = ''; return; }
+
+      const status = document.getElementById('ai-describe-status');
+      const photoLabel = document.getElementById('ai-photo-label');
+      const previewDiv = document.getElementById('ai-photo-preview');
+      const thumbImg = document.getElementById('ai-photo-thumb');
+      const explDiv = document.getElementById('ai-photo-explanation');
+
+      status.style.display = 'inline';
+      status.textContent = 'Analyzing your photo...';
+      status.style.color = 'var(--accent-teal)';
+      photoLabel.style.pointerEvents = 'none';
+      photoLabel.style.opacity = '0.6';
+
+      try {
+        const reader = new FileReader();
+        const dataUrl = await new Promise((resolve, reject) => {
+          reader.onload = () => resolve(reader.result);
+          reader.onerror = () => reject(new Error('Could not read file'));
+          reader.readAsDataURL(file);
+        });
+
+        thumbImg.src = dataUrl;
+        previewDiv.style.display = 'block';
+        explDiv.style.display = 'none';
+
+        const base64 = dataUrl.split(',')[1];
+
+        const vehicleId = document.getElementById('p-vehicle')?.value;
+        let vehicleInfo = null;
+        if (vehicleId && typeof vehicles !== 'undefined') {
+          const v = vehicles.find(x => x.id === vehicleId);
+          if (v) vehicleInfo = { make: v.make, model: v.model, year: v.year, trim: v.trim || null };
+        }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const resp = await fetch(`${apiBase}/api/ai/photo-diagnose`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+          body: JSON.stringify({ image: base64, vehicle: vehicleInfo })
+        });
+        if (!resp.ok) {
+          let errMsg = 'Server error';
+          try { const errData = await resp.json(); errMsg = errData.error || errMsg; } catch (_) {}
+          const e = new Error(errMsg); e.serverMessage = errMsg; throw e;
+        }
+        const result = await resp.json();
+
+        if (result.lowConfidence) {
+          status.textContent = result.explanation || 'Could not clearly identify the issue — please describe it in the text box above.';
+          status.style.color = 'var(--accent-orange)';
+          explDiv.style.display = 'none';
+          return;
+        }
+
+        function flashField(el) {
+          if (!el) return;
+          el.style.transition = 'box-shadow 0.4s ease, border-color 0.4s ease';
+          el.style.boxShadow = '0 0 0 2px rgba(34,211,238,0.5)';
+          el.style.borderColor = 'var(--accent-teal)';
+          setTimeout(() => { el.style.boxShadow = ''; el.style.borderColor = ''; }, 1200);
+        }
+
+        if (result.category) {
+          const sel = document.getElementById('p-category');
+          if (sel) {
+            const match = Array.from(sel.options).find(o => o.value === result.category);
+            if (match) { sel.value = result.category; sel.dispatchEvent(new Event('change')); flashField(sel); }
+          }
+        }
+        if (result.title) { const el = document.getElementById('p-title'); el.value = result.title; flashField(el); }
+        if (result.description) { const el = document.getElementById('p-description'); el.value = result.description; flashField(el); }
+
+        if (result.explanation) {
+          explDiv.textContent = result.explanation;
+          explDiv.style.display = 'block';
+        }
+
+        status.textContent = 'Fields filled from photo — review and adjust if needed.';
+        status.style.color = 'var(--accent-green)';
+      } catch (err) {
+        console.error('AI photo diagnose error:', err);
+        status.textContent = err.serverMessage || 'Could not analyze photo — try describing the issue in the text box.';
+        status.style.color = 'var(--accent-red)';
+      } finally {
+        photoLabel.style.pointerEvents = '';
+        photoLabel.style.opacity = '';
+        fileInput.value = '';
+      }
+    }
+
+    function clearPhotoDiagnose() {
+      const previewDiv = document.getElementById('ai-photo-preview');
+      const thumbImg = document.getElementById('ai-photo-thumb');
+      const explDiv = document.getElementById('ai-photo-explanation');
+      const status = document.getElementById('ai-describe-status');
+      if (previewDiv) previewDiv.style.display = 'none';
+      if (thumbImg) thumbImg.src = '';
+      if (explDiv) { explDiv.style.display = 'none'; explDiv.textContent = ''; }
+      if (status) status.style.display = 'none';
     }
 
     async function savePackage() {
@@ -949,7 +1460,9 @@
         is_destination_service: isDestinationService,
         destination_address: destinationAddress,
         status: 'open',
-        crowd_funded: document.getElementById('p-crowd-funded')?.checked || false
+        crowd_funded: document.getElementById('p-crowd-funded')?.checked || false,
+        funding_goal_cents: (document.getElementById('p-crowd-funded')?.checked && document.getElementById('p-funding-goal')?.value)
+          ? Math.round(parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
       };
 
       // Check if this is a private job request
@@ -1005,6 +1518,85 @@
       showToast(successMsg, 'success');
       await loadPackages();
       updateStats();
+
+      setTimeout(() => {
+        try {
+          const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+          const tipContainer = document.getElementById('post-create-tip');
+          if (tipContainer) {
+            if (vehicleCount < 1) {
+              tipContainer.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(135deg,rgba(212,168,85,0.12),rgba(212,168,85,0.06));border:1px solid rgba(212,168,85,0.25);border-radius:12px;margin-bottom:16px;">
+                <span style="font-size:1.4rem;">🚗</span>
+                <div style="flex:1;">
+                  <strong style="color:var(--text-primary);font-size:0.92rem;">Add your vehicle for faster quoting</strong>
+                  <p style="color:var(--text-muted);font-size:0.82rem;margin:2px 0 0;">Providers give better bids when they can see your vehicle details.</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="showSection('vehicles');document.getElementById('post-create-tip').innerHTML='';" style="white-space:nowrap;">Add Vehicle</button>
+              </div>`;
+            } else if (packageData.crowd_funded) {
+              tipContainer.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(135deg,rgba(212,168,85,0.12),rgba(212,168,85,0.06));border:1px solid rgba(212,168,85,0.25);border-radius:12px;margin-bottom:16px;">
+                <span style="font-size:1.4rem;">🤝</span>
+                <div style="flex:1;">
+                  <strong style="color:var(--text-primary);font-size:0.92rem;">Your request is on the Community Board</strong>
+                  <p style="color:var(--text-muted);font-size:0.82rem;margin:2px 0 0;">Other members can now see and contribute to your request.</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="showCommunityBoard();document.getElementById('post-create-tip').innerHTML='';" style="white-space:nowrap;">View Board</button>
+              </div>`;
+            } else {
+              tipContainer.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(135deg,rgba(212,168,85,0.12),rgba(212,168,85,0.06));border:1px solid rgba(212,168,85,0.25);border-radius:12px;margin-bottom:16px;">
+                <span style="font-size:1.4rem;">💡</span>
+                <div style="flex:1;">
+                  <strong style="color:var(--text-primary);font-size:0.92rem;">Check the Community Board</strong>
+                  <p style="color:var(--text-muted);font-size:0.82rem;margin:2px 0 0;">See requests from other members and chip in on services you care about.</p>
+                </div>
+                <button class="btn btn-secondary btn-sm" onclick="showCommunityBoard();document.getElementById('post-create-tip').innerHTML='';" style="white-space:nowrap;">Explore</button>
+              </div>`;
+            }
+            setTimeout(() => { if (tipContainer) tipContainer.innerHTML = ''; }, 20000);
+          }
+        } catch (e) {}
+      }, 800);
+
+      if (data && data[0]) {
+        const newPkgId = data[0].id;
+        fetchPriceEstimate(category, userProfile.zip_code, newPkgId).then(estimate => {
+          if (estimate) {
+            const widgetHtml = renderPriceEstimateWidget(estimate);
+            if (widgetHtml) {
+              const container = document.getElementById('price-estimate-banner');
+              if (container) {
+                container.innerHTML = widgetHtml;
+                container.style.display = 'block';
+                setTimeout(() => { container.style.display = 'none'; }, 15000);
+              }
+            }
+          }
+        });
+
+        (async () => {
+          try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            if (session) {
+              const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+              const matchResp = await fetch(`${apiBase}/api/ai/match-providers`, {
+                method: 'POST',
+                headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ package_id: newPkgId })
+              }).catch(() => null);
+              if (matchResp && matchResp.ok) {
+                try {
+                  const matchData = await matchResp.json();
+                  if (matchData.matched > 0) {
+                    _providerNotifyCounts[newPkgId] = matchData.matched;
+                    await loadPackages();
+                    setTimeout(() => showToast(`${matchData.matched} nearby provider${matchData.matched === 1 ? '' : 's'} notified about your request.`, 'success'), 1200);
+                  }
+                } catch (e) {}
+              }
+            }
+          } catch (e) {}
+        })();
+      }
     }
 
     function buildDestinationServiceData(packageId, type) {
@@ -1073,7 +1665,9 @@
       const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
       
       let text = '';
-      if (days > 0) {
+      if (days > 3) {
+        text = `Closes ${end.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`;
+      } else if (days > 0) {
         text = `${days}d ${hours}h left`;
       } else if (hours > 0) {
         text = `${hours}h ${minutes}m left`;
@@ -1084,11 +1678,10 @@
       return { 
         text, 
         expired: false, 
-        urgent: diff < 4 * 60 * 60 * 1000 // Less than 4 hours
+        urgent: diff < 4 * 60 * 60 * 1000
       };
     }
 
-    // ========== REPOST EXPIRED PACKAGE ==========
     async function repostPackage(packageId) {
       const pkg = packages.find(p => p.id === packageId);
       if (!pkg) return;
@@ -1140,7 +1733,6 @@
       await loadPackages();
     }
 
-    // ========== EXTEND DEADLINE ==========
     let selectedExtendHours = 24;
     let currentExtendPackage = null;
 
@@ -1212,7 +1804,6 @@
       await loadPackages();
     }
 
-    // ========== VIEW PACKAGE WITH BIDS ==========
     async function viewPackage(packageId) {
       currentViewPackage = packageId;
       const pkg = packages.find(p => p.id === packageId);
@@ -1251,30 +1842,10 @@
       // Store bids for acceptBid function
       currentPackageBids = bids || [];
 
-      // Check if user already reviewed this package
-      let hasReviewed = false;
-      try {
-        const { data: existingReview } = await supabaseClient
-          .from('provider_reviews')
-          .select('id')
-          .eq('package_id', packageId)
-          .eq('member_id', currentUser.id)
-          .maybeSingle();
-        hasReviewed = !!existingReview;
-      } catch (e) {}
+      // Resolve the accepted bid for this package (used in appointment/transfer/location templates below)
+      const acceptedBid = bids?.find(b => b.id === pkg.accepted_bid_id) || bids?.find(b => b.status === 'accepted') || null;
 
-      // Load provider stats for each bid
-      const providerStats = {};
-      const providerPerformance = {};
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: stats } = await supabaseClient.from('provider_stats').select('*').in('provider_id', providerIds);
-        stats?.forEach(s => providerStats[s.provider_id] = s);
-        
-        // Load provider performance data
-        const { data: perfData } = await getProviderPerformanceByIds(providerIds);
-        perfData?.forEach(p => providerPerformance[p.provider_id] = p);
-      }
+      const priceEstimate = await fetchPriceEstimate(pkg.category, pkg.member_zip, packageId);
 
       // Load provider application data for enhanced transparency
       const providerApplications = {};
@@ -1539,6 +2110,8 @@
             `}
           </div>
         ` : ''}
+          </div>
+        ` : ''}
 
         ${['payment_held', 'accepted', 'in_progress', 'completed'].includes(pkg.status) && (pkg.escrow_payment_intent_id || pkg.split_payment_id) ? `
           <div class="form-section" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
@@ -1551,9 +2124,150 @@
 
       document.getElementById('view-package-modal').classList.add('active');
       
+      // AI Smart Bid Analyzer - async, non-blocking
+      if (bids?.length >= 2 && pkg.status === 'open') {
+        fetchAiBidRanking(packageId, bids, providerStats, providerPerformance, providerApplications);
+      }
+      
       // Load logistics data if applicable
       if (pkg.status === 'accepted' || pkg.status === 'in_progress') {
         setTimeout(() => loadLogisticsData(packageId), 100);
+      }
+
+      if (pkg.work_completed_at && pkg.status === 'in_progress') {
+        setTimeout(() => loadCachedMediation(packageId), 200);
+      }
+    }
+
+    function sanitizeText(str) {
+      if (!str) return '';
+      const div = document.createElement('div');
+      div.textContent = str;
+      return div.innerHTML;
+    }
+
+    async function fetchAiBidRanking(packageId, bids, providerStats, providerPerformance, providerApplications) {
+      const container = document.getElementById('ai-recommendation-container');
+      if (!container) return;
+
+      container.innerHTML = `
+        <div style="padding:16px;background:linear-gradient(135deg,rgba(56,189,248,0.08),rgba(34,211,238,0.08));border:1px solid rgba(56,189,248,0.2);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">
+          <div style="width:24px;height:24px;border:2px solid var(--accent-blue);border-top-color:transparent;border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>
+          <span style="color:var(--text-secondary);font-size:0.9rem;">Analyzing bids...</span>
+        </div>
+      `;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { container.innerHTML = ''; return; }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const bidPayload = bids.map(bid => {
+          const stats = providerStats[bid.provider_id] || {};
+          const perf = providerPerformance[bid.provider_id];
+          const appData = providerApplications[bid.provider_id] || {};
+          const rating = perf?.rating_avg ? perf.rating_avg.toFixed(1) : (stats.average_rating ? stats.average_rating.toFixed(1) : 'New');
+          const jobs = perf?.jobs_completed || stats.jobs_completed || 0;
+          const isVerified = appData.license_verified && appData.insurance_verified && appData.certifications_verified;
+          return {
+            price: bid.price || 0,
+            rating: rating,
+            jobs_completed: jobs,
+            on_time_rate: perf?.on_time_rate && jobs > 0 ? Math.round(perf.on_time_rate) : null,
+            overall_score: perf?.overall_score ? Math.round(perf.overall_score) : null,
+            tier: perf?.tier || null,
+            is_verified: isVerified,
+            is_background_verified: appData.background_verified === true,
+            years_in_business: appData.years_in_business || null,
+            estimated_duration: bid.estimated_duration || null,
+            badges: perf?.badges || [],
+            response_time: bid.created_at ? formatTimeAgo(bid.created_at) : null
+          };
+        });
+
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15000);
+
+        const response = await fetch(`${apiBase}/api/ai/rank-bids`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ bids: bidPayload }),
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+
+        if (!response.ok) { container.innerHTML = ''; return; }
+        if (currentViewPackage !== packageId) return;
+
+        const result = await response.json();
+        if (!Array.isArray(result.ranked_indices) || !result.ranked_indices.length || !result.top_pick_rationale) { container.innerHTML = ''; return; }
+        result.ranked_indices = result.ranked_indices.filter(i => typeof i === 'number' && i >= 0 && i < bids.length);
+        if (!result.ranked_indices.length) { container.innerHTML = ''; return; }
+
+        const topIndex = result.ranked_indices[0];
+        const topBid = bids[topIndex];
+        const topProviderName = topBid?.profiles?.provider_alias || `Provider #${topBid?.provider_id?.slice(0,4).toUpperCase()}`;
+
+        container.innerHTML = `
+          <div style="background:linear-gradient(135deg,rgba(52,211,153,0.1),rgba(56,189,248,0.08));border:1px solid rgba(52,211,153,0.3);border-radius:var(--radius-lg);padding:20px;position:relative;overflow:hidden;">
+            <div style="position:absolute;top:0;left:0;right:0;height:3px;background:linear-gradient(90deg,var(--accent-green),var(--accent-blue));"></div>
+            <div style="display:flex;align-items:flex-start;gap:14px;">
+              <div style="width:44px;height:44px;background:linear-gradient(135deg,var(--accent-green),#4ade80);border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;box-shadow:0 4px 12px rgba(52,211,153,0.3);">
+                <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#022c22" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg>
+              </div>
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;flex-wrap:wrap;">
+                  <span style="font-weight:700;font-size:1rem;color:var(--text-primary);">AI Recommendation</span>
+                  <span style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:linear-gradient(135deg,var(--accent-green),#4ade80);color:#022c22;">Top Pick</span>
+                </div>
+                <div style="font-size:0.92rem;color:var(--text-secondary);line-height:1.6;margin-bottom:10px;">
+                  <strong style="color:var(--accent-gold);">${sanitizeText(topProviderName)}</strong> at <strong>$${(topBid?.price || 0).toFixed(2)}</strong> &mdash; ${sanitizeText(result.top_pick_rationale)}
+                </div>
+                ${result.rankings && result.rankings.length > 1 ? `
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;">
+                    ${result.rankings.slice(1, 3).map((r, i) => {
+                      const b = bids[r.index];
+                      const name = sanitizeText(b?.profiles?.provider_alias || 'Provider #' + (b?.provider_id?.slice(0,4).toUpperCase() || ''));
+                      return '<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-muted);">#' + (i + 2) + ' ' + name + '</span>';
+                    }).join('')}
+                  </div>
+                ` : ''}
+              </div>
+            </div>
+          </div>
+        `;
+
+        const topCard = document.querySelector(`.bid-card[data-bid-index="${topIndex}"]`);
+        if (topCard) {
+          topCard.style.border = '2px solid rgba(52,211,153,0.5)';
+          topCard.style.boxShadow = '0 0 20px rgba(52,211,153,0.1)';
+          const headerDiv = topCard.querySelector('.bid-card-badges');
+          if (headerDiv) {
+            const badge = document.createElement('span');
+            badge.style.cssText = 'display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:linear-gradient(135deg,rgba(52,211,153,0.2),rgba(52,211,153,0.1));color:var(--accent-green);border:1px solid rgba(52,211,153,0.3);margin-left:4px;';
+            badge.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l2 7h7l-5.5 4 2 7L12 16l-5.5 4 2-7L3 9h7z"/></svg> AI Pick';
+            headerDiv.appendChild(badge);
+          }
+        }
+
+        const bidsContainer = document.getElementById('bids-list-container');
+        if (bidsContainer && result.ranked_indices) {
+          const allCards = Array.from(bidsContainer.querySelectorAll('.bid-card'));
+          const ordered = result.ranked_indices.map(idx => allCards.find(c => c.dataset.bidIndex === String(idx))).filter(Boolean);
+          const remaining = allCards.filter(c => !ordered.includes(c));
+          [...ordered, ...remaining].forEach(card => bidsContainer.appendChild(card));
+        }
+
+      } catch (err) {
+        if (err.name === 'AbortError') {
+          console.log('AI bid ranking timed out');
+        } else {
+          console.log('AI bid ranking unavailable:', err.message);
+        }
+        if (container) container.innerHTML = '';
       }
     }
 
@@ -1574,6 +2288,41 @@
         if (el) el.checked = !value;
       }
     }
+
+    async function shareWithCarClub(packageId) {
+      const btn = document.getElementById(`cf-share-btn-${packageId}`);
+      const statusEl = document.getElementById(`cf-share-status-${packageId}`);
+      if (btn) { btn.disabled = true; btn.textContent = 'Sharing…'; }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`${window.MCC_CONFIG?.apiBaseUrl || ''}/api/packages/${packageId}/share-with-car-club`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session?.access_token}` }
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to share');
+        if (btn) { btn.style.display = 'none'; }
+        if (statusEl) {
+          if (data.no_clubs) {
+            statusEl.textContent = 'Join a Car Club to share with members';
+          } else if (data.already_shared) {
+            statusEl.textContent = `Already shared with ${data.notified} member${data.notified === 1 ? '' : 's'}`;
+          } else if (data.notified === 0) {
+            statusEl.textContent = 'No Car Club members to notify yet';
+          } else {
+            statusEl.textContent = `${data.notified} Car Club member${data.notified === 1 ? '' : 's'} notified`;
+          }
+          statusEl.style.display = 'inline';
+        }
+        if (data.notified > 0 && !data.already_shared) {
+          showToast(`${data.notified} Car Club member${data.notified === 1 ? '' : 's'} notified!`, 'success');
+        }
+      } catch (err) {
+        if (btn) { btn.disabled = false; btn.innerHTML = `${mccIcon('users', 13)} Share with Car Club`; }
+        showToast(err.message || 'Could not share with Car Club', 'error');
+      }
+    }
+    window.shareWithCarClub = shareWithCarClub;
 
     async function acceptBid(bidId, packageId) {
       const bid = currentPackageBids.find(b => b.id === bidId);
@@ -1596,8 +2345,7 @@
         // Update package status
         await supabaseClient.from('maintenance_packages').update({ 
           status: 'accepted', 
-          accepted_bid_id: bidId, 
-          accepted_at: new Date().toISOString() 
+          accepted_bid_id: bidId
         }).eq('id', packageId);
 
         // Create payment record (escrow)
@@ -1635,6 +2383,15 @@
               amount
             );
           }
+
+          const { data: { session: _bidAcceptSession } } = await supabaseClient.auth.getSession();
+          if (_bidAcceptSession?.access_token) {
+            fetch('/api/notifications/bid-accepted-push', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_bidAcceptSession.access_token}` },
+              body: JSON.stringify({ provider_id: bid.provider_id, package_title: pkg?.title || 'Maintenance Package', bid_amount: amount })
+            }).catch(() => {});
+          }
         } catch (e) {
           console.log('Notification error (non-critical):', e);
         }
@@ -1642,8 +2399,24 @@
         closeModal('view-package-modal');
         showToast('Bid accepted! Please authorize payment to hold funds in escrow.', 'success');
         await loadPackages();
-        
-        // Re-open the package view to show payment section
+
+        const _pkg = packages.find(p => p.id === packageId);
+        const _service = _pkg?.title || 'auto service';
+        setTimeout(() => {
+          const tipEl = document.getElementById('post-create-tip');
+          if (tipEl) {
+            tipEl.innerHTML = `<div style="display:flex;align-items:center;gap:12px;padding:14px 18px;background:linear-gradient(135deg,rgba(212,168,85,0.12),rgba(212,168,85,0.06));border:1px solid rgba(212,168,85,0.25);border-radius:12px;margin-bottom:16px;">
+              <span style="font-size:1.6rem;">🎉</span>
+              <div style="flex:1;">
+                <strong style="color:var(--text-primary);font-size:0.92rem;">You got competitive pricing on ${_service}!</strong>
+                <p style="color:var(--text-muted);font-size:0.82rem;margin:2px 0 0;">Share My Car Concierge and earn $5 referral credit when a friend signs up.</p>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="shareSavings('${_service.replace(/'/g, "\\'")}',${amount})" style="white-space:nowrap;">${mccIcon('share', 16)} Share</button>
+              <button class="btn btn-ghost btn-sm" onclick="document.getElementById('post-create-tip').innerHTML=''" style="padding:4px 8px;">×</button>
+            </div>`;
+          }
+        }, 800);
+
         setTimeout(() => viewPackage(packageId), 500);
       } catch (err) {
         console.error('Error accepting bid:', err);
@@ -1651,14 +2424,94 @@
       }
     }
 
-    // ========== ESCROW PAYMENT UI ==========
+    async function openMemberCalendarOptions(packageId) {
+      try {
+        const { data: appts } = await supabaseClient
+          .from('service_appointments')
+          .select('id, confirmed_date, confirmed_time_start, notes')
+          .eq('package_id', packageId)
+          .eq('status', 'confirmed')
+          .order('created_at', { ascending: false })
+          .limit(1);
+
+        if (!appts || appts.length === 0) {
+          showToast('No confirmed appointment found. Schedule one first.', 'info');
+          return;
+        }
+
+        const appt = appts[0];
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+
+        const existing = document.getElementById('member-cal-modal');
+        if (existing) existing.remove();
+
+        const dateStr = appt.confirmed_date
+          ? new Date(appt.confirmed_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })
+          : 'Scheduled';
+        const timeStr = appt.confirmed_time_start || '';
+
+        const pkg = packages.find(p => p.id === packageId);
+        const title = encodeURIComponent(pkg?.title || 'Service Appointment');
+        const startDate = appt.confirmed_date ? appt.confirmed_date.replace(/-/g, '') : '';
+        const startTime = appt.confirmed_time_start ? appt.confirmed_time_start.replace(':', '') + '00' : '090000';
+        const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}T${startTime}/${startDate}T${startTime}`;
+
+        const modal = document.createElement('div');
+        modal.id = 'member-cal-modal';
+        modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.6);z-index:9999;display:flex;align-items:center;justify-content:center;';
+        modal.innerHTML = `<div style="background:var(--bg-card);border-radius:var(--radius-lg);padding:28px;max-width:380px;width:90%;box-shadow:0 20px 60px rgba(0,0,0,0.4);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+            <h3 style="margin:0;font-size:1.1rem;">Add to Calendar</h3>
+            <button onclick="document.getElementById('member-cal-modal').remove()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.2rem;">×</button>
+          </div>
+          <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:20px;">${dateStr}${timeStr ? ' at ' + timeStr : ''}</p>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <a href="${gcal}" target="_blank" class="btn btn-primary" style="text-align:center;text-decoration:none;">Open Google Calendar</a>
+            <button class="btn btn-secondary" onclick="downloadMemberIcal('${appt.id}','${token}');document.getElementById('member-cal-modal').remove();">Download .ics File</button>
+          </div>
+        </div>`;
+        document.body.appendChild(modal);
+        modal.addEventListener('click', e => { if (e.target === modal) modal.remove(); });
+      } catch (err) {
+        console.error('Calendar options error:', err);
+        showToast('Could not load appointment details.', 'error');
+      }
+    }
+
+    async function downloadMemberIcal(apptId, token) {
+      try {
+        const resp = await fetch(`/api/appointments/${apptId}/ical`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!resp.ok) { showToast('Could not generate calendar file.', 'error'); return; }
+        const blob = await resp.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = 'mcc-appointment.ics';
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (err) {
+        showToast('Download failed.', 'error');
+      }
+    }
+
+    function shareSavings(service, amount) {
+      const msg = `Just got competitive bids for ${service} through My Car Concierge — providers compete for your business so you never overpay. Sign up free: https://mycarconcierge.com`;
+      if (navigator.share) {
+        navigator.share({ title: 'My Car Concierge', text: msg }).catch(() => {});
+      } else {
+        navigator.clipboard.writeText(msg).then(() => showToast('Copied to clipboard!', 'success')).catch(() => showToast('Could not copy. Share: mycarconcierge.com', 'info'));
+      }
+    }
+
     let currentEscrowCardElement = null;
     let currentEscrowElements = null;
     let currentEscrowClientSecret = null;
     let currentEscrowPackageId = null;
     let currentEscrowBidId = null;
 
-    // ========== ADDITIONAL WORK REQUESTS & DISCOUNTS ==========
     let packageAdditionalWork = {};
     let packageDiscounts = {};
     let currentAdditionalWorkId = null;
@@ -2549,7 +3402,6 @@
       `;
     }
 
-    // ========== QR CODE CHECK-IN SECTION ==========
     async function renderCheckinQRSection(pkg) {
       if (!pkg) return '';
       
@@ -2896,7 +3748,6 @@
       }
     }
 
-    // ========== MOBILE PAY FUNCTIONS ==========
     async function initMobilePayButtons(packageId) {
       const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
       
@@ -3143,6 +3994,10 @@
           provider_name: bid?.profiles?.provider_alias || `Provider #${bid?.provider_id?.slice(0,4).toUpperCase()}`
         });
 
+        if (pkg?.vehicle_id && typeof invalidatePredictionsForVehicle === 'function') {
+          invalidatePredictionsForVehicle(pkg.vehicle_id);
+        }
+
         closeModal('view-package-modal');
         showToast('Payment released! Thank you for using My Car Concierge.', 'success');
         await loadPackages();
@@ -3158,7 +4013,6 @@
       }
     }
 
-    // ========== RELEASE PAYMENT MODAL ==========
     let currentReleasePackageId = null;
     let currentReleasePackageData = null;
     let currentReleaseBidData = null;
@@ -3285,7 +4139,6 @@
       }
     }
 
-    // ========== REVIEWS ==========
     let currentReviewPackageId = null;
     let currentReviewProviderId = null;
 
@@ -3424,6 +4277,110 @@
     function skipReview() {
       closeModal('review-modal');
       showToast('You can leave a review later from your service history.', 'info');
+    }
+
+    const aiMediationCache = {};
+
+    async function requestAiMediation(packageId) {
+      const btn = document.getElementById(`ai-mediation-btn-${packageId}`);
+      const resultDiv = document.getElementById(`ai-mediation-result-${packageId}`);
+      if (!btn || !resultDiv) return;
+
+      if (aiMediationCache[packageId]) {
+        renderMediationResult(packageId, aiMediationCache[packageId]);
+        return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Analyzing evidence...';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const resp = await fetch(`${apiBase}/api/packages/${packageId}/ai-mediation`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
+        });
+
+        if (!resp.ok) throw new Error('Failed to generate mediation');
+
+        const data = await resp.json();
+        if (data.mediation) {
+          aiMediationCache[packageId] = data.mediation;
+          renderMediationResult(packageId, data.mediation);
+        }
+      } catch (e) {
+        showToast('Could not generate AI mediation. Please try again or contact support.', 'error');
+        btn.disabled = false;
+        btn.innerHTML = `${mccIcon('search', 14)} Review with AI`;
+      }
+    }
+
+    function renderMediationResult(packageId, mediation) {
+      const resultDiv = document.getElementById(`ai-mediation-result-${packageId}`);
+      const actionsDiv = document.getElementById(`ai-mediation-actions-${packageId}`);
+      if (!resultDiv) return;
+
+      const confidenceColors = {
+        high: { bg: 'rgba(46,204,113,0.12)', color: 'var(--accent-green)' },
+        medium: { bg: 'rgba(241,196,15,0.12)', color: 'var(--accent-amber, #f59e0b)' },
+        low: { bg: 'rgba(231,76,60,0.12)', color: 'var(--accent-red)' }
+      };
+      const cc = confidenceColors[mediation.confidence] || confidenceColors.low;
+
+      const discrepancyList = (mediation.discrepancies && mediation.discrepancies.length > 0)
+        ? mediation.discrepancies.map(d => `<li style="margin-bottom:4px;">${sanitizeText(d)}</li>`).join('')
+        : '<li style="color:var(--text-muted);">No discrepancies found</li>';
+
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `
+        <div style="border-radius:var(--radius-md);padding:16px;background:var(--bg-input);margin-bottom:12px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px;">
+            <span style="font-weight:600;font-size:0.92rem;">AI Assessment</span>
+            <span style="font-size:0.72rem;padding:2px 8px;border-radius:100px;background:${cc.bg};color:${cc.color};font-weight:600;">${(mediation.confidence || 'low').toUpperCase()} confidence</span>
+            ${mediation.created_at ? `<span style="font-size:0.75rem;color:var(--text-muted);margin-left:auto;">${new Date(mediation.created_at).toLocaleDateString()}</span>` : ''}
+          </div>
+          <div style="margin-bottom:12px;">
+            <div style="font-weight:500;font-size:0.85rem;margin-bottom:4px;color:var(--text-secondary);">Summary</div>
+            <p style="font-size:0.9rem;line-height:1.5;margin:0;">${sanitizeText(mediation.summary)}</p>
+          </div>
+          <div style="margin-bottom:12px;">
+            <div style="font-weight:500;font-size:0.85rem;margin-bottom:4px;color:var(--text-secondary);">Discrepancies Noted</div>
+            <ul style="font-size:0.88rem;margin:0;padding-left:18px;line-height:1.5;">${discrepancyList}</ul>
+          </div>
+          <div style="padding:12px;background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.2);border-radius:var(--radius-md);">
+            <div style="font-weight:500;font-size:0.85rem;margin-bottom:4px;color:var(--accent-blue);">Recommendation</div>
+            <p style="font-size:0.9rem;line-height:1.5;margin:0;">${sanitizeText(mediation.recommendation)}</p>
+          </div>
+          <p style="font-size:0.78rem;color:var(--text-muted);margin-top:10px;margin-bottom:0;">This is an advisory AI assessment only. It does not automatically affect payment or dispute outcomes. <a href="mailto:support@mycarconcierge.com?subject=Package ${packageId} - Support Request" style="color:var(--accent-blue);text-decoration:underline;">Contact Support</a> for human review.</p>
+        </div>
+      `;
+
+      if (actionsDiv) {
+        actionsDiv.innerHTML = `<a href="mailto:support@mycarconcierge.com?subject=Package ${packageId} - Support Request" style="font-size:0.85rem;color:var(--accent-blue);text-decoration:underline;">Contact Support for further assistance</a>`;
+      }
+    }
+
+    async function loadCachedMediation(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const resp = await fetch(`${apiBase}/api/packages/${packageId}/ai-mediation`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!resp.ok) return;
+
+        const data = await resp.json();
+        if (data.mediation) {
+          aiMediationCache[packageId] = data.mediation;
+          renderMediationResult(packageId, data.mediation);
+        }
+      } catch (e) {}
     }
 
     async function openDispute(packageId) {
@@ -3580,7 +4537,6 @@
     }
 
 
-    // ========== DESTINATION SERVICES ==========
     let destinationServices = [];
     let currentDestServiceType = null;
     let currentDestFilter = 'active';
@@ -4214,7 +5170,6 @@
       await loadDestinationServices();
     }
 
-    // ========== MAINTENANCE SCHEDULE ==========
     let maintenanceScheduleData = [];
     let maintenanceServiceTypes = [];
     let maintenanceServiceHistory = [];
@@ -5038,7 +5993,6 @@
     }
 
 
-    // ========== COST ESTIMATOR ==========
     const estimatorServiceData = {
       maintenance: {
         name: 'Maintenance', icon: mccIcon('wrench', 16),
@@ -5694,7 +6648,6 @@
       populateEstimatorMakes();
     }
 
-    // ========== SPLIT PAYMENT FUNCTIONS ==========
 
     let splitParticipantRows = [];
     let currentSplitCardElement = null;
@@ -5874,10 +6827,6 @@
         { email: userEmail, amount_cents: halfAmount, display_name: userProfile?.full_name || '', is_guest: false },
         { email: '', amount_cents: otherHalf, display_name: '', is_guest: false }
       ];
-
-      const existingModal = document.getElementById('split-payment-modal');
-      if (existingModal) existingModal.remove();
-
       const modalHtml = `
         <div id="split-payment-modal" class="modal active" style="z-index:10001;">
           <div class="modal-overlay" onclick="closeSplitModal()"></div>
@@ -5910,9 +6859,89 @@
         </div>
       `;
 
+      const existingModal = document.getElementById('split-payment-modal');
+      if (existingModal) existingModal.remove();
+
       document.body.insertAdjacentHTML('beforeend', modalHtml);
       renderSplitParticipantsList(totalAmountCents);
-    }
+    };
+
+    window.submitSplitReactivation = async function(splitId, totalAmountCents) {
+      const errorEl = document.getElementById('split-error');
+      const btn = document.getElementById('submit-split-btn');
+
+      for (const p of splitParticipantRows) {
+        if (!p.email || !p.email.includes('@')) {
+          errorEl.textContent = 'All participants must have a valid email address.';
+          errorEl.style.display = 'block';
+          return;
+        }
+        if (!p.amount_cents || p.amount_cents < 50) {
+          errorEl.textContent = 'Each participant must pay at least $0.50.';
+          errorEl.style.display = 'block';
+          return;
+        }
+      }
+
+      const currentTotal = splitParticipantRows.reduce((sum, p) => sum + p.amount_cents, 0);
+      if (currentTotal !== totalAmountCents) {
+        errorEl.textContent = `Amounts must total $${(totalAmountCents / 100).toFixed(2)}. Currently: $${(currentTotal / 100).toFixed(2)}`;
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      const emails = splitParticipantRows.map(p => p.email.toLowerCase());
+      const uniqueEmails = new Set(emails);
+      if (uniqueEmails.size !== emails.length) {
+        errorEl.textContent = 'Each participant must have a unique email address.';
+        errorEl.style.display = 'block';
+        return;
+      }
+
+      errorEl.style.display = 'none';
+      if (btn) {
+        btn.disabled = true;
+        btn.innerHTML = '<span style="display:inline-flex;align-items:center;gap:8px;"><span class="spinner"></span> Reactivating...</span>';
+      }
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/split/reactivate/${splitId}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            participants: splitParticipantRows.map(p => ({
+              email: p.email,
+              amount_cents: p.amount_cents,
+              display_name: p.display_name || undefined,
+              is_guest: p.is_guest || false
+            }))
+          })
+        });
+
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || 'Failed to reactivate split payment');
+        }
+
+        closeSplitModal();
+        showToast('Split payment reactivated! Participants have been notified.', 'success');
+
+        await loadPackages();
+        if (currentViewPackage) {
+          setTimeout(() => viewPackage(currentViewPackage), 300);
+        }
+
+      } catch (err) {
+        console.error('Split payment reactivation error:', err);
+        errorEl.textContent = err.message || 'Failed to reactivate split payment. Please try again.';
+        errorEl.style.display = 'block';
+        if (btn) {
+          btn.disabled = false;
+          btn.innerHTML = mccIcon('refresh-cw', 16) + ' Reactivate Split Payment';
+        }
+      }
+    };
 
     function closeSplitModal() {
       const modal = document.getElementById('split-payment-modal');
@@ -6060,14 +7089,8 @@
               <span style="font-weight:500;color:var(--text-primary);">${isCurrentUser ? mccIcon('user', 16) + ' You' : isGuest ? mccIcon('link', 16) + ' Guest Payer' : `${mccIcon('user', 16)} Participant ${i + 1}`}</span>
               <div style="display:flex;align-items:center;gap:8px;">
                 ${!isCurrentUser ? `
-                  <button onclick="toggleSplitParticipantGuest(${i}, ${totalAmountCents})" style="background:${isGuest ? 'rgba(251, 146, 60, 0.15)' : 'var(--bg-input)'};border:1px solid ${isGuest ? 'rgba(251, 146, 60, 0.3)' : 'var(--border-subtle)'};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.8rem;color:${isGuest ? 'var(--accent-orange)' : 'var(--text-muted)'};">${isGuest ? mccIcon('link', 16) + ' Guest' : mccIcon('user', 16) + ' Member'}</button>
+                  <button onclick="toggleSplitParticipantGuest(${i}, ${totalAmountCents})" style="background:${isGuest ? "rgba(251, 146, 60, 0.15)" : "var(--bg-input)"};border:1px solid ${isGuest ? "rgba(251, 146, 60, 0.3)" : "var(--border-subtle)"};border-radius:6px;padding:4px 10px;cursor:pointer;font-size:0.8rem;color:${isGuest ? "var(--accent-orange)" : "var(--text-muted)"};">${isGuest ? mccIcon("link", 16) + " Guest" : mccIcon("user", 16) + " Member"}</button>
                 ` : ''}
-                ${!isCurrentUser && splitParticipantRows.length > 2 ? `<button onclick="removeSplitParticipant(${i}, ${totalAmountCents})" style="background:none;border:none;color:var(--accent-red);cursor:pointer;font-size:0.9rem;">Remove</button>` : ''}
-              </div>
-            </div>
-            ${isGuest ? `<div style="background:rgba(251, 146, 60, 0.08);border:1px solid rgba(251, 146, 60, 0.15);border-radius:var(--radius-sm);padding:8px 12px;margin-bottom:12px;font-size:0.82rem;color:var(--accent-orange);">This person doesn't need an account. They'll receive a secure payment link via email.</div>` : ''}
-            <div style="margin-bottom:12px;">
-              <label style="display:block;font-size:0.85rem;color:var(--text-muted);margin-bottom:4px;">Email</label>
               <input type="email" value="${row.email}" ${isCurrentUser ? 'readonly style="opacity:0.7;"' : ''} onchange="updateSplitParticipant(${i}, 'email', this.value)" style="width:100%;padding:10px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.95rem;box-sizing:border-box;" placeholder="email@example.com" />
             </div>
             <div style="margin-bottom:8px;">
@@ -6101,10 +7124,6 @@
     function updateSplitParticipantAmount(index, dollarValue, totalAmountCents) {
       if (splitParticipantRows[index]) {
         splitParticipantRows[index].amount_cents = Math.round(parseFloat(dollarValue) * 100) || 0;
-        updateSplitAmountStatus(totalAmountCents);
-      }
-    }
-
     function addSplitParticipantRow(totalAmountCents) {
       splitParticipantRows.push({ email: '', amount_cents: 0, display_name: '', is_guest: false });
       renderSplitParticipantsList(totalAmountCents);
@@ -6112,10 +7131,6 @@
 
     function removeSplitParticipant(index, totalAmountCents) {
       splitParticipantRows.splice(index, 1);
-      renderSplitParticipantsList(totalAmountCents);
-    }
-
-    function updateSplitAmountStatus(totalAmountCents) {
       const statusEl = document.getElementById('split-amount-status');
       if (!statusEl) return;
 
@@ -6404,3 +7419,644 @@
       }
     }
 
+    async function fetchPriceEstimate(category, zip, packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return null;
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const params = new URLSearchParams({ category });
+        if (zip) params.append('zip', zip);
+        if (packageId) params.append('package_id', packageId);
+
+        const response = await fetch(`${apiBase}/api/price-estimate?${params}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+
+        if (!response.ok) return null;
+        return await response.json();
+      } catch (err) {
+        console.error('Price estimate fetch error:', err);
+        return null;
+      }
+    }
+
+    function renderPriceEstimateWidget(estimate) {
+      if (!estimate) return '';
+
+      if (!estimate.has_estimate) {
+        return `
+          <div class="price-estimate-widget" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
+            <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+              ${mccIcon('bar-chart', 20)}
+              <h4 style="margin:0;font-size:1rem;">Market Price Estimate</h4>
+            </div>
+            <p style="color:var(--text-muted);font-size:0.9rem;margin:0;">${estimate.message}</p>
+          </div>
+        `;
+      }
+
+      return `
+        <div class="price-estimate-widget" style="background:linear-gradient(135deg, rgba(56,189,248,0.08), rgba(52,211,153,0.08));border:1px solid rgba(56,189,248,0.25);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:12px;">
+            ${mccIcon('bar-chart', 20)}
+            <h4 style="margin:0;font-size:1rem;color:var(--text-primary);">Market Price Estimate</h4>
+            <span style="margin-left:auto;font-size:0.72rem;color:var(--text-muted);background:var(--bg-input);padding:3px 8px;border-radius:100px;">Based on ${estimate.sample_size} bids</span>
+          </div>
+          <div style="display:flex;align-items:baseline;gap:8px;margin-bottom:8px;">
+            <span style="font-size:1.6rem;font-weight:700;color:var(--accent-blue);">$${estimate.low}–$${estimate.high}</span>
+            <span style="font-size:0.88rem;color:var(--text-secondary);">is typical ${estimate.location_note}</span>
+          </div>
+          <div style="background:var(--bg-input);border-radius:var(--radius-sm);height:6px;margin-bottom:10px;position:relative;overflow:hidden;">
+            <div style="position:absolute;left:25%;right:25%;height:100%;background:linear-gradient(90deg, var(--accent-blue), var(--accent-green));border-radius:3px;"></div>
+          </div>
+          <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-muted);margin-bottom:${estimate.context_note ? '10px' : '0'};">
+            <span>Low: $${estimate.min}</span>
+            <span>Median: $${estimate.median}</span>
+            <span>High: $${estimate.max}</span>
+          </div>
+          ${estimate.context_note ? `<p style="font-size:0.82rem;color:var(--text-secondary);margin:0;font-style:italic;">${estimate.context_note}</p>` : ''}
+        </div>
+      `;
+    }
+
+    function getBidComparisonTag(bidPrice, estimate) {
+      if (!estimate || !estimate.has_estimate) return '';
+
+      let label, bgColor, textColor, icon;
+      if (bidPrice < estimate.low) {
+        label = 'Below estimate';
+        bgColor = 'rgba(52,211,153,0.15)';
+        textColor = 'var(--accent-green)';
+        icon = mccIcon('chevron-down', 14);
+      } else if (bidPrice > estimate.high) {
+        label = 'Above estimate';
+        bgColor = 'rgba(251,146,60,0.15)';
+        textColor = 'var(--accent-orange)';
+        icon = mccIcon('trending-up', 14);
+      } else {
+        label = 'In range';
+        bgColor = 'rgba(56,189,248,0.15)';
+        textColor = 'var(--accent-blue)';
+        icon = mccIcon('check', 14);
+      }
+
+      return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:${bgColor};color:${textColor};border:1px solid ${textColor}30;margin-top:4px;">${icon} ${label}</span>`;
+    }
+
+    window.fetchPriceEstimate = fetchPriceEstimate;
+    window.renderPriceEstimateWidget = renderPriceEstimateWidget;
+    window.getBidComparisonTag = getBidComparisonTag;
+
+    async function generateAppointmentDebrief(packageId) {
+      const panel = document.getElementById(`debrief-panel-${packageId}`);
+      const btn = document.getElementById(`debrief-btn-${packageId}`);
+      if (!panel) return;
+
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+      panel.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.88rem;">AI is writing your service summary…</div>';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (typeof showToast === 'function') showToast('Please log in again', 'error'); return; }
+
+        const resp = await fetch('/api/ai/appointment-debrief', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ package_id: packageId })
+        });
+        const data = await resp.json();
+
+        if (data.summary) {
+          panel.innerHTML = `
+            <div style="padding:16px;background:linear-gradient(135deg,rgba(56,189,248,0.06),rgba(34,211,238,0.04));border:1px solid rgba(56,189,248,0.2);border-radius:var(--radius-md);">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:10px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-blue)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg>
+                <span style="font-size:0.78rem;font-weight:600;color:var(--accent-blue);">AI Service Summary</span>
+                <span style="font-size:0.68rem;color:var(--text-muted);margin-left:auto;padding:2px 6px;background:var(--bg-input);border-radius:100px;">AI-generated</span>
+              </div>
+              <p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;margin:0;">${data.summary.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+            </div>
+          `;
+        } else {
+          panel.innerHTML = '<p style="font-size:0.85rem;color:var(--text-muted);">Could not generate summary. Please try again.</p>';
+        }
+      } catch (err) {
+        panel.innerHTML = '<p style="font-size:0.85rem;color:var(--text-muted);">Error generating summary. Please try again.</p>';
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = 'Regenerate Summary'; }
+      }
+    }
+
+    async function showCounterSuggestion(bidId, triggerEl) {
+      const panel = document.getElementById(`counter-panel-${bidId}`);
+      if (!panel) return;
+
+      triggerEl.disabled = true;
+      triggerEl.textContent = 'Loading…';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const resp = await fetch('/api/ai/counter-suggestion', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ bid_id: bidId })
+        });
+        const data = await resp.json();
+
+        if (data.has_suggestion) {
+          panel.innerHTML = `
+            <div style="padding:14px 16px;background:rgba(251,146,60,0.06);border:1px solid rgba(251,146,60,0.25);border-radius:var(--radius-md);">
+              <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--accent-orange)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 6 13.5 15.5 8.5 10.5 1 18"/><polyline points="17 6 23 6 23 12"/></svg>
+                <span style="font-size:0.78rem;font-weight:600;color:var(--accent-orange);">Counter-Offer Suggestion</span>
+              </div>
+              <div style="font-size:1.1rem;font-weight:700;color:var(--accent-gold);margin-bottom:6px;">$${data.suggested_counter.toFixed(2)}</div>
+              <p style="font-size:0.84rem;color:var(--text-secondary);line-height:1.5;margin:0;">${data.rationale?.replace(/</g,'&lt;').replace(/>/g,'&gt;') || ''}</p>
+              <div style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">Market range: $${data.market_low}–$${data.market_high}</div>
+            </div>
+          `;
+        } else {
+          panel.innerHTML = '';
+        }
+      } catch (err) {
+        triggerEl.disabled = false;
+        if (typeof showToast === 'function') showToast('Could not load suggestion. Try again.', 'error');
+      }
+    }
+
+    window.generateAppointmentDebrief = generateAppointmentDebrief;
+    window.showCounterSuggestion = showCounterSuggestion;
+    window.askServiceHistoryChat = typeof askServiceHistoryChat !== 'undefined' ? askServiceHistoryChat : null;
+    window.toggleBudgetForecast = typeof toggleBudgetForecast !== 'undefined' ? toggleBudgetForecast : null;
+    window.loadBudgetForecast = typeof loadBudgetForecast !== 'undefined' ? loadBudgetForecast : null;
+
+    function getBookingGuidance() {
+      const stored = localStorage.getItem('mcc_booking_guidance');
+      if (stored) return stored;
+      if (typeof userProfile !== 'undefined' && userProfile?.booking_guidance) return userProfile.booking_guidance;
+      return 'full';
+    }
+
+    function setBookingGuidance(level) {
+      localStorage.setItem('mcc_booking_guidance', level);
+      document.querySelectorAll('.guidance-tile').forEach(t => {
+        t.setAttribute('data-active', t.getAttribute('data-value') === level ? 'true' : 'false');
+      });
+      applyGuidanceToOpenModal(level);
+      if (typeof showToast === 'function') showToast('Booking assistance updated', 'success');
+    }
+    window.setBookingGuidance = setBookingGuidance;
+
+    function applyGuidanceToOpenModal(level) {
+      const panel = document.getElementById('service-suggestions-panel');
+      const guidanceLink = document.getElementById('pkg-modal-guidance-link');
+      const aiPanel = document.getElementById('ai-assistant-panel');
+      const vehicleId = document.getElementById('p-vehicle')?.value;
+      if (level === 'off') {
+        if (panel) panel.style.display = 'none';
+        if (aiPanel) aiPanel.style.display = 'none';
+        if (guidanceLink) guidanceLink.style.display = 'block';
+      } else if (level === 'suggestions_only') {
+        if (aiPanel) aiPanel.style.display = 'none';
+        if (guidanceLink) guidanceLink.style.display = 'none';
+        if (vehicleId && panel) {
+          document.getElementById('p-vehicle')?.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      } else {
+        if (guidanceLink) guidanceLink.style.display = 'none';
+        if (vehicleId && panel) {
+          document.getElementById('p-vehicle')?.dispatchEvent(new Event('change', { bubbles: true }));
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      if (!localStorage.getItem('mcc_booking_guidance') && typeof userProfile !== 'undefined' && userProfile?.booking_guidance) {
+        localStorage.setItem('mcc_booking_guidance', userProfile.booking_guidance);
+      }
+      const level = getBookingGuidance();
+      document.querySelectorAll('.guidance-tile').forEach(t => {
+        t.setAttribute('data-active', t.getAttribute('data-value') === level ? 'true' : 'false');
+      });
+    });
+
+    document.addEventListener('input', function(e) {
+      if (e.target.id !== 'p-description') return;
+      const guidance = getBookingGuidance();
+      if (guidance !== 'full') {
+        const panel = document.getElementById('ai-assistant-panel');
+        if (panel) panel.style.display = 'none';
+        return;
+      }
+    });
+
+    function computeLocalRecommendations(vehicle) {
+      const now = new Date();
+      const recs = [];
+      const mileage = vehicle.mileage || vehicle.current_mileage || 0;
+      const services = [
+        { field: 'last_oil_change_date', title: 'Oil Change', months: 6, urgentMonths: 9, category: 'maintenance', code: 'oil_synthetic' },
+        { field: 'last_tire_rotation_date', title: 'Tire Rotation', months: 6, urgentMonths: 12, category: 'maintenance', code: 'tire_rotation' },
+        { field: 'last_brake_service_date', title: 'Brake Inspection', months: 24, urgentMonths: 36, category: 'maintenance', code: 'brake_pads_front' },
+        { field: 'last_transmission_service_date', title: 'Transmission Fluid Service', months: 48, urgentMonths: 60, category: 'maintenance', code: 'transmission_fluid', minMileage: 30000 },
+        { field: 'last_coolant_flush_date', title: 'Coolant Flush', months: 48, urgentMonths: 60, category: 'maintenance', code: 'coolant_flush', minMileage: 50000 }
+      ];
+
+      for (const svc of services) {
+        if (svc.minMileage && mileage > 0 && mileage < svc.minMileage) continue;
+        const lastDate = vehicle[svc.field];
+        if (!lastDate) {
+          recs.push({
+            title: svc.title,
+            reason: 'No service history on file',
+            category: svc.category,
+            never_done: true,
+            code: svc.code,
+            priority: 1
+          });
+        } else {
+          const last = new Date(lastDate);
+          const monthsSince = (now - last) / (1000 * 60 * 60 * 24 * 30);
+          if (monthsSince > svc.months) {
+            recs.push({
+              title: svc.title,
+              reason: `Last done ${Math.floor(monthsSince)} months ago`,
+              category: svc.category,
+              never_done: false,
+              code: svc.code,
+              priority: monthsSince > svc.urgentMonths ? 2 : 3
+            });
+          }
+        }
+      }
+
+      recs.sort((a, b) => a.priority - b.priority);
+      return recs;
+    }
+
+    function renderSuggestionChips(recs, vehicleId) {
+      const container = document.getElementById('suggestions-chips-container');
+      if (!container) return;
+      if (recs.length === 0) {
+        container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;padding:6px;">Your vehicle looks well-maintained! No urgent services detected.</div>';
+        return;
+      }
+      container.innerHTML = recs.map((rec, i) => {
+        const badgeColor = rec.never_done ? 'rgba(239,68,68,0.15)' : 'rgba(34,211,238,0.15)';
+        const badgeTextColor = rec.never_done ? '#ef4444' : 'var(--accent-teal)';
+        const badgeLabel = rec.never_done ? 'No record \u2014 assumed not yet done' : 'Overdue';
+        const codeAttr = rec.code ? `data-code="${rec.code}"` : '';
+        return `<div class="suggestion-chip" data-idx="${i}" ${codeAttr} style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;margin-bottom:6px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;transition:all 0.15s;">
+          <div style="flex:1;min-width:0;">
+            <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+              <span style="font-weight:600;font-size:0.88rem;">${rec.title}</span>
+              <span style="font-size:0.72rem;padding:2px 7px;border-radius:10px;background:${badgeColor};color:${badgeTextColor};white-space:nowrap;">${badgeLabel}</span>
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px;">${rec.reason}</div>
+          </div>
+          <div style="display:flex;gap:6px;flex-shrink:0;">
+            <button onclick="applySuggestion(${i})" style="padding:4px 12px;font-size:0.78rem;font-weight:600;background:var(--accent-teal);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Book it</button>
+            <button onclick="logSuggestion(${i},'${vehicleId}')" style="padding:4px 10px;font-size:0.76rem;font-weight:500;background:transparent;color:var(--text-secondary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;white-space:nowrap;">Already done? Log it</button>
+            ${typeof getCareKeyForCategory === 'function' && getCareKeyForCategory(rec.title || rec.category) ? `<button onclick="openAcademyCareCard('${getCareKeyForCategory(rec.title || rec.category)}')" style="padding:4px 8px;font-size:0.76rem;font-weight:500;background:transparent;color:var(--accent-teal);border:1px solid var(--accent-teal);border-radius:6px;cursor:pointer;white-space:nowrap;" title="Learn about this service">${typeof mccIcon === 'function' ? mccIcon('book-open', 14) : '📖'}</button>` : ''}
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    let _currentSuggestions = [];
+
+    function applySuggestion(idx) {
+      const rec = _currentSuggestions[idx];
+      if (!rec) return;
+      const titleInput = document.getElementById('p-title');
+      const catSelect = document.getElementById('p-category');
+      if (titleInput) titleInput.value = rec.title;
+      if (catSelect) {
+        catSelect.value = rec.category;
+        catSelect.dispatchEvent(new Event('change', { bubbles: true }));
+      }
+      document.getElementById('service-suggestions-panel').style.display = 'none';
+    }
+    window.applySuggestion = applySuggestion;
+
+    function logSuggestion(idx, vehicleId) {
+      const rec = _currentSuggestions[idx];
+      if (!rec) return;
+      const modal = document.getElementById('log-service-modal');
+      const select = document.getElementById('log-service-type');
+      if (!modal || !select) return;
+
+      const scheduleData = typeof maintenanceScheduleData !== 'undefined' ? maintenanceScheduleData : [];
+      let matchCode = rec.code || '';
+      if (!matchCode && rec.title && scheduleData.length > 0) {
+        const titleLower = rec.title.toLowerCase();
+        const match = scheduleData.find(s => s.name && s.name.toLowerCase() === titleLower) ||
+          scheduleData.find(s => s.name && (titleLower.includes(s.name.toLowerCase()) || s.name.toLowerCase().includes(titleLower)));
+        if (match) matchCode = match.code;
+      }
+      if (scheduleData.length > 0) {
+        select.innerHTML = '<option value="">Select a service...</option>' +
+          scheduleData.map(s => `<option value="${s.code}" ${s.code === matchCode ? 'selected' : ''}>${s.icon || ''} ${s.name}</option>`).join('');
+      } else {
+        const fallbackServices = [
+          { code: 'oil_synthetic', name: 'Oil & Filter Change' },
+          { code: 'tire_rotation', name: 'Tire Rotation' },
+          { code: 'brake_pads_front', name: 'Front Brake Pads' },
+          { code: 'transmission_fluid', name: 'Transmission Fluid' },
+          { code: 'coolant_flush', name: 'Coolant Flush' },
+          { code: 'multi_point_inspection', name: 'Multi-Point Inspection' }
+        ];
+        select.innerHTML = '<option value="">Select a service...</option>' +
+          fallbackServices.map(s => `<option value="${s.code}" ${s.code === matchCode ? 'selected' : ''}>${s.name}</option>`).join('');
+      }
+
+      document.getElementById('log-service-date').value = new Date().toISOString().split('T')[0];
+      const allVehicles = typeof vehicles !== 'undefined' ? vehicles : [];
+      const veh = allVehicles.find(v => v.id === vehicleId);
+      document.getElementById('log-service-mileage').value = veh?.mileage || '';
+      document.getElementById('log-service-by').value = '';
+      document.getElementById('log-service-cost').value = '';
+      document.getElementById('log-service-notes').value = '';
+
+      selectedMaintenanceVehicle = vehicleId;
+
+      window._pendingSuggestionLog = { idx, vehicleId };
+
+      modal.style.display = 'flex';
+    }
+    window.logSuggestion = logSuggestion;
+
+    let _origSaveServiceLogCaptured = false;
+    let _origSaveServiceLog = null;
+
+    function ensureSaveServiceLogWrapped() {
+      if (_origSaveServiceLogCaptured) return;
+      _origSaveServiceLogCaptured = true;
+      _origSaveServiceLog = window.saveServiceLog;
+      window.saveServiceLog = async function() {
+        const serviceCode = document.getElementById('log-service-type')?.value;
+        const serviceDate = document.getElementById('log-service-date')?.value;
+        const mileageVal = document.getElementById('log-service-mileage')?.value;
+        if (!serviceCode || !serviceDate || !mileageVal || parseInt(mileageVal) < 0) {
+          if (_origSaveServiceLog) await _origSaveServiceLog();
+          return;
+        }
+        const logModalBefore = document.getElementById('log-service-modal')?.style.display;
+        if (_origSaveServiceLog) await _origSaveServiceLog();
+        const logModalAfter = document.getElementById('log-service-modal')?.style.display;
+        const saveSucceeded = logModalBefore === 'flex' && logModalAfter === 'none';
+        if (saveSucceeded && window._pendingSuggestionLog) {
+          const { idx, vehicleId } = window._pendingSuggestionLog;
+          window._pendingSuggestionLog = null;
+          _currentSuggestions = _currentSuggestions.filter((_, i) => i !== idx);
+          if (_currentSuggestions.length === 0) {
+            const panel = document.getElementById('service-suggestions-panel');
+            if (panel) panel.style.display = 'none';
+          } else {
+            renderSuggestionChips(_currentSuggestions, vehicleId);
+          }
+          const vehSelect = document.getElementById('p-vehicle');
+          if (vehSelect && vehSelect.value) {
+            setTimeout(() => vehSelect.dispatchEvent(new Event('change', { bubbles: true })), 600);
+          }
+        } else if (!saveSucceeded) {
+          window._pendingSuggestionLog = null;
+        }
+      };
+    }
+    setTimeout(ensureSaveServiceLogWrapped, 500);
+
+    document.addEventListener('change', async function(e) {
+      if (e.target.id !== 'p-vehicle') return;
+      const vehicleId = e.target.value;
+      const panel = document.getElementById('service-suggestions-panel');
+      const guidanceLink = document.getElementById('pkg-modal-guidance-link');
+      const aiPanel = document.getElementById('ai-assistant-panel');
+      const guidance = getBookingGuidance();
+
+      if (!panel) return;
+      panel.style.display = 'none';
+      if (guidanceLink) guidanceLink.style.display = 'none';
+
+      if (guidance === 'off') {
+        if (guidanceLink) guidanceLink.style.display = 'block';
+        if (aiPanel) aiPanel.style.display = 'none';
+        return;
+      }
+
+      if (!vehicleId) return;
+
+      if (guidance === 'suggestions_only' && aiPanel) {
+        aiPanel.style.display = 'none';
+      }
+
+      const allVehicles = typeof vehicles !== 'undefined' ? vehicles : [];
+      const vehicle = allVehicles.find(v => v.id === vehicleId);
+      if (!vehicle) return;
+
+      const vehicleLabel = `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim();
+      const titleEl = document.getElementById('suggestions-panel-title');
+      if (titleEl) titleEl.textContent = `Suggested for your ${vehicleLabel}`;
+
+      const localRecs = computeLocalRecommendations(vehicle);
+      _currentSuggestions = [...localRecs];
+      renderSuggestionChips(_currentSuggestions, vehicleId);
+      panel.style.display = 'block';
+
+      const loadingEl = document.getElementById('suggestions-loading');
+      if (loadingEl) loadingEl.style.display = 'block';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (loadingEl) loadingEl.style.display = 'none'; return; }
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const resp = await fetch(`${apiBase}/api/ai/service-recommendations`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            year: vehicle.year,
+            make: vehicle.make,
+            model: vehicle.model,
+            mileage: vehicle.mileage || vehicle.current_mileage || null,
+            fuel_type: vehicle.fuel_injection_type || vehicle.fuel_type || null,
+            last_service_dates: {
+              oil_change: vehicle.last_oil_change_date || null,
+              tire_rotation: vehicle.last_tire_rotation_date || null,
+              brake_service: vehicle.last_brake_service_date || null,
+              transmission_service: vehicle.last_transmission_service_date || null,
+              coolant_flush: vehicle.last_coolant_flush_date || null
+            }
+          })
+        });
+        if (resp.ok) {
+          const data = await resp.json();
+          if (data.recommendations && data.recommendations.length > 0) {
+            const existingTitles = new Set(_currentSuggestions.map(r => r.title.toLowerCase()));
+            const aiRecs = data.recommendations
+              .filter(r => !existingTitles.has(r.title.toLowerCase()))
+              .map(r => ({ ...r, code: '', priority: 4 }));
+            _currentSuggestions = [..._currentSuggestions, ...aiRecs].slice(0, 7);
+            renderSuggestionChips(_currentSuggestions, vehicleId);
+          }
+        }
+      } catch (err) {}
+      if (loadingEl) loadingEl.style.display = 'none';
+    });
+
+    let groupServicesLoaded = false;
+
+    window.switchGroupServicesTab = function(tab) {
+      const isOrg = tab === 'organized';
+      const orgPanel = document.getElementById('gs-organized-panel');
+      const invPanel = document.getElementById('gs-invited-panel');
+      const orgBtn = document.getElementById('gs-tab-organized');
+      const invBtn = document.getElementById('gs-tab-invited');
+      if (orgPanel) orgPanel.style.display = isOrg ? 'block' : 'none';
+      if (invPanel) invPanel.style.display = isOrg ? 'none' : 'block';
+      if (orgBtn) { orgBtn.style.background = isOrg ? 'var(--accent-blue)' : ''; orgBtn.style.color = isOrg ? '#fff' : ''; orgBtn.className = isOrg ? 'btn btn-sm' : 'btn btn-sm btn-secondary'; }
+      if (invBtn) { invBtn.style.background = !isOrg ? 'var(--accent-blue)' : ''; invBtn.style.color = !isOrg ? '#fff' : ''; invBtn.className = !isOrg ? 'btn btn-sm' : 'btn btn-sm btn-secondary'; }
+    };
+
+    window.loadGroupServices = async function(force = false) {
+      if (groupServicesLoaded && !force) return;
+      const loading = document.getElementById('gs-loading');
+      const orgPanel = document.getElementById('gs-organized-panel');
+      const invPanel = document.getElementById('gs-invited-panel');
+      if (loading) loading.style.display = 'block';
+      if (orgPanel) orgPanel.style.display = 'none';
+      if (invPanel) invPanel.style.display = 'none';
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (loading) loading.style.display = 'none'; return; }
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/split/my-splits`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const { organized = [], invited = [] } = await res.json();
+        if (loading) loading.style.display = 'none';
+
+        const pendingInvites = invited.filter(i => i.status === 'invited' || i.status === 'pending').length;
+        const badge = document.getElementById('group-services-count');
+        const invBadge = document.getElementById('gs-invite-badge');
+        if (badge) { badge.textContent = pendingInvites; badge.style.display = pendingInvites > 0 ? 'inline-flex' : 'none'; }
+        if (invBadge) { invBadge.textContent = pendingInvites; invBadge.style.display = pendingInvites > 0 ? 'inline-flex' : 'none'; }
+
+        const statusColor = { pending: 'var(--accent-orange)', complete: 'var(--accent-green)', expired: 'var(--text-muted)', cancelled: 'var(--accent-red)' };
+        const statusLabel = { pending: 'Active', complete: 'Complete', expired: 'Expired', cancelled: 'Cancelled' };
+        const participantStatus = { invited: { label: 'Pending', color: 'var(--accent-orange)' }, paid: { label: 'Paid', color: 'var(--accent-green)' }, cancelled: { label: 'Cancelled', color: 'var(--accent-red)' } };
+
+        const orgList = document.getElementById('gs-organized-list');
+        const orgEmpty = document.getElementById('gs-organized-empty');
+        if (orgList) {
+          if (!organized.length) {
+            orgList.innerHTML = '';
+            if (orgEmpty) orgEmpty.style.display = 'block';
+          } else {
+            if (orgEmpty) orgEmpty.style.display = 'none';
+            orgList.innerHTML = organized.map(s => {
+              const paidCount = (s.participants || []).filter(p => p.status === 'paid').length;
+              const totalCount = s.participants?.length || 0;
+              const pctPaid = totalCount > 0 ? Math.round((paidCount / totalCount) * 100) : 0;
+              const sc = statusColor[s.status] || 'var(--text-muted)';
+              const sl = statusLabel[s.status] || s.status;
+              return `<div class="card" style="margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+                  <div>
+                    <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${s.pkg?.title || 'Service Package'}</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);">${s.pkg?.service_type ? s.pkg.service_type.replace(/_/g,' ') : ''} ${s.pkg?.member_zip ? '· ' + s.pkg.member_zip : ''}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:1.1rem;font-weight:700;color:var(--accent-gold);">$${(s.total_amount_cents / 100).toFixed(2)}</div>
+                    <span style="font-size:0.75rem;font-weight:600;color:${sc};">${sl}</span>
+                  </div>
+                </div>
+                <div style="margin-bottom:12px;">
+                  <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">
+                    <span>${paidCount} of ${totalCount} paid</span><span>${pctPaid}%</span>
+                  </div>
+                  <div style="height:6px;background:var(--bg-input);border-radius:100px;overflow:hidden;">
+                    <div style="height:100%;width:${pctPaid}%;background:var(--accent-green);border-radius:100px;transition:width 0.5s;"></div>
+                  </div>
+                </div>
+                <div style="display:grid;gap:6px;margin-bottom:16px;">
+                  ${(s.participants || []).map(p => {
+                    const ps = participantStatus[p.status] || { label: p.status, color: 'var(--text-muted)' };
+                    return `<div style="display:flex;justify-content:space-between;align-items:center;padding:8px 12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.85rem;">
+                      <span style="color:var(--text-secondary);">${p.display_name || p.email}</span>
+                      <div style="display:flex;align-items:center;gap:10px;">
+                        <span style="font-weight:600;">$${(p.amount_cents / 100).toFixed(2)}</span>
+                        <span style="font-size:0.75rem;font-weight:600;color:${ps.color};">${ps.label}</span>
+                      </div>
+                    </div>`;
+                  }).join('')}
+                </div>
+                ${s.status === 'pending' ? `<button class="btn btn-sm btn-secondary" onclick="window.viewPackage('${s.package_id}')">View Package & Manage Split</button>` : ''}
+                ${s.expires_at ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">Expires: ${new Date(s.expires_at).toLocaleDateString()}</div>` : ''}
+              </div>`;
+            }).join('');
+          }
+        }
+
+        const invList = document.getElementById('gs-invited-list');
+        const invEmpty = document.getElementById('gs-invited-empty');
+        if (invList) {
+          if (!invited.length) {
+            invList.innerHTML = '';
+            if (invEmpty) invEmpty.style.display = 'block';
+          } else {
+            if (invEmpty) invEmpty.style.display = 'none';
+            invList.innerHTML = invited.map(p => {
+              const split = p.split || {};
+              const pkg = p.pkg || {};
+              const isPaid = p.status === 'paid';
+              const isCancelled = p.status === 'cancelled' || split.status === 'cancelled' || split.status === 'expired';
+              return `<div class="card" style="margin-bottom:16px;${!isPaid && !isCancelled ? 'border-color:rgba(201,162,39,0.3);' : ''}">
+                <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
+                  <div>
+                    <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${pkg.title || 'Service Package'}</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);">Invited: ${new Date(p.invited_at).toLocaleDateString()}</div>
+                  </div>
+                  <div style="text-align:right;">
+                    <div style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);">$${(p.amount_cents / 100).toFixed(2)}</div>
+                    <div style="font-size:0.75rem;color:var(--text-muted);">your share</div>
+                  </div>
+                </div>
+                ${isPaid ? `<div style="display:flex;align-items:center;gap:8px;color:var(--accent-green);font-size:0.88rem;font-weight:600;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>
+                  Paid on ${new Date(p.paid_at).toLocaleDateString()}
+                </div>` : isCancelled ? `<div style="color:var(--text-muted);font-size:0.85rem;">This split payment has been ${split.status || 'cancelled'}.</div>` : `<div style="display:flex;gap:10px;flex-wrap:wrap;">
+                  <a href="/split-pay.html?participant=${p.id}" class="btn btn-primary btn-sm" style="flex:1;justify-content:center;min-width:140px;">
+                    Pay My Share
+                  </a>
+                </div>`}
+              </div>`;
+            }).join('');
+          }
+        }
+
+        switchGroupServicesTab('organized');
+        if (orgPanel) orgPanel.style.display = 'block';
+        groupServicesLoaded = true;
+      } catch (err) {
+        console.error('[GroupServices]', err);
+        if (loading) loading.style.display = 'none';
+        const orgPanel = document.getElementById('gs-organized-panel');
+        if (orgPanel) { orgPanel.style.display = 'block'; orgPanel.innerHTML = '<p style="color:var(--text-muted);padding:24px;text-align:center;">Unable to load splits. Please try again.</p>'; }
+      }
+    };
+
+    (function() {
+      const origShowSection = typeof showSection !== 'undefined' ? showSection : null;
+      if (!origShowSection) return;
+      const patched = function(sectionId) {
+        const result = origShowSection.apply(this, arguments);
+        if (sectionId === 'group-services') {
+          window.loadGroupServices();
+        }
+        return result;
+      };
+      if (typeof window !== 'undefined') window.showSection = patched;
+    })();

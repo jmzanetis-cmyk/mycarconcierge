@@ -519,11 +519,11 @@ function _openAcademyCareCardFull(key) {
 
 function getCareKeyForCategory(categoryOrType) {
   if (!categoryOrType) return null;
-  const normalized = categoryOrType.toLowerCase().replace(/[^a-z]/g, ' ').trim();
+  const normalized = categoryOrType.toLowerCase().replaceAll(/[^a-z]/g, ' ').trim();
   const allServices = [...CARE_GUIDE_SERVICES.mechanical, ...CARE_GUIDE_SERVICES.cosmetic];
 
   for (const s of allServices) {
-    if (s.key === normalized.replace(/ /g, '_')) return s.key;
+    if (s.key === normalized.replaceAll(' ', '_')) return s.key;
     if (s.name.toLowerCase() === normalized) return s.key;
     if (s.serviceType && s.serviceType.toLowerCase().includes(normalized)) return s.key;
   }
@@ -589,11 +589,11 @@ function updateArticleRelevanceBadges() {
   }
 }
 
-window.renderCareGuide = renderCareGuide;
-window.switchCareTab = switchCareTab;
-window.filterCareGuide = filterCareGuide;
-window.onCareVehicleChange = onCareVehicleChange;
-window.getQuotesFromCareGuide = getQuotesFromCareGuide;
-window._openAcademyCareCardFull = _openAcademyCareCardFull;
-window.updateArticleRelevanceBadges = updateArticleRelevanceBadges;
-window.CARE_GUIDE_SERVICES = CARE_GUIDE_SERVICES;
+globalThis.renderCareGuide = renderCareGuide;
+globalThis.switchCareTab = switchCareTab;
+globalThis.filterCareGuide = filterCareGuide;
+globalThis.onCareVehicleChange = onCareVehicleChange;
+globalThis.getQuotesFromCareGuide = getQuotesFromCareGuide;
+globalThis._openAcademyCareCardFull = _openAcademyCareCardFull;
+globalThis.updateArticleRelevanceBadges = updateArticleRelevanceBadges;
+globalThis.CARE_GUIDE_SERVICES = CARE_GUIDE_SERVICES;

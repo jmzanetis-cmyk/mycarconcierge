@@ -1,0 +1,258 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Your Privacy Choices | My Car Concierge</title>
+  <meta name="description" content="Exercise your California Consumer Privacy Act (CCPA) data rights, opt out of data sharing, and manage your privacy choices with My Car Concierge." />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg: #0d1117; --bg-card: #161c26; --border: rgba(148,148,168,0.12);
+      --gold: #c9a84c; --gold-soft: rgba(201,168,76,0.12);
+      --text-primary: #f0f4fa; --text-secondary: #8b95a5; --text-muted: #5a6478;
+      --teal: #2dd4bf; --teal-soft: rgba(45,212,191,0.1);
+      --radius: 12px; --radius-sm: 8px;
+    }
+    body { background: var(--bg); color: var(--text-primary); font-family: 'Outfit', system-ui, sans-serif; line-height: 1.6; min-height: 100vh; }
+    .page-header { background: linear-gradient(135deg, #12161c 0%, #1a2030 100%); border-bottom: 1px solid var(--border); padding: 48px 24px 40px; text-align: center; }
+    .page-header .badge { display: inline-flex; align-items: center; gap: 6px; background: var(--teal-soft); border: 1px solid rgba(45,212,191,0.25); color: var(--teal); font-size: 0.78rem; font-weight: 600; letter-spacing: 0.5px; text-transform: uppercase; padding: 5px 14px; border-radius: 40px; margin-bottom: 16px; }
+    .page-header h1 { font-size: clamp(1.6rem, 4vw, 2.4rem); font-weight: 700; margin-bottom: 12px; }
+    .page-header p { color: var(--text-secondary); max-width: 560px; margin: 0 auto; font-size: 1rem; }
+    .content { max-width: 800px; margin: 0 auto; padding: 48px 24px 80px; }
+    .section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 28px 32px; margin-bottom: 24px; }
+    .section h2 { font-size: 1.15rem; font-weight: 600; color: var(--text-primary); margin-bottom: 8px; }
+    .section p, .section li { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 8px; }
+    .section ul { padding-left: 20px; margin-bottom: 0; }
+    .section ul li { margin-bottom: 6px; }
+    .rights-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 16px; }
+    .right-card { background: rgba(255,255,255,0.03); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 16px; }
+    .right-card .right-icon { font-size: 1.4rem; margin-bottom: 8px; }
+    .right-card h3 { font-size: 0.9rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px; }
+    .right-card p { font-size: 0.8rem; color: var(--text-secondary); margin: 0; }
+    .form-section { background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius); padding: 32px; margin-bottom: 24px; }
+    .form-section h2 { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .form-section .form-sub { color: var(--text-secondary); font-size: 0.88rem; margin-bottom: 24px; }
+    .form-group { margin-bottom: 18px; }
+    .form-label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+    .form-input, .form-select { width: 100%; padding: 11px 14px; background: rgba(255,255,255,0.05); border: 1px solid rgba(148,148,168,0.2); border-radius: var(--radius-sm); color: var(--text-primary); font-family: inherit; font-size: 0.9rem; transition: border-color 0.15s; }
+    .form-input:focus, .form-select:focus { outline: none; border-color: var(--gold); }
+    .form-select option { background: #1a2030; }
+    .btn-submit { width: 100%; padding: 13px; background: linear-gradient(135deg, var(--gold), #e6b84a); color: #12161c; border: none; border-radius: var(--radius-sm); font-size: 0.95rem; font-weight: 700; cursor: pointer; font-family: inherit; transition: filter 0.15s; }
+    .btn-submit:hover { filter: brightness(1.08); }
+    .btn-submit:disabled { opacity: 0.5; cursor: not-allowed; }
+    .msg { padding: 14px 18px; border-radius: var(--radius-sm); font-size: 0.88rem; margin-top: 16px; display: none; }
+    .msg.success { background: rgba(45,212,191,0.1); border: 1px solid rgba(45,212,191,0.3); color: var(--teal); display: block; }
+    .msg.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #f87171; display: block; }
+    .opt-out-highlight { border-left: 3px solid var(--gold); background: var(--gold-soft); }
+    .contact-link { color: var(--gold); text-decoration: underline; }
+    .contact-link:hover { color: #e6b84a; }
+    a { color: var(--gold); text-decoration: underline; }
+    a:hover { color: #e6b84a; }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/data-rights.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Exercise your California Consumer Privacy Act (CCPA) data rights, opt out of data sharing, and manage your privacy choices with My Car Concierge." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/data-rights.html" />
+  <meta property="og:title" content="Your Privacy Choices | My Car Concierge" />
+  <meta property="og:description" content="Exercise your California Consumer Privacy Act (CCPA) data rights, opt out of data sharing, and manage your privacy choices with My Car Concierge." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="Your Privacy Choices | My Car Concierge" />
+  <meta name="twitter:description" content="Exercise your California Consumer Privacy Act (CCPA) data rights, opt out of data sharing, and manage your privacy choices with My Car Concierge." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+
+<div class="page-header">
+  <div class="badge">&#128274; Privacy</div>
+  <h1>Your Privacy Choices</h1>
+  <p>Exercise your data rights and manage how My Car Concierge uses your personal information.</p>
+</div>
+
+<div class="content">
+
+  <div class="section">
+    <h2>Your Data Rights</h2>
+    <p>Depending on your state of residence, you may have some or all of the following rights regarding your personal information:</p>
+    <div class="rights-grid">
+      <div class="right-card">
+        <div class="right-icon">&#128196;</div>
+        <h3>Right to Know</h3>
+        <p>Request details about what personal data we collect, use, and share.</p>
+      </div>
+      <div class="right-card">
+        <div class="right-icon">&#128465;</div>
+        <h3>Right to Delete</h3>
+        <p>Ask us to delete personal information we have collected about you.</p>
+      </div>
+      <div class="right-card">
+        <div class="right-icon">&#9999;</div>
+        <h3>Right to Correct</h3>
+        <p>Request correction of inaccurate personal information we hold.</p>
+      </div>
+      <div class="right-card">
+        <div class="right-icon">&#128462;</div>
+        <h3>Right to Opt Out</h3>
+        <p>Opt out of the sale or sharing of your personal data for cross-context behavioral advertising.</p>
+      </div>
+      <div class="right-card">
+        <div class="right-icon">&#9878;</div>
+        <h3>Right to Portability</h3>
+        <p>Receive a copy of your personal data in a portable, usable format.</p>
+      </div>
+      <div class="right-card">
+        <div class="right-icon">&#128683;</div>
+        <h3>Right to Limit</h3>
+        <p>Limit how we use sensitive personal information beyond core service needs.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="section opt-out-highlight">
+    <h2>&#128683; Do Not Sell or Share My Personal Information</h2>
+    <p>My Car Concierge does not sell your personal information for money. We may share certain data with advertising or analytics partners in ways that may constitute "sharing" under California law (CCPA/CPRA).</p>
+    <p>Use the form below to submit a request to opt out of any such sharing. Once processed, we will update our records within 15 business days.</p>
+  </div>
+
+  <div class="form-section">
+    <h2>Submit a Privacy Request</h2>
+    <p class="form-sub">Complete this form to exercise any of your privacy rights. We will respond within 45 days as required by law. You may be contacted to verify your identity.</p>
+
+    <form id="privacy-request-form" novalidate>
+      <div class="form-group">
+        <label class="form-label" for="pr-name">Full Name <span style="color:#f87171;">*</span></label>
+        <input type="text" id="pr-name" class="form-input" placeholder="Your full name" autocomplete="name" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pr-email">Email Address <span style="color:#f87171;">*</span></label>
+        <input type="email" id="pr-email" class="form-input" placeholder="The email associated with your account" autocomplete="email" required />
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pr-state">State of Residence <span style="color:#f87171;">*</span></label>
+        <select id="pr-state" class="form-select" required>
+          <option value="">Select your state&hellip;</option>
+          <option value="CA">California</option>
+          <option value="CO">Colorado</option>
+          <option value="CT">Connecticut</option>
+          <option value="DE">Delaware</option>
+          <option value="FL">Florida</option>
+          <option value="MT">Montana</option>
+          <option value="OR">Oregon</option>
+          <option value="TX">Texas</option>
+          <option value="VA">Virginia</option>
+          <option value="OTHER">Other</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pr-type">Request Type <span style="color:#f87171;">*</span></label>
+        <select id="pr-type" class="form-select" required>
+          <option value="">Select request type&hellip;</option>
+          <option value="opt_out_sale">Do Not Sell or Share My Data</option>
+          <option value="know">Right to Know — What data do you have about me?</option>
+          <option value="delete">Right to Delete — Delete my personal information</option>
+          <option value="correct">Right to Correct — Fix inaccurate information</option>
+          <option value="portability">Data Portability — Export my data</option>
+          <option value="limit_sensitive">Limit Use of Sensitive Personal Information</option>
+        </select>
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="pr-details">Additional Details (Optional)</label>
+        <textarea id="pr-details" class="form-input" rows="3" placeholder="Any additional context for your request&hellip;" style="resize:vertical;"></textarea>
+      </div>
+
+      <button type="submit" class="btn-submit" id="pr-submit-btn">Submit Privacy Request</button>
+      <div id="pr-msg" class="msg"></div>
+    </form>
+  </div>
+
+  <div class="section">
+    <h2>Response Timeline</h2>
+    <ul>
+      <li>We will acknowledge your request within <strong>10 business days</strong>.</li>
+      <li>We will complete your request within <strong>45 calendar days</strong>. We may extend this by an additional 45 days for complex requests, with notice.</li>
+      <li>We will not discriminate against you for exercising your privacy rights.</li>
+      <li>Requests may be denied if we cannot verify your identity or if an exception applies.</li>
+    </ul>
+  </div>
+
+  <div class="section">
+    <h2>Other Ways to Contact Us</h2>
+    <p>If you prefer, you may also submit privacy requests directly:</p>
+    <ul>
+      <li>Email: <a href="mailto:privacy@mycarconcierge.com" class="contact-link">privacy@mycarconcierge.com</a></li>
+      <li>Subject line: <strong>Privacy Request &ndash; [Type of Request]</strong></li>
+    </ul>
+    <p style="margin-top: 12px;">For more detail on how we use your data, see our <a href="/privacy.html">Privacy Policy</a>.</p>
+  </div>
+
+</div>
+
+<script src="/footer.js"></script>
+<script>
+document.getElementById('privacy-request-form').addEventListener('submit', async function (e) {
+  e.preventDefault();
+  const btn = document.getElementById('pr-submit-btn');
+  const msgEl = document.getElementById('pr-msg');
+  msgEl.className = 'msg';
+  msgEl.textContent = '';
+
+  const name = document.getElementById('pr-name').value.trim();
+  const email = document.getElementById('pr-email').value.trim();
+  const state = document.getElementById('pr-state').value;
+  const type = document.getElementById('pr-type').value;
+  const details = document.getElementById('pr-details').value.trim();
+
+  if (!name || !email || !state || !type) {
+    msgEl.textContent = 'Please fill in all required fields.';
+    msgEl.className = 'msg error';
+    return;
+  }
+  const emailOk = /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  if (!emailOk) {
+    msgEl.textContent = 'Please enter a valid email address.';
+    msgEl.className = 'msg error';
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = 'Submitting\u2026';
+
+  try {
+    const res = await fetch('/api/privacy-request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, email, state, type, details })
+    });
+    const data = await res.json().catch(() => ({}));
+    if (res.ok) {
+      msgEl.textContent = 'Your privacy request has been received. We\u2019ll respond within 10 business days.';
+      msgEl.className = 'msg success';
+      document.getElementById('privacy-request-form').reset();
+    } else {
+      throw new Error(data.error || 'Submission failed');
+    }
+  } catch (err) {
+    msgEl.textContent = 'Something went wrong. Please email privacy@mycarconcierge.com directly.';
+    msgEl.className = 'msg error';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Submit Privacy Request';
+  }
+});
+</script>
+</body>
+</html>

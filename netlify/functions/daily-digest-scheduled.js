@@ -16,15 +16,15 @@ function getResend() {
 }
 
 async function getAiOpsSettings(supabase) {
-  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  const threshold = Number.parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = Number.parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
   try {
     const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
     if (rows) {
       const s = {};
       for (const r of rows) {
-        if (r.key === 'confidence_threshold') s.threshold = parseFloat(r.value);
-        if (r.key === 'max_auto_refund') s.maxRefund = parseFloat(r.value);
+        if (r.key === 'confidence_threshold') s.threshold = Number.parseFloat(r.value);
+        if (r.key === 'max_auto_refund') s.maxRefund = Number.parseFloat(r.value);
       }
       return { threshold: s.threshold ?? threshold, maxRefund: s.maxRefund ?? maxRefund };
     }
@@ -38,7 +38,7 @@ async function sendSMS(toPhone, body) {
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from || !toPhone) return false;
   try {
-    const clean = toPhone.replace(/\D/g, '');
+    const clean = toPhone.replaceAll(/\D/g, '');
     const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
     const auth = Buffer.from(`${sid}:${token}`).toString('base64');
     const form = new URLSearchParams({ To: to, From: from, Body: body });

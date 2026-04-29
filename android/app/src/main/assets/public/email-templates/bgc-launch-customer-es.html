@@ -1,0 +1,124 @@
+<!--
+  MCC Verificado — Correo de lanzamiento (Clientes)
+  Plantilla transaccional para Resend. Traducción al español del archivo
+  bgc-launch-customer.html (Sección 7 del PDF, "Para Clientes: Anuncio de
+  funcionalidad"). Esta plantilla orientada a clientes no muestra el
+  precio por empleado; solo describe la insignia.
+
+  Variables de Resend:
+    {{first_name}}     — nombre del destinatario (reemplaza "[Nombre]")
+    {{browse_url}}     — destino del enlace "Ver Proveedores Verificados →"
+                         (p. ej. https://www.mycarconcierge.com/providers-directory.html?verified=true)
+
+  Asunto:        Ya puedes ver qué proveedores tienen verificación de antecedentes
+  Texto previo: Busca la insignia ✓ en MCC
+-->
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ya puedes ver qué proveedores tienen verificación de antecedentes</title>
+  <meta name="x-resend-subject" content="Ya puedes ver qué proveedores tienen verificación de antecedentes">
+  <meta name="x-resend-preview" content="Busca la insignia ✓ en MCC">
+</head>
+<body style="margin: 0; padding: 0; background-color: #0D0D0D; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;">
+
+  <!-- Texto previo oculto (controla el fragmento del buzón de entrada) -->
+  <div style="display:none;max-height:0;overflow:hidden;mso-hide:all;font-size:1px;line-height:1px;color:#0D0D0D;">
+    Busca la insignia ✓ en MCC
+  </div>
+
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color: #0D0D0D; padding: 40px 20px;">
+    <tr>
+      <td align="center">
+        <table width="600" cellpadding="0" cellspacing="0" style="max-width: 600px;">
+
+          <!-- Logotipo -->
+          <tr>
+            <td align="center" style="padding-bottom: 40px;">
+              <span style="font-family: Georgia, serif; font-size: 24px; color: #FAF9F6;">
+                My Car <span style="color: #C9A227;">Concierge</span>
+              </span>
+            </td>
+          </tr>
+
+          <!-- Caja de contenido principal -->
+          <tr>
+            <td style="background-color: #1A1A1A; padding: 50px 40px; border-top: 3px solid #4CAF50;">
+
+              <!-- Insignia MCC Verificado -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding-bottom: 28px;">
+                    <span style="display: inline-block; padding: 8px 20px; background-color: rgba(76, 175, 80, 0.15); border: 1px solid rgba(76, 175, 80, 0.45); color: #4CAF50; font-size: 12px; font-weight: bold; letter-spacing: 2px; text-transform: uppercase;">
+                      ✓ MCC VERIFICADO
+                    </span>
+                  </td>
+                </tr>
+              </table>
+
+              <!-- Titular -->
+              <h1 style="margin: 0 0 24px 0; font-family: Georgia, serif; font-size: 28px; line-height: 1.3; color: #FAF9F6; text-align: center;">
+                Ya puedes ver qué proveedores tienen verificación de antecedentes
+              </h1>
+
+              <!-- Cuerpo -->
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Hola {{first_name}}:
+              </p>
+
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Nos complace presentar MCC Verificado &mdash; una nueva forma de elegir proveedores con confianza.
+              </p>
+
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Los proveedores que obtienen la insignia MCC Verificado han completado verificaciones de antecedentes para los integrantes de su equipo que tienen contacto con clientes, comprobadas por nuestro socio acreditado a nivel nacional. Las verificaciones se renuevan cada año para mantenerlas vigentes.
+              </p>
+
+              <p style="margin: 0 0 18px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                <strong style="color: #FAF9F6;">Cómo encontrar proveedores Verificados:</strong> Busca la insignia ✓ Antecedentes Verificados en las fichas de proveedor y en los perfiles de Car Club. También puedes filtrar los resultados de búsqueda para mostrar solo proveedores Verificados.
+              </p>
+
+              <p style="margin: 0 0 32px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                Tu seguridad nos importa. MCC Verificado es una forma más en la que estamos construyendo un mercado en el que puedes confiar.
+              </p>
+
+              <!-- Llamado a la acción -->
+              <table width="100%" cellpadding="0" cellspacing="0">
+                <tr>
+                  <td align="center" style="padding: 8px 0 8px 0;">
+                    <a href="{{browse_url}}" style="display: inline-block; padding: 14px 32px; background-color: #4CAF50; color: #FFFFFF; font-size: 15px; font-weight: 600; letter-spacing: 0.3px; text-decoration: none; border-radius: 4px;">
+                      Ver Proveedores Verificados →
+                    </a>
+                  </td>
+                </tr>
+              </table>
+
+              <p style="margin: 32px 0 0 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
+                — El equipo de My Car Concierge
+              </p>
+
+            </td>
+          </tr>
+
+          <!-- Aviso / Pie -->
+          <tr>
+            <td style="padding: 28px 8px 0 8px;">
+              <p style="margin: 0 0 12px 0; font-size: 11px; line-height: 1.6; color: #888888; text-align: center;">
+                La información de verificación de antecedentes es proporcionada por una agencia externa de informes al consumidor.
+                My Car Concierge no realiza verificaciones de antecedentes directamente.
+              </p>
+              <p style="margin: 0; font-size: 11px; line-height: 1.6; color: #666666; text-align: center;">
+                My Car Concierge &middot; <a href="{{unsubscribe_url}}" style="color: #888888; text-decoration: underline;">Cancelar suscripción</a>
+              </p>
+            </td>
+          </tr>
+
+        </table>
+      </td>
+    </tr>
+  </table>
+
+</body>
+</html>

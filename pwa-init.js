@@ -14,7 +14,7 @@ if ('serviceWorker' in navigator) {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
             // Auto-update without asking
             newWorker.postMessage({ type: 'SKIP_WAITING' });
-            window.location.reload();
+            globalThis.location.reload();
           }
         });
       });
@@ -31,7 +31,7 @@ if ('serviceWorker' in navigator) {
 
 let deferredPrompt;
 
-window.addEventListener('beforeinstallprompt', (e) => {
+globalThis.addEventListener('beforeinstallprompt', (e) => {
   e.preventDefault();
   deferredPrompt = e;
   showInstallButton();
@@ -106,20 +106,20 @@ function showInstallButton() {
   });
 }
 
-window.addEventListener('appinstalled', () => {
+globalThis.addEventListener('appinstalled', () => {
   console.log('App installed successfully');
   deferredPrompt = null;
   const banner = document.getElementById('pwa-install-banner');
   if (banner) banner.remove();
 });
 
-if (window.matchMedia('(display-mode: standalone)').matches) {
+if (globalThis.matchMedia('(display-mode: standalone)').matches) {
   console.log('Running as installed PWA');
 }
 
 // Force clear all caches function (can be called from console)
-window.clearAllCaches = async function() {
-  if ('caches' in window) {
+globalThis.clearAllCaches = async function() {
+  if ('caches' in globalThis) {
     const cacheNames = await caches.keys();
     await Promise.all(cacheNames.map(name => caches.delete(name)));
     console.log('All caches cleared');
@@ -129,5 +129,5 @@ window.clearAllCaches = async function() {
     await Promise.all(registrations.map(reg => reg.unregister()));
     console.log('Service workers unregistered');
   }
-  window.location.reload(true);
+  globalThis.location.reload(true);
 };

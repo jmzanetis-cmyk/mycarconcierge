@@ -259,7 +259,7 @@
     let currentPage = 1;
     let totalProviders = 0;
     let filterTimer = null;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
 
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme');
@@ -310,7 +310,7 @@
 
       let ratingHtml = '';
       if (p.avg_rating) {
-        ratingHtml = '<div class="provider-rating"><span class="stars">' + renderStars(parseFloat(p.avg_rating)) + '</span><span class="rating-text">' + p.avg_rating + ' (' + p.review_count + ' review' + (p.review_count !== 1 ? 's' : '') + ')</span></div>';
+        ratingHtml = '<div class="provider-rating"><span class="stars">' + renderStars(Number.parseFloat(p.avg_rating)) + '</span><span class="rating-text">' + p.avg_rating + ' (' + p.review_count + ' review' + (p.review_count !== 1 ? 's' : '') + ')</span></div>';
       }
 
       let badgesHtml = '';
@@ -391,25 +391,25 @@
 
     async function requestQuote(slug) {
       try {
-        if (typeof window.supabase !== 'undefined') {
-          const sb = window.supabase.createClient(
+        if (typeof globalThis.supabase !== 'undefined') {
+          const sb = globalThis.supabase.createClient(
             'https://ifbyjxuaclwmadqbjcyp.supabase.co',
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnlqeHVhY2x3bWFkcWJqY3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI0OTUsImV4cCI6MjA4MDQ3ODQ5NX0.wts2W0ICqTSCUpF9ewvEk59P2A0stvqqmP0CNsPfIt8',
-            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: window.localStorage } }
+            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: globalThis.localStorage } }
           );
           const { data: { session } } = await sb.auth.getSession();
           if (session) {
             const { data: profile } = await sb.from('profiles').select('role').eq('id', session.user.id).single();
             if (profile && (profile.role === 'member' || profile.role === 'dual')) {
               localStorage.setItem('preferred_provider_slug', slug);
-              window.location.href = '/members.html?create=true&provider=' + encodeURIComponent(slug);
+              globalThis.location.href = '/members.html?create=true&provider=' + encodeURIComponent(slug);
               return;
             }
           }
         }
       } catch (e) {}
       localStorage.setItem('preferred_provider_slug', slug);
-      window.location.href = '/onboarding-member.html?provider=' + encodeURIComponent(slug);
+      globalThis.location.href = '/onboarding-member.html?provider=' + encodeURIComponent(slug);
     }
 
     loadProviders(1);

@@ -69,12 +69,12 @@ test.describe('Admin provider applications — originating outreach lead (Task #
     await page.waitForLoadState('domcontentloaded');
     // Wait for admin.js to evaluate and expose the renderer test seam.
     await page.waitForFunction(
-      () => typeof window.renderApplicationLeadBadge === 'function',
+      () => typeof globalThis.renderApplicationLeadBadge === 'function',
       { timeout: 10000 }
     );
 
     const cases = await page.evaluate(() => {
-      const r = window.renderApplicationLeadBadge;
+      const r = globalThis.renderApplicationLeadBadge;
       return {
         direct: r({ id: 'a', outreach_lead_id: null }),
         linked: r({ id: 'b', outreach_lead_id: '11111111-1111-1111-1111-111111111111' }),
@@ -160,7 +160,7 @@ test.describe('Admin provider applications — originating outreach lead (Task #
     await page.goto(`${BASE_URL}/admin.html`);
     await page.waitForLoadState('domcontentloaded');
     await page.waitForFunction(
-      () => typeof window.renderApplicationLeadBadge === 'function' && typeof window.viewOutreachLead === 'function',
+      () => typeof globalThis.renderApplicationLeadBadge === 'function' && typeof globalThis.viewOutreachLead === 'function',
       { timeout: 10000 }
     );
 
@@ -173,7 +173,7 @@ test.describe('Admin provider applications — originating outreach lead (Task #
     await page.evaluate(() => {
       const modal = document.getElementById('admin-password-modal');
       if (modal) { modal.style.display = 'none'; modal.style.pointerEvents = 'none'; }
-      const html = window.renderApplicationLeadBadge({
+      const html = globalThis.renderApplicationLeadBadge({
         id: 'app-x',
         outreach_lead_id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',
         _outreach_lead: {
@@ -190,15 +190,15 @@ test.describe('Admin provider applications — originating outreach lead (Task #
       host.style.cssText = 'position:fixed;top:0;left:0;z-index:99999;background:#fff;padding:8px;';
       host.innerHTML = html;
       document.body.appendChild(host);
-      window.__mccTestCalls = [];
-      window.viewOutreachLead = function(id, name, email) {
-        window.__mccTestCalls.push({ id, name, email });
+      globalThis.__mccTestCalls = [];
+      globalThis.viewOutreachLead = function(id, name, email) {
+        globalThis.__mccTestCalls.push({ id, name, email });
       };
     });
 
     await page.click('#mcc-test-badge-host a.mcc-outreach-lead-link', { force: true });
 
-    const calls = await page.evaluate(() => window.__mccTestCalls);
+    const calls = await page.evaluate(() => globalThis.__mccTestCalls);
     expect(calls).toHaveLength(1);
     expect(calls[0]).toEqual({
       id: 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa',

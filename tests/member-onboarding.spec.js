@@ -36,11 +36,11 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
 
       const advancedBeyondStep0 = await page.evaluate(() => {
         for (const step of document.querySelectorAll('[data-step]')) {
-          const style = window.getComputedStyle(step);
+          const style = globalThis.getComputedStyle(step);
           if (step.dataset.step !== '0' && style.display !== 'none' && style.opacity !== '0') return true;
         }
         const progress = document.querySelector('.progress-bar, .progress, [id*="progress"]');
-        return progress ? (parseInt(progress.style.width) || 0) > 0 : false;
+        return progress ? (Number.parseInt(progress.style.width) || 0) > 0 : false;
       });
       expect(advancedBeyondStep0 || isVisible, 'Progress must advance after clicking Next').toBe(true);
     } else {
@@ -155,8 +155,8 @@ test.describe('Member Onboarding — 8-Step Conversational Form', () => {
 
       const getActiveStepNum = () => page.evaluate(() => {
         for (const step of document.querySelectorAll('[data-step]')) {
-          const style = window.getComputedStyle(step);
-          if (style.display !== 'none' && step.classList.contains('active')) return parseInt(step.dataset.step);
+          const style = globalThis.getComputedStyle(step);
+          if (style.display !== 'none' && step.classList.contains('active')) return Number.parseInt(step.dataset.step);
         }
         return -1;
       });

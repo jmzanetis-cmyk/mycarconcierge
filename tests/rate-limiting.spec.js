@@ -19,13 +19,13 @@ test.describe('Rate Limit Header Tests', () => {
       data: { message: 'test1' },
       headers: { 'Content-Type': 'application/json' }
     });
-    const remaining1 = parseInt(response1.headers()['x-ratelimit-remaining'], 10);
+    const remaining1 = Number.parseInt(response1.headers()['x-ratelimit-remaining'], 10);
 
     const response2 = await page.request.post(`${BASE_URL}/api/helpdesk`, {
       data: { message: 'test2' },
       headers: { 'Content-Type': 'application/json' }
     });
-    const remaining2 = parseInt(response2.headers()['x-ratelimit-remaining'], 10);
+    const remaining2 = Number.parseInt(response2.headers()['x-ratelimit-remaining'], 10);
 
     expect(remaining2).toBeLessThan(remaining1);
   });
@@ -36,9 +36,9 @@ test.describe('Rate Limit Header Tests', () => {
       headers: { 'Content-Type': 'application/json' }
     });
     const headers = response.headers();
-    const limit = parseInt(headers['x-ratelimit-limit'], 10);
-    const remaining = parseInt(headers['x-ratelimit-remaining'], 10);
-    const reset = parseInt(headers['x-ratelimit-reset'], 10);
+    const limit = Number.parseInt(headers['x-ratelimit-limit'], 10);
+    const remaining = Number.parseInt(headers['x-ratelimit-remaining'], 10);
+    const reset = Number.parseInt(headers['x-ratelimit-reset'], 10);
 
     expect(limit).toBeGreaterThan(0);
     expect(remaining).toBeGreaterThanOrEqual(0);
@@ -53,7 +53,7 @@ test.describe('Rate Limit Header Tests', () => {
       data: { message: 'test' },
       headers: { 'Content-Type': 'application/json' }
     });
-    const limit = parseInt(response.headers()['x-ratelimit-limit'], 10);
+    const limit = Number.parseInt(response.headers()['x-ratelimit-limit'], 10);
     expect(limit).toBe(30);
   });
 });
@@ -87,7 +87,7 @@ test.describe('Admin Verify Rate Limit Tests', () => {
       }
     }
     expect(retryAfterHeader).toBeDefined();
-    expect(parseInt(retryAfterHeader, 10)).toBeGreaterThan(0);
+    expect(Number.parseInt(retryAfterHeader, 10)).toBeGreaterThan(0);
   });
 
   test('429 response body has error message about rate limiting', async ({ page }) => {
@@ -152,7 +152,7 @@ test.describe('Public Endpoint Rate Limit Tests', () => {
       data: { message: 'test' },
       headers: { 'Content-Type': 'application/json' }
     });
-    const limit = parseInt(response.headers()['x-ratelimit-limit'], 10);
+    const limit = Number.parseInt(response.headers()['x-ratelimit-limit'], 10);
     expect(limit).toBe(30);
   });
 });
@@ -188,7 +188,7 @@ test.describe('API Auth Rate Limit Tests', () => {
       data: {},
       headers: { 'Content-Type': 'application/json' }
     });
-    const limit = parseInt(response.headers()['x-ratelimit-limit'], 10);
+    const limit = Number.parseInt(response.headers()['x-ratelimit-limit'], 10);
     expect(limit).toBe(100);
   });
 });
@@ -202,7 +202,7 @@ test.describe('Recovery Tests', () => {
         headers: { 'Content-Type': 'application/json' }
       });
       if (response.status() === 429) {
-        retryAfter = parseInt(response.headers()['retry-after'], 10);
+        retryAfter = Number.parseInt(response.headers()['retry-after'], 10);
         break;
       }
     }

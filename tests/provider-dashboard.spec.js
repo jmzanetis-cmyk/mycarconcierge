@@ -86,7 +86,7 @@ async function setupProviderPage(page) {
   await mockProviderAuth(page);
 
   await page.addInitScript(() => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,

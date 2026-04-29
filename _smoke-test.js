@@ -189,7 +189,7 @@ async function callPromoterDirect(eventRow) {
   if (!posts.length) console.log('  ⚠ no draft posts found');
   for (const p of posts.slice(0, 3)) {
     console.log(`    post #${p.id} platform=${p.platform} audience=${p.audience} status=${p.status} channel=${p.channel_id}`);
-    console.log(`      body: ${(p.body || '').slice(0, 220).replace(/\n/g, ' / ')}…`);
+    console.log(`      body: ${(p.body || '').slice(0, 220).replaceAll('\n', ' / ')}…`);
   }
 
   if (posts.length) {
@@ -806,7 +806,7 @@ async function callPromoterDirect(eventRow) {
   console.log('\n━━━ STEP 30: provider_applications.outreach_lead_id column ━━━');
   try {
     const { data: row } = await adminSb.from('provider_applications').select('*').limit(1).maybeSingle();
-    const hasCol = row && Object.prototype.hasOwnProperty.call(row, 'outreach_lead_id');
+    const hasCol = row && Object.hasOwn(row, 'outreach_lead_id');
     if (row === null) {
       // table empty — probe via insert-attempt-then-rollback won't work without auth user; just note.
       console.log('  ⚠ provider_applications empty in this env; cannot verify column existence non-destructively.');

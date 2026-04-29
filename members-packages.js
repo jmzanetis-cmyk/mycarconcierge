@@ -83,7 +83,7 @@
           return;
         }
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/package/ai-suggestions`, {
           method: 'POST',
           headers: {
@@ -308,8 +308,8 @@
       if (badge) badge.style.display = 'none';
     }
 
-    window.toggleAiAssistantPanel = toggleAiAssistantPanel;
-    window.dismissAiSuggestion = dismissAiSuggestion;
+    globalThis.toggleAiAssistantPanel = toggleAiAssistantPanel;
+    globalThis.dismissAiSuggestion = dismissAiSuggestion;
 
     async function loadUpsellRequests() {
       const { data } = await supabaseClient.from('upsell_requests')
@@ -385,7 +385,7 @@
             actionButtons = `
               <button class="btn btn-success" onclick="approveUpsell('${u.id}')">${mccIcon('check', 16)} Approve ($${(u.estimated_cost || 0).toFixed(2)})</button>
               <button class="btn btn-secondary" onclick="declineUpsell('${u.id}')">${mccIcon('x', 16)} Decline</button>
-              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replace(/'/g, "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 16)} Get Competing Bids</button>
+              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replaceAll('\'', "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 16)} Get Competing Bids</button>
               <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 16)} Call Me</button>
             `;
           } else if (updateType === 'car_ready') {
@@ -402,7 +402,7 @@
             `;
           } else if (updateType === 'question') {
             actionButtons = `
-              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replace(/'/g, "\\'")}')">${mccIcon('message-square', 16)} Reply</button>
+              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replaceAll('\'', "\\'")}')">${mccIcon('message-square', 16)} Reply</button>
               <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 16)} Call Me</button>
             `;
           } else if (updateType === 'request_call') {
@@ -871,7 +871,7 @@
             </div>
           </div>
           <div class="reminder-actions">
-            <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replace(/'/g, "\\'")}')">Schedule</button>
+            <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replaceAll('\'', "\\'")}')">Schedule</button>
             ${typeof REMINDER_TYPE_TO_CARE_KEY !== 'undefined' && REMINDER_TYPE_TO_CARE_KEY[r.type] ? `<button class="btn btn-sm btn-ghost" onclick="openAcademyCareCard('${REMINDER_TYPE_TO_CARE_KEY[r.type]}')" title="Learn about this service" style="color:var(--accent-teal);">${mccIcon('book-open', 16)}</button>` : ''}
             <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">${mccIcon('clock', 16)}</button>
             <button class="btn btn-sm btn-ghost" onclick="dismissReminder('${r.id}')" title="Dismiss reminder">${mccIcon('x', 16)}</button>
@@ -1159,7 +1159,7 @@
           if (v) vehicleInfo = { make: v.make, model: v.model, year: v.year, trim: v.trim || null };
         }
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`${apiBase}/api/ai/describe-to-package`, {
           method: 'POST',
@@ -1260,7 +1260,7 @@
           if (v) vehicleInfo = { make: v.make, model: v.model, year: v.year, trim: v.trim || null };
         }
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const { data: { session } } = await supabaseClient.auth.getSession();
         const resp = await fetch(`${apiBase}/api/ai/photo-diagnose`, {
           method: 'POST',
@@ -1446,7 +1446,7 @@
 
       const descriptionText = document.getElementById('p-description').value.trim() || null;
       const fullDescription = isSnowRemoval && snowRemovalDetails
-        ? `${descriptionText || ''}\n\n[Property: ${snowRemovalDetails.property_address} | Type: ${snowRemovalDetails.property_type.replace(/_/g, ' ')} | Size: ${snowRemovalDetails.property_size.replace(/_/g, ' ')}]`.trim()
+        ? `${descriptionText || ''}\n\n[Property: ${snowRemovalDetails.property_address} | Type: ${snowRemovalDetails.property_type.replaceAll('_', ' ')} | Size: ${snowRemovalDetails.property_size.replaceAll('_', ' ')}]`.trim()
         : descriptionText;
 
       const packageData = {
@@ -1473,7 +1473,7 @@
         status: 'open',
         crowd_funded: document.getElementById('p-crowd-funded')?.checked || false,
         funding_goal_cents: (document.getElementById('p-crowd-funded')?.checked && document.getElementById('p-funding-goal')?.value)
-          ? Math.round(parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
+          ? Math.round(Number.parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
       };
 
       // Check if this is a private job request
@@ -1532,7 +1532,7 @@
 
       setTimeout(() => {
         try {
-          const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+          const vehicleCount = Number.parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
           const tipContainer = document.getElementById('post-create-tip');
           if (tipContainer) {
             if (vehicleCount < 1) {
@@ -1588,7 +1588,7 @@
           try {
             const { data: { session } } = await supabaseClient.auth.getSession();
             if (session) {
-              const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+              const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
               const matchResp = await fetch(`${apiBase}/api/ai/match-providers`, {
                 method: 'POST',
                 headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
@@ -1716,7 +1716,7 @@
     function selectRepostWindow(el) {
       document.querySelectorAll('.repost-window-option').forEach(o => o.classList.remove('selected'));
       el.classList.add('selected');
-      selectedRepostHours = parseInt(el.dataset.hours);
+      selectedRepostHours = Number.parseInt(el.dataset.hours);
     }
 
     async function confirmRepost() {
@@ -1774,7 +1774,7 @@
     function selectExtendTime(el) {
       document.querySelectorAll('.extend-option').forEach(opt => opt.classList.remove('selected'));
       el.classList.add('selected');
-      selectedExtendHours = parseInt(el.dataset.hours);
+      selectedExtendHours = Number.parseInt(el.dataset.hours);
       updateExtendPreview();
     }
 
@@ -2020,7 +2020,7 @@
                     ` : ''}
                     
                     ${providerAiSummaries[bid.provider_id] ? (() => {
-                      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+                      const esc = (s) => String(s).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
                       const aiData = providerAiSummaries[bid.provider_id];
                       return `
                       <div style="margin-bottom:12px;padding:12px 16px;background:rgba(56,189,248,0.05);border:1px solid rgba(56,189,248,0.15);border-radius:var(--radius-md);">
@@ -2242,7 +2242,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) { container.innerHTML = ''; return; }
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const bidPayload = bids.map(bid => {
           const stats = providerStats[bid.provider_id] || {};
           const perf = providerPerformance[bid.provider_id];
@@ -2376,7 +2376,7 @@
       if (btn) { btn.disabled = true; btn.textContent = 'Sharing…'; }
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        const res = await fetch(`${window.MCC_CONFIG?.apiBaseUrl || ''}/api/packages/${packageId}/share-with-car-club`, {
+        const res = await fetch(`${globalThis.MCC_CONFIG?.apiBaseUrl || ''}/api/packages/${packageId}/share-with-car-club`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${session?.access_token}` }
         });
@@ -2403,7 +2403,7 @@
         showToast(err.message || 'Could not share with Car Club', 'error');
       }
     }
-    window.shareWithCarClub = shareWithCarClub;
+    globalThis.shareWithCarClub = shareWithCarClub;
 
     async function acceptBid(bidId, packageId) {
       const bid = currentPackageBids.find(b => b.id === bidId);
@@ -2493,7 +2493,7 @@
                 <strong style="color:var(--text-primary);font-size:0.92rem;">You got competitive pricing on ${_service}!</strong>
                 <p style="color:var(--text-muted);font-size:0.82rem;margin:2px 0 0;">Share My Car Concierge and earn $5 referral credit when a friend signs up.</p>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="shareSavings('${_service.replace(/'/g, "\\'")}',${amount})" style="white-space:nowrap;">${mccIcon('share', 16)} Share</button>
+              <button class="btn btn-secondary btn-sm" onclick="shareSavings('${_service.replaceAll('\'', "\\'")}',${amount})" style="white-space:nowrap;">${mccIcon('share', 16)} Share</button>
               <button class="btn btn-ghost btn-sm" onclick="document.getElementById('post-create-tip').innerHTML=''" style="padding:4px 8px;">×</button>
             </div>`;
           }
@@ -2535,7 +2535,7 @@
 
         const pkg = packages.find(p => p.id === packageId);
         const title = encodeURIComponent(pkg?.title || 'Service Appointment');
-        const startDate = appt.confirmed_date ? appt.confirmed_date.replace(/-/g, '') : '';
+        const startDate = appt.confirmed_date ? appt.confirmed_date.replaceAll('-', '') : '';
         const startTime = appt.confirmed_time_start ? appt.confirmed_time_start.replace(':', '') + '00' : '090000';
         const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}T${startTime}/${startDate}T${startTime}`;
 
@@ -2702,7 +2702,7 @@
               ` : ''}
               
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button class="btn btn-success" onclick="openApproveAdditionalWorkModal('${work.id}', '${(work.title || 'Additional Work').replace(/'/g, "\\'")}', ${work.amount || 0}, '${packageId}', ${!!isCrowdFunded})">
+                <button class="btn btn-success" onclick="openApproveAdditionalWorkModal('${work.id}', '${(work.title || 'Additional Work').replaceAll('\'', "\\'")}', ${work.amount || 0}, '${packageId}', ${!!isCrowdFunded})">
                   ${mccIcon('check', 16)} Approve ($${(work.amount || 0).toFixed(2)})
                 </button>
                 <button class="btn btn-secondary" onclick="declineAdditionalWork('${work.id}', '${packageId}')">
@@ -2859,13 +2859,13 @@
               </p>
 
               <div style="display:flex;flex-direction:column;gap:12px;">
-                <button class="btn btn-primary" onclick="document.getElementById('additional-work-choice-modal').remove(); openApproveAdditionalWorkCardModal('${workId}', '${title.replace(/'/g, "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;">
+                <button class="btn btn-primary" onclick="document.getElementById('additional-work-choice-modal').remove(); openApproveAdditionalWorkCardModal('${workId}', '${title.replaceAll('\'', "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;">
                   <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
                     <span style="font-size:1.2rem;">${mccIcon('credit-card', 20)}</span>
                     <span>Pay In Full ($${amount.toFixed(2)})</span>
                   </span>
                 </button>
-                <button class="btn btn-secondary" onclick="document.getElementById('additional-work-choice-modal').remove(); openCrowdFundAdditionalWorkModal('${workId}', '${title.replace(/'/g, "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;border:2px solid var(--accent-blue);">
+                <button class="btn btn-secondary" onclick="document.getElementById('additional-work-choice-modal').remove(); openCrowdFundAdditionalWorkModal('${workId}', '${title.replaceAll('\'', "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;border:2px solid var(--accent-blue);">
                   <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
                     <span style="font-size:1.2rem;">${mccIcon('users', 20)}</span>
                     <span>Crowd Fund ($${amount.toFixed(2)})</span>
@@ -3002,7 +3002,7 @@
       }
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const { data: { session } } = await supabaseClient.auth.getSession();
         const headers = { 'Content-Type': 'application/json' };
         if (session?.access_token) {
@@ -3623,7 +3623,7 @@
       const container = document.getElementById(`checkin-qr-content-${packageId}`);
       if (!container) return;
       
-      const baseUrl = window.location.origin;
+      const baseUrl = globalThis.location.origin;
       const checkinUrl = `${baseUrl}/check-in.html?package=${packageId}&token=${token}`;
       const expiryDate = new Date(expiresAt);
       const timeRemaining = getCheckinTimeRemaining(expiresAt);
@@ -3891,7 +3891,7 @@
         const result = await MobilePay.requestApplePay(amount, 'My Car Concierge - Escrow Payment');
         
         if (result.success && result.paymentMethodId) {
-          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
           const response = await fetch(`${apiBase}/api/escrow/create-with-payment-method`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -3950,7 +3950,7 @@
         const result = await MobilePay.requestGooglePay(amount, 'My Car Concierge - Escrow Payment');
         
         if (result.success && result.paymentMethodId) {
-          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
           const response = await fetch(`${apiBase}/api/escrow/create-with-payment-method`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -4302,11 +4302,11 @@
     }
 
     async function submitReview() {
-      const overallRating = parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
-      const qualityRating = parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
-      const communicationRating = parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
-      const timelinessRating = parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
-      const valueRating = parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
+      const overallRating = Number.parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
+      const qualityRating = Number.parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
+      const communicationRating = Number.parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
+      const timelinessRating = Number.parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
+      const valueRating = Number.parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
       const reviewTitle = document.getElementById('review-title').value.trim();
       const reviewText = document.getElementById('review-text').value.trim();
       
@@ -4386,7 +4386,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error('Not authenticated');
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const resp = await fetch(`${apiBase}/api/packages/${packageId}/ai-mediation`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' }
@@ -4456,7 +4456,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const resp = await fetch(`${apiBase}/api/packages/${packageId}/ai-mediation`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
@@ -4565,7 +4565,7 @@
       
       let amountCents = null;
       if (refundType === 'partial') {
-        const amountDollars = parseFloat(document.getElementById('refund-amount-input').value);
+        const amountDollars = Number.parseFloat(document.getElementById('refund-amount-input').value);
         if (!amountDollars || amountDollars <= 0) {
           showToast('Please enter a valid refund amount', 'error');
           return;
@@ -4586,7 +4586,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const body = { reason, refund_type: refundType };
         if (amountCents) body.amount_cents = amountCents;
         
@@ -5288,7 +5288,7 @@
       const makeLower = (make || '').toLowerCase();
       const modelLower = (model || '').toLowerCase();
       const trimLower = (trim || '').toLowerCase();
-      const yearNum = parseInt(year) || 0;
+      const yearNum = Number.parseInt(year) || 0;
       
       const europeanMakes = ['bmw', 'mercedes-benz', 'mercedes', 'audi', 'volkswagen', 'vw', 'porsche', 'mini', 'volvo', 'land rover', 'jaguar'];
       const electricMakes = ['tesla', 'rivian', 'lucid', 'polestar'];
@@ -5887,7 +5887,7 @@
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm btn-secondary" onclick="openLogServiceModal('${item.code}')">Log Service</button>
-              ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replace(/'/g, "\\'")}')">Post Request</button>` : ''}
+              ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replaceAll('\'', "\\'")}')">Post Request</button>` : ''}
             </div>
           </div>
           ${item.notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);">${mccIcon('lightbulb', 16)} ${item.notes}</div>` : ''}
@@ -5905,7 +5905,7 @@
 
     async function updateVehicleMileage() {
       const input = document.getElementById('current-mileage-input');
-      const mileage = parseInt(input.value);
+      const mileage = Number.parseInt(input.value);
       if (!mileage || mileage < 0) {
         showToast('Please enter a valid mileage', 'error');
         return;
@@ -5955,9 +5955,9 @@
     async function saveServiceLog() {
       const serviceCode = document.getElementById('log-service-type').value;
       const serviceDate = document.getElementById('log-service-date').value;
-      const mileage = parseInt(document.getElementById('log-service-mileage').value);
+      const mileage = Number.parseInt(document.getElementById('log-service-mileage').value);
       const performedBy = document.getElementById('log-service-by').value.trim();
-      const cost = parseFloat(document.getElementById('log-service-cost').value) || null;
+      const cost = Number.parseFloat(document.getElementById('log-service-cost').value) || null;
       const notes = document.getElementById('log-service-notes').value.trim();
       
       if (!serviceCode) {
@@ -6746,7 +6746,7 @@
     let currentSplitElements = null;
 
     async function renderSplitPaymentStatus(pkg, acceptedBid) {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const response = await fetch(`${apiBase}/api/split/status/${pkg.id}`);
         if (!response.ok) {
@@ -6964,7 +6964,7 @@
       if (modal) modal.remove();
     }
 
-    window.reactivateSplitPayment = function(splitId, totalAmountCents) {
+    globalThis.reactivateSplitPayment = function(splitId, totalAmountCents) {
       const userEmail = currentUser?.email || '';
       const halfAmount = Math.floor(totalAmountCents / 2);
       const otherHalf = totalAmountCents - halfAmount;
@@ -7013,7 +7013,7 @@
       renderSplitParticipantsList(totalAmountCents);
     };
 
-    window.submitSplitReactivation = async function(splitId, totalAmountCents) {
+    globalThis.submitSplitReactivation = async function(splitId, totalAmountCents) {
       const errorEl = document.getElementById('split-error');
       const btn = document.getElementById('submit-split-btn');
 
@@ -7052,7 +7052,7 @@
       }
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/split/reactivate/${splitId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -7145,7 +7145,7 @@
 
     function updateSplitParticipantAmount(index, dollarValue, totalAmountCents) {
       if (splitParticipantRows[index]) {
-        splitParticipantRows[index].amount_cents = Math.round(parseFloat(dollarValue) * 100) || 0;
+        splitParticipantRows[index].amount_cents = Math.round(Number.parseFloat(dollarValue) * 100) || 0;
         updateSplitAmountStatus(totalAmountCents);
       }
     }
@@ -7226,7 +7226,7 @@
       }
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/split/create`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -7267,7 +7267,7 @@
       try {
         showToast('Preparing payment...', 'info');
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/split/pay/${participantId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -7320,8 +7320,8 @@
           `;
         }
 
-        window._currentSplitClientSecret = data.clientSecret;
-        window._currentSplitParticipantId = participantId;
+        globalThis._currentSplitClientSecret = data.clientSecret;
+        globalThis._currentSplitParticipantId = participantId;
 
         currentSplitElements = stripeInstance.elements({ clientSecret: data.clientSecret });
         currentSplitCardElement = currentSplitElements.create('card', {
@@ -7360,7 +7360,7 @@
       const btn = document.getElementById('split-pay-btn');
       const errorEl = document.getElementById('split-card-errors');
 
-      if (!currentSplitCardElement || !window._currentSplitClientSecret) {
+      if (!currentSplitCardElement || !globalThis._currentSplitClientSecret) {
         if (errorEl) errorEl.textContent = 'Payment form not loaded. Please try again.';
         return;
       }
@@ -7373,7 +7373,7 @@
         if (errorEl) errorEl.textContent = '';
 
         const stripeInstance = await initStripe();
-        const { error, paymentIntent } = await stripeInstance.confirmCardPayment(window._currentSplitClientSecret, {
+        const { error, paymentIntent } = await stripeInstance.confirmCardPayment(globalThis._currentSplitClientSecret, {
           payment_method: { card: currentSplitCardElement }
         });
 
@@ -7382,7 +7382,7 @@
         }
 
         if (paymentIntent.status === 'succeeded') {
-          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
           const confirmResponse = await fetch(`${apiBase}/api/split/confirm/${participantId}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' }
@@ -7425,7 +7425,7 @@
       if (!confirm('Cancel this split payment? Any paid participants will be refunded.')) return;
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/split/cancel/${splitId}`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' }
@@ -7454,7 +7454,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return null;
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const params = new URLSearchParams({ category });
         if (zip) params.append('zip', zip);
         if (packageId) params.append('package_id', packageId);
@@ -7534,9 +7534,9 @@
       return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:${bgColor};color:${textColor};border:1px solid ${textColor}30;margin-top:4px;">${icon} ${label}</span>`;
     }
 
-    window.fetchPriceEstimate = fetchPriceEstimate;
-    window.renderPriceEstimateWidget = renderPriceEstimateWidget;
-    window.getBidComparisonTag = getBidComparisonTag;
+    globalThis.fetchPriceEstimate = fetchPriceEstimate;
+    globalThis.renderPriceEstimateWidget = renderPriceEstimateWidget;
+    globalThis.getBidComparisonTag = getBidComparisonTag;
 
     function getBookingGuidance() {
       const stored = localStorage.getItem('mcc_booking_guidance');
@@ -7553,7 +7553,7 @@
       applyGuidanceToOpenModal(level);
       if (typeof showToast === 'function') showToast('Booking assistance updated', 'success');
     }
-    window.setBookingGuidance = setBookingGuidance;
+    globalThis.setBookingGuidance = setBookingGuidance;
 
     function applyGuidanceToOpenModal(level) {
       const panel = document.getElementById('service-suggestions-panel');
@@ -7685,7 +7685,7 @@
       }
       document.getElementById('service-suggestions-panel').style.display = 'none';
     }
-    window.applySuggestion = applySuggestion;
+    globalThis.applySuggestion = applySuggestion;
 
     function logSuggestion(idx, vehicleId) {
       const rec = _currentSuggestions[idx];
@@ -7728,11 +7728,11 @@
 
       selectedMaintenanceVehicle = vehicleId;
 
-      window._pendingSuggestionLog = { idx, vehicleId };
+      globalThis._pendingSuggestionLog = { idx, vehicleId };
 
       modal.style.display = 'flex';
     }
-    window.logSuggestion = logSuggestion;
+    globalThis.logSuggestion = logSuggestion;
 
     let _origSaveServiceLogCaptured = false;
     let _origSaveServiceLog = null;
@@ -7740,12 +7740,12 @@
     function ensureSaveServiceLogWrapped() {
       if (_origSaveServiceLogCaptured) return;
       _origSaveServiceLogCaptured = true;
-      _origSaveServiceLog = window.saveServiceLog;
-      window.saveServiceLog = async function() {
+      _origSaveServiceLog = globalThis.saveServiceLog;
+      globalThis.saveServiceLog = async function() {
         const serviceCode = document.getElementById('log-service-type')?.value;
         const serviceDate = document.getElementById('log-service-date')?.value;
         const mileageVal = document.getElementById('log-service-mileage')?.value;
-        if (!serviceCode || !serviceDate || !mileageVal || parseInt(mileageVal) < 0) {
+        if (!serviceCode || !serviceDate || !mileageVal || Number.parseInt(mileageVal) < 0) {
           if (_origSaveServiceLog) await _origSaveServiceLog();
           return;
         }
@@ -7753,9 +7753,9 @@
         if (_origSaveServiceLog) await _origSaveServiceLog();
         const logModalAfter = document.getElementById('log-service-modal')?.style.display;
         const saveSucceeded = logModalBefore === 'flex' && logModalAfter === 'none';
-        if (saveSucceeded && window._pendingSuggestionLog) {
-          const { idx, vehicleId } = window._pendingSuggestionLog;
-          window._pendingSuggestionLog = null;
+        if (saveSucceeded && globalThis._pendingSuggestionLog) {
+          const { idx, vehicleId } = globalThis._pendingSuggestionLog;
+          globalThis._pendingSuggestionLog = null;
           _currentSuggestions = _currentSuggestions.filter((_, i) => i !== idx);
           if (_currentSuggestions.length === 0) {
             const panel = document.getElementById('service-suggestions-panel');
@@ -7768,7 +7768,7 @@
             setTimeout(() => vehSelect.dispatchEvent(new Event('change', { bubbles: true })), 600);
           }
         } else if (!saveSucceeded) {
-          window._pendingSuggestionLog = null;
+          globalThis._pendingSuggestionLog = null;
         }
       };
     }
@@ -7817,7 +7817,7 @@
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) { if (loadingEl) loadingEl.style.display = 'none'; return; }
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const resp = await fetch(`${apiBase}/api/ai/service-recommendations`, {
           method: 'POST',
           headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
@@ -7853,7 +7853,7 @@
 
     let groupServicesLoaded = false;
 
-    window.switchGroupServicesTab = function(tab) {
+    globalThis.switchGroupServicesTab = function(tab) {
       const isOrg = tab === 'organized';
       const orgPanel = document.getElementById('gs-organized-panel');
       const invPanel = document.getElementById('gs-invited-panel');
@@ -7865,7 +7865,7 @@
       if (invBtn) { invBtn.style.background = !isOrg ? 'var(--accent-blue)' : ''; invBtn.style.color = !isOrg ? '#fff' : ''; invBtn.className = !isOrg ? 'btn btn-sm' : 'btn btn-sm btn-secondary'; }
     };
 
-    window.loadGroupServices = async function(force = false) {
+    globalThis.loadGroupServices = async function(force = false) {
       if (groupServicesLoaded && !force) return;
       const loading = document.getElementById('gs-loading');
       const orgPanel = document.getElementById('gs-organized-panel');
@@ -7876,7 +7876,7 @@
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) { if (loading) loading.style.display = 'none'; return; }
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/split/my-splits`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
@@ -7911,7 +7911,7 @@
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
                   <div>
                     <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${s.pkg?.title || 'Service Package'}</div>
-                    <div style="font-size:0.82rem;color:var(--text-muted);">${s.pkg?.service_type ? s.pkg.service_type.replace(/_/g,' ') : ''} ${s.pkg?.member_zip ? '· ' + s.pkg.member_zip : ''}</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);">${s.pkg?.service_type ? s.pkg.service_type.replaceAll('_',' ') : ''} ${s.pkg?.member_zip ? '· ' + s.pkg.member_zip : ''}</div>
                   </div>
                   <div style="text-align:right;">
                     <div style="font-size:1.1rem;font-weight:700;color:var(--accent-gold);">$${(s.total_amount_cents / 100).toFixed(2)}</div>
@@ -7999,9 +7999,9 @@
       const patched = function(sectionId) {
         const result = origShowSection.apply(this, arguments);
         if (sectionId === 'group-services') {
-          window.loadGroupServices();
+          globalThis.loadGroupServices();
         }
         return result;
       };
-      if (typeof window !== 'undefined') window.showSection = patched;
+      if (typeof globalThis.window !== 'undefined') globalThis.showSection = patched;
     })();

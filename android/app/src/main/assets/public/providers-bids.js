@@ -19,6 +19,9 @@ function isDestinationPackage(p) {
   return p.category === 'destination_service' || p.is_destination_service === true || p.pickup_preference === 'destination_service';
 }
 
+let matchedPackageIds = new Set();
+let bidInsightsLoaded = false;
+
 // ========== LOAD OPEN PACKAGES ==========
 async function loadOpenPackages() {
   try {
@@ -50,6 +53,19 @@ async function loadOpenPackages() {
       locationWarning.style.display = !providerProfile?.zip_code ? 'block' : 'none';
     }
     
+    if (currentUser?.id) {
+      try {
+        const { data: matchedNotifs } = await supabaseClient
+          .from('notifications')
+          .select('entity_id')
+          .eq('user_id', currentUser.id)
+          .eq('type', 'matched_package');
+        matchedPackageIds = new Set((matchedNotifs || []).map(n => n.entity_id).filter(Boolean));
+      } catch (e) {
+        matchedPackageIds = new Set();
+      }
+    }
+
     renderOpenPackages();
     renderRecentPackages();
     const openCount = document.getElementById('open-count');
@@ -79,10 +95,63 @@ async function loadMyBids() {
     renderMyBids();
     if (typeof renderActiveJobs === 'function') renderActiveJobs();
     if (typeof updateStats === 'function') updateStats();
+    if (!bidInsightsLoaded) loadBidInsights();
   } catch (err) {
     console.error('loadMyBids error:', err);
     myBids = [];
     renderMyBids();
+  }
+}
+
+async function loadBidInsights() {
+  const card = document.getElementById('bid-insights-card');
+  const body = document.getElementById('bid-insights-body');
+  if (!card || !body) return;
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+
+    body.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Analyzing your bid history…</div>';
+    card.style.display = 'block';
+
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const resp = await fetch(`${apiBase}/api/ai/bid-strategy`, {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    });
+
+    if (!resp.ok) {
+      body.innerHTML = '<div style="color:var(--text-muted);">Bid insights are available once you have an active provider account with bid history.</div>';
+      return;
+    }
+
+    const data = await resp.json();
+    bidInsightsLoaded = true;
+
+    if (!data.has_data) {
+      body.innerHTML = `<div style="color:var(--text-muted);">${data.message || 'Submit more bids to unlock insights.'}</div>`;
+      return;
+    }
+
+    const insightChips = (data.insights || []).map(i => `
+      <div style="padding:8px 10px;background:var(--bg-elevated);border-radius:8px;border:1px solid var(--border-subtle);margin-bottom:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:2px;">
+          <strong style="font-size:0.85rem;">${i.category}</strong>
+          <span style="font-size:0.8rem;font-weight:600;color:${i.win_rate >= 40 ? 'var(--accent-green)' : i.win_rate >= 20 ? 'var(--accent-gold)' : 'var(--accent-red)'};">${i.win_rate}% win rate</span>
+        </div>
+        <div style="font-size:0.82rem;color:var(--text-muted);">${i.tip}</div>
+      </div>`).join('');
+
+    body.innerHTML = `
+      <p style="margin:0 0 10px;">${data.summary}</p>
+      ${insightChips}
+      ${data.top_recommendation ? `<div style="margin-top:10px;padding:10px;background:rgba(212,168,85,0.1);border:1px solid rgba(212,168,85,0.3);border-radius:8px;font-size:0.85rem;"><strong style="color:var(--accent-gold);">Top tip:</strong> ${data.top_recommendation}</div>` : ''}
+    `;
+  } catch (err) {
+    if (card) card.style.display = 'none';
+    console.log('Bid insights unavailable:', err.message);
   }
 }
 
@@ -94,7 +163,7 @@ function renderOpenPackages(filtered = null) {
   const packagesToRender = filtered || openPackages;
   
   if (!packagesToRender.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('package', 40) + '</div><p>No packages match your filters. Try adjusting your criteria.</p></div>';
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 40)}</div><p>No packages match your filters. Try adjusting your criteria.</p></div>`;
     const filterInfo = document.getElementById('filter-results-info');
     if (filterInfo) filterInfo.textContent = '';
     return;
@@ -118,7 +187,7 @@ function renderRecentPackages() {
   
   const recent = openPackages.slice(0, 3);
   if (!recent.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('package', 40) + '</div><p>No open packages.</p></div>';
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 40)}</div><p>No open packages.</p></div>`;
     return;
   }
   container.innerHTML = recent.map(p => renderPackageCard(p, true)).join('');
@@ -166,15 +235,31 @@ function renderPackageCard(p, showBidButton = false) {
     </div>
   ` : '';
 
+  const sanitizeText = (str) => {
+    if (!str) return '';
+    const div = document.createElement('div');
+    div.textContent = str;
+    return div.innerHTML;
+  };
+  const matchedBadgeHtml = p._isMatched ? `
+    <div class="matched-for-you-badge">
+      ${mccIcon('zap', 16)} Matched for you${p._matchReason ? ` · ${sanitizeText(p._matchReason)}` : ''}
+    </div>
+  ` : '';
+
   return `
-    <div class="package-card">
+    <div class="package-card${p._isMatched ? ' matched-package' : ''}">
+      ${matchedBadgeHtml}
       <div class="package-header">
         <div>
           <div class="package-title">${p.title}${memberBadgesHtml ? `<span class="member-badges">${memberBadgesHtml}</span>` : ''}</div>
           <div class="package-vehicle">${mccIcon('car', 16)} ${vehicleName}</div>
         </div>
-        <span class="package-badge">${formatCategory(p.category) || 'General'}</span>
-        ${p.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;margin-left:4px;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
+          <span class="package-badge">${formatCategory(p.category) || 'General'}</span>
+          ${p.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
+          ${matchedPackageIds.has(p.id) ? `<span class="package-badge" style="background:rgba(34,211,238,0.15);color:var(--accent-teal);border:1px solid rgba(34,211,238,0.3);">${mccIcon('zap', 14)} Matched for you</span>` : ''}
+        </div>
       </div>
       <div class="package-meta">
         <span>${mccIcon('map-pin', 16)} ${locationDisplay} ${distanceDisplay ? `(${distanceDisplay})` : ''}</span>
@@ -203,7 +288,7 @@ function renderMyBids() {
   const pendingBids = myBids.filter(b => b.status === 'pending');
   
   if (!pendingBids.length) {
-    container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('file-text', 40) + '</div><p>No pending bids.</p></div>';
+    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('file-text', 40)}</div><p>No pending bids.</p></div>`;
     return;
   }
   
@@ -324,9 +409,17 @@ function applyFilters() {
   }
 
   if (sort === 'nearest') {
-    filtered.sort((a, b) => (a._estimatedDistance || 999) - (b._estimatedDistance || 999));
+    filtered.sort((a, b) => {
+      if (a._isMatched && !b._isMatched) return -1;
+      if (!a._isMatched && b._isMatched) return 1;
+      return (a._estimatedDistance || 999) - (b._estimatedDistance || 999);
+    });
   } else if (sort === 'newest') {
-    filtered.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    filtered.sort((a, b) => {
+      if (a._isMatched && !b._isMatched) return -1;
+      if (!a._isMatched && b._isMatched) return 1;
+      return new Date(b.created_at) - new Date(a.created_at);
+    });
   } else if (sort === 'oldest') {
     filtered.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
   } else if (sort === 'ending') {
@@ -1138,11 +1231,13 @@ function checkPurchaseStatus() {
   }
 }
 
-// Expose functions globally for cross-script access
-window.loadServiceCredits = loadServiceCredits;
+// ========== BID INSIGHTS ===window.loadServiceCredits = loadServiceCredits;
 window.loadOpenPackages = loadOpenPackages;
 window.loadMyBids = loadMyBids;
 window.purchaseBidPack = purchaseBidPack;
 window.checkPurchaseStatus = checkPurchaseStatus;
+window.loadBidInsights = loadBidInsights;
+window.loadAIPriceSuggestion = loadAIPriceSuggestion;
+window.draftBidPitch = draftBidPitch;
 
 console.log('providers-bids.js loaded');

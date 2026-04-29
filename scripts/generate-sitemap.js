@@ -28,7 +28,7 @@ if (!pagesMatch) {
   console.error('ERROR: could not parse PAGES from inject-seo-meta.js');
   process.exit(1);
 }
-// eslint-disable-next-line no-eval
+ 
 const PAGES = eval('(' + pagesMatch[1].replace(/;\s*$/, '') + ')');
 
 const publicFiles = Object.entries(PAGES)

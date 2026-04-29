@@ -382,7 +382,7 @@ test.describe('Agent Matchmaker — detail page review queue UI', () => {
       // POST /actions/:id/apply  ← the path we're verifying
       const applyMatch = pathPart.match(/^\/actions\/(\d+)\/apply$/);
       if (method === 'POST' && applyMatch) {
-        ctx.applyCalls.push({ id: parseInt(applyMatch[1], 10), body: req.postData() });
+        ctx.applyCalls.push({ id: Number.parseInt(applyMatch[1], 10), body: req.postData() });
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
           ok: true,
           care_plan_id: carePlanId,

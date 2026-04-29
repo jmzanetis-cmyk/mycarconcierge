@@ -375,7 +375,7 @@
     async function checkAccessAuthorization() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) {
-        window.location.href = 'login.html';
+        globalThis.location.href = 'login.html';
         return false;
       }
       
@@ -386,7 +386,7 @@
         const result = await response.json();
         
         if (!result.authorized && result.reason === '2fa_required') {
-          window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
+          globalThis.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(globalThis.location.pathname);
           return false;
         }
         return true;
@@ -400,7 +400,7 @@
     window.addEventListener('load', async () => {
       try {
         const user = await getCurrentUser();
-        if (!user) return window.location.href = 'login.html';
+        if (!user) return globalThis.location.href = 'login.html';
         currentUser = user;
         
         // Check 2FA authorization before loading dashboard
@@ -449,7 +449,7 @@
       setupEventListeners();
       setupRealtimeSubscriptions();
 
-      const urlParams = new URLSearchParams(window.location.search);
+      const urlParams = new URLSearchParams(globalThis.location.search);
       if (urlParams.get('create') === 'true') {
         const providerSlug = urlParams.get('provider') || localStorage.getItem('preferred_provider_slug') || '';
         if (providerSlug) {
@@ -457,7 +457,7 @@
         }
         showSection('packages');
         setTimeout(() => openPackageModal(), 500);
-        window.history.replaceState({}, '', '/members.html');
+        globalThis.history.replaceState({}, '', '/members.html');
       }
     }
     
@@ -733,7 +733,7 @@
 
     function switchToProvider() {
       localStorage.setItem('mcc_portal', 'provider');
-      window.location.href = 'providers.html';
+      globalThis.location.href = 'providers.html';
     }
 
     async function loadVehicles() {
@@ -839,7 +839,7 @@
             actionButtons = `
               <button class="btn btn-success" onclick="approveUpsell('${u.id}')">${mccIcon('check-circle', 14)} Approve ($${(u.estimated_cost || 0).toFixed(2)})</button>
               <button class="btn btn-secondary" onclick="declineUpsell('${u.id}')">✗ Decline</button>
-              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replace(/'/g, "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 14)} Get Competing Bids</button>
+              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replaceAll('\'', "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 14)} Get Competing Bids</button>
               <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} Call Me</button>
             `;
           } else if (updateType === 'car_ready') {
@@ -856,7 +856,7 @@
             `;
           } else if (updateType === 'question') {
             actionButtons = `
-              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replace(/'/g, "\\'")}')"> ${mccIcon('message-square', 14)} Reply</button>
+              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replaceAll('\'', "\\'")}')"> ${mccIcon('message-square', 14)} Reply</button>
               <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 14)} Call Me</button>
             `;
           } else if (updateType === 'request_call') {
@@ -1092,7 +1092,7 @@
 
     async function loadCarClubProviders() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/car-club/browse`);
         if (res.ok) {
           const data = await res.json();
@@ -1434,7 +1434,7 @@
         reminder_type: reminderType,
         description: notes || null,
         due_date: dueType === 'date' ? dueDate : null,
-        due_mileage: dueType === 'mileage' ? parseInt(dueMileage) : null,
+        due_mileage: dueType === 'mileage' ? Number.parseInt(dueMileage) : null,
         status: 'pending'
       };
       
@@ -1990,7 +1990,7 @@
     };
 
     function normalizeServiceType(str) {
-      return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+      return str.toLowerCase().replaceAll(/[^a-z0-9]/g, '');
     }
 
     function scheduleFromRecommendation(buttonEl) {
@@ -2383,7 +2383,7 @@
         }
         
         const timestamp = Date.now();
-        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const safeFileName = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `${userId}/${timestamp}_${safeFileName}`;
         
         const { data, error } = await supabaseClient.storage
@@ -2916,7 +2916,7 @@
             </div>
           </div>
           <div class="reminder-actions">
-            <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replace(/'/g, "\\'")}')">Schedule</button>
+            <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replaceAll('\'', "\\'")}')">Schedule</button>
             <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">${mccIcon('clock', 14)}</button>
             <button class="btn btn-sm btn-ghost" onclick="dismissReminder('${r.id}')" title="Dismiss reminder">✕</button>
           </div>
@@ -2977,7 +2977,7 @@
       const makeLower = (make || '').toLowerCase();
       const modelLower = (model || '').toLowerCase();
       const trimLower = (trim || '').toLowerCase();
-      const yearNum = parseInt(year) || 0;
+      const yearNum = Number.parseInt(year) || 0;
       
       const europeanMakes = ['bmw', 'mercedes-benz', 'mercedes', 'audi', 'volkswagen', 'vw', 'porsche', 'mini', 'volvo', 'land rover', 'jaguar'];
       const electricMakes = ['tesla', 'rivian', 'lucid', 'polestar'];
@@ -3576,7 +3576,7 @@
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm btn-secondary" onclick="openLogServiceModal('${item.code}')">Log Service</button>
-              ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replace(/'/g, "\\'")}')">Post Request</button>` : ''}
+              ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replaceAll('\'', "\\'")}')">Post Request</button>` : ''}
             </div>
           </div>
           ${item.notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);">${mccIcon('info', 14)} ${item.notes}</div>` : ''}
@@ -3594,7 +3594,7 @@
 
     async function updateVehicleMileage() {
       const input = document.getElementById('current-mileage-input');
-      const mileage = parseInt(input.value);
+      const mileage = Number.parseInt(input.value);
       if (!mileage || mileage < 0) {
         showToast('Please enter a valid mileage', 'error');
         return;
@@ -3644,9 +3644,9 @@
     async function saveServiceLog() {
       const serviceCode = document.getElementById('log-service-type').value;
       const serviceDate = document.getElementById('log-service-date').value;
-      const mileage = parseInt(document.getElementById('log-service-mileage').value);
+      const mileage = Number.parseInt(document.getElementById('log-service-mileage').value);
       const performedBy = document.getElementById('log-service-by').value.trim();
-      const cost = parseFloat(document.getElementById('log-service-cost').value) || null;
+      const cost = Number.parseFloat(document.getElementById('log-service-cost').value) || null;
       const notes = document.getElementById('log-service-notes').value.trim();
       
       if (!serviceCode) {
@@ -3903,14 +3903,14 @@
             if (match) filename = match[1];
           }
           
-          const url = window.URL.createObjectURL(blob);
+          const url = globalThis.URL.createObjectURL(blob);
           const a = document.createElement('a');
           a.href = url;
           a.download = filename;
           document.body.appendChild(a);
           a.click();
           document.body.removeChild(a);
-          window.URL.revokeObjectURL(url);
+          globalThis.URL.revokeObjectURL(url);
           
           showToast('CSV downloaded successfully!', 'success');
         } else if (format === 'pdf') {
@@ -3932,7 +3932,7 @@
     }
     
     function generateServiceHistoryPDF(data) {
-      const { jsPDF } = window.jspdf;
+      const { jsPDF } = globalThis.jspdf;
       const doc = new jsPDF();
       
       const bgDeep = '#0a0a0f';
@@ -4089,7 +4089,7 @@
         doc.text(`My Car Concierge - Service History Report - Page ${i} of ${pageCount}`, 105, 290, { align: 'center' });
       }
       
-      const filename = `MCC_Service_History_${data.memberName.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      const filename = `MCC_Service_History_${data.memberName.replaceAll(/[^a-zA-Z0-9]/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(filename);
     }
     
@@ -4210,7 +4210,7 @@
           <h4>Inspection Results</h4>
           <div class="inspection-summary">
             <div class="inspection-condition" style="color:${conditionColor};">
-              Overall: ${(inspection.overallCondition || 'N/A').replace(/_/g, ' ').toUpperCase()}
+              Overall: ${(inspection.overallCondition || 'N/A').replaceAll('_', ' ').toUpperCase()}
             </div>
             ${inspection.mileage ? `<div class="inspection-mileage">Mileage: ${inspection.mileage.toLocaleString()} mi</div>` : ''}
           </div>
@@ -5070,7 +5070,7 @@
         opt.addEventListener('click', () => {
           document.querySelectorAll('.bid-window-option').forEach(o => o.classList.remove('selected'));
           opt.classList.add('selected');
-          selectedBiddingWindowHours = parseInt(opt.dataset.hours);
+          selectedBiddingWindowHours = Number.parseInt(opt.dataset.hours);
         });
       });
 
@@ -6239,7 +6239,7 @@
     function selectRepostWindow(el) {
       document.querySelectorAll('.repost-window-option').forEach(o => o.classList.remove('selected'));
       el.classList.add('selected');
-      selectedRepostHours = parseInt(el.dataset.hours);
+      selectedRepostHours = Number.parseInt(el.dataset.hours);
     }
 
     async function confirmRepost() {
@@ -6297,7 +6297,7 @@
     function selectExtendTime(el) {
       document.querySelectorAll('.extend-option').forEach(opt => opt.classList.remove('selected'));
       el.classList.add('selected');
-      selectedExtendHours = parseInt(el.dataset.hours);
+      selectedExtendHours = Number.parseInt(el.dataset.hours);
       updateExtendPreview();
     }
 
@@ -6874,11 +6874,11 @@
     }
 
     async function submitReview() {
-      const overallRating = parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
-      const qualityRating = parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
-      const communicationRating = parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
-      const timelinessRating = parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
-      const valueRating = parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
+      const overallRating = Number.parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
+      const qualityRating = Number.parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
+      const communicationRating = Number.parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
+      const timelinessRating = Number.parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
+      const valueRating = Number.parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
       const reviewTitle = document.getElementById('review-title').value.trim();
       const reviewText = document.getElementById('review-text').value.trim();
       
@@ -7071,14 +7071,14 @@
       let documents = [];
       
       try {
-        const photoResult = await window.listVehiclePhotos(vehicleId);
+        const photoResult = await globalThis.listVehiclePhotos(vehicleId);
         photos = photoResult?.data || [];
       } catch (e) {
         console.log('Could not load photos:', e);
       }
       
       try {
-        const docResult = await window.listVehicleDocuments(vehicleId);
+        const docResult = await globalThis.listVehicleDocuments(vehicleId);
         documents = docResult?.data || [];
       } catch (e) {
         console.log('Could not load documents:', e);
@@ -7330,7 +7330,7 @@
 
     function escHtml(str) {
       if (!str) return '';
-      return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      return String(str).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
     }
 
     async function loadVehicleHealth(vehicleId) {
@@ -7466,7 +7466,7 @@
                 ${remainingLine ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:2px;">${remainingLine}</div>` : ''}
                 ${item.last_service_date ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Last: ${new Date(item.last_service_date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}${item.last_service_mileage ? ' at ' + item.last_service_mileage.toLocaleString() + ' mi' : ''}</div>` : ''}
               </div>
-              <button class="btn btn-primary btn-sm" onclick="createForecastPackage('${vehicleId}','${item.service_type}','${item.label.replace(/'/g, "\\'")}')" style="white-space:nowrap;">Get Quotes</button>
+              <button class="btn btn-primary btn-sm" onclick="createForecastPackage('${vehicleId}','${item.service_type}','${item.label.replaceAll('\'', "\\'")}')" style="white-space:nowrap;">Get Quotes</button>
             </div>
           `;
         }).join('');
@@ -7585,7 +7585,7 @@
       
       let successCount = 0;
       for (const file of Array.from(input.files)) {
-        const result = await window.uploadVehiclePhoto(vehicleId, file, photoType);
+        const result = await globalThis.uploadVehiclePhoto(vehicleId, file, photoType);
         if (result) successCount++;
       }
       
@@ -7609,7 +7609,7 @@
       showToast('Uploading document...', 'info');
       
       const file = input.files[0];
-      const result = await window.uploadVehicleDocument(vehicleId, file, docType, expiration);
+      const result = await globalThis.uploadVehicleDocument(vehicleId, file, docType, expiration);
       
       if (result) {
         showToast('Document uploaded!', 'success');
@@ -7623,7 +7623,7 @@
       showToast('Generating health report...', 'info');
       
       try {
-        const { jsPDF } = window.jspdf;
+        const { jsPDF } = globalThis.jspdf;
         
         const { data: vehicle } = await supabaseClient
           .from('vehicles')
@@ -8019,12 +8019,12 @@
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
           doc.setTextColor(...colors.textSecondary);
-          const configDomain = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) ? window.MCC_CONFIG.siteUrl.replace(/^https?:\/\//, '') : 'mycarconcierge.com';
+          const configDomain = (globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) ? globalThis.MCC_CONFIG.siteUrl.replace(/^https?:\/\//, '') : 'mycarconcierge.com';
           doc.text('Generated by My Car Concierge • ' + configDomain, margin, pageHeight - 10);
           doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
         }
         
-        const filename = `${vehicleTitle.replace(/\s+/g, '_')}_Health_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+        const filename = `${vehicleTitle.replaceAll(/\s+/g, '_')}_Health_Report_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(filename);
         
         showToast('Health report downloaded!', 'success');
@@ -8517,7 +8517,7 @@
       const notSupportedEl = document.getElementById('push-not-supported');
       const contentEl = document.getElementById('push-content');
       
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) {
         if (notSupportedEl) notSupportedEl.style.display = 'block';
         if (contentEl) contentEl.style.display = 'none';
         return;
@@ -8732,8 +8732,8 @@
     
     function urlBase64ToUint8Array(base64String) {
       const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
+      const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
+      const rawData = globalThis.atob(base64);
       const outputArray = new Uint8Array(rawData.length);
       for (let i = 0; i < rawData.length; ++i) {
         outputArray[i] = rawData.charCodeAt(i);
@@ -8761,7 +8761,7 @@
           getAppointment(packageId),
           getVehicleTransfer(packageId),
           getActiveLocationShare(packageId),
-          window.getDriverLocation(packageId)
+          globalThis.getDriverLocation(packageId)
         ]);
 
         renderAppointmentStatus(packageId, appointmentResult.data);
@@ -8775,7 +8775,7 @@
           clearInterval(driverLocationRefreshInterval);
         }
         driverLocationRefreshInterval = setInterval(async () => {
-          const { data: driverLoc } = await window.getDriverLocation(packageId);
+          const { data: driverLoc } = await globalThis.getDriverLocation(packageId);
           const { data: providerLoc } = await getActiveLocationShare(packageId);
           renderLocationStatus(packageId, providerLoc, driverLoc);
         }, 18000);
@@ -8791,14 +8791,14 @@
       const pad = n => String(n).padStart(2, '0');
       const dtS = `${year}${pad(month)}${pad(day)}T${pad(sh)}${pad(sm)}00`;
       const dtE = `${year}${pad(month)}${pad(day)}T${pad(eh)}${pad(em)}00`;
-      const stamp = new Date().toISOString().replace(/[-:.]/g,'').slice(0, 15) + 'Z';
+      const stamp = new Date().toISOString().replaceAll(/[-:.]/g,'').slice(0, 15) + 'Z';
       const ics = [
         'BEGIN:VCALENDAR', 'VERSION:2.0', 'PRODID:-//My Car Concierge//EN',
         'BEGIN:VEVENT',
         `UID:mcc-${Date.now()}@mycarconcierge.com`,
         `DTSTAMP:${stamp}`, `DTSTART:${dtS}`, `DTEND:${dtE}`,
-        `SUMMARY:${title.replace(/[,;\\]/g, '\\$&')}`,
-        notes ? `DESCRIPTION:${notes.replace(/[,;\\]/g, '\\$&').replace(/\n/g, '\\n')}` : '',
+        `SUMMARY:${title.replaceAll(/[,;\\]/g, '\\$&')}`,
+        notes ? `DESCRIPTION:${notes.replaceAll(/[,;\\]/g, '\\$&').replaceAll('\n', '\\n')}` : '',
         'END:VEVENT', 'END:VCALENDAR'
       ].filter(Boolean).join('\r\n');
       const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
@@ -8853,7 +8853,7 @@
       const dismiss = (e) => { if (!popup.contains(e.target)) { popup.remove(); document.removeEventListener('click', dismiss); } };
       setTimeout(() => document.addEventListener('click', dismiss), 100);
     }
-    window.showApptCalendarOptions = showApptCalendarOptions;
+    globalThis.showApptCalendarOptions = showApptCalendarOptions;
 
     // Render appointment status
     function renderAppointmentStatus(packageId, appointment) {
@@ -8917,9 +8917,9 @@
               const rawDate = appointment.proposed_date;
               const tS = appointment.proposed_time_start || '09:00';
               const tE = appointment.proposed_time_end || '10:00';
-              const pkgTitle = (packages.find(p => p.id === packageId)?.title || 'Service Appointment').replace(/"/g, '&quot;');
-              const apptNotes = (appointment.notes || '').replace(/"/g, '&quot;');
-              window._mccApptCal = { date: rawDate, timeStart: tS, timeEnd: tE, title: pkgTitle, notes: apptNotes };
+              const pkgTitle = (packages.find(p => p.id === packageId)?.title || 'Service Appointment').replaceAll('"', '&quot;');
+              const apptNotes = (appointment.notes || '').replaceAll('"', '&quot;');
+              globalThis._mccApptCal = { date: rawDate, timeStart: tS, timeEnd: tE, title: pkgTitle, notes: apptNotes };
               return `
               <div style="font-size:0.85rem;color:var(--accent-green);">${mccIcon('check-circle', 14)} Appointment confirmed! See you on ${date}.</div>
               <button class="btn btn-secondary btn-sm" onclick="(function(){const d=window._mccApptCal;if(d)showApptCalendarOptions(d.date,d.timeStart,d.timeEnd,d.title,d.notes);})()" style="margin-top:8px;">${mccIcon('calendar', 14)} Add to Calendar</button>
@@ -9047,7 +9047,7 @@
                     ${mccIcon('map-pin', 14)} Live Location
                   </div>
                   <div style="font-size:0.95rem;color:var(--text-primary);margin-bottom:4px;">
-                    ${parseFloat(driverLocation.lat).toFixed(6)}, ${parseFloat(driverLocation.lng).toFixed(6)}
+                    ${Number.parseFloat(driverLocation.lat).toFixed(6)}, ${Number.parseFloat(driverLocation.lng).toFixed(6)}
                   </div>
                   ${driverLocation.speed ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:4px;">Speed: ${driverLocation.speed} mph</div>` : ''}
                   <div style="font-size:0.8rem;color:var(--text-muted);">Last update: ${updatedAt} on ${updatedDate}</div>
@@ -9061,7 +9061,7 @@
             <div style="text-align:center;">
               <div style="display:inline-block;padding:8px 16px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
                 <iframe 
-                  src="https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(driverLocation.lng) - 0.01},${parseFloat(driverLocation.lat) - 0.01},${parseFloat(driverLocation.lng) + 0.01},${parseFloat(driverLocation.lat) + 0.01}&layer=mapnik&marker=${driverLocation.lat},${driverLocation.lng}" 
+                  src="https://www.openstreetmap.org/export/embed.html?bbox=${Number.parseFloat(driverLocation.lng) - 0.01},${Number.parseFloat(driverLocation.lat) - 0.01},${Number.parseFloat(driverLocation.lng) + 0.01},${Number.parseFloat(driverLocation.lat) + 0.01}&layer=mapnik&marker=${driverLocation.lat},${driverLocation.lng}" 
                   style="width:100%;min-width:280px;height:180px;border:none;border-radius:var(--radius-sm);"
                   loading="lazy"
                 ></iframe>
@@ -9120,7 +9120,7 @@
       if (!container) return;
 
       try {
-        const { data: evidence } = await window.getPackageEvidence(packageId);
+        const { data: evidence } = await globalThis.getPackageEvidence(packageId);
 
         if (!evidence || evidence.length === 0) {
           container.innerHTML = `
@@ -9312,7 +9312,7 @@
       statusDiv.innerHTML = `<p style="color:var(--accent-gold);">$${mccIcon('upload', 14)} Uploading photos...</p>`;
 
       try {
-        const photoUrls = await window.uploadEvidencePhotos(packageId, files);
+        const photoUrls = await globalThis.uploadEvidencePhotos(packageId, files);
         if (photoUrls.length === 0) {
           throw new Error('Failed to upload photos');
         }
@@ -9328,11 +9328,11 @@
           lng = pos.coords.longitude;
         } catch (e) { }
 
-        const { data, error } = await window.saveEvidence({
+        const { data, error } = await globalThis.saveEvidence({
           packageId,
           type,
           photos: photoUrls,
-          odometer: parseInt(odometer),
+          odometer: Number.parseInt(odometer),
           fuelLevel,
           exteriorCondition,
           interiorCondition,
@@ -9388,7 +9388,7 @@
       const date = document.getElementById('schedule-date').value;
       const timeStart = document.getElementById('schedule-time-start').value;
       const timeEnd = document.getElementById('schedule-time-end').value;
-      const duration = parseInt(document.getElementById('schedule-duration').value) || 1;
+      const duration = Number.parseInt(document.getElementById('schedule-duration').value) || 1;
       const notes = document.getElementById('schedule-notes').value;
 
       if (!date) {
@@ -9865,7 +9865,7 @@
       const emergencyType = document.getElementById('emergency-type').value;
       if (!emergencyType) return;
       
-      const miles = parseFloat(document.getElementById('emergency-tow-miles').value) || 10;
+      const miles = Number.parseFloat(document.getElementById('emergency-tow-miles').value) || 10;
       const escrow = calculateEmergencyEscrow(emergencyType, miles);
       const total = EMERGENCY_ACTIVATION_FEE + escrow;
       
@@ -9900,14 +9900,14 @@
       }
       
       const needsDistance = emergencyType === 'tow_needed' || emergencyType === 'accident';
-      const estimatedMiles = needsDistance ? (parseFloat(document.getElementById('emergency-tow-miles').value) || 10) : null;
+      const estimatedMiles = needsDistance ? (Number.parseFloat(document.getElementById('emergency-tow-miles').value) || 10) : null;
       const escrowAmount = calculateEmergencyEscrow(emergencyType, estimatedMiles || 10);
       const totalAmount = EMERGENCY_ACTIVATION_FEE + escrowAmount;
       
       pendingEmergencyPaymentData = {
         vehicleId: vehicleId || null,
-        lat: parseFloat(lat),
-        lng: parseFloat(lng),
+        lat: Number.parseFloat(lat),
+        lng: Number.parseFloat(lng),
         address: document.getElementById('emergency-address').value || null,
         emergencyType: emergencyType,
         description: description,
@@ -11576,7 +11576,7 @@
         can_request_services: document.getElementById('perm-request-services').checked,
         can_approve_services: document.getElementById('perm-approve-services').checked,
         spending_limit: document.getElementById('invite-spending-limit').value ? 
-          parseFloat(document.getElementById('invite-spending-limit').value) : null
+          Number.parseFloat(document.getElementById('invite-spending-limit').value) : null
       };
       
       const { data, error } = await inviteHouseholdMember(currentHousehold.id, email, role, currentUser.id);
@@ -11784,7 +11784,7 @@
         can_request_services: document.getElementById('manage-perm-request').checked,
         can_approve_services: document.getElementById('manage-perm-approve').checked,
         spending_limit: document.getElementById('manage-spending-limit').value ? 
-          parseFloat(document.getElementById('manage-spending-limit').value) : null
+          Number.parseFloat(document.getElementById('manage-spending-limit').value) : null
       };
       
       await supabaseClient
@@ -12233,10 +12233,10 @@
               <div style="display:flex;gap:6px;">
                 <button class="btn btn-ghost btn-sm" onclick="openEditFleetEmployee('${member.id}')" title="Edit">${mccIcon('edit', 14)}</button>
                 ${status === 'active' 
-                  ? `<button class="btn btn-ghost btn-sm" onclick="suspendFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Suspend" style="color:var(--accent-orange);">${mccIcon('pause', 14)}</button>`
-                  : `<button class="btn btn-ghost btn-sm" onclick="activateFleetMember('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Activate" style="color:var(--accent-green);">${mccIcon('play', 14)}</button>`
+                  ? `<button class="btn btn-ghost btn-sm" onclick="suspendFleetMember('${member.id}', '${name.replaceAll('\'', "\\'")}')" title="Suspend" style="color:var(--accent-orange);">${mccIcon('pause', 14)}</button>`
+                  : `<button class="btn btn-ghost btn-sm" onclick="activateFleetMember('${member.id}', '${name.replaceAll('\'', "\\'")}')" title="Activate" style="color:var(--accent-green);">${mccIcon('play', 14)}</button>`
                 }
-                <button class="btn btn-ghost btn-sm" onclick="confirmRemoveFleetEmployee('${member.id}', '${name.replace(/'/g, "\\'")}')" title="Remove" style="color:var(--accent-red);">${mccIcon('trash-2', 14)}</button>
+                <button class="btn btn-ghost btn-sm" onclick="confirmRemoveFleetEmployee('${member.id}', '${name.replaceAll('\'', "\\'")}')" title="Remove" style="color:var(--accent-red);">${mccIcon('trash-2', 14)}</button>
               </div>
             </td>
           </tr>
@@ -12344,7 +12344,7 @@
       }
       
       container.innerHTML = bulkBatches.map(batch => {
-        const statusClass = (batch.status || 'draft').replace(/ /g, '_');
+        const statusClass = (batch.status || 'draft').replaceAll(' ', '_');
         const vehicleCount = batch.vehicles?.length || 0;
         
         return `
@@ -13073,7 +13073,7 @@
       
       const vehicleFilter = document.getElementById('spending-vehicle-filter');
       vehicleFilter.innerHTML = '<option value="">All Vehicles</option>';
-      if (window.userVehicles && userVehicles.length > 0) {
+      if (globalThis.userVehicles && userVehicles.length > 0) {
         userVehicles.forEach(v => {
           vehicleFilter.innerHTML += `<option value="${v.id}">${v.year} ${v.make} ${v.model}</option>`;
         });
@@ -13114,16 +13114,16 @@
         if (vehicleId && payment.packages?.vehicle_id !== vehicleId) return;
         
         const month = new Date(payment.created_at).getMonth();
-        const total = parseFloat(payment.amount) || 0;
+        const total = Number.parseFloat(payment.amount) || 0;
         const bid = payment.bids || {};
         const pkg = payment.packages || {};
         
         const platformFee = total * 0.075;
-        const parts = parseFloat(bid.parts_cost) || 0;
-        const labor = parseFloat(bid.labor_cost) || 0;
-        const taxes = parseFloat(bid.tax_amount) || (total * 0.08);
-        const isTowing = pkg.transfer_type === 'towing' || parseFloat(bid.towing_cost) > 0;
-        const towing = parseFloat(bid.towing_cost) || (isTowing ? total * 0.15 : 0);
+        const parts = Number.parseFloat(bid.parts_cost) || 0;
+        const labor = Number.parseFloat(bid.labor_cost) || 0;
+        const taxes = Number.parseFloat(bid.tax_amount) || (total * 0.08);
+        const isTowing = pkg.transfer_type === 'towing' || Number.parseFloat(bid.towing_cost) > 0;
+        const towing = Number.parseFloat(bid.towing_cost) || (isTowing ? total * 0.15 : 0);
         
         let calculatedTotal = parts + labor + taxes + towing + platformFee;
         let other = 0;
@@ -13278,7 +13278,7 @@
       }
       
       document.querySelectorAll('.va-step').forEach(step => {
-        const stepNum = parseInt(step.dataset.step);
+        const stepNum = Number.parseInt(step.dataset.step);
         step.classList.remove('active', 'completed');
         if (stepNum === vaCurrentStep) step.classList.add('active');
         else if (stepNum < vaCurrentStep) step.classList.add('completed');
@@ -13897,7 +13897,7 @@ Note: This assessment was generated by AI and is for informational purposes only
     }
 
     function format2FAPhoneInput(input) {
-      let value = input.value.replace(/\D/g, '');
+      let value = input.value.replaceAll(/\D/g, '');
       if (value.length > 10) value = value.slice(0, 10);
       
       if (value.length >= 6) {
@@ -13911,7 +13911,7 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     async function initiate2FAEnable() {
       const phoneInput = document.getElementById('2fa-phone-input');
-      const phone = phoneInput.value.replace(/\D/g, '');
+      const phone = phoneInput.value.replaceAll(/\D/g, '');
       
       if (phone.length !== 10) {
         showToast('Please enter a valid 10-digit phone number', 'error');
@@ -13983,7 +13983,7 @@ Note: This assessment was generated by AI and is for informational purposes only
     }
 
     function handle2FADigitInput(input, position) {
-      const value = input.value.replace(/\D/g, '');
+      const value = input.value.replaceAll(/\D/g, '');
       input.value = value.slice(0, 1);
       
       if (value && position < 6) {
@@ -14177,7 +14177,7 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     async function logout() {
       await supabaseClient.auth.signOut();
-      window.location.href = 'login.html';
+      globalThis.location.href = 'login.html';
     }
 
     // =============================================
@@ -14593,19 +14593,19 @@ Note: This assessment was generated by AI and is for informational purposes only
         const searchData = {
           user_id: session.user.id,
           search_name: document.getElementById('ai-search-name').value.trim(),
-          min_year: parseInt(document.getElementById('ai-search-min-year').value) || null,
-          max_year: parseInt(document.getElementById('ai-search-max-year').value) || null,
-          min_price: parseFloat(document.getElementById('ai-search-min-price').value) || null,
-          max_price: parseFloat(document.getElementById('ai-search-max-price').value) || null,
-          min_mileage: parseInt(document.getElementById('ai-search-min-mileage').value) || null,
-          max_mileage: parseInt(document.getElementById('ai-search-max-mileage').value) || null,
+          min_year: Number.parseInt(document.getElementById('ai-search-min-year').value) || null,
+          max_year: Number.parseInt(document.getElementById('ai-search-max-year').value) || null,
+          min_price: Number.parseFloat(document.getElementById('ai-search-min-price').value) || null,
+          max_price: Number.parseFloat(document.getElementById('ai-search-max-price').value) || null,
+          min_mileage: Number.parseInt(document.getElementById('ai-search-min-mileage').value) || null,
+          max_mileage: Number.parseInt(document.getElementById('ai-search-max-mileage').value) || null,
           preferred_makes: preferredMakes,
           preferred_models: document.getElementById('ai-search-models').value.split(',').map(s => s.trim()).filter(s => s),
           preferred_trims: document.getElementById('ai-search-trims').value.split(',').map(s => s.trim()).filter(s => s),
           body_styles: bodyStyles,
           fuel_types: fuelTypes,
           zip_code: document.getElementById('ai-search-zip').value.trim() || null,
-          max_distance_miles: parseInt(document.getElementById('ai-search-radius').value) || null,
+          max_distance_miles: Number.parseInt(document.getElementById('ai-search-radius').value) || null,
           exterior_colors: exteriorColors,
           must_have_features: mustHaveFeatures,
           search_frequency: document.getElementById('ai-search-frequency').value,
@@ -14837,7 +14837,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         const isReal = currentMatchDetail.source === 'gemini_search' || ld.source_site || ld.url;
         const prospectData = {
           user_id: session.user.id,
-          year: parseInt(ld.year || currentMatchDetail.year) || null,
+          year: Number.parseInt(ld.year || currentMatchDetail.year) || null,
           make: ld.make || currentMatchDetail.make,
           model: ld.model || currentMatchDetail.model,
           trim: ld.trim || null,
@@ -15086,7 +15086,7 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function updateRatingStars() {
       document.querySelectorAll('#prospect-rating-stars .rating-star').forEach(star => {
-        const r = parseInt(star.dataset.rating);
+        const r = Number.parseInt(star.dataset.rating);
         star.style.opacity = r <= selectedProspectRating ? '1' : '0.3';
       });
     }
@@ -15164,23 +15164,23 @@ Note: This assessment was generated by AI and is for informational purposes only
         const prospectData = {
           user_id: session.user.id,
           vin: document.getElementById('prospect-vin').value.trim().toUpperCase() || null,
-          year: parseInt(document.getElementById('prospect-year').value) || null,
+          year: Number.parseInt(document.getElementById('prospect-year').value) || null,
           make: document.getElementById('prospect-make').value.trim() || null,
           model: document.getElementById('prospect-model').value.trim() || null,
           trim: document.getElementById('prospect-trim').value.trim() || null,
           body_style: document.getElementById('prospect-body-style').value || null,
           engine: document.getElementById('prospect-engine').value.trim() || null,
           fuel_type: document.getElementById('prospect-fuel-type').value || null,
-          mileage: parseInt(document.getElementById('prospect-mileage').value) || null,
-          asking_price: parseFloat(document.getElementById('prospect-price').value) || null,
+          mileage: Number.parseInt(document.getElementById('prospect-mileage').value) || null,
+          asking_price: Number.parseFloat(document.getElementById('prospect-price').value) || null,
           exterior_color: document.getElementById('prospect-ext-color').value.trim() || null,
           interior_color: document.getElementById('prospect-int-color').value.trim() || null,
           seller_type: document.getElementById('prospect-seller-type').value || null,
           seller_name: document.getElementById('prospect-seller-name').value.trim() || null,
           seller_location: document.getElementById('prospect-location').value.trim() || null,
           listing_url: document.getElementById('prospect-listing-url').value.trim() || null,
-          carfax_accidents: parseInt(document.getElementById('prospect-accidents').value) || 0,
-          carfax_owners: parseInt(document.getElementById('prospect-owners').value) || null,
+          carfax_accidents: Number.parseInt(document.getElementById('prospect-accidents').value) || 0,
+          carfax_owners: Number.parseInt(document.getElementById('prospect-owners').value) || null,
           carfax_service_records: document.getElementById('prospect-service-records').checked,
           carfax_notes: document.getElementById('prospect-carfax-notes').value.trim() || null,
           personal_rating: selectedProspectRating || null,
@@ -15575,11 +15575,11 @@ Note: This assessment was generated by AI and is for informational purposes only
 
         const prefData = {
           user_id: session.user.id,
-          min_budget: parseFloat(document.getElementById('pref-min-budget').value) || null,
-          max_budget: parseFloat(document.getElementById('pref-max-budget').value) || null,
-          min_year: parseInt(document.getElementById('pref-min-year').value) || null,
-          max_year: parseInt(document.getElementById('pref-max-year').value) || null,
-          max_mileage: parseInt(document.getElementById('pref-max-mileage').value) || null,
+          min_budget: Number.parseFloat(document.getElementById('pref-min-budget').value) || null,
+          max_budget: Number.parseFloat(document.getElementById('pref-max-budget').value) || null,
+          min_year: Number.parseInt(document.getElementById('pref-min-year').value) || null,
+          max_year: Number.parseInt(document.getElementById('pref-max-year').value) || null,
+          max_mileage: Number.parseInt(document.getElementById('pref-max-mileage').value) || null,
           fuel_preference: document.getElementById('pref-fuel').value || null,
           transmission_preference: document.getElementById('pref-transmission').value || null,
           drivetrain_preference: document.getElementById('pref-drivetrain').value || null,
@@ -16059,7 +16059,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         if (data.url) {
           shopCart = [];
           saveCartToStorage();
-          window.location.href = data.url;
+          globalThis.location.href = data.url;
         } else if (data.sessionId) {
           const stripeConfig = await fetch('/api/config/stripe');
           const { publishableKey } = await stripeConfig.json();
@@ -16402,7 +16402,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         return;
       }
       
-      const baseUrl = window.location.origin;
+      const baseUrl = globalThis.location.origin;
       const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
       
       navigator.clipboard.writeText(referralLink).then(() => {
@@ -16418,7 +16418,7 @@ Note: This assessment was generated by AI and is for informational purposes only
         return;
       }
       
-      const baseUrl = window.location.origin;
+      const baseUrl = globalThis.location.origin;
       const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
       const subject = encodeURIComponent('Join My Car Concierge - Get $10 Off!');
       const body = encodeURIComponent(`Hey!
@@ -16443,7 +16443,7 @@ See you there!`);
         return;
       }
       
-      const baseUrl = window.location.origin;
+      const baseUrl = globalThis.location.origin;
       const referralLink = `${baseUrl}/signup-member.html?ref=${memberReferralCode}`;
       const message = encodeURIComponent(`Join My Car Concierge and get $10 off! Use my code ${memberReferralCode} or sign up here: ${referralLink}`);
       
@@ -16596,9 +16596,9 @@ See you there!`);
                     <td style="padding:14px 8px;font-size:0.9rem;">${date}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;">${vehicleName}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${log.odometer.toLocaleString()} mi</td>
-                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${fuelTypeEmoji} ${parseFloat(log.gallons).toFixed(2)}</td>
-                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">$${parseFloat(log.price_per_gallon).toFixed(2)}</td>
-                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${parseFloat(log.total_cost).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${fuelTypeEmoji} ${Number.parseFloat(log.gallons).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">$${Number.parseFloat(log.price_per_gallon).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${Number.parseFloat(log.total_cost).toFixed(2)}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;color:var(--text-secondary);">${log.station_name || '-'}</td>
                     <td style="padding:14px 8px;text-align:center;">
                       <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">${mccIcon('edit', 14)}</button>
@@ -16710,7 +16710,7 @@ See you there!`);
         data: {
           labels: sortedMonths.map(m => {
             const [year, month] = m.split('-');
-            return new Date(year, parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            return new Date(year, Number.parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
           }),
           datasets: [{
             label: 'Fuel Spending',
@@ -16793,8 +16793,8 @@ See you there!`);
       const totalInput = document.getElementById('fuel-log-total');
       
       const calcTotal = () => {
-        const gallons = parseFloat(gallonsInput.value) || 0;
-        const price = parseFloat(priceInput.value) || 0;
+        const gallons = Number.parseFloat(gallonsInput.value) || 0;
+        const price = Number.parseFloat(priceInput.value) || 0;
         if (gallons > 0 && price > 0) {
           totalInput.value = (gallons * price).toFixed(2);
         }
@@ -16846,10 +16846,10 @@ See you there!`);
         const payload = {
           vehicle_id: vehicleId,
           date,
-          odometer: parseInt(odometer),
-          gallons: parseFloat(gallons),
-          price_per_gallon: parseFloat(pricePerGallon),
-          total_cost: totalCost ? parseFloat(totalCost) : null,
+          odometer: Number.parseInt(odometer),
+          gallons: Number.parseFloat(gallons),
+          price_per_gallon: Number.parseFloat(pricePerGallon),
+          total_cost: totalCost ? Number.parseFloat(totalCost) : null,
           fuel_type: fuelType,
           station_name: stationName || null,
           notes: notes || null,

@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task #126 — Gatekeeper enablement smoke test (operator-supervised CLI).
 // Task #161 — Now also runs daily as a Netlify scheduled function (see

@@ -1,3 +1,14 @@
+    // ========== FETCH HELPER ==========
+    async function safeFetch(url, options) {
+      const res = await fetch(url, options);
+      if (!res.ok) {
+        let errMsg = `Server error (${res.status})`;
+        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch {}
+        throw new Error(errMsg);
+      }
+      return res.json();
+    }
+
     // ========== THEME TOGGLE ==========
     function toggleTheme() {
       document.documentElement.classList.add('theme-transition');
@@ -402,7 +413,8 @@
         const user = await getCurrentUser();
         if (!user) return window.location.href = 'login.html';
         currentUser = user;
-        
+        supabaseClient.auth.getSession().then(({ data }) => { if (data.session) window._currentSession = data.session; });
+
         // Check 2FA authorization before loading dashboard
         const authorized = await checkAccessAuthorization();
         if (!authorized) return;
@@ -448,6 +460,10 @@
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
+      showBudgetForecastIfEligible();
+      if (typeof window.loadBillingSubscriptions === 'function') {
+        window.loadBillingSubscriptions().catch(() => {});
+      }
 
       const urlParams = new URLSearchParams(window.location.search);
       if (urlParams.get('create') === 'true') {
@@ -1773,6 +1789,134 @@
       showToast('Recommendations updated', 'success');
     }
 
+    async function askServiceHistoryChat() {
+      const input = document.getElementById('history-chat-input');
+      const responseBox = document.getElementById('history-chat-response');
+      const btn = document.getElementById('history-chat-btn');
+      if (!input || !responseBox) return;
+      const question = input.value.trim();
+      if (!question) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Thinking…';
+      responseBox.style.display = 'none';
+      responseBox.textContent = '';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in again', 'error'); return; }
+
+        const resp = await fetch('/api/ai/service-history-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ question })
+        });
+
+        const data = await resp.json();
+        if (data.answer) {
+          responseBox.textContent = data.answer;
+          responseBox.style.display = 'block';
+        } else {
+          showToast(data.error || 'Could not get an answer. Try again.', 'error');
+        }
+      } catch (err) {
+        showToast('Error reaching AI. Please try again.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Ask AI';
+      }
+    }
+
+    let _forecastOpen = false;
+    let _forecastLoaded = false;
+
+    function toggleBudgetForecast() {
+      const body = document.getElementById('budget-forecast-body');
+      const chevron = document.getElementById('forecast-chevron');
+      _forecastOpen = !_forecastOpen;
+      body.style.display = _forecastOpen ? 'block' : 'none';
+      if (chevron) chevron.style.transform = _forecastOpen ? 'rotate(180deg)' : '';
+      if (_forecastOpen && !_forecastLoaded) loadBudgetForecast();
+    }
+
+    async function loadBudgetForecast() {
+      const content = document.getElementById('budget-forecast-content');
+      if (!content) return;
+
+      const primaryVehicle = vehicles && vehicles[0];
+      if (!primaryVehicle) {
+        content.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;padding:8px 0;">Add a vehicle to see your personalized cost forecast.</p>';
+        return;
+      }
+
+      content.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">Generating your forecast…</div>';
+      _forecastLoaded = true;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const resp = await fetch(`/api/ai/budget-forecast/${primaryVehicle.id}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const data = await resp.json();
+
+        if (!resp.ok || data.error) {
+          content.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;">Could not generate forecast. Please try again later.</p>';
+          return;
+        }
+
+        const vehicleLabel = `${data.vehicle?.year || ''} ${data.vehicle?.make || ''} ${data.vehicle?.model || ''}`.trim();
+        const items = data.items || [];
+        const narrativeHtml = data.narrative ? `<p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;margin-bottom:16px;">${data.narrative}</p>` : '';
+        const itemsHtml = items.map(item => {
+          const low = item.low_cents ? `$${(item.low_cents / 100).toFixed(0)}` : '–';
+          const high = item.high_cents ? `$${(item.high_cents / 100).toFixed(0)}` : '–';
+          return `
+            <div style="display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+              <div style="flex:1;min-width:0;">
+                <div style="font-weight:600;font-size:0.9rem;">${item.service}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">${item.estimated_month || ''} ${item.reason ? '— ' + item.reason : ''}</div>
+              </div>
+              <div style="font-size:1rem;font-weight:600;color:var(--accent-gold);white-space:nowrap;">${low}–${high}</div>
+            </div>
+          `;
+        }).join('');
+
+        const cachedNote = data.cached ? `<div style="font-size:0.72rem;color:var(--text-muted);margin-top:12px;text-align:right;">Cached · refreshes weekly</div>` : '';
+
+        content.innerHTML = `
+          ${narrativeHtml}
+          ${vehicleLabel ? `<div style="font-size:0.8rem;font-weight:600;color:var(--accent-gold);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:12px;">${mccIcon('car', 14)} ${vehicleLabel}</div>` : ''}
+          ${items.length ? itemsHtml : '<p style="color:var(--text-muted);font-size:0.88rem;">No forecast items generated.</p>'}
+          ${cachedNote}
+        `;
+
+        if (vehicles.length > 1) {
+          const card = document.getElementById('budget-forecast-card');
+          if (card) card.style.display = 'block';
+        }
+      } catch (err) {
+        console.error('Budget forecast error:', err);
+        _forecastLoaded = false;
+        content.innerHTML = '<p style="color:var(--text-muted);font-size:0.88rem;">Error loading forecast. <button class="btn btn-ghost btn-sm" onclick="loadBudgetForecast()">Retry</button></p>';
+      }
+    }
+
+    function showBudgetForecastIfEligible() {
+      const card = document.getElementById('budget-forecast-card');
+      if (!card) return;
+      if (!vehicles || !vehicles.length || !serviceHistory || !serviceHistory.length) return;
+      const threeMonthsAgo = Date.now() - 90 * 24 * 60 * 60 * 1000;
+      const oldest = serviceHistory.reduce((min, r) => {
+        const t = new Date(r.service_date || r.created_at || 0).getTime();
+        return t < min ? t : min;
+      }, Infinity);
+      if (oldest <= threeMonthsAgo) {
+        card.style.display = 'block';
+      }
+    }
+
     function getRecommendationIcon(serviceType) {
       const icons = {
         'Oil Change': mccIcon('thermometer', 14),
@@ -2269,6 +2413,17 @@
       }
     }
     
+    function getSeverityBadge(severity) {
+      if (!severity) return '';
+      const cfg = {
+        critical: { label: 'Critical', color: '#dc2626', bg: 'rgba(220,38,38,0.12)' },
+        important: { label: 'Important', color: '#d97706', bg: 'rgba(217,119,6,0.12)' },
+        monitor: { label: 'Monitor', color: '#2563eb', bg: 'rgba(37,99,235,0.12)' }
+      };
+      const s = cfg[severity] || cfg.monitor;
+      return `<span style="display:inline-block;padding:2px 10px;border-radius:20px;font-size:0.75rem;font-weight:700;letter-spacing:0.03em;color:${s.color};background:${s.bg};border:1px solid ${s.color}40;">${s.label}</span>`;
+    }
+
     function renderRecallsList(recallData) {
       const listEl = document.getElementById('recalls-list');
       const emptyEl = document.getElementById('recalls-empty');
@@ -2289,42 +2444,67 @@
         const statusClass = isAcknowledged ? 'addressed' : 'active';
         const cardClass = isAcknowledged ? 'acknowledged' : 'unacknowledged';
         const statusText = isAcknowledged ? 'Addressed' : 'Active';
+        const severityBadge = getSeverityBadge(recall.severity);
+        const hasAiSummary = !!recall.ai_summary;
         
         return `
-          <div class="recall-card ${cardClass}">
+          <div class="recall-card ${cardClass}" data-recall-id="${recall.id}" data-vehicle-id="${escapeHtml(currentRecallsVehicleId)}">
             <div class="recall-card-header">
-              <div>
-                <div class="recall-card-title">${escapeHtml(recall.component || 'Unknown Component')}</div>
+              <div style="flex:1;min-width:0;">
+                <div class="recall-card-title" style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  ${escapeHtml(recall.component || 'Unknown Component')}
+                  ${severityBadge || (isAcknowledged ? '' : '<span class="recall-ai-loading" style="font-size:0.72rem;color:var(--text-muted);">Analyzing...</span>')}
+                </div>
                 <div class="recall-card-campaign">Campaign #${escapeHtml(recall.nhtsa_campaign_number || 'N/A')}</div>
               </div>
               <span class="recall-card-status ${statusClass}">${statusText}</span>
             </div>
             
-            ${recall.summary ? `
+            ${hasAiSummary ? `
               <div class="recall-card-section">
-                <div class="recall-card-section-title">Summary</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">
+                  ${mccIcon('info', 14)} Plain-Language Summary
+                </div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(recall.ai_summary)}</div>
+                ${(recall.summary || recall.consequence || recall.remedy) ? `
+                  <details style="margin-top:8px;">
+                    <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                    <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                      ${recall.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recall.summary)}</p>` : ''}
+                      ${recall.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recall.consequence)}</p>` : ''}
+                      ${recall.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recall.remedy)}</p>` : ''}
+                    </div>
+                  </details>
+                ` : ''}
               </div>
-            ` : ''}
-            
-            ${recall.consequence ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
-                <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
-              </div>
-            ` : ''}
-            
-            ${recall.remedy ? `
-              <div class="recall-card-section">
-                <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
-                <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
-              </div>
-            ` : ''}
+            ` : `
+              ${recall.summary ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">Summary</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.summary)}</div>
+                </div>
+              ` : ''}
+              ${recall.consequence ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('alert-triangle', 16)} Consequence</div>
+                  <div class="recall-card-section-content" style="color: var(--accent-red);">${escapeHtml(recall.consequence)}</div>
+                </div>
+              ` : ''}
+              ${recall.remedy ? `
+                <div class="recall-card-section">
+                  <div class="recall-card-section-title">${mccIcon('check-circle', 14)} Remedy</div>
+                  <div class="recall-card-section-content">${escapeHtml(recall.remedy)}</div>
+                </div>
+              ` : ''}
+            `}
             
             ${!isAcknowledged ? `
               <div class="recall-card-actions">
                 <button class="btn btn-success btn-sm" onclick="acknowledgeRecall('${recall.id}')">
                   ${mccIcon('check-circle', 14)} Mark as Addressed
+                </button>
+                <button class="btn btn-primary btn-sm recall-book-btn">
+                  ${mccIcon('tool', 14)} Book Recall Fix
                 </button>
                 <button class="btn btn-secondary btn-sm" onclick="createPackageForVehicle('${currentRecallsVehicleId}')">
                   ${mccIcon('package', 14)} Request Service
@@ -2340,6 +2520,104 @@
           </div>
         `;
       }).join('');
+
+      listEl.querySelectorAll('.recall-book-btn').forEach(btn => {
+        const card = btn.closest('[data-recall-id]');
+        if (!card) return;
+        const rid = card.getAttribute('data-recall-id');
+        const vid = card.getAttribute('data-vehicle-id');
+        const recall = recallData.recalls.find(r => r.id === rid);
+        if (!recall) return;
+        btn.addEventListener('click', () => {
+          const title = `Recall: ${recall.component || 'Safety Recall'} (Campaign #${recall.nhtsa_campaign_number || 'N/A'})`;
+          const description = recall.ai_summary || recall.summary || '';
+          const category = mapRecallComponentToCategory(recall.component);
+          createPackageForVehicle(vid, { title, description, category });
+        });
+      });
+
+      enrichUnanalyzedRecalls(recallData.recalls);
+    }
+
+    function mapRecallComponentToCategory(component) {
+      if (!component) return 'maintenance';
+      const c = component.toLowerCase();
+      if (c.includes('brake') || c.includes('abs') || c.includes('parking brake')) return 'maintenance';
+      if (c.includes('tire') || c.includes('wheel') || c.includes('rim') || c.includes('alignment')) return 'maintenance';
+      if (c.includes('engine') || c.includes('fuel') || c.includes('ignition') || c.includes('emission') || c.includes('exhaust')) return 'maintenance';
+      if (c.includes('transmission') || c.includes('drivetrain') || c.includes('axle') || c.includes('driveshaft')) return 'maintenance';
+      if (c.includes('electrical') || c.includes('battery') || c.includes('wiring') || c.includes('fuse')) return 'audio_electronics';
+      if (c.includes('light') || c.includes('lamp') || c.includes('headlight') || c.includes('taillight')) return 'lighting';
+      if (c.includes('steering') || c.includes('suspension') || c.includes('control arm') || c.includes('shock') || c.includes('strut')) return 'maintenance';
+      if (c.includes('body') || c.includes('door') || c.includes('latch') || c.includes('hood') || c.includes('trunk') || c.includes('hatch')) return 'cosmetic';
+      if (c.includes('seat') || c.includes('interior') || c.includes('upholstery')) return 'interior';
+      if (c.includes('ev') || c.includes('hybrid') || c.includes('battery pack') || c.includes('electric motor')) return 'ev_hybrid';
+      return 'maintenance';
+    }
+
+    async function enrichUnanalyzedRecalls(recalls) {
+      if (!recalls || recalls.length === 0) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+      const needsEnrich = recalls.filter(r => !r.ai_summary);
+      for (const recall of needsEnrich) {
+        try {
+          const resp = await fetch(`/api/recalls/${recall.id}/enrich`, {
+            method: 'POST',
+            headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
+          });
+          if (!resp.ok) continue;
+          const data = await resp.json();
+          if (!data.success) continue;
+          const card = document.querySelector(`[data-recall-id="${recall.id}"]`);
+          if (!card) continue;
+          if (data.severity) {
+            const titleEl = card.querySelector('.recall-card-title');
+            if (titleEl) {
+              const loadingEl = titleEl.querySelector('.recall-ai-loading');
+              if (loadingEl) loadingEl.remove();
+              titleEl.insertAdjacentHTML('beforeend', getSeverityBadge(data.severity));
+            }
+          }
+          if (data.ai_summary) {
+            const existingSections = card.querySelectorAll('.recall-card-section');
+            existingSections.forEach(s => s.remove());
+            const actionsEl = card.querySelector('.recall-card-actions');
+            const hasOriginal = recall.summary || recall.consequence || recall.remedy;
+            const originalHtml = hasOriginal ? `
+              <details style="margin-top:8px;">
+                <summary style="font-size:0.78rem;color:var(--text-muted);cursor:pointer;user-select:none;">View original NHTSA text</summary>
+                <div style="margin-top:8px;padding:10px;background:var(--bg-tertiary,var(--card-bg));border-radius:6px;font-size:0.78rem;">
+                  ${recall.summary ? `<p style="margin:0 0 6px;"><strong>Summary:</strong> ${escapeHtml(recall.summary)}</p>` : ''}
+                  ${recall.consequence ? `<p style="margin:0 0 6px;color:var(--accent-red);"><strong>Consequence:</strong> ${escapeHtml(recall.consequence)}</p>` : ''}
+                  ${recall.remedy ? `<p style="margin:0;"><strong>Remedy:</strong> ${escapeHtml(recall.remedy)}</p>` : ''}
+                </div>
+              </details>` : '';
+            const summaryHtml = `
+              <div class="recall-card-section">
+                <div class="recall-card-section-title" style="display:flex;align-items:center;gap:6px;">${mccIcon('info', 14)} Plain-Language Summary</div>
+                <div class="recall-card-section-content recall-ai-summary-text">${escapeHtml(data.ai_summary)}</div>
+                ${originalHtml}
+              </div>`;
+            if (actionsEl) {
+              actionsEl.insertAdjacentHTML('beforebegin', summaryHtml);
+            }
+            const bookBtn = card.querySelector('.recall-book-btn');
+            if (bookBtn) {
+              bookBtn.removeEventListener('click', bookBtn._bookHandler);
+              bookBtn._bookHandler = () => {
+                const title = `Recall: ${recall.component || 'Safety Recall'} (Campaign #${recall.nhtsa_campaign_number || 'N/A'})`;
+                const description = data.ai_summary || recall.summary || '';
+                const category = mapRecallComponentToCategory(recall.component);
+                createPackageForVehicle(card.getAttribute('data-vehicle-id'), { title, description, category });
+              };
+              bookBtn.addEventListener('click', bookBtn._bookHandler);
+            }
+          }
+        } catch {
+        }
+      }
     }
     
     async function acknowledgeRecall(recallId) {
@@ -2350,6 +2628,7 @@
           body: JSON.stringify({ user_id: currentUser?.id || null })
         });
         
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Request failed (${response.status})`); }
         const data = await response.json();
         
         if (data.success) {
@@ -5171,6 +5450,9 @@
       if (sectionId === 'settings') {
         initPushNotifications();
         loadLoginActivity();
+        if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
+        if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+        if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
       }
       if (sectionId === 'order-history') {
         loadOrderHistory();
@@ -5442,9 +5724,15 @@
       }
     }
 
-    function createPackageForVehicle(vehicleId) {
+    function createPackageForVehicle(vehicleId, opts) {
       openPackageModal();
       document.getElementById('p-vehicle').value = vehicleId;
+      if (opts && opts.title) document.getElementById('p-title').value = opts.title;
+      if (opts && opts.description) document.getElementById('p-description').value = opts.description;
+      if (opts && opts.category) {
+        const catEl = document.getElementById('p-category');
+        if (catEl) catEl.value = opts.category;
+      }
     }
 
     function createPackageFromReminder(vehicleId, title) {
@@ -6653,8 +6941,7 @@
         // Update package status
         await supabaseClient.from('maintenance_packages').update({ 
           status: 'accepted', 
-          accepted_bid_id: bidId, 
-          accepted_at: new Date().toISOString() 
+          accepted_bid_id: bidId
         }).eq('id', packageId);
 
         // Create payment record (escrow)
@@ -7318,6 +7605,7 @@
               method: 'POST',
               headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
             });
+            if (!resp.ok) continue;
             const data = await resp.json();
             if (data.success && data.score !== undefined) {
               v.health_score = data.score;
@@ -7349,9 +7637,13 @@
           method: 'POST',
           headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' }
         });
-        const data = await response.json();
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
+        if (!response.ok) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
+          return;
+        }
+        const data = await response.json();
 
         if (!data.success) {
           contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">Could not compute health score. Please try again later.</p>';
@@ -7416,9 +7708,13 @@
         const response = await fetch(`/api/vehicles/${vehicleId}/maintenance-forecast`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
-        const data = await response.json();
         loadingEl.style.display = 'none';
         contentEl.style.display = 'block';
+        if (!response.ok) {
+          contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
+          return;
+        }
+        const data = await response.json();
 
         if (!data.success || !data.forecast?.length) {
           contentEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:20px;">No maintenance forecast data available.</p>';
@@ -7519,6 +7815,7 @@
         const response = await fetch(`/api/obd/scans/${vehicleId}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
+        if (!response.ok) { loadingEl.style.display = 'none'; throw new Error(`Failed to load scans (${response.status})`); }
         const data = await response.json();
         
         loadingEl.style.display = 'none';
@@ -8431,8 +8728,7 @@
       if (!currentUser) return;
       
       try {
-        const response = await fetch(`/api/member/${currentUser.id}/notification-preferences`);
-        const data = await response.json();
+        const data = await safeFetch(`/api/member/${currentUser.id}/notification-preferences`);
         
         if (data.warning) {
           console.log('Notification preferences:', data.warning);
@@ -8483,6 +8779,7 @@
           body: JSON.stringify(preferences)
         });
         
+        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to save preferences (${response.status})`); }
         const data = await response.json();
         
         if (data.success) {
@@ -8632,6 +8929,7 @@
     async function getVapidKey() {
       try {
         const response = await fetch('/api/push/vapid-key');
+        if (!response.ok) return null;
         const data = await response.json();
         return data.publicKey;
       } catch (error) {
@@ -9996,23 +10294,26 @@
     }
 
     async function refreshEmergencyLocation() {
-      document.getElementById('emergency-address').value = 'Getting your location...';
-      if (navigator.geolocation) {
-        navigator.geolocation.getCurrentPosition(async (pos) => {
-          document.getElementById('emergency-lat').value = pos.coords.latitude;
-          document.getElementById('emergency-lng').value = pos.coords.longitude;
-          try {
-            const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
-            const data = await resp.json();
-            document.getElementById('emergency-address').value = data.display_name || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          } catch (e) {
-            document.getElementById('emergency-address').value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
-          }
-        }, (err) => {
-          document.getElementById('emergency-address').value = 'Unable to get location';
-          showToast('Please enable location services', 'error');
-        }, { enableHighAccuracy: true });
+      const addrEl = document.getElementById('emergency-address');
+      addrEl.value = 'Getting your location...';
+      if (!navigator.geolocation) {
+        addrEl.value = 'Location unavailable — please enter manually';
+        return;
       }
+      navigator.geolocation.getCurrentPosition(async (pos) => {
+        document.getElementById('emergency-lat').value = pos.coords.latitude;
+        document.getElementById('emergency-lng').value = pos.coords.longitude;
+        try {
+          const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${pos.coords.latitude}&lon=${pos.coords.longitude}&format=json`);
+          const data = await resp.json();
+          addrEl.value = data.display_name || `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+        } catch (e) {
+          addrEl.value = `${pos.coords.latitude.toFixed(5)}, ${pos.coords.longitude.toFixed(5)}`;
+        }
+      }, (err) => {
+        addrEl.value = 'Location unavailable — please enter manually';
+        showToast('Location unavailable — please enter your address manually', 'error');
+      }, { enableHighAccuracy: true, timeout: 10000 });
     }
 
     async function loadEmergencySection() {
@@ -11987,6 +12288,7 @@
         document.getElementById('fleet-no-fleet').style.display = 'none';
         document.getElementById('fleet-dashboard').style.display = 'block';
         await loadFleetDetails(currentFleet.id);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
       } else {
         document.getElementById('fleet-no-fleet').style.display = 'block';
         document.getElementById('fleet-dashboard').style.display = 'none';
@@ -12031,8 +12333,10 @@
       updateFleetStats();
       renderFleetMembers();
       renderFleetVehicles();
+      renderFleetHealthDashboard();
       await loadBulkBatches();
       await loadFleetApprovals();
+      await loadDeptRules();
     }
     
     function updateFleetStats() {
@@ -12158,14 +12462,116 @@
     }
     
     function filterFleetVehicles(filter) {
-      currentFleetVehicleFilter = filter;
-      
-      document.querySelectorAll('#fleet-vehicle-tabs .tab').forEach(tab => {
-        tab.classList.remove('active');
-        if (tab.dataset.fleetFilter === filter) tab.classList.add('active');
-      });
-      
+      if (filter !== undefined) {
+        currentFleetVehicleFilter = filter;
+        document.querySelectorAll('#fleet-vehicle-tabs .tab').forEach(tab => {
+          tab.classList.remove('active');
+          if (tab.dataset.fleetFilter === filter) tab.classList.add('active');
+        });
+      }
       renderFleetVehicles();
+    }
+
+    function getFleetDeptVehicleFilter() {
+      const sel = document.getElementById('fleet-dept-vehicle-filter');
+      return sel ? sel.value : '';
+    }
+
+    function populateDeptFilter(selectId, vehicles) {
+      const sel = document.getElementById(selectId);
+      if (!sel) return;
+      const current = sel.value;
+      const depts = [...new Set(vehicles.map(fv => fv.department || fv.vehicle?.department).filter(Boolean))].sort();
+      sel.innerHTML = '<option value="">All Departments</option>' + depts.map(d => `<option value="${d}"${current === d ? ' selected' : ''}>${d}</option>`).join('');
+    }
+
+    function refreshFleetHealth() {
+      renderFleetHealthDashboard();
+    }
+
+    function renderFleetHealthDashboard() {
+      const card = document.getElementById('fleet-health-card');
+      if (!card) return;
+      if (fleetVehicles.length === 0) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+
+      const now = new Date();
+      const thirtyDays = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+
+      let excellent = 0, good = 0, fair = 0, poor = 0;
+      let overdue = [], dueSoon = [];
+
+      fleetVehicles.forEach(fv => {
+        const v = fv.vehicle || {};
+        const score = typeof v.health_score === 'number' ? v.health_score : 80;
+        if (score >= 90) excellent++;
+        else if (score >= 70) good++;
+        else if (score >= 50) fair++;
+        else poor++;
+
+        // Use fleet_vehicles.next_service_due as the authoritative fleet scheduling field,
+        // falling back to vehicles.next_service_date if the fleet override is not set.
+        const nextServiceRaw = fv.next_service_due || v.next_service_date;
+        const nextService = nextServiceRaw ? new Date(nextServiceRaw) : null;
+        if (nextService) {
+          const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
+          const daysUntil = Math.ceil((nextService - now) / (1000 * 60 * 60 * 24));
+          if (nextService < now) {
+            overdue.push({ label, fv, v, daysAgo: -daysUntil, score });
+          } else if (nextService <= thirtyDays) {
+            dueSoon.push({ label, fv, v, daysUntil, score });
+          }
+        } else if (score < 50) {
+          const label = `${v.year || ''} ${v.make || ''} ${v.model || ''}`.trim() || 'Vehicle';
+          overdue.push({ label, fv, v, daysAgo: null, score });
+        }
+      });
+
+      const total = fleetVehicles.length;
+      const upToDate = total - overdue.length;
+      const pctOk = total > 0 ? Math.round((upToDate / total) * 100) : 100;
+      const avgScore = total > 0 ? Math.round(fleetVehicles.reduce((acc, fv) => acc + (typeof (fv.vehicle?.health_score) === 'number' ? fv.vehicle.health_score : 80), 0) / total) : 100;
+
+      document.getElementById('fleet-health-pct-ok').textContent = pctOk + '%';
+      document.getElementById('fleet-health-overdue').textContent = overdue.length;
+      document.getElementById('fleet-health-due-soon').textContent = dueSoon.length;
+      const avgEl = document.getElementById('fleet-health-avg-score');
+      avgEl.textContent = avgScore;
+      avgEl.style.color = avgScore >= 80 ? 'var(--accent-green)' : avgScore >= 60 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+      document.getElementById('fleet-health-cnt-excellent').textContent = excellent;
+      document.getElementById('fleet-health-cnt-good').textContent = good;
+      document.getElementById('fleet-health-cnt-fair').textContent = fair;
+      document.getElementById('fleet-health-cnt-poor').textContent = poor;
+      const setPct = (id, pct) => { const el = document.getElementById(id); if (el) el.style.width = (pct > 0 ? Math.max(pct, 3) : 0) + '%'; };
+      setPct('fleet-health-bar-excellent', total > 0 ? (excellent / total) * 100 : 0);
+      setPct('fleet-health-bar-good', total > 0 ? (good / total) * 100 : 0);
+      setPct('fleet-health-bar-fair', total > 0 ? (fair / total) * 100 : 0);
+      setPct('fleet-health-bar-poor', total > 0 ? (poor / total) * 100 : 0);
+
+      const priorityList = document.getElementById('fleet-health-priority-list');
+      if (!priorityList) return;
+      const allPriority = [
+        ...overdue.sort((a, b) => (b.daysAgo || 0) - (a.daysAgo || 0)).map(i => ({ ...i, urgency: 'overdue' })),
+        ...dueSoon.sort((a, b) => a.daysUntil - b.daysUntil).map(i => ({ ...i, urgency: 'due_soon' }))
+      ];
+      if (allPriority.length === 0) {
+        priorityList.innerHTML = '<div style="text-align:center;color:var(--text-muted);padding:20px;font-size:0.88rem;">All vehicles are up to date.</div>';
+      } else {
+        priorityList.innerHTML = allPriority.slice(0, 8).map(item => {
+          const badge = item.urgency === 'overdue'
+            ? `<span style="background:rgba(239,95,95,0.15);color:var(--accent-red);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">OVERDUE${item.daysAgo !== null ? ' ' + item.daysAgo + 'd' : ''}</span>`
+            : `<span style="background:rgba(251,146,60,0.15);color:var(--accent-orange);padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;">DUE IN ${item.daysUntil}d</span>`;
+          const dept = item.fv.department || item.v?.department || '';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);gap:12px;">
+            <div style="min-width:0;">
+              <div style="font-weight:500;font-size:0.9rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${item.label}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${dept ? dept + ' · ' : ''}Score: ${item.score}</div>
+            </div>
+            <div style="flex-shrink:0;">${badge}</div>
+          </div>`;
+        }).join('');
+      }
     }
     
     function formatBusinessType(type) {
@@ -12186,7 +12592,12 @@
     function renderFleetMembers() {
       const tbody = document.getElementById('fleet-members-tbody');
       if (!tbody) return;
-      
+
+      // Populate + apply department filter for members
+      populateDeptFilter('fleet-dept-member-filter', fleetMembers.map(m => ({ department: m.department })));
+      const deptFilter = (document.getElementById('fleet-dept-member-filter') || {}).value || '';
+      const displayedMembers = deptFilter ? fleetMembers.filter(m => m.department === deptFilter) : fleetMembers;
+
       if (fleetMembers.length === 0) {
         tbody.innerHTML = `
           <tr>
@@ -12198,8 +12609,17 @@
         `;
         return;
       }
+
+      if (displayedMembers.length === 0) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">No members in this department.</td>
+          </tr>
+        `;
+        return;
+      }
       
-      tbody.innerHTML = fleetMembers.map(member => {
+      tbody.innerHTML = displayedMembers.map(member => {
         const profile = member.user || {};
         const name = profile.full_name || member.email || 'Unknown';
         const email = profile.email || member.email || '-';
@@ -12247,7 +12667,11 @@
     function renderFleetVehicles() {
       const grid = document.getElementById('fleet-vehicles-grid');
       if (!grid) return;
-      
+
+      // Populate department filter dropdown from current fleet vehicles
+      populateDeptFilter('fleet-dept-vehicle-filter', fleetVehicles);
+
+      const deptFilter = getFleetDeptVehicleFilter();
       let filteredVehicles = fleetVehicles;
       
       if (currentFleetVehicleFilter === 'assigned') {
@@ -12259,6 +12683,11 @@
           const v = fv.vehicle || {};
           return v.health_status === 'needs_attention' || v.health_status === 'poor' || v.health_status === 'fair';
         });
+      }
+
+      // Apply department filter
+      if (deptFilter) {
+        filteredVehicles = filteredVehicles.filter(fv => (fv.department || fv.vehicle?.department) === deptFilter);
       }
       
       if (fleetVehicles.length === 0) {
@@ -12315,6 +12744,107 @@
       }).join('');
     }
     
+    // ===== Department Approval Rules =====
+    let deptRules = [];
+
+    async function loadDeptRules() {
+      if (!currentFleet) return;
+      const card = document.getElementById('fleet-dept-rules-card');
+      const isOwnerOrManager = currentFleet.owner_id === currentUser?.id ||
+        fleetMembers.some(m => m.user_id === currentUser?.id && ['owner', 'manager'].includes(m.role));
+      if (!card) return;
+      if (!isOwnerOrManager) { card.style.display = 'none'; return; }
+      card.style.display = 'block';
+
+      const { data, error } = await supabaseClient
+        .from('fleet_department_rules')
+        .select('*')
+        .eq('fleet_id', currentFleet.id)
+        .order('department');
+      if (error) { console.error('Dept rules load error:', error.message); return; }
+      deptRules = data || [];
+      renderDeptRules();
+    }
+
+    function renderDeptRules() {
+      const container = document.getElementById('dept-rules-list');
+      if (!container) return;
+      if (!deptRules.length) {
+        container.innerHTML = '<div class="empty-state" style="padding:24px;text-align:center;color:var(--text-muted);">No department rules configured. Click "+ Add Rule" to create one.</div>';
+        return;
+      }
+      container.innerHTML = `
+        <table class="fleet-table">
+          <thead><tr>
+            <th>Department</th><th>Spending Limit</th><th>Auto-Approve Under</th><th>Always Require Approval</th><th>Actions</th>
+          </tr></thead>
+          <tbody>
+            ${deptRules.map(r => `
+              <tr>
+                <td><strong>${r.department}</strong></td>
+                <td>${r.spending_limit !== null ? '$' + Number(r.spending_limit).toLocaleString() : '<span style="color:var(--text-muted);">None</span>'}</td>
+                <td>${r.auto_approve_under !== null ? '$' + Number(r.auto_approve_under).toLocaleString() : '<span style="color:var(--text-muted);">Off</span>'}</td>
+                <td>${r.requires_approval ? '<span style="color:var(--accent-orange);">Yes</span>' : 'No'}</td>
+                <td>
+                  <button class="btn btn-ghost btn-sm" onclick="editDeptRule('${r.id}')">Edit</button>
+                  <button class="btn btn-ghost btn-sm" style="color:var(--accent-red);" onclick="deleteDeptRule('${r.id}')">Remove</button>
+                </td>
+              </tr>
+            `).join('')}
+          </tbody>
+        </table>`;
+    }
+
+    function openAddDeptRuleModal() {
+      const dept = prompt('Department name (e.g. Operations, Sales):');
+      if (!dept || !dept.trim()) return;
+      const limit = prompt('Spending limit per request (leave blank for no limit):');
+      const autoApprove = prompt('Auto-approve requests under this amount (leave blank to disable):');
+      const requireApproval = confirm('Always require manager approval for this department?');
+
+      const payload = {
+        fleet_id: currentFleet.id,
+        department: dept.trim(),
+        spending_limit: limit ? parseFloat(limit) : null,
+        auto_approve_under: autoApprove ? parseFloat(autoApprove) : null,
+        requires_approval: requireApproval
+      };
+
+      supabaseClient.from('fleet_department_rules').upsert(payload, { onConflict: 'fleet_id,department' })
+        .then(({ error }) => {
+          if (error) { alert('Error saving rule: ' + error.message); return; }
+          loadDeptRules();
+        });
+    }
+
+    function editDeptRule(ruleId) {
+      const rule = deptRules.find(r => r.id === ruleId);
+      if (!rule) return;
+      const limit = prompt('Spending limit per request (leave blank to remove):', rule.spending_limit !== null ? rule.spending_limit : '');
+      const autoApprove = prompt('Auto-approve under (leave blank to disable):', rule.auto_approve_under !== null ? rule.auto_approve_under : '');
+      const requireApproval = confirm('Always require manager approval?\n\nCurrent: ' + (rule.requires_approval ? 'Yes' : 'No'));
+
+      supabaseClient.from('fleet_department_rules').update({
+        spending_limit: limit !== '' && limit !== null ? parseFloat(limit) : null,
+        auto_approve_under: autoApprove !== '' && autoApprove !== null ? parseFloat(autoApprove) : null,
+        requires_approval: requireApproval,
+        updated_at: new Date().toISOString()
+      }).eq('id', ruleId).then(({ error }) => {
+        if (error) { alert('Error updating rule: ' + error.message); return; }
+        loadDeptRules();
+      });
+    }
+
+    function deleteDeptRule(ruleId) {
+      const rule = deptRules.find(r => r.id === ruleId);
+      if (!rule || !confirm(`Remove approval rules for "${rule.department}"?`)) return;
+      supabaseClient.from('fleet_department_rules').delete().eq('id', ruleId).then(({ error }) => {
+        if (error) { alert('Error removing rule: ' + error.message); return; }
+        loadDeptRules();
+      });
+    }
+    // ===== End Department Approval Rules =====
+
     async function loadBulkBatches() {
       if (!currentFleet) return;
       
@@ -12442,31 +12972,42 @@
         showToast('Please enter an email address', 'error');
         return;
       }
-      
-      const { data: userLookup } = await supabaseClient
-        .from('profiles')
-        .select('id')
-        .eq('email', email)
-        .single();
-      
-      const userId = userLookup?.id || null;
-      
-      const { error } = await addFleetMember(currentFleet.id, userId, role, {
-        email,
-        employee_id: employeeId || null,
-        department: department || null,
-        spending_limit: spendingLimit ? Number(spendingLimit) : null,
-        requires_approval: requiresApproval
-      });
-      
-      if (error) {
-        showToast('Failed to add employee: ' + error.message, 'error');
+
+      // Send invite via server (handles limit check + email)
+      try {
+        const token = window._currentSession?.access_token;
+        const inviteRes = await fetch('/api/fleet/invite', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            fleet_id: currentFleet.id,
+            email,
+            role,
+            department: department || null,
+            employee_id: employeeId || null,
+            spending_limit: spendingLimit ? Number(spendingLimit) : null,
+            requires_approval: requiresApproval
+          })
+        });
+        const inviteData = await inviteRes.json();
+        if (!inviteRes.ok) {
+          if (inviteRes.status === 402) {
+            showToast(inviteData.error || 'Driver limit reached. Please upgrade your fleet plan.', 'error');
+            if (typeof openSaasPricingModal === 'function') setTimeout(() => openSaasPricingModal('fleet'), 300);
+          } else {
+            showToast(inviteData.error || 'Failed to send invitation', 'error');
+          }
+          return;
+        }
+        showToast(`Invitation sent to ${email}!`, 'success');
+        closeModal('add-fleet-employee-modal');
+        await loadFleetDetails(currentFleet.id);
+        if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
         return;
+      } catch (fetchErr) {
+        console.warn('[Fleet Employee] Invite fetch error:', fetchErr.message);
+        showToast('Network error — please try again', 'error');
       }
-      
-      showToast('Employee added to fleet!', 'success');
-      closeModal('add-fleet-employee-modal');
-      await loadFleetDetails(currentFleet.id);
     }
     
     function openEditFleetEmployee(memberId) {
@@ -12632,23 +13173,42 @@
         showToast('Please select a vehicle', 'error');
         return;
       }
-      
-      const { error } = await assignVehicleToFleet(currentFleet.id, vehicleId, {
-        assigned_driver_id: driverId,
-        assignment_type: assignmentType,
-        department: department || null,
-        start_date: startDate || null,
-        end_date: endDate || null
-      });
-      
-      if (error) {
-        showToast('Failed to add vehicle to fleet: ' + error.message, 'error');
+
+      // Use server-side endpoint for authoritative vehicle limit enforcement
+      const token = window._currentSession?.access_token;
+      try {
+        const addRes = await fetch('/api/fleet/add-vehicle', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({
+            fleet_id: currentFleet.id,
+            vehicle_id: vehicleId,
+            assigned_driver_id: driverId || null,
+            assignment_type: assignmentType,
+            department: department || null,
+            start_date: startDate || null,
+            end_date: endDate || null
+          })
+        });
+        const addData = await addRes.json();
+        if (!addRes.ok) {
+          if (addRes.status === 402) {
+            showToast(addData.error || 'Vehicle limit reached. Please upgrade your fleet plan.', 'error');
+            if (typeof openSaasPricingModal === 'function') setTimeout(() => openSaasPricingModal('fleet'), 300);
+          } else {
+            showToast(addData.error || 'Failed to add vehicle to fleet', 'error');
+          }
+          return;
+        }
+      } catch (fetchErr) {
+        showToast('Network error adding vehicle. Please try again.', 'error');
         return;
       }
-      
+
       showToast('Vehicle added to fleet!', 'success');
       closeModal('add-fleet-vehicle-modal');
       await loadFleetDetails(currentFleet.id);
+      if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
     }
     
     function openEditFleetVehicle(assignmentId) {
@@ -14762,7 +15322,6 @@ Note: This assessment was generated by AI and is for informational purposes only
             ${match.match_score ? `<span style="padding: 4px 12px; border-radius: 100px; font-size: 0.82rem; font-weight: 600; background: ${scoreColor}22; color: ${scoreColor};">${match.match_score}% match</span>` : ''}
             ${match.is_saved ? `<span style="color: var(--accent-gold);">${mccIcon('star', 14)} Saved</span>` : ''}
           </div>
-
           <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-bottom: 20px;">
             ${price ? `<div style="padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Price</div><div style="font-size: 1.4rem; font-weight: 700; color: var(--accent-gold);">$${Number(price).toLocaleString()}</div></div>` : ''}
             ${ld.mileage ? `<div style="padding: 16px; background: var(--bg-input); border-radius: var(--radius-md);"><div style="font-size: 0.78rem; color: var(--text-muted); margin-bottom: 4px;">Mileage</div><div style="font-size: 1.1rem; font-weight: 600;">${Number(ld.mileage).toLocaleString()} mi</div></div>` : ''}
@@ -17172,6 +17731,103 @@ See you there!`);
       if (preview) preview.style.display = 'none';
     }
 
+    async function submitInsuranceExtraction(vehicleId) {
+      const fileInput = document.getElementById('insurance-file-input');
+      const file = selectedInsuranceFile || (fileInput?.files?.[0]);
+      const statusEl = document.getElementById('insurance-extraction-status');
+
+      if (!file) { showToast('Please select an insurance card image first', 'error'); return; }
+      if (!statusEl) return;
+
+      statusEl.style.display = 'block';
+      statusEl.innerHTML = '<p style="color:var(--text-muted);font-size:0.9rem;">Extracting insurance details via AI…</p>';
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const token = session?.access_token;
+
+        let publicUrl = null;
+        try {
+          const path = `${currentUser.id}/${Date.now()}_${file.name}`;
+          const { error: uploadErr } = await supabaseClient.storage.from('insurance-documents').upload(path, file, { upsert: true });
+          if (!uploadErr) {
+            const { data: urlData } = supabaseClient.storage.from('insurance-documents').getPublicUrl(path);
+            publicUrl = urlData?.publicUrl;
+          }
+        } catch (storageErr) {
+          console.log('[Insurance] Storage upload skipped:', storageErr.message);
+        }
+
+        if (!publicUrl) {
+          const dataUrl = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(file);
+          });
+          publicUrl = dataUrl;
+        }
+
+        const res = await fetch('/api/insurance/extract', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { Authorization: `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ imageUrl: publicUrl })
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) throw new Error(data.error || 'Extraction failed');
+
+        const ext = data.extracted || {};
+        const rawDate = ext.expirationDate || '';
+        const formattedDate = rawDate.includes('/') ? rawDate : (() => {
+          const d = new Date(rawDate);
+          if (!rawDate || isNaN(d)) return rawDate;
+          const m = String(d.getUTCMonth() + 1).padStart(2, '0');
+          const dy = String(d.getUTCDate()).padStart(2, '0');
+          return `${m}/${dy}/${d.getUTCFullYear()}`;
+        })();
+
+        statusEl.innerHTML = `
+          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px;margin-top:8px;">
+            <p style="font-weight:600;margin:0 0 12px;font-size:0.95rem;">Review Extracted Information</p>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:0.82rem;">Insurance Provider</label>
+              <input type="text" id="ins-review-provider" class="form-input" value="${ext.insurerName || ''}" placeholder="Insurance provider name">
+            </div>
+            <div class="form-group" style="margin-bottom:10px;">
+              <label class="form-label" style="font-size:0.82rem;">Policy Number</label>
+              <input type="text" id="ins-review-policy" class="form-input" value="${ext.policyNumber || ''}" placeholder="Policy number">
+            </div>
+            <div class="form-group" style="margin-bottom:12px;">
+              <label class="form-label" style="font-size:0.82rem;">Expiration Date (MM/DD/YYYY)</label>
+              <input type="text" id="ins-review-expiration" class="form-input" value="${formattedDate}" placeholder="MM/DD/YYYY">
+            </div>
+            <button type="button" id="ins-review-confirm" class="btn btn-primary btn-sm" style="width:100%;">Confirm &amp; Auto-fill Form</button>
+          </div>`;
+
+        document.getElementById('ins-review-confirm')?.addEventListener('click', () => {
+          const provider = document.getElementById('ins-review-provider')?.value || '';
+          const policy = document.getElementById('ins-review-policy')?.value || '';
+          const expiry = document.getElementById('ins-review-expiration')?.value || '';
+          const providerField = document.getElementById('insurance-doc-provider');
+          const policyField = document.getElementById('insurance-doc-policy-number');
+          const endDateField = document.getElementById('insurance-doc-end-date');
+          if (providerField) providerField.value = provider;
+          if (policyField) policyField.value = policy;
+          if (endDateField && expiry) {
+            const parts = expiry.split('/');
+            if (parts.length === 3) {
+              endDateField.value = `${parts[2]}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+            }
+          }
+          showToast('Form auto-filled from insurance card', 'success');
+        });
+
+      } catch (err) {
+        statusEl.innerHTML = `<p style="color:var(--accent-red);font-size:0.88rem;">Extraction failed: ${err.message}. Please fill in details manually.</p>`;
+      }
+    }
+
     async function saveInsuranceDocument(event) {
       event.preventDefault();
       
@@ -17723,7 +18379,6 @@ See you there!`);
             </ul>
           </div>
         ` : ''}
-
         ${typeof getCareKeyForCategory === 'function' && getCareKeyForCategory(interpretation.summary || '') ? `
           <div style="margin-top:20px;padding:14px 16px;background:linear-gradient(135deg,rgba(34,211,238,0.1),rgba(34,211,238,0.03));border:1px solid rgba(34,211,238,0.3);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;cursor:pointer;" onclick="closeModal('obd-results-modal');openAcademyCareCard('${getCareKeyForCategory(interpretation.summary || '')}')">
             <span style="color:var(--accent-teal);flex-shrink:0;">${mccIcon('book-open', 20)}</span>

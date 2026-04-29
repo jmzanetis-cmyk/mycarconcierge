@@ -153,8 +153,8 @@ exports.handler = async function(event, context) {
     }
 
     if (method === 'GET' && path === 'leads') {
-      const page = parseInt(params.page || '1');
-      const limit = parseInt(params.limit || '25');
+      const page = Number.parseInt(params.page || '1');
+      const limit = Number.parseInt(params.limit || '25');
       const type = params.type;
       const status = params.status;
       const crmStatus = params.crm_status;
@@ -292,8 +292,8 @@ exports.handler = async function(event, context) {
 
     if (method === 'GET' && path === 'messages') {
       const status = params.status;
-      const page = parseInt(params.page || '1');
-      const limit = parseInt(params.limit || '50');
+      const page = Number.parseInt(params.page || '1');
+      const limit = Number.parseInt(params.limit || '50');
       const offset = (page - 1) * limit;
 
       let query = supabase.from('outreach_messages').select('*, outreach_leads(*)', { count: 'exact' });
@@ -410,7 +410,7 @@ exports.handler = async function(event, context) {
     }
 
     if (method === 'POST' && path === 'messages/flush-queue') {
-      const batchSize = Math.min(parseInt(body.batch_size || '50', 10), 200);
+      const batchSize = Math.min(Number.parseInt(body.batch_size || '50', 10), 200);
       const { data: approvedMsgs } = await supabase
         .from('outreach_messages')
         .select('id')

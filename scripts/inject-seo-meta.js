@@ -244,19 +244,19 @@ function extractMetaDescription(html) {
 }
 function extractFirstH1(html) {
   const m = html.match(/<h1[^>]*>([\s\S]*?)<\/h1>/i);
-  return m ? m[1].replace(/<[^>]+>/g, '').trim() : null;
+  return m ? m[1].replaceAll(/<[^>]+>/g, '').trim() : null;
 }
 function extractFirstParagraph(html) {
   // First <p> that isn't empty and isn't inside a <header>/<nav>; simple heuristic: pick any <p> with > 80 chars of text.
   const matches = html.matchAll(/<p[^>]*>([\s\S]*?)<\/p>/gi);
   for (const m of matches) {
-    const text = m[1].replace(/<[^>]+>/g, '').trim();
+    const text = m[1].replaceAll(/<[^>]+>/g, '').trim();
     if (text.length >= 80) return text.length > 200 ? text.slice(0, 197) + '...' : text;
   }
   return null;
 }
 function escapeAttr(s) {
-  return String(s).replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/</g, '&lt;');
+  return String(s).replaceAll('&', '&amp;').replaceAll('"', '&quot;').replaceAll('<', '&lt;');
 }
 
 function buildBlock({ url, title, description, isPublic }) {
@@ -296,7 +296,7 @@ function injectIntoHead(html, block) {
   // If a previous SEO-INJECT block exists, replace it
   const re = new RegExp(`${MARKER_OPEN}[\\s\\S]*?${MARKER_CLOSE}`, 'g');
   if (re.test(html)) {
-    return html.replace(re, block);
+    return html.replaceAll(re, block);
   }
   // Otherwise insert just before </head>
   if (/<\/head>/i.test(html)) {

@@ -1256,8 +1256,8 @@ async function handleAdminGetAllAgreements(req, res, requestId) {
     }
     
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const page = parseInt(url.searchParams.get('page') || '1');
-    const limit = Math.min(parseInt(url.searchParams.get('limit') || '25'), 100);
+    const page = Number.parseInt(url.searchParams.get('page') || '1');
+    const limit = Math.min(Number.parseInt(url.searchParams.get('limit') || '25'), 100);
     const agreementType = url.searchParams.get('type');
     const search = url.searchParams.get('search');
     
@@ -1385,7 +1385,7 @@ async function handleAdminGetAgreementPDF(req, res, requestId) {
         doc.fillColor('#ffffff').fontSize(11).font('Helvetica').text('Founding Provider Partner Agreement', 50, 58, { align: 'center' });
         doc.fillColor('#d4a855').fontSize(9).text('FOUNDING PROVIDER PARTNER', 50, 76, { align: 'center' });
       } else {
-        const typeLabel = (agreement.agreement_type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const typeLabel = (agreement.agreement_type || '').replaceAll('_', ' ').replaceAll(/\b\w/g, c => c.toUpperCase());
         doc.fillColor('#ffffff').fontSize(11).font('Helvetica').text(typeLabel + ' Agreement', 50, 58, { align: 'center' });
         doc.fillColor('#d4a855').fontSize(9).text(typeLabel.toUpperCase(), 50, 76, { align: 'center' });
       }
@@ -1498,7 +1498,7 @@ async function handleAdminGetAgreementPDF(req, res, requestId) {
       } else {
         sectionHeader('AGREEMENT DETAILS');
 
-        const typeLabel = (agreement.agreement_type || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const typeLabel = (agreement.agreement_type || '').replaceAll('_', ' ').replaceAll(/\b\w/g, c => c.toUpperCase());
         sectionBody('Agreement Type:', typeLabel);
         sectionBody('Full Name:', agreement.full_name || 'N/A');
         if (agreement.business_name) {
@@ -2678,14 +2678,14 @@ async function fetchPrintfulProducts() {
             printfulId: product.sync_product.id,
             name: product.sync_product.name,
             category: category,
-            price: parseFloat(product.sync_variants[0].retail_price) || 0,
+            price: Number.parseFloat(product.sync_variants[0].retail_price) || 0,
             image: product.sync_product.thumbnail_url,
             variants: product.sync_variants.map(v => ({
               id: `var_${v.id}`,
               printfulVariantId: v.id,
               printfulSyncVariantId: v.id,
               name: v.name.replace(product.sync_product.name + ' - ', ''),
-              price: parseFloat(v.retail_price) || 0,
+              price: Number.parseFloat(v.retail_price) || 0,
               sku: v.sku
             }))
           });
@@ -3499,7 +3499,7 @@ async function handleDesignUpload(req, res, requestId) {
     }
     
     const ext = path.extname(filename).toLowerCase() || '.png';
-    const baseName = path.basename(filename, ext).replace(/[^a-zA-Z0-9_-]/g, '_');
+    const baseName = path.basename(filename, ext).replaceAll(/[^a-zA-Z0-9_-]/g, '_');
     const timestamp = Date.now();
     
     let processedFile = file;
@@ -4157,14 +4157,14 @@ function calculateFuelStats(logs) {
   
   for (let i = 0; i < sortedLogs.length; i++) {
     const log = sortedLogs[i];
-    totalGallons += parseFloat(log.gallons) || 0;
-    totalSpent += parseFloat(log.total_cost) || 0;
+    totalGallons += Number.parseFloat(log.gallons) || 0;
+    totalSpent += Number.parseFloat(log.total_cost) || 0;
     
     if (i > 0 && log.is_full_tank) {
       const prevLog = sortedLogs[i - 1];
       const milesDriven = log.odometer - prevLog.odometer;
       if (milesDriven > 0 && log.gallons > 0) {
-        const mpg = milesDriven / parseFloat(log.gallons);
+        const mpg = milesDriven / Number.parseFloat(log.gallons);
         if (mpg > 0 && mpg < 200) {
           mpgEntries.push({
             date: log.date,
@@ -4189,7 +4189,7 @@ function calculateFuelStats(logs) {
     : null;
   
   const avgPricePerGallon = logs.length > 0
-    ? Math.round((logs.reduce((sum, l) => sum + parseFloat(l.price_per_gallon || 0), 0) / logs.length) * 1000) / 1000
+    ? Math.round((logs.reduce((sum, l) => sum + Number.parseFloat(l.price_per_gallon || 0), 0) / logs.length) * 1000) / 1000
     : null;
   
   const monthlySpending = {};
@@ -4200,8 +4200,8 @@ function calculateFuelStats(logs) {
     const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
     const yearKey = `${date.getFullYear()}`;
     
-    monthlySpending[monthKey] = (monthlySpending[monthKey] || 0) + parseFloat(log.total_cost || 0);
-    yearlySpending[yearKey] = (yearlySpending[yearKey] || 0) + parseFloat(log.total_cost || 0);
+    monthlySpending[monthKey] = (monthlySpending[monthKey] || 0) + Number.parseFloat(log.total_cost || 0);
+    yearlySpending[yearKey] = (yearlySpending[yearKey] || 0) + Number.parseFloat(log.total_cost || 0);
   }
   
   const now = new Date();
@@ -4277,7 +4277,7 @@ async function handleCreateFuelLog(req, res, requestId, memberId) {
         return;
       }
       
-      const calculatedTotal = total_cost || (parseFloat(gallons) * parseFloat(price_per_gallon));
+      const calculatedTotal = total_cost || (Number.parseFloat(gallons) * Number.parseFloat(price_per_gallon));
       
       const { data: fuelLog, error } = await supabase
         .from('fuel_logs')
@@ -4285,9 +4285,9 @@ async function handleCreateFuelLog(req, res, requestId, memberId) {
           vehicle_id,
           member_id: memberId,
           date,
-          odometer: parseInt(odometer),
-          gallons: parseFloat(gallons),
-          price_per_gallon: parseFloat(price_per_gallon),
+          odometer: Number.parseInt(odometer),
+          gallons: Number.parseFloat(gallons),
+          price_per_gallon: Number.parseFloat(price_per_gallon),
           total_cost: Math.round(calculatedTotal * 100) / 100,
           fuel_type: fuel_type || 'regular',
           station_name: station_name || null,
@@ -4357,9 +4357,9 @@ async function handleUpdateFuelLog(req, res, requestId, memberId, logId) {
       for (const field of allowedFields) {
         if (updates[field] !== undefined) {
           if (field === 'odometer') {
-            updateData[field] = parseInt(updates[field]);
+            updateData[field] = Number.parseInt(updates[field]);
           } else if (['gallons', 'price_per_gallon', 'total_cost'].includes(field)) {
-            updateData[field] = parseFloat(updates[field]);
+            updateData[field] = Number.parseFloat(updates[field]);
           } else {
             updateData[field] = updates[field];
           }
@@ -4585,7 +4585,7 @@ async function handleCreateInsuranceDocument(req, res, requestId, memberId) {
           coverage_end_date: coverage_end_date || null,
           file_url: file_url || null,
           file_name: file_name || null,
-          file_size: file_size ? parseInt(file_size) : null,
+          file_size: file_size ? Number.parseInt(file_size) : null,
           storage_path: storage_path || null
         })
         .select()
@@ -5162,7 +5162,7 @@ async function handleInsuranceFileUpload(req, res, requestId, memberId) {
     const fileType = urlParams.get('file_type') || 'application/pdf';
     
     const timestamp = Date.now();
-    const safeName = fileName.replace(/[^a-zA-Z0-9.-]/g, '_');
+    const safeName = fileName.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
     const storagePath = `${memberId}/${timestamp}_${safeName}`;
     
     const { data: uploadData, error: uploadError } = await supabase.storage
@@ -5644,7 +5644,7 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
   }
   
   try {
-    const cleanPhone = phoneNumber.replace(/\D/g, '');
+    const cleanPhone = phoneNumber.replaceAll(/\D/g, '');
     const formattedPhone = cleanPhone.startsWith('1') ? `+${cleanPhone}` : `+1${cleanPhone}`;
     
     const twilioAuth = Buffer.from(`${twilioSid}:${twilioToken}`).toString('base64');
@@ -7051,8 +7051,8 @@ async function handleAdminGetProviders(req, res, requestId) {
     }
     
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
-    const page = parseInt(urlObj.searchParams.get('page')) || 1;
-    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const page = Number.parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(urlObj.searchParams.get('limit')) || 25, 100);
     const search = urlObj.searchParams.get('search') || '';
     const filter = urlObj.searchParams.get('filter') || 'all';
     
@@ -7144,8 +7144,8 @@ async function handleAdminGetMembers(req, res, requestId) {
     }
     
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
-    const page = parseInt(urlObj.searchParams.get('page')) || 1;
-    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const page = Number.parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(urlObj.searchParams.get('limit')) || 25, 100);
     const search = urlObj.searchParams.get('search') || '';
     const filter = urlObj.searchParams.get('filter') || 'all';
     
@@ -7234,8 +7234,8 @@ async function handleAdminGetPackages(req, res, requestId) {
     }
     
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
-    const page = parseInt(urlObj.searchParams.get('page')) || 1;
-    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const page = Number.parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(urlObj.searchParams.get('limit')) || 25, 100);
     const search = urlObj.searchParams.get('search') || '';
     const filter = urlObj.searchParams.get('filter') || 'all';
     
@@ -7479,7 +7479,7 @@ async function handleAdminGetMilestones(req, res, requestId) {
       .select('*')
       .single();
     
-    const totalBidPackRevenue = parseFloat(revenueData?.total_bid_pack_revenue || 0);
+    const totalBidPackRevenue = Number.parseFloat(revenueData?.total_bid_pack_revenue || 0);
     
     // Get milestone thresholds
     const { data: thresholds } = await supabase
@@ -7601,21 +7601,21 @@ async function handleAdminGetBonusReserve(req, res, requestId) {
     // Calculate current balance from transactions
     const totalAccruals = (transactions || [])
       .filter(t => t.transaction_type === 'accrual')
-      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+      .reduce((sum, t) => sum + Number.parseFloat(t.amount || 0), 0);
     
     const totalPayouts = (transactions || [])
       .filter(t => t.transaction_type === 'payout')
-      .reduce((sum, t) => sum + Math.abs(parseFloat(t.amount || 0)), 0);
+      .reduce((sum, t) => sum + Math.abs(Number.parseFloat(t.amount || 0)), 0);
     
     const totalAdjustments = (transactions || [])
       .filter(t => t.transaction_type === 'adjustment')
-      .reduce((sum, t) => sum + parseFloat(t.amount || 0), 0);
+      .reduce((sum, t) => sum + Number.parseFloat(t.amount || 0), 0);
     
     const currentBalance = totalAccruals - totalPayouts + totalAdjustments;
     
     // Get latest balance_after from most recent transaction as fallback
     const latestTransaction = (transactions || [])[0];
-    const balanceFromTransaction = parseFloat(latestTransaction?.balance_after || 0);
+    const balanceFromTransaction = Number.parseFloat(latestTransaction?.balance_after || 0);
     
     // Get Stripe Treasury balance (if available)
     const treasuryStatus = await stripeTreasury.getTreasuryBalance();
@@ -7725,7 +7725,7 @@ async function handleAdminPayMilestone(req, res, requestId, milestoneId) {
         .select('total_bid_pack_revenue')
         .single();
       
-      const totalRevenue = parseFloat(revenueData?.total_bid_pack_revenue || 0);
+      const totalRevenue = Number.parseFloat(revenueData?.total_bid_pack_revenue || 0);
       
       // Check if milestone is already paid
       const { data: existingAchievement } = await supabase
@@ -7785,7 +7785,7 @@ async function handleAdminPayMilestone(req, res, requestId, milestoneId) {
         .limit(1)
         .single();
       
-      const currentBalance = parseFloat(latestTransaction?.balance_after || 0);
+      const currentBalance = Number.parseFloat(latestTransaction?.balance_after || 0);
       const newBalance = currentBalance - threshold.bonus_amount;
       
       await supabase
@@ -7897,7 +7897,7 @@ async function handleAdminAdjustBonusReserve(req, res, requestId) {
         .limit(1)
         .single();
       
-      const currentBalance = parseFloat(latestTransaction?.balance_after || 0);
+      const currentBalance = Number.parseFloat(latestTransaction?.balance_after || 0);
       const newBalance = currentBalance + amount;
       
       // Record adjustment transaction
@@ -7943,7 +7943,7 @@ async function handleAdminAdjustBonusReserve(req, res, requestId) {
 function calculateNameSimilarity(name1, name2) {
   const normalize = (str) => 
     str.toLowerCase()
-       .replace(/[^a-z\s]/g, '')
+       .replaceAll(/[^a-z\s]/g, '')
        .trim()
        .split(/\s+/)
        .sort()
@@ -8036,7 +8036,7 @@ function extractPlateFromText(text) {
   for (const pattern of platePatterns) {
     const match = text.match(pattern);
     if (match && match[1]) {
-      return match[1].replace(/[\s-]/g, '').toUpperCase();
+      return match[1].replaceAll(/[\s-]/g, '').toUpperCase();
     }
   }
   
@@ -8091,7 +8091,7 @@ async function handleVerifyRegistration(req, res, requestId) {
       
       // SECURITY: Validate registrationUrl is from Supabase storage in user's folder
       const supabaseUrl = process.env.SUPABASE_URL;
-      const userFolderPattern = new RegExp(`^${supabaseUrl.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}/storage/v1/object/public/registrations/${user.id}/`);
+      const userFolderPattern = new RegExp(`^${supabaseUrl.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')}/storage/v1/object/public/registrations/${user.id}/`);
       if (!supabaseUrl || !userFolderPattern.test(registrationUrl)) {
         console.error(`[${requestId}] Invalid registration URL - must be from user's Supabase storage folder`);
         res.writeHead(400, { 'Content-Type': 'application/json' });
@@ -8150,7 +8150,7 @@ async function handleVerifyRegistration(req, res, requestId) {
         }
         
         const contentLength = imageResponse.headers.get('content-length');
-        if (contentLength && parseInt(contentLength) > MAX_IMAGE_SIZE) {
+        if (contentLength && Number.parseInt(contentLength) > MAX_IMAGE_SIZE) {
           throw new Error('Image file too large (max 10MB)');
         }
         
@@ -10530,7 +10530,7 @@ async function handleSubmitBid(req, res, requestId) {
     let bidInsertData = {
       package_id,
       provider_id: user.id,
-      price: parseFloat(price),
+      price: Number.parseFloat(price),
       description: notes || null,
       estimated_time: estimated_duration || null,
       status: 'pending',
@@ -10571,7 +10571,7 @@ async function handleSubmitBid(req, res, requestId) {
     res.writeHead(200, { 'Content-Type': 'application/json' });
     res.end(JSON.stringify({ bid }));
 
-    sendBidNotifications(supabase, package_id, bid.id, parseFloat(price), requestId).catch(err => {
+    sendBidNotifications(supabase, package_id, bid.id, Number.parseFloat(price), requestId).catch(err => {
       console.error(`[${requestId}] Bid notification error:`, err);
     });
   } catch (err) {
@@ -10814,7 +10814,7 @@ async function handleStripeWebhook(req, res, requestId) {
             }
             
             // Add bid credits to provider's account
-            const totalBids = parseInt(bids || '0') + parseInt(bonusBids || '0');
+            const totalBids = Number.parseInt(bids || '0') + Number.parseInt(bonusBids || '0');
             if (totalBids > 0) {
               try {
                 const { data: profile, error: fetchError } = await supabase
@@ -10940,7 +10940,7 @@ async function processInstantCommissionPayout(supabase, providerId, purchaseAmou
       console.log(`[${requestId}] Applying 90% commission rate for Chris Agrapidis`);
     }
     
-    const commissionAmount = parseFloat((purchaseAmount * commissionRate).toFixed(2));
+    const commissionAmount = Number.parseFloat((purchaseAmount * commissionRate).toFixed(2));
     const transferAmountCents = Math.round(commissionAmount * 100);
     
     if (transferAmountCents < 100) {
@@ -11834,7 +11834,7 @@ async function handleFounderPayoutReceipt(req, res, requestId, payoutId) {
     };
     
     const payoutMethod = methodLabels[payout.payout_method] || payout.payout_method || 'N/A';
-    const amount = parseFloat(payout.amount || 0).toFixed(2);
+    const amount = Number.parseFloat(payout.amount || 0).toFixed(2);
     const transactionId = payout.stripe_transfer_id || 'N/A';
     const period = payout.payout_period || 'N/A';
 
@@ -12756,7 +12756,7 @@ async function handleAdminProcessFounderPayout(req, res, requestId) {
 
       const payoutSettings = await getPayoutSettings(supabase);
       const payoutType = parsed.payout_type || 'instant';
-      const grossAmount = parseFloat(payout.amount);
+      const grossAmount = Number.parseFloat(payout.amount);
       const feeAmount = calculatePayoutFee(grossAmount, payoutType, payoutSettings);
       const netAmount = grossAmount - feeAmount;
 
@@ -12931,7 +12931,7 @@ async function handleAdminProcessBulkPayouts(req, res, requestId) {
           founder_id: founder.id,
           founder_name: founder.full_name,
           email: founder.email,
-          amount: parseFloat(founder.pending_balance),
+          amount: Number.parseFloat(founder.pending_balance),
           status: 'pending',
           error: null,
           stripe_transfer_id: null
@@ -13101,11 +13101,11 @@ async function getPayoutSettings(supabase) {
     }
     
     return {
-      min_payout_threshold: parseFloat(data.min_payout_threshold) || DEFAULT_PAYOUT_SETTINGS.min_payout_threshold,
-      instant_payout_fee_percent: parseFloat(data.instant_payout_fee_percent) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_percent,
-      instant_payout_fee_min: parseFloat(data.instant_payout_fee_min) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_min,
-      instant_payout_fee_max: parseFloat(data.instant_payout_fee_max) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_max,
-      weekly_payout_fee: parseFloat(data.weekly_payout_fee) || DEFAULT_PAYOUT_SETTINGS.weekly_payout_fee
+      min_payout_threshold: Number.parseFloat(data.min_payout_threshold) || DEFAULT_PAYOUT_SETTINGS.min_payout_threshold,
+      instant_payout_fee_percent: Number.parseFloat(data.instant_payout_fee_percent) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_percent,
+      instant_payout_fee_min: Number.parseFloat(data.instant_payout_fee_min) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_min,
+      instant_payout_fee_max: Number.parseFloat(data.instant_payout_fee_max) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_max,
+      weekly_payout_fee: Number.parseFloat(data.weekly_payout_fee) || DEFAULT_PAYOUT_SETTINGS.weekly_payout_fee
     };
   } catch (err) {
     console.error('Error fetching payout settings:', err);
@@ -13199,11 +13199,11 @@ async function handleAdminSavePayoutSettings(req, res, requestId) {
       }
 
       const settingsToSave = {
-        min_payout_threshold: parseFloat(settings.min_payout_threshold) || DEFAULT_PAYOUT_SETTINGS.min_payout_threshold,
-        instant_payout_fee_percent: parseFloat(settings.instant_payout_fee_percent) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_percent,
-        instant_payout_fee_min: parseFloat(settings.instant_payout_fee_min) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_min,
-        instant_payout_fee_max: parseFloat(settings.instant_payout_fee_max) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_max,
-        weekly_payout_fee: parseFloat(settings.weekly_payout_fee) || 0,
+        min_payout_threshold: Number.parseFloat(settings.min_payout_threshold) || DEFAULT_PAYOUT_SETTINGS.min_payout_threshold,
+        instant_payout_fee_percent: Number.parseFloat(settings.instant_payout_fee_percent) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_percent,
+        instant_payout_fee_min: Number.parseFloat(settings.instant_payout_fee_min) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_min,
+        instant_payout_fee_max: Number.parseFloat(settings.instant_payout_fee_max) || DEFAULT_PAYOUT_SETTINGS.instant_payout_fee_max,
+        weekly_payout_fee: Number.parseFloat(settings.weekly_payout_fee) || 0,
         updated_at: new Date().toISOString(),
         updated_by: user.id
       };
@@ -13376,7 +13376,7 @@ async function handleEscrowCreate(req, res, requestId) {
       const providerStripeAccount = bid.profiles?.stripe_account_id;
       
       // SERVER-SIDE AMOUNT: Use bid.price as source of truth (not client amount)
-      const amountCents = Math.round(parseFloat(bid.price) * 100);
+      const amountCents = Math.round(Number.parseFloat(bid.price) * 100);
       if (amountCents < 50) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'Bid amount must be at least $0.50' }));
@@ -13545,7 +13545,7 @@ async function handleEscrowConfirm(req, res, requestId, packageId) {
       .eq('id', pkg.accepted_bid_id)
       .single();
     
-    const amount = parseFloat(pkg.escrow_amount);
+    const amount = Number.parseFloat(pkg.escrow_amount);
     const platformFee = 0;
     const providerAmount = amount - platformFee;
     
@@ -13830,9 +13830,9 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
     if (discounts && discounts.length > 0) {
       for (const discount of discounts) {
         if (discount.discount_type === 'percentage') {
-          totalDiscountCents += Math.round(originalAmountCents * (parseFloat(discount.discount_amount) / 100));
+          totalDiscountCents += Math.round(originalAmountCents * (Number.parseFloat(discount.discount_amount) / 100));
         } else {
-          totalDiscountCents += Math.round(parseFloat(discount.discount_amount) * 100);
+          totalDiscountCents += Math.round(Number.parseFloat(discount.discount_amount) * 100);
         }
       }
     }
@@ -13869,7 +13869,7 @@ async function handleEscrowRelease(req, res, requestId, packageId) {
           const addIntent = await stripe.paymentIntents.retrieve(work.payment_intent_id);
           if (addIntent.status === 'requires_capture') {
             await stripe.paymentIntents.capture(work.payment_intent_id);
-            additionalWorkTotal += parseFloat(work.estimated_cost);
+            additionalWorkTotal += Number.parseFloat(work.estimated_cost);
             
             await supabase
               .from('additional_work_requests')
@@ -14753,7 +14753,7 @@ async function handleSplitCreate(req, res, requestId) {
         return;
       }
 
-      const totalAmountCents = Math.round(parseFloat(bid.price) * 100);
+      const totalAmountCents = Math.round(Number.parseFloat(bid.price) * 100);
       const participantTotal = participants.reduce((sum, p) => sum + p.amount_cents, 0);
 
       if (participantTotal !== totalAmountCents) {
@@ -15008,7 +15008,7 @@ async function handleSplitCreateAdditional(req, res, requestId) {
         return;
       }
 
-      const totalAmountCents = Math.round(parseFloat(workRequest.estimated_cost) * 100);
+      const totalAmountCents = Math.round(Number.parseFloat(workRequest.estimated_cost) * 100);
       const participantTotal = participants.reduce((sum, p) => sum + p.amount_cents, 0);
 
       if (participantTotal !== totalAmountCents) {
@@ -15632,7 +15632,7 @@ async function handleSplitGuestPayConfirm(req, res, requestId, participantId) {
             .update({ 
               status: 'payment_held', 
               split_payment_id: participant.split_payment_id,
-              escrow_amount: intent.metadata?.total_amount ? parseFloat(intent.metadata.total_amount) : null,
+              escrow_amount: intent.metadata?.total_amount ? Number.parseFloat(intent.metadata.total_amount) : null,
               updated_at: new Date().toISOString() 
             })
             .eq('id', sp.package_id);
@@ -16409,7 +16409,7 @@ async function handleAdditionalWorkRequest(req, res, requestId) {
         return;
       }
       
-      const estimatedCostNum = parseFloat(estimated_cost);
+      const estimatedCostNum = Number.parseFloat(estimated_cost);
       if (isNaN(estimatedCostNum) || estimatedCostNum < 0) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'estimated_cost must be a valid positive number' }));
@@ -16953,7 +16953,7 @@ async function handleDiscountOffer(req, res, requestId) {
         return;
       }
       
-      const discountAmountNum = parseFloat(discount_amount);
+      const discountAmountNum = Number.parseFloat(discount_amount);
       if (isNaN(discountAmountNum) || discountAmountNum <= 0) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'discount_amount must be a positive number' }));
@@ -17009,7 +17009,7 @@ async function handleDiscountOffer(req, res, requestId) {
         return;
       }
       
-      const originalAmount = parseFloat(bid.price) || 0;
+      const originalAmount = Number.parseFloat(bid.price) || 0;
       let effectiveDiscount = discountAmountNum;
       
       if (discount_type === 'percentage') {
@@ -19619,8 +19619,8 @@ async function handleCloverTransactions(req, res, requestId, providerId) {
     const queryString = urlParts[1] || '';
     const params = new URLSearchParams(queryString);
     
-    const page = parseInt(params.get('page')) || 1;
-    const limit = Math.min(parseInt(params.get('limit')) || 50, 100);
+    const page = Number.parseInt(params.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(params.get('limit')) || 50, 100);
     const offset = (page - 1) * limit;
     const merchantId = params.get('merchantId');
 
@@ -20264,8 +20264,8 @@ async function handleSquareTransactions(req, res, requestId, providerId) {
     const queryString = urlParts[1] || '';
     const params = new URLSearchParams(queryString);
     
-    const page = parseInt(params.get('page')) || 1;
-    const limit = Math.min(parseInt(params.get('limit')) || 50, 100);
+    const page = Number.parseInt(params.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(params.get('limit')) || 50, 100);
     const offset = (page - 1) * limit;
     const locationId = params.get('locationId');
 
@@ -20543,8 +20543,8 @@ async function handleUnifiedPosTransactions(req, res, requestId, providerId) {
     const queryString = urlParts[1] || '';
     const params = new URLSearchParams(queryString);
     
-    const page = parseInt(params.get('page')) || 1;
-    const limit = Math.min(parseInt(params.get('limit')) || 50, 100);
+    const page = Number.parseInt(params.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(params.get('limit')) || 50, 100);
     const offset = (page - 1) * limit;
     const posProvider = params.get('provider');
 
@@ -20988,13 +20988,13 @@ async function handleProviderAnalytics(req, res, requestId, providerId) {
     
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const busyDays = Object.entries(dayOfWeekCounts)
-      .map(([day, count]) => ({ day: dayNames[parseInt(day)], count }))
+      .map(([day, count]) => ({ day: dayNames[Number.parseInt(day)], count }))
       .sort((a, b) => b.count - a.count);
     
     const busyHours = Object.entries(hourCounts)
       .filter(([_, count]) => count > 0)
       .map(([hour, count]) => {
-        const h = parseInt(hour);
+        const h = Number.parseInt(hour);
         const label = h === 0 ? '12 AM' : h < 12 ? `${h} AM` : h === 12 ? '12 PM' : `${h - 12} PM`;
         return { hour: h, label, count };
       })
@@ -21063,7 +21063,7 @@ async function handleProviderRevenueAnalytics(req, res, requestId, providerId) {
     
     const url = new URL(req.url, `http://${req.headers.host}`);
     const period = url.searchParams.get('period') || 'daily';
-    const range = parseInt(url.searchParams.get('range')) || 30;
+    const range = Number.parseInt(url.searchParams.get('range')) || 30;
     
     const now = new Date();
     const startDate = new Date(now);
@@ -21132,8 +21132,8 @@ async function handleProviderRevenueAnalytics(req, res, requestId, providerId) {
       if (!revenueData[key]) {
         revenueData[key] = { pos: 0, marketplace: 0, tips: 0 };
       }
-      revenueData[key].marketplace += Math.round((parseFloat(payment.amount) || 0) * 100 * 0.925);
-      revenueData[key].tips += Math.round((parseFloat(payment.tip_amount) || 0) * 100);
+      revenueData[key].marketplace += Math.round((Number.parseFloat(payment.amount) || 0) * 100 * 0.925);
+      revenueData[key].tips += Math.round((Number.parseFloat(payment.tip_amount) || 0) * 100);
     });
     
     (cloverTxns || []).forEach(txn => {
@@ -21466,7 +21466,7 @@ async function handleProviderRatingsAnalytics(req, res, requestId, providerId) {
     
     const result = {
       overall: {
-        average: parseFloat(overallAverage),
+        average: Number.parseFloat(overallAverage),
         totalReviews,
         distribution: ratingDistribution
       },
@@ -21623,7 +21623,7 @@ async function handlePosLookupMember(req, res, requestId, sessionId) {
         return;
       }
       
-      const cleanPhone = phone.replace(/\D/g, '');
+      const cleanPhone = phone.replaceAll(/\D/g, '');
       
       const { data: existingMember } = await supabase
         .from('profiles')
@@ -22101,8 +22101,8 @@ async function handlePosAddService(req, res, requestId, sessionId) {
         return;
       }
       
-      const laborCents = Math.round(parseFloat(laborPrice) * 100);
-      const partsCents = Math.round(parseFloat(partsPrice || 0) * 100);
+      const laborCents = Math.round(Number.parseFloat(laborPrice) * 100);
+      const partsCents = Math.round(Number.parseFloat(partsPrice || 0) * 100);
       const taxCents = Math.round((laborCents + partsCents) * 0.08);
       const totalCents = laborCents + partsCents + taxCents;
       
@@ -22593,7 +22593,7 @@ async function handlePosMarketplaceJobs(req, res, requestId, sessionId) {
       bid.maintenance_packages?.member_id === session.member_id
     ).map(bid => {
       const pkg = bid.maintenance_packages;
-      const hasEscrowAmount = pkg?.escrow_amount && parseFloat(pkg.escrow_amount) > 0;
+      const hasEscrowAmount = pkg?.escrow_amount && Number.parseFloat(pkg.escrow_amount) > 0;
       const vehicle = pkg?.vehicles || null;
       
       return {
@@ -22717,7 +22717,7 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
         .eq('id', sessionId);
       
       const escrowAmount = bid.maintenance_packages?.escrow_amount;
-      const escrowFunded = escrowAmount && parseFloat(escrowAmount) > 0;
+      const escrowFunded = escrowAmount && Number.parseFloat(escrowAmount) > 0;
       
       if (escrowFunded) {
         await supabase
@@ -24367,7 +24367,7 @@ async function sendAppointmentReminders() {
         if (appointment.confirmed_time_start) {
           const timeStr = appointment.confirmed_time_start;
           const [hours, minutes] = timeStr.split(':');
-          const hour = parseInt(hours, 10);
+          const hour = Number.parseInt(hours, 10);
           const ampm = hour >= 12 ? 'PM' : 'AM';
           const hour12 = hour % 12 || 12;
           appointmentTime = `${hour12}:${minutes} ${ampm}`;
@@ -25939,7 +25939,7 @@ async function handleCheckinLookup(req, res, requestId, sessionId) {
         return;
       }
       
-      const cleanPhone = phone.replace(/\D/g, '');
+      const cleanPhone = phone.replaceAll(/\D/g, '');
       
       const { data: existingMember } = await supabase
         .from('profiles')
@@ -27164,8 +27164,8 @@ async function handleMemberServiceHistory(req, res, requestId, memberId) {
     }
     
     const url = new URL(req.url, `http://${req.headers.host}`);
-    const limit = Math.min(parseInt(url.searchParams.get('limit')) || 50, 100);
-    const offset = parseInt(url.searchParams.get('offset')) || 0;
+    const limit = Math.min(Number.parseInt(url.searchParams.get('limit')) || 50, 100);
+    const offset = Number.parseInt(url.searchParams.get('offset')) || 0;
     const vehicleId = url.searchParams.get('vehicle_id');
     const providerId = url.searchParams.get('provider_id');
     const startDate = url.searchParams.get('start_date');
@@ -27447,7 +27447,7 @@ async function handleMemberServiceHistoryExport(req, res, requestId, memberId) {
       
       serviceHistory.forEach(record => {
         const date = new Date(record.date).toLocaleDateString('en-US');
-        const escapeCsv = (str) => `"${String(str || '').replace(/"/g, '""')}"`;
+        const escapeCsv = (str) => `"${String(str || '').replaceAll('"', '""')}"`;
         
         csv += [
           escapeCsv(date),
@@ -27463,7 +27463,7 @@ async function handleMemberServiceHistoryExport(req, res, requestId, memberId) {
         ].join(',') + '\n';
       });
       
-      const filename = `MCC_Service_History_${memberName.replace(/[^a-zA-Z0-9]/g, '_')}_${dateGenerated}.csv`;
+      const filename = `MCC_Service_History_${memberName.replaceAll(/[^a-zA-Z0-9]/g, '_')}_${dateGenerated}.csv`;
       
       res.writeHead(200, {
         'Content-Type': 'text/csv',
@@ -27694,8 +27694,8 @@ async function handleAdminGetRefunds(req, res, requestId) {
     }
     
     const urlObj = new URL(req.url, `http://${req.headers.host}`);
-    const page = parseInt(urlObj.searchParams.get('page')) || 1;
-    const limit = Math.min(parseInt(urlObj.searchParams.get('limit')) || 25, 100);
+    const page = Number.parseInt(urlObj.searchParams.get('page')) || 1;
+    const limit = Math.min(Number.parseInt(urlObj.searchParams.get('limit')) || 25, 100);
     const filter = urlObj.searchParams.get('filter') || 'all';
     const offset = (page - 1) * limit;
     
@@ -28761,7 +28761,7 @@ async function handleMatchProvidersForPackage(req, res, requestId, packageId) {
       }
       
       if (providerZip && packageZip) {
-        const diff = Math.abs(parseInt(providerZip.substring(0, 3)) - parseInt(packageZip.substring(0, 3)));
+        const diff = Math.abs(Number.parseInt(providerZip.substring(0, 3)) - Number.parseInt(packageZip.substring(0, 3)));
         if (diff <= 5) return true;
       }
       
@@ -28828,7 +28828,7 @@ async function handleMatchProvidersForPackage(req, res, requestId, packageId) {
           score += 20;
           reasons.push('Nearby provider');
         } else {
-          const diff = Math.abs(parseInt(provider.zip_code.substring(0, 3)) - parseInt(packageZip.substring(0, 3)));
+          const diff = Math.abs(Number.parseInt(provider.zip_code.substring(0, 3)) - Number.parseInt(packageZip.substring(0, 3)));
           score += Math.max(0, 15 - diff * 3);
         }
       }
@@ -28933,7 +28933,7 @@ Return ONLY a JSON object where keys are the provider numbers (1,2,3...) and val
     
     const sanitizeReason = (text) => {
       if (!text) return 'Recommended for this service';
-      return text.replace(/<[^>]*>/g, '').substring(0, 100);
+      return text.replaceAll(/<[^>]*>/g, '').substring(0, 100);
     };
     
     const matchInserts = topMatches.map(m => ({
@@ -29489,7 +29489,7 @@ async function handleAdminSetupFoundingReferral(req, res, requestId) {
 function timeToMinutes(timeStr) {
   if (!timeStr) return 0;
   const parts = timeStr.split(':');
-  return parseInt(parts[0], 10) * 60 + parseInt(parts[1], 10);
+  return Number.parseInt(parts[0], 10) * 60 + Number.parseInt(parts[1], 10);
 }
 
 function minutesToTime(minutes) {
@@ -31177,7 +31177,7 @@ Return ONLY the JSON array, no other text.`;
             return;
           }
 
-          const htmlBody = emailBody.replace(/\n/g, '<br>');
+          const htmlBody = emailBody.replaceAll('\n', '<br>');
           const result = await resend.emails.send({
             from: 'My Car Concierge <no-reply@mycarconcierge.com>',
             to: [to],
@@ -31254,12 +31254,12 @@ Return ONLY the JSON array, no other text.`;
         const status = urlObj.searchParams.get('status');
         const minScore = urlObj.searchParams.get('min_score');
         const source = urlObj.searchParams.get('source');
-        const limit = parseInt(urlObj.searchParams.get('limit') || '100', 10);
+        const limit = Number.parseInt(urlObj.searchParams.get('limit') || '100', 10);
 
         let query = supabase.from('outreach_leads').select('*');
         if (type) query = query.eq('type', type);
         if (status) query = query.eq('status', status);
-        if (minScore) query = query.gte('score', parseInt(minScore, 10));
+        if (minScore) query = query.gte('score', Number.parseInt(minScore, 10));
         if (source) query = query.eq('source', source);
         query = query.order('score', { ascending: false }).limit(limit);
 
@@ -31655,7 +31655,7 @@ Return ONLY the JSON array, no other text.`;
 
     try {
       const urlObj = new URL(req.url, `http://${req.headers.host || 'localhost'}`);
-      const days = parseInt(urlObj.searchParams.get('days')) || 30;
+      const days = Number.parseInt(urlObj.searchParams.get('days')) || 30;
       const supabase = getSupabaseClient();
 
       const now = new Date();
@@ -31694,7 +31694,7 @@ Return ONLY the JSON array, no other text.`;
           if (!dailyVisitorMap[dk]) dailyVisitorMap[dk] = new Set();
           dailyVisitorMap[dk].add(row.visitor_id);
           pageMap[row.page] = (pageMap[row.page] || 0) + 1;
-          const dev = (row.device || 'unknown').toLowerCase().replace(/\s+/g, '_');
+          const dev = (row.device || 'unknown').toLowerCase().replaceAll(/\s+/g, '_');
           if (deviceAgg.hasOwnProperty(dev)) {
             deviceAgg[dev]++;
           } else {
@@ -31806,12 +31806,12 @@ Return ONLY the JSON array, no other text.`;
           }
         }
 
-        const safeName = (name || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeCompany = (company || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeEmail = (email || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safePhone = (phone || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeTopic = (topic || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-        const safeMessage = (message || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/\n/g, '<br>');
+        const safeName = (name || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        const safeCompany = (company || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        const safeEmail = (email || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        const safePhone = (phone || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        const safeTopic = (topic || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
+        const safeMessage = (message || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('\n', '<br>');
 
         const subject = `[${formType.toUpperCase()}] Contact Form: ${topic}`;
         const htmlBody = `
@@ -31886,8 +31886,8 @@ Return ONLY the JSON array, no other text.`;
         const modeLabel = modeLabels[mode] || 'Chat';
         const messagesHtml = conversation.map(m => {
           const bgColor = m.role === 'user' ? '#f0f0f0' : '#fff3cd';
-          const safeContent = (m.content || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/\n/g, '<br>');
-          const safeName = (name || 'You').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+          const safeContent = (m.content || '').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;').replaceAll('\n', '<br>');
+          const safeName = (name || 'You').replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;');
           return `<div style="background:${bgColor};padding:12px 16px;border-radius:8px;margin-bottom:8px;"><strong>${m.role === 'user' ? safeName : 'My Car Concierge'}:</strong><br>${safeContent}</div>`;
         }).join('');
         const htmlContent = `
@@ -32442,7 +32442,7 @@ function saveAdminInvites(invites) {
           return;
         }
         const inviteUrl = `https://mycarconcierge.com/admin-invite.html?token=${invite.token}`;
-        const roleLabel = (invite.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const roleLabel = (invite.role || '').replaceAll('_', ' ').replaceAll(/\b\w/g, c => c.toUpperCase());
         await resend.emails.send({
           from: 'My Car Concierge <noreply@mycarconcierge.com>',
           to: invite.email,
@@ -32499,7 +32499,7 @@ function saveAdminInvites(invites) {
               return;
             }
             const inviteUrl = `https://mycarconcierge.com/admin-invite.html?token=${invite.token}`;
-            const roleLabel = (invite.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+            const roleLabel = (invite.role || '').replaceAll('_', ' ').replaceAll(/\b\w/g, c => c.toUpperCase());
             const smsMessage = `My Car Concierge: You've been invited to join the admin team as ${roleLabel}. Set up your account here: ${inviteUrl} (Expires in 48hrs)`;
             const smsResult = await sendSmsNotification(phone, smsMessage);
             if (smsResult.sent) {

@@ -63,7 +63,7 @@ self.addEventListener('install', (event) => {
       return cache.addAll(STATIC_ASSETS);
     })
   );
-  self.skipWaiting();
+  globalThis.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
@@ -75,7 +75,7 @@ self.addEventListener('activate', (event) => {
       }))
     )
   );
-  self.clients.claim();
+  globalThis.clients.claim();
 });
 
 self.addEventListener('fetch', (event) => {
@@ -162,7 +162,7 @@ self.addEventListener('fetch', (event) => {
 
 self.addEventListener('message', (event) => {
   if (event.data && event.data.type === 'SKIP_WAITING') {
-    self.skipWaiting();
+    globalThis.skipWaiting();
   }
 });
 
@@ -190,7 +190,7 @@ self.addEventListener('push', (event) => {
   };
 
   event.waitUntil(
-    self.registration.showNotification(data.title || 'My Car Concierge', options)
+    globalThis.registration.showNotification(data.title || 'My Car Concierge', options)
   );
 });
 

@@ -16,7 +16,7 @@ function verifyResendWebhookSignature(rawBody, headers) {
     return { valid: false, reason: 'Missing Svix signature headers' };
   }
 
-  const timestampMs = parseInt(svixTimestamp, 10) * 1000;
+  const timestampMs = Number.parseInt(svixTimestamp, 10) * 1000;
   const fiveMinutes = 5 * 60 * 1000;
   if (Math.abs(Date.now() - timestampMs) > fiveMinutes) {
     return { valid: false, reason: 'Webhook timestamp too old or too new (replay attack prevention)' };

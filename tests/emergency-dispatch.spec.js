@@ -360,7 +360,7 @@ async function setupCdnMocks(page, mockJs) {
 
 async function addAuthToken(page, userId, email) {
   await page.addInitScript(({ userId, email }) => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,
@@ -381,30 +381,30 @@ async function addFunctionStubs(page) {
   await page.addInitScript(() => {
     var noop = function() {};
     var asyncNoop = function() { return Promise.resolve(); };
-    window.vehicleRecalls = {};
-    window.vehicleRegistrationStatus = {};
-    window.checkActiveEmergency = asyncNoop;
-    window.updateVehicleSelects = noop;
-    window.loadAllVehicleRecalls = noop;
-    window.loadDestinationServices = asyncNoop;
-    window.loadRecommendations = asyncNoop;
-    window.loadServiceHistory = asyncNoop;
-    window.loadConversations = asyncNoop;
-    window.loadNotifications = asyncNoop;
-    window.loadNotificationPreferences = asyncNoop;
-    window.loadUpsellRequests = asyncNoop;
-    window.setupEventListeners = noop;
-    window.setupRealtimeSubscriptions = noop;
-    window.renderRecentActivity = noop;
-    window.renderPackages = noop;
-    window.renderReminders = noop;
-    window.loadPackagePaymentStatuses = asyncNoop;
-    window.getDismissedReminderIds = function() { return []; };
-    window.getSnoozedReminderIds = function() { return []; };
-    window.showToast = noop;
-    window.escapeHtml = function(text) {
+    globalThis.vehicleRecalls = {};
+    globalThis.vehicleRegistrationStatus = {};
+    globalThis.checkActiveEmergency = asyncNoop;
+    globalThis.updateVehicleSelects = noop;
+    globalThis.loadAllVehicleRecalls = noop;
+    globalThis.loadDestinationServices = asyncNoop;
+    globalThis.loadRecommendations = asyncNoop;
+    globalThis.loadServiceHistory = asyncNoop;
+    globalThis.loadConversations = asyncNoop;
+    globalThis.loadNotifications = asyncNoop;
+    globalThis.loadNotificationPreferences = asyncNoop;
+    globalThis.loadUpsellRequests = asyncNoop;
+    globalThis.setupEventListeners = noop;
+    globalThis.setupRealtimeSubscriptions = noop;
+    globalThis.renderRecentActivity = noop;
+    globalThis.renderPackages = noop;
+    globalThis.renderReminders = noop;
+    globalThis.loadPackagePaymentStatuses = asyncNoop;
+    globalThis.getDismissedReminderIds = function() { return []; };
+    globalThis.getSnoozedReminderIds = function() { return []; };
+    globalThis.showToast = noop;
+    globalThis.escapeHtml = function(text) {
       if (!text) return '';
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      return String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
     };
   });
 }
@@ -413,25 +413,25 @@ async function addProviderFunctionStubs(page) {
   await page.addInitScript(() => {
     var noop = function() {};
     var asyncNoop = function() { return Promise.resolve(); };
-    window.refreshEmergencies = asyncNoop;
-    window.loadNearbyEmergencies = asyncNoop;
-    window.loadMyActiveEmergency = asyncNoop;
-    window.loadDestinationTasks = asyncNoop;
-    window.loadProviderAgreement = asyncNoop;
-    window.loadProviderPerformance = asyncNoop;
-    window.loadTeamMembers = asyncNoop;
-    window.loadProviderAnalytics = asyncNoop;
-    window.loadEarningsAnalytics = asyncNoop;
-    window.loadEarningsAnalyticsData = asyncNoop;
-    window.initEarningsAnalytics = asyncNoop;
-    window.loadAdvancedAnalytics = asyncNoop;
-    window.initAdvancedAnalytics = noop;
-    window.loadPosAnalytics = asyncNoop;
-    window.loadTransportTasks = asyncNoop;
-    window.showToast = noop;
-    window.escapeHtml = function(text) {
+    globalThis.refreshEmergencies = asyncNoop;
+    globalThis.loadNearbyEmergencies = asyncNoop;
+    globalThis.loadMyActiveEmergency = asyncNoop;
+    globalThis.loadDestinationTasks = asyncNoop;
+    globalThis.loadProviderAgreement = asyncNoop;
+    globalThis.loadProviderPerformance = asyncNoop;
+    globalThis.loadTeamMembers = asyncNoop;
+    globalThis.loadProviderAnalytics = asyncNoop;
+    globalThis.loadEarningsAnalytics = asyncNoop;
+    globalThis.loadEarningsAnalyticsData = asyncNoop;
+    globalThis.initEarningsAnalytics = asyncNoop;
+    globalThis.loadAdvancedAnalytics = asyncNoop;
+    globalThis.initAdvancedAnalytics = noop;
+    globalThis.loadPosAnalytics = asyncNoop;
+    globalThis.loadTransportTasks = asyncNoop;
+    globalThis.showToast = noop;
+    globalThis.escapeHtml = function(text) {
       if (!text) return '';
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      return String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
     };
   });
 }
@@ -563,7 +563,7 @@ test.describe('Member Emergency Request', () => {
     await expect(towMiles).toBeAttached();
 
     const ratesExist = await page.evaluate(() => {
-      return typeof window.EMERGENCY_SERVICE_RATES !== 'undefined' ||
+      return typeof globalThis.EMERGENCY_SERVICE_RATES !== 'undefined' ||
              document.querySelector('#emergency-tow-miles') !== null;
     });
     expect(ratesExist).toBeTruthy();

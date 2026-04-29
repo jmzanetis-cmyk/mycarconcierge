@@ -1374,7 +1374,7 @@
             city: formData.city,
             state: formData.state,
             services_offered: formData.services,
-            years_in_business: parseInt(formData.yearsInBusiness),
+            years_in_business: Number.parseInt(formData.yearsInBusiness),
             status: 'approved'
           }).select();
 
@@ -1417,7 +1417,7 @@
       try {
         const { data, error } = await supabaseClient.from('vehicles').insert({
           owner_id: userId,
-          year: parseInt(year),
+          year: Number.parseInt(year),
           make: make,
           model: model,
           health_score: 100

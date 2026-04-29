@@ -20,7 +20,7 @@ var core = require('./account-deletion-core.js');
 
 function base64UrlDecode(str) {
   var pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
-  return Buffer.from(str.replace(/-/g, '+').replace(/_/g, '/') + pad, 'base64');
+  return Buffer.from(str.replaceAll('-', '+').replaceAll('_', '/') + pad, 'base64');
 }
 
 function parseSignedRequest(signedRequest, appSecret) {

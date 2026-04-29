@@ -5,7 +5,7 @@
     
     async function fetchVehicleRecalls(vehicleId, refresh = false) {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const url = `${apiBase}/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
         const response = await fetch(url);
         const data = await response.json();
@@ -148,7 +148,7 @@
     
     async function acknowledgeRecall(recallId) {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/recalls/${recallId}/acknowledge`, {
           method: 'PUT',
           headers: { 'Content-Type': 'application/json' },
@@ -188,7 +188,7 @@
         }
         
         const timestamp = Date.now();
-        const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+        const safeFileName = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
         const filePath = `${userId}/${timestamp}_${safeFileName}`;
         
         const { data, error } = await supabaseClient.storage
@@ -222,7 +222,7 @@
     
     async function verifyRegistration(registrationUrl, vehicleId) {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/registration/verify`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -260,7 +260,7 @@
     
     async function checkRegistrationStatus(vehicleId) {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/registration/verifications?vehicleId=${vehicleId}`);
         const data = await response.json();
         
@@ -571,7 +571,7 @@
       const updateData = {};
       if (vin) updateData.vin = vin;
       if (plate) updateData.license_plate = plate;
-      if (year) updateData.year = parseInt(year) || null;
+      if (year) updateData.year = Number.parseInt(year) || null;
       if (make) updateData.make = make;
       if (model) updateData.model = model;
       if (state) updateData.registration_state = state;
@@ -618,7 +618,7 @@
       }
       
       const timestamp = Date.now();
-      const safeFileName = file.name.replace(/[^a-zA-Z0-9.-]/g, '_');
+      const safeFileName = file.name.replaceAll(/[^a-zA-Z0-9.-]/g, '_');
       const filePath = `${currentUser.id}/${timestamp}_insurance_${safeFileName}`;
       
       const { data: uploadData, error: uploadError } = await supabaseClient.storage
@@ -640,7 +640,7 @@
     
     async function submitInsuranceExtraction(vehicleId) {
       const fileInput = document.getElementById('insurance-file-input');
-      const file = fileInput?.files?.[0] || window._pendingInsuranceFile;
+      const file = fileInput?.files?.[0] || globalThis._pendingInsuranceFile;
       
       if (!file) {
         showToast('Please select an insurance card image', 'error');
@@ -675,7 +675,7 @@
           throw new Error('Failed to upload insurance card');
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`${apiBase}/api/insurance/extract`, {
@@ -777,7 +777,7 @@
       }
       
       if (fileUrl && storagePath) {
-        window._insurancePreUploadedFile = { url: fileUrl, storagePath: storagePath };
+        globalThis._insurancePreUploadedFile = { url: fileUrl, storagePath: storagePath };
       }
       
       document.getElementById('insurance-extraction-status').style.display = 'none';
@@ -1130,14 +1130,14 @@
       let documents = [];
       
       try {
-        const photoResult = await window.listVehiclePhotos(vehicleId);
+        const photoResult = await globalThis.listVehiclePhotos(vehicleId);
         photos = photoResult?.data || [];
       } catch (e) {
         console.log('Could not load photos:', e);
       }
       
       try {
-        const docResult = await window.listVehicleDocuments(vehicleId);
+        const docResult = await globalThis.listVehicleDocuments(vehicleId);
         documents = docResult?.data || [];
       } catch (e) {
         console.log('Could not load documents:', e);
@@ -1328,7 +1328,7 @@
       
       let successCount = 0;
       for (const file of Array.from(input.files)) {
-        const result = await window.uploadVehiclePhoto(vehicleId, file, photoType);
+        const result = await globalThis.uploadVehiclePhoto(vehicleId, file, photoType);
         if (result) successCount++;
       }
       
@@ -1352,7 +1352,7 @@
       showToast('Uploading document...', 'info');
       
       const file = input.files[0];
-      const result = await window.uploadVehicleDocument(vehicleId, file, docType, expiration);
+      const result = await globalThis.uploadVehicleDocument(vehicleId, file, docType, expiration);
       
       if (result) {
         showToast('Document uploaded!', 'success');
@@ -1366,7 +1366,7 @@
       showToast('Generating health report...', 'info');
       
       try {
-        const { jsPDF } = window.jspdf;
+        const { jsPDF } = globalThis.jspdf;
         
         const { data: vehicle } = await supabaseClient
           .from('vehicles')
@@ -1762,12 +1762,12 @@
           doc.setFont('helvetica', 'normal');
           doc.setFontSize(8);
           doc.setTextColor(...colors.textSecondary);
-          const configDomain = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) ? window.MCC_CONFIG.siteUrl.replace(/^https?:\/\//, '') : 'mycarconcierge.com';
+          const configDomain = (globalThis.MCC_CONFIG && globalThis.MCC_CONFIG.siteUrl) ? globalThis.MCC_CONFIG.siteUrl.replace(/^https?:\/\//, '') : 'mycarconcierge.com';
           doc.text('Generated by My Car Concierge • ' + configDomain, margin, pageHeight - 10);
           doc.text(`Page ${i} of ${totalPages}`, pageWidth - margin, pageHeight - 10, { align: 'right' });
         }
         
-        const filename = `${vehicleTitle.replace(/\s+/g, '_')}_Health_Report_${new Date().toISOString().split('T')[0]}.pdf`;
+        const filename = `${vehicleTitle.replaceAll(/\s+/g, '_')}_Health_Report_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(filename);
         
         showToast('Health report downloaded!', 'success');

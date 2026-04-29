@@ -183,7 +183,7 @@ const TosModal = {
       </style>
       <div id="tos-modal-card">
         <div id="tos-modal-header">
-          <h2>📜 Terms of Service</h2>
+          <h2>Terms of Service</h2>
           <p>Please review and accept to continue</p>
         </div>
         <div id="tos-modal-body">
@@ -192,7 +192,7 @@ const TosModal = {
             <p>By using our platform, you agree to the following:</p>
             <ul>
               <li><strong>Service Agreement:</strong> My Car Concierge connects vehicle owners with service providers. We facilitate the connection but are not responsible for the work performed.</li>
-              <li><strong>Payment Terms:</strong> All payments are processed securely through our platform. A 7.5% service fee applies to all transactions.</li>
+              <li><strong>Payment Terms:</strong> All payments are processed securely through our platform. There are no platform fees for members or providers.</li>
               <li><strong>Dispute Resolution:</strong> In case of disputes, our team will review and mediate. For jobs over $1,000, third-party inspection may be required.</li>
               <li><strong>Privacy:</strong> Your personal information is protected according to our Privacy Policy. We never sell your data to third parties.</li>
               <li><strong>User Conduct:</strong> Users must provide accurate information and treat all parties with respect.</li>
@@ -271,7 +271,9 @@ const TosModal = {
         if (loading) {
           loading.style.display = 'none';
         }
-        alert('Failed to save your acceptance. Please try again.');
+        if (typeof showToast === 'function') {
+          showToast('Failed to save your acceptance. Please try again.', 'error');
+        }
         return false;
       }
 
@@ -286,7 +288,9 @@ const TosModal = {
       if (loading) {
         loading.style.display = 'none';
       }
-      alert('An error occurred. Please try again.');
+      if (typeof showToast === 'function') {
+        showToast('An error occurred. Please try again.', 'error');
+      }
       return false;
     }
   },

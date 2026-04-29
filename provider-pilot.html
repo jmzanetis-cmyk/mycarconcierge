@@ -1265,7 +1265,7 @@
         email: formData.get('email'),
         phone: formData.get('phone'),
         business_type: formData.get('business_type'),
-        years_in_business: parseInt(formData.get('years_in_business')) || 0,
+        years_in_business: Number.parseInt(formData.get('years_in_business')) || 0,
         services: selectedServices.join(', '),
         location: formData.get('location'),
         motivation: formData.get('motivation') || '',

@@ -416,13 +416,13 @@ test.describe('Admin Outreach Engine API Tests', () => {
 
     test('Outreach Engine script is loaded', async ({ page }) => {
       await page.goto(`${BASE}/admin.html`);
-      const hasFunction = await page.evaluate(() => typeof window.initOutreachEngine === 'function');
+      const hasFunction = await page.evaluate(() => typeof globalThis.initOutreachEngine === 'function');
       expect(hasFunction).toBe(true);
     });
 
     test('switchOutreachTab function is available', async ({ page }) => {
       await page.goto(`${BASE}/admin.html`);
-      const hasFunction = await page.evaluate(() => typeof window.switchOutreachTab === 'function');
+      const hasFunction = await page.evaluate(() => typeof globalThis.switchOutreachTab === 'function');
       expect(hasFunction).toBe(true);
     });
   });

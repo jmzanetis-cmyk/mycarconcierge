@@ -364,7 +364,7 @@ async function setupAuthenticatedApiMocks(page, userId, email, role) {
 
 function addAuthToken(page, userId, email) {
   return page.addInitScript(({ userId, email }) => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,

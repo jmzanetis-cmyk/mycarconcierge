@@ -5,8 +5,9 @@
   <title>About Us – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Learn about My Car Concierge's mission to revolutionize automotive services through a transparent, competitive marketplace." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -18,18 +19,18 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a7cff;
-      --accent-blue-soft: rgba(74, 124, 255, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
@@ -103,6 +104,14 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast;
+      image-rendering: crisp-edges;
+      filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25));
+      transition: filter 0.3s ease;
+    }
+
+    .brand:hover .brand-icon {
+      filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4));
     }
 
     nav {
@@ -132,6 +141,16 @@
     }
 
     main { padding: 60px 0 100px; }
+
+    .section-rhythm {
+      padding: 48px 0;
+    }
+
+    @media (max-width: 768px) {
+      .section-rhythm {
+        padding: 32px 0;
+      }
+    }
 
     .page-header {
       text-align: center;
@@ -262,7 +281,29 @@
       .value-card { padding: 24px; }
       .mv-card { padding: 32px 24px; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/about.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Learn about My Car Concierge's mission to revolutionize automotive services through a transparent, competitive marketplace." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/about.html" />
+  <meta property="og:title" content="About Us – My Car Concierge" />
+  <meta property="og:description" content="Learn about My Car Concierge's mission to revolutionize automotive services through a transparent, competitive marketplace." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="About Us – My Car Concierge" />
+  <meta name="twitter:description" content="Learn about My Car Concierge's mission to revolutionize automotive services through a transparent, competitive marketplace." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -277,6 +318,7 @@
         <a href="/">Home</a>
         <a href="/how-it-works.html">How It Works</a>
         <a href="/faq.html">FAQ</a>
+        <a href="/contact.html">Contact</a>
         <a href="/login.html" class="btn-login">Sign In</a>
       </nav>
     </div>
@@ -293,12 +335,16 @@
       <p>Meanwhile, skilled service providers—from independent mechanics to mobile detailers—struggle to find new customers and compete with large chains that dominate advertising.</p>
     </div>
 
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
+
     <div class="story-section">
       <h2>The Solution We Built</h2>
       <p>My Car Concierge was founded with a simple idea: what if we could create a marketplace where vehicle owners post what they need, and qualified providers compete for their business?</p>
       <p>This model puts the power back in the hands of consumers. Instead of calling around for quotes or hoping for the best, you can see multiple bids side-by-side, compare provider ratings and qualifications, and choose with confidence.</p>
       <p>For providers, it means access to a steady stream of customers actively seeking services, without the massive advertising budgets required to compete traditionally.</p>
     </div>
+
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
 
     <div class="mission-vision">
       <div class="mv-card mission">
@@ -311,30 +357,47 @@
       </div>
     </div>
 
+    <div style="height:1px;background:linear-gradient(90deg,transparent,var(--border-subtle),transparent);margin:32px 0;"></div>
+
     <div class="values-grid">
       <div class="value-card">
-        <div class="value-icon">🤝</div>
+        <div class="value-icon"><span class="icon-inline" data-icon="hand-helping"></span></div>
         <h3>Transparency</h3>
         <p>No hidden fees, no surprises. What you see is what you pay. We believe trust is built through complete transparency.</p>
       </div>
       <div class="value-card">
-        <div class="value-icon">🛡️</div>
+        <div class="value-icon"><span class="icon-inline" data-icon="shield"></span></div>
         <h3>Protection</h3>
         <p>Our escrow system and verification processes protect both vehicle owners and service providers in every transaction.</p>
       </div>
       <div class="value-card">
-        <div class="value-icon">⚡</div>
+        <div class="value-icon"><span class="icon-inline" data-icon="zap"></span></div>
         <h3>Efficiency</h3>
         <p>Get multiple bids quickly, compare easily, and book services that fit your schedule—all from one platform.</p>
       </div>
       <div class="value-card">
-        <div class="value-icon">🌟</div>
+        <div class="value-icon"><span class="icon-inline" data-icon="star"></span></div>
         <h3>Quality</h3>
         <p>Every provider is verified and rated. Our review system ensures the best providers rise to the top.</p>
+      </div>
+      <div class="value-card">
+        <div class="value-icon"><span class="icon-inline" data-icon="award"></span></div>
+        <h3>Loyalty</h3>
+        <p>Our Car Club program rewards repeat customers automatically. Providers build lasting relationships through punch card rewards at zero extra cost.</p>
       </div>
     </div>
   </main>
 
   <script src="/footer.js"></script>
+  <script src="/utils.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+  <script src="analytics-tracker.js" defer></script>
 </body>
 </html>

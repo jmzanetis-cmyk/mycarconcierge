@@ -164,7 +164,7 @@ async function setupMembersPage(page) {
   await mockSupabaseAuth(page);
 
   await page.addInitScript(() => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,
@@ -349,8 +349,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -378,8 +378,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -403,8 +403,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -433,8 +433,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -465,8 +465,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -488,8 +488,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -571,8 +571,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const modalCreated = await page.evaluate(() => {
@@ -600,8 +600,8 @@ test.describe('Split Payment Modal UI', () => {
     await setupMembersPage(page);
 
     await page.evaluate(() => {
-      window.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
-      window.userProfile = { full_name: 'Test User' };
+      globalThis.currentUser = { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'testuser@example.com' };
+      globalThis.userProfile = { full_name: 'Test User' };
     });
 
     const result = await page.evaluate(() => {
@@ -614,7 +614,7 @@ test.describe('Split Payment Modal UI', () => {
 
       let total = 0;
       amountInputs.forEach(input => {
-        total += Math.round(parseFloat(input.value || 0) * 100);
+        total += Math.round(Number.parseFloat(input.value || 0) * 100);
       });
 
       return { total, count: amountInputs.length };

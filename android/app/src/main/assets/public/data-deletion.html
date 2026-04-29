@@ -1,0 +1,365 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Data Deletion – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="How to delete your My Car Concierge account and what happens to your data." />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 14px;
+      --radius-lg: 22px;
+      --radius-xl: 32px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --text-primary: #1e293b;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-blue-soft: rgba(30, 58, 95, 0.1);
+      --border-subtle: rgba(30, 58, 95, 0.12);
+      --border-medium: rgba(30, 58, 95, 0.2);
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html { scroll-behavior: smooth; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      line-height: 1.6;
+      overflow-x: hidden;
+    }
+
+    .ambient-bg {
+      position: fixed; inset: 0; pointer-events: none; z-index: 0;
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
+    }
+
+    .noise {
+      position: fixed; inset: 0; pointer-events: none; z-index: 1; opacity: 0.025;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+    }
+
+    .container {
+      position: relative; z-index: 2;
+      max-width: 900px; margin: 0 auto; padding: 0 24px;
+    }
+
+    header {
+      padding: 24px 0; position: sticky; top: 0; z-index: 100;
+      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
+      backdrop-filter: blur(12px);
+    }
+    header .container {
+      display: flex; justify-content: space-between; align-items: center;
+      max-width: 1200px;
+    }
+
+    .brand { display: flex; align-items: center; gap: 14px; text-decoration: none; }
+    .brand-icon {
+      height: 120px; width: auto; border-radius: var(--radius-md);
+      image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges;
+    }
+
+    nav { display: flex; align-items: center; gap: 8px; }
+    nav a {
+      padding: 10px 18px; font-size: 0.88rem; color: var(--text-secondary);
+      text-decoration: none; border-radius: var(--radius-sm); transition: all 0.2s ease;
+    }
+    nav a:hover { color: var(--text-primary); background: var(--bg-elevated); }
+    nav .btn-login {
+      background: var(--bg-elevated); color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+    }
+
+    .privacy-content { padding: 60px 0 100px; }
+    .privacy-header { text-align: center; margin-bottom: 48px; }
+    .privacy-header h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(2rem, 4vw, 2.8rem);
+      font-weight: 500; letter-spacing: -0.02em; margin-bottom: 16px;
+    }
+    .privacy-header h1 .highlight {
+      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+    }
+    .last-updated {
+      display: inline-block; padding: 8px 16px;
+      background: var(--accent-blue-soft); border: 1px solid rgba(74, 124, 255, 0.2);
+      border-radius: 100px; font-size: 0.85rem; color: var(--accent-blue);
+    }
+
+    .privacy-body {
+      background: var(--bg-card); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl); padding: 48px;
+    }
+
+    .intro-box {
+      background: var(--accent-gold-soft); border: 1px solid rgba(212, 168, 85, 0.3);
+      border-radius: var(--radius-lg); padding: 24px; margin-bottom: 40px;
+    }
+    .intro-box p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.7; margin: 0; }
+
+    .privacy-section { margin-bottom: 40px; }
+    .privacy-section:last-child { margin-bottom: 0; }
+    .privacy-section h2 {
+      font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 500;
+      color: var(--text-primary); margin-bottom: 16px;
+      padding-bottom: 12px; border-bottom: 1px solid var(--border-subtle);
+    }
+    .privacy-section h2 .section-number {
+      display: inline-block; width: 32px; height: 32px;
+      background: var(--accent-blue-soft); border-radius: 50%;
+      text-align: center; line-height: 32px;
+      font-family: 'Outfit', sans-serif; font-size: 0.9rem; font-weight: 600;
+      color: var(--accent-blue); margin-right: 12px;
+    }
+    .privacy-section h3 { font-size: 1.05rem; font-weight: 600; color: var(--text-primary); margin: 20px 0 12px 0; }
+    .privacy-section p { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.75; margin-bottom: 16px; }
+    .privacy-section p:last-child { margin-bottom: 0; }
+    .privacy-section ul, .privacy-section ol { list-style: none; padding: 0; margin: 16px 0; }
+    .privacy-section li {
+      padding: 10px 0; padding-left: 28px; position: relative;
+      color: var(--text-secondary); font-size: 0.92rem;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .privacy-section li:last-child { border-bottom: none; }
+    .privacy-section ul li::before {
+      content: '•'; position: absolute; left: 8px; color: var(--accent-gold); font-weight: bold;
+    }
+    .privacy-section ol { counter-reset: step; }
+    .privacy-section ol li { counter-increment: step; }
+    .privacy-section ol li::before {
+      content: counter(step);
+      position: absolute; left: 0; top: 10px;
+      width: 22px; height: 22px; line-height: 22px;
+      text-align: center;
+      background: var(--accent-gold-soft); color: var(--accent-gold);
+      border-radius: 50%; font-size: 0.78rem; font-weight: 600;
+    }
+    .privacy-section strong { color: var(--text-primary); font-weight: 600; }
+
+    .warning-box {
+      background: rgba(245, 158, 11, 0.08); border: 1px solid rgba(245, 158, 11, 0.2);
+      border-radius: var(--radius-md); padding: 20px; margin: 20px 0;
+    }
+    .warning-box p { color: #f59e0b; font-weight: 500; margin: 0; }
+
+    .highlight-box {
+      background: rgba(74, 200, 140, 0.08); border: 1px solid rgba(74, 200, 140, 0.2);
+      border-radius: var(--radius-md); padding: 20px; margin: 20px 0;
+    }
+    .highlight-box p { color: #4ac88c; font-weight: 500; margin: 0; }
+
+    .contact-info {
+      background: var(--bg-elevated); border-radius: var(--radius-md);
+      padding: 24px; margin-top: 16px;
+    }
+    .contact-info p { margin-bottom: 8px; color: var(--text-secondary); }
+    .contact-info a { color: var(--accent-blue); text-decoration: none; }
+    .contact-info a:hover { text-decoration: underline; }
+
+    footer { border-top: 1px solid var(--border-subtle); padding: 48px 0; }
+    footer .container {
+      display: flex; justify-content: space-between; align-items: center;
+      flex-wrap: wrap; gap: 24px; max-width: 1200px;
+    }
+    .footer-brand { display: flex; align-items: center; gap: 12px; }
+    .footer-brand .brand-icon { width: 60px; height: 60px; font-size: 16px; }
+    .footer-brand span { font-family: 'Playfair Display', serif; font-weight: 500; }
+    .footer-links { display: flex; gap: 32px; flex-wrap: wrap; }
+    .footer-links a {
+      font-size: 0.88rem; color: var(--text-muted);
+      text-decoration: none; transition: color 0.2s;
+    }
+    .footer-links a:hover { color: var(--text-primary); }
+    .footer-copy { font-size: 0.82rem; color: var(--text-muted); }
+
+    @media (max-width: 768px) {
+      header .container { flex-direction: column; gap: 16px; }
+      nav { width: 100%; justify-content: center; }
+      .privacy-body { padding: 32px 24px; }
+      .privacy-section h2 { font-size: 1.2rem; }
+      footer .container { flex-direction: column; text-align: center; }
+      .footer-links { flex-wrap: wrap; justify-content: center; gap: 16px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="ambient-bg"></div>
+  <div class="noise"></div>
+
+  <header>
+    <div class="container">
+      <a href="index.html" class="brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+      </a>
+      <nav>
+        <a href="index.html">Home</a>
+        <a href="privacy.html">Privacy</a>
+        <a href="login.html" class="btn-login">Log In</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="privacy-content">
+    <div class="container">
+      <div class="privacy-header">
+        <h1>Data <span class="highlight">Deletion</span></h1>
+        <div class="last-updated">Last Updated: April 28, 2026</div>
+      </div>
+
+      <div class="privacy-body">
+        <div class="intro-box">
+          <p>You can permanently delete your My Car Concierge account and the personal data associated with it at any time. This page explains how to do that, what gets deleted, what we may need to retain for legal or accounting reasons, and how to reach us if you need help.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">1</span>How to delete your account</h2>
+          <p>Members can delete their account directly from inside the app. The full process takes less than a minute:</p>
+          <ol>
+            <li>Sign in to <a href="https://mycarconcierge.com/login.html" style="color:var(--accent-blue);">mycarconcierge.com</a> or open the My Car Concierge mobile app.</li>
+            <li>Open <strong>Members</strong> &rarr; <strong>Settings</strong>.</li>
+            <li>Scroll to the bottom of the Settings tab to the red <strong>Danger Zone</strong> card.</li>
+            <li>Tap <strong>Delete My Account</strong>.</li>
+            <li>In the confirmation dialog, type <code>DELETE</code> in the input box and tap <strong>Delete My Account</strong>.</li>
+          </ol>
+          <div class="warning-box">
+            <p>Account deletion is permanent and cannot be undone. Once you confirm, your data is removed and we cannot restore it.</p>
+          </div>
+          <p>Provider accounts and accounts that have active disputes, open payments, or unresolved compliance items can request deletion by emailing <a href="mailto:privacy@mycarconcierge.com" style="color:var(--accent-blue);">privacy@mycarconcierge.com</a> from the email address on the account. We respond to verified requests within 30 days.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">2</span>What gets deleted</h2>
+          <p>When you delete your account, we remove the following from our active systems:</p>
+          <ul>
+            <li><strong>Profile data:</strong> name, email, phone number, mailing address, profile photo, language and notification preferences.</li>
+            <li><strong>Vehicles:</strong> every vehicle you have registered, including make, model, year, VIN, license plate, mileage, and uploaded vehicle photos.</li>
+            <li><strong>Service history:</strong> service requests you have created, bids you have received, accepted appointments, and any messages you exchanged with providers through the platform.</li>
+            <li><strong>Maintenance &amp; documents:</strong> maintenance logs, fuel logs, OBD code lookups, OCR-scanned insurance and registration documents, and any files you uploaded.</li>
+            <li><strong>Payment instruments:</strong> any cards or wallets you saved on file are detached from our payment processor (Stripe).</li>
+            <li><strong>Notifications:</strong> push tokens, email lists, and SMS opt-ins associated with your account.</li>
+            <li><strong>Authentication:</strong> your password hash, two-factor secrets, biometric/passkey credentials, and any active sessions.</li>
+          </ul>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">3</span>What we may keep, and why</h2>
+          <p>A narrow set of records is retained after account deletion because we are legally or contractually required to keep them. We never use these records for marketing or to rebuild your profile.</p>
+          <ul>
+            <li><strong>Financial &amp; tax records:</strong> invoices, receipts, payouts, refunds, and Stripe Connect transactions are retained for up to 7 years to satisfy IRS, accounting, and audit requirements.</li>
+            <li><strong>Fraud, abuse, and safety records:</strong> records of suspended accounts, fraud signals, chargebacks, and serious safety incidents may be retained to protect other Members and Providers.</li>
+            <li><strong>Legal &amp; regulatory holds:</strong> if your account is subject to an active legal claim, subpoena, or regulatory investigation, we keep the relevant records until the matter is resolved.</li>
+            <li><strong>Aggregated analytics:</strong> data that has been irreversibly anonymized so it cannot be linked back to you may be kept indefinitely for product analytics.</li>
+            <li><strong>Backups:</strong> encrypted backups roll off automatically within 30 days of deletion.</li>
+          </ul>
+          <p>For full retention timelines, see Section&nbsp;9 of our <a href="privacy.html" style="color:var(--accent-blue);">Privacy Policy</a>.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">4</span>Deleting data without closing your account</h2>
+          <p>If you want to remove specific items but keep your account active, you can:</p>
+          <ul>
+            <li>Delete a vehicle from <strong>Members</strong> &rarr; <strong>My Vehicles</strong>.</li>
+            <li>Delete maintenance logs, fuel logs, or uploaded documents from the relevant vehicle detail page.</li>
+            <li>Turn off push, email, or SMS notifications from <strong>Settings</strong> &rarr; <strong>Notifications</strong>.</li>
+            <li>Disconnect saved payment methods from <strong>Settings</strong> &rarr; <strong>Payments</strong>.</li>
+          </ul>
+          <p>You can also email <a href="mailto:privacy@mycarconcierge.com" style="color:var(--accent-blue);">privacy@mycarconcierge.com</a> with a specific data-removal request and we will action it within 30 days.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">5</span>Sign-in via Facebook or other providers</h2>
+          <p>If you signed up using Facebook, Google, or Apple, you can still delete your account at any time using the in-app steps in Section&nbsp;1 above. You can also email <a href="mailto:privacy@mycarconcierge.com" style="color:var(--accent-blue);">privacy@mycarconcierge.com</a> from the address on your account and we will process the request within 30 days.</p>
+          <p>If you remove the My Car Concierge app from your Facebook account settings (<em>Settings &amp; Privacy &rarr; Settings &rarr; Apps and Websites</em>), Facebook will notify our servers and we will automatically run the same deletion cascade described in Sections&nbsp;2 and&nbsp;3. Facebook hands you a confirmation code at the same time &mdash; you can plug that code into <a href="data-deletion-status.html" style="color:var(--accent-blue);">data-deletion-status.html</a> to see whether the deletion is pending or complete. If you would prefer not to wait for Facebook to forward the request, follow the in-app steps in Section&nbsp;1 or email us.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">6</span>Need help?</h2>
+          <p>If you cannot sign in, are not sure which email is on your account, or just want a person to walk you through it, contact us:</p>
+          <div class="contact-info">
+            <p><strong>My Car Concierge &mdash; Privacy Team</strong></p>
+            <p>Email: <a href="mailto:privacy@mycarconcierge.com">privacy@mycarconcierge.com</a></p>
+            <p>General Support: <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a></p>
+            <p>Founder Contact: <a href="mailto:jordan@mycarconcierge.com">jordan@mycarconcierge.com</a></p>
+            <p>Website: <a href="https://mycarconcierge.com">mycarconcierge.com</a></p>
+          </div>
+          <div class="highlight-box">
+            <p>We respond to verified data-deletion requests within 30 days. Most are completed within 48 hours.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+        <span>My Car Concierge</span>
+      </div>
+      <div class="footer-links">
+        <a href="index.html">Home</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="terms.html">Terms of Service</a>
+        <a href="data-deletion.html">Data Deletion</a>
+      </div>
+      <div class="footer-copy">
+        © 2026 My Car Concierge. All rights reserved.
+      </div>
+    </div>
+  </footer>
+</body>
+</html>

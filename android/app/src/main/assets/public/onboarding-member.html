@@ -133,6 +133,50 @@
       margin: 0 auto 24px;
     }
 
+    /* "Open for Business" / free-to-join pill — surfaces on the first
+       onboarding step so visitors immediately understand creating their
+       profile costs nothing. */
+    .free-join-pill {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      max-width: 100%;
+      margin: 0 auto 18px;
+      padding: 8px 14px;
+      background: #ecfdf5;
+      border: 1px solid #a7f3d0;
+      border-radius: 100px;
+      font-size: 0.82rem;
+      color: #065f46;
+      line-height: 1.35;
+      flex-wrap: wrap;
+      justify-content: center;
+      text-align: center;
+    }
+    .free-join-pill strong { color: #065f46; font-weight: 700; }
+    .free-join-pill-strong {
+      font-weight: 800;
+      font-size: 0.7rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: #065f46;
+    }
+    .free-join-pill-sep { opacity: 0.55; }
+    .free-join-pill-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #10b981;
+      box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55);
+      animation: freeJoinPulse 2s infinite;
+      flex-shrink: 0;
+    }
+    @keyframes freeJoinPulse {
+      0%   { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.55); }
+      70%  { box-shadow: 0 0 0 7px rgba(16, 185, 129, 0); }
+      100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0); }
+    }
+
     .step-icon svg {
       width: 28px;
       height: 28px;
@@ -614,6 +658,10 @@
       .category-card { padding: 12px; }
     }
   </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/onboarding-member.html" />
+  <meta name="robots" content="noindex, nofollow" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <div class="onboarding" id="onboarding">
@@ -636,6 +684,12 @@
         <div class="step-content">
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+          </div>
+          <div class="free-join-pill" role="note" aria-label="Free to join">
+            <span class="free-join-pill-dot" aria-hidden="true"></span>
+            <span class="free-join-pill-strong">Open for Business</span>
+            <span class="free-join-pill-sep" aria-hidden="true">&middot;</span>
+            <span>Creating your member profile is <strong>free</strong>.</span>
           </div>
           <h2 class="step-question">What's your name?</h2>
           <p class="step-subtitle">We'd love to know who we're helping.</p>
@@ -829,6 +883,7 @@
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
+  <script src="shared/survey-questions.js?v=20260429a"></script>
   <script>
     let currentStep = 0;
     const totalSteps = 8;
@@ -838,7 +893,6 @@
     let skippedRequest = false;
     let requestSaved = false;
     const _urlRef = new URLSearchParams(window.location.search).get('ref') || '';
-    const _urlProvider = new URLSearchParams(window.location.search).get('provider') || localStorage.getItem('preferred_provider_slug') || '';
     const formData = {
       name: '',
       email: '',
@@ -1195,6 +1249,155 @@
       }
 
       checklistEl.innerHTML = html;
+
+      // Show survey overlay after a brief pause
+      setTimeout(showSurveyOverlay, 700);
+    }
+
+    // ===== POST-SIGNUP SURVEY =====
+    // The survey questions, answer values, and labels live in ONE place:
+    // www/shared/survey-questions.js. The server's ALLOWED enum and the admin's
+    // display labels are derived from the same definition, so they cannot drift.
+    // To add or change a question, edit shared/survey-questions.js only.
+    const SURVEY_QUESTIONS = (window.MCCSurvey && window.MCCSurvey.QUESTIONS) || [];
+
+    let surveyStep = 0;
+    const surveyAnswers = {};
+
+    function showSurveyPanel(panelId) {
+      ['survey-panel-welcome','survey-panel-questions','survey-panel-thankyou'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', id === panelId);
+      });
+    }
+
+    function showSurveyOverlay() {
+      const overlay = document.getElementById('survey-overlay');
+      if (!overlay) return;
+      overlay.classList.remove('hidden');
+      showSurveyPanel('survey-panel-welcome');
+    }
+
+    function startSurveyQuestions() {
+      showSurveyPanel('survey-panel-questions');
+      renderSurveyQuestion();
+    }
+
+    // When redirected from members.html dashboard (?from=dashboard), jump straight to survey
+    if (new URLSearchParams(window.location.search).get('from') === 'dashboard') {
+      document.addEventListener('DOMContentLoaded', () => {
+        setTimeout(showSurveyOverlay, 300);
+      });
+    }
+
+    function renderSurveyQuestion() {
+      const q = SURVEY_QUESTIONS[surveyStep];
+      if (!q) { submitSurveyAndClose(); return; }
+
+      const fill = Math.round(((surveyStep) / SURVEY_QUESTIONS.length) * 100);
+      document.getElementById('survey-progress-fill').style.width = fill + '%';
+      document.getElementById('survey-step-label').textContent = 'Question ' + (surveyStep + 1) + ' of ' + SURVEY_QUESTIONS.length;
+      document.getElementById('survey-tag').textContent = q.tag;
+      document.getElementById('survey-question').textContent = q.q;
+
+      const container = document.getElementById('survey-options');
+      container.innerHTML = q.opts.map(o => `
+        <div class="survey-option${surveyAnswers[q.key] === o.val ? ' selected' : ''}" onclick="selectSurveyOption('${q.key}','${o.val}',this)">
+          <div class="survey-option-dot"></div>
+          <span>${o.label}</span>
+        </div>
+      `).join('');
+
+      const nextBtn = document.getElementById('survey-next-btn');
+      nextBtn.textContent = surveyStep < SURVEY_QUESTIONS.length - 1 ? 'Next' : 'Submit';
+      nextBtn.disabled = !surveyAnswers[q.key];
+    }
+
+    function selectSurveyOption(key, val, el) {
+      surveyAnswers[key] = val;
+      document.querySelectorAll('#survey-options .survey-option').forEach(o => o.classList.remove('selected'));
+      el.classList.add('selected');
+      document.getElementById('survey-next-btn').disabled = false;
+    }
+
+    function surveyNext() {
+      const q = SURVEY_QUESTIONS[surveyStep];
+      if (!surveyAnswers[q.key]) return;
+      surveyStep++;
+      if (surveyStep >= SURVEY_QUESTIONS.length) {
+        submitSurveyAndClose();
+      } else {
+        renderSurveyQuestion();
+      }
+    }
+
+    async function submitSurveyAndClose() {
+      document.getElementById('survey-progress-fill').style.width = '100%';
+      // Submit survey but keep UX flowing regardless — log failures so we can diagnose.
+      // (Task #166: previously this swallowed every error silently, which masked schema
+      // drift and made the admin Survey Analytics page perpetually empty.)
+      try {
+        let token = null;
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          token = session?.access_token || null;
+        } catch (_) {}
+        const headers = { 'Content-Type': 'application/json' };
+        if (token) headers['Authorization'] = 'Bearer ' + token;
+        const resp = await fetch('/api/member/survey', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify(surveyAnswers)
+        });
+        if (!resp.ok) {
+          let detail = '';
+          try { const j = await resp.json(); detail = j.detail || j.error || ''; } catch (_) {}
+          console.warn('[Survey] submission failed: HTTP ' + resp.status + (detail ? ' — ' + detail : ''));
+        } else {
+          try {
+            const j = await resp.json();
+            if (j && j.fallback) console.warn('[Survey] server reported fallback:', j.reason || '(unspecified)');
+          } catch (_) {}
+        }
+      } catch (err) {
+        console.warn('[Survey] submission threw:', err && err.message);
+      }
+
+      // Show thank-you screen instead of immediately closing
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      const joinBtn = document.getElementById('survey-join-btn');
+      if (joinBtn) {
+        joinBtn.textContent = fromDash ? 'Go to My Dashboard \u2192' : 'Create My Account \u2192';
+      }
+      showSurveyPanel('survey-panel-thankyou');
+    }
+
+    function surveyJoinMember() {
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      closeSurveyOverlay();
+      if (fromDash) {
+        window.location.href = '/members.html';
+      } else {
+        // In signup flow — scroll back up to the signup form or redirect to members
+        const hasSession = typeof supabaseClient !== 'undefined';
+        if (hasSession) {
+          supabaseClient.auth.getSession().then(({ data: { session } }) => {
+            window.location.href = session ? '/members.html' : '/signup-member.html';
+          }).catch(() => { window.location.href = '/signup-member.html'; });
+        } else {
+          window.location.href = '/signup-member.html';
+        }
+      }
+    }
+
+    function closeSurveyOverlay() {
+      const overlay = document.getElementById('survey-overlay');
+      if (overlay) overlay.classList.add('hidden');
+      // If we came from the members dashboard, send the user back so the welcome modal shows
+      const fromDash = new URLSearchParams(window.location.search).get('from') === 'dashboard';
+      if (fromDash) {
+        setTimeout(() => { window.location.href = '/members.html'; }, 400);
+      }
     }
 
     document.addEventListener('keydown', function(e) {

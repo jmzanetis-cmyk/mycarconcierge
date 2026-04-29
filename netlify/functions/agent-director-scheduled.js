@@ -85,7 +85,7 @@ function isInQuietHours(d, cfg) {
 }
 
 function escapeHtml(s) {
-  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+  return String(s == null ? '' : s).replaceAll(/[&<>"']/g, c =>
     ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
 }
 

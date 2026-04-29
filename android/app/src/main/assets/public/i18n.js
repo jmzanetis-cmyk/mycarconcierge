@@ -5,7 +5,8 @@ const I18n = (function() {
     fr: { name: 'French', nativeName: 'Français', dir: 'ltr' },
     el: { name: 'Greek', nativeName: 'Ελληνικά', dir: 'ltr' },
     zh: { name: 'Chinese', nativeName: '中文', dir: 'ltr' },
-    hi: { name: 'Hindi', nativeName: 'हिन्दी', dir: 'ltr' }
+    hi: { name: 'Hindi', nativeName: 'हिन्दी', dir: 'ltr' },
+    ar: { name: 'Arabic', nativeName: 'العربية', dir: 'rtl' }
   };
 
   const DEFAULT_LANGUAGE = 'en';
@@ -44,7 +45,8 @@ const I18n = (function() {
 
   async function loadTranslations(lang) {
     try {
-      const response = await fetch(`/locales/${lang}.json`);
+      const cacheBuster = 'v=1738660800';
+      const response = await fetch(`/locales/${lang}.json?${cacheBuster}`);
       if (!response.ok) {
         throw new Error(`Failed to load ${lang} translations`);
       }
@@ -90,13 +92,23 @@ const I18n = (function() {
       element.setAttribute(attrTarget, translated);
     } else {
       const svg = element.querySelector('svg');
+      const forceHtml = element.hasAttribute('data-i18n-html');
+      const containsHtml = forceHtml || /<[a-z][^>]*>/i.test(translated);
       if (svg) {
         const svgClone = svg.cloneNode(true);
-        element.textContent = translated;
+        if (containsHtml) {
+          element.innerHTML = translated;
+        } else {
+          element.textContent = translated;
+        }
         element.insertBefore(svgClone, element.firstChild);
         element.insertBefore(document.createTextNode(' '), svgClone.nextSibling);
       } else {
-        element.textContent = translated;
+        if (containsHtml) {
+          element.innerHTML = translated;
+        } else {
+          element.textContent = translated;
+        }
       }
     }
   }
@@ -123,6 +135,11 @@ const I18n = (function() {
     currentLanguage = lang;
     translations = await loadTranslations(lang);
     saveLanguage(lang);
+    
+    const langInfo = SUPPORTED_LANGUAGES[lang];
+    document.documentElement.dir = langInfo.dir || 'ltr';
+    document.documentElement.lang = lang;
+    
     translatePage();
     isLoaded = true;
 
@@ -179,11 +196,21 @@ const I18n = (function() {
 
     btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      dropdown.classList.toggle('show');
+      const isShowing = dropdown.classList.toggle('show');
+      // Toggle sidebar overflow to allow dropdown to escape clipping
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) {
+        sidebar.style.overflow = isShowing ? 'visible' : '';
+      }
     });
 
     document.addEventListener('click', () => {
       dropdown.classList.remove('show');
+      // Restore sidebar overflow
+      const sidebar = document.getElementById('sidebar');
+      if (sidebar) {
+        sidebar.style.overflow = '';
+      }
     });
 
     wrapper.querySelectorAll('.lang-option').forEach(option => {
@@ -197,6 +224,11 @@ const I18n = (function() {
           opt.classList.toggle('active', opt.getAttribute('data-lang') === lang);
         });
         dropdown.classList.remove('show');
+        // Restore sidebar overflow after language selection
+        const sidebar = document.getElementById('sidebar');
+        if (sidebar) {
+          sidebar.style.overflow = '';
+        }
       });
     });
   }
@@ -242,8 +274,8 @@ const I18n = (function() {
       .lang-dropdown {
         position: absolute;
         top: calc(100% + 8px);
-        right: 0;
-        min-width: 180px;
+        left: 0;
+        min-width: 200px;
         background: rgba(22, 22, 34, 0.98);
         border: 1px solid rgba(148, 148, 168, 0.15);
         border-radius: 12px;
@@ -293,6 +325,52 @@ const I18n = (function() {
       .lang-option.active .lang-native::after {
         content: ' ✓';
         color: #4a7cff;
+      }
+      
+      /* Light mode (Day mode) overrides */
+      [data-theme="light"] .lang-btn {
+        background: rgba(255, 255, 255, 0.95);
+        border: 1px solid rgba(30, 58, 95, 0.15);
+        color: #1e3a5f;
+      }
+      [data-theme="light"] .lang-btn:hover {
+        background: #ffffff;
+        border-color: rgba(30, 58, 95, 0.25);
+      }
+      [data-theme="light"] .lang-btn svg {
+        color: #1e3a5f;
+        opacity: 0.8;
+      }
+      [data-theme="light"] .lang-dropdown {
+        background: #ffffff;
+        border: 1px solid rgba(30, 58, 95, 0.12);
+        box-shadow: 0 10px 40px rgba(30, 58, 95, 0.15);
+      }
+      [data-theme="light"] .lang-option {
+        color: #1e3a5f;
+      }
+      [data-theme="light"] .lang-option:hover {
+        background: rgba(184, 148, 45, 0.1);
+      }
+      [data-theme="light"] .lang-option.active {
+        background: rgba(184, 148, 45, 0.15);
+      }
+      [data-theme="light"] .lang-option .lang-english {
+        color: #5a6a7a;
+      }
+      [data-theme="light"] .lang-option.active .lang-native::after {
+        color: #b8942d;
+      }
+      
+      /* Mobile dropdown opens upward */
+      .mobile-lang-switcher .lang-dropdown {
+        top: auto;
+        bottom: calc(100% + 8px);
+        max-height: 450px;
+        overflow-y: auto;
+      }
+      .mobile-lang-switcher .lang-btn .chevron {
+        transform: rotate(180deg);
       }
     `;
     document.head.appendChild(style);

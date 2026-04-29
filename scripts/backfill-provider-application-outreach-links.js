@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 
 /**
  * backfill-provider-application-outreach-links.js
@@ -197,7 +197,7 @@ async function main() {
   let cursorTs = null;
   let cursorId = null;
 
-  // eslint-disable-next-line no-constant-condition
+   
   while (true) {
     let q = supabase
       .from('provider_applications')

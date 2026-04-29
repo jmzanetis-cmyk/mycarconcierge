@@ -211,7 +211,7 @@ async function setupCdnMocks(page, mockJs) {
 
 async function addAuthToken(page, userId, email) {
   await page.addInitScript(({ userId, email }) => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,
@@ -260,7 +260,7 @@ test.describe('Founder Dashboard - Commission Display', () => {
     await expect(page.locator('#stat-pending-balance')).toHaveText('$350.00');
 
     const pendingText = await page.locator('#stat-pending-balance').textContent();
-    const pendingValue = parseFloat(pendingText.replace('$', ''));
+    const pendingValue = Number.parseFloat(pendingText.replace('$', ''));
     const expectedPending = FOUNDER_PROFILE_DATA.total_commissions_earned - FOUNDER_PROFILE_DATA.total_commissions_paid;
     expect(pendingValue).toBeCloseTo(expectedPending, 2);
   });

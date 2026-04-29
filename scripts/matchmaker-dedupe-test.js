@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task #152 — Matchmaker idempotency / dedupe guard test.
 //
@@ -39,7 +39,7 @@ function makeSupabaseMock(initialState) {
   // Resolve a JSONB-style path like "decision->payload->>care_plan_id"
   // against a row. Returns the value or undefined.
   function resolveJsonPath(row, expr) {
-    const path = expr.split(/->>?|->/).map(s => s.replace(/'/g, ''));
+    const path = expr.split(/->>?|->/).map(s => s.replaceAll('\'', ''));
     let v = row[path[0]];
     for (let i = 1; i < path.length; i++) {
       if (v == null) return undefined;
@@ -57,7 +57,7 @@ function makeSupabaseMock(initialState) {
     const arg = clause.slice(secondDot + 1);
     const get = r => col.includes('->') ? resolveJsonPath(r, col) : r[col];
     if (op === 'in') {
-      const list = arg.replace(/^\(|\)$/g, '').split(',');
+      const list = arg.replaceAll(/^\(|\)$/g, '').split(',');
       return r => list.includes(String(get(r)));
     }
     if (op === 'eq') return r => String(get(r)) === arg;

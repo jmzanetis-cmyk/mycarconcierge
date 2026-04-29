@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Data Deletion Status – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="description" content="Check the status of a Facebook-initiated My Car Concierge account deletion." />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="robots" content="noindex" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-blue: #38bdf8;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --radius-md: 14px;
+      --radius-lg: 22px;
+    }
+    [data-theme="light"] {
+      --bg-deep: #f8fafc;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --text-primary: #1e293b;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --accent-blue: #1e3a5f;
+      --border-subtle: rgba(30, 58, 95, 0.12);
+    }
+    * { box-sizing: border-box; }
+    body {
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .container { max-width: 720px; margin: 0 auto; padding: 0 24px; width: 100%; }
+    header { padding: 32px 0; border-bottom: 1px solid var(--border-subtle); }
+    header .container { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+    .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text-primary); }
+    .brand img { width: 44px; height: 44px; }
+    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.1rem; }
+    nav a {
+      color: var(--text-secondary);
+      text-decoration: none;
+      font-size: 0.95rem;
+      margin-left: 24px;
+    }
+    nav a:hover { color: var(--text-primary); }
+    main { flex: 1; padding: 64px 0; }
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: 2rem;
+      margin: 0 0 8px;
+    }
+    .subtitle { color: var(--text-secondary); margin: 0 0 32px; }
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 32px;
+    }
+    .lookup-form { display: flex; gap: 12px; margin-bottom: 28px; }
+    .lookup-form input {
+      flex: 1;
+      padding: 12px 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 0.95rem;
+    }
+    .lookup-form button {
+      padding: 12px 22px;
+      border-radius: var(--radius-md);
+      border: none;
+      background: var(--accent-blue);
+      color: var(--bg-deep);
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .lookup-form button:hover { opacity: 0.9; }
+    .status-block {
+      padding: 24px;
+      border-radius: var(--radius-md);
+      background: var(--bg-elevated);
+      border-left: 4px solid var(--text-muted);
+      margin-top: 12px;
+    }
+    .status-block[data-state="completed"] { border-left-color: #4ac88c; }
+    .status-block[data-state="pending"] { border-left-color: #c9a227; }
+    .status-block[data-state="error"] { border-left-color: #f87171; }
+    .status-block[data-state="not_found"] { border-left-color: #6b7280; }
+    .status-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+    .status-headline { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; color: var(--text-primary); }
+    .status-detail { color: var(--text-secondary); font-size: 0.95rem; margin: 0; line-height: 1.5; }
+    .meta { margin-top: 16px; font-size: 0.85rem; color: var(--text-muted); }
+    .help { margin-top: 32px; font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+    .help a { color: var(--accent-blue); }
+    footer { padding: 32px 0; border-top: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.8rem; }
+    footer .container { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+    @media (max-width: 600px) {
+      .lookup-form { flex-direction: column; }
+      h1 { font-size: 1.6rem; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container">
+      <a href="/index.html" class="brand">
+        <img src="/logo.png" alt="My Car Concierge logo" />
+        <span class="brand-name">My Car Concierge</span>
+      </a>
+      <nav>
+        <a href="/data-deletion.html">Data Deletion</a>
+        <a href="/privacy.html">Privacy</a>
+      </nav>
+    </div>
+  </header>
+
+  <main>
+    <div class="container">
+      <h1>Data Deletion Status</h1>
+      <p class="subtitle">Check the progress of a Facebook-initiated My Car Concierge account deletion.</p>
+
+      <div class="card">
+        <form class="lookup-form" id="lookup-form" autocomplete="off">
+          <input type="text" id="code-input" name="code" placeholder="Paste the confirmation code (16 characters)" aria-label="Deletion request code" maxlength="64" />
+          <button type="submit">Check Status</button>
+        </form>
+
+        <div class="status-block" id="status-block" data-state="idle">
+          <div class="status-label" id="status-label">Status</div>
+          <h2 class="status-headline" id="status-headline">Enter your deletion code above.</h2>
+          <p class="status-detail" id="status-detail">Facebook returned this code to you when the deletion was first requested. Codes look like <code>5f1c8a307c8d44e8</code> — 16 characters, letters and numbers only.</p>
+          <div class="meta" id="status-meta" hidden></div>
+        </div>
+
+        <p class="help">
+          Need help? Email <a href="mailto:privacy@mycarconcierge.com">privacy@mycarconcierge.com</a> from the email address on your account and our team will respond within 30 days. For an overview of what gets deleted, see the <a href="/data-deletion.html">Data Deletion</a> page.
+        </p>
+      </div>
+    </div>
+  </main>
+
+  <footer>
+    <div class="container">
+      <span>&copy; <span id="copy-year"></span> My Car Concierge. All rights reserved.</span>
+      <span><a href="/privacy.html" style="color:var(--text-muted);">Privacy</a> &middot; <a href="/terms.html" style="color:var(--text-muted);">Terms</a> &middot; <a href="/data-deletion.html" style="color:var(--text-muted);">Data Deletion</a></span>
+    </div>
+  </footer>
+
+  <script>
+    (function () {
+      var form = document.getElementById('lookup-form');
+      var codeInput = document.getElementById('code-input');
+      var block = document.getElementById('status-block');
+      var label = document.getElementById('status-label');
+      var headline = document.getElementById('status-headline');
+      var detail = document.getElementById('status-detail');
+      var meta = document.getElementById('status-meta');
+      document.getElementById('copy-year').textContent = new Date().getFullYear();
+
+      function fmtDate(iso) {
+        if (!iso) return '';
+        try {
+          var d = new Date(iso);
+          if (isNaN(d.getTime())) return '';
+          return d.toLocaleDateString(undefined, { year: 'numeric', month: 'long', day: 'numeric' });
+        } catch (e) { return ''; }
+      }
+
+      function render(payload) {
+        meta.hidden = true;
+        meta.textContent = '';
+        var state = (payload && payload.status) || 'not_found';
+        block.setAttribute('data-state', state);
+        if (state === 'completed') {
+          label.textContent = 'Deletion Complete';
+          var when = fmtDate(payload.completed_at);
+          headline.textContent = when ? ('Completed ' + when) : 'Completed';
+          detail.textContent = 'All personal data we held for this account has been removed from our active systems. Backups roll off automatically within 30 days.';
+        } else if (state === 'pending') {
+          label.textContent = 'In Progress';
+          headline.textContent = 'Pending';
+          detail.textContent = 'We received the deletion request and are processing it. Most deletions complete within a few minutes — refresh this page in a moment.';
+        } else if (state === 'error') {
+          label.textContent = 'Action Needed';
+          headline.textContent = 'We hit a snag finishing the deletion.';
+          detail.textContent = 'Please email privacy@mycarconcierge.com with this confirmation code and we will finish the deletion manually within one business day.';
+        } else {
+          label.textContent = 'Not Found';
+          headline.textContent = 'No deletion request found for that code.';
+          detail.textContent = 'Double-check the code, or email privacy@mycarconcierge.com if you believe this is wrong.';
+        }
+        if (payload && payload.confirmation_code) {
+          meta.hidden = false;
+          meta.textContent = 'Confirmation code: ' + payload.confirmation_code;
+        }
+      }
+
+      function lookup(code) {
+        block.setAttribute('data-state', 'pending');
+        label.textContent = 'Checking…';
+        headline.textContent = 'Looking up your request…';
+        detail.textContent = '';
+        meta.hidden = true;
+        fetch('/api/auth/facebook/data-deletion/status?code=' + encodeURIComponent(code), {
+          headers: { 'Accept': 'application/json' }
+        })
+          .then(function (r) { return r.json().catch(function () { return { status: 'error' }; }); })
+          .then(render)
+          .catch(function () {
+            block.setAttribute('data-state', 'error');
+            label.textContent = 'Network Error';
+            headline.textContent = "We couldn't reach the lookup service.";
+            detail.textContent = 'Please try again in a moment.';
+          });
+      }
+
+      form.addEventListener('submit', function (ev) {
+        ev.preventDefault();
+        var code = codeInput.value.trim();
+        if (!code) return;
+        history.replaceState(null, '', '/data-deletion-status.html?code=' + encodeURIComponent(code));
+        lookup(code);
+      });
+
+      var params = new URLSearchParams(window.location.search);
+      var initial = (params.get('code') || '').trim();
+      if (initial) {
+        codeInput.value = initial;
+        lookup(initial);
+      }
+    })();
+  </script>
+</body>
+</html>

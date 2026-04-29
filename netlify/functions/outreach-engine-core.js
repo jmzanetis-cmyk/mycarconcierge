@@ -429,7 +429,7 @@ ${text.substring(0, 3000)}`;
 
         const parseResult = await callAI(parsePrompt, 2000);
         const parsed = parseResult.text;
-        const clean = parsed.replace(/```json|```/g, '').trim();
+        const clean = parsed.replaceAll(/```json|```/g, '').trim();
         let communities = [];
         try {
           communities = JSON.parse(clean);
@@ -458,7 +458,7 @@ ${text.substring(0, 3000)}`;
             source: 'community_discovery',
             crm_sync_status: 'unlinked',
             status: 'new',
-            notes: `${c.type?.replace(/_/g, ' ') || 'Car community'}: ${c.description || 'Local automotive community'}. Reach out to organizer/admin to promote My Car Concierge to their car-owner members.`,
+            notes: `${c.type?.replaceAll('_', ' ') || 'Car community'}: ${c.description || 'Local automotive community'}. Reach out to organizer/admin to promote My Car Concierge to their car-owner members.`,
             metadata: {
               community_type: c.type,
               website: c.website,
@@ -773,7 +773,7 @@ Leads to score:
 ${JSON.stringify(batch, null, 2)}`;
 
       const aiResult = await callAI(prompt, 4000);
-      const clean = aiResult.text.replace(/```json|```/g, '').trim();
+      const clean = aiResult.text.replaceAll(/```json|```/g, '').trim();
       let scores;
       try {
         scores = JSON.parse(clean);
@@ -1040,9 +1040,9 @@ async function sendMessage(supabase, messageId) {
 
   const firstName = lead.name ? lead.name.split(' ')[0] : 'there';
   const bodyBase = msg.body
-    .replace(/\[FIRST_NAME\]/g, firstName)
-    .replace(/\[MCC_LINK\]/g, 'https://mycarconcierge.com')
-    .replace(/\[LINK\]/g, 'https://mycarconcierge.com');
+    .replaceAll('[FIRST_NAME]', firstName)
+    .replaceAll('[MCC_LINK]', 'https://mycarconcierge.com')
+    .replaceAll('[LINK]', 'https://mycarconcierge.com');
 
   let externalId = null;
   let error = null;
@@ -1063,8 +1063,8 @@ async function sendMessage(supabase, messageId) {
       ? `<br><br><p style="text-align:center;margin:20px 0;"><a href="${refLink}" style="display:inline-block;padding:12px 28px;background:#c9a227;color:#0a0a0f;text-decoration:none;border-radius:8px;font-weight:700;font-size:15px;">Get Started — It's Free</a></p>`
       : '';
     const htmlBody = bodyBase
-      .replace(/\n/g, '<br>')
-      .replace(/https:\/\/mycarconcierge\.com/g, `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
+      .replaceAll('\n', '<br>')
+      .replaceAll('https://mycarconcierge.com', `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
       + refButtonHtml
       + `<br><br><hr style="border-color:#333;"><p style="font-size:12px;color:#888;">${PHYSICAL_ADDRESS}<br><a href="${unsubLink}" style="color:#888;">Unsubscribe</a></p>${openPixel}`;
 
@@ -1436,15 +1436,15 @@ async function runEngineCycle(supabase) {
 
 // ========== AI DECISION LAYER ==========
 async function getAiOpsSettings(supabase) {
-  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  const threshold = Number.parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = Number.parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
   try {
     const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
     if (rows) {
       const settings = {};
       for (const r of rows) {
-        if (r.key === 'confidence_threshold') settings.threshold = parseFloat(r.value);
-        if (r.key === 'max_auto_refund') settings.maxRefund = parseFloat(r.value);
+        if (r.key === 'confidence_threshold') settings.threshold = Number.parseFloat(r.value);
+        if (r.key === 'max_auto_refund') settings.maxRefund = Number.parseFloat(r.value);
       }
       return { threshold: settings.threshold ?? threshold, maxRefund: settings.maxRefund ?? maxRefund };
     }
@@ -1458,7 +1458,7 @@ async function sendOutreachSMS(toPhone, body) {
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from || !toPhone) return false;
   try {
-    const clean = toPhone.replace(/\D/g, '');
+    const clean = toPhone.replaceAll(/\D/g, '');
     const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
     const auth = Buffer.from(`${sid}:${token}`).toString('base64');
     const form = new URLSearchParams({ To: to, From: from, Body: body });
@@ -1754,7 +1754,7 @@ Include all 7 days with all 4 platforms each.`;
   const response = await callAI(prompt, 6000);
   try {
     const text = typeof response === 'object' ? (response.text || '') : String(response);
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleaned = text.replaceAll(/```json\n?/g, '').replaceAll(/```\n?/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
     return { raw: typeof response === 'object' ? response.text : response, parse_error: e.message };
@@ -1814,7 +1814,7 @@ Include all 4 categories.`;
   const response = await callAI(prompt, 5000);
   try {
     const text = typeof response === 'object' ? (response.text || '') : String(response);
-    const cleaned = text.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+    const cleaned = text.replaceAll(/```json\n?/g, '').replaceAll(/```\n?/g, '').trim();
     return JSON.parse(cleaned);
   } catch (e) {
     return { stats, raw: typeof response === 'object' ? response.text : response, parse_error: e.message };
@@ -1981,9 +1981,9 @@ Then a blank line, then the email body starting with "Hi ${firstName},"`;
 
     const body = bodyLines.join('\n').trim();
     const urlPattern = /wefunder\.com\/my\.car\.concierge(?!\?)/g;
-    const finalBody = body.replace(urlPattern, wefunderUrl);
-    const finalSubject = (subject || 'My Car Concierge — Community Round Now Live on Wefunder').replace(urlPattern, wefunderUrl);
-    const finalSubjectB = subjectB ? subjectB.replace(urlPattern, wefunderUrl) : null;
+    const finalBody = body.replaceAll(urlPattern, wefunderUrl);
+    const finalSubject = (subject || 'My Car Concierge — Community Round Now Live on Wefunder').replaceAll(urlPattern, wefunderUrl);
+    const finalSubjectB = subjectB ? subjectB.replaceAll(urlPattern, wefunderUrl) : null;
 
     return {
       subject: finalSubject,

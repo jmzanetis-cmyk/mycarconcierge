@@ -63,7 +63,7 @@ function initStripeSync() {
 /**
  * MCC Fee Structure
  */
-const MCC_FEE_PERCENT = 0.075; // 7.5%
+const MCC_FEE_PERCENT = 0;
 
 function calculateFees(totalAmount) {
   const mccFee = totalAmount * MCC_FEE_PERCENT;
@@ -206,29 +206,6 @@ async function getEscrowStatus(packageId) {
   return data;
 }
 
-// Legacy compatibility functions
-async function confirmPayment(clientSecret, cardElement) {
-  return confirmEscrowPayment(clientSecret, cardElement);
-}
-
-async function capturePayment(paymentIntentId) {
-  console.warn('capturePayment is deprecated, use releaseEscrowPayment(packageId) instead');
-  return { error: 'Use releaseEscrowPayment(packageId) instead' };
-}
-
-async function cancelPayment(paymentIntentId, reason) {
-  console.warn('cancelPayment is deprecated, use refundEscrowPayment(packageId, reason) instead');
-  const response = await fetch('/api/payments/cancel', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      payment_intent_id: paymentIntentId,
-      reason: reason
-    })
-  });
-  
-  return response.json();
-}
 
 /**
  * Stripe Connect Functions (for provider payouts)
@@ -349,34 +326,125 @@ async function getSavedPaymentMethods(customerId) {
  * - payout.paid - Payout to provider's bank completed
  */
 
+
 /**
- * Mock functions for development (when Stripe is not configured)
+ * Mobile Wallet Payment Functions
+ * Apple Pay and Google Pay integration for Capacitor apps
  */
 
-function mockCreatePayment(packageId, amount) {
-  console.log('[MOCK] Creating payment:', { packageId, amount });
-  return {
-    success: true,
-    payment_intent_id: 'pi_mock_' + Math.random().toString(36).substr(2, 9),
-    client_secret: 'cs_mock_' + Math.random().toString(36).substr(2, 9),
-    status: 'requires_capture'
+async function payWithMobileWallet(amount, description, options = {}) {
+  const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+  const isIOS = isNative && Capacitor.getPlatform() === 'ios';
+  const isAndroid = isNative && Capacitor.getPlatform() === 'android';
+
+  if (!isNative) {
+    return { 
+      available: false, 
+      error: 'Mobile wallet payments are only available in the native app' 
+    };
+  }
+
+  if (typeof MobilePay === 'undefined') {
+    return { 
+      available: false, 
+      error: 'Mobile payment module not loaded' 
+    };
+  }
+
+  if (isIOS) {
+    const applePayAvailable = await MobilePay.isApplePayAvailable();
+    if (applePayAvailable) {
+      const result = await MobilePay.requestApplePay(amount, description);
+      if (result.success) {
+        return {
+          available: true,
+          success: true,
+          paymentMethodId: result.paymentMethodId,
+          type: 'apple_pay'
+        };
+      }
+      return { available: true, success: false, error: result.error };
+    }
+  }
+
+  if (isAndroid) {
+    const googlePayAvailable = await MobilePay.isGooglePayAvailable();
+    if (googlePayAvailable) {
+      const result = await MobilePay.requestGooglePay(amount, description);
+      if (result.success) {
+        return {
+          available: true,
+          success: true,
+          paymentMethodId: result.paymentMethodId,
+          type: 'google_pay'
+        };
+      }
+      return { available: true, success: false, error: result.error };
+    }
+  }
+
+  return { 
+    available: false, 
+    error: 'No mobile wallet available on this device' 
   };
 }
 
-function mockCapturePayment(paymentIntentId) {
-  console.log('[MOCK] Capturing payment:', paymentIntentId);
+async function isMobileWalletAvailable() {
+  const isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform();
+  
+  if (!isNative || typeof MobilePay === 'undefined') {
+    return { available: false, applePay: false, googlePay: false };
+  }
+
+  const isIOS = Capacitor.getPlatform() === 'ios';
+  const isAndroid = Capacitor.getPlatform() === 'android';
+
+  const applePay = isIOS ? await MobilePay.isApplePayAvailable() : false;
+  const googlePay = isAndroid ? await MobilePay.isGooglePayAvailable() : false;
+
   return {
-    success: true,
-    status: 'succeeded'
+    available: applePay || googlePay,
+    applePay,
+    googlePay,
+    platform: isIOS ? 'ios' : isAndroid ? 'android' : 'web'
   };
 }
 
-function mockCancelPayment(paymentIntentId) {
-  console.log('[MOCK] Canceling payment:', paymentIntentId);
-  return {
-    success: true,
-    status: 'canceled'
-  };
+async function createMobileWalletPaymentIntent(amount, description, packageId, bidId) {
+  const walletStatus = await isMobileWalletAvailable();
+  
+  if (!walletStatus.available) {
+    return { available: false };
+  }
+
+  const result = await payWithMobileWallet(amount, description);
+  
+  if (result.success && result.paymentMethodId) {
+    const response = await fetch('/api/escrow/create-with-payment-method', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        package_id: packageId,
+        bid_id: bidId,
+        payment_method_id: result.paymentMethodId,
+        wallet_type: result.type
+      })
+    });
+    
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data.error || 'Failed to create payment');
+    }
+    
+    return {
+      available: true,
+      success: true,
+      paymentIntent: data.paymentIntent,
+      type: result.type
+    };
+  }
+
+  return result;
 }
 
 // Export for use in other files
@@ -384,9 +452,6 @@ window.StripeUtils = {
   initStripe,
   calculateFees,
   createEscrowPayment,
-  confirmPayment,
-  capturePayment,
-  cancelPayment,
   createConnectAccount,
   getConnectOnboardingLink,
   transferToProvider,
@@ -396,12 +461,10 @@ window.StripeUtils = {
   MCC_FEE_PERCENT,
   // Bid pack purchases
   createBidPackCheckout,
-  // Mock functions for development
-  mock: {
-    createPayment: mockCreatePayment,
-    capturePayment: mockCapturePayment,
-    cancelPayment: mockCancelPayment
-  }
+  // Mobile wallet payments
+  payWithMobileWallet,
+  isMobileWalletAvailable,
+  createMobileWalletPaymentIntent
 };
 
 /**

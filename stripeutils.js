@@ -140,7 +140,7 @@ async function confirmEscrowPaymentElement(clientSecret, elements, returnUrl) {
   const { error, paymentIntent } = await stripe.confirmPayment({
     elements,
     confirmParams: {
-      return_url: returnUrl || window.location.href
+      return_url: returnUrl || globalThis.location.href
     },
     redirect: 'if_required'
   });
@@ -257,8 +257,8 @@ async function getConnectOnboardingLink(accountId) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       account_id: accountId,
-      return_url: window.location.origin + '/providers.html?stripe_onboarded=true',
-      refresh_url: window.location.origin + '/providers.html?stripe_refresh=true'
+      return_url: globalThis.location.origin + '/providers.html?stripe_onboarded=true',
+      refresh_url: globalThis.location.origin + '/providers.html?stripe_refresh=true'
     })
   });
   
@@ -380,7 +380,7 @@ function mockCancelPayment(paymentIntentId) {
 }
 
 // Export for use in other files
-window.StripeUtils = {
+globalThis.StripeUtils = {
   initStripe,
   calculateFees,
   createEscrowPayment,

@@ -80,7 +80,7 @@ async function redditFetch(path, init = {}) {
 // Reddit search: q=keyword(s), sort=new, t=hour, restrict_sr=on for in-sub.
 async function monitor({ keywords = [], handle = null, limit = 25, since = null } = {}) {
   if (!keywords.length) return [];
-  const q = keywords.map(k => `"${k.replace(/"/g, '')}"`).join(' OR ');
+  const q = keywords.map(k => `"${k.replaceAll('"', '')}"`).join(' OR ');
   const params = new URLSearchParams({
     q, sort: 'new', t: 'hour', limit: String(Math.min(limit, 100)), type: 'link'
   });

@@ -1,0 +1,684 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>IT Contractor Agreement - My Car Concierge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-bronze: #cd7f32;
+      --accent-bronze-soft: rgba(205, 127, 50, 0.15);
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f1f5f9;
+      --text-primary: #1e293b;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --border-subtle: rgba(30, 58, 95, 0.12);
+      --border-medium: rgba(30, 58, 95, 0.2);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-bronze: #a06424;
+      --accent-bronze-soft: rgba(160, 100, 36, 0.12);
+      --accent-blue: #1e3a5f;
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+    }
+
+    body {
+      font-family: 'Georgia', serif;
+      line-height: 1.8;
+      padding: 40px;
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+    }
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-primary);
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 40px;
+    }
+    .contract-badge {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .contract-badge span {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: white;
+      padding: 8px 24px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 30px 0 15px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 8px;
+      color: var(--text-primary);
+    }
+    p { margin-bottom: 15px; text-align: justify; color: var(--text-primary); }
+    .section { margin-bottom: 30px; }
+    .indent { margin-left: 30px; }
+    ol, ul { margin-left: 40px; margin-bottom: 15px; color: var(--text-primary); }
+    li { margin-bottom: 10px; }
+    .highlight-box {
+      background: var(--accent-gold-soft);
+      border-left: 4px solid var(--accent-gold);
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .effective-date {
+      text-align: center;
+      font-weight: bold;
+      margin: 40px 0;
+      padding: 20px;
+      background: var(--accent-gold-soft);
+      border: 2px solid var(--accent-gold);
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+    }
+    .scope-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 20px 0;
+    }
+    .scope-table th, .scope-table td {
+      border: 1px solid var(--border-subtle);
+      padding: 12px;
+      text-align: left;
+      color: var(--text-primary);
+    }
+    .scope-table th {
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: white;
+    }
+    .scope-table tr:nth-child(even) {
+      background: var(--bg-input);
+    }
+    @media print {
+      body { padding: 20px; background: #fff; color: #222; }
+      .no-print { display: none !important; }
+      #agreement-form-container { display: none !important; }
+      .highlight-box, .effective-date { background: #fff8e1 !important; }
+      p, li, h1, h2, td, th { color: #222 !important; }
+    }
+    .nav-buttons {
+      position: fixed;
+      top: 20px;
+      left: 0;
+      right: 0;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 100;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .print-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s ease;
+    }
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
+    }
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 180px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .agreement-form-section {
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 2px solid var(--border-subtle);
+    }
+    .agreement-form-section h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    #agreement-form-container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    strong { color: var(--text-primary); }
+    .footer-note {
+      text-align: center;
+      margin-top: 60px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    @media (max-width: 768px) {
+      body { padding: 20px 16px; }
+      .nav-buttons { padding: 0 12px; }
+      .theme-toggle { right: 140px; }
+      h1 { font-size: 20px; }
+      ol, ul { margin-left: 24px; }
+      .scope-table { font-size: 13px; }
+      .scope-table th, .scope-table td { padding: 8px; }
+    }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/contractor-agreement.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Independent contractor agreement for service providers on the My Car Concierge platform." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/contractor-agreement.html" />
+  <meta property="og:title" content="IT Contractor Agreement - My Car Concierge" />
+  <meta property="og:description" content="Independent contractor agreement for service providers on the My Car Concierge platform." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="IT Contractor Agreement - My Car Concierge" />
+  <meta name="twitter:description" content="Independent contractor agreement for service providers on the My Car Concierge platform." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+  <div class="nav-buttons no-print">
+    <a href="/" class="back-link">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Home
+    </a>
+    <div style="display: flex; gap: 12px;">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div style="height: 60px;"></div>
+
+  <div class="contract-badge">
+    <span>INDEPENDENT CONTRACTOR AGREEMENT</span>
+  </div>
+
+  <h1>IT & Marketing Contractor Agreement</h1>
+  <p class="subtitle">My Car Concierge — Platform Development & Promotion</p>
+
+  <div class="effective-date">
+    Effective Date: <input type="date" id="contract-effective-date" style="font-family:inherit;font-size:inherit;font-weight:bold;background:transparent;border:none;border-bottom:2px solid var(--accent-gold);color:var(--text-primary);padding:2px 8px;cursor:pointer;text-align:center;">
+  </div>
+
+  <div class="section">
+    <p>This Independent Contractor Agreement ("Agreement") is entered into by and between:</p>
+    <p class="indent"><strong>My Car Concierge LLC</strong> ("Company")<br>
+    A technology company operating an automotive service marketplace platform</p>
+    <p>AND</p>
+    <p class="indent"><strong>Contractor Name:</strong> <span id="live-name" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span><br>
+    <strong>Email:</strong> <span id="live-email" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span><br>
+    <strong>Country of Residence:</strong> <span id="live-country" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span><br>
+    <strong>Role:</strong> <span id="live-role" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span></p>
+  </div>
+
+  <div class="highlight-box">
+    <p><strong>INTERNATIONAL APPLICABILITY:</strong> This Agreement is designed to engage independent contractors regardless of geographic location. Contractor acknowledges that local laws may provide additional rights or obligations, and Contractor is solely responsible for compliance with all laws applicable in their jurisdiction.</p>
+  </div>
+
+  <h2>1. Purpose and Relationship</h2>
+  <div class="section">
+    <p>1.1. The Company operates "My Car Concierge," an automotive service marketplace platform connecting vehicle owners with service providers ("Platform").</p>
+    <p>1.2. The Company engages Contractor to provide services related to the development, maintenance, marketing, advertising, and/or promotion of the Platform, as defined in the Scope of Services below.</p>
+    <p>1.3. <strong>Contractor is an independent contractor and NOT an employee, partner, agent, or joint venturer of the Company.</strong> Nothing in this Agreement creates an employment relationship, partnership, or agency. This classification applies regardless of the jurisdiction in which Contractor resides or performs work.</p>
+    <p>1.4. Contractor has no authority to bind the Company, enter into contracts on behalf of the Company, or create any obligations for the Company.</p>
+    <p>1.5. Contractor controls the manner, method, time, and means of performing services, including work hours and location, subject only to project deadlines and deliverable specifications.</p>
+  </div>
+
+  <h2>2. Scope of Services</h2>
+  <div class="section">
+    <p>Contractor's services may include any combination of the following, as mutually agreed upon for each project assignment:</p>
+
+    <table class="scope-table">
+      <tr>
+        <th>Category</th>
+        <th>Services</th>
+      </tr>
+      <tr>
+        <td><strong>Development & Maintenance</strong></td>
+        <td>Feature development, bug fixes, code reviews, platform maintenance, database management, API integrations, testing, performance optimization, security audits, DevOps, deployment support</td>
+      </tr>
+      <tr>
+        <td><strong>Marketing & Advertising</strong></td>
+        <td>Campaign creation, ad management, SEO/SEM, content strategy, email marketing, analytics and reporting, brand development, market research, paid advertising management</td>
+      </tr>
+      <tr>
+        <td><strong>Social Media & Content</strong></td>
+        <td>Content creation (text, image, video), social media management, community engagement, influencer coordination, platform promotion, brand voice development, audience growth strategies</td>
+      </tr>
+      <tr>
+        <td><strong>Design & Creative</strong></td>
+        <td>UI/UX design, graphic design, brand assets, marketing collateral, video production, presentation design</td>
+      </tr>
+    </table>
+
+    <p>2.2. Specific tasks, deliverables, and deadlines will be communicated in writing (including email or project management tools) for each project assignment ("Project Assignment"). Each Project Assignment becomes part of this Agreement when accepted by Contractor.</p>
+    <p>2.3. Contractor may decline any Project Assignment without penalty, provided notice is given within 48 hours of assignment.</p>
+  </div>
+
+  <h2>3. Compensation</h2>
+  <div class="section">
+    <div class="highlight-box">
+      <p><strong>DUAL COMPENSATION MODEL:</strong> Contractor receives project-based payment for completed work PLUS equity participation in the Company, aligning interests for long-term success.</p>
+    </div>
+
+    <p><strong>3.1. Project-Based Compensation:</strong></p>
+    <ol type="a">
+      <li>Compensation for each Project Assignment will be agreed upon in writing before work begins.</li>
+      <li>Rates may be structured as fixed-price per project, hourly, or milestone-based, as mutually agreed.</li>
+      <li>Payment is due within thirty (30) days of Contractor submitting an invoice for completed and accepted work.</li>
+      <li>Contractor shall submit invoices with sufficient detail of work performed, hours (if hourly), and deliverables completed.</li>
+      <li>Payments will be made via wire transfer, PayPal, Wise, or other mutually agreed electronic method, in US Dollars (USD) unless otherwise agreed.</li>
+    </ol>
+
+    <p><strong>3.2. Equity Compensation:</strong></p>
+    <ol type="a">
+      <li><strong>Grant:</strong> In addition to project-based compensation, Contractor shall receive an equity interest in the Company as specified in a separate Equity Grant Letter accompanying this Agreement.</li>
+      <li><strong>Vesting Schedule:</strong> Equity shall vest over a four (4) year period, with a one (1) year cliff. No equity vests until the first anniversary of the Effective Date. After the cliff, equity vests monthly in equal installments over the remaining thirty-six (36) months.</li>
+      <li><strong>Cliff Requirement:</strong> If this Agreement is terminated for any reason before the one-year cliff, Contractor forfeits all unvested equity with no compensation for the unvested portion.</li>
+      <li><strong>Acceleration:</strong> In the event of a Change of Control (acquisition, merger, or IPO), fifty percent (50%) of Contractor's unvested equity shall immediately vest.</li>
+      <li><strong>Equity Type:</strong> Equity may be issued as membership interest units, stock options, or phantom equity, at the Company's discretion, and will be documented in the accompanying Equity Grant Letter.</li>
+      <li><strong>Dilution:</strong> Contractor's equity interest may be subject to dilution from future equity issuances. The Company will provide reasonable notice of any such dilution events.</li>
+      <li><strong>Tax Responsibility:</strong> Contractor is solely responsible for any tax obligations arising from the equity grant, vesting, or eventual sale, in their jurisdiction of residence.</li>
+    </ol>
+
+    <p><strong>3.3. No Other Compensation:</strong> Contractor is not entitled to employee benefits including but not limited to health insurance, retirement plans, paid time off, workers' compensation, or unemployment insurance.</p>
+  </div>
+
+  <h2>4. Taxes and Compliance</h2>
+  <div class="section">
+    <p>4.1. Contractor is solely responsible for the payment of all taxes arising from compensation received under this Agreement, including income taxes, self-employment taxes, VAT/GST, social security contributions, and any other taxes or charges applicable in Contractor's jurisdiction.</p>
+    <p>4.2. The Company will not withhold any taxes from payments to Contractor. For US-based Contractors, the Company will issue a Form 1099-NEC if payments exceed $600 in a calendar year.</p>
+    <p>4.3. For international Contractors, the Company may require a completed IRS Form W-8BEN or W-8BEN-E (or equivalent) before processing payments.</p>
+    <p>4.4. Contractor is responsible for obtaining and maintaining any business licenses, permits, or registrations required in their jurisdiction to perform the services.</p>
+    <p>4.5. Contractor shall comply with all applicable laws, regulations, and professional standards in their jurisdiction, including but not limited to data protection, anti-corruption, export controls, and labor laws.</p>
+  </div>
+
+  <h2>5. Intellectual Property</h2>
+  <div class="section">
+    <div class="highlight-box">
+      <p><strong>WORK PRODUCT OWNERSHIP:</strong> All work created under this Agreement belongs to My Car Concierge. This includes code, designs, content, strategies, and any other deliverables.</p>
+    </div>
+
+    <p>5.1. <strong>Work Product Assignment:</strong> All work product, deliverables, inventions, discoveries, improvements, designs, code, content, strategies, creative works, and materials created by Contractor in connection with this Agreement ("Work Product") are the sole and exclusive property of the Company. Contractor hereby irrevocably assigns to the Company all right, title, and interest in and to the Work Product, including all intellectual property rights worldwide.</p>
+    <p>5.2. <strong>Work Made for Hire:</strong> To the extent permitted by applicable law, all Work Product shall be considered "work made for hire." To the extent any Work Product does not qualify as work made for hire, Contractor assigns all rights as described in Section 5.1.</p>
+    <p>5.3. <strong>Moral Rights:</strong> To the extent permitted by applicable law, Contractor waives all moral rights in the Work Product. Where moral rights cannot be waived, Contractor agrees not to assert them.</p>
+    <p>5.4. <strong>Pre-Existing Materials:</strong> Contractor retains ownership of any pre-existing intellectual property ("Prior IP") that Contractor brings to a Project Assignment. Contractor grants the Company a perpetual, irrevocable, royalty-free, worldwide license to use any Prior IP incorporated into Work Product.</p>
+    <p>5.5. <strong>Third-Party Materials:</strong> Contractor shall not incorporate any third-party materials into Work Product without prior written approval and verification that appropriate licenses exist.</p>
+    <p>5.6. <strong>Cooperation:</strong> Contractor agrees to execute any documents and take any actions reasonably requested by the Company to perfect, register, or enforce the Company's intellectual property rights in the Work Product.</p>
+    <p>5.7. <strong>Company IP License:</strong> The Company grants Contractor a limited, non-exclusive, revocable license to use Company trademarks, logos, and materials solely for performing services under this Agreement. This license terminates immediately upon termination of this Agreement.</p>
+  </div>
+
+  <h2>6. Confidentiality</h2>
+  <div class="section">
+    <p>6.1. <strong>Definition:</strong> "Confidential Information" means all non-public information disclosed by the Company to Contractor, including but not limited to:</p>
+    <ol type="a">
+      <li>Source code, algorithms, databases, system architecture, and technical documentation</li>
+      <li>Business strategies, plans, financial data, and projections</li>
+      <li>User data, customer lists, and provider information</li>
+      <li>Pricing, commission structures, and internal metrics</li>
+      <li>Marketing strategies, campaigns, and analytics</li>
+      <li>Trade secrets and proprietary processes</li>
+      <li>API keys, credentials, and security configurations</li>
+      <li>Any information marked or reasonably understood to be confidential</li>
+    </ol>
+    <p>6.2. <strong>Obligations:</strong> Contractor shall: (a) maintain Confidential Information in strict confidence; (b) not disclose Confidential Information to any third party without prior written consent; (c) use Confidential Information solely for performing services under this Agreement; (d) take reasonable measures to protect Confidential Information from unauthorized access or disclosure.</p>
+    <p>6.3. <strong>Exceptions:</strong> Confidential Information does not include information that: (a) is or becomes publicly available through no fault of Contractor; (b) was known to Contractor before disclosure; (c) is independently developed by Contractor without use of Confidential Information; or (d) is required to be disclosed by law, provided Contractor gives reasonable notice to the Company.</p>
+    <p>6.4. <strong>Return of Materials:</strong> Upon termination, Contractor shall promptly return or destroy all Confidential Information and certify destruction in writing.</p>
+    <p>6.5. <strong>Survival:</strong> This confidentiality obligation survives termination of this Agreement for a period of five (5) years, or indefinitely for trade secrets.</p>
+  </div>
+
+  <h2>7. Data Protection and Security</h2>
+  <div class="section">
+    <p>7.1. Contractor may have access to personal data of Platform users. Contractor agrees to handle all personal data in accordance with applicable data protection laws, including but not limited to GDPR (EU), CCPA (California), PIPEDA (Canada), and any other applicable privacy regulations.</p>
+    <p>7.2. Contractor shall: (a) process personal data only as necessary to perform services; (b) implement appropriate technical and organizational security measures; (c) not transfer personal data to unauthorized third parties; (d) promptly notify the Company of any data breach or security incident; (e) delete or return all personal data upon termination.</p>
+    <p>7.3. Contractor shall use secure development practices, including but not limited to: encrypted communications, secure credential storage, code review compliance, and adherence to the Company's security policies.</p>
+    <p>7.4. Contractor shall not store Company data, source code, or credentials on personal devices or unauthorized cloud services without prior approval.</p>
+  </div>
+
+  <h2>8. Non-Solicitation</h2>
+  <div class="section">
+    <p>8.1. During the term of this Agreement and for twelve (12) months following termination, Contractor shall not directly or indirectly:</p>
+    <ol type="a">
+      <li>Solicit or attempt to hire any employee, contractor, or consultant of the Company</li>
+      <li>Solicit or divert any customer, provider, or business partner of the Company for a competing purpose</li>
+      <li>Encourage any employee, contractor, or consultant of the Company to terminate their relationship with the Company</li>
+    </ol>
+    <p>8.2. This Section does not prevent Contractor from hiring individuals who respond to general public job postings not specifically targeted at Company personnel.</p>
+  </div>
+
+  <h2>9. Representations and Warranties</h2>
+  <div class="section">
+    <p>9.1. Contractor represents and warrants that:</p>
+    <ol type="a">
+      <li>Contractor has the legal capacity and authority to enter into this Agreement</li>
+      <li>Contractor possesses the skills, qualifications, and experience necessary to perform the services</li>
+      <li>Work Product will be original and will not infringe any third-party intellectual property rights</li>
+      <li>Contractor is not bound by any agreement that conflicts with this Agreement</li>
+      <li>All information provided to the Company is accurate and complete</li>
+      <li>Contractor will comply with all applicable laws in their jurisdiction</li>
+      <li>Contractor will perform services in a professional and workmanlike manner</li>
+      <li>Contractor has valid legal authorization to work as an independent contractor in their jurisdiction</li>
+    </ol>
+  </div>
+
+  <h2>10. Indemnification</h2>
+  <div class="section">
+    <p>10.1. Contractor agrees to indemnify, defend, and hold harmless the Company, its officers, directors, employees, and agents from and against any claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising from:</p>
+    <ol type="a">
+      <li>Contractor's breach of this Agreement</li>
+      <li>Contractor's negligence or willful misconduct</li>
+      <li>Contractor's violation of any law or regulation</li>
+      <li>Any claim that Work Product infringes third-party intellectual property rights</li>
+      <li>Contractor's failure to pay applicable taxes</li>
+      <li>Any misclassification claim related to Contractor's engagement</li>
+    </ol>
+  </div>
+
+  <h2>11. Limitation of Liability</h2>
+  <div class="section">
+    <p>11.1. IN NO EVENT SHALL EITHER PARTY BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES, REGARDLESS OF THE CAUSE OF ACTION OR THE FORM OF LEGAL THEORY.</p>
+    <p>11.2. The Company's total aggregate liability under this Agreement shall not exceed the total compensation paid or payable to Contractor in the twelve (12) months preceding the claim, excluding equity compensation.</p>
+  </div>
+
+  <h2>12. Term and Termination</h2>
+  <div class="section">
+    <p>12.1. <strong>Term:</strong> This Agreement commences on the Effective Date and continues until terminated by either party.</p>
+    <p>12.2. <strong>Termination Without Cause:</strong> Either party may terminate this Agreement at any time, for any reason or no reason, with thirty (30) days written notice.</p>
+    <p>12.3. <strong>Termination for Cause:</strong> Either party may terminate this Agreement immediately upon written notice if the other party:</p>
+    <ol type="a">
+      <li>Materially breaches any term of this Agreement and fails to cure within fifteen (15) days of written notice</li>
+      <li>Engages in fraud, dishonesty, or illegal conduct</li>
+      <li>Breaches confidentiality or data protection obligations</li>
+      <li>Becomes insolvent or files for bankruptcy</li>
+    </ol>
+    <p>12.4. <strong>Effect of Termination:</strong></p>
+    <ol type="a">
+      <li>Contractor shall immediately cease all work and return or destroy all Company materials, Confidential Information, and access credentials</li>
+      <li>Company shall pay Contractor for all completed and accepted work performed prior to termination</li>
+      <li>Any unvested equity is forfeited upon termination, subject to the vesting schedule in Section 3.2</li>
+      <li>Vested equity is retained by Contractor subject to the terms of the Equity Grant Letter</li>
+      <li>Sections 5 (IP), 6 (Confidentiality), 7 (Data Protection), 8 (Non-Solicitation), 10 (Indemnification), 11 (Limitation of Liability), and 14 (Dispute Resolution) survive termination</li>
+    </ol>
+  </div>
+
+  <h2>13. Insurance</h2>
+  <div class="section">
+    <p>13.1. Contractor acknowledges that the Company does not provide any insurance coverage for Contractor, including but not limited to professional liability, general liability, health, or workers' compensation insurance.</p>
+    <p>13.2. Contractor is encouraged to maintain appropriate professional liability or errors and omissions insurance at their own expense.</p>
+  </div>
+
+  <h2>14. Dispute Resolution</h2>
+  <div class="section">
+    <p>14.1. <strong>Good Faith Negotiation:</strong> The parties agree to first attempt to resolve any dispute through good-faith negotiation for a period of thirty (30) days.</p>
+    <p>14.2. <strong>Mediation:</strong> If negotiation fails, the parties agree to submit the dispute to mediation before a mutually agreed-upon mediator.</p>
+    <p>14.3. <strong>Arbitration:</strong> If mediation fails, any remaining dispute shall be resolved by binding arbitration conducted online or in a mutually agreed location, under the rules of the American Arbitration Association (AAA) or the International Centre for Dispute Resolution (ICDR) for international Contractors.</p>
+    <p>14.4. <strong>Governing Law:</strong> This Agreement shall be governed by the laws of the State of Florida, United States, without regard to conflicts of law principles, except where superseded by mandatory local laws applicable to Contractor.</p>
+    <p>14.5. <strong>Language:</strong> This Agreement is executed in English. In the event of any translation, the English version shall prevail.</p>
+  </div>
+
+  <h2>15. General Provisions</h2>
+  <div class="section">
+    <p>15.1. <strong>Entire Agreement:</strong> This Agreement, together with any Equity Grant Letter and accepted Project Assignments, constitutes the entire agreement between the parties and supersedes all prior discussions and agreements.</p>
+    <p>15.2. <strong>Amendment:</strong> This Agreement may only be modified by written agreement signed by both parties.</p>
+    <p>15.3. <strong>Severability:</strong> If any provision is found unenforceable, the remaining provisions remain in full force and effect.</p>
+    <p>15.4. <strong>Waiver:</strong> Failure to enforce any right under this Agreement shall not constitute a waiver of that right.</p>
+    <p>15.5. <strong>Assignment:</strong> Contractor may not assign this Agreement without the Company's prior written consent. The Company may assign this Agreement in connection with a merger, acquisition, or sale of substantially all assets.</p>
+    <p>15.6. <strong>Notices:</strong> All notices shall be in writing and delivered by email to the addresses provided by each party. Notices are effective upon confirmed receipt.</p>
+    <p>15.7. <strong>Force Majeure:</strong> Neither party shall be liable for delays or failures caused by events beyond their reasonable control, including natural disasters, war, government actions, pandemics, or internet outages.</p>
+    <p>15.8. <strong>Independent Legal Advice:</strong> Both parties acknowledge they have had the opportunity to seek independent legal advice before entering into this Agreement.</p>
+    <p>15.9. <strong>Counterparts:</strong> This Agreement may be executed in counterparts, including electronic signatures, each of which shall be deemed an original.</p>
+  </div>
+
+  <h2>16. Acknowledgment</h2>
+  <div class="section">
+    <p>BY SIGNING BELOW, CONTRACTOR ACKNOWLEDGES THAT:</p>
+    <ol type="a">
+      <li>Contractor has read and understands this Agreement in its entirety</li>
+      <li>Contractor has had the opportunity to consult with legal counsel</li>
+      <li>Contractor voluntarily enters into this Agreement</li>
+      <li>Contractor is an independent contractor and not an employee of the Company</li>
+      <li>Contractor is solely responsible for all taxes in their jurisdiction</li>
+      <li>Contractor understands the equity vesting schedule and forfeiture provisions</li>
+      <li>Contractor agrees to the intellectual property assignment and confidentiality terms</li>
+      <li>Contractor's electronic signature is legally binding</li>
+    </ol>
+  </div>
+
+  <div class="agreement-form-section">
+    <h2>Sign This Agreement</h2>
+    <div id="agreement-form-container"></div>
+  </div>
+
+  <p class="footer-note">
+    This document should be reviewed by a qualified attorney before use.<br>
+    &copy; 2025 My Car Concierge LLC. All rights reserved.
+  </p>
+
+  <script src="/i18n.js"></script>
+  <script src="/agreement-form.js"></script>
+  <script src="/footer.js"></script>
+  <script>
+    (function() {
+      function getPreferredTheme() {
+        var saved = localStorage.getItem('mcc_theme');
+        if (saved) return saved;
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+
+      function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('mcc_theme', theme);
+        updateThemeIcon(theme);
+      }
+
+      function updateThemeIcon(theme) {
+        var sunIcon = document.querySelector('.sun-icon');
+        var moonIcon = document.querySelector('.moon-icon');
+        if (sunIcon && moonIcon) {
+          if (theme === 'light') {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+          } else {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+          }
+        }
+      }
+
+      setTheme(getPreferredTheme());
+
+      document.getElementById('themeToggle').addEventListener('click', function() {
+        var currentTheme = document.documentElement.getAttribute('data-theme');
+        var newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        document.documentElement.classList.add('theme-transition');
+        setTheme(newTheme);
+        setTimeout(function() {
+          document.documentElement.classList.remove('theme-transition');
+        }, 300);
+      });
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var today = new Date().toISOString().split('T')[0];
+      var dateInput = document.getElementById('contract-effective-date');
+      if (dateInput) dateInput.value = today;
+
+      AgreementForm.createAgreementForm({
+        containerId: 'agreement-form-container',
+        agreementType: 'contractor',
+        fields: ['full_name', 'email', 'country', 'role_scope'],
+        acknowledgments: [
+          'I have read and understand this Agreement in its entirety',
+          'I have had the opportunity to consult with legal counsel',
+          'I voluntarily enter into this Agreement as an independent contractor',
+          'I am solely responsible for all taxes applicable in my jurisdiction',
+          'I understand the equity vesting schedule and forfeiture provisions',
+          'I agree to the intellectual property assignment and confidentiality terms',
+          'I understand that all work product created under this Agreement belongs to My Car Concierge',
+          'I acknowledge that my electronic signature is legally binding'
+        ]
+      });
+
+      var roleLabels = {
+        'development': 'Development & Maintenance',
+        'marketing': 'Marketing & Advertising',
+        'social_media': 'Social Media & Content',
+        'development_marketing': 'Development + Marketing',
+        'all': 'All Services (Development, Marketing, Social Media)'
+      };
+
+      function wireField(inputId, liveId, isSelect) {
+        var interval = setInterval(function() {
+          var el = document.getElementById(inputId);
+          if (el) {
+            clearInterval(interval);
+            var liveEl = document.getElementById(liveId);
+            el.addEventListener('input', function() {
+              var val = el.value.trim();
+              if (isSelect && roleLabels[val]) val = roleLabels[val];
+              if (val) {
+                liveEl.textContent = val;
+                liveEl.style.color = 'var(--text-primary)';
+                liveEl.style.fontStyle = 'normal';
+                liveEl.style.fontWeight = 'bold';
+                liveEl.style.borderBottomStyle = 'solid';
+              } else {
+                liveEl.textContent = 'Enter below';
+                liveEl.style.color = 'var(--accent-gold)';
+                liveEl.style.fontStyle = 'italic';
+                liveEl.style.fontWeight = 'normal';
+                liveEl.style.borderBottomStyle = 'dashed';
+              }
+            });
+            if (isSelect) {
+              el.addEventListener('change', function() {
+                el.dispatchEvent(new Event('input'));
+              });
+            }
+          }
+        }, 200);
+      }
+
+      wireField('agreement-full-name', 'live-name', false);
+      wireField('agreement-email', 'live-email', false);
+      wireField('agreement-country', 'live-country', false);
+      wireField('agreement-role-scope', 'live-role', true);
+
+      var syncInterval = setInterval(function() {
+        var formDate = document.getElementById('agreement-date');
+        if (formDate && dateInput) {
+          clearInterval(syncInterval);
+          dateInput.addEventListener('change', function() {
+            formDate.value = dateInput.value;
+          });
+          formDate.addEventListener('change', function() {
+            dateInput.value = formDate.value;
+          });
+        }
+      }, 200);
+    });
+  </script>
+</body>
+</html>

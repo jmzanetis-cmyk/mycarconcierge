@@ -367,28 +367,28 @@
       }
 
       if (isPendingProvider && profile.is_also_member) {
-        window.location.href = 'members.html';
+        globalThis.location.href = 'members.html';
         return;
       }
 
       if (isProvider) {
         localStorage.setItem('mcc_portal', 'provider');
-        window.location.href = 'providers.html';
+        globalThis.location.href = 'providers.html';
       } else if (profile.role === 'admin') {
         localStorage.setItem('mcc_portal', 'member');
-        window.location.href = 'members.html';
+        globalThis.location.href = 'members.html';
       } else {
         localStorage.setItem('mcc_portal', 'member');
-        window.location.href = 'members.html';
+        globalThis.location.href = 'members.html';
       }
     }
 
     function selectPortal(portal) {
       localStorage.setItem('mcc_portal', portal);
       if (portal === 'provider') {
-        window.location.href = 'providers.html';
+        globalThis.location.href = 'providers.html';
       } else {
-        window.location.href = 'members.html';
+        globalThis.location.href = 'members.html';
       }
     }
 

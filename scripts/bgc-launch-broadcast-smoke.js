@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task #164 — Offline smoke test for `scripts/send-bgc-launch-broadcast.js`.
 //
@@ -126,7 +126,7 @@ require.cache[require.resolve('@supabase/supabase-js')] = {
 // ----------------------------- fetch stub -----------------------------------
 const sentByResend = [];
 let resendIdCounter = 0;
-global.fetch = async (url, opts) => {
+globalThis.fetch = async (url, opts) => {
   const body = JSON.parse(opts.body || '{}');
   if (body.to === 'fail@example.test') {
     return { ok: false, status: 422, text: async () => JSON.stringify({ message: 'Invalid recipient' }) };

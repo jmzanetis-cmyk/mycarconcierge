@@ -203,7 +203,7 @@ test.describe('Provider Availability & Booking System', () => {
     test('formatSlotTime helper produces correct output', async ({ page }) => {
       await page.goto(`${BASE}/members.html`, { waitUntil: 'domcontentloaded' });
 
-      await page.waitForFunction(() => typeof window.mccIcon === 'function', { timeout: 10000 }).catch(() => {});
+      await page.waitForFunction(() => typeof globalThis.mccIcon === 'function', { timeout: 10000 }).catch(() => {});
 
       const result = await page.evaluate(() => {
         function formatSlotTime(timeStr) {

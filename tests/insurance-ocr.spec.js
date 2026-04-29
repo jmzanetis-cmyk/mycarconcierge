@@ -93,9 +93,9 @@ test.describe('Insurance Card OCR — API extraction and review UI rendering', (
     });
 
     await page.evaluate((fakeUrl) => {
-      if (window.supabaseClient?.storage) {
-        const originalFrom = window.supabaseClient.storage.from.bind(window.supabaseClient.storage);
-        window.supabaseClient.storage.from = (bucket) => {
+      if (globalThis.supabaseClient?.storage) {
+        const originalFrom = globalThis.supabaseClient.storage.from.bind(globalThis.supabaseClient.storage);
+        globalThis.supabaseClient.storage.from = (bucket) => {
           if (bucket === 'insurance-documents') {
             return {
               upload: async () => ({ data: { path: 'test/insurance_test.png' }, error: null }),

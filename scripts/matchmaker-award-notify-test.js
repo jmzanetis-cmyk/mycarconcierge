@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task #153 — Admin Matchmaker apply notification fan-out test.
 //
@@ -76,8 +76,8 @@ let fcmFetchHandler = async (url) => {
   // Pass through anything else (none expected in tests).
   return { status: 404, ok: false, json: async () => ({}) };
 };
-const _origFetch = global.fetch;
-global.fetch = async (url, opts) => {
+const _origFetch = globalThis.fetch;
+globalThis.fetch = async (url, opts) => {
   fcmCalls.push({ url: String(url), method: opts && opts.method, body: opts && opts.body });
   return fcmFetchHandler(url, opts);
 };
@@ -530,7 +530,7 @@ function freshSupabase() {
   // restore for any downstream tests
   process.env.RESEND_API_KEY = 'test-key';
   delete process.env.FCM_SERVICE_ACCOUNT_JSON;
-  global.fetch = _origFetch;
+  globalThis.fetch = _origFetch;
 
   if (failures > 0) {
     console.error(`\n${failures} check(s) failed.`);

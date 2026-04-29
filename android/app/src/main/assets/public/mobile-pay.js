@@ -136,7 +136,8 @@ const MobilePay = (function() {
           
           session.onvalidatemerchant = async (event) => {
             try {
-              const response = await fetch('/api/apple-pay/validate', {
+              const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+              const response = await fetch(`${apiBase}/api/apple-pay/validate`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ validationURL: event.validationURL })
@@ -151,7 +152,8 @@ const MobilePay = (function() {
           
           session.onpaymentauthorized = async (event) => {
             try {
-              const response = await fetch('/api/apple-pay/process', {
+              const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+              const response = await fetch(`${apiBase}/api/apple-pay/process`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ 

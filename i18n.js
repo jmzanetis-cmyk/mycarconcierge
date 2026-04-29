@@ -73,7 +73,7 @@ const I18n = (function() {
     }
 
     Object.keys(replacements).forEach(placeholder => {
-      text = text.replace(new RegExp(`{{${placeholder}}}`, 'g'), replacements[placeholder]);
+      text = text.replaceAll(new RegExp(`{{${placeholder}}}`, 'g'), replacements[placeholder]);
     });
 
     return text;

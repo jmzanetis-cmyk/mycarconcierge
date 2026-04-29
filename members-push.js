@@ -6,16 +6,16 @@
 (function () {
 
   function isCapacitorNative() {
-    return !!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform());
+    return !!(globalThis.Capacitor && globalThis.Capacitor.isNativePlatform && globalThis.Capacitor.isNativePlatform());
   }
 
   function getPushPlugin() {
-    return window.Capacitor?.Plugins?.PushNotifications || null;
+    return globalThis.Capacitor?.Plugins?.PushNotifications || null;
   }
 
   async function getAuthToken() {
     try {
-      const { data: { session } } = await window.supabaseClient.auth.getSession();
+      const { data: { session } } = await globalThis.supabaseClient.auth.getSession();
       return session?.access_token || null;
     } catch {
       return null;
@@ -25,7 +25,7 @@
   async function registerDeviceToken(token, platform) {
     const authToken = await getAuthToken();
     if (!authToken) return;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     try {
       await fetch(`${apiBase}/api/push/register-device`, {
         method: 'POST',
@@ -42,7 +42,7 @@
   async function unregisterDeviceToken(token) {
     const authToken = await getAuthToken();
     if (!authToken) return;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     try {
       await fetch(`${apiBase}/api/push/unregister-device`, {
         method: 'POST',
@@ -58,8 +58,8 @@
   function showInAppNotification(notification) {
     const title = notification.title || 'My Car Concierge';
     const body = notification.body || '';
-    if (typeof window.showToast === 'function') {
-      window.showToast(`${title}: ${body}`, 'info', 6000);
+    if (typeof globalThis.showToast === 'function') {
+      globalThis.showToast(`${title}: ${body}`, 'info', 6000);
     } else {
       console.log(`[CapacitorPush] Foreground notification: ${title} — ${body}`);
     }
@@ -72,56 +72,56 @@
     if (!section) return;
 
     const navigate = () => {
-      if (typeof window.showSection === 'function') {
-        window.showSection(section);
+      if (typeof globalThis.showSection === 'function') {
+        globalThis.showSection(section);
       }
       if (!entityId) return;
       const sec = section.toLowerCase();
 
       // Bid / quote detail
       if (sec === 'bids' || sec === 'quotes' || sec === 'bid-detail') {
-        if (typeof window.openBidDetail === 'function') {
-          window.openBidDetail(entityId);
-        } else if (typeof window.showBid === 'function') {
-          window.showBid(entityId);
+        if (typeof globalThis.openBidDetail === 'function') {
+          globalThis.openBidDetail(entityId);
+        } else if (typeof globalThis.showBid === 'function') {
+          globalThis.showBid(entityId);
         }
       }
       // Service request / job
       else if (sec === 'requests' || sec === 'jobs' || sec === 'job-detail') {
-        if (typeof window.openRequest === 'function') {
-          window.openRequest(entityId);
-        } else if (typeof window.showJob === 'function') {
-          window.showJob(entityId);
+        if (typeof globalThis.openRequest === 'function') {
+          globalThis.openRequest(entityId);
+        } else if (typeof globalThis.showJob === 'function') {
+          globalThis.showJob(entityId);
         }
       }
       // Service package
       else if (sec === 'packages' || sec === 'package-detail') {
-        if (typeof window.openPackage === 'function') {
-          window.openPackage(entityId);
+        if (typeof globalThis.openPackage === 'function') {
+          globalThis.openPackage(entityId);
         }
       }
       // Car club punch card
       else if (sec === 'carclub' || sec === 'loyalty' || sec === 'car-club') {
-        if (typeof window.showCarClub === 'function') {
-          window.showCarClub(entityId);
+        if (typeof globalThis.showCarClub === 'function') {
+          globalThis.showCarClub(entityId);
         }
       }
       // Payment / transaction
       else if (sec === 'payments' || sec === 'payment-detail') {
-        if (typeof window.showPayment === 'function') {
-          window.showPayment(entityId);
+        if (typeof globalThis.showPayment === 'function') {
+          globalThis.showPayment(entityId);
         }
       }
       // Vehicle
       else if (sec === 'vehicles' || sec === 'vehicle-detail') {
-        if (typeof window.showVehicle === 'function') {
-          window.showVehicle(entityId);
+        if (typeof globalThis.showVehicle === 'function') {
+          globalThis.showVehicle(entityId);
         }
       }
       // Appointment
       else if (sec === 'appointments' || sec === 'appointment-detail') {
-        if (typeof window.showAppointment === 'function') {
-          window.showAppointment(entityId);
+        if (typeof globalThis.showAppointment === 'function') {
+          globalThis.showAppointment(entityId);
         }
       }
     };
@@ -186,7 +186,7 @@
 
   let _pushListenersAdded = false;
 
-  window.initCapacitorPush = async function (context) {
+  globalThis.initCapacitorPush = async function (context) {
     if (!isCapacitorNative()) return;
 
     const ids = getUIIds(context);
@@ -215,16 +215,16 @@
       _pushListenersAdded = true;
 
       plugin.addListener('registration', async ({ value: token }) => {
-        const platform = window.Capacitor?.getPlatform?.() || 'unknown';
+        const platform = globalThis.Capacitor?.getPlatform?.() || 'unknown';
         await registerDeviceToken(token, platform);
-        const ctx = window._mccPushContext || context;
+        const ctx = globalThis._mccPushContext || context;
         updateNativePushUI(true, false, ctx);
-        if (typeof window.showToast === 'function') window.showToast('Push notifications enabled!', 'success');
+        if (typeof globalThis.showToast === 'function') globalThis.showToast('Push notifications enabled!', 'success');
       });
 
       plugin.addListener('registrationError', (err) => {
         console.error('[CapacitorPush] Registration error:', err);
-        if (typeof window.showToast === 'function') window.showToast('Failed to register for notifications', 'error');
+        if (typeof globalThis.showToast === 'function') globalThis.showToast('Failed to register for notifications', 'error');
       });
 
       plugin.addListener('pushNotificationReceived', (notification) => {
@@ -236,19 +236,19 @@
       });
     }
 
-    window._mccPushContext = context;
+    globalThis._mccPushContext = context;
 
     if (permissionStatus === 'granted') {
       try { await plugin.register(); } catch {}
     }
   };
 
-  window.requestNativePushPermission = async function (context) {
+  globalThis.requestNativePushPermission = async function (context) {
     if (!isCapacitorNative()) return;
     const plugin = getPushPlugin();
     if (!plugin) return;
 
-    const ctx = context || window._mccPushContext || 'member';
+    const ctx = context || globalThis._mccPushContext || 'member';
     const ids = getUIIds(ctx);
     const btn = document.getElementById(ids.enableBtn);
     if (btn) { btn.disabled = true; btn.textContent = 'Enabling…'; }
@@ -270,44 +270,44 @@
       }
     } catch (err) {
       console.error('[CapacitorPush] Permission error:', err);
-      if (typeof window.showToast === 'function') window.showToast('Could not enable notifications', 'error');
+      if (typeof globalThis.showToast === 'function') globalThis.showToast('Could not enable notifications', 'error');
       if (btn) { btn.disabled = false; btn.innerHTML = `${bellIcon} Enable Notifications`; }
     }
   };
 
-  window.disableNativePush = async function (context) {
+  globalThis.disableNativePush = async function (context) {
     if (!isCapacitorNative()) return;
     const plugin = getPushPlugin();
     if (!plugin) return;
 
-    const ctx = context || window._mccPushContext || 'member';
+    const ctx = context || globalThis._mccPushContext || 'member';
 
     try {
       await plugin.removeAllDeliveredNotifications();
       const stored = localStorage.getItem('mcc_fcm_token');
       if (stored) await unregisterDeviceToken(stored);
       updateNativePushUI(false, false, ctx);
-      if (typeof window.showToast === 'function') window.showToast('Push notifications disabled', 'success');
+      if (typeof globalThis.showToast === 'function') globalThis.showToast('Push notifications disabled', 'success');
     } catch (err) {
       console.error('[CapacitorPush] Disable error:', err);
     }
   };
 
-  window._capacitorPushLoaded = true;
+  globalThis._capacitorPushLoaded = true;
 
   (function () {
     const checkAndPatch = () => {
-      if (typeof window.showSection !== 'function') return;
-      const orig = window.showSection;
-      window.showSection = function (sectionId) {
+      if (typeof globalThis.showSection !== 'function') return;
+      const orig = globalThis.showSection;
+      globalThis.showSection = function (sectionId) {
         const result = orig.apply(this, arguments);
         if (sectionId === 'settings' || sectionId === 'notifications') {
-          if (isCapacitorNative()) window.initCapacitorPush(window._mccPushContext || 'member');
+          if (isCapacitorNative()) globalThis.initCapacitorPush(globalThis._mccPushContext || 'member');
         }
         return result;
       };
     };
-    if (typeof window.showSection === 'function') {
+    if (typeof globalThis.showSection === 'function') {
       checkAndPatch();
     } else {
       window.addEventListener('load', () => setTimeout(checkAndPatch, 500));
@@ -316,9 +316,9 @@
 
   if (isCapacitorNative()) {
     const tryFirstLaunchPrompt = async () => {
-      if (!window.supabaseClient) return;
+      if (!globalThis.supabaseClient) return;
       try {
-        const { data: { session } } = await window.supabaseClient.auth.getSession();
+        const { data: { session } } = await globalThis.supabaseClient.auth.getSession();
         if (!session) return;
 
         const plugin = getPushPlugin();
@@ -334,13 +334,13 @@
           const requestResult = await plugin.requestPermissions();
           const granted = (requestResult?.receive || requestResult?.status) === 'granted';
           if (granted) {
-            await window.initCapacitorPush(window._mccPushContext || 'member');
+            await globalThis.initCapacitorPush(globalThis._mccPushContext || 'member');
           } else {
             console.log('[CapacitorPush] Push permission denied by user on first-launch');
           }
         } else if (permState === 'granted') {
           // Already granted — register/refresh token
-          await window.initCapacitorPush(window._mccPushContext || 'member');
+          await globalThis.initCapacitorPush(globalThis._mccPushContext || 'member');
         }
         // 'denied' — user previously denied, do not re-prompt
       } catch (err) {
@@ -355,8 +355,8 @@
     }
 
     // Also re-check on auth state change (user logs in during session)
-    if (window.supabaseClient && typeof window.supabaseClient.auth?.onAuthStateChange === 'function') {
-      window.supabaseClient.auth.onAuthStateChange((event) => {
+    if (globalThis.supabaseClient && typeof globalThis.supabaseClient.auth?.onAuthStateChange === 'function') {
+      globalThis.supabaseClient.auth.onAuthStateChange((event) => {
         if (event === 'SIGNED_IN') {
           setTimeout(tryFirstLaunchPrompt, 1500);
         }

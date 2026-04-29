@@ -1,0 +1,1710 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Advertising & Social Media Deck - My Car Concierge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-bronze: #cd7f32;
+      --accent-bronze-soft: rgba(205, 127, 50, 0.15);
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f1f5f9;
+      --text-primary: #1e293b;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --border-subtle: rgba(30, 58, 95, 0.12);
+      --border-medium: rgba(30, 58, 95, 0.2);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-bronze: #a06424;
+      --accent-bronze-soft: rgba(160, 100, 36, 0.12);
+      --accent-blue: #1e3a5f;
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+    }
+
+    body {
+      font-family: 'Georgia', serif;
+      line-height: 1.8;
+      padding: 40px;
+      max-width: 960px;
+      margin: 0 auto;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+    }
+    h1 {
+      text-align: center;
+      font-size: 28px;
+      margin-bottom: 10px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      letter-spacing: 1px;
+      color: var(--text-primary);
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 40px;
+      font-size: 15px;
+    }
+    .contract-badge {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .contract-badge span {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: white;
+      padding: 8px 24px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    h2 {
+      font-size: 20px;
+      margin: 50px 0 20px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      letter-spacing: 0.5px;
+      border-bottom: 2px solid var(--accent-gold);
+      padding-bottom: 10px;
+      color: var(--accent-gold);
+    }
+    h3 {
+      font-size: 16px;
+      margin: 25px 0 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    h4 {
+      font-size: 14px;
+      margin: 18px 0 8px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      color: var(--accent-bronze);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+    }
+    p { margin-bottom: 14px; color: var(--text-primary); }
+    .section { margin-bottom: 30px; }
+    ol, ul { margin-left: 30px; margin-bottom: 15px; color: var(--text-primary); }
+    li { margin-bottom: 8px; }
+    strong { color: var(--text-primary); }
+
+    .highlight-box {
+      background: var(--accent-gold-soft);
+      border-left: 4px solid var(--accent-gold);
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .highlight-box.bronze {
+      background: var(--accent-bronze-soft);
+      border-left-color: var(--accent-bronze);
+    }
+    .highlight-box.teal {
+      background: rgba(56, 189, 248, 0.08);
+      border-left-color: var(--accent-blue);
+    }
+
+    .toc {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 30px;
+      margin: 30px 0 50px;
+    }
+    .toc h3 {
+      text-align: center;
+      margin-top: 0;
+      color: var(--accent-gold);
+      font-size: 18px;
+    }
+    .toc ol {
+      columns: 2;
+      column-gap: 30px;
+      margin-left: 20px;
+    }
+    .toc li {
+      margin-bottom: 6px;
+      break-inside: avoid;
+    }
+    .toc a {
+      color: var(--accent-blue);
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      font-size: 14px;
+    }
+    .toc a:hover {
+      color: var(--accent-gold);
+      text-decoration: underline;
+    }
+
+    .color-swatches {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .swatch {
+      text-align: center;
+      font-family: 'Outfit', sans-serif;
+      font-size: 12px;
+    }
+    .swatch-box {
+      width: 80px;
+      height: 80px;
+      border-radius: var(--radius-md);
+      border: 2px solid var(--border-subtle);
+      margin-bottom: 6px;
+    }
+    .swatch-label {
+      color: var(--text-secondary);
+      font-weight: 500;
+    }
+    .swatch-hex {
+      color: var(--text-muted);
+      font-size: 11px;
+      font-family: monospace;
+    }
+
+    .example-post {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px 22px;
+      margin: 12px 0;
+      font-size: 14px;
+      line-height: 1.6;
+    }
+    .example-post .platform-tag {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: white;
+      padding: 2px 10px;
+      border-radius: 12px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+      font-size: 11px;
+      margin-bottom: 8px;
+      text-transform: uppercase;
+    }
+
+    .good-bad {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .good-example, .bad-example {
+      padding: 16px;
+      border-radius: var(--radius-md);
+      font-size: 14px;
+    }
+    .good-example {
+      background: rgba(52, 211, 153, 0.08);
+      border: 1px solid rgba(52, 211, 153, 0.3);
+    }
+    .bad-example {
+      background: rgba(239, 68, 68, 0.08);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+    }
+    .good-example::before {
+      content: "✅ DO THIS";
+      display: block;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      color: var(--accent-green);
+      margin-bottom: 8px;
+    }
+    .bad-example::before {
+      content: "❌ NOT THIS";
+      display: block;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 700;
+      font-size: 12px;
+      color: #ef4444;
+      margin-bottom: 8px;
+    }
+
+    .pillar-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 16px;
+      margin: 20px 0;
+    }
+    .pillar-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 20px;
+      text-align: center;
+    }
+    .pillar-card .pillar-icon {
+      font-size: 32px;
+      margin-bottom: 8px;
+    }
+    .pillar-card h4 {
+      margin: 8px 0 6px;
+      color: var(--accent-gold);
+    }
+    .pillar-card p {
+      font-size: 13px;
+      color: var(--text-secondary);
+      margin: 0;
+    }
+
+    .audience-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      margin: 14px 0;
+    }
+    .audience-card h4 {
+      margin-top: 0;
+    }
+
+    .hashtag-list {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin: 10px 0;
+    }
+    .hashtag {
+      display: inline-block;
+      background: var(--accent-gold-soft);
+      color: var(--accent-gold);
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-family: 'Outfit', sans-serif;
+      font-size: 13px;
+      font-weight: 500;
+    }
+
+    .campaign-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 22px;
+      margin: 16px 0;
+    }
+    .campaign-card h4 {
+      margin-top: 0;
+      font-size: 16px;
+    }
+
+    .metric-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 16px;
+      margin: 16px 0;
+    }
+    .metric-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 18px;
+    }
+    .metric-card h4 {
+      margin-top: 0;
+    }
+
+    .word-table {
+      width: 100%;
+      border-collapse: collapse;
+      margin: 16px 0;
+      font-size: 14px;
+    }
+    .word-table th, .word-table td {
+      border: 1px solid var(--border-subtle);
+      padding: 10px 14px;
+      text-align: left;
+      color: var(--text-primary);
+    }
+    .word-table th {
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: white;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 600;
+    }
+    .word-table tr:nth-child(even) {
+      background: var(--bg-input);
+    }
+
+    @media print {
+      body { padding: 20px; background: #fff; color: #222; }
+      .no-print { display: none !important; }
+      .highlight-box, .toc { background: #fff8e1 !important; }
+      p, li, h1, h2, h3, h4, td, th, strong { color: #222 !important; }
+      h2 { color: #8b6914 !important; border-color: #8b6914 !important; }
+      .example-post { border-color: #ccc !important; background: #fafafa !important; }
+      .good-example { background: #f0fdf4 !important; }
+      .bad-example { background: #fef2f2 !important; }
+      .pillar-card, .audience-card, .campaign-card, .metric-card { background: #fafafa !important; border-color: #ccc !important; }
+      .swatch-box { print-color-adjust: exact; -webkit-print-color-adjust: exact; }
+    }
+
+    .nav-buttons {
+      position: fixed;
+      top: 20px;
+      left: 0;
+      right: 0;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 100;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .print-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s ease;
+    }
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
+    }
+    .theme-toggle {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .footer-note {
+      text-align: center;
+      margin-top: 60px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+
+    @media (max-width: 768px) {
+      body { padding: 20px 16px; }
+      .nav-buttons { padding: 0 12px; }
+      h1 { font-size: 22px; }
+      h2 { font-size: 18px; }
+      ol, ul { margin-left: 20px; }
+      .toc ol { columns: 1; }
+      .good-bad { grid-template-columns: 1fr; }
+      .color-swatches { justify-content: center; }
+      .pillar-grid { grid-template-columns: 1fr 1fr; }
+    }
+    @media (max-width: 480px) {
+      .pillar-grid { grid-template-columns: 1fr; }
+    }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/ad-deck.html" />
+  <meta name="robots" content="noindex, nofollow" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+  <div class="nav-buttons no-print">
+    <a href="/" class="back-link">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Home
+    </a>
+    <div style="display: flex; gap: 12px;">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div style="height: 60px;"></div>
+
+  <div class="contract-badge">
+    <span>INTERNAL REFERENCE DOCUMENT</span>
+  </div>
+
+  <h1>Advertising & Social Media Deck</h1>
+  <p class="subtitle">My Car Concierge &mdash; The Social Media Manager's Bible (a.k.a. "How to Make Cars Cool on the Internet")</p>
+
+  <!-- TABLE OF CONTENTS -->
+  <div class="toc">
+    <h3>What's Inside This Glorious Document</h3>
+    <ol>
+      <li><a href="#brand-overview">Brand Overview (The "Who Are We?" Section)</a></li>
+      <li><a href="#voice-tone">Brand Voice & Tone (How We Sound When We're Being Charming)</a></li>
+      <li><a href="#visual-identity">Visual Identity (The Pretty Colors Section)</a></li>
+      <li><a href="#target-audiences">Target Audiences (The Humans We're Talking To)</a></li>
+      <li><a href="#key-messaging">Key Messaging & Ready-to-Use Copy (Steal These)</a></li>
+      <li><a href="#platform-features">Platform Features to Highlight (The Cool Stuff)</a></li>
+      <li><a href="#content-pillars">Content Pillars (Your Weekly Sanity Guide)</a></li>
+      <li><a href="#dos-donts">The Do's and Don'ts (a.k.a. "Please, For The Love of Cars")</a></li>
+      <li><a href="#hashtag-strategy">Hashtag Strategy (The # That Binds Us)</a></li>
+      <li><a href="#platform-guidelines">Platform-Specific Guidelines (Because TikTok ≠ LinkedIn)</a></li>
+      <li><a href="#campaign-ideas">Campaign Ideas (The Fun Part)</a></li>
+      <li><a href="#metrics-kpis">Metrics & KPIs (The Spreadsheet Lovers' Paradise)</a></li>
+    </ol>
+  </div>
+
+  <!-- SECTION 1: BRAND OVERVIEW -->
+  <h2 id="brand-overview">1. Brand Overview &mdash; "Who Are We and Why Should Anyone Care?"</h2>
+  <div class="section">
+    <div class="highlight-box">
+      <p><strong>THE ELEVATOR PITCH:</strong> My Car Concierge is the app that makes owning a car feel less like a part-time job and more like... well, having a concierge. We connect vehicle owners with vetted service providers through a competitive bidding marketplace. Providers compete for your business. You win. Everyone's happy. Except maybe the overpriced shops you used to go to.</p>
+    </div>
+
+    <h3>Mission</h3>
+    <p>Be <strong>"Your complete auto ownership platform."</strong> From the moment you buy a car to the moment you sell it (or lovingly pass it to your teenager who will immediately scratch it), we're there.</p>
+
+    <h3>Vision</h3>
+    <p>One app for every auto need. Oil change? Check. Mystery dashboard light that looks like a tiny submarine? Check. Finding your dream car? Check. Splitting the cost of your buddy's engine rebuild because he helped you move that one time? Also check.</p>
+
+    <h3>Tagline</h3>
+    <div class="highlight-box bronze">
+      <p style="text-align:center;font-size:22px;font-family:'Outfit',sans-serif;font-weight:700;margin:0;"><em>"One app. Every auto need. Zero hassle."</em></p>
+    </div>
+
+    <h3>The Four Pillars (Our Foundation, Not the Boring Kind)</h3>
+    <div class="pillar-grid">
+      <div class="pillar-card">
+        <div class="pillar-icon">💰</div>
+        <h4>Get Quotes</h4>
+        <p>Post what you need, watch providers compete for your business. It's like The Bachelor, but for brake pads.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-icon">🚗</div>
+        <h4>Manage Vehicles</h4>
+        <p>All your vehicles, all their records, all in one place. Your glove box can finally just hold gloves.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-icon">🔧</div>
+        <h4>Maintaining Your Ride</h4>
+        <p>Reminders, service history, diagnostics. We remember your oil change schedule so you don't have to.</p>
+      </div>
+      <div class="pillar-card">
+        <div class="pillar-icon">🛒</div>
+        <h4>Shop Smarter</h4>
+        <p>Merch, parts, services. All curated, all vetted, all without that weird guy from Craigslist.</p>
+      </div>
+    </div>
+
+    <h3>What Makes MCC Different (Spoiler: Everything)</h3>
+    <p>We're <strong>not a directory</strong>. We don't just list shops and say "good luck!" We're a <strong>competitive bidding marketplace</strong>. When you post a service request, providers see it and compete to earn your business. That means better prices, better service, and providers who actually want to impress you. Think of us as the dating app where the mechanics are trying to win YOU over.</p>
+  </div>
+
+  <!-- SECTION 2: VOICE & TONE -->
+  <h2 id="voice-tone">2. Brand Voice & Tone &mdash; "How We Sound When We're Being Charming"</h2>
+  <div class="section">
+    <h3>The MCC Personality in Four Words</h3>
+    <p><strong>Professional. Informative. Memorable. Witty.</strong></p>
+    <p>Think "your car-savvy friend who happens to be really smart" — not "your uncle who won't stop talking about horsepower at Thanksgiving." We're the friend who explains what that weird noise is without making you feel dumb, and maybe makes you laugh while doing it.</p>
+
+    <h3>Copy Terminology &mdash; The Auto/Ride/Vehicle Trinity</h3>
+    <div class="highlight-box teal">
+      <ul style="margin:0;">
+        <li><strong>"Auto"</strong> &mdash; Use for general references. Auto care, auto ownership, auto industry. It's clean, professional, and sounds like we know what we're doing.</li>
+        <li><strong>"Ride"</strong> &mdash; Use for casual/friendly tone. Your ride, your next ride, take care of your ride. It's warm, approachable, and makes people feel cool.</li>
+        <li><strong>"Vehicle"</strong> &mdash; Use in formal contexts. Vehicle owners, vehicle management, vehicle records. Save this for when we're wearing our business pants.</li>
+        <li><strong>"My Car Concierge"</strong> &mdash; The brand name never changes. Don't abbreviate to "Car Concierge" or "MCC" in customer-facing copy (MCC is fine internally and in hashtags).</li>
+      </ul>
+    </div>
+
+    <h3>Examples: The Good, The Bad, and The "Please Don't"</h3>
+    <div class="good-bad">
+      <div class="good-example">
+        "Your ride deserves better than a Google search and a prayer. Get real quotes from vetted pros."
+      </div>
+      <div class="bad-example">
+        "We offer comprehensive automotive service solutions through our innovative digital marketplace platform."
+      </div>
+    </div>
+    <div class="good-bad">
+      <div class="good-example">
+        "That check engine light isn't going to diagnose itself. (Well, actually, with our OBD scanner, it kind of does.)"
+      </div>
+      <div class="bad-example">
+        "Download our app today for all your car needs! Best app ever! #blessed #carlife"
+      </div>
+    </div>
+    <div class="good-bad">
+      <div class="good-example">
+        "Stop overpaying for oil changes. Start a bidding war instead. 🏆"
+      </div>
+      <div class="bad-example">
+        "HUGE SAVINGS!!! BEST PRICES GUARANTEED!!! CLICK NOW!!!"
+      </div>
+    </div>
+    <div class="good-bad">
+      <div class="good-example">
+        "We asked 1,000 car owners their biggest frustration. Spoiler: it wasn't parallel parking."
+      </div>
+      <div class="bad-example">
+        "Hey guys!! Omg we just launched this super cool new feature and it's literally amazing you HAVE to check it out!!"
+      </div>
+    </div>
+
+    <h3>Humor Guidelines &mdash; The Comedy Rulebook</h3>
+    <ul>
+      <li><strong>Clever wordplay:</strong> Always welcome. "Oil's well that ends well" is peak MCC humor.</li>
+      <li><strong>Dad jokes:</strong> Acceptable in moderation. One per post max. We're not a greeting card company.</li>
+      <li><strong>Self-deprecating humor:</strong> Light and occasional. "We can't parallel park either, but we CAN find you a great mechanic."</li>
+      <li><strong>Sarcasm:</strong> Gentle, never biting. Directed at situations, not people.</li>
+      <li><strong>Mean-spirited humor:</strong> Never. We don't trash talk competitors, make fun of people's car knowledge (or lack thereof), or punch down. Ever.</li>
+      <li><strong>Pop culture references:</strong> Yes, but make sure they'll age well. No memes from 2012.</li>
+    </ul>
+  </div>
+
+  <!-- SECTION 3: VISUAL IDENTITY -->
+  <h2 id="visual-identity">3. Visual Identity &mdash; "The Pretty Colors Section"</h2>
+  <div class="section">
+    <h3>Dark Mode Palette (The Default, The Vibe)</h3>
+    <div class="color-swatches">
+      <div class="swatch">
+        <div class="swatch-box" style="background:#12161c;"></div>
+        <div class="swatch-label">Deep Slate</div>
+        <div class="swatch-hex">#12161c</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#c9a227;"></div>
+        <div class="swatch-label">Gold</div>
+        <div class="swatch-hex">#c9a227</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#cd7f32;"></div>
+        <div class="swatch-label">Bronze</div>
+        <div class="swatch-hex">#cd7f32</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#38bdf8;"></div>
+        <div class="swatch-label">Teal/Sky</div>
+        <div class="swatch-hex">#38bdf8</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#f5f5f7;"></div>
+        <div class="swatch-label">Light Text</div>
+        <div class="swatch-hex">#f5f5f7</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#34d399;"></div>
+        <div class="swatch-label">Green Accent</div>
+        <div class="swatch-hex">#34d399</div>
+      </div>
+    </div>
+
+    <h3>Light Mode Palette (For the Daywalkers)</h3>
+    <div class="color-swatches">
+      <div class="swatch">
+        <div class="swatch-box" style="background:#fefdfb; border-color: #ddd;"></div>
+        <div class="swatch-label">Off-White</div>
+        <div class="swatch-hex">#fefdfb</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#1e3a5f;"></div>
+        <div class="swatch-label">Navy</div>
+        <div class="swatch-hex">#1e3a5f</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#b8942d;"></div>
+        <div class="swatch-label">Gold</div>
+        <div class="swatch-hex">#b8942d</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#a06424;"></div>
+        <div class="swatch-label">Bronze</div>
+        <div class="swatch-hex">#a06424</div>
+      </div>
+      <div class="swatch">
+        <div class="swatch-box" style="background:#1e293b;"></div>
+        <div class="swatch-label">Dark Text</div>
+        <div class="swatch-hex">#1e293b</div>
+      </div>
+    </div>
+
+    <h3>Typography</h3>
+    <ul>
+      <li><strong>Outfit</strong> &mdash; All headings, buttons, UI elements, and anything that needs to look sharp. It's our "look how modern and cool we are" font.</li>
+      <li><strong>Georgia</strong> &mdash; Body text in formal contexts (agreements, long-form content). It says "we're trustworthy and literate."</li>
+    </ul>
+
+    <h3>The Aesthetic: Premium Garage, Not Used Car Lot</h3>
+    <div class="highlight-box">
+      <p><strong>THINK:</strong> Luxury showroom floor. Brushed metal. Subtle gradients. The smell of new leather (if screens could smell).</p>
+      <p><strong>DON'T THINK:</strong> Inflatable waving tube men. Red and yellow "SALE SALE SALE" banners. Clipart of cartoon cars. Comic Sans. (We should not have to say this, but here we are.)</p>
+    </div>
+    <ul>
+      <li>Metallic gradients (gold-to-bronze) for emphasis elements</li>
+      <li>Subtle glass-morphism effects on cards</li>
+      <li>Clean whitespace — let the content breathe</li>
+      <li>Dark backgrounds make the gold pop. Use this to your advantage.</li>
+      <li>Photography should feel authentic, not stock-photo-y. Real garages, real cars, real people. If you can see the watermark in your soul, pick a different image.</li>
+    </ul>
+  </div>
+
+  <!-- SECTION 4: TARGET AUDIENCES -->
+  <h2 id="target-audiences">4. Target Audiences &mdash; "The Humans We're Talking To"</h2>
+  <div class="section">
+    <div class="audience-card">
+      <h4>🎯 The Savvy Vehicle Owner (a.k.a. "Never Again Nancy/Ned")</h4>
+      <p><strong>Who they are:</strong> Adults 25-55 who own one or more vehicles and have been burned before. They've paid $800 for a repair that should've been $200. They've sat in a waiting room watching Judge Judy while their "quick oil change" took three hours. They're tired. They're skeptical. And they're ready for something better.</p>
+      <p><strong>What they want to hear:</strong> "You're not crazy for thinking you're getting ripped off. You probably are. Here's how to stop it."</p>
+      <p><strong>How to reach them:</strong> Relatable frustration content, comparison posts, value propositions that show real savings, testimonials from people just like them.</p>
+    </div>
+
+    <div class="audience-card">
+      <h4>🔧 The Service Provider (a.k.a. "More Customers Mike/Maria")</h4>
+      <p><strong>Who they are:</strong> Independent mechanics, auto shops, mobile detailers, towing companies, and specialty service providers who are great at what they do but not so great at marketing. They're paying for leads that go nowhere. They're tired of competing on Yelp with shops that have fake reviews.</p>
+      <p><strong>What they want to hear:</strong> "Stop paying for maybe-customers. Get real jobs from real people who already need your exact service."</p>
+      <p><strong>How to reach them:</strong> LinkedIn, Facebook groups, provider success stories, ROI comparisons vs. traditional lead gen, business growth content.</p>
+    </div>
+
+    <div class="audience-card">
+      <h4>🏆 The Founding Member (a.k.a. "Early Adopter Eddie/Emily")</h4>
+      <p><strong>Who they are:</strong> The kind of person who backed Oculus on Kickstarter, had a Gmail account when you still needed an invite, and genuinely enjoys being first. They want to shape the platform, get exclusive perks, and tell everyone they were "there from the beginning."</p>
+      <p><strong>What they want to hear:</strong> "You're not just using an app. You're building something. Also, you get perks that latecomers will be very jealous of."</p>
+      <p><strong>How to reach them:</strong> Exclusivity messaging, founder updates, behind-the-scenes content, limited-time offers, community building, "be part of the story" narratives.</p>
+    </div>
+
+    <div class="audience-card">
+      <h4>🤷 The "I Don't Know Anything About Cars" Crowd (a.k.a. The Largest Demographic on Earth)</h4>
+      <p><strong>Who they are:</strong> Everyone who has ever Googled "what does the engine light mean" or "how often should I change my oil" or "is that noise bad." They're not dumb — they just have other things going on. They don't want to learn everything about cars; they want someone trustworthy to handle it.</p>
+      <p><strong>What they want to hear:</strong> "You don't need to know how a carburetor works. (Most modern cars don't even have carburetors. See? We got you.)"</p>
+      <p><strong>How to reach them:</strong> Educational content that's genuinely helpful (not condescending), "explain it like I'm five" posts, AI diagnostic features, relatable humor about car illiteracy.</p>
+    </div>
+  </div>
+
+  <!-- SECTION 5: KEY MESSAGING -->
+  <h2 id="key-messaging">5. Key Messaging & Ready-to-Use Copy &mdash; "Steal These, Please"</h2>
+  <div class="section">
+    <h3>Headlines for Different Platforms</h3>
+    <table class="word-table">
+      <tr>
+        <th>Platform</th>
+        <th>Headline</th>
+      </tr>
+      <tr>
+        <td>Instagram</td>
+        <td>Your ride deserves a bidding war. 🏆</td>
+      </tr>
+      <tr>
+        <td>Facebook</td>
+        <td>Why are you still Googling "mechanic near me"?</td>
+      </tr>
+      <tr>
+        <td>TikTok</td>
+        <td>POV: Mechanics are competing to fix YOUR car</td>
+      </tr>
+      <tr>
+        <td>X / Twitter</td>
+        <td>Your car called. It wants better options.</td>
+      </tr>
+      <tr>
+        <td>LinkedIn</td>
+        <td>The auto service industry is broken. We're fixing it.</td>
+      </tr>
+    </table>
+
+    <h3>CTAs That Actually Work (Because "Click Here" Died in 2008)</h3>
+    <ul>
+      <li>"Get your first quote free — no mechanic degree required."</li>
+      <li>"Post your job. Watch pros compete. Pick your favorite."</li>
+      <li>"Join the founding crew. Perks included. Bragging rights guaranteed."</li>
+      <li>"Download the app your car has been waiting for."</li>
+      <li>"Stop overpaying. Start a bidding war."</li>
+      <li>"Your ride called. It says you should sign up."</li>
+      <li>"One app. Every auto need. Try it free."</li>
+    </ul>
+
+    <h3>Value Props by Audience</h3>
+    <div class="highlight-box">
+      <p><strong>For Vehicle Owners:</strong> "Providers compete for your business, so you get better prices and better service. It's capitalism working in YOUR favor for once."</p>
+    </div>
+    <div class="highlight-box bronze">
+      <p><strong>For Providers:</strong> "Real customers with real jobs, delivered to you. No more paying for leads that ghost you. Build your reputation, grow your business."</p>
+    </div>
+    <div class="highlight-box teal">
+      <p><strong>For Founding Members:</strong> "Shape the platform from day one. Exclusive perks, early access, and the eternal bragging rights of being a founder."</p>
+    </div>
+
+    <h3>Example Social Posts &mdash; Instagram</h3>
+    <div class="example-post">
+      <span class="platform-tag">Instagram</span>
+      <p>That moment when three mechanics are competing to give you the best price on brake pads, and you're just sitting there like a reality TV judge. 🌹🔧</p>
+      <p>That's My Car Concierge. Post your service request, sit back, and let the pros come to you.</p>
+      <p>#MyCarConcierge #YourRideYourWay #AutoCare #ZeroHassle</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">Instagram</span>
+      <p>Things we Googled this year:<br>
+      ✅ "What's that weird noise my car makes"<br>
+      ✅ "Is it bad if my check engine light has been on for... a while"<br>
+      ✅ "How much should an oil change actually cost"<br><br>
+      Imagine if one app could answer all of that. Oh wait. 😏</p>
+      <p>#MyCarConcierge #CarOwnerLife #ZeroHassle</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">Instagram</span>
+      <p>🚨 UNPOPULAR OPINION: You shouldn't have to be a "car person" to not get ripped off on auto repairs.</p>
+      <p>My Car Concierge was built for the 90% of us who can't tell a spark plug from a glow plug (yes, those are different things). Vetted providers. Competitive bids. Zero intimidation.</p>
+      <p>#MyCarConcierge #AutoOwnership #MCC</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">Instagram</span>
+      <p>Your relationship status with your mechanic: it's complicated. 💔🔧</p>
+      <p>Time for an upgrade. My Car Concierge lets you compare vetted pros, read real reviews, and never wonder "was that actually necessary?" again.</p>
+      <p>#MyCarConcierge #YourRideYourWay #BreakUpWithYourMechanic</p>
+    </div>
+
+    <h3>Example Social Posts &mdash; Facebook</h3>
+    <div class="example-post">
+      <span class="platform-tag">Facebook</span>
+      <p>True story: Last week, a member saved $340 on a transmission flush because three providers competed for the job on My Car Concierge.</p>
+      <p>$340. That's a car payment. Or 68 coffees. Or one really nice dinner you actually deserve.</p>
+      <p>Stop accepting the first price you get. Start a bidding war for your business. 💰</p>
+      <p>👉 Link in comments</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">Facebook</span>
+      <p>POLL: What's your biggest car ownership frustration?</p>
+      <p>🅰️ Not knowing if I'm getting a fair price<br>
+      🅱️ Finding a trustworthy mechanic<br>
+      ©️ Remembering when things need to be serviced<br>
+      🅳️ All of the above (let's be honest)</p>
+      <p>Whatever you picked, we built an app for that. 😉</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">Facebook</span>
+      <p>🔧 PRO TIP TUESDAY: Your car's owner's manual actually tells you exactly when everything needs to be serviced. The problem? Nobody reads it. (It's okay. We don't judge.)</p>
+      <p>My Car Concierge tracks all of this for you automatically. Set up your vehicle, and we'll remind you before things get expensive.</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">Facebook</span>
+      <p>To every person who's ever sat in an auto shop waiting room wondering "is this going to be $200 or $2,000"... we see you. We built this for you. 🫶</p>
+      <p>My Car Concierge: where you get the price BEFORE the anxiety.</p>
+    </div>
+
+    <h3>Example Social Posts &mdash; TikTok</h3>
+    <div class="example-post">
+      <span class="platform-tag">TikTok</span>
+      <p><strong>Concept:</strong> "Things my car would say if it could talk"</p>
+      <p>Format: Talking to camera with text overlay<br>
+      "Your oil change was due 3,000 miles ago but sure, let's listen to another podcast" 💀<br>
+      CTA: "My Car Concierge reminds you before your car has to stage an intervention."</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">TikTok</span>
+      <p><strong>Concept:</strong> "Types of people at the auto shop"</p>
+      <p>Format: Quick character switches<br>
+      - The "just nod and pretend you understand" person<br>
+      - The "I watched one YouTube video so basically I'm a mechanic" person<br>
+      - The "can I just pay whatever, I need to leave" person<br>
+      - The My Car Concierge user who already has three competitive quotes ✨<br>
+      CTA: "Be the fourth person."</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">TikTok</span>
+      <p><strong>Concept:</strong> "How much I paid vs. how much I should have paid"</p>
+      <p>Format: Split screen with price comparison<br>
+      "Paid $900 for brakes at the dealership. MCC users paid $380 for the same job."<br>
+      Trending sound: "It's giving... overpaying"<br>
+      CTA: "Stop donating to your dealership's vacation fund."</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">TikTok</span>
+      <p><strong>Concept:</strong> "When the check engine light comes on" POV</p>
+      <p>Format: POV reaction video<br>
+      *check engine light appears* → panic → opens MCC app → AI diagnostic scan → "Oh, it's just the gas cap" → relief<br>
+      CTA: "Our AI scanner turns panic into peace. Link in bio."</p>
+    </div>
+
+    <h3>Example Social Posts &mdash; X / Twitter</h3>
+    <div class="example-post">
+      <span class="platform-tag">X / Twitter</span>
+      <p>Hot take: The auto repair industry's business model is literally "hope the customer doesn't know what things cost."</p>
+      <p>We're changing that. 🔧</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">X / Twitter</span>
+      <p>your car's check engine light has been on so long it's basically a feature at this point</p>
+      <p>our AI diagnostic scanner: 👁️👄👁️</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">X / Twitter</span>
+      <p>mechanic: "well there's your problem"<br>me: *nodding like I see a problem and definitely didn't just Google what a catalytic converter is in the parking lot*</p>
+      <p>My Car Concierge was built for people like me. And you. Mostly you.</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">X / Twitter</span>
+      <p>Normalize making mechanics compete for your business instead of accepting the first quote like it's a marriage proposal you can't refuse.</p>
+      <p>#MyCarConcierge</p>
+    </div>
+
+    <h3>Example Social Posts &mdash; LinkedIn</h3>
+    <div class="example-post">
+      <span class="platform-tag">LinkedIn</span>
+      <p>The auto service industry generates $300B+ in annual revenue. But the customer experience hasn't fundamentally changed in decades.</p>
+      <p>At My Car Concierge, we're building the competitive marketplace the industry needs. Providers compete on quality and price. Vehicle owners get transparency they've never had.</p>
+      <p>We're currently onboarding founding providers in select markets. If you're a service provider looking to grow your customer base without expensive lead-gen services, let's talk.</p>
+      <p>#Automotive #Startup #AutoTech #Innovation</p>
+    </div>
+    <div class="example-post">
+      <span class="platform-tag">LinkedIn</span>
+      <p>I used to think the hardest part of building a startup was the technology.</p>
+      <p>Turns out, the hardest part is convincing people that the way they've always done things isn't the only way. Auto service has worked the same way for 50 years: you find a shop, you hope they're honest, you pay whatever they say.</p>
+      <p>We're building a world where providers compete for your business. It's not revolutionary — it's how every other industry already works. Auto just needed to catch up.</p>
+      <p>🚗 mycarconcierge.com</p>
+    </div>
+  </div>
+
+  <!-- SECTION 6: PLATFORM FEATURES -->
+  <h2 id="platform-features">6. Platform Features to Highlight &mdash; "The Cool Stuff We Actually Built"</h2>
+  <div class="section">
+    <div class="campaign-card">
+      <h4>💰 Competitive Bidding</h4>
+      <p><strong>What it is:</strong> Providers compete for YOUR business. Post a service request, get multiple bids, pick the best one.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Stop accepting the first price. Start a bidding war." (empowerment)</li>
+        <li>Before/after price comparison graphics</li>
+        <li>"What if buying car repairs worked like buying plane tickets?" (analogy)</li>
+        <li>Member savings spotlights ("Sarah saved $240 on her brake job")</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>💸 Split Payments / Crowd-Funding Jobs</h4>
+      <p><strong>What it is:</strong> Split the cost of a repair with friends, family, or crowdfund big jobs. Because sometimes your engine rebuild needs a GoFundMe.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Your friend helped you move. Now help fund their timing belt." (reciprocity)</li>
+        <li>"Birthday coming up? Ask for brake pads instead of a gift card." (humor)</li>
+        <li>Infographic: "How split payments work in 3 easy steps"</li>
+        <li>"The gift of functioning brakes > another candle from Bed Bath & Beyond"</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🤖 OBD Diagnostic Scanner with AI</h4>
+      <p><strong>What it is:</strong> Plug in, scan, get a plain-English explanation of what's wrong. No mechanic degree required.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Your check engine light, translated from robot to human." (simplicity)</li>
+        <li>"We turned 'P0420' into 'Your catalytic converter needs attention.'" (before/after)</li>
+        <li>Video: person panicking at dashboard light → calm after AI explanation</li>
+        <li>"Finally, an AI that actually solves problems instead of writing poetry about them"</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🏎️ Dream Car Finder</h4>
+      <p><strong>What it is:</strong> Tell us your dream car. We'll find it. Think of it as a dating profile, but for vehicles.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Swiping right on your dream car" (dating app metaphor)</li>
+        <li>Interactive polls: "Which dream car would you search for?"</li>
+        <li>"We can't find you a soulmate, but we CAN find you a 2024 Bronco in Cactus Grey."</li>
+        <li>User stories: "I described my dream car on Monday. Drove it home on Friday."</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>📋 Vehicle Management</h4>
+      <p><strong>What it is:</strong> All your vehicles, service records, reminders, and documents in one beautiful dashboard.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Your glove box called. It wants to retire." (humor)</li>
+        <li>"One dashboard for all your rides" (clean, product-focused)</li>
+        <li>Carousel: "5 things you're tracking on sticky notes that should be in an app"</li>
+        <li>Comparison: glove box stuffed with papers vs. clean MCC dashboard</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>⭐ Provider Ratings & Vetting</h4>
+      <p><strong>What it is:</strong> Every provider is vetted. Real reviews from real customers. No fake 5-star floods.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Yelp reviews: 'Great shop!' (posted by the owner's mom)" vs. MCC's verified reviews</li>
+        <li>"We vet providers so you don't have to play detective" (trust)</li>
+        <li>Provider spotlight stories with real ratings</li>
+        <li>"The difference between 4.2 stars with 500 reviews and 5.0 stars with 3 reviews"</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>👕 Merch Store</h4>
+      <p><strong>What it is:</strong> Premium automotive-themed merchandise. Because you should look as good as your ride.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>Product showcases with lifestyle photography</li>
+        <li>"Rep the brand that reps your ride"</li>
+        <li>New drop announcements with countdown timers</li>
+        <li>"The official uniform of people who refuse to overpay for car repairs"</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🎓 My Car Academy</h4>
+      <p><strong>What it is:</strong> Educational content that actually teaches you useful things without the condescension.</p>
+      <p><strong>Post angles:</strong></p>
+      <ul>
+        <li>"Things they should've taught in school but didn't" series</li>
+        <li>Quick tips: "60 seconds to understanding your tire pressure"</li>
+        <li>"Graduate from 'I don't know anything about cars' to 'I know enough to not get scammed'"</li>
+        <li>Quiz posts: "Can you identify these dashboard warning lights?"</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- SECTION 7: CONTENT PILLARS -->
+  <h2 id="content-pillars">7. Content Pillars &mdash; "Your Weekly Sanity Guide"</h2>
+  <div class="section">
+    <p>Think of these as your content buckets. Every post should fall into one of these categories. If it doesn't fit any of them, it probably doesn't belong on our feed. (Unless it's a picture of someone's dog in a car. That always belongs.)</p>
+
+    <div class="campaign-card">
+      <h4>📚 Educational / Tips — "Did You Know..." Style</h4>
+      <p>Teach people something useful without being boring about it.</p>
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>"Did you know? The average American spends $9,666 per year on car ownership. Here's how to cut that by 20%."</li>
+        <li>"Your tire pressure drops ~1 PSI for every 10°F temperature drop. Your tires aren't leaking — it's just cold. Chill. (Pun intended.)"</li>
+        <li>"The 'D' in your automatic transmission stands for 'Drive,' not 'Do everything.' Here are 5 things you're probably doing that your car hates."</li>
+        <li>"Quick quiz: How often should you actually rotate your tires? A) Every oil change B) Every 5,000-7,500 miles C) When they start looking bored"</li>
+      </ul>
+      <p><strong>Frequency:</strong> 2-3 posts per week across platforms</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>✨ Feature Spotlights</h4>
+      <p>Show off what the platform can do, but make it about the user's benefit, not our tech specs.</p>
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>Screen recording walkthroughs with casual narration</li>
+        <li>"In 30 seconds: how to post a service request and get 3 bids" (Reel/TikTok)</li>
+        <li>"New feature alert: You can now split the cost of a repair with friends. Because friendship is beautiful. And also expensive."</li>
+        <li>Before/after: "Finding a mechanic the old way vs. the MCC way" (carousel)</li>
+      </ul>
+      <p><strong>Frequency:</strong> 1-2 posts per week</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🏆 Provider Success Stories</h4>
+      <p>Humanize our providers. Show that real people are growing real businesses through MCC.</p>
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>"Meet Marco: a mobile detailer who went from 3 clients a week to 12 using My Car Concierge."</li>
+        <li>Short video interview: "Why I joined MCC" (filmed on phone, authentic feel)</li>
+        <li>"Provider of the Month" spotlight with photo and story</li>
+        <li>Quote graphic: "I stopped paying $400/month for leads that never converted. Now customers come to me." — Provider testimonial</li>
+      </ul>
+      <p><strong>Frequency:</strong> 1 post per week</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🗣️ Community / Engagement</h4>
+      <p>Get people talking. Ask questions. Run polls. Be the account people actually want to interact with.</p>
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>"What's the most ridiculous thing a mechanic has ever told you? Wrong answers only. (Actually, right answers are probably funnier.)"</li>
+        <li>"Poll: What color would your dream car be? 🔴🔵⚫⚪"</li>
+        <li>"Rate your car knowledge on a scale of 'I call AAA for everything' to 'I rebuilt an engine in my garage'"</li>
+        <li>"Caption this" posts with funny car photos</li>
+        <li>"If your car could leave you a Yelp review, what would it say?"</li>
+      </ul>
+      <p><strong>Frequency:</strong> 2-3 posts per week</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🚀 Promotional / Launches</h4>
+      <p>New features, new markets, new milestones. Celebrate them, but make it about the audience.</p>
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>"We just hit 1,000 founding members. You're either one of them, or you're about to wish you were."</li>
+        <li>"New city unlocked: [City Name] providers are now on MCC. Your days of overpaying are numbered."</li>
+        <li>Feature launch countdown posts (3 days, 2 days, 1 day, IT'S HERE)</li>
+        <li>"Founding member perks are going, going... still here but going. Lock in your spot."</li>
+      </ul>
+      <p><strong>Frequency:</strong> As needed, 1-2 per week max</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🎬 Behind the Scenes / Founder's Journey</h4>
+      <p>People connect with people, not logos. Show the humans building this thing.</p>
+      <p><strong>Examples:</strong></p>
+      <ul>
+        <li>"3 AM and we're still coding because someone (me) had a 'quick idea' at 11 PM."</li>
+        <li>"Here's what building a startup actually looks like" (messy desk, empty coffee cups, determination)</li>
+        <li>"I quit my job to build an app because I was tired of getting ripped off at the mechanic. Here's what happened."</li>
+        <li>Monthly founder updates: "What we built this month, what broke, and what we learned"</li>
+        <li>"Every 'overnight success' is actually 2 years of debugging. Here's our real timeline."</li>
+      </ul>
+      <p><strong>Frequency:</strong> 1-2 posts per week</p>
+    </div>
+  </div>
+
+  <!-- SECTION 8: DO'S AND DON'TS -->
+  <h2 id="dos-donts">8. The Do's and Don'ts &mdash; "Please, For The Love of Cars"</h2>
+  <div class="section">
+    <h3>The Do's ✅ (Things That Make Us Look Good)</h3>
+    <ul>
+      <li><strong>DO be relatable.</strong> If your post sounds like it was written by a human who has actually owned a car, you're on the right track.</li>
+      <li><strong>DO use humor.</strong> A smile is the first step to a download. Make people feel something besides "ugh, another ad."</li>
+      <li><strong>DO show real value.</strong> Every post should answer the question: "Why should I care?" If you can't answer that, scrap the post and try again.</li>
+      <li><strong>DO use real numbers when possible.</strong> "$340 saved" hits harder than "save money."</li>
+      <li><strong>DO respond to comments like a human.</strong> Not a robot. Not a brand. A witty, helpful human who happens to represent a brand.</li>
+      <li><strong>DO celebrate providers.</strong> They're our partners, not our inventory.</li>
+      <li><strong>DO use emojis strategically.</strong> They're seasoning, not the main course. A well-placed 🔧 or 💰 adds personality. Seventeen emojis in a row adds chaos.</li>
+      <li><strong>DO test different content types.</strong> Carousels, Reels, Stories, polls. See what sticks.</li>
+      <li><strong>DO stay culturally aware.</strong> Know what's happening in the world. Don't post a lighthearted meme during a crisis.</li>
+    </ul>
+
+    <h3>The Don'ts ❌ (Things That Make Us Cringe)</h3>
+    <ul>
+      <li><strong>DON'T sound like a car dealership commercial.</strong> If you can hear a man in a cowboy hat yelling your copy, rewrite it immediately.</li>
+      <li><strong>DON'T use stock photo vibes.</strong> No perfectly diverse groups of friends laughing at a salad — er, we mean, at a car manual. Real photos or high-quality designed graphics only.</li>
+      <li><strong>DON'T be boring.</strong> There are 4 billion social media posts per day. If yours doesn't stop a thumb, it doesn't exist.</li>
+      <li><strong>DON'T trash talk competitors.</strong> We win by being better, not by making others look worse. Let the product speak.</li>
+      <li><strong>DON'T make people feel dumb.</strong> If someone doesn't know what a timing belt is, that's our opportunity to educate — not to impress them with jargon.</li>
+      <li><strong>DON'T overuse "disrupting the industry" or "revolutionary."</strong> Every startup says this. Show, don't tell.</li>
+      <li><strong>DON'T post just to post.</strong> Quality over quantity. Always. One great post beats five forgettable ones.</li>
+      <li><strong>DON'T forget the CTA.</strong> Every post should gently guide people somewhere. Even engagement posts should build toward brand awareness.</li>
+      <li><strong>DON'T use Comic Sans, papyrus, or any font that looks like a ransom note.</strong> We have Outfit and Georgia. They're beautiful. Use them.</li>
+    </ul>
+
+    <h3>Word Choices: The Cheat Sheet</h3>
+    <table class="word-table">
+      <tr>
+        <th>Use This ✅</th>
+        <th>Not This ❌</th>
+        <th>Why</th>
+      </tr>
+      <tr>
+        <td>Your ride</td>
+        <td>Your automobile</td>
+        <td>Nobody says "automobile" unless they're writing a legal document from 1952</td>
+      </tr>
+      <tr>
+        <td>Auto care</td>
+        <td>Vehicle maintenance services</td>
+        <td>We're not a government pamphlet</td>
+      </tr>
+      <tr>
+        <td>Vetted pros</td>
+        <td>Certified service professionals</td>
+        <td>Sounds human vs. sounds like a diploma</td>
+      </tr>
+      <tr>
+        <td>Get quotes</td>
+        <td>Request service estimates</td>
+        <td>Simple, action-oriented, friendly</td>
+      </tr>
+      <tr>
+        <td>Save money</td>
+        <td>Achieve cost optimization</td>
+        <td>We're not McKinsey</td>
+      </tr>
+      <tr>
+        <td>Bidding war</td>
+        <td>Competitive marketplace pricing</td>
+        <td>One sounds exciting, one sounds like a textbook</td>
+      </tr>
+      <tr>
+        <td>We got you</td>
+        <td>We provide comprehensive solutions</td>
+        <td>Warmth > corporate speak</td>
+      </tr>
+      <tr>
+        <td>Let's be honest</td>
+        <td>Transparently speaking</td>
+        <td>One sounds like a friend, the other like a press release</td>
+      </tr>
+      <tr>
+        <td>Your next ride</td>
+        <td>Your next vehicle purchase</td>
+        <td>Exciting vs. transactional</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- SECTION 9: HASHTAG STRATEGY -->
+  <h2 id="hashtag-strategy">9. Hashtag Strategy &mdash; "The # That Binds Us"</h2>
+  <div class="section">
+    <h3>Branded Hashtags (Always Use At Least One)</h3>
+    <div class="hashtag-list">
+      <span class="hashtag">#MyCarConcierge</span>
+      <span class="hashtag">#MCC</span>
+      <span class="hashtag">#YourRideYourWay</span>
+      <span class="hashtag">#ZeroHassle</span>
+      <span class="hashtag">#MCCFounder</span>
+      <span class="hashtag">#MCCProvider</span>
+      <span class="hashtag">#BiddingOnMyRide</span>
+    </div>
+
+    <h3>Industry Hashtags (Mix and Match)</h3>
+    <div class="hashtag-list">
+      <span class="hashtag">#AutoCare</span>
+      <span class="hashtag">#CarLife</span>
+      <span class="hashtag">#CarOwner</span>
+      <span class="hashtag">#AutoRepair</span>
+      <span class="hashtag">#MechanicLife</span>
+      <span class="hashtag">#CarMaintenance</span>
+      <span class="hashtag">#AutoTech</span>
+      <span class="hashtag">#CarTips</span>
+      <span class="hashtag">#DreamCar</span>
+      <span class="hashtag">#CarCommunity</span>
+      <span class="hashtag">#AutoOwnership</span>
+      <span class="hashtag">#CarHack</span>
+      <span class="hashtag">#GarageLife</span>
+      <span class="hashtag">#CarLovers</span>
+      <span class="hashtag">#AutoIndustry</span>
+    </div>
+
+    <h3>Platform-Specific Hashtag Counts</h3>
+    <table class="word-table">
+      <tr>
+        <th>Platform</th>
+        <th>Hashtag Count</th>
+        <th>Notes</th>
+      </tr>
+      <tr>
+        <td>Instagram (Feed)</td>
+        <td>8-15 hashtags</td>
+        <td>Mix branded + industry + niche. Put in caption, not comments.</td>
+      </tr>
+      <tr>
+        <td>Instagram (Reels)</td>
+        <td>5-8 hashtags</td>
+        <td>Fewer, more targeted. Focus on discoverability.</td>
+      </tr>
+      <tr>
+        <td>Instagram (Stories)</td>
+        <td>1-3 hashtags</td>
+        <td>Use the hashtag sticker. Keep it clean.</td>
+      </tr>
+      <tr>
+        <td>Facebook</td>
+        <td>2-5 hashtags</td>
+        <td>Less is more. Facebook isn't really a hashtag platform. Don't force it.</td>
+      </tr>
+      <tr>
+        <td>TikTok</td>
+        <td>3-5 hashtags</td>
+        <td>Include trending + branded. Check what's trending before posting.</td>
+      </tr>
+      <tr>
+        <td>X / Twitter</td>
+        <td>1-3 hashtags</td>
+        <td>Woven into the tweet naturally, not tacked on like an afterthought.</td>
+      </tr>
+      <tr>
+        <td>LinkedIn</td>
+        <td>3-5 hashtags</td>
+        <td>Industry-focused. Keep it professional. #Disrupting #Synergies is not a thing.</td>
+      </tr>
+    </table>
+  </div>
+
+  <!-- SECTION 10: PLATFORM GUIDELINES -->
+  <h2 id="platform-guidelines">10. Platform-Specific Guidelines &mdash; "Because TikTok ≠ LinkedIn"</h2>
+  <div class="section">
+    <div class="campaign-card">
+      <h4>📸 Instagram — "Look Good, Feel Good, Download Good"</h4>
+      <p><strong>Vibe:</strong> Visual-first. Premium. Aspirational but accessible.</p>
+      <p><strong>Feed Posts:</strong></p>
+      <ul>
+        <li>High-quality graphics using brand colors (dark background, gold accents)</li>
+        <li>Carousel posts for educational content (swipeable tips, step-by-step guides)</li>
+        <li>User-generated content (reposts of members showing off their rides)</li>
+        <li>Quote graphics with member/provider testimonials</li>
+      </ul>
+      <p><strong>Stories Strategy:</strong></p>
+      <ul>
+        <li>Daily: Behind-the-scenes, polls, quick tips, countdown stickers for launches</li>
+        <li>Use interactive stickers (polls, quizzes, sliders) to boost engagement</li>
+        <li>"This or That" series: comparing auto care choices</li>
+        <li>Save Highlights: "About MCC," "Tips," "Providers," "Merch," "FAQs"</li>
+      </ul>
+      <p><strong>Reels Ideas:</strong></p>
+      <ul>
+        <li>"Types of car owners" comedy sketches</li>
+        <li>Quick walkthroughs of app features (30-60 seconds)</li>
+        <li>"How much should this cost?" with price reveals</li>
+        <li>Trend-jacking with automotive twists (use trending audio)</li>
+        <li>Provider day-in-the-life content</li>
+      </ul>
+      <p><strong>Carousel Post Ideas:</strong></p>
+      <ul>
+        <li>"5 Signs Your Mechanic Is Overcharging You" (educational)</li>
+        <li>"How Competitive Bidding Works — in 5 Slides" (product)</li>
+        <li>"Car Maintenance Checklist by Season" (value-add)</li>
+        <li>"Before MCC vs. After MCC" (comparison)</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>👥 Facebook — "Where Your Mom and Your Mechanic Both Hang Out"</h4>
+      <p><strong>Vibe:</strong> Community-driven. Conversational. Helpful neighbor energy.</p>
+      <p><strong>Content Strategy:</strong></p>
+      <ul>
+        <li>Longer-form posts that tell stories (Facebook users actually read captions)</li>
+        <li>Polls and questions to drive comments (the algorithm loves comments)</li>
+        <li>Share blog posts, tips, and educational content with commentary</li>
+        <li>Video content gets priority in the algorithm — use it</li>
+      </ul>
+      <p><strong>Group Strategy:</strong></p>
+      <ul>
+        <li>Create an "MCC Community" group for members</li>
+        <li>Weekly Q&A threads: "Ask a mechanic anything"</li>
+        <li>Encourage members to share their MCC experiences</li>
+        <li>Provider introductions: "Meet Your Local Pros" series</li>
+      </ul>
+      <p><strong>Ad Targeting Notes:</strong></p>
+      <ul>
+        <li>Primary: Adults 25-55, car owners, interests in automotive care, DIY, car shopping</li>
+        <li>Lookalike audiences based on existing members</li>
+        <li>Retargeting: website visitors, app installers who haven't completed signup</li>
+        <li>Geographic targeting for market-specific launches</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🎵 TikTok — "Where We're Funny First, Brand Second"</h4>
+      <p><strong>Vibe:</strong> Humor-first. Relatable. Raw and authentic. If it looks too polished, it won't work here.</p>
+      <p><strong>Content Philosophy:</strong> On TikTok, you're competing with dancing teenagers and cat videos. Your content needs to be genuinely entertaining FIRST and promotional SECOND. The 80/20 rule: 80% entertainment, 20% product.</p>
+      <p><strong>Trending Audio Ideas:</strong></p>
+      <ul>
+        <li>Use trending sounds but put an automotive twist on them</li>
+        <li>"Oh no" sound when showing common car mistakes</li>
+        <li>Dramatic reveal audios for price comparisons</li>
+        <li>"It's giving..." for before/after scenarios</li>
+        <li>Save audio from viral car TikToks to reuse trends</li>
+      </ul>
+      <p><strong>Short-Form Content Angles:</strong></p>
+      <ul>
+        <li>POV: You just got quoted $2,000 for something that costs $400</li>
+        <li>"Things my mechanic says that I definitely understand" (they don't)</li>
+        <li>Car owner vs. MCC user side-by-side reactions</li>
+        <li>Dashboard warning light quiz (people love testing their knowledge)</li>
+        <li>"If your car could talk" series</li>
+        <li>"Explaining car stuff to my partner" comedy format</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🐦 X / Twitter — "Quick Wit and Hot Takes"</h4>
+      <p><strong>Vibe:</strong> Sharp, conversational, occasionally spicy. Think Wendy's but for cars.</p>
+      <p><strong>Engagement Tactics:</strong></p>
+      <ul>
+        <li>Reply to trending topics with automotive angles</li>
+        <li>Quote-tweet car-related viral posts with our take</li>
+        <li>Ask questions that people can't help but answer</li>
+        <li>Use humor in replies — be the brand people screenshot and share</li>
+        <li>Engage with automotive influencers and enthusiasts</li>
+      </ul>
+      <p><strong>Thread Ideas:</strong></p>
+      <ul>
+        <li>"10 things your mechanic won't tell you (but we will)" 🧵</li>
+        <li>"The real cost of car ownership — broken down" 🧵</li>
+        <li>"How I built a car app and what I learned about the auto industry" 🧵</li>
+        <li>"Every dashboard light explained in one tweet each" 🧵</li>
+        <li>"Why competitive bidding is the future of auto service — a thread" 🧵</li>
+      </ul>
+    </div>
+
+    <div class="campaign-card">
+      <h4>💼 LinkedIn — "Business Casual, Heavy on the Business"</h4>
+      <p><strong>Vibe:</strong> Professional, thought-leadership, industry insight. This is where we wear the business pants.</p>
+      <p><strong>B2B Angle:</strong></p>
+      <ul>
+        <li>Auto industry insights and trends</li>
+        <li>Data-driven posts about the state of automotive services</li>
+        <li>"How we're solving [specific problem]" case studies</li>
+        <li>Partnership announcements</li>
+      </ul>
+      <p><strong>Provider Recruitment:</strong></p>
+      <ul>
+        <li>Success stories from existing providers (with metrics)</li>
+        <li>"Why smart providers are joining MCC" narrative posts</li>
+        <li>Comparison: traditional lead-gen costs vs. MCC</li>
+        <li>"Now accepting providers in [market]" announcements</li>
+      </ul>
+      <p><strong>Thought Leadership:</strong></p>
+      <ul>
+        <li>Founder perspective posts on building in the auto space</li>
+        <li>Industry analysis: "The future of auto service is..."</li>
+        <li>Company milestone posts (written humbly, not braggy)</li>
+        <li>Hiring posts (with company culture context)</li>
+      </ul>
+    </div>
+  </div>
+
+  <!-- SECTION 11: CAMPAIGN IDEAS -->
+  <h2 id="campaign-ideas">11. Campaign Ideas &mdash; "The Fun Part"</h2>
+  <div class="section">
+    <div class="campaign-card">
+      <h4>🚀 Campaign 1: "The Great Overpay Rebellion" (Launch Campaign)</h4>
+      <p><strong>Concept:</strong> A movement-style campaign encouraging car owners to stop accepting the first price they get. Share stories of overpaying, calculate how much people could have saved, and position MCC as the solution.</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>User-submitted stories: "The most I ever overpaid for a car repair" (anonymous)</li>
+        <li>Running total counter: "MCC members have collectively saved $XX,XXX"</li>
+        <li>"Overpay Calculator" — enter your last repair cost, see what MCC members typically pay</li>
+        <li>Manifesto-style video: "We're done overpaying. Join the rebellion."</li>
+      </ul>
+      <p><strong>Duration:</strong> 4-6 weeks at launch</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🌞 Campaign 2: "Summer Road Trip Ready" (Seasonal Tie-In)</h4>
+      <p><strong>Concept:</strong> Pre-summer campaign helping people get their vehicles road-trip ready. Checklist content, provider promotions, and dream car content for "the car you WISH you were driving this summer."</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>"Road Trip Ready Checklist" — downloadable, shareable infographic</li>
+        <li>Provider specials: "Get your pre-road-trip inspection — starting at [price] on MCC"</li>
+        <li>User content: "Show us your road trip ride" photo contest</li>
+        <li>"Dream Road Trip Car" poll series</li>
+        <li>Countdown to Memorial Day / July 4th with daily tips</li>
+      </ul>
+      <p><strong>Duration:</strong> 3-4 weeks (May through early June)</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>📱 Campaign 3: "#MyMCCStory" (User-Generated Content)</h4>
+      <p><strong>Concept:</strong> Encourage members and providers to share their MCC experiences. Best stories get featured on our main feed and win merch.</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>Weekly featured story (member or provider)</li>
+        <li>"Best MCC Story of the Month" with a merch prize</li>
+        <li>Template graphics for users to fill in ("I saved $____ on ____ with MCC")</li>
+        <li>Video testimonials (even smartphone quality — authenticity > production value)</li>
+        <li>Repost and engage with every #MyMCCStory submission</li>
+      </ul>
+      <p><strong>Duration:</strong> Ongoing, with monthly highlights</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🤝 Campaign 4: "Refer a Friend, Save a Friend" (Referral Program)</h4>
+      <p><strong>Concept:</strong> A referral campaign that makes sharing MCC feel like doing your friends a favor (because it is).</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>"Friends don't let friends overpay for car repairs" messaging</li>
+        <li>Referral leaderboard: Top referrers get featured + rewards</li>
+        <li>"Your friend is overpaying for oil changes. Be a hero." (shareable graphics)</li>
+        <li>Double-sided rewards: referrer AND referee both get perks</li>
+        <li>Milestone celebrations: "Congrats! Your referrals have saved a combined $X,XXX!"</li>
+      </ul>
+      <p><strong>Duration:</strong> Ongoing with monthly pushes</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>⭐ Campaign 5: "Provider of the Month" Spotlight Series</h4>
+      <p><strong>Concept:</strong> Monthly deep-dive into a top-performing provider. Their story, their craft, why they love what they do. Humanizes the platform and gives providers recognition they deserve.</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>Video interview (2-3 minutes) for IGTV/YouTube</li>
+        <li>Photo carousel of their shop, work, and team</li>
+        <li>Quote graphics for Stories and feed</li>
+        <li>"A Day in the Life" Reel/TikTok</li>
+        <li>LinkedIn feature article for B2B audience</li>
+        <li>Cross-promote with the provider's own social channels</li>
+      </ul>
+      <p><strong>Duration:</strong> Monthly, ongoing</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>❄️ Campaign 6: "Winter Is Coming (For Your Car)" (Seasonal)</h4>
+      <p><strong>Concept:</strong> Fall campaign to get people thinking about winterizing their vehicles before the cold hits.</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>"Winterize Your Ride" checklist (battery, tires, fluids, wipers)</li>
+        <li>"Is your car ready for winter? Take the quiz" (interactive Story)</li>
+        <li>Provider bundles: "Winter prep package — get bids from local pros"</li>
+        <li>Game of Thrones meme tie-in (yes, it still works)</li>
+        <li>"The cost of NOT winterizing" — horror stories and data</li>
+      </ul>
+      <p><strong>Duration:</strong> 3-4 weeks (October)</p>
+    </div>
+
+    <div class="campaign-card">
+      <h4>🎓 Campaign 7: "Auto Literacy Month" (Educational)</h4>
+      <p><strong>Concept:</strong> A month of daily educational content designed to make everyone a little more car-savvy. Position MCC as the brand that empowers, not just sells.</p>
+      <p><strong>Tactics:</strong></p>
+      <ul>
+        <li>30 days, 30 car tips (daily posts across all platforms)</li>
+        <li>"What does this dashboard light mean?" daily reveal series</li>
+        <li>My Car Academy integration: "Day 15: How to check your own oil (it's easier than you think)"</li>
+        <li>Quiz series with increasing difficulty</li>
+        <li>"Graduate" certificate graphic for people who followed the whole month</li>
+      </ul>
+      <p><strong>Duration:</strong> 1 month (consider April = "Car Care Month" nationally)</p>
+    </div>
+  </div>
+
+  <!-- SECTION 12: METRICS & KPIs -->
+  <h2 id="metrics-kpis">12. Metrics & KPIs &mdash; "The Spreadsheet Lovers' Paradise"</h2>
+  <div class="section">
+    <p>Numbers don't lie, but they can be boring. Let's make them less boring by actually tracking what matters and ignoring vanity metrics that look good in screenshots but don't move the needle.</p>
+
+    <h3>What to Track Per Platform</h3>
+    <div class="metric-grid">
+      <div class="metric-card">
+        <h4>📸 Instagram</h4>
+        <ul>
+          <li>Follower growth rate (not just total)</li>
+          <li>Engagement rate per post (likes + comments + saves + shares ÷ followers)</li>
+          <li>Saves and shares (these matter more than likes)</li>
+          <li>Story completion rate</li>
+          <li>Reel views and watch time</li>
+          <li>Profile visits → website clicks</li>
+          <li>DM conversations started</li>
+        </ul>
+      </div>
+      <div class="metric-card">
+        <h4>👥 Facebook</h4>
+        <ul>
+          <li>Post reach (organic vs. paid)</li>
+          <li>Engagement rate</li>
+          <li>Group membership growth</li>
+          <li>Comment quality (are people having conversations?)</li>
+          <li>Click-through rate on links</li>
+          <li>Video views and completion rate</li>
+          <li>Ad performance: CPC, CPM, CPA</li>
+        </ul>
+      </div>
+      <div class="metric-card">
+        <h4>🎵 TikTok</h4>
+        <ul>
+          <li>Video views (total and average)</li>
+          <li>Watch time / completion rate</li>
+          <li>Shares (the holy grail of TikTok)</li>
+          <li>Follower growth rate</li>
+          <li>Profile visits → link clicks</li>
+          <li>Trending sound performance</li>
+          <li>Comment sentiment</li>
+        </ul>
+      </div>
+      <div class="metric-card">
+        <h4>🐦 X / Twitter</h4>
+        <ul>
+          <li>Impressions per tweet</li>
+          <li>Engagement rate (replies, retweets, likes, bookmarks)</li>
+          <li>Reply quality and conversations</li>
+          <li>Link clicks</li>
+          <li>Follower growth rate</li>
+          <li>Mentions and brand sentiment</li>
+          <li>Thread performance (views per tweet in thread)</li>
+        </ul>
+      </div>
+      <div class="metric-card">
+        <h4>💼 LinkedIn</h4>
+        <ul>
+          <li>Post impressions</li>
+          <li>Engagement rate</li>
+          <li>Comment quality (decision-makers engaging?)</li>
+          <li>Profile views from posts</li>
+          <li>Connection requests from content</li>
+          <li>Provider signups attributed to LinkedIn</li>
+          <li>Thought leadership reach</li>
+        </ul>
+      </div>
+      <div class="metric-card">
+        <h4>📊 Cross-Platform</h4>
+        <ul>
+          <li>Website traffic from social (by platform)</li>
+          <li>App downloads attributed to social</li>
+          <li>Signup conversion rate from social traffic</li>
+          <li>Cost per acquisition (paid campaigns)</li>
+          <li>Brand mention volume and sentiment</li>
+          <li>Share of voice vs. competitors</li>
+          <li>Content pillar performance comparison</li>
+        </ul>
+      </div>
+    </div>
+
+    <h3>Engagement Benchmarks (What "Good" Looks Like)</h3>
+    <table class="word-table">
+      <tr>
+        <th>Metric</th>
+        <th>Good</th>
+        <th>Great</th>
+        <th>You're Going Viral</th>
+      </tr>
+      <tr>
+        <td>Instagram Engagement Rate</td>
+        <td>1-3%</td>
+        <td>3-6%</td>
+        <td>6%+</td>
+      </tr>
+      <tr>
+        <td>Facebook Engagement Rate</td>
+        <td>0.5-1%</td>
+        <td>1-3%</td>
+        <td>3%+</td>
+      </tr>
+      <tr>
+        <td>TikTok Video Completion</td>
+        <td>30-50%</td>
+        <td>50-70%</td>
+        <td>70%+</td>
+      </tr>
+      <tr>
+        <td>X / Twitter Engagement Rate</td>
+        <td>0.5-1%</td>
+        <td>1-3%</td>
+        <td>3%+</td>
+      </tr>
+      <tr>
+        <td>LinkedIn Engagement Rate</td>
+        <td>1-2%</td>
+        <td>2-5%</td>
+        <td>5%+</td>
+      </tr>
+      <tr>
+        <td>Email Click Rate (if applicable)</td>
+        <td>2-3%</td>
+        <td>3-5%</td>
+        <td>5%+</td>
+      </tr>
+    </table>
+
+    <h3>Content Performance Indicators</h3>
+    <div class="highlight-box">
+      <p><strong>WHAT WINNING CONTENT LOOKS LIKE:</strong></p>
+      <ul style="margin:0;">
+        <li><strong>High save rate:</strong> People are bookmarking this for later. The content is genuinely useful.</li>
+        <li><strong>High share rate:</strong> People are tagging friends or sharing to Stories. The content is relatable.</li>
+        <li><strong>Long comment threads:</strong> People are having conversations, not just dropping emojis.</li>
+        <li><strong>Profile visits after post:</strong> People are curious enough to check us out. The hook worked.</li>
+        <li><strong>DMs from the post:</strong> People want to engage privately. This usually means they're close to converting.</li>
+      </ul>
+    </div>
+    <div class="highlight-box bronze">
+      <p><strong>WHAT UNDERPERFORMING CONTENT LOOKS LIKE:</strong></p>
+      <ul style="margin:0;">
+        <li><strong>High impressions, low engagement:</strong> People saw it but didn't care. The hook is weak or the content is meh.</li>
+        <li><strong>Likes but no shares/saves:</strong> People are being polite, not passionate. The content is fine but forgettable.</li>
+        <li><strong>No comments:</strong> The post didn't ask for interaction or didn't inspire a reaction. Add a question or hot take.</li>
+        <li><strong>Follower drop after posting:</strong> You posted something off-brand or tone-deaf. Review and learn.</li>
+      </ul>
+    </div>
+
+    <h3>Monthly Reporting Cadence</h3>
+    <ul>
+      <li><strong>Weekly:</strong> Quick check on top-performing content, engagement rates, and any trending opportunities to capitalize on.</li>
+      <li><strong>Monthly:</strong> Full report with growth metrics, content pillar performance, platform-by-platform breakdown, and learnings.</li>
+      <li><strong>Quarterly:</strong> Strategic review. What's working, what's not, what do we try next, and how are social efforts contributing to overall business goals (signups, downloads, revenue).</li>
+    </ul>
+  </div>
+
+  <div class="footer-note">
+    <p style="margin-bottom:5px;">My Car Concierge LLC &mdash; Internal Reference Document</p>
+    <p style="margin:0;">Not for public distribution. If you're reading this and you're not on the team, you're either a really good hacker or someone forgot to close their laptop at Starbucks. Either way, welcome. 👋</p>
+  </div>
+
+  <script src="/i18n.js"></script>
+  <script src="/footer.js"></script>
+  <script>
+    const themeToggle = document.getElementById('themeToggle');
+    const sunIcon = themeToggle.querySelector('.sun-icon');
+    const moonIcon = themeToggle.querySelector('.moon-icon');
+
+    function setTheme(theme) {
+      document.documentElement.classList.add('theme-transition');
+      document.documentElement.setAttribute('data-theme', theme);
+      localStorage.setItem('mcc-theme', theme);
+      if (theme === 'light') {
+        sunIcon.style.display = 'none';
+        moonIcon.style.display = 'block';
+      } else {
+        sunIcon.style.display = 'block';
+        moonIcon.style.display = 'none';
+      }
+      setTimeout(() => document.documentElement.classList.remove('theme-transition'), 300);
+    }
+
+    const savedTheme = localStorage.getItem('mcc-theme') || 'dark';
+    setTheme(savedTheme);
+
+    themeToggle.addEventListener('click', () => {
+      const current = document.documentElement.getAttribute('data-theme');
+      setTheme(current === 'dark' ? 'light' : 'dark');
+    });
+  </script>
+</body>
+</html>

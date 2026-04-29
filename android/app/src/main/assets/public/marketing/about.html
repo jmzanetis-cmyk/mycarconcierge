@@ -1,40 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>About Us – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Learn about My Car Concierge - our mission to revolutionize automotive service by connecting vehicle owners with vetted service providers." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a90d9;
-      --accent-blue-soft: rgba(74, 144, 217, 0.12);
-      --accent-green: #4ac88c;
-      --accent-green-soft: rgba(74, 200, 140, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
-      --shadow-glow: 0 0 60px rgba(212, 168, 85, 0.08);
+      --shadow-glow: 0 0 60px rgba(201, 162, 39, 0.1);
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f9f7f4;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-blue-soft: rgba(30, 58, 95, 0.1);
+      --accent-green: #059669;
+      --accent-green-soft: rgba(5, 150, 105, 0.12);
+      --shadow-glow: 0 0 40px rgba(201, 169, 98, 0.15);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,8 +81,15 @@
       z-index: 0;
       background:
         radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 144, 217, 0.05), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 144, 217, 0.03), transparent 60%);
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(56, 189, 248, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(56, 189, 248, 0.03), transparent 60%);
+    }
+
+    [data-theme="light"] .ambient-bg {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(184, 148, 45, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.03), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(255, 248, 235, 0.4), transparent 60%);
     }
 
     .noise {
@@ -159,6 +192,13 @@
 
     .hero h1 .highlight {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    [data-theme="light"] .hero h1 .highlight {
+      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
       -webkit-background-clip: text;
       -webkit-text-fill-color: transparent;
       background-clip: text;
@@ -467,6 +507,41 @@
       border-color: var(--accent-blue);
     }
 
+    [data-theme="light"] .btn-primary {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+      box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
+      font-weight: 600;
+    }
+
+    [data-theme="light"] .btn-primary:hover {
+      background: linear-gradient(135deg, #a6852a, #c49a35);
+      box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
+    }
+
+    [data-theme="light"] .btn-secondary {
+      background: #ffffff;
+      color: #1e3a5f;
+      border: 2px solid #1e3a5f;
+    }
+
+    [data-theme="light"] .btn-secondary:hover {
+      background: #1e3a5f;
+      color: #ffffff;
+      border-color: #1e3a5f;
+    }
+
+    [data-theme="light"] .mission-card,
+    [data-theme="light"] .step-card,
+    [data-theme="light"] .trust-card,
+    [data-theme="light"] .contact-section,
+    [data-theme="light"] .contact-item,
+    [data-theme="light"] .cta-box {
+      background: #ffffff;
+      box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06), 0 1px 3px rgba(30, 58, 95, 0.04);
+      border: 1px solid rgba(30, 58, 95, 0.08);
+    }
+
     footer {
       border-top: 1px solid var(--border-subtle);
       padding: 48px 0;
@@ -520,11 +595,65 @@
         padding: 40px 24px;
       }
     }
+
+    .onboarding-banner {
+      position: relative;
+      z-index: 101;
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f;
+      text-align: center;
+      padding: 10px 48px 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .onboarding-banner a {
+      color: #0a0a0f;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .onboarding-banner a:hover { opacity: 0.8; }
+    .onboarding-banner .banner-dismiss {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #0a0a0f;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .onboarding-banner .banner-dismiss:hover { opacity: 1; }
+    [data-theme="light"] .onboarding-banner {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+    }
+    [data-theme="light"] .onboarding-banner a { color: #ffffff; }
+    [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
+    @media (max-width: 600px) {
+      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
+    }
   </style>
 </head>
 <body>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
+
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
+    We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
+    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
+  </div>
+  <script>
+    if (!localStorage.getItem('onboardingBannerDismissed')) {
+      document.getElementById('onboardingBanner').style.display = '';
+    }
+  </script>
 
   <header>
     <div class="container">
@@ -532,9 +661,9 @@
         <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
       </a>
       <nav>
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/login.html" class="btn-login">Log In</a>
       </nav>
     </div>
@@ -546,7 +675,7 @@
         <div class="hero-badge">About My Car Concierge</div>
         <h1>Reimagining <span class="highlight">Automotive Service</span></h1>
         <p class="hero-subtitle">
-          We're building a better way to maintain your vehicle. By connecting car owners with vetted service professionals, we're bringing transparency, competition, and trust to automotive care.
+          We're building a better way to maintain your vehicle. By connecting vehicle owners with vetted service professionals, we're bringing transparency, competition, and trust to automotive care.
         </p>
       </div>
     </section>
@@ -557,7 +686,7 @@
           <div class="mission-card">
             <div class="mission-icon">🎯</div>
             <h3>Our Mission</h3>
-            <p>To empower vehicle owners with choice and transparency, while helping automotive professionals grow their businesses through quality connections. We believe everyone deserves access to trustworthy car care at fair prices.</p>
+            <p>To empower vehicle owners with choice and transparency, while helping automotive professionals grow their businesses through quality connections. We believe everyone deserves access to trustworthy auto care at fair prices.</p>
           </div>
           <div class="mission-card">
             <div class="mission-icon">🔮</div>
@@ -609,7 +738,7 @@
           <div class="trust-card">
             <div class="trust-icon">✓</div>
             <h3>Verified Providers</h3>
-            <p>Every provider undergoes background checks, license verification, and insurance validation before joining our network.</p>
+            <p>Every provider undergoes license verification and insurance validation before joining our network. Providers can also opt for voluntary background checks to earn the "Background Verified" badge.</p>
           </div>
           <div class="trust-card">
             <div class="trust-icon">⭐</div>
@@ -648,8 +777,8 @@
           <div class="contact-grid">
             <div class="contact-item">
               <div class="icon">📧</div>
-              <h4>Email</h4>
-              <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a>
+              <h4>Contact Us</h4>
+              <a href="/contact.html">Send us a message</a>
             </div>
             <div class="contact-item">
               <div class="icon">🌐</div>
@@ -669,7 +798,7 @@
     <section class="cta-section">
       <div class="container">
         <div class="cta-box">
-          <h2>Ready to Experience Better Car Care?</h2>
+          <h2>Ready to Experience Better Auto Care?</h2>
           <p>Join thousands of vehicle owners who've discovered a smarter way to maintain their cars.</p>
           <div class="cta-buttons">
             <a href="/signup-member.html" class="btn btn-primary">Get Started Free</a>
@@ -683,9 +812,9 @@
   <footer>
     <div class="container">
       <div class="footer-links">
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
       </div>

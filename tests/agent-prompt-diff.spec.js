@@ -70,7 +70,7 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
       // GET /agents/:slug/prompt/:version  ← the new endpoint
       const versionMatch = pathPart.match(/^\/agents\/[^/]+\/prompt\/(\d+)$/);
       if (method === 'GET' && versionMatch) {
-        const v = parseInt(versionMatch[1], 10);
+        const v = Number.parseInt(versionMatch[1], 10);
         versionFetches.push(v);
         const body = bodyByVersion[v];
         if (body == null) return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Version not found' }) });
@@ -181,7 +181,7 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
       }
       const m = pathPart.match(/^\/agents\/[^/]+\/prompt\/(\d+)$/);
       if (method === 'GET' && m) {
-        const v = parseInt(m[1], 10);
+        const v = Number.parseInt(m[1], 10);
         return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
           version: { id: v, version: v, body: bodyByVersion[v], is_active: v === 2, created_at: versionsList.find(x => x.version === v)?.created_at }
         }) });

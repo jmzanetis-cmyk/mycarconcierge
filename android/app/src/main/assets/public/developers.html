@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Developers | My Car Concierge Automotive AI API</title>
+  <meta name="description" content="Build smarter auto apps with the MCC Automotive AI API — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, and fair price estimation.">
+  <link rel="stylesheet" href="shared-styles.css">
+  <link rel="icon" href="/icons/icon-192.png" type="image/png">
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --dev-bg: #0d1117;
+      --dev-surface: #161b22;
+      --dev-border: #30363d;
+      --dev-code: #1f2428;
+      --dev-gold: #c9a84c;
+      --dev-teal: #4db6ac;
+      --dev-text: #e6edf3;
+      --dev-muted: #8b949e;
+    }
+    body { background: var(--dev-bg); color: var(--dev-text); font-family: 'Inter', sans-serif; }
+
+    /* ── Hero ── */
+    .dev-hero { background: linear-gradient(135deg, #0d1117 0%, #12161c 50%, #0d1117 100%); padding: 80px 24px 64px; text-align: center; border-bottom: 1px solid var(--dev-border); position: relative; overflow: hidden; }
+    .dev-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 60%); pointer-events: none; }
+    .dev-hero .badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); border-radius: 100px; padding: 4px 14px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 20px; }
+    .dev-hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 700; line-height: 1.15; margin: 0 0 16px; background: linear-gradient(135deg, #e6c88a 0%, #c9a84c 50%, #f0d080 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
+    .dev-hero p { font-size: 1.15rem; color: var(--dev-muted); max-width: 600px; margin: 0 auto 32px; line-height: 1.7; }
+    .dev-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+    .btn-gold { background: linear-gradient(135deg, #c9a84c, #b8942d); color: #0a0a0f; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
+    .btn-outline { background: transparent; color: var(--dev-teal); border: 1.5px solid var(--dev-teal); padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn-outline:hover { background: rgba(77,182,172,0.1); }
+
+    /* ── Endpoint Badges ── */
+    .endpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 1100px; margin: 48px auto 0; }
+    .endpoint-card { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 12px; padding: 20px; text-align: left; transition: border-color 0.2s; }
+    .endpoint-card:hover { border-color: var(--dev-gold); }
+    .endpoint-method { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 4px; margin-bottom: 10px; display: inline-block; }
+    .method-get { background: rgba(77,182,172,0.15); color: var(--dev-teal); }
+    .method-post { background: rgba(201,168,76,0.15); color: var(--dev-gold); }
+    .endpoint-path { font-family: 'Courier New', monospace; font-size: 0.88rem; color: var(--dev-text); margin-bottom: 6px; }
+    .endpoint-desc { font-size: 0.85rem; color: var(--dev-muted); line-height: 1.5; }
+    .endpoint-plan { font-size: 0.75rem; color: var(--dev-muted); margin-top: 8px; }
+
+    /* ── Layout ── */
+    .dev-container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+    .dev-section { padding: 64px 24px; }
+    .dev-section-title { font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; margin-bottom: 8px; color: var(--dev-text); }
+    .dev-section-sub { color: var(--dev-muted); font-size: 1rem; margin-bottom: 36px; line-height: 1.6; }
+    .divider { border: none; border-top: 1px solid var(--dev-border); margin: 0; }
+
+    /* ── Quickstart ── */
+    .quickstart-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: start; }
+    @media (max-width: 768px) { .quickstart-grid { grid-template-columns: 1fr; } }
+    .quickstart-steps { counter-reset: step; }
+    .quickstart-step { counter-increment: step; display: flex; gap: 16px; margin-bottom: 28px; }
+    .quickstart-step::before { content: counter(step); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-width: 32px; background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); border-radius: 50%; font-weight: 700; font-size: 0.85rem; }
+    .step-title { font-weight: 600; color: var(--dev-text); margin-bottom: 4px; }
+    .step-desc { font-size: 0.9rem; color: var(--dev-muted); line-height: 1.6; }
+    .step-desc a { color: var(--dev-teal); text-decoration: none; }
+    .step-desc a:hover { text-decoration: underline; }
+
+    /* ── Code block ── */
+    .code-block { background: var(--dev-code); border: 1px solid var(--dev-border); border-radius: 12px; overflow: hidden; }
+    .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--dev-border); }
+    .code-lang { font-size: 0.78rem; color: var(--dev-muted); font-weight: 600; letter-spacing: 0.05em; }
+    .code-copy { font-size: 0.78rem; color: var(--dev-teal); cursor: pointer; background: none; border: none; padding: 2px 8px; border-radius: 4px; transition: background 0.15s; }
+    .code-copy:hover { background: rgba(77,182,172,0.1); }
+    pre { margin: 0; padding: 20px; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; font-family: 'Courier New', monospace; color: #e6edf3; }
+    .kw { color: #ff7b72; }
+    .str { color: #a5d6ff; }
+    .cmt { color: #8b949e; font-style: italic; }
+    .fn { color: #d2a8ff; }
+    .num { color: #79c0ff; }
+
+    /* ── Pricing ── */
+    .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
+    .pricing-card { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; }
+    .pricing-card.featured { border-color: var(--dev-gold); background: linear-gradient(135deg, rgba(201,168,76,0.06), var(--dev-surface)); position: relative; }
+    .featured-badge { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); background: var(--dev-gold); color: #0a0a0f; font-size: 0.72rem; font-weight: 700; padding: 3px 14px; border-radius: 0 0 8px 8px; letter-spacing: 0.06em; }
+    .plan-name { font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; }
+    .plan-price { font-size: 2.2rem; font-weight: 800; color: var(--dev-gold); line-height: 1; }
+    .plan-price span { font-size: 1rem; font-weight: 400; color: var(--dev-muted); }
+    .plan-calls { color: var(--dev-teal); font-size: 0.9rem; font-weight: 600; margin: 8px 0 16px; }
+    .plan-features { list-style: none; padding: 0; margin: 0 0 24px; flex: 1; }
+    .plan-features li { padding: 7px 0; border-bottom: 1px solid var(--dev-border); font-size: 0.9rem; color: var(--dev-muted); display: flex; align-items: center; gap: 8px; }
+    .plan-features li:last-child { border-bottom: none; }
+    .plan-features li::before { content: '✓'; color: var(--dev-teal); font-weight: 700; flex-shrink: 0; }
+    .plan-cta { text-align: center; }
+
+    /* ── Key Management ── */
+    #dev-auth-required { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 16px; padding: 48px; text-align: center; }
+    .key-item { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
+    .key-prefix { font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--dev-teal); flex: 1; }
+    .key-meta { font-size: 0.82rem; color: var(--dev-muted); }
+    .key-badge { font-size: 0.72rem; font-weight: 700; padding: 2px 10px; border-radius: 100px; text-transform: uppercase; }
+    .badge-starter { background: rgba(77,182,172,0.1); color: var(--dev-teal); }
+    .badge-pro { background: rgba(201,168,76,0.1); color: var(--dev-gold); }
+    .badge-business { background: rgba(139,91,223,0.1); color: #c084fc; }
+    .key-actions { display: flex; gap: 8px; }
+    .btn-sm { padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; border: none; cursor: pointer; }
+    .btn-danger { background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .btn-danger:hover { background: rgba(248,81,73,0.2); }
+    .btn-teal { background: rgba(77,182,172,0.1); color: var(--dev-teal); border: 1px solid rgba(77,182,172,0.3); }
+    .btn-teal:hover { background: rgba(77,182,172,0.2); }
+    #new-key-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9000; align-items: center; justify-content: center; }
+    #new-key-modal.open { display: flex; }
+    .modal-box { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 16px; padding: 32px; width: min(480px, 94vw); }
+    .modal-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 16px; }
+    .raw-key-box { background: var(--dev-code); border: 1px solid var(--dev-gold); border-radius: 8px; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--dev-gold); word-break: break-all; margin: 16px 0; }
+    input[type="text"], input[type="email"], input[type="password"] { width: 100%; box-sizing: border-box; background: var(--dev-code); border: 1px solid var(--dev-border); border-radius: 8px; color: var(--dev-text); padding: 10px 14px; font-size: 0.9rem; outline: none; }
+    input:focus { border-color: var(--dev-gold); }
+    label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--dev-muted); margin-bottom: 6px; }
+
+    /* ── Usage bar ── */
+    .usage-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 100px; height: 8px; margin: 8px 0 4px; overflow: hidden; }
+    .usage-bar { height: 100%; border-radius: 100px; background: linear-gradient(90deg, var(--dev-teal), var(--dev-gold)); transition: width 0.6s ease; }
+
+    /* ── Nav ── */
+    .dev-nav { background: var(--dev-surface); border-bottom: 1px solid var(--dev-border); padding: 14px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
+    .dev-nav a { color: var(--dev-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+    .dev-nav a:hover { color: var(--dev-text); }
+    .dev-nav .brand { font-family: 'Playfair Display', serif; font-weight: 700; color: var(--dev-gold); font-size: 1rem; margin-right: auto; text-decoration: none; }
+    .dev-nav .nav-pill { background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); padding: 5px 14px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
+    .dev-nav .nav-pill:hover { background: rgba(201,168,76,0.2); }
+
+    /* ── Flash ── */
+    #dev-flash { display: none; padding: 12px 20px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 16px; }
+    #dev-flash.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; display: block; }
+    #dev-flash.error { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: #f87171; display: block; }
+
+    /* ── Tabs ── */
+    .tab-row { display: flex; gap: 4px; background: var(--dev-code); border-radius: 8px; padding: 4px; margin-bottom: 0; flex-wrap: wrap; }
+    .tab { padding: 6px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--dev-muted); border: none; background: none; transition: all 0.15s; }
+    .tab.active { background: var(--dev-surface); color: var(--dev-text); }
+    .tab-content { display: none; }
+    .tab-content.active { display: block; }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/developers.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Build smarter auto apps with the MCC Automotive AI API — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, and fair price estimation." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/developers.html" />
+  <meta property="og:title" content="Developers | My Car Concierge Automotive AI API" />
+  <meta property="og:description" content="Build smarter auto apps with the MCC Automotive AI API — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, and fair price estimation." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="Developers | My Car Concierge Automotive AI API" />
+  <meta name="twitter:description" content="Build smarter auto apps with the MCC Automotive AI API — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, and fair price estimation." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+
+<!-- Nav -->
+<nav class="dev-nav">
+  <a href="/" class="brand">My Car Concierge</a>
+  <a href="/developers">Overview</a>
+  <a href="#endpoints">API Docs</a>
+  <a href="#endpoints">Endpoints</a>
+  <a href="#pricing">Pricing</a>
+  <a href="#keys">API Keys</a>
+  <a href="/members.html" class="nav-pill">My Account →</a>
+</nav>
+
+<!-- Hero -->
+<header class="dev-hero">
+  <div class="badge">🚗 Automotive AI API v1</div>
+  <h1>Build smarter<br>auto experiences</h1>
+  <p>AI-powered VIN decode, recall alerts, OBD diagnostics, vehicle health scoring, and fair price intelligence — one API, every automotive need.</p>
+  <div class="dev-hero-actions">
+    <a href="#keys" class="btn-gold">Get API Key</a>
+    <a href="#endpoints" class="btn-outline">View Docs →</a>
+  </div>
+
+  <div class="endpoint-grid" style="padding:0 24px;" id="endpoints">
+    <div class="endpoint-card">
+      <span class="endpoint-method method-get">GET</span>
+      <div class="endpoint-path">/api/v1/vin/{vin}</div>
+      <div class="endpoint-desc">Decode any 17-character VIN via NHTSA — year, make, model, trim, engine, and more.</div>
+      <div class="endpoint-plan">All plans</div>
+    </div>
+    <div class="endpoint-card">
+      <span class="endpoint-method method-get">GET</span>
+      <div class="endpoint-path">/api/v1/recalls/{vin}</div>
+      <div class="endpoint-desc">Fetch all NHTSA safety recalls associated with a VIN in real time.</div>
+      <div class="endpoint-plan">All plans</div>
+    </div>
+    <div class="endpoint-card">
+      <span class="endpoint-method method-post">POST</span>
+      <div class="endpoint-path">/api/v1/recalls/enrich</div>
+      <div class="endpoint-desc">AI-enriched recall analysis — plain-English severity ratings, safety impact, and recommended owner actions.</div>
+      <div class="endpoint-plan">Pro &amp; Business</div>
+    </div>
+    <div class="endpoint-card">
+      <span class="endpoint-method method-post">POST</span>
+      <div class="endpoint-path">/api/v1/obd-codes</div>
+      <div class="endpoint-desc">AI analysis of OBD-II codes with severity, likely causes, repair actions, and cost estimates.</div>
+      <div class="endpoint-plan">Pro &amp; Business</div>
+    </div>
+    <div class="endpoint-card">
+      <span class="endpoint-method method-post">POST</span>
+      <div class="endpoint-path">/api/v1/price-estimate</div>
+      <div class="endpoint-desc">Fair price range for any auto service category, optionally scoped by ZIP code.</div>
+      <div class="endpoint-plan">All plans</div>
+    </div>
+    <div class="endpoint-card">
+      <span class="endpoint-method method-post">POST</span>
+      <div class="endpoint-path">/api/v1/vehicle/health</div>
+      <div class="endpoint-desc">AI vehicle health score (0–100) with positive and negative factors and a plain-English summary.</div>
+      <div class="endpoint-plan">Pro &amp; Business</div>
+    </div>
+    <div class="endpoint-card">
+      <span class="endpoint-method method-post">POST</span>
+      <div class="endpoint-path">/api/v1/vehicle/forecast</div>
+      <div class="endpoint-desc">Upcoming maintenance forecast with due dates, mileage thresholds, priority, and cost estimates.</div>
+      <div class="endpoint-plan">All plans</div>
+    </div>
+  </div>
+</header>
+
+<hr class="divider">
+
+<!-- Quickstart -->
+<section class="dev-section">
+  <div class="dev-container">
+    <div class="quickstart-grid">
+      <div>
+        <div class="dev-section-title">Get started in minutes</div>
+        <div class="dev-section-sub">Subscribe to an AI API plan, generate your key, and make your first call.</div>
+        <div class="quickstart-steps">
+          <div class="quickstart-step">
+            <div>
+              <div class="step-title">Subscribe to an AI API plan</div>
+              <div class="step-desc">Visit <a href="/members.html?section=settings&tab=billing">Account → Billing</a> and subscribe to AI Starter, Pro, or Business.</div>
+            </div>
+          </div>
+          <div class="quickstart-step">
+            <div>
+              <div class="step-title">Generate an API key</div>
+              <div class="step-desc">Head to <a href="#keys">the API Keys section below</a> and click "Generate Key". Save it — it's shown only once.</div>
+            </div>
+          </div>
+          <div class="quickstart-step">
+            <div>
+              <div class="step-title">Send your first request</div>
+              <div class="step-desc">Pass your key as a Bearer token or <code style="color:var(--dev-teal)">x-api-key</code> header on any <code style="color:var(--dev-teal)">/api/v1/*</code> endpoint.</div>
+            </div>
+          </div>
+          <div class="quickstart-step">
+            <div>
+              <div class="step-title">Explore the full reference</div>
+              <div class="step-desc">Try every endpoint interactively at <a href="#endpoints">developers/docs</a> (powered by Swagger UI).</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div>
+        <div class="tab-row" style="margin-bottom:4px;">
+          <button class="tab active" onclick="showTab('tab-curl')">cURL</button>
+          <button class="tab" onclick="showTab('tab-js')">JavaScript</button>
+          <button class="tab" onclick="showTab('tab-python')">Python</button>
+        </div>
+        <div id="tab-curl" class="tab-content active">
+          <div class="code-block">
+            <div class="code-header"><span class="code-lang">SHELL</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+            <pre><span class="cmt"># VIN decode</span>
+<span class="fn">curl</span> -H <span class="str">"Authorization: Bearer mcc_live_your_key_here"</span> \
+  https://mycarconcierge.com/api/v1/vin/1HGCM82633A123456
+
+<span class="cmt"># OBD-II analysis (Pro+)</span>
+<span class="fn">curl</span> -X POST \
+  -H <span class="str">"Authorization: Bearer mcc_live_your_key_here"</span> \
+  -H <span class="str">"Content-Type: application/json"</span> \
+  -d <span class="str">'{"codes":["P0420","P0171"],"vehicle":{"year":2020,"make":"Toyota","model":"Camry"}}'</span> \
+  https://mycarconcierge.com/api/v1/obd-codes</pre>
+          </div>
+        </div>
+        <div id="tab-js" class="tab-content">
+          <div class="code-block">
+            <div class="code-header"><span class="code-lang">JAVASCRIPT</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+            <pre><span class="kw">const</span> MCC_KEY = <span class="str">'mcc_live_your_key_here'</span>;
+<span class="kw">const</span> BASE = <span class="str">'https://mycarconcierge.com/api/v1'</span>;
+<span class="kw">const</span> headers = { <span class="str">'Authorization'</span>: <span class="str">`Bearer ${MCC_KEY}`</span> };
+
+<span class="cmt">// VIN decode</span>
+<span class="kw">const</span> vin = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${BASE}/vin/1HGCM82633A123456`</span>, { headers })
+  .<span class="fn">then</span>(r => r.<span class="fn">json</span>());
+
+<span class="cmt">// Vehicle health (Pro+)</span>
+<span class="kw">const</span> health = <span class="kw">await</span> <span class="fn">fetch</span>(<span class="str">`${BASE}/vehicle/health`</span>, {
+  method: <span class="str">'POST'</span>, headers: { ...headers, <span class="str">'Content-Type'</span>: <span class="str">'application/json'</span> },
+  body: <span class="fn">JSON.stringify</span>({ year: <span class="num">2020</span>, make: <span class="str">'Toyota'</span>, model: <span class="str">'Camry'</span>, mileage: <span class="num">45000</span> })
+}).<span class="fn">then</span>(r => r.<span class="fn">json</span>());
+
+console.<span class="fn">log</span>(health.score); <span class="cmt">// e.g. 82</span></pre>
+          </div>
+        </div>
+        <div id="tab-python" class="tab-content">
+          <div class="code-block">
+            <div class="code-header"><span class="code-lang">PYTHON</span><button class="code-copy" onclick="copyCode(this)">Copy</button></div>
+            <pre><span class="kw">import</span> requests
+
+MCC_KEY = <span class="str">"mcc_live_your_key_here"</span>
+BASE = <span class="str">"https://mycarconcierge.com/api/v1"</span>
+HDR = {<span class="str">"Authorization"</span>: <span class="str">f"Bearer {MCC_KEY}"</span>}
+
+<span class="cmt"># Recall lookup</span>
+r = requests.<span class="fn">get</span>(<span class="str">f"{BASE}/recalls/1HGCM82633A123456"</span>, headers=HDR)
+recalls = r.<span class="fn">json</span>()[<span class="str">"recalls"</span>]
+
+<span class="cmt"># Maintenance forecast</span>
+r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/forecast"</span>, headers=HDR, json={
+    <span class="str">"year"</span>: <span class="num">2020</span>, <span class="str">"make"</span>: <span class="str">"Toyota"</span>,
+    <span class="str">"model"</span>: <span class="str">"Camry"</span>, <span class="str">"mileage"</span>: <span class="num">45000</span>
+})
+<span class="kw">for</span> item <span class="kw">in</span> r.<span class="fn">json</span>()[<span class="str">"forecast"</span>]:
+    <span class="fn">print</span>(item[<span class="str">"service"</span>], item[<span class="str">"due_date"</span>])</pre>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- Pricing -->
+<section class="dev-section" id="pricing">
+  <div class="dev-container">
+    <div class="dev-section-title" style="text-align:center;">Simple, transparent pricing</div>
+    <div class="dev-section-sub" style="text-align:center;">All plans include full API access with NHTSA data. Upgrade for AI-powered endpoints and higher call limits.</div>
+    <div class="pricing-grid">
+      <div class="pricing-card">
+        <div class="plan-name">AI Starter</div>
+        <div class="plan-price">$49<span>/mo</span></div>
+        <div class="plan-calls">5,000 calls / month</div>
+        <ul class="plan-features">
+          <li>VIN decoder</li>
+          <li>NHTSA recall lookup</li>
+          <li>Price estimator</li>
+          <li>Maintenance forecast</li>
+          <li>Basic rate limiting</li>
+        </ul>
+        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=starter" class="btn-outline" style="width:100%;justify-content:center;">Get Started</a></div>
+      </div>
+      <div class="pricing-card featured">
+        <div class="featured-badge">POPULAR</div>
+        <div class="plan-name">AI Pro</div>
+        <div class="plan-price">$149<span>/mo</span></div>
+        <div class="plan-calls">50,000 calls / month</div>
+        <ul class="plan-features">
+          <li>Everything in Starter</li>
+          <li>OBD-II AI diagnostics</li>
+          <li>Vehicle health scoring</li>
+          <li>Dream Car Finder access</li>
+          <li>Webhook support</li>
+          <li>Priority support</li>
+        </ul>
+        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=pro" class="btn-gold" style="width:100%;justify-content:center;">Upgrade to Pro</a></div>
+      </div>
+      <div class="pricing-card">
+        <div class="plan-name">AI Business</div>
+        <div class="plan-price">$499<span>/mo</span></div>
+        <div class="plan-calls">Unlimited calls</div>
+        <ul class="plan-features">
+          <li>Everything in Pro</li>
+          <li>Unlimited API calls</li>
+          <li>Custom model fine-tuning</li>
+          <li>Dedicated infrastructure</li>
+          <li>99.9% SLA</li>
+          <li>White-glove onboarding</li>
+        </ul>
+        <div class="plan-cta"><a href="mailto:developers@mycarconcierge.com?subject=AI%20Business%20API" class="btn-outline" style="width:100%;justify-content:center;">Contact Sales</a></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="divider">
+
+<!-- API Key Management -->
+<section class="dev-section" id="keys">
+  <div class="dev-container">
+    <div class="dev-section-title">API Keys</div>
+    <div class="dev-section-sub">Generate and manage your API keys. Each key inherits the call limit from your current plan.</div>
+
+    <div id="dev-flash"></div>
+
+    <!-- Not logged in -->
+    <div id="dev-auth-required">
+      <div style="font-size:2.5rem;margin-bottom:16px;">🔑</div>
+      <div style="font-size:1.15rem;font-weight:600;margin-bottom:8px;">Sign in to manage your keys</div>
+      <div style="color:var(--dev-muted);margin-bottom:24px;">Your API keys are tied to your MCC account and billing plan.</div>
+      <a href="/login.html?redirect=/developers%23keys" class="btn-gold">Sign In</a>
+      <span style="color:var(--dev-muted);margin:0 12px;">or</span>
+      <a href="/signup-member.html" class="btn-outline">Create Account</a>
+    </div>
+
+    <!-- Logged in -->
+    <div id="dev-key-panel" style="display:none;">
+      <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
+        <div id="dev-usage-summary" style="font-size:0.88rem;color:var(--dev-muted);"></div>
+        <button class="btn-gold btn-sm" onclick="openNewKeyModal()" style="padding:10px 20px;">+ Generate Key</button>
+      </div>
+      <div id="dev-key-list"><div style="padding:32px;text-align:center;color:var(--dev-muted);">Loading keys…</div></div>
+    </div>
+  </div>
+</section>
+
+<!-- New Key Modal -->
+<div id="new-key-modal">
+  <div class="modal-box">
+    <div class="modal-title">Generate New API Key</div>
+    <div id="new-key-form-wrap">
+      <label for="key-name-input">Key Name (optional)</label>
+      <input type="text" id="key-name-input" placeholder="e.g. Production, My App" style="margin-bottom:20px;">
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn-sm btn-danger" onclick="closeNewKeyModal()">Cancel</button>
+        <button class="btn-gold btn-sm" onclick="generateApiKey()" style="padding:8px 20px;">Generate</button>
+      </div>
+    </div>
+    <div id="new-key-result" style="display:none;">
+      <div style="font-size:0.9rem;color:var(--dev-muted);margin-bottom:8px;">⚠️ Save this key now — it will never be shown again.</div>
+      <div class="raw-key-box" id="raw-key-display"></div>
+      <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
+        <button class="btn-teal btn-sm" onclick="copyRawKey()">Copy Key</button>
+        <button class="btn-gold btn-sm" onclick="closeNewKeyModal()">Done</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<hr class="divider" style="margin-top:64px;">
+
+<!-- Footer -->
+<footer style="padding:40px 24px;text-align:center;color:var(--dev-muted);font-size:0.85rem;">
+  <div style="margin-bottom:12px;">
+    <a href="/" style="color:var(--dev-muted);text-decoration:none;margin:0 12px;">Home</a>
+    <a href="#endpoints" style="color:var(--dev-muted);text-decoration:none;margin:0 12px;">API Reference</a>
+    <a href="/terms.html" style="color:var(--dev-muted);text-decoration:none;margin:0 12px;">Terms</a>
+    <a href="/privacy.html" style="color:var(--dev-muted);text-decoration:none;margin:0 12px;">Privacy</a>
+    <a href="mailto:developers@mycarconcierge.com" style="color:var(--dev-teal);text-decoration:none;margin:0 12px;">developers@mycarconcierge.com</a>
+  </div>
+  <div>© 2025 My Car Concierge. Automotive AI API v1.0.</div>
+</footer>
+
+<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="/supabaseclient.js"></script>
+<script>
+  // ── Tabs ──
+  function showTab(id) {
+    document.querySelectorAll('.tab-content').forEach(el => el.classList.remove('active'));
+    document.querySelectorAll('.tab').forEach(el => el.classList.remove('active'));
+    document.getElementById(id)?.classList.add('active');
+    event.currentTarget.classList.add('active');
+  }
+
+  // ── Copy code ──
+  function copyCode(btn) {
+    const pre = btn.closest('.code-block').querySelector('pre');
+    navigator.clipboard.writeText(pre.textContent).then(() => {
+      btn.textContent = 'Copied!';
+      setTimeout(() => btn.textContent = 'Copy', 2000);
+    });
+  }
+
+  // ── Auth ──
+  let _supabaseSession = null;
+  async function initAuth() {
+    const waitForClient = (ms = 3000) => new Promise((resolve) => {
+      const start = Date.now();
+      const check = () => {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) resolve(supabaseClient);
+        else if (Date.now() - start < ms) setTimeout(check, 100);
+        else resolve(null);
+      };
+      check();
+    });
+    const client = await waitForClient();
+    if (!client) return;
+    const { data: { session } } = await client.auth.getSession();
+    if (session) {
+      _supabaseSession = session;
+      document.getElementById('dev-auth-required').style.display = 'none';
+      document.getElementById('dev-key-panel').style.display = 'block';
+      loadApiKeys();
+      loadUsageSummary();
+    }
+  }
+
+  // ── Load keys ──
+  async function loadApiKeys() {
+    if (!_supabaseSession) return;
+    const resp = await fetch('/api/developer/keys', { headers: { 'Authorization': 'Bearer ' + _supabaseSession.access_token } });
+    const data = await resp.json();
+    const listEl = document.getElementById('dev-key-list');
+    if (!resp.ok) {
+      if (resp.status === 402) {
+        listEl.innerHTML = `<div style="background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:32px;text-align:center;">
+          <div style="font-size:1.05rem;font-weight:600;margin-bottom:8px;">AI API Subscription Required</div>
+          <div style="color:var(--dev-muted);margin-bottom:20px;">Subscribe to a plan to generate API keys and access the endpoints.</div>
+          <a href="/members.html?section=settings&tab=billing" class="btn-gold">View Plans</a>
+        </div>`;
+      } else {
+        listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#f87171;">Failed to load keys. Please try again.</div>';
+      }
+      return;
+    }
+    const keys = data.keys || [];
+    if (keys.length === 0) {
+      listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--dev-muted);">No API keys yet. Click "Generate Key" to create your first one.</div>';
+      return;
+    }
+    listEl.innerHTML = keys.map(k => {
+      const pct = k.calls_limit > 0 ? Math.min(100, Math.round((k.calls_made / k.calls_limit) * 100)) : 0;
+      const planClass = `badge-${k.plan}`;
+      return `<div class="key-item">
+        <div style="flex:1;min-width:0;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
+            <span class="key-badge ${planClass}">${k.plan}</span>
+            <span style="font-weight:600;font-size:0.9rem;">${escH(k.name || 'Unnamed')}</span>
+          </div>
+          <div class="key-prefix">${escH(k.key_prefix)}</div>
+          <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · Last used ${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never'}</div>
+          ${k.calls_limit > 0 ? `<div class="usage-bar-wrap"><div class="usage-bar" style="width:${pct}%"></div></div><div class="key-meta">${(k.calls_made||0).toLocaleString()} / ${k.calls_limit.toLocaleString()} calls (${pct}%)</div>` : `<div class="key-meta">${(k.calls_made||0).toLocaleString()} calls · Unlimited</div>`}
+        </div>
+        <div class="key-actions">
+          <button class="btn-sm btn-danger" onclick="revokeKey('${k.id}')">Revoke</button>
+        </div>
+      </div>`;
+    }).join('');
+  }
+
+  async function loadUsageSummary() {
+    if (!_supabaseSession) return;
+    const resp = await fetch('/api/developer/usage', { headers: { 'Authorization': 'Bearer ' + _supabaseSession.access_token } });
+    if (!resp.ok) return;
+    const data = await resp.json();
+    const el = document.getElementById('dev-usage-summary');
+    if (el) el.textContent = `${data.month} · ${(data.total_calls_this_month||0).toLocaleString()} calls this month · ${(data.calls_today||0).toLocaleString()} today`;
+  }
+
+  // ── Generate key ──
+  function openNewKeyModal() {
+    document.getElementById('new-key-modal').classList.add('open');
+    document.getElementById('new-key-form-wrap').style.display = '';
+    document.getElementById('new-key-result').style.display = 'none';
+    document.getElementById('key-name-input').value = '';
+  }
+  function closeNewKeyModal() {
+    document.getElementById('new-key-modal').classList.remove('open');
+    loadApiKeys();
+  }
+
+  async function generateApiKey() {
+    if (!_supabaseSession) return;
+    const name = document.getElementById('key-name-input').value.trim() || 'My API Key';
+    const resp = await fetch('/api/developer/keys', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + _supabaseSession.access_token, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name })
+    });
+    const data = await resp.json();
+    if (!resp.ok) { showFlash(data.error || 'Failed to generate key', 'error'); return; }
+    document.getElementById('raw-key-display').textContent = data.key?.raw_key || '';
+    document.getElementById('new-key-form-wrap').style.display = 'none';
+    document.getElementById('new-key-result').style.display = 'block';
+  }
+
+  function copyRawKey() {
+    const key = document.getElementById('raw-key-display').textContent;
+    navigator.clipboard.writeText(key).then(() => showFlash('API key copied to clipboard!', 'success'));
+  }
+
+  // ── Revoke key ──
+  async function revokeKey(id) {
+    if (!confirm('Revoke this API key? All requests using it will immediately stop working.')) return;
+    const resp = await fetch('/api/developer/keys/' + id, {
+      method: 'DELETE',
+      headers: { 'Authorization': 'Bearer ' + _supabaseSession.access_token }
+    });
+    if (resp.ok) { showFlash('Key revoked.', 'success'); loadApiKeys(); }
+    else showFlash('Failed to revoke key.', 'error');
+  }
+
+  // ── Flash ──
+  function showFlash(msg, type = 'success') {
+    const el = document.getElementById('dev-flash');
+    el.textContent = msg;
+    el.className = type;
+    setTimeout(() => el.className = '', 4000);
+  }
+
+  function escH(s) { return String(s || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+
+  // ── Boot ──
+  document.addEventListener('DOMContentLoaded', initAuth);
+</script>
+</body>
+</html>

@@ -22,7 +22,7 @@ var CARE_KEY_KEYWORDS = {
 
 function getCareKeyForCategory(categoryOrType) {
   if (!categoryOrType) return null;
-  var normalized = categoryOrType.toLowerCase().replace(/[^a-z]/g, ' ').trim();
+  var normalized = categoryOrType.toLowerCase().replaceAll(/[^a-z]/g, ' ').trim();
   for (var kw in CARE_KEY_KEYWORDS) {
     if (normalized.includes(kw)) return CARE_KEY_KEYWORDS[kw];
   }
@@ -37,11 +37,11 @@ function openAcademyCareCard(key) {
       s.src = 'members-care-guide.js?v=20260314';
       s.id = 'care-guide-script-loaded';
       s.onload = function() {
-        if (typeof window._openAcademyCareCardFull === 'function') window._openAcademyCareCardFull(key);
+        if (typeof globalThis._openAcademyCareCardFull === 'function') globalThis._openAcademyCareCardFull(key);
       };
       document.body.appendChild(s);
-    } else if (typeof window._openAcademyCareCardFull === 'function') {
-      window._openAcademyCareCardFull(key);
+    } else if (typeof globalThis._openAcademyCareCardFull === 'function') {
+      globalThis._openAcademyCareCardFull(key);
     }
   }
   showSection('learn');
@@ -105,20 +105,20 @@ document.addEventListener('DOMContentLoaded', () => {
 // ========== GLOBAL WINDOW ASSIGNMENTS ==========
 // Ensure functions are accessible from inline HTML event handlers
 // NOTE: These are assigned early so they're available before DOMContentLoaded fires
-window.toggleTheme = toggleTheme;
-window.toggleSmsOptions = typeof toggleSmsOptions !== 'undefined' ? toggleSmsOptions : function() { console.warn('toggleSmsOptions not yet defined'); };
-window.loadNotifications = typeof loadNotifications !== 'undefined' ? loadNotifications : function() { console.warn('loadNotifications not yet defined'); };
-window.renderVehicles = typeof renderVehicles !== 'undefined' ? renderVehicles : function() { console.warn('renderVehicles not yet defined'); };
-window.renderServiceHistory = typeof renderServiceHistory !== 'undefined' ? renderServiceHistory : function() { console.warn('renderServiceHistory not yet defined'); };
-window.toggleSidebar = typeof toggleSidebar !== 'undefined' ? toggleSidebar : function() { console.warn('toggleSidebar not yet defined'); };
-window.showSection = typeof showSection !== 'undefined' ? showSection : function() { console.warn('showSection not yet defined'); };
-window.openVehicleModal = typeof openVehicleModal !== 'undefined' ? openVehicleModal : function() { console.warn('openVehicleModal not yet defined'); };
-window.openPackageModal = typeof openPackageModal !== 'undefined' ? openPackageModal : function() { console.warn('openPackageModal not yet defined'); };
-window.escapeHtml = typeof escapeHtml !== 'undefined' ? escapeHtml : function(text) { return text || ''; };
-window.updateThemeIcon = updateThemeIcon;
-window.updateThemeToggleUI = updateThemeToggleUI;
-window.setThemeFromToggle = setThemeFromToggle;
-window.markNotificationRead = typeof markNotificationRead !== 'undefined' ? markNotificationRead : function() { console.warn('markNotificationRead not yet defined'); };
+globalThis.toggleTheme = toggleTheme;
+globalThis.toggleSmsOptions = typeof toggleSmsOptions !== 'undefined' ? toggleSmsOptions : function() { console.warn('toggleSmsOptions not yet defined'); };
+globalThis.loadNotifications = typeof loadNotifications !== 'undefined' ? loadNotifications : function() { console.warn('loadNotifications not yet defined'); };
+globalThis.renderVehicles = typeof renderVehicles !== 'undefined' ? renderVehicles : function() { console.warn('renderVehicles not yet defined'); };
+globalThis.renderServiceHistory = typeof renderServiceHistory !== 'undefined' ? renderServiceHistory : function() { console.warn('renderServiceHistory not yet defined'); };
+globalThis.toggleSidebar = typeof toggleSidebar !== 'undefined' ? toggleSidebar : function() { console.warn('toggleSidebar not yet defined'); };
+globalThis.showSection = typeof showSection !== 'undefined' ? showSection : function() { console.warn('showSection not yet defined'); };
+globalThis.openVehicleModal = typeof openVehicleModal !== 'undefined' ? openVehicleModal : function() { console.warn('openVehicleModal not yet defined'); };
+globalThis.openPackageModal = typeof openPackageModal !== 'undefined' ? openPackageModal : function() { console.warn('openPackageModal not yet defined'); };
+globalThis.escapeHtml = typeof escapeHtml !== 'undefined' ? escapeHtml : function(text) { return text || ''; };
+globalThis.updateThemeIcon = updateThemeIcon;
+globalThis.updateThemeToggleUI = updateThemeToggleUI;
+globalThis.setThemeFromToggle = setThemeFromToggle;
+globalThis.markNotificationRead = typeof markNotificationRead !== 'undefined' ? markNotificationRead : function() { console.warn('markNotificationRead not yet defined'); };
 
 // ========== STATE ==========
 let currentUser = null;
@@ -457,19 +457,19 @@ function updateTrimOptions() {
 async function checkAccessAuthorization() {
   const { data: { session } } = await supabaseClient.auth.getSession();
   if (!session) {
-    window.location.href = 'login.html';
+    globalThis.location.href = 'login.html';
     return false;
   }
   
   try {
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/auth/check-access`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     const result = await response.json();
     
     if (!result.authorized && result.reason === '2fa_required') {
-      window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
+      globalThis.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(globalThis.location.pathname);
       return false;
     }
     return true;
@@ -483,7 +483,7 @@ async function checkAccessAuthorization() {
 window.addEventListener('load', async () => {
   try {
     const user = await getCurrentUser();
-    if (!user) return window.location.href = 'login.html';
+    if (!user) return globalThis.location.href = 'login.html';
     currentUser = user;
     
     // Check 2FA authorization before loading dashboard
@@ -533,9 +533,9 @@ async function initializeDashboard() {
 
   // Initialize native push notifications on member login
   // members-push.js handles permission check, first-launch prompt, and FCM token registration
-  if (typeof window.initCapacitorPush === 'function') {
-    window._mccPushContext = 'member';
-    setTimeout(() => window.initCapacitorPush('member'), 1500);
+  if (typeof globalThis.initCapacitorPush === 'function') {
+    globalThis._mccPushContext = 'member';
+    setTimeout(() => globalThis.initCapacitorPush('member'), 1500);
   }
 }
 
@@ -931,7 +931,7 @@ function showFounderPromoBanner() {
   banner.style.display = 'block';
 }
 
-window.dismissFounderPromo = function() {
+globalThis.dismissFounderPromo = function() {
   const banner = document.getElementById('founder-promo-banner');
   if (banner) banner.style.display = 'none';
   localStorage.setItem('founderPromoDismissed', Date.now().toString());
@@ -1000,7 +1000,7 @@ async function checkProviderAccess() {
 
 function switchToProvider() {
   localStorage.setItem('mcc_portal', 'provider');
-  window.location.href = 'providers.html';
+  globalThis.location.href = 'providers.html';
 }
 
 async function loadVehicles() {
@@ -1100,7 +1100,7 @@ function renderUpsells() {
         actionButtons = `
           <button class="btn btn-success" onclick="approveUpsell('${u.id}')">${mccIcon('check', 16)} Approve ($${(u.estimated_cost || 0).toFixed(2)})</button>
           <button class="btn btn-secondary" onclick="declineUpsell('${u.id}')">${mccIcon('x', 16)} Decline</button>
-          <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replace(/'/g, "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 16)} Get Competing Bids</button>
+          <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replaceAll('\'', "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 16)} Get Competing Bids</button>
           <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 16)} Call Me</button>
         `;
       } else if (updateType === 'car_ready') {
@@ -1117,7 +1117,7 @@ function renderUpsells() {
         `;
       } else if (updateType === 'question') {
         actionButtons = `
-          <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replace(/'/g, "\\'")}')">${mccIcon('message-square', 16)} Reply</button>
+          <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replaceAll('\'', "\\'")}')">${mccIcon('message-square', 16)} Reply</button>
           <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 16)} Call Me</button>
         `;
       } else if (updateType === 'request_call') {
@@ -1725,7 +1725,7 @@ async function saveReminder() {
     reminder_type: reminderType,
     description: notes || null,
     due_date: dueType === 'date' ? dueDate : null,
-    due_mileage: dueType === 'mileage' ? parseInt(dueMileage) : null,
+    due_mileage: dueType === 'mileage' ? Number.parseInt(dueMileage) : null,
     status: 'pending'
   };
   
@@ -2281,7 +2281,7 @@ const recommendationToServiceType = {
 };
 
 function normalizeServiceType(str) {
-  return str.toLowerCase().replace(/[^a-z0-9]/g, '');
+  return str.toLowerCase().replaceAll(/[^a-z0-9]/g, '');
 }
 
 function scheduleFromRecommendation(buttonEl) {
@@ -2478,7 +2478,7 @@ function setupEventListeners() {
     opt.addEventListener('click', () => {
       document.querySelectorAll('.bid-window-option').forEach(o => o.classList.remove('selected'));
       opt.classList.add('selected');
-      selectedBiddingWindowHours = parseInt(opt.dataset.hours);
+      selectedBiddingWindowHours = Number.parseInt(opt.dataset.hours);
     });
   });
 
@@ -3041,7 +3041,7 @@ async function confirmDeleteAccount() {
       return;
     }
     
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/account/delete`, {
       method: 'POST',
       headers: {
@@ -3057,7 +3057,7 @@ async function confirmDeleteAccount() {
       await supabaseClient.auth.signOut();
       showToast('Your account has been deleted. Redirecting...', 'success');
       setTimeout(() => {
-        window.location.href = '/';
+        globalThis.location.href = '/';
       }, 2000);
     } else {
       throw new Error(result.error || 'Failed to delete account');
@@ -3070,8 +3070,8 @@ async function confirmDeleteAccount() {
   }
 }
 
-window.openDeleteAccountModal = openDeleteAccountModal;
-window.confirmDeleteAccount = confirmDeleteAccount;
+globalThis.openDeleteAccountModal = openDeleteAccountModal;
+globalThis.confirmDeleteAccount = confirmDeleteAccount;
 
 function escapeHtml(text) {
   if (!text) return '';
@@ -3082,22 +3082,22 @@ function escapeHtml(text) {
 
 // ========== CROWD-FUNDED PROGRESS LOADING ===// ========== FINAL WINDOW REASSIGNMENTS ==========
 // Now that all functions are defined, reassign from placeholders to actual implementations
-window.toggleTheme = toggleTheme;
-window.toggleSmsOptions = toggleSmsOptions;
-window.loadNotifications = loadNotifications;
-window.renderVehicles = renderVehicles;
-window.renderServiceHistory = renderServiceHistory;
-window.toggleSidebar = toggleSidebar;
-window.showSection = showSection;
-window.openVehicleModal = openVehicleModal;
-window.openPackageModal = openPackageModal;
-window.escapeHtml = escapeHtml;
-window.updateThemeIcon = updateThemeIcon;
-window.updateThemeToggleUI = updateThemeToggleUI;
-window.setThemeFromToggle = setThemeFromToggle;
-window.markNotificationRead = markNotificationRead;
-window.showCommunityBoard = showCommunityBoard;
-window.loadCommunityBoard = loadCommunityBoard;
-window.openContributeModal = openContributeModal;
-window.submitContribution = submitContribution;
-window.loadCrowdFundedProgress = loadCrowdFundedProgress;
+globalThis.toggleTheme = toggleTheme;
+globalThis.toggleSmsOptions = toggleSmsOptions;
+globalThis.loadNotifications = loadNotifications;
+globalThis.renderVehicles = renderVehicles;
+globalThis.renderServiceHistory = renderServiceHistory;
+globalThis.toggleSidebar = toggleSidebar;
+globalThis.showSection = showSection;
+globalThis.openVehicleModal = openVehicleModal;
+globalThis.openPackageModal = openPackageModal;
+globalThis.escapeHtml = escapeHtml;
+globalThis.updateThemeIcon = updateThemeIcon;
+globalThis.updateThemeToggleUI = updateThemeToggleUI;
+globalThis.setThemeFromToggle = setThemeFromToggle;
+globalThis.markNotificationRead = markNotificationRead;
+globalThis.showCommunityBoard = showCommunityBoard;
+globalThis.loadCommunityBoard = loadCommunityBoard;
+globalThis.openContributeModal = openContributeModal;
+globalThis.submitContribution = submitContribution;
+globalThis.loadCrowdFundedProgress = loadCrowdFundedProgress;

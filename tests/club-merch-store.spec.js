@@ -104,7 +104,7 @@ async function setupAuthenticatedPage(page, opts = {}) {
   });
 
   await page.addInitScript(() => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token', token_type: 'bearer', expires_in: 3600,
       expires_at: Math.floor(Date.now() / 1000) + 3600, refresh_token: 'fake-refresh-token',
       user: { id: '00000000-aaaa-bbbb-cccc-000000000001', email: 'member@example.com', role: 'authenticated', app_metadata: { provider: 'email' }, user_metadata: { full_name: 'Test Member' } }

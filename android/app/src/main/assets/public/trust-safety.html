@@ -5,8 +5,9 @@
   <title>Trust & Safety – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Learn how My Car Concierge protects you with provider verification, secure escrow payments, and fair dispute resolution." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -18,20 +19,20 @@
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a7cff;
-      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
       --accent-green: #4ac88c;
       --accent-green-soft: rgba(74, 200, 140, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
@@ -308,7 +309,29 @@
       .trust-section { padding: 32px 24px; }
       .trust-section h2 { font-size: 1.3rem; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/trust-safety.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Learn how My Car Concierge protects you with provider verification, secure escrow payments, and fair dispute resolution." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/trust-safety.html" />
+  <meta property="og:title" content="Trust &amp; Safety – My Car Concierge" />
+  <meta property="og:description" content="Learn how My Car Concierge protects you with provider verification, secure escrow payments, and fair dispute resolution." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="Trust &amp; Safety – My Car Concierge" />
+  <meta name="twitter:description" content="Learn how My Car Concierge protects you with provider verification, secure escrow payments, and fair dispute resolution." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -335,11 +358,11 @@
     </div>
 
     <div class="trust-section verification">
-      <h2><span class="section-icon">🛡️</span> Provider Verification</h2>
+      <h2><span class="section-icon"><span class="icon-inline" data-icon="shield"></span></span> Provider Verification</h2>
       <p>Every service provider on My Car Concierge goes through a comprehensive verification process before they can bid on your service requests. We take provider quality seriously.</p>
       <ul class="feature-list">
         <li><strong>Identity Verification:</strong> Government ID verification ensures providers are who they claim to be.</li>
-        <li><strong>Background Checks:</strong> Criminal background screenings help ensure your safety.</li>
+        <li><strong>Background Checks (Optional):</strong> Providers can voluntarily complete background screenings. Look for the "Background Verified" badge on provider profiles.</li>
         <li><strong>License Verification:</strong> We verify professional licenses and certifications where applicable.</li>
         <li><strong>Insurance Confirmation:</strong> Providers must maintain appropriate liability insurance coverage.</li>
         <li><strong>Business Verification:</strong> For business accounts, we verify legitimate business registration.</li>
@@ -348,7 +371,7 @@
     </div>
 
     <div class="trust-section escrow">
-      <h2><span class="section-icon">💰</span> Secure Escrow System</h2>
+      <h2><span class="section-icon"><span class="icon-inline" data-icon="dollar-sign"></span></span> Secure Escrow System</h2>
       <p>Our escrow payment system protects both vehicle owners and service providers by ensuring funds are handled fairly throughout every transaction.</p>
       <ul class="feature-list">
         <li><strong>Payment Protection:</strong> Your payment is held securely until you confirm the work is complete.</li>
@@ -360,7 +383,7 @@
     </div>
 
     <div class="trust-section dispute">
-      <h2><span class="section-icon">⚖️</span> Dispute Resolution</h2>
+      <h2><span class="section-icon"><span class="icon-inline" data-icon="gavel"></span></span> Dispute Resolution</h2>
       <p>In the rare event that something goes wrong, our fair and structured dispute resolution process ensures both parties are heard and treated fairly.</p>
       <ul class="feature-list">
         <li><strong>Direct Resolution:</strong> We encourage and facilitate direct communication between parties first.</li>
@@ -374,17 +397,17 @@
 
     <div class="protection-grid">
       <div class="protection-card">
-        <div class="protection-icon">🔒</div>
+        <div class="protection-icon"><span class="icon-inline" data-icon="lock"></span></div>
         <h3>Data Security</h3>
         <p>Your personal and payment information is encrypted and stored securely using industry-best practices.</p>
       </div>
       <div class="protection-card">
-        <div class="protection-icon">⭐</div>
+        <div class="protection-icon"><span class="icon-inline" data-icon="star"></span></div>
         <h3>Review System</h3>
         <p>Authentic reviews from real customers help you make informed decisions about providers.</p>
       </div>
       <div class="protection-card">
-        <div class="protection-icon">📞</div>
+        <div class="protection-icon"><span class="icon-inline" data-icon="phone"></span></div>
         <h3>Support Team</h3>
         <p>Our dedicated support team is available to help resolve any issues that arise.</p>
       </div>
@@ -398,5 +421,13 @@
   </main>
 
   <script src="/footer.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

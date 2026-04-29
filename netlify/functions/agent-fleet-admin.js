@@ -218,8 +218,8 @@ async function sendAwardEmail(to, subject, html) {
 
 function escapeHtml(value) {
   return String(value == null ? '' : value)
-    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+    .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;').replaceAll('\'', '&#39;');
 }
 
 function formatAmount(amount) {
@@ -494,7 +494,7 @@ function parsePath(event) {
   return raw
     .replace(/^\/?\.netlify\/functions\/agent-fleet-admin\/?/, '')
     .replace(/^\/api\/admin\/agent-fleet\/?/, '')
-    .replace(/^\/+|\/+$/g, '');
+    .replaceAll(/^\/+|\/+$/g, '');
 }
 
 async function listAgentsWithSpend(supabase) {
@@ -528,8 +528,8 @@ async function updateAgent(supabase, slug, body) {
 }
 
 async function listActions(supabase, { limit = 50, offset = 0, agent = null, status = null, reviewOnly = false, since = null }) {
-  const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
-  const off = Math.max(parseInt(offset, 10) || 0, 0);
+  const lim = Math.min(Math.max(Number.parseInt(limit, 10) || 50, 1), 200);
+  const off = Math.max(Number.parseInt(offset, 10) || 0, 0);
   // Task #174 — count: 'planned' avoids a full COUNT(*) scan over
   // agent_actions; pagination labels only need an estimate.
   let q = supabase.from('agent_actions')
@@ -864,7 +864,7 @@ exports.handler = async function(event) {
         return jsonResponse(400, { error: 'target_id must be alphanumeric (with - or _), max 128 chars' });
       }
       const targetId = rawTargetId;
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 10, 1), 50);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 10, 1), 50);
       const kind = (qs.target_kind || '').trim().toLowerCase();
       // PostgREST `or` filter — JSONB text-extraction is `key->>field`.
       // Each kind maps to one or more candidate JSON paths the agents use.
@@ -897,7 +897,7 @@ exports.handler = async function(event) {
 
     const reviewMatch = route.match(/^actions\/(\d+)\/review$/);
     if (reviewMatch && method === 'POST') {
-      const r = await reviewAction(supabase, parseInt(reviewMatch[1], 10), body);
+      const r = await reviewAction(supabase, Number.parseInt(reviewMatch[1], 10), body);
       return jsonResponse(r.error ? 400 : 200, r);
     }
 
@@ -1070,7 +1070,7 @@ exports.handler = async function(event) {
     // PUT  /director/config                           — { quiet_hours_utc?, digest_hour_utc?, dedupe_repage_hours?, thresholds? }
     // POST /run/director                              — fire the Director sweep now
     if (route === 'director/alerts' && method === 'GET') {
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 50, 1), 200);
       const status = (qs.status || 'open').toLowerCase();
       let listQ = supabase.from('agent_director_alerts')
         .select('*')
@@ -1110,7 +1110,7 @@ exports.handler = async function(event) {
     }
     const directorResolveMatch = route.match(/^director\/alerts\/(\d+)\/resolve$/);
     if (directorResolveMatch && method === 'POST') {
-      const aid = parseInt(directorResolveMatch[1], 10);
+      const aid = Number.parseInt(directorResolveMatch[1], 10);
       const { data, error } = await supabase.from('agent_director_alerts')
         .update({ resolved_at: new Date().toISOString() })
         .eq('id', aid)
@@ -1149,8 +1149,8 @@ exports.handler = async function(event) {
       const next = JSON.parse(JSON.stringify(current));
 
       if (body.quiet_hours_utc && typeof body.quiet_hours_utc === 'object') {
-        const s = parseInt(body.quiet_hours_utc.start, 10);
-        const e = parseInt(body.quiet_hours_utc.end, 10);
+        const s = Number.parseInt(body.quiet_hours_utc.start, 10);
+        const e = Number.parseInt(body.quiet_hours_utc.end, 10);
         if (Number.isInteger(s) && Number.isInteger(e) && s >= 0 && s <= 23 && e >= 0 && e <= 23) {
           next.quiet_hours_utc = { start: s, end: e };
         } else {
@@ -1158,7 +1158,7 @@ exports.handler = async function(event) {
         }
       }
       if (body.digest_hour_utc != null) {
-        const h = parseInt(body.digest_hour_utc, 10);
+        const h = Number.parseInt(body.digest_hour_utc, 10);
         if (!Number.isInteger(h) || h < 0 || h > 23) {
           return jsonResponse(400, { error: 'digest_hour_utc must be an integer 0-23' });
         }
@@ -1220,7 +1220,7 @@ exports.handler = async function(event) {
 
     // -------- gatekeeper smoke run log (Task #161)
     if (route === 'smoke-runs' && method === 'GET') {
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 20, 1), 100);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 20, 1), 100);
       const slug = (qs.agent || 'gatekeeper').trim();
       const { data, error } = await supabase
         .from('agent_smoke_runs')
@@ -1243,8 +1243,8 @@ exports.handler = async function(event) {
 
     // -------- dead-letter queue
     if (route === 'dead-letter' && method === 'GET') {
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
-      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 50, 1), 200);
+      const off = Math.max(Number.parseInt(qs.offset, 10) || 0, 0);
       const openOnly = qs.open === '1' || qs.open === 'true';
       let q = supabase.from('agent_dead_letter')
         .select('*', { count: 'exact' })
@@ -1257,7 +1257,7 @@ exports.handler = async function(event) {
     }
     const dlqReplayMatch = route.match(/^dead-letter\/(\d+)\/replay$/);
     if (dlqReplayMatch && method === 'POST') {
-      const dlqId = parseInt(dlqReplayMatch[1], 10);
+      const dlqId = Number.parseInt(dlqReplayMatch[1], 10);
       const { data: entry, error: fetchErr } = await supabase
         .from('agent_dead_letter').select('*').eq('id', dlqId).maybeSingle();
       if (fetchErr) return jsonResponse(500, { error: fetchErr.message });
@@ -1274,7 +1274,7 @@ exports.handler = async function(event) {
 
     // -------- spend-cap alerts
     if (route === 'spend-alerts' && method === 'GET') {
-      const days = Math.min(Math.max(parseInt(qs.days, 10) || 7, 1), 90);
+      const days = Math.min(Math.max(Number.parseInt(qs.days, 10) || 7, 1), 90);
       const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000)
         .toISOString().split('T')[0];
       const { data, error } = await supabase
@@ -1348,7 +1348,7 @@ exports.handler = async function(event) {
 
     // -------- events timeseries (per-hour bucketing for the events chart)
     if (route === 'events/timeseries' && method === 'GET') {
-      const days = Math.min(Math.max(parseInt(qs.days, 10) || 7, 1), 30);
+      const days = Math.min(Math.max(Number.parseInt(qs.days, 10) || 7, 1), 30);
       const groupBy = qs.group_by === 'status' ? 'status' : 'event_type';
       const sinceMs = Date.now() - days * 24 * 60 * 60 * 1000;
       const sinceIso = new Date(sinceMs).toISOString();
@@ -1410,8 +1410,8 @@ exports.handler = async function(event) {
     if (route === 'memory' && method === 'GET') {
       const slug = (qs.agent || '').trim();
       if (!slug) return jsonResponse(400, { error: 'agent query param required' });
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 20, 1), 100);
-      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 20, 1), 100);
+      const off = Math.max(Number.parseInt(qs.offset, 10) || 0, 0);
       const { data, count, error } = await supabase
         .from('agent_memory')
         .select('*', { count: 'exact' })
@@ -1424,7 +1424,7 @@ exports.handler = async function(event) {
 
     const applyMatch = route.match(/^actions\/(\d+)\/apply$/);
     if (applyMatch && method === 'POST') {
-      const r = await applyAction(supabase, parseInt(applyMatch[1], 10));
+      const r = await applyAction(supabase, Number.parseInt(applyMatch[1], 10));
       if (r.error) return jsonResponse(r.status || 500, { error: r.error });
       return jsonResponse(200, r);
     }
@@ -1445,8 +1445,8 @@ exports.handler = async function(event) {
       if (status && !SOCIAL_LEAD_STATUSES.includes(status)) {
         return jsonResponse(400, { error: 'invalid status', allowed: SOCIAL_LEAD_STATUSES });
       }
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
-      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 50, 1), 200);
+      const off = Math.max(Number.parseInt(qs.offset, 10) || 0, 0);
       let q = supabase.from('social_leads')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -1492,7 +1492,7 @@ exports.handler = async function(event) {
 
     const leadActionMatch = route.match(/^social\/leads\/(\d+)\/(approve|reject|contacted)$/);
     if (leadActionMatch && method === 'POST') {
-      const id = parseInt(leadActionMatch[1], 10);
+      const id = Number.parseInt(leadActionMatch[1], 10);
       const status = leadActionMatch[2] === 'approve' ? 'approved'
                    : leadActionMatch[2] === 'reject'  ? 'rejected'
                    : 'contacted';
@@ -1508,8 +1508,8 @@ exports.handler = async function(event) {
       if (status && !SOCIAL_POST_STATUSES.includes(status)) {
         return jsonResponse(400, { error: 'invalid status', allowed: SOCIAL_POST_STATUSES });
       }
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
-      const off = Math.max(parseInt(qs.offset, 10) || 0, 0);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 50, 1), 200);
+      const off = Math.max(Number.parseInt(qs.offset, 10) || 0, 0);
       let q = supabase.from('social_posts')
         .select('*', { count: 'exact' })
         .order('created_at', { ascending: false })
@@ -1522,7 +1522,7 @@ exports.handler = async function(event) {
 
     const postActionMatch = route.match(/^social\/posts\/(\d+)\/(approve|reject|publish)$/);
     if (postActionMatch && method === 'POST') {
-      const id = parseInt(postActionMatch[1], 10);
+      const id = Number.parseInt(postActionMatch[1], 10);
       const action = postActionMatch[2];
 
       const { data: post, error: loadErr } = await supabase
@@ -1626,7 +1626,7 @@ exports.handler = async function(event) {
       const platform = (body.platform || '').toString();
       const audience = (body.audience || 'mixed').toString();
       const brief    = (body.brief || '').toString();
-      let variants = parseInt(body.variants, 10);
+      let variants = Number.parseInt(body.variants, 10);
       if (!Number.isFinite(variants) || variants < 1) variants = 1;
       if (variants > 10) variants = 10;
       if (!platform) return jsonResponse(400, { error: 'platform required' });
@@ -1664,7 +1664,7 @@ exports.handler = async function(event) {
     // Inline-edit a draft. Race-safe: rejects if status is publishing/published.
     const postPatchMatch = route.match(/^social\/posts\/(\d+)$/);
     if (postPatchMatch && method === 'PATCH') {
-      const id = parseInt(postPatchMatch[1], 10);
+      const id = Number.parseInt(postPatchMatch[1], 10);
       const { data: cur, error: loadErr } = await supabase
         .from('social_posts').select('*').eq('id', id).maybeSingle();
       if (loadErr) return jsonResponse(500, { error: loadErr.message });
@@ -1723,7 +1723,7 @@ exports.handler = async function(event) {
     }
     const channelToggleMatch = route.match(/^social\/channels\/(\d+)\/toggle$/);
     if (channelToggleMatch && method === 'POST') {
-      const id = parseInt(channelToggleMatch[1], 10);
+      const id = Number.parseInt(channelToggleMatch[1], 10);
       const { data: cur } = await supabase.from('social_channels').select('enabled').eq('id', id).maybeSingle();
       if (!cur) return jsonResponse(404, { error: 'channel not found' });
       const { data, error } = await supabase.from('social_channels')
@@ -1734,7 +1734,7 @@ exports.handler = async function(event) {
 
     const channelByIdMatch = route.match(/^social\/channels\/(\d+)$/);
     if (channelByIdMatch && method === 'PATCH') {
-      const id = parseInt(channelByIdMatch[1], 10);
+      const id = Number.parseInt(channelByIdMatch[1], 10);
       const patch = {};
       if (typeof body.handle === 'string') patch.handle = body.handle.trim() || null;
       if (Array.isArray(body.monitor_keywords)) {
@@ -1753,7 +1753,7 @@ exports.handler = async function(event) {
     }
 
     if (channelByIdMatch && method === 'DELETE') {
-      const id = parseInt(channelByIdMatch[1], 10);
+      const id = Number.parseInt(channelByIdMatch[1], 10);
       // FK on social_leads/social_posts is ON DELETE SET NULL — historical
       // rows survive but lose their channel pointer. That's intentional.
       const { error } = await supabase.from('social_channels').delete().eq('id', id);
@@ -1763,7 +1763,7 @@ exports.handler = async function(event) {
 
     const channelRunMatch = route.match(/^social\/channels\/(\d+)\/run-monitor$/);
     if (channelRunMatch && method === 'POST') {
-      const id = parseInt(channelRunMatch[1], 10);
+      const id = Number.parseInt(channelRunMatch[1], 10);
       const { runOnce } = require('./social-monitor-scheduled');
       try {
         const summary = await runOnce(supabase, { channelId: id });
@@ -1791,7 +1791,7 @@ exports.handler = async function(event) {
     const promptHistoryMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt-history$/i);
     if (promptHistoryMatch && method === 'GET') {
       const slug = promptHistoryMatch[1];
-      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 20, 1), 100);
+      const lim = Math.min(Math.max(Number.parseInt(qs.limit, 10) || 20, 1), 100);
       const { data, error } = await supabase
         .from('agent_prompt_versions')
         .select('id, version, notes, is_active, created_at, created_by')
@@ -1809,7 +1809,7 @@ exports.handler = async function(event) {
     const promptVersionMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt\/(\d+)$/i);
     if (promptVersionMatch && method === 'GET') {
       const slug = promptVersionMatch[1];
-      const version = parseInt(promptVersionMatch[2], 10);
+      const version = Number.parseInt(promptVersionMatch[2], 10);
       const { data, error } = await supabase
         .from('agent_prompt_versions')
         .select('id, version, body, notes, is_active, created_at, created_by')
@@ -1885,7 +1885,7 @@ exports.handler = async function(event) {
     const activateMatch = route.match(/^agents\/([a-z0-9_-]+)\/prompt\/(\d+)\/activate$/i);
     if (activateMatch && method === 'POST') {
       const slug = activateMatch[1];
-      const version = parseInt(activateMatch[2], 10);
+      const version = Number.parseInt(activateMatch[2], 10);
       const { data: target, error: tErr } = await supabase
         .from('agent_prompt_versions')
         .select('id').eq('agent_slug', slug).eq('version', version).maybeSingle();

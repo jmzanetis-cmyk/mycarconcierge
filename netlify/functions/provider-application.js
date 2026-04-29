@@ -77,7 +77,7 @@ function isEmail(v) {
 
 function isPhone(v) {
   // Loose phone check — at least 7 digits, allows spaces/dashes/parens/+ prefix.
-  return typeof v === 'string' && (v.replace(/\D/g, '').length >= 7) && v.length <= 30;
+  return typeof v === 'string' && (v.replaceAll(/\D/g, '').length >= 7) && v.length <= 30;
 }
 
 function strLen(v, min, max) {

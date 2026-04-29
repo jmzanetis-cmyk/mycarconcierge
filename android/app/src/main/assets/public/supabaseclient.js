@@ -973,6 +973,8 @@ async function submitProviderReview(reviewData) {
   
   const suspensionResult = await checkProviderSuspension(reviewData.provider_id);
   
+  generateAiReviewSummary(reviewData.provider_id, true).catch(() => {});
+  
   return { 
     data, 
     error: null, 
@@ -1026,6 +1028,43 @@ window.shareLocation = shareLocation;
 window.getActiveLocationShare = getActiveLocationShare;
 window.deactivateLocationShare = deactivateLocationShare;
 window.markLocationViewed = markLocationViewed;
+
+async function getAiReviewSummary(providerId) {
+  try {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const response = await fetch(`${apiBase}/api/review-summary/${providerId}`);
+    if (!response.ok) return { data: null, error: 'Failed to fetch summary' };
+    const data = await response.json();
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error fetching AI review summary:', err);
+    return { data: null, error: err.message };
+  }
+}
+
+async function generateAiReviewSummary(providerId, forceRegenerate = false) {
+  try {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const response = await fetch(`${apiBase}/api/review-summary`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        ...(session?.access_token ? { 'Authorization': `Bearer ${session.access_token}` } : {})
+      },
+      body: JSON.stringify({ provider_id: providerId, force_regenerate: forceRegenerate })
+    });
+    if (!response.ok) return { data: null, error: 'Failed to generate summary' };
+    const data = await response.json();
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error generating AI review summary:', err);
+    return { data: null, error: err.message };
+  }
+}
+
+window.getAiReviewSummary = getAiReviewSummary;
+window.generateAiReviewSummary = generateAiReviewSummary;
 
 // Export rating and suspension functions
 window.checkProviderSuspension = checkProviderSuspension;
@@ -2619,7 +2658,7 @@ async function getFleetDetails(fleetId) {
     .from('fleet_vehicles')
     .select(`
       *,
-      vehicle:vehicle_id(id, year, make, model, color, license_plate, vin)
+      vehicle:vehicle_id(id, year, make, model, color, license_plate, vin, mileage, health_score, health_status, next_service_date, last_service_date, photo_url)
     `)
     .eq('fleet_id', fleetId)
     .order('created_at', { ascending: false });

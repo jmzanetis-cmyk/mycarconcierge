@@ -1,7 +1,7 @@
 {
   "appId": "com.zanetisholdings.mycarconcierge",
   "appName": "My Car Concierge",
-  "webDir": "www",
+  "webDir": ".",
   "server": {
     "url": "https://www.mycarconcierge.com",
     "androidScheme": "https",

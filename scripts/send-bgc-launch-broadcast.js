@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* eslint-disable no-console */
+ 
 // ─────────────────────────────────────────────────────────────────────────────
 // Task #164 — Send the MCC Verified launch announcement emails to customers
 // and providers via Resend.
@@ -71,8 +71,8 @@ function parseArgs(argv) {
     else if (arg === '--continue') out.continueAfterPreview = true;
     else if (arg.startsWith('--audience=')) out.audience = arg.split('=')[1];
     else if (arg.startsWith('--preview-to=')) out.previewTo = arg.split('=')[1].split(',').map(s => s.trim()).filter(Boolean);
-    else if (arg.startsWith('--limit=')) out.limit = Math.max(1, parseInt(arg.split('=')[1], 10) || 0);
-    else if (arg.startsWith('--rate=')) out.rate = Math.max(1, parseInt(arg.split('=')[1], 10) || 0);
+    else if (arg.startsWith('--limit=')) out.limit = Math.max(1, Number.parseInt(arg.split('=')[1], 10) || 0);
+    else if (arg.startsWith('--rate=')) out.rate = Math.max(1, Number.parseInt(arg.split('=')[1], 10) || 0);
     else if (arg === '--help' || arg === '-h') { printHelp(); process.exit(0); }
     else { console.error('Unknown flag:', arg); printHelp(); process.exit(2); }
   }
@@ -124,7 +124,7 @@ function loadTemplate(filePath) {
 }
 
 function renderTemplate(template, vars) {
-  return template.replace(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, key) => {
+  return template.replaceAll(/\{\{\s*([a-zA-Z_]+)\s*\}\}/g, (_, key) => {
     const v = vars[key];
     return v == null ? '' : String(v);
   });

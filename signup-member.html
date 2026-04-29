@@ -504,7 +504,7 @@
         showMessage('Account created! Check your email to confirm, then log in.', 'success');
         
         setTimeout(() => {
-          window.location.href = 'login.html';
+          globalThis.location.href = 'login.html';
         }, 2500);
 
       } catch (err) {

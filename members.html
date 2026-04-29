@@ -7514,11 +7514,11 @@
   <script>
     // Expose members-vehicles.js functions that need global window access
     if (typeof showInsuranceReviewUI === 'function') {
-      window.showInsuranceReviewUI = showInsuranceReviewUI;
+      globalThis.showInsuranceReviewUI = showInsuranceReviewUI;
     }
   </script>
   <script src="members-packages.js?v=20260213"></script>
-  <script>window._mccPushContext = 'member';</script>
+  <script>globalThis._mccPushContext = 'member';</script>
   <script src="members-push.js?v=20260319"></script>
   <script src="/pwa-init.js?v=20260213"></script>
   <script src="/chat-widget-base.js?v=20260213"></script>
@@ -7559,8 +7559,8 @@
       const dismissed = localStorage.getItem('mcc_onboarding_dismissed');
       if (dismissed) return;
       
-      const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
-      const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
+      const vehicleCount = Number.parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+      const packageCount = Number.parseInt(document.getElementById('stat-packages')?.textContent || '0');
       
       // Show onboarding if user has less than 1 vehicle or 1 package
       if (vehicleCount < 1 || packageCount < 1) {
@@ -7571,8 +7571,8 @@
     }
     
     function updateOnboardingProgress() {
-      const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
-      const packageCount = parseInt(document.getElementById('stat-packages')?.textContent || '0');
+      const vehicleCount = Number.parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+      const packageCount = Number.parseInt(document.getElementById('stat-packages')?.textContent || '0');
       
       let completed = 0;
       

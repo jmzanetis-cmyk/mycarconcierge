@@ -154,7 +154,7 @@ function stopGpsTracking() {
 async function sendLocationUpdate(packageId, position) {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     await fetch(`${apiBase}/api/tracking/update`, {
       method: 'POST',
       headers: { 
@@ -272,7 +272,7 @@ async function submitJobCompletion() {
   
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/jobs/complete`, {
       method: 'POST',
       headers: { 
@@ -334,7 +334,7 @@ function openAdditionalWorkModal(packageId) {
 async function submitAdditionalWorkRequest() {
   const packageId = document.getElementById('additional-work-package-id')?.value;
   const description = document.getElementById('additional-work-description')?.value?.trim();
-  const estimatedCost = parseFloat(document.getElementById('additional-work-cost')?.value) || 0;
+  const estimatedCost = Number.parseFloat(document.getElementById('additional-work-cost')?.value) || 0;
   const photosInput = document.getElementById('additional-work-photos');
   
   if (!packageId) {
@@ -363,7 +363,7 @@ async function submitAdditionalWorkRequest() {
     }
     
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/additional-work/request`, {
       method: 'POST',
       headers: { 
@@ -409,7 +409,7 @@ function openDiscountModal(packageId) {
 
 async function submitDiscountOffer() {
   const packageId = document.getElementById('discount-package-id')?.value;
-  const discountAmount = parseFloat(document.getElementById('discount-amount')?.value) || 0;
+  const discountAmount = Number.parseFloat(document.getElementById('discount-amount')?.value) || 0;
   const discountType = document.getElementById('discount-type')?.value || 'fixed';
   const reason = document.getElementById('discount-reason')?.value?.trim() || '';
   
@@ -430,7 +430,7 @@ async function submitDiscountOffer() {
   
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/discount/offer`, {
       method: 'POST',
       headers: { 
@@ -491,7 +491,7 @@ async function viewAdditionalWorkRequests(packageId) {
       return `
         <div style="padding:16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;background:var(--bg-input);">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-            <span style="font-weight:600;">$${parseFloat(req.estimated_cost || 0).toFixed(2)}</span>
+            <span style="font-weight:600;">$${Number.parseFloat(req.estimated_cost || 0).toFixed(2)}</span>
             <span style="padding:4px 12px;border-radius:100px;font-size:0.8rem;background:${status.bg};color:${status.color};">${status.label}</span>
           </div>
           <p style="margin:0 0 8px 0;color:var(--text-secondary);font-size:0.9rem;">${req.description || 'No description'}</p>
@@ -540,7 +540,7 @@ async function viewDiscountsOffered(packageId) {
       const status = statusBadges[disc.status] || statusBadges['offered'];
       const amountDisplay = disc.discount_type === 'percentage' 
         ? `${disc.discount_amount}%` 
-        : `$${parseFloat(disc.discount_amount || 0).toFixed(2)}`;
+        : `$${Number.parseFloat(disc.discount_amount || 0).toFixed(2)}`;
       
       return `
         <div style="padding:16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;background:var(--bg-input);">
@@ -707,7 +707,7 @@ function renderEmergencyQueue() {
   container.innerHTML = nearbyEmergencies.map(e => {
     const timeAgo = formatTimeAgo(e.created_at);
     const distance = e.distance_miles ? `${e.distance_miles.toFixed(1)} mi away` : 'Nearby';
-    const escrowAmount = e.escrow_amount ? `$${parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
+    const escrowAmount = e.escrow_amount ? `$${Number.parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
     
     return `
       <div class="emergency-card">
@@ -1215,7 +1215,7 @@ async function onQrCodeScanned(decodedText) {
 function parseCheckInQrCode(url) {
   try {
     if (url.includes('/check-in.html')) {
-      const urlObj = new URL(url, window.location.origin);
+      const urlObj = new URL(url, globalThis.location.origin);
       const packageId = urlObj.searchParams.get('package');
       const token = urlObj.searchParams.get('token');
       if (packageId && token) return { packageId, token };
@@ -1303,7 +1303,7 @@ async function loadProviderRefundBadge() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const res = await fetch(`${apiBase}/api/provider/refunds`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
@@ -1338,7 +1338,7 @@ async function loadProviderRefunds() {
       return;
     }
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const res = await fetch(`${apiBase}/api/provider/refunds`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
@@ -1390,7 +1390,7 @@ async function loadProviderRefunds() {
 }
 
 function renderRefundCard(refund, showActions) {
-  const amount = refund.amount_cents ? `$${(refund.amount_cents / 100).toFixed(2)}` : (refund.amount ? `$${parseFloat(refund.amount).toFixed(2)}` : '$0.00');
+  const amount = refund.amount_cents ? `$${(refund.amount_cents / 100).toFixed(2)}` : (refund.amount ? `$${Number.parseFloat(refund.amount).toFixed(2)}` : '$0.00');
   const memberName = refund.member_name || refund.member?.full_name || refund.member?.email || 'Member';
   const packageTitle = refund.package_title || refund.package?.title || 'Service Package';
   const refundType = refund.refund_type || refund.type || 'full';
@@ -1436,7 +1436,7 @@ function renderRefundCard(refund, showActions) {
   }
 
   if (showActions) {
-    const amountCents = refund.amount_cents || Math.round(parseFloat(refund.amount || 0) * 100);
+    const amountCents = refund.amount_cents || Math.round(Number.parseFloat(refund.amount || 0) * 100);
     html += `<div style="display:flex;gap:8px;flex-wrap:wrap;">`;
     html += `<button class="btn btn-sm" style="background:var(--accent-green);color:#fff;border:none;padding:8px 16px;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;font-size:0.85rem;" onclick="approveProviderRefund('${refund.id}', ${amountCents})">${mccIcon('check-circle', 16)} Approve Refund</button>`;
     html += `<button class="btn btn-sm" style="background:var(--accent-red);color:#fff;border:none;padding:8px 16px;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;font-size:0.85rem;" onclick="denyProviderRefund('${refund.id}')">${mccIcon('x', 16)} Deny Refund</button>`;
@@ -1458,7 +1458,7 @@ async function approveProviderRefund(refundId, amountCents) {
       return;
     }
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const res = await fetch(`${apiBase}/api/provider/refunds/${refundId}/process`, {
       method: 'POST',
       headers: {
@@ -1491,7 +1491,7 @@ async function denyProviderRefund(refundId) {
       return;
     }
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     const res = await fetch(`${apiBase}/api/provider/refunds/${refundId}/process`, {
       method: 'POST',
       headers: {
@@ -1546,20 +1546,20 @@ function showProviderApptCalendarOptions(apptId, dateStr, timeStr, serviceTitle)
   const desc = 'Service appointment booked via My Car Concierge';
 
   function toISODate(ds) {
-    try { const d = new Date(ds); return d.toISOString().split('T')[0].replace(/-/g, ''); } catch(e) { return ''; }
+    try { const d = new Date(ds); return d.toISOString().split('T')[0].replaceAll('-', ''); } catch(e) { return ''; }
   }
   function to24h(t) {
     if (!t) return '090000';
     const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
     if (!m) return '090000';
-    let h = parseInt(m[1]); const min = m[2];
+    let h = Number.parseInt(m[1]); const min = m[2];
     if (m[3] && m[3].toUpperCase() === 'PM' && h < 12) h += 12;
     if (m[3] && m[3].toUpperCase() === 'AM' && h === 12) h = 0;
     return String(h).padStart(2, '0') + min + '00';
   }
   const dtDate = toISODate(dateStr);
   const startH = to24h(timeStr);
-  const endHour = String(Math.min(parseInt(startH.substring(0, 2)) + 1, 23)).padStart(2, '0');
+  const endHour = String(Math.min(Number.parseInt(startH.substring(0, 2)) + 1, 23)).padStart(2, '0');
   const dtStart = dtDate + 'T' + startH;
   const dtEnd = dtDate + 'T' + endHour + startH.substring(2);
 
@@ -1575,7 +1575,7 @@ function showProviderApptCalendarOptions(apptId, dateStr, timeStr, serviceTitle)
         document.getElementById('provider-cal-modal').remove();
       })()`
     : `(function(){
-        var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replace(/'/g, '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
+        var ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replaceAll('\'', '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
         var blob=new Blob([ics],{type:'text/calendar'});
         var a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mcc-appointment.ics';a.click();
         document.getElementById('provider-cal-modal').remove();
@@ -1588,7 +1588,7 @@ function showProviderApptCalendarOptions(apptId, dateStr, timeStr, serviceTitle)
     <div class="modal" style="max-width:340px;">
       <div class="modal-header"><h3 class="modal-title">Add to Calendar</h3><button class="modal-close" onclick="document.getElementById('provider-cal-modal').remove()">×</button></div>
       <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
-        <button class="btn btn-primary" onclick="${downloadIcsFn.replace(/"/g, '&quot;')}">Download .ics File</button>
+        <button class="btn btn-primary" onclick="${downloadIcsFn.replaceAll('"', '&quot;')}">Download .ics File</button>
         <a class="btn btn-ghost" href="https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${dtStart}/${dtEnd}&details=${encodeURIComponent(desc)}" target="_blank" rel="noopener" onclick="document.getElementById('provider-cal-modal').remove()">Open in Google Calendar</a>
       </div>
     </div>
@@ -1598,7 +1598,7 @@ function showProviderApptCalendarOptions(apptId, dateStr, timeStr, serviceTitle)
 
 function escapeAITextLocal(str) {
   if (!str || typeof str !== 'string') return '';
-  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  return str.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
 async function loadProviderMediations() {
@@ -1609,7 +1609,7 @@ async function loadProviderMediations() {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
 
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     for (const job of activeJobs) {
       const container = document.getElementById(`provider-mediation-${job.package_id}`);
       if (!container) continue;
@@ -1652,6 +1652,6 @@ async function loadProviderMediations() {
   } catch (e) {}
 }
 
-window.loadProviderMediations = loadProviderMediations;
+globalThis.loadProviderMediations = loadProviderMediations;
 
 console.log('providers-jobs.js loaded');

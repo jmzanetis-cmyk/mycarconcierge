@@ -1,6 +1,5 @@
 class AIChatWidget {
   constructor() {
-    this.isOpen = false;
     this.messages = [];
     this.isLoading = false;
     this.init();
@@ -464,6 +463,7 @@ class AIChatWidget {
     div.textContent = text;
     return div.innerHTML;
   }
+  isOpen = false;
 }
 
 if (document.readyState === 'loading') {

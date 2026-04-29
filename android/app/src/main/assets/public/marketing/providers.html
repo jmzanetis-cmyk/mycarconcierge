@@ -1,40 +1,66 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>Become a Provider – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Join the My Car Concierge provider network. Grow your automotive service business with qualified leads and build lasting customer relationships." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a90d9;
-      --accent-blue-soft: rgba(74, 144, 217, 0.12);
-      --accent-green: #4ac88c;
-      --accent-green-soft: rgba(74, 200, 140, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
-      --shadow-glow: 0 0 60px rgba(212, 168, 85, 0.08);
+      --shadow-glow: 0 0 60px rgba(201, 162, 39, 0.1);
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f9f7f4;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-blue-soft: rgba(30, 58, 95, 0.1);
+      --accent-green: #059669;
+      --accent-green-soft: rgba(5, 150, 105, 0.12);
+      --shadow-glow: 0 0 40px rgba(201, 169, 98, 0.15);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,8 +81,15 @@
       z-index: 0;
       background:
         radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 144, 217, 0.05), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 144, 217, 0.03), transparent 60%);
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(56, 189, 248, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(56, 189, 248, 0.03), transparent 60%);
+    }
+
+    [data-theme="light"] .ambient-bg {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(184, 148, 45, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.03), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(255, 248, 235, 0.4), transparent 60%);
     }
 
     .noise {
@@ -214,6 +247,63 @@
     .btn-secondary:hover {
       background: rgba(38, 38, 52, 0.9);
       border-color: var(--accent-blue);
+    }
+
+    [data-theme="light"] .hero h1 .highlight {
+      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    [data-theme="light"] .btn-primary {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+      box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
+      font-weight: 600;
+    }
+
+    [data-theme="light"] .btn-primary:hover {
+      background: linear-gradient(135deg, #a6852a, #c49a35);
+      box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
+    }
+
+    [data-theme="light"] .btn-secondary {
+      background: #ffffff;
+      color: #1e3a5f;
+      border: 2px solid #1e3a5f;
+    }
+
+    [data-theme="light"] .btn-secondary:hover {
+      background: #1e3a5f;
+      color: #ffffff;
+      border-color: #1e3a5f;
+    }
+
+    [data-theme="light"] .benefit-card {
+      background: #ffffff;
+      box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06), 0 1px 3px rgba(30, 58, 95, 0.04);
+      border: 1px solid rgba(30, 58, 95, 0.08);
+    }
+
+    [data-theme="light"] .earnings-section,
+    [data-theme="light"] .cta-box {
+      background: #ffffff;
+      box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06);
+      border: 1px solid rgba(30, 58, 95, 0.08);
+    }
+
+    [data-theme="light"] .verification-box {
+      background: rgba(5, 150, 105, 0.08);
+      border-color: rgba(5, 150, 105, 0.2);
+    }
+
+    [data-theme="light"] .verification-box h3 {
+      color: #059669;
+    }
+
+    [data-theme="light"] .verification-list li::before {
+      color: #059669;
     }
 
     .section {
@@ -495,11 +585,65 @@
         padding: 40px 24px;
       }
     }
+
+    .onboarding-banner {
+      position: relative;
+      z-index: 101;
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f;
+      text-align: center;
+      padding: 10px 48px 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .onboarding-banner a {
+      color: #0a0a0f;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .onboarding-banner a:hover { opacity: 0.8; }
+    .onboarding-banner .banner-dismiss {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #0a0a0f;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .onboarding-banner .banner-dismiss:hover { opacity: 1; }
+    [data-theme="light"] .onboarding-banner {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+    }
+    [data-theme="light"] .onboarding-banner a { color: #ffffff; }
+    [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
+    @media (max-width: 600px) {
+      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
+    }
   </style>
 </head>
 <body>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
+
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
+    We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
+    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
+  </div>
+  <script>
+    if (!localStorage.getItem('onboardingBannerDismissed')) {
+      document.getElementById('onboardingBanner').style.display = '';
+    }
+  </script>
 
   <header>
     <div class="container">
@@ -507,9 +651,9 @@
         <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
       </a>
       <nav>
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/login.html" class="btn-login">Log In</a>
       </nav>
     </div>
@@ -563,6 +707,11 @@
             <p>Satisfied customers come back. Build lasting relationships with vehicle owners in your area.</p>
           </div>
           <div class="benefit-card">
+            <div class="benefit-icon">🏆</div>
+            <h3>Car Club Loyalty</h3>
+            <p>Launch your own loyalty program at no extra cost. Punch card rewards keep customers choosing you, turning first-time jobs into repeat business.</p>
+          </div>
+          <div class="benefit-card">
             <div class="benefit-icon">🛡️</div>
             <h3>Verified Network</h3>
             <p>Being part of a vetted network means customers trust you from day one. Stand out from the competition.</p>
@@ -571,31 +720,6 @@
       </div>
     </section>
 
-    <section class="section">
-      <div class="container">
-        <div class="earnings-section">
-          <h2>Earning Potential</h2>
-          <p>Top providers on our platform are growing their businesses and earning more. Here's what's possible:</p>
-          <div class="earnings-stats">
-            <div class="earnings-stat">
-              <div class="value">$5,000+</div>
-              <div class="label">Average Monthly Earnings (Top Providers)</div>
-            </div>
-            <div class="earnings-stat">
-              <div class="value">15+</div>
-              <div class="label">Jobs Per Month (Active Providers)</div>
-            </div>
-            <div class="earnings-stat">
-              <div class="value">85%</div>
-              <div class="label">Customer Retention Rate</div>
-            </div>
-          </div>
-          <p style="font-size: 0.85rem; color: var(--text-muted);">
-            *Results vary based on location, service type, and provider activity. These figures represent top performers.
-          </p>
-        </div>
-      </div>
-    </section>
 
     <section class="section">
       <div class="container">
@@ -616,8 +740,8 @@
           </div>
           <div class="process-step">
             <div class="step-number">3</div>
-            <h3>Background Check</h3>
-            <p>We conduct a thorough background check to ensure platform safety.</p>
+            <h3>Profile Setup</h3>
+            <p>Complete your profile with services, service area, and optionally verify your team with background checks.</p>
           </div>
           <div class="process-step">
             <div class="step-number">4</div>
@@ -632,11 +756,175 @@
             <li>Business registration</li>
             <li>Insurance coverage</li>
             <li>Professional licenses</li>
-            <li>Background check</li>
             <li>Service capabilities</li>
             <li>Location verification</li>
           </ul>
+          <p style="margin-top: 12px; font-size: 0.9rem; opacity: 0.8;">Optional: Complete voluntary background checks for yourself and your team to earn the "Background Verified" badge and stand out to members.</p>
         </div>
+      </div>
+    </section>
+
+    <!-- MCC Verified provider-marketing section.
+         (Section 4 — "For Providers (Homepage or Dedicated Landing Page)").
+         Bilingual EN / ES; the script at the bottom of this page uses
+         localStorage `mcc_language` to swap which [data-mcc-lang] block is
+         shown. -->
+    <section class="section" id="mcc-verified" data-mcc-lang="en">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">MCC Verified</span>
+          <h2>Verified providers book more jobs</h2>
+        </div>
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+          The MCC Verified badge tells customers your team is background-checked and trustworthy. It&rsquo;s the fastest way to build credibility on the platform &mdash; and verified providers see higher bid acceptance rates and more repeat customers.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
+          <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Comprehensive Screening</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              National criminal records, sex offender registry, and identity verification &mdash; handled by our accredited partner.
+            </p>
+          </div>
+          <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Always Current</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Annual renewals keep your badge up to date. We send reminders at 60, 30, 14, and 7 days before expiration &mdash; you&rsquo;ll never be caught off guard.
+            </p>
+          </div>
+          <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Simple Compliance</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Your provider dashboard shows exactly where you stand: who&rsquo;s verified, who&rsquo;s expiring, and what to do next.
+            </p>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <a href="/signup-provider.html" class="btn btn-primary">Start Your Verification &rarr;</a>
+          <a href="/providers.html#compliance" class="btn btn-secondary">Manage Your Team &rarr;</a>
+        </div>
+      </div>
+    </section>
+    <section class="section" id="mcc-verified-es" data-mcc-lang="es" hidden>
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">MCC Verificado</span>
+          <h2>Los proveedores verificados consiguen más trabajos</h2>
+        </div>
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+          La insignia MCC Verificado le indica a los clientes que tu equipo cuenta con verificación de antecedentes y es de confianza. Es la forma más rápida de generar credibilidad en la plataforma &mdash; y los proveedores verificados obtienen más ofertas aceptadas y más clientes recurrentes.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
+          <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Verificación integral</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Antecedentes penales a nivel nacional, registro de delincuentes sexuales y verificación de identidad &mdash; gestionados por nuestro socio acreditado.
+            </p>
+          </div>
+          <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Siempre vigente</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Las renovaciones anuales mantienen tu insignia al día. Te enviamos recordatorios 60, 30, 14 y 7 días antes del vencimiento &mdash; nunca te tomarán por sorpresa.
+            </p>
+          </div>
+          <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:1.15rem;">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Tu panel de proveedor muestra exactamente dónde estás parado: quién está verificado, quién va a vencer y qué hacer a continuación.
+            </p>
+          </div>
+        </div>
+        <div style="text-align:center;margin-top:32px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <a href="/signup-provider.html" class="btn btn-primary">Inicia tu Verificación &rarr;</a>
+          <a href="/providers.html#compliance" class="btn btn-secondary">Administra tu Equipo &rarr;</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- "Earn the badge customers trust" provider-signup section.
+         Verbatim PDF copy (Section 3 — Provider Signup / Marketing Page).
+         Bilingual EN / ES via [data-mcc-lang]. The per-employee price ($70)
+         in the EN and ES "Affordable" cards below must stay in sync with
+         www/bgc-pricing.js (single source of truth) and the email templates. -->
+    <section class="section" id="mcc-verified-pitch" data-mcc-lang="en" style="background:rgba(0,0,0,0.04);">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">Earn the Badge</span>
+          <h2>Earn the badge customers trust</h2>
+        </div>
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+          MCC Verified providers get more visibility, more bids, and more repeat customers. Background checks are fast, affordable, and handled right inside your dashboard.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Stand out in search</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Verified providers are highlighted in search results and recommended first to customers in your area.
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Build instant trust</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              78% of vehicle owners say they&rsquo;re more likely to choose a provider with verified background checks.*
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Simple compliance</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Add your team, initiate checks with one click, and we handle the rest &mdash; including renewal reminders so you never lose your badge.
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Affordable</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Background checks start at $70 per employee, per year. A small investment that pays for itself with your first extra booking.
+            </p>
+          </div>
+        </div>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Placeholder stat &mdash; replace with actual survey/data when available</p>
+      </div>
+    </section>
+    <section class="section" id="mcc-verified-pitch-es" data-mcc-lang="es" hidden style="background:rgba(0,0,0,0.04);">
+      <div class="container">
+        <div class="section-header">
+          <span class="section-label">Obtén la insignia</span>
+          <h2>Obtén la insignia en la que los clientes confían</h2>
+        </div>
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+          Los proveedores MCC Verificados tienen más visibilidad, más ofertas y más clientes recurrentes. Las verificaciones de antecedentes son rápidas, accesibles y se gestionan directamente desde tu panel.
+        </p>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Destácate en las búsquedas</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Los proveedores verificados se destacan en los resultados de búsqueda y se recomiendan primero a los clientes de tu zona.
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Genera confianza al instante</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              El 78 % de los propietarios de vehículos dice que es más probable que elija a un proveedor con verificación de antecedentes.*
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Agrega a tu equipo, inicia las verificaciones con un clic y nosotros nos encargamos del resto &mdash; incluyendo los recordatorios de renovación para que nunca pierdas tu insignia.
+            </p>
+          </div>
+          <div>
+            <h3 style="margin:0 0 6px;font-size:1.1rem;">Accesible</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+              Las verificaciones de antecedentes empiezan en $70 por empleado al año. Una pequeña inversión que se paga sola con tu primera reserva adicional.
+            </p>
+          </div>
+        </div>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Estadística provisional &mdash; se reemplazará con datos de encuesta reales cuando estén disponibles</p>
       </div>
     </section>
 
@@ -657,9 +945,9 @@
   <footer>
     <div class="container">
       <div class="footer-links">
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
       </div>
@@ -671,6 +959,17 @@
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
+
+    // Bilingual visibility for [data-mcc-lang] blocks (page does not use i18n.js).
+    (function applyMccLang() {
+      try {
+        var lang = (localStorage.getItem('mcc_language') || 'en').toLowerCase();
+        if (lang !== 'es') lang = 'en';
+        document.querySelectorAll('[data-mcc-lang]').forEach(function (el) {
+          el.hidden = (el.getAttribute('data-mcc-lang') !== lang);
+        });
+      } catch (_) { /* localStorage unavailable */ }
+    })();
   </script>
 </body>
 </html>

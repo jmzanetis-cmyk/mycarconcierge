@@ -56,8 +56,8 @@ button:hover{background:#b8942d;}
 <h1>Unsubscribe</h1>
 <p>We're sorry to see you go. Click below to unsubscribe from My Car Concierge outreach emails.</p>
 <form method="POST" action="/unsubscribe">
-<input type="hidden" name="email" value="${email.replace(/"/g, '&quot;')}">
-<input type="hidden" name="id" value="${leadId.replace(/"/g, '&quot;')}">
+<input type="hidden" name="email" value="${email.replaceAll('"', '&quot;')}">
+<input type="hidden" name="id" value="${leadId.replaceAll('"', '&quot;')}">
 <button type="submit">Unsubscribe Me</button>
 </form>
 </div></body></html>`

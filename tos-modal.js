@@ -299,4 +299,4 @@ const TosModal = {
   }
 };
 
-window.TosModal = TosModal;
+globalThis.TosModal = TosModal;

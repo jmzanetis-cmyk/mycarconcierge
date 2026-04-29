@@ -18,19 +18,25 @@
     .step-num { display: inline-block; width: 28px; height: 28px; background: #d4a855; color: #0a0a0f; border-radius: 50%; text-align: center; line-height: 28px; font-weight: bold; margin-right: 10px; }
     .copy-btn { background: #333; padding: 6px 12px; font-size: 0.8rem; width: auto; margin-left: 10px; }
     .warning { background: #3d2020; border: 1px solid #ef5f5f; padding: 12px; border-radius: 8px; margin-bottom: 20px; }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/generate-admin-hash.html" />
+  <meta name="robots" content="noindex, nofollow" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
-  <h1>🔐 Admin Password Setup</h1>
+  <h1><span class="icon-inline" data-icon="lock"></span> Admin Password Setup</h1>
   <p style="color:#999;margin-bottom:20px;">Secure setup for My Car Concierge admin portal password protection.</p>
   
   <div class="warning">
-    <strong>⚠️ Security Note:</strong> This uses a Supabase database function for secure server-side password verification. The hash is never exposed to the client.
+    <strong><span class="icon-inline" data-icon="alert-triangle"></span> Security Note:</strong> This uses a Supabase database function for secure server-side password verification. The hash is never exposed to the client.
   </div>
 
   <h2>Step 1: Generate Your Password Hash</h2>
   <div class="step">
-    <input type="password" id="password" placeholder="Enter your admin password">
+    <input type="password" id="password" placeholder="Enter your admin password" autocomplete="new-password">
     <button onclick="generateHash()">Generate SHA-256 Hash</button>
     <div id="result" class="result" style="display:none;"></div>
   </div>
@@ -86,7 +92,7 @@ $$;
 
 -- Grant execute permission to authenticated users
 GRANT EXECUTE ON FUNCTION verify_admin_password(TEXT) TO authenticated;</pre>
-    <button class="copy-btn" onclick="copySQL()">📋 Copy SQL</button>
+    <button class="copy-btn" onclick="copySQL()"><span class="icon-inline" data-icon="clipboard-list"></span> Copy SQL</button>
   </div>
 
   <h2>Step 3: Test It</h2>
@@ -112,7 +118,7 @@ GRANT EXECUTE ON FUNCTION verify_admin_password(TEXT) TO authenticated;</pre>
       const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
       
       document.getElementById('result').style.display = 'block';
-      document.getElementById('result').innerHTML = '<strong>Your SHA-256 Hash:</strong><br><br><span id="hash-value">' + hashHex + '</span><br><br><button class="copy-btn" onclick="copyHash()">📋 Copy Hash</button>';
+      document.getElementById('result').innerHTML = '<strong>Your SHA-256 Hash:</strong><br><br><span id="hash-value">' + hashHex + '</span><br><br><button class="copy-btn" onclick="copyHash()"><span class="icon-inline" data-icon="clipboard-list"></span> Copy Hash</button>';
       
       // Update SQL code with the hash
       const sqlCode = document.getElementById('sql-code').innerHTML;
@@ -130,6 +136,14 @@ GRANT EXECUTE ON FUNCTION verify_admin_password(TEXT) TO authenticated;</pre>
       navigator.clipboard.writeText(sql);
       alert('SQL copied to clipboard!');
     }
+  </script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
   </script>
 </body>
 </html>

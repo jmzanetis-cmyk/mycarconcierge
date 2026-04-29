@@ -534,7 +534,7 @@ ${text.substring(0, 3000)}`;
 
         const parseResult = await callAI(parsePrompt, 2000);
         const parsed = parseResult.text;
-        const clean = parsed.replace(/```json|```/g, '').trim();
+        const clean = parsed.replaceAll(/```json|```/g, '').trim();
         let communities = [];
         try {
           communities = JSON.parse(clean);
@@ -563,7 +563,7 @@ ${text.substring(0, 3000)}`;
             source: 'community_discovery',
             crm_sync_status: 'unlinked',
             status: 'new',
-            notes: `${c.type?.replace(/_/g, ' ') || 'Car community'}: ${c.description || 'Local automotive community'}. Reach out to organizer/admin to promote My Car Concierge to their car-owner members.`,
+            notes: `${c.type?.replaceAll('_', ' ') || 'Car community'}: ${c.description || 'Local automotive community'}. Reach out to organizer/admin to promote My Car Concierge to their car-owner members.`,
             metadata: {
               community_type: c.type,
               website: c.website,
@@ -878,7 +878,7 @@ Leads to score:
 ${JSON.stringify(batch, null, 2)}`;
 
       const aiResult = await callAI(prompt, 4000);
-      const clean = aiResult.text.replace(/```json|```/g, '').trim();
+      const clean = aiResult.text.replaceAll(/```json|```/g, '').trim();
       let scores;
       try {
         scores = JSON.parse(clean);
@@ -1121,9 +1121,9 @@ async function sendMessage(supabase, messageId) {
 
   const firstName = lead.name ? lead.name.split(' ')[0] : 'there';
   const bodyBase = msg.body
-    .replace(/\[FIRST_NAME\]/g, firstName)
-    .replace(/\[MCC_LINK\]/g, 'https://mycarconcierge.com')
-    .replace(/\[LINK\]/g, 'https://mycarconcierge.com');
+    .replaceAll('[FIRST_NAME]', firstName)
+    .replaceAll('[MCC_LINK]', 'https://mycarconcierge.com')
+    .replaceAll('[LINK]', 'https://mycarconcierge.com');
 
   let externalId = null;
   let error = null;
@@ -1137,8 +1137,8 @@ async function sendMessage(supabase, messageId) {
     const openPixel = `<img src="${RUNNER_BASE}/t/o?m=${messageId}" width="1" height="1" style="display:none;" alt="">`;
     const clickUrl = `${RUNNER_BASE}/t/c?m=${messageId}&u=${encodeURIComponent('https://mycarconcierge.com')}`;
     const htmlBody = bodyBase
-      .replace(/\n/g, '<br>')
-      .replace(/https:\/\/mycarconcierge\.com/g, `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
+      .replaceAll('\n', '<br>')
+      .replaceAll('https://mycarconcierge.com', `<a href="${clickUrl}" style="color:#c9a84c;">mycarconcierge.com</a>`)
       + `<br><br><hr style="border-color:#333;"><p style="font-size:12px;color:#888;">${PHYSICAL_ADDRESS}<br><a href="${unsubLink}" style="color:#888;">Unsubscribe</a></p>${openPixel}`;
 
     try {
@@ -1487,8 +1487,8 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
         }
 
         else if (req.method === 'GET' && pathname === '/leads') {
-          const page = parseInt(url.searchParams.get('page') || '1');
-          const limit = parseInt(url.searchParams.get('limit') || '25');
+          const page = Number.parseInt(url.searchParams.get('page') || '1');
+          const limit = Number.parseInt(url.searchParams.get('limit') || '25');
           const type = url.searchParams.get('type');
           const status = url.searchParams.get('status');
           const crmStatus = url.searchParams.get('crm_status');
@@ -1707,8 +1707,8 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
 
         else if (req.method === 'GET' && pathname === '/messages') {
           const status = url.searchParams.get('status');
-          const page = parseInt(url.searchParams.get('page') || '1');
-          const limit = parseInt(url.searchParams.get('limit') || '50');
+          const page = Number.parseInt(url.searchParams.get('page') || '1');
+          const limit = Number.parseInt(url.searchParams.get('limit') || '50');
           const offset = (page - 1) * limit;
 
           let query = supabase.from('outreach_messages').select('*, outreach_leads(*)', { count: 'exact' });
@@ -2292,8 +2292,8 @@ button:hover{background:#b8942d;}
 <h1>Unsubscribe</h1>
 <p>We're sorry to see you go. Click below to unsubscribe from My Car Concierge outreach emails.</p>
 <form method="POST" action="/unsubscribe">
-<input type="hidden" name="email" value="${email.replace(/"/g, '&quot;')}">
-<input type="hidden" name="id" value="${leadId.replace(/"/g, '&quot;')}">
+<input type="hidden" name="email" value="${email.replaceAll('"', '&quot;')}">
+<input type="hidden" name="id" value="${leadId.replaceAll('"', '&quot;')}">
 <button type="submit">Unsubscribe Me</button>
 </form>
 </div></body></html>`);

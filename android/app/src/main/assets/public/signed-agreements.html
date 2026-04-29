@@ -1,0 +1,641 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <script>
+    (function() {
+      var theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <title>Signed Agreements – Admin – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <script src="/mcc-config.js"></script>
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-bronze: #cd7f32;
+      --accent-bronze-soft: rgba(205, 127, 50, 0.15);
+      --accent-teal: #22d3ee;
+      --accent-teal-soft: rgba(34, 211, 238, 0.12);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --accent-green: #34d399;
+      --accent-green-soft: rgba(52, 211, 153, 0.12);
+      --accent-red: #f87171;
+      --accent-red-soft: rgba(248, 113, 113, 0.15);
+      --accent-orange: #fb923c;
+      --accent-orange-soft: rgba(251, 146, 60, 0.15);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #ffffff;
+      --text-primary: #1e3a5f;
+      --text-secondary: #4a5568;
+      --text-muted: #6b7280;
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-blue-soft: rgba(30, 58, 95, 0.08);
+      --accent-green: #28a745;
+      --accent-green-soft: rgba(40, 167, 69, 0.12);
+      --accent-red: #dc3545;
+      --accent-red-soft: rgba(220, 53, 69, 0.12);
+      --accent-orange: #fd7e14;
+      --accent-orange-soft: rgba(253, 126, 20, 0.12);
+      --border-subtle: rgba(30, 58, 95, 0.12);
+      --border-medium: rgba(30, 58, 95, 0.2);
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease !important;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow: hidden; }
+
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: rgba(148, 148, 168, 0.3); border-radius: 4px; }
+    ::-webkit-scrollbar-thumb:hover { background: rgba(148, 148, 168, 0.5); }
+    * { scrollbar-width: thin; scrollbar-color: rgba(148, 148, 168, 0.3) transparent; }
+
+    .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: 24px 16px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow: hidden; }
+    .sidebar-nav { flex: 1; overflow-y: auto; margin-right: -8px; padding-right: 8px; }
+    .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px; text-decoration: none; }
+    .sidebar-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; transition: all 0.3s ease; }
+    .sidebar-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
+    .nav-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--text-muted); padding: 0 12px; margin: 20px 0 8px; }
+    .nav-label:first-of-type { margin-top: 0; }
+    .nav-item { display: flex; align-items: center; gap: 12px; padding: 12px; border-radius: var(--radius-md); cursor: pointer; font-size: 0.92rem; color: var(--text-secondary); transition: all 0.15s; margin-bottom: 4px; touch-action: manipulation; -webkit-tap-highlight-color: rgba(212, 168, 85, 0.3); }
+    .nav-item:hover, .nav-item:active { background: var(--accent-blue-soft); color: var(--text-primary); }
+    .nav-item.active { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .sidebar-footer { margin-top: auto; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+
+    [data-theme="light"] .sidebar {
+      background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
+      border-right: 1px solid rgba(30, 58, 95, 0.1);
+    }
+    [data-theme="light"] .sidebar-footer {
+      background: linear-gradient(180deg, transparent, rgba(255, 255, 255, 0.95));
+    }
+    [data-theme="light"] .nav-item:hover {
+      background: rgba(30, 58, 95, 0.06);
+      border-color: rgba(30, 58, 95, 0.15);
+    }
+    [data-theme="light"] .nav-item.active {
+      background: linear-gradient(135deg, rgba(184, 148, 45, 0.15), rgba(184, 148, 45, 0.08));
+      color: #1e3a5f;
+      border-color: rgba(184, 148, 45, 0.4);
+    }
+
+    .theme-toggle-btn {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      width: 100%;
+      padding: 12px 14px;
+      margin-bottom: 8px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      cursor: pointer;
+      font-family: inherit;
+      font-size: 0.88rem;
+      color: var(--text-secondary);
+      transition: all 0.3s ease;
+    }
+    .theme-toggle-btn:hover {
+      background: var(--accent-gold-soft);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+      transform: scale(1.02);
+      box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
+    }
+    .theme-icon-dark, .theme-icon-light { font-size: 1.2rem; transition: transform 0.3s ease; }
+    [data-theme="dark"] .theme-icon-light { display: none; }
+    [data-theme="light"] .theme-icon-dark { display: none; }
+    [data-theme="dark"] .theme-toggle-btn:hover .theme-icon-dark {
+      animation: flashlight 0.5s ease;
+    }
+    @keyframes flashlight {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.3); filter: drop-shadow(0 0 8px #ffd700); }
+    }
+    .theme-label { font-weight: 500; }
+
+    .main { flex: 1; margin-left: 260px; padding: 32px 40px; height: 100%; overflow-y: auto; }
+    .page-header { margin-bottom: 32px; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-secondary); font-size: 0.85rem; cursor: pointer; transition: all 0.2s; margin-bottom: 16px; text-decoration: none; }
+    .back-link:hover { background: var(--accent-gold-soft); color: var(--accent-gold); border-color: var(--accent-gold); }
+    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+
+    .agreements-table-wrap {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      overflow: hidden;
+    }
+    .agreements-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+    .agreements-table th {
+      text-align: left;
+      padding: 14px 20px;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+      border-bottom: 1px solid var(--border-subtle);
+      background: var(--bg-elevated);
+    }
+    .agreements-table td {
+      padding: 16px 20px;
+      font-size: 0.92rem;
+      border-bottom: 1px solid var(--border-subtle);
+      vertical-align: middle;
+    }
+    .agreements-table tr:last-child td {
+      border-bottom: none;
+    }
+    .agreements-table tr:hover td {
+      background: var(--accent-blue-soft);
+    }
+    .agreement-name {
+      font-weight: 600;
+      color: var(--text-primary);
+    }
+    .agreement-type {
+      color: var(--text-secondary);
+    }
+    .agreement-date {
+      color: var(--text-secondary);
+      font-size: 0.88rem;
+    }
+    .status-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 100px;
+      font-size: 0.78rem;
+      font-weight: 600;
+    }
+    .status-signed {
+      background: var(--accent-green-soft);
+      color: var(--accent-green);
+    }
+    .status-pending {
+      background: var(--accent-orange-soft);
+      color: var(--accent-orange);
+    }
+    .status-default {
+      background: var(--accent-blue-soft);
+      color: var(--accent-blue);
+    }
+    .download-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 8px 16px;
+      background: var(--accent-gold-soft);
+      border: 1px solid rgba(201, 162, 39, 0.3);
+      border-radius: var(--radius-sm);
+      color: var(--accent-gold);
+      font-family: inherit;
+      font-size: 0.84rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .download-btn:hover {
+      background: var(--accent-gold);
+      color: #12161c;
+      transform: translateY(-1px);
+    }
+    .download-btn:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    .loading-state, .empty-state, .error-state {
+      text-align: center;
+      padding: 60px 20px;
+      color: var(--text-muted);
+    }
+    .loading-state .spinner {
+      width: 36px;
+      height: 36px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--accent-blue);
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+      margin: 0 auto 16px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .empty-state .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+    .error-state .error-icon { font-size: 3rem; margin-bottom: 12px; }
+
+    .mobile-header {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      height: 56px;
+      background: var(--bg-card);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 0 16px;
+      align-items: center;
+      justify-content: space-between;
+      z-index: 100;
+    }
+    .hamburger-btn {
+      width: 44px;
+      height: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      background: var(--accent-gold);
+      border: none;
+      border-radius: var(--radius-md);
+      color: var(--bg-deep);
+      font-size: 22px;
+      cursor: pointer;
+      touch-action: manipulation;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .hamburger-btn:active { transform: scale(0.95); }
+    .mobile-header-title { font-family: 'Playfair Display', serif; font-size: 1.1rem; }
+    .sidebar-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.5);
+      z-index: 49;
+    }
+
+    @media (max-width: 768px) {
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
+      .sidebar.open { transform: translateX(0); }
+      .sidebar-overlay.active { display: block; }
+      .mobile-header { display: flex; }
+      .main { margin-left: 0; padding: 72px 16px 32px; }
+      .agreements-table th:nth-child(3),
+      .agreements-table td:nth-child(3) { display: none; }
+      .agreements-table th, .agreements-table td { padding: 12px 10px; font-size: 0.84rem; }
+      .page-title { font-size: 1.4rem; }
+    }
+
+    [data-theme="light"] .agreements-table-wrap {
+      background: #ffffff;
+      box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06);
+      border: 1px solid rgba(30, 58, 95, 0.08);
+    }
+    [data-theme="light"] .agreements-table th {
+      background: #f9fafb;
+    }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/signed-agreements.html" />
+  <meta name="robots" content="noindex, nofollow" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+  <div class="mobile-header">
+    <button class="hamburger-btn" onclick="toggleSidebar()">&#9776;</button>
+    <span class="mobile-header-title">Signed Agreements</span>
+    <div style="width:44px;"></div>
+  </div>
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="toggleSidebar()"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <a href="index.html" class="sidebar-brand">
+      <img src="logo.png" alt="My Car Concierge">
+    </a>
+    <div class="sidebar-nav">
+      <div class="nav-label">Overview</div>
+      <div class="nav-item" onclick="window.location.href='admin.html'">&#128202; Dashboard</div>
+      <div class="nav-item" onclick="window.location.href='admin.html#analytics'">&#128200; Analytics</div>
+      <div class="nav-label">Resources</div>
+      <div class="nav-item" onclick="window.location.href='admin.html#documents'">&#128196; Documents &amp; Resources</div>
+      <div class="nav-item active">&#128221; Signed Agreements</div>
+    </div>
+    <div class="sidebar-footer">
+      <button class="btn btn-secondary" onclick="window.location.href='members.html'" style="width:100%;margin-bottom:8px;padding:12px 16px;">&#127968; Member Portal</button>
+      <button class="theme-toggle-btn" onclick="toggleTheme()" title="Toggle light/dark mode">
+        <span class="theme-icon-dark">&#128294;</span>
+        <span class="theme-icon-light">&#127769;</span>
+        <span class="theme-label">Lights</span>
+      </button>
+      <button class="btn btn-secondary" onclick="logout()" style="width:100%;padding:14px 20px;font-size:0.95rem;">&#128682; Log Out</button>
+    </div>
+  </aside>
+
+  <main class="main">
+    <div class="page-header">
+      <a href="admin.html" class="back-link">&#8592; Back to Dashboard</a>
+      <h1 class="page-title">Signed Agreements</h1>
+      <p class="page-subtitle">View and download all signed agreement PDFs</p>
+    </div>
+    <div id="agreements-content">
+      <div class="loading-state">
+        <div class="spinner"></div>
+        <p>Loading agreements...</p>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    function toggleTheme() {
+      var html = document.documentElement;
+      html.classList.add('theme-transition');
+      var current = html.getAttribute('data-theme');
+      var next = current === 'dark' ? 'light' : 'dark';
+      html.setAttribute('data-theme', next);
+      localStorage.setItem('theme', next);
+      setTimeout(function() { html.classList.remove('theme-transition'); }, 400);
+    }
+
+    function logout() {
+      localStorage.clear();
+      window.location.href = 'index.html';
+    }
+
+    function toggleSidebar() {
+      var sidebar = document.getElementById('sidebar');
+      var overlay = document.getElementById('sidebarOverlay');
+      sidebar.classList.toggle('open');
+      overlay.classList.toggle('active');
+    }
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      var div = document.createElement('div');
+      div.textContent = String(text);
+      return div.innerHTML;
+    }
+
+    function formatType(type) {
+      if (type === 'founding_provider_chris_agrapidis') return 'Founding Provider - Chris Agrapidis';
+      if (type === 'founding_provider') return 'Founding Provider';
+      if (type === 'founding_member') return 'Founding Member';
+      if (type === 'provider') return 'Provider';
+      return type || 'Unknown';
+    }
+
+    function formatDate(dateStr) {
+      if (!dateStr) return '—';
+      try {
+        var d = new Date(dateStr);
+        if (isNaN(d.getTime())) return dateStr;
+        var months = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+        return months[d.getMonth()] + ' ' + d.getDate() + ', ' + d.getFullYear();
+      } catch (e) {
+        return dateStr;
+      }
+    }
+
+    function getStatusBadge(status) {
+      var s = (status || '').toLowerCase();
+      if (s === 'signed' || s === 'active') {
+        return '<span class="status-badge status-signed">' + escapeHtml(status) + '</span>';
+      }
+      if (s === 'pending') {
+        return '<span class="status-badge status-pending">' + escapeHtml(status) + '</span>';
+      }
+      return '<span class="status-badge status-default">' + escapeHtml(status || 'Unknown') + '</span>';
+    }
+
+    function findSupabaseToken() {
+      // Search localStorage first (Supabase default)
+      var storages = [localStorage, sessionStorage];
+      for (var s = 0; s < storages.length; s++) {
+        try {
+          var keys = Object.keys(storages[s]);
+          for (var i = 0; i < keys.length; i++) {
+            var k = keys[i];
+            if ((k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) || k === 'supabase.auth.token' || k === 'supabase-session') {
+              try {
+                var raw = storages[s].getItem(k);
+                var session = JSON.parse(raw);
+                // Supabase v2 stores { access_token, ... } directly or nested under .session
+                var tok = (session && session.access_token) ? session.access_token
+                        : (session && session.session && session.session.access_token) ? session.session.access_token
+                        : null;
+                if (tok) return { token: tok, type: 'bearer' };
+              } catch (e) {}
+            }
+          }
+        } catch (e) {}
+      }
+      return null;
+    }
+
+    function checkAdminAuth() {
+      var supabaseAuth = findSupabaseToken();
+      var adminPass = localStorage.getItem('mcc_admin_pass') || sessionStorage.getItem('mcc_admin_pass');
+      var adminTeamToken = localStorage.getItem('mcc_admin_team_token') || sessionStorage.getItem('mcc_admin_team_token');
+      if (supabaseAuth || adminPass || adminTeamToken) {
+        return { token: supabaseAuth ? supabaseAuth.token : null, adminPass: adminPass, adminTeamToken: adminTeamToken };
+      }
+      window.location.href = 'admin.html';
+      return null;
+    }
+
+    function buildAuthHeaders(auth) {
+      var headers = {};
+      if (auth.token) headers['Authorization'] = 'Bearer ' + auth.token;
+      if (auth.adminPass) headers['x-admin-password'] = auth.adminPass;
+      if (auth.adminTeamToken) headers['x-admin-token'] = auth.adminTeamToken;
+      return headers;
+    }
+
+    function downloadPdf(id, name, btn) {
+      var apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) ? window.MCC_CONFIG.apiBaseUrl : '';
+      var auth = checkAdminAuth();
+      if (!auth) return;
+
+      btn.disabled = true;
+      btn.textContent = 'Downloading...';
+
+      fetch(apiBase + '/api/admin/agreements/' + id + '/pdf', {
+        headers: buildAuthHeaders(auth)
+      })
+      .then(function(r) {
+        if (!r.ok) throw new Error('Download failed');
+        return r.blob();
+      })
+      .then(function(blob) {
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = 'Agreement-' + (name || 'document').replace(/[^a-zA-Z0-9_\- ]/g, '') + '.pdf';
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        btn.disabled = false;
+        btn.innerHTML = '&#128229; PDF';
+      })
+      .catch(function(err) {
+        console.error('PDF download error:', err);
+        btn.disabled = false;
+        btn.innerHTML = '&#128229; PDF';
+        alert('Failed to download PDF. Please try again.');
+      });
+    }
+
+    function renderAgreements(agreements) {
+      var container = document.getElementById('agreements-content');
+
+      if (!agreements || agreements.length === 0) {
+        container.innerHTML =
+          '<div class="empty-state">' +
+            '<div class="empty-icon">&#128196;</div>' +
+            '<p style="font-size:1.1rem;margin-bottom:8px;">No signed agreements found</p>' +
+            '<p style="font-size:0.9rem;">Agreements will appear here once they are signed.</p>' +
+          '</div>';
+        return;
+      }
+
+      var html = '<div class="agreements-table-wrap"><table class="agreements-table">';
+      html += '<thead><tr>';
+      html += '<th>Name</th>';
+      html += '<th>Agreement Type</th>';
+      html += '<th>Signed Date</th>';
+      html += '<th>Status</th>';
+      html += '<th>Download</th>';
+      html += '</tr></thead><tbody>';
+
+      for (var i = 0; i < agreements.length; i++) {
+        var a = agreements[i];
+        var fullName = escapeHtml(a.full_name || a.name || a.signer_name || 'Unknown');
+        var type = formatType(a.agreement_type || a.type);
+        var date = formatDate(a.signed_at || a.created_at || a.signed_date);
+        var status = a.status || 'signed';
+        var id = a.id;
+
+        html += '<tr>';
+        html += '<td class="agreement-name">&#128100; ' + fullName + '</td>';
+        html += '<td class="agreement-type">' + escapeHtml(type) + '</td>';
+        html += '<td class="agreement-date">' + date + '</td>';
+        html += '<td>' + getStatusBadge(status) + '</td>';
+        html += '<td><button class="download-btn" onclick="downloadPdf(\'' + id + '\', \'' + fullName.replace(/'/g, "\\'") + '\', this)">&#128229; PDF</button></td>';
+        html += '</tr>';
+      }
+
+      html += '</tbody></table></div>';
+      container.innerHTML = html;
+    }
+
+    function loadAgreements() {
+      var apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) ? window.MCC_CONFIG.apiBaseUrl : '';
+      var auth = checkAdminAuth();
+      if (!auth) return;
+
+      fetch(apiBase + '/api/admin/agreements', {
+        headers: buildAuthHeaders(auth)
+      })
+      .then(function(r) {
+        if (r.status === 401 || r.status === 403) {
+          return r.json().then(function(body) {
+            throw new Error('auth:' + (body.error || 'Authentication failed'));
+          }).catch(function(e) {
+            if (e.message.indexOf('auth:') === 0) throw e;
+            throw new Error('auth:Authentication required — please log in to the admin portal again');
+          });
+        }
+        if (!r.ok) {
+          return r.json().then(function(body) {
+            throw new Error(body.error || ('Server error (' + r.status + ')'));
+          }).catch(function(e) {
+            if (e.message.indexOf('auth:') === 0 || e.message.indexOf('Server error') === 0) throw e;
+            throw new Error('Server error (' + r.status + ')');
+          });
+        }
+        return r.json();
+      })
+      .then(function(data) {
+        var agreements = Array.isArray(data) ? data : (data.agreements || data.data || []);
+        renderAgreements(agreements);
+      })
+      .catch(function(err) {
+        console.error('Load agreements error:', err);
+        var container = document.getElementById('agreements-content');
+        var isAuthError = err.message && err.message.indexOf('auth:') === 0;
+        var msg = isAuthError ? err.message.replace('auth:', '') : (err.message || 'Unknown error');
+        container.innerHTML =
+          '<div class="error-state">' +
+            '<div class="error-icon">&#9888;&#65039;</div>' +
+            '<p style="font-size:1.1rem;margin-bottom:8px;">' + (isAuthError ? 'Authentication Error' : 'Failed to load agreements') + '</p>' +
+            '<p style="font-size:0.9rem;margin-bottom:16px;">' + escapeHtml(msg) + '</p>' +
+            (isAuthError
+              ? '<a href="admin.html" class="btn btn-primary" style="margin-right:8px;">Go to Login</a>'
+              : '') +
+            '<button class="btn btn-secondary" onclick="loadAgreements()">Try Again</button>' +
+          '</div>';
+      });
+    }
+
+    function init() {
+      var auth = checkAdminAuth();
+      if (!auth) {
+        return;
+      }
+      if (window.MCC_CONFIG && (window.MCC_CONFIG.apiBaseUrl !== undefined || window.MCC_CONFIG.supabaseUrl)) {
+        loadAgreements();
+      } else {
+        var loaded = false;
+        window.addEventListener('mcc-config-loaded', function() {
+          if (!loaded) {
+            loaded = true;
+            loadAgreements();
+          }
+        });
+        setTimeout(function() {
+          if (!loaded) {
+            loaded = true;
+            loadAgreements();
+          }
+        }, 3000);
+      }
+    }
+
+    init();
+  </script>
+</body>
+</html>

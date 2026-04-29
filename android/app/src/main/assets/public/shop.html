@@ -1,0 +1,432 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title id="page-title">Shop Profile – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" id="page-meta-desc" content="Book auto services at this shop via My Car Concierge." />
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <script src="/supabaseclient.js" defer></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26,32,42,0.95);
+      --bg-elevated: rgba(36,44,56,0.95);
+      --bg-input: rgba(30,38,48,0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-green: #34d399;
+      --accent-teal: #22d3ee;
+      --accent-red: #f87171;
+      --border-subtle: rgba(160,168,184,0.15);
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+      --radius-md: 12px;
+    }
+    body { font-family: 'Outfit', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }
+    a { color: var(--accent-gold); text-decoration: none; }
+    nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 1px solid var(--border-subtle); background: rgba(18,22,28,0.95); }
+    .nav-logo { display: flex; align-items: center; gap: 10px; }
+    .nav-logo img { height: 36px; border-radius: 8px; }
+    .nav-logo-text { font-family: 'Playfair Display', serif; font-size: 1rem; }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
+    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
+    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
+    .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn-gold { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; font-weight: 600; }
+
+    .hero-banner { background: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(201,162,39,0.1) 0%, transparent 70%); padding: 60px 32px 40px; text-align: center; }
+    .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
+    .shop-name { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 8px; }
+    .shop-location { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 16px; }
+    .shop-badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; }
+    .badge-gold { background: rgba(201,162,39,0.15); color: var(--accent-gold); border: 1px solid rgba(201,162,39,0.3); }
+    .badge-green { background: rgba(52,211,153,0.12); color: var(--accent-green); border: 1px solid rgba(52,211,153,0.3); }
+    .badge-teal { background: rgba(34,211,238,0.12); color: var(--accent-teal); border: 1px solid rgba(34,211,238,0.3); }
+    .rating-row { display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 8px; }
+    .stars { color: var(--accent-gold); font-size: 1rem; letter-spacing: 1px; }
+    .rating-number { font-size: 1.1rem; font-weight: 700; }
+    .rating-count { color: var(--text-muted); font-size: 0.85rem; }
+
+    .main { max-width: 900px; margin: 0 auto; padding: 32px 24px 80px; }
+    .layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
+    @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
+
+    .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px; }
+    .card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 16px; }
+    .category-tags { display: flex; gap: 8px; flex-wrap: wrap; }
+    .category-tag { padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 100px; font-size: 0.82rem; color: var(--text-secondary); }
+    .review-item { padding: 16px 0; border-bottom: 1px solid var(--border-subtle); }
+    .review-item:last-child { border-bottom: none; }
+    .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+    .reviewer-name { font-weight: 600; font-size: 0.9rem; }
+    .review-date { font-size: 0.8rem; color: var(--text-muted); }
+    .review-text { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+
+    /* BOOKING FORM */
+    .booking-card { background: linear-gradient(145deg, rgba(201,162,39,0.1), var(--bg-card)); border: 1px solid rgba(201,162,39,0.3); border-radius: var(--radius-xl); padding: 28px; position: sticky; top: 80px; }
+    .booking-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
+    .booking-card p { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 20px; }
+    .form-group { margin-bottom: 16px; }
+    .form-label { display: block; font-size: 0.83rem; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary); }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; }
+    .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: rgba(201,162,39,0.5); }
+    .form-textarea { min-height: 80px; resize: vertical; }
+    .form-select { appearance: none; }
+
+    .loading { text-align: center; padding: 80px 24px; color: var(--text-muted); }
+    .error-state { text-align: center; padding: 80px 24px; }
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 10px; color: #fff; z-index: 9999; font-family: 'Outfit', sans-serif; }
+    .toast-success { background: #34d399; color: #022c22; }
+    .toast-error { background: #f87171; }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/shop.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Shop My Car Concierge merch. Premium auto-themed apparel and accessories for the people who actually love their car." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/shop.html" />
+  <meta property="og:title" content="My Car Concierge" />
+  <meta property="og:description" content="Shop My Car Concierge merch. Premium auto-themed apparel and accessories for the people who actually love their car." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="My Car Concierge" />
+  <meta name="twitter:description" content="Shop My Car Concierge merch. Premium auto-themed apparel and accessories for the people who actually love their car." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+
+<nav>
+  <a href="/" class="nav-logo">
+    <img src="/logo.png" alt="My Car Concierge" />
+    <span class="nav-logo-text">My Car Concierge</span>
+  </a>
+  <div style="display:flex; gap:10px;">
+    <a href="/" class="btn btn-outline" style="padding:8px 16px; font-size:0.83rem;">Find More Shops</a>
+    <a href="/signup-member.html" class="btn btn-primary" style="padding:8px 16px; font-size:0.83rem;">Join Free</a>
+  </div>
+</nav>
+
+<div id="loading-state" class="loading">Loading shop profile…</div>
+<div id="not-found-state" class="error-state" style="display:none;">
+  <div style="font-size:3rem; margin-bottom:16px;">🔍</div>
+  <h2>Shop not found</h2>
+  <p style="color:var(--text-muted); margin-top:8px;">This shop profile doesn't exist or isn't publicly listed.</p>
+  <a href="/providers-directory.html" class="btn btn-primary" style="margin-top:24px;">Browse All Shops</a>
+</div>
+
+<div id="shop-content" style="display:none;">
+  <div class="hero-banner">
+    <div class="shop-avatar" id="shop-avatar">?</div>
+    <div id="shop-name" class="shop-name">Shop Name</div>
+    <div id="shop-location" class="shop-location"></div>
+    <div id="shop-badges" class="shop-badges"></div>
+    <div class="rating-row" id="rating-row" style="display:none;">
+      <span class="stars" id="rating-stars">★★★★★</span>
+      <span class="rating-number" id="rating-number">5.0</span>
+      <span class="rating-count" id="rating-count">(0 reviews)</span>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="layout">
+      <div>
+        <!-- About -->
+        <div class="card" id="about-card" style="display:none;">
+          <div class="card-title">About This Shop</div>
+          <p id="shop-bio" style="color:var(--text-secondary); font-size:0.95rem; line-height:1.7;"></p>
+        </div>
+
+        <!-- Services -->
+        <div class="card" id="services-card" style="display:none;">
+          <div class="card-title">Services Offered</div>
+          <div class="category-tags" id="shop-services"></div>
+        </div>
+
+        <!-- Business Hours -->
+        <div class="card" id="shop-hours-section" style="display:none;">
+          <div class="card-title">🕐 Business Hours</div>
+          <div class="hours-grid" style="display:flex;flex-direction:column;gap:2px;"></div>
+        </div>
+
+        <!-- Contact Info -->
+        <div class="card" id="hours-card" style="display:none;">
+          <div class="card-title">Business Info</div>
+          <div id="shop-info" style="display:flex; flex-direction:column; gap:10px;"></div>
+        </div>
+
+        <!-- Reviews -->
+        <div class="card">
+          <div class="card-title">Customer Reviews <span id="review-count-label" style="font-weight:400; color:var(--text-muted);"></span></div>
+          <div id="shop-reviews">
+            <p style="color:var(--text-muted); font-size:0.9rem;">No reviews yet. Be the first to book!</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- BOOKING SIDEBAR -->
+      <div>
+        <div class="booking-card">
+          <h3>Request a Service</h3>
+          <p>Fill out the form and the shop will contact you to confirm your appointment.</p>
+          <form id="booking-form" onsubmit="submitBooking(event)">
+            <div class="form-group">
+              <label class="form-label">Your Name *</label>
+              <input type="text" class="form-input" id="book-name" placeholder="Jane Smith" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Phone Number *</label>
+              <input type="tel" class="form-input" id="book-phone" placeholder="(555) 000-0000" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Email Address</label>
+              <input type="email" class="form-input" id="book-email" placeholder="jane@example.com" />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Vehicle (Year, Make, Model) *</label>
+              <input type="text" class="form-input" id="book-vehicle" placeholder="2019 Toyota Camry" required />
+            </div>
+            <div class="form-group">
+              <label class="form-label">Service Needed *</label>
+              <select class="form-select" id="book-service" required>
+                <option value="">Select a service…</option>
+                <option value="oil_change">Oil Change</option>
+                <option value="tire_rotation">Tire Rotation</option>
+                <option value="brake_inspection">Brake Inspection</option>
+                <option value="ac_service">A/C Service</option>
+                <option value="diagnostic">Diagnostic</option>
+                <option value="general_repair">General Repair</option>
+                <option value="detailing">Detailing</option>
+                <option value="body_work">Body Work</option>
+                <option value="towing">Towing</option>
+                <option value="other">Other</option>
+              </select>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Details (optional)</label>
+              <textarea class="form-textarea" id="book-details" placeholder="Describe the issue or any additional details…"></textarea>
+            </div>
+            <button type="submit" class="btn btn-gold" id="book-submit-btn" style="width:100%; justify-content:center; padding:13px;">
+              Request Service
+            </button>
+          </form>
+          <p style="font-size:0.78rem; color:var(--text-muted); margin-top:12px; text-align:center;">
+            By submitting, you agree to our <a href="/terms.html">Terms</a>. The shop will follow up to confirm.
+          </p>
+        </div>
+        <div style="text-align:center; margin-top:12px;">
+          <a href="/providers-directory.html" style="font-size:0.83rem; color:var(--text-muted);">← Browse more shops</a>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  let shopProfileId = null;
+
+  function getSlug() {
+    const parts = window.location.pathname.split('/shop/');
+    return parts[1]?.split('/')[0] || '';
+  }
+
+  function showToast(msg, type = 'success') {
+    const t = document.createElement('div');
+    t.className = 'toast toast-' + type;
+    t.textContent = msg;
+    document.body.appendChild(t);
+    setTimeout(() => t.remove(), 3500);
+  }
+
+  function formatCategory(cat) {
+    if (!cat) return '';
+    return cat.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  }
+
+  async function loadShopProfile() {
+    const slug = getSlug();
+    if (!slug) {
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('not-found-state').style.display = 'block';
+      return;
+    }
+
+    try {
+      const res = await fetch('/api/shop/profile/' + encodeURIComponent(slug));
+      if (!res.ok) {
+        document.getElementById('loading-state').style.display = 'none';
+        document.getElementById('not-found-state').style.display = 'block';
+        return;
+      }
+      const data = await res.json();
+      const shop = data.shop;
+      shopProfileId = shop.id;
+      renderShopProfile(shop, data.reviews || []);
+    } catch (err) {
+      console.error('Load shop error:', err);
+      document.getElementById('loading-state').style.display = 'none';
+      document.getElementById('not-found-state').style.display = 'block';
+    }
+  }
+
+  function escHtml(str) {
+    if (!str) return '';
+    return String(str).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;').replace(/'/g,'&#39;');
+  }
+
+  function renderShopProfile(shop, reviews) {
+    document.getElementById('loading-state').style.display = 'none';
+    document.getElementById('shop-content').style.display = 'block';
+
+    const name = shop.business_name || shop.full_name || 'Auto Shop';
+    document.title = name + ' – My Car Concierge';
+    document.getElementById('page-title').textContent = name + ' – My Car Concierge';
+    document.getElementById('page-meta-desc').setAttribute('content', `Book auto services at ${name} via My Car Concierge.`);
+    document.getElementById('shop-name').textContent = name;
+
+    // Show avatar photo if available, otherwise show initials
+    const avatarEl = document.getElementById('shop-avatar');
+    if (shop.avatar_url) {
+      avatarEl.innerHTML = `<img src="${escHtml(shop.avatar_url)}" alt="${escHtml(name)}" style="width:100%;height:100%;object-fit:cover;border-radius:50%;">`;
+    } else {
+      avatarEl.textContent = name[0]?.toUpperCase() || 'S';
+    }
+
+    const loc = [shop.city, shop.state].filter(Boolean).join(', ');
+    if (loc) document.getElementById('shop-location').textContent = '📍 ' + loc;
+
+    const badgesEl = document.getElementById('shop-badges');
+    let badges = '';
+    if (shop.years_in_business) badges += `<span class="badge badge-gold">🏆 ${shop.years_in_business}+ Years</span>`;
+    if (shop.is_verified) badges += '<span class="badge badge-green">✓ Verified Provider</span>';
+    if (shop.emergency_enabled) badges += '<span class="badge badge-teal">⚡ Emergency Service</span>';
+    badgesEl.innerHTML = badges;
+
+    if (reviews.length > 0) {
+      const avg = reviews.reduce((s, r) => s + (r.rating || 0), 0) / reviews.length;
+      document.getElementById('rating-row').style.display = 'flex';
+      document.getElementById('rating-stars').textContent = '★'.repeat(Math.round(avg)) + '☆'.repeat(5 - Math.round(avg));
+      document.getElementById('rating-number').textContent = avg.toFixed(1);
+      document.getElementById('rating-count').textContent = `(${reviews.length} review${reviews.length !== 1 ? 's' : ''})`;
+      document.getElementById('review-count-label').textContent = `(${reviews.length})`;
+    }
+
+    if (shop.bio || shop.description) {
+      document.getElementById('about-card').style.display = 'block';
+      document.getElementById('shop-bio').textContent = shop.bio || shop.description;
+    }
+
+    const services = shop.services || [];
+    if (services.length) {
+      document.getElementById('services-card').style.display = 'block';
+      document.getElementById('shop-services').innerHTML = services.map(s => `<span class="category-tag">${formatCategory(s)}</span>`).join('');
+      const svc = document.getElementById('book-service');
+      services.forEach(s => {
+        const opt = document.createElement('option');
+        opt.value = s;
+        opt.textContent = formatCategory(s);
+        svc.appendChild(opt);
+      });
+    }
+
+    const infoEl = document.getElementById('shop-info');
+    let info = '';
+    if (shop.phone) info += `<div style="font-size:0.9rem;"><strong>📞</strong> <a href="tel:${escHtml(shop.phone)}" style="color:var(--text-secondary);">${escHtml(shop.phone)}</a></div>`;
+    const addrParts = [shop.address, shop.city, shop.state].filter(Boolean).map(escHtml).join(', ');
+    if (addrParts) info += `<div style="font-size:0.9rem;"><strong>📍</strong> <span style="color:var(--text-secondary);">${addrParts}</span></div>`;
+    if (shop.hourly_rate) info += `<div style="font-size:0.9rem;"><strong>💰</strong> <span style="color:var(--text-secondary);">Starting at $${escHtml(String(shop.hourly_rate))}/hr</span></div>`;
+
+    // Render business hours if available
+    const hoursEl = document.getElementById('shop-hours-section');
+    if (shop.business_hours && typeof shop.business_hours === 'object') {
+      const dayOrder = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+      const dayLabels = { monday:'Mon', tuesday:'Tue', wednesday:'Wed', thursday:'Thu', friday:'Fri', saturday:'Sat', sunday:'Sun' };
+      const todayName = dayOrder[new Date().getDay() === 0 ? 6 : new Date().getDay() - 1];
+      const hoursRows = dayOrder.map(day => {
+        const h = shop.business_hours[day];
+        if (!h) return '';
+        const isToday = day === todayName;
+        const openVal = h.closed ? 'Closed' : escHtml(h.open || '9:00 AM') + ' – ' + escHtml(h.close || '5:00 PM');
+        return `<div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;border-bottom:1px solid var(--border-subtle);${isToday ? 'font-weight:600;color:var(--accent-gold);' : 'color:var(--text-secondary);'}">
+          <span>${dayLabels[day]}${isToday ? ' (Today)' : ''}</span>
+          <span>${openVal}</span>
+        </div>`;
+      }).filter(Boolean).join('');
+      if (hoursRows && hoursEl) {
+        hoursEl.style.display = 'block';
+        hoursEl.querySelector('.hours-grid').innerHTML = hoursRows;
+      }
+    }
+
+    if (info) {
+      document.getElementById('hours-card').style.display = 'block';
+      infoEl.innerHTML = info;
+    }
+
+    if (reviews.length > 0) {
+      document.getElementById('shop-reviews').innerHTML = reviews.slice(0, 5).map(r => `
+        <div class="review-item">
+          <div class="review-header">
+            <span class="reviewer-name">${escHtml(r.member_name || 'Customer')}</span>
+            <div>
+              <span style="color:var(--accent-gold);font-size:0.85rem;">${'★'.repeat(Math.min(5, Math.max(0, r.rating || 5)))}</span>
+              <span class="review-date" style="margin-left:8px;">${escHtml(new Date(r.created_at).toLocaleDateString())}</span>
+            </div>
+          </div>
+          ${r.comment ? `<p class="review-text">${escHtml(r.comment)}</p>` : ''}
+        </div>
+      `).join('');
+    }
+  }
+
+  async function submitBooking(e) {
+    e.preventDefault();
+    const btn = document.getElementById('book-submit-btn');
+    const origText = btn.textContent;
+    btn.disabled = true;
+    btn.textContent = 'Submitting…';
+
+    const payload = {
+      provider_id: shopProfileId,
+      name: document.getElementById('book-name').value.trim(),
+      phone: document.getElementById('book-phone').value.trim(),
+      email: document.getElementById('book-email').value.trim(),
+      vehicle: document.getElementById('book-vehicle').value.trim(),
+      service: document.getElementById('book-service').value,
+      details: document.getElementById('book-details').value.trim()
+    };
+
+    try {
+      const res = await fetch('/api/shop/book', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Booking failed');
+      showToast('Request sent! The shop will contact you to confirm.', 'success');
+      document.getElementById('booking-form').reset();
+    } catch (err) {
+      showToast(err.message || 'Failed to submit. Please try again.', 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = origText;
+    }
+  }
+
+  loadShopProfile();
+</script>
+</body>
+</html>

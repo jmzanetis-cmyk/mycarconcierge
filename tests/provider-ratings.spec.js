@@ -177,7 +177,7 @@ async function setupCdnMocks(page, mockJs) {
 
 async function addAuthToken(page, userId, email) {
   await page.addInitScript(({ userId, email }) => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,
@@ -198,20 +198,20 @@ async function addProviderFunctionStubs(page) {
   await page.addInitScript(() => {
     var noop = function() {};
     var asyncNoop = function() { return Promise.resolve(); };
-    window.loadProviderAgreement = asyncNoop;
-    window.loadProviderPerformance = asyncNoop;
-    window.loadTeamMembers = asyncNoop;
-    window.loadDestinationTasks = asyncNoop;
-    window.loadEarningsAnalyticsData = asyncNoop;
-    window.initAdvancedAnalytics = noop;
-    window.loadPosAnalytics = asyncNoop;
-    window.refreshEmergencies = asyncNoop;
-    window.loadTransportTasks = asyncNoop;
-    window.setupRealtimeSubscriptions = noop;
-    window.loadNotifications = asyncNoop;
-    window.loadConversations = asyncNoop;
-    window.showToast = noop;
-    window.escapeHtml = function(text) { return text ? String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;') : ''; };
+    globalThis.loadProviderAgreement = asyncNoop;
+    globalThis.loadProviderPerformance = asyncNoop;
+    globalThis.loadTeamMembers = asyncNoop;
+    globalThis.loadDestinationTasks = asyncNoop;
+    globalThis.loadEarningsAnalyticsData = asyncNoop;
+    globalThis.initAdvancedAnalytics = noop;
+    globalThis.loadPosAnalytics = asyncNoop;
+    globalThis.refreshEmergencies = asyncNoop;
+    globalThis.loadTransportTasks = asyncNoop;
+    globalThis.setupRealtimeSubscriptions = noop;
+    globalThis.loadNotifications = asyncNoop;
+    globalThis.loadConversations = asyncNoop;
+    globalThis.showToast = noop;
+    globalThis.escapeHtml = function(text) { return text ? String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;') : ''; };
   });
 }
 

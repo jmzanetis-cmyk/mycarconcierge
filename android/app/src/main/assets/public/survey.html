@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Quick Question — My Car Concierge</title>
+  <meta name="description" content="A quick 5-question discovery survey about how you find auto service. Takes about 90 seconds." />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --navy: #1B2A4A;
+      --navy-light: #243563;
+      --gold: #C9A84C;
+      --gold-dark: #a8852a;
+      --gold-soft: rgba(201,168,76,0.15);
+      --cream: #FAF7F0;
+      --cream-dark: #f0ece0;
+      --text-dark: #1a1a2e;
+      --text-mid: #4a5568;
+      --text-muted: #718096;
+      --white: #ffffff;
+      --border: rgba(27,42,74,0.12);
+      --shadow: 0 4px 24px rgba(27,42,74,0.10);
+      --radius: 16px;
+      --radius-sm: 10px;
+      --green: #22c55e;
+      --green-soft: rgba(34,197,94,0.10);
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Outfit', -apple-system, sans-serif; background: var(--cream); color: var(--text-dark); min-height: 100vh; display: flex; flex-direction: column; }
+
+    /* ===== PROGRESS BAR ===== */
+    .progress-bar-wrap { position: fixed; top: 0; left: 0; right: 0; height: 5px; background: rgba(27,42,74,0.08); z-index: 100; }
+    .progress-bar-fill { height: 100%; background: linear-gradient(90deg, var(--gold), #e8c56a); border-radius: 0 3px 3px 0; transition: width 0.5s cubic-bezier(0.4,0,0.2,1); box-shadow: 0 0 10px rgba(201,168,76,0.6); }
+
+    /* ===== SOCIAL PROOF BAR ===== */
+    .social-proof-bar {
+      position: fixed; top: 5px; left: 0; right: 0; background: var(--navy);
+      color: rgba(255,255,255,0.85); font-size: 0.8rem; padding: 7px 16px;
+      display: flex; align-items: center; justify-content: center; gap: 8px; z-index: 99;
+      transition: opacity 0.3s;
+    }
+    .social-proof-bar .proof-dot {
+      width: 7px; height: 7px; background: #4ade80; border-radius: 50%; flex-shrink: 0;
+      animation: blink 2s infinite;
+    }
+    @keyframes blink { 0%,100%{opacity:1} 50%{opacity:0.4} }
+    .social-proof-bar.hidden { display: none; }
+    .proof-rotate { display: inline-block; }
+
+    /* ===== HEADER ===== */
+    .survey-header { padding: 14px 24px 14px; display: flex; align-items: center; gap: 14px; background: var(--white); border-bottom: 1px solid var(--border); margin-top: 34px; }
+    .survey-logo { height: 40px; border-radius: 8px; }
+    .survey-header-text h1 { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--navy); line-height: 1.2; }
+    .survey-header-text p { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
+    .step-indicator { margin-left: auto; font-size: 0.82rem; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+
+    /* ===== MAIN ===== */
+    .survey-main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 32px 20px 60px; }
+    .survey-card {
+      width: 100%; max-width: 680px; background: var(--white);
+      border-radius: var(--radius); box-shadow: var(--shadow); border: 1px solid var(--border);
+      padding: 40px; animation: fadeUp 0.35s ease;
+    }
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
+
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .step-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dark); margin-bottom: 12px; }
+    .step-heading { font-family: 'Playfair Display', serif; font-size: 1.7rem; font-weight: 600; color: var(--navy); margin-bottom: 10px; line-height: 1.25; }
+    .step-sub { font-size: 0.95rem; color: var(--text-mid); margin-bottom: 28px; line-height: 1.6; }
+
+    /* ===== CHOICE BUTTONS (multi-select and single-select) ===== */
+    .choice-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
+    .choice-btn {
+      width: 100%; text-align: left; padding: 14px 18px; border: 2px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--cream); font-family: inherit;
+      font-size: 0.93rem; font-weight: 500; color: var(--text-mid); cursor: pointer;
+      transition: all 0.15s ease; display: flex; align-items: center; gap: 10px;
+    }
+    .choice-btn:hover { border-color: var(--gold); color: var(--navy); background: var(--gold-soft); }
+    .choice-btn.selected { border-color: var(--gold); background: var(--gold-soft); color: var(--navy); }
+    .choice-btn .check { width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 5px; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .choice-btn.selected .check { background: var(--gold); border-color: var(--gold-dark); color: var(--navy); font-size: 12px; font-weight: 700; }
+    .choice-btn .radio { width: 20px; height: 20px; border: 2px solid var(--border); border-radius: 50%; flex-shrink: 0; display: flex; align-items: center; justify-content: center; transition: all 0.15s; }
+    .choice-btn.selected .radio { border-color: var(--gold-dark); background: transparent; }
+    .choice-btn.selected .radio::after { content: ''; width: 10px; height: 10px; background: var(--gold); border-radius: 50%; display: block; }
+
+    /* ===== SCALE BUTTONS ===== */
+    .scale-list { display: flex; flex-direction: column; gap: 8px; margin-bottom: 28px; }
+    .scale-btn {
+      width: 100%; text-align: left; padding: 13px 18px; border: 2px solid var(--border);
+      border-radius: var(--radius-sm); background: var(--cream); font-family: inherit;
+      font-size: 0.9rem; font-weight: 500; color: var(--text-mid); cursor: pointer;
+      transition: all 0.15s ease; display: flex; align-items: center; gap: 12px;
+    }
+    .scale-btn:hover { border-color: var(--gold); color: var(--navy); background: var(--gold-soft); }
+    .scale-btn.selected { border-color: var(--gold); background: var(--gold-soft); color: var(--navy); }
+    .scale-num { width: 28px; height: 28px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0; transition: all 0.15s; }
+    .scale-btn.selected .scale-num { background: var(--gold); color: var(--navy); }
+
+    /* ===== CTA AREA ===== */
+    .cta-area { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 4px; padding-top: 20px; border-top: 1px solid var(--border); }
+    .cta-note { font-size: 0.78rem; color: var(--text-muted); text-align: center; }
+
+    /* ===== BUTTONS ===== */
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 26px; border-radius: 12px; font-family: inherit; font-size: 0.97rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; }
+    .btn-gold { background: linear-gradient(135deg, var(--gold), #e8c56a); color: var(--navy); box-shadow: 0 4px 14px rgba(201,168,76,0.35); width: 100%; max-width: 380px; }
+    .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201,168,76,0.45); }
+    .btn-gold:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
+    .btn-ghost { background: transparent; color: var(--text-muted); font-weight: 500; font-size: 0.88rem; padding: 9px 18px; border: none; cursor: pointer; font-family: inherit; }
+    .btn-ghost:hover { color: var(--navy); }
+    .btn-navy { background: var(--navy); color: var(--white); box-shadow: 0 4px 14px rgba(27,42,74,0.22); width: 100%; max-width: 380px; }
+    .btn-navy:hover { background: var(--navy-light); transform: translateY(-2px); }
+    .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); font-size: 0.92rem; padding: 11px 22px; width: 100%; max-width: 380px; }
+    .btn-outline:hover { background: var(--navy); color: var(--white); }
+
+    /* ===== FORM STYLES ===== */
+    .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
+    .form-label { font-size: 0.83rem; font-weight: 600; color: var(--navy); }
+    .form-label .req { color: var(--gold-dark); }
+    .form-input { padding: 13px 16px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.95rem; color: var(--text-dark); background: var(--cream); transition: border-color 0.15s; width: 100%; }
+    .form-input:focus { outline: none; border-color: var(--gold); background: var(--white); }
+    .form-input.big { font-size: 1.2rem; padding: 16px 18px; font-weight: 600; }
+    .sms-opt { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; }
+    .sms-opt input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--gold); flex-shrink: 0; cursor: pointer; }
+    .sms-opt label { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; cursor: pointer; }
+    .privacy-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 14px; text-align: center; line-height: 1.5; opacity: 0.85; }
+    .vehicle-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
+    @media (max-width: 480px) { .vehicle-row { grid-template-columns: 1fr; } }
+    .skip-link { font-size: 0.82rem; color: var(--text-muted); text-decoration: underline; cursor: pointer; text-align: center; display: block; margin-top: 6px; }
+    .skip-link:hover { color: var(--navy); }
+
+    /* ===== MSG ===== */
+    .msg { padding: 11px 15px; border-radius: var(--radius-sm); font-size: 0.86rem; margin-bottom: 14px; display: none; }
+    .msg.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #dc2626; }
+    .msg.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #16a34a; }
+    .msg.visible { display: block; }
+
+    /* ===== REVEAL SCREEN ===== */
+    .reveal-panel {
+      text-align: center; padding: 10px 0;
+    }
+    .reveal-badge {
+      display: inline-flex; align-items: center; gap: 8px; padding: 7px 16px;
+      background: var(--green-soft); border: 1px solid rgba(34,197,94,0.3);
+      border-radius: 100px; font-size: 0.8rem; color: #16a34a; font-weight: 600;
+      margin-bottom: 22px;
+    }
+    .reveal-logo { height: 80px; border-radius: 14px; margin-bottom: 16px; }
+    .reveal-panel h2 { font-family: 'Playfair Display', serif; font-size: 1.75rem; color: var(--navy); margin-bottom: 8px; line-height: 1.2; }
+    .reveal-panel .tagline { font-size: 1rem; color: var(--text-mid); margin-bottom: 20px; line-height: 1.6; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .reveal-stats {
+      display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;
+      margin-bottom: 28px; padding: 18px; background: var(--cream);
+      border-radius: var(--radius-sm); border: 1px solid var(--border);
+    }
+    .reveal-stat { text-align: center; }
+    .reveal-stat .val { font-size: 1.4rem; font-weight: 700; color: var(--navy); }
+    .reveal-stat .lbl { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; }
+    .reveal-cta { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+
+    /* ===== CONFIRM SCREEN ===== */
+    .confirm-panel { text-align: center; padding: 10px 0; }
+    .confirm-icon { font-size: 56px; margin-bottom: 16px; }
+    .confirm-panel h2 { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: var(--navy); margin-bottom: 10px; }
+    .confirm-panel > p { color: var(--text-mid); font-size: 0.95rem; line-height: 1.65; max-width: 460px; margin: 0 auto 24px; }
+    .referral-box {
+      background: var(--cream); border-radius: var(--radius-sm); border: 1px solid var(--border);
+      padding: 20px 22px; margin-bottom: 24px; text-align: left;
+    }
+    .referral-box h4 { font-size: 0.88rem; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .referral-box p { font-size: 0.82rem; color: var(--text-mid); margin-bottom: 12px; }
+    .referral-link-row { display: flex; gap: 8px; }
+    .referral-link-input { flex: 1; padding: 10px 13px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.85rem; background: var(--white); color: var(--text-dark); }
+    .copy-btn { padding: 10px 16px; border-radius: 8px; border: none; background: var(--navy); color: var(--white); font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .copy-btn:hover { background: var(--navy-light); }
+    .share-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+    .share-btn { flex: 1; min-width: 90px; padding: 9px 12px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--cream); font-family: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-mid); cursor: pointer; transition: all 0.15s; }
+    .share-btn:hover { border-color: var(--gold); color: var(--navy); }
+
+    /* ===== NOT-INTERESTED PANEL ===== */
+    .ni-panel { text-align: center; padding: 10px 0; }
+    .ni-panel .ni-icon { font-size: 50px; margin-bottom: 14px; }
+    .ni-panel h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: var(--navy); margin-bottom: 8px; }
+    .ni-panel p { color: var(--text-mid); font-size: 0.93rem; margin-bottom: 24px; line-height: 1.55; }
+    .ni-email-row { display: flex; gap: 10px; max-width: 440px; margin: 0 auto 16px; }
+    .ni-email-row .form-input { flex: 1; }
+
+    /* ===== FOOTER ===== */
+    .survey-footer { text-align: center; padding: 20px; font-size: 0.77rem; color: var(--text-muted); }
+    .survey-footer a { color: var(--gold-dark); text-decoration: none; }
+
+    /* ===== RESPONSIVE ===== */
+    @media (max-width: 600px) {
+      .survey-card { padding: 26px 18px; }
+      .step-heading { font-size: 1.35rem; }
+      .reveal-stats { gap: 16px; }
+    }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/survey.html" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="description" content="A quick 5-question discovery survey about how you find auto service. Takes about 90 seconds." />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+
+  <!-- Progress bar -->
+  <div class="progress-bar-wrap">
+    <div class="progress-bar-fill" id="progress-fill" style="width:8%"></div>
+  </div>
+
+  <!-- Social proof bar (hidden on reveal/confirm screens) -->
+  <div class="social-proof-bar" id="social-proof-bar">
+    <div class="proof-dot"></div>
+    <span id="proof-text">Join 2,400+ members already on the platform</span>
+  </div>
+
+  <!-- Header -->
+  <header class="survey-header">
+    <img src="/icons/icon-192.png" alt="My Car Concierge" class="survey-logo" />
+    <div class="survey-header-text">
+      <h1>My Car Concierge</h1>
+      <p>Quick question about your car care</p>
+    </div>
+    <div class="step-indicator" id="step-indicator">Question 1 of 5</div>
+  </header>
+
+  <main class="survey-main">
+    <div class="survey-card">
+
+      <!-- ===== Q1: How do you find a mechanic? ===== -->
+      <div class="step active" id="step-q1">
+        <p class="step-label">Discovery &mdash; Question 1 of 5</p>
+        <h2 class="step-heading">How do you normally find someone to work on your car?</h2>
+        <p class="step-sub">Select all that apply.</p>
+
+        <div class="choice-list" id="q1-choices">
+          <button class="choice-btn" data-val="word_of_mouth" onclick="toggleChoice(this,'q1')">
+            <span class="check"></span> Word of mouth / asking friends or family
+          </button>
+          <button class="choice-btn" data-val="google_search" onclick="toggleChoice(this,'q1')">
+            <span class="check"></span> Google search or Yelp reviews
+          </button>
+          <button class="choice-btn" data-val="dealership" onclick="toggleChoice(this,'q1')">
+            <span class="check"></span> Back to the dealership
+          </button>
+          <button class="choice-btn" data-val="whoever_is_nearby" onclick="toggleChoice(this,'q1')">
+            <span class="check"></span> Whoever is nearby or convenient
+          </button>
+          <button class="choice-btn" data-val="same_shop_always" onclick="toggleChoice(this,'q1')">
+            <span class="check"></span> Same shop I always use
+          </button>
+          <button class="choice-btn" data-val="app_or_platform" onclick="toggleChoice(this,'q1')">
+            <span class="check"></span> A booking app or platform
+          </button>
+        </div>
+
+        <div class="msg error" id="q1-error">Please select at least one option.</div>
+
+        <div class="cta-area">
+          <button class="btn btn-gold" onclick="nextFromQ1()">Next &rarr;</button>
+          <p class="cta-note">No account needed &bull; About 90 seconds</p>
+        </div>
+      </div>
+
+      <!-- ===== Q2: Confident about fair price? ===== -->
+      <div class="step" id="step-q2">
+        <p class="step-label">Discovery &mdash; Question 2 of 5</p>
+        <h2 class="step-heading">How confident are you that you're getting a fair price when you take your car in?</h2>
+        <p class="step-sub">Pick the one that feels most accurate.</p>
+
+        <div class="scale-list" id="q2-choices">
+          <button class="scale-btn" data-val="very_confident" onclick="selectScale(this,'q2')">
+            <span class="scale-num">5</span> Very confident — I know what things cost
+          </button>
+          <button class="scale-btn" data-val="mostly_confident" onclick="selectScale(this,'q2')">
+            <span class="scale-num">4</span> Mostly confident — I do some research
+          </button>
+          <button class="scale-btn" data-val="somewhat_unsure" onclick="selectScale(this,'q2')">
+            <span class="scale-num">3</span> Somewhat unsure — I hope it's fair
+          </button>
+          <button class="scale-btn" data-val="often_unsure" onclick="selectScale(this,'q2')">
+            <span class="scale-num">2</span> Often unsure — I just pay what they say
+          </button>
+          <button class="scale-btn" data-val="no_idea" onclick="selectScale(this,'q2')">
+            <span class="scale-num">1</span> I have no idea if I'm being ripped off
+          </button>
+        </div>
+
+        <div class="msg error" id="q2-error">Please select an option.</div>
+
+        <div class="cta-area">
+          <button class="btn btn-gold" onclick="nextFromQ2()">Next &rarr;</button>
+          <button class="btn-ghost" onclick="goToStep('q1')">&#8592; Back</button>
+        </div>
+      </div>
+
+      <!-- ===== Q3: Would you use competing bids? ===== -->
+      <div class="step" id="step-q3">
+        <p class="step-label">Discovery &mdash; Question 3 of 5</p>
+        <h2 class="step-heading">Imagine you could post what your car needs and get quotes from multiple vetted local mechanics competing for your business — would you use something like that?</h2>
+        <p class="step-sub">Be honest — there's no wrong answer here.</p>
+
+        <div class="scale-list" id="q3-choices">
+          <button class="scale-btn" data-val="yes_definitely" onclick="selectScale(this,'q3')">
+            <span class="scale-num">&#10003;</span> Yes, definitely — I'd love that
+          </button>
+          <button class="scale-btn" data-val="sounds_interesting" onclick="selectScale(this,'q3')">
+            <span class="scale-num">&#126;</span> Sounds interesting — I'd give it a try
+          </button>
+          <button class="scale-btn" data-val="probably_not" onclick="selectScale(this,'q3')">
+            <span class="scale-num">&#x2212;</span> Probably not — I have a shop I trust
+          </button>
+        </div>
+
+        <div class="msg error" id="q3-error">Please select an option.</div>
+
+        <div class="cta-area">
+          <button class="btn btn-gold" onclick="nextFromQ3()">Next &rarr;</button>
+          <button class="btn-ghost" onclick="goToStep('q2')">&#8592; Back</button>
+        </div>
+      </div>
+
+      <!-- ===== Q4: What would matter most? ===== -->
+      <div class="step" id="step-q4">
+        <p class="step-label">Discovery &mdash; Question 4 of 5</p>
+        <h2 class="step-heading">What would matter most to you on a platform like that?</h2>
+        <p class="step-sub">Select everything that applies to you.</p>
+
+        <div class="choice-list" id="q4-choices">
+          <button class="choice-btn" data-val="transparent_pricing" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> Transparent, upfront pricing — no surprise bills
+          </button>
+          <button class="choice-btn" data-val="verified_reviews" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> Verified reviews from real customers
+          </button>
+          <button class="choice-btn" data-val="easy_booking" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> Easy booking — no phone tag
+          </button>
+          <button class="choice-btn" data-val="vetted_mechanics" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> Knowing the mechanic is vetted and trustworthy
+          </button>
+          <button class="choice-btn" data-val="service_history" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> Being able to track my car's full service history
+          </button>
+          <button class="choice-btn" data-val="competitive_bids" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> Multiple competing bids so I can compare prices
+          </button>
+          <button class="choice-btn" data-val="no_overpaying" onclick="toggleChoice(this,'q4')">
+            <span class="check"></span> An AI estimate so I know what's fair before accepting
+          </button>
+        </div>
+
+        <div class="msg error" id="q4-error">Please select at least one option.</div>
+
+        <div class="cta-area">
+          <button class="btn btn-gold" onclick="nextFromQ4()">Next &rarr;</button>
+          <button class="btn-ghost" onclick="goToStep('q3')">&#8592; Back</button>
+        </div>
+      </div>
+
+      <!-- ===== Q5: What would make you hesitant? ===== -->
+      <div class="step" id="step-q5">
+        <p class="step-label">Discovery &mdash; Question 5 of 5</p>
+        <h2 class="step-heading">What would make you hesitant to try something like that?</h2>
+        <p class="step-sub">Be honest — this helps us build something you'd actually trust.</p>
+
+        <div class="choice-list" id="q5-choices">
+          <button class="choice-btn" data-val="trust_mechanics" onclick="toggleChoice(this,'q5')">
+            <span class="check"></span> Not sure if the mechanics are trustworthy
+          </button>
+          <button class="choice-btn" data-val="data_privacy" onclick="toggleChoice(this,'q5')">
+            <span class="check"></span> Worried about data privacy
+          </button>
+          <button class="choice-btn" data-val="prefer_current_shop" onclick="toggleChoice(this,'q5')">
+            <span class="check"></span> I already have a shop I trust
+          </button>
+          <button class="choice-btn" data-val="too_new" onclick="toggleChoice(this,'q5')">
+            <span class="check"></span> Never heard of it / seems too new
+          </button>
+          <button class="choice-btn" data-val="complicated" onclick="toggleChoice(this,'q5')">
+            <span class="check"></span> Sounds complicated to set up
+          </button>
+          <button class="choice-btn" data-val="nothing_hesitant" onclick="toggleChoice(this,'q5')">
+            <span class="check"></span> Nothing — I'd jump right in
+          </button>
+        </div>
+
+        <div class="msg error" id="q5-error">Please select at least one option.</div>
+
+        <div class="cta-area">
+          <button class="btn btn-gold" id="btn-finish-discovery" onclick="nextFromQ5()">See What We Found &rarr;</button>
+          <button class="btn-ghost" onclick="goToStep('q4')">&#8592; Back</button>
+        </div>
+      </div>
+
+      <!-- ===== REVEAL SCREEN ===== -->
+      <div class="step" id="step-reveal">
+        <div class="reveal-panel">
+          <div class="reveal-badge">&#10003; Good news</div>
+          <img src="/icons/icon-192.png" alt="My Car Concierge" class="reveal-logo" />
+          <h2>That platform already exists.</h2>
+          <p class="tagline">
+            Thousands of vehicle owners use <strong>My Car Concierge</strong> to get competing bids from vetted providers, track their full service history, and never overpay again.
+          </p>
+
+          <div class="reveal-stats">
+            <div class="reveal-stat">
+              <div class="val">2,400+</div>
+              <div class="lbl">Members</div>
+            </div>
+            <div class="reveal-stat">
+              <div class="val">$0</div>
+              <div class="lbl">Platform fees</div>
+            </div>
+            <div class="reveal-stat">
+              <div class="val">100%</div>
+              <div class="lbl">Vetted providers</div>
+            </div>
+          </div>
+
+          <div class="reveal-cta">
+            <button class="btn btn-gold" onclick="goToStep('ob1')">
+              I want in &rarr; Create my free profile
+            </button>
+            <button class="btn-ghost" onclick="goToStep('ni')">
+              Just notify me when it launches near me
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== ONBOARDING 1: First Name ===== -->
+      <div class="step" id="step-ob1">
+        <p class="step-label">Almost there &mdash; Step 1 of 3</p>
+        <h2 class="step-heading">What's your first name?</h2>
+        <p class="step-sub">Let's keep this friendly.</p>
+
+        <div class="form-group">
+          <input type="text" id="ob-first" class="form-input big" placeholder="e.g. Jane" autocomplete="given-name" autofocus />
+        </div>
+
+        <div class="msg error" id="ob1-error">Please enter your first name.</div>
+
+        <div class="cta-area">
+          <button class="btn btn-gold" onclick="nextFromOb1()">Next &rarr;</button>
+          <button class="btn-ghost" onclick="goToStep('reveal')">&#8592; Back</button>
+        </div>
+        <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Your answers are kept private. We never sell your data.</p>
+      </div>
+
+      <!-- ===== ONBOARDING 2: Email + SMS ===== -->
+      <div class="step" id="step-ob2">
+        <p class="step-label">Almost there &mdash; Step 2 of 3</p>
+        <h2 class="step-heading">Where should we reach you, <span id="ob2-name-display">there</span>?</h2>
+        <p class="step-sub">We'll send your profile confirmation and keep you updated on providers in your area.</p>
+
+        <div class="form-group">
+          <label class="form-label" for="ob-email">Email address <span class="req">*</span></label>
+          <input type="email" id="ob-email" class="form-input" placeholder="you@example.com" autocomplete="email" />
+        </div>
+
+        <div class="form-group" style="margin-top:12px;">
+          <label class="form-label" for="ob-zip">ZIP code <span class="req">*</span></label>
+          <input type="text" id="ob-zip" class="form-input" placeholder="e.g. 90210" inputmode="numeric" maxlength="10" autocomplete="postal-code" />
+          <small style="color:#888; font-size:13px;">We use this to check when MCC is live in your area.</small>
+        </div>
+
+        <div class="sms-opt">
+          <input type="checkbox" id="ob-sms-opt" />
+          <label for="ob-sms-opt">Text me too &mdash; I agree to receive recurring automated SMS messages from My Car Concierge about launch updates and service alerts in my area (max 4/month). Message &amp; data rates may apply. Reply STOP to cancel. <a href="/sms-consent.html" style="color:var(--gold-dark);text-decoration:underline;" target="_blank" rel="noopener noreferrer">SMS Terms</a>. (Optional)</label>
+        </div>
+        <div class="form-group" id="ob-phone-group" style="display:none; margin-top:12px;">
+          <label class="form-label" for="ob-phone">Mobile number</label>
+          <input type="tel" id="ob-phone" class="form-input" placeholder="(555) 000-0000" autocomplete="tel" />
+        </div>
+
+        <div class="msg error" id="ob2-error">Please enter a valid email address.</div>
+
+        <div class="cta-area" style="margin-top:20px;">
+          <button class="btn btn-gold" onclick="nextFromOb2()">Next &rarr;</button>
+          <button class="btn-ghost" onclick="goToStep('ob1')">&#8592; Back</button>
+        </div>
+        <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>We use your email only to notify you when MCC launches near you. We never sell or share your personal information. <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--gold-dark);text-decoration:underline;">Privacy Policy</a>.</p>
+      </div>
+
+      <!-- ===== ONBOARDING 3: Vehicle ===== -->
+      <div class="step" id="step-ob3">
+        <p class="step-label">Almost there &mdash; Step 3 of 3</p>
+        <h2 class="step-heading">Add your first vehicle</h2>
+        <p class="step-sub">Optional — you can always add this later from your dashboard.</p>
+
+        <div class="vehicle-row">
+          <div class="form-group">
+            <label class="form-label" for="ob-year">Year</label>
+            <input type="text" id="ob-year" class="form-input" placeholder="2019" inputmode="numeric" maxlength="4" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ob-make">Make</label>
+            <input type="text" id="ob-make" class="form-input" placeholder="Toyota" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="ob-model">Model</label>
+            <input type="text" id="ob-model" class="form-input" placeholder="Camry" />
+          </div>
+        </div>
+
+        <div class="msg error" id="ob3-error"></div>
+
+        <div class="cta-area" style="margin-top:20px;">
+          <button class="btn btn-gold" id="btn-create-profile" onclick="createProfile()">Create My Free Profile &rarr;</button>
+          <span class="skip-link" onclick="createProfile()">Skip for now</span>
+          <button class="btn-ghost" onclick="goToStep('ob2')">&#8592; Back</button>
+        </div>
+        <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vehicle info is optional and stored privately in your profile. You can add or update it anytime.</p>
+      </div>
+
+      <!-- ===== CONFIRMATION SCREEN ===== -->
+      <div class="step" id="step-confirm">
+        <div class="confirm-panel">
+          <div class="confirm-icon">&#127881;</div>
+          <h2 id="confirm-name-msg">You're in!</h2>
+          <p id="confirm-body">
+            Your profile is set up. Local providers will be able to bid on your jobs as soon as My Car Concierge launches in your area — we'll notify you the moment that happens.
+          </p>
+
+          <div id="confirm-cta-area" style="margin-top:8px;">
+            <a href="/index.html" class="btn btn-navy" style="text-decoration:none; display:inline-flex;">
+              Go to My Car Concierge
+            </a>
+          </div>
+
+          <div class="referral-box" id="referral-box" style="display:none; margin-top:24px;">
+            <h4>&#127873; Give $10, Get $10</h4>
+            <p>Share your personal link and both you and a friend earn $10 credit when they book their first job on MCC.</p>
+            <div class="referral-link-row">
+              <input type="text" id="referral-link-input" class="referral-link-input" readonly />
+              <button class="copy-btn" onclick="copyReferral()">Copy</button>
+            </div>
+            <div class="share-row">
+              <button class="share-btn" onclick="shareReferral('sms')">&#128172; Text</button>
+              <button class="share-btn" onclick="shareReferral('email')">&#9993; Email</button>
+              <button class="share-btn" onclick="shareReferral('twitter')">&#120143; Share</button>
+              <button class="share-btn" onclick="shareReferral('facebook')">&#x1F4F2; Facebook</button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- ===== NOT-INTERESTED: Email capture ===== -->
+      <div class="step" id="step-ni">
+        <div class="ni-panel">
+          <div class="ni-icon">&#128236;</div>
+          <h2>No problem at all.</h2>
+          <p>Drop your email and we'll let you know when My Car Concierge launches in your area. One email. No spam.</p>
+
+          <div class="msg error" id="ni-error"></div>
+          <div class="msg success" id="ni-success">You're on the list! We'll be in touch.</div>
+
+          <div class="ni-email-row" id="ni-email-row">
+            <input type="email" id="ni-email" class="form-input" placeholder="your@email.com" autocomplete="email" />
+            <button class="btn btn-navy" style="white-space:nowrap;padding:11px 22px;width:auto;" onclick="submitNotInterested()">
+              Notify Me
+            </button>
+          </div>
+
+          <button class="btn-ghost" id="ni-back-btn" onclick="goToStep('reveal')" style="margin-top:6px;">
+            &#8592; Actually, tell me more
+          </button>
+        </div>
+      </div>
+
+    </div><!-- /survey-card -->
+  </main>
+
+  <footer class="survey-footer">
+    &copy; 2025 My Car Concierge &bull;
+    <a href="/privacy.html">Privacy Policy</a> &bull;
+    <a href="/index.html">Home</a>
+  </footer>
+
+<script>
+  // ===== STATE =====
+  let answers = {
+    q1: [],   // multi-select
+    q2: null, // single scale
+    q3: null, // single scale
+    q4: [],   // multi-select
+    q5: []    // multi-select
+  };
+
+  let surveyResponseId = null;
+  let customerProfileId = null;
+  let capturedEmail = null;
+  let capturedFirstName = null;
+  let capturedZip = null;
+
+  const sessionId = (() => {
+    const key = 'mcc_dsv_session';
+    let id = sessionStorage.getItem(key);
+    if (!id) {
+      id = 'ds_' + Date.now() + '_' + Math.random().toString(36).slice(2, 8);
+      sessionStorage.setItem(key, id);
+    }
+    return id;
+  })();
+
+  // ===== STEP NAVIGATION =====
+  const STEP_PROGRESS = {
+    'q1': 8, 'q2': 24, 'q3': 40, 'q4': 56, 'q5': 72,
+    'reveal': 80, 'ob1': 86, 'ob2': 92, 'ob3': 97,
+    'confirm': 100, 'ni': 100
+  };
+  const STEP_INDICATOR = {
+    'q1': 'Question 1 of 5', 'q2': 'Question 2 of 5', 'q3': 'Question 3 of 5',
+    'q4': 'Question 4 of 5', 'q5': 'Question 5 of 5',
+    'reveal': 'Big reveal', 'ob1': 'Step 1 of 3', 'ob2': 'Step 2 of 3', 'ob3': 'Step 3 of 3',
+    'confirm': 'Done!', 'ni': 'Almost done'
+  };
+  const SOCIAL_PROOF_HIDDEN = new Set(['confirm']);
+
+  function goToStep(step) {
+    document.querySelectorAll('.step').forEach(el => el.classList.remove('active'));
+    const el = document.getElementById('step-' + step);
+    if (el) el.classList.add('active');
+    document.getElementById('progress-fill').style.width = (STEP_PROGRESS[step] || 8) + '%';
+    document.getElementById('step-indicator').textContent = STEP_INDICATOR[step] || '';
+    const bar = document.getElementById('social-proof-bar');
+    if (SOCIAL_PROOF_HIDDEN.has(step)) {
+      bar.classList.add('hidden');
+    } else {
+      bar.classList.remove('hidden');
+    }
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }
+
+  // ===== SOCIAL PROOF ROTATION =====
+  const PROOF_MSGS = [
+    'Join 2,400+ members already on the platform',
+    '100% vetted providers — no chain shops',
+    'Members save an average of $180 per service',
+    'Track every repair. Own your vehicle\'s full history.',
+    'Zero platform fees — you keep every dollar'
+  ];
+  let proofIdx = 0;
+  setInterval(() => {
+    proofIdx = (proofIdx + 1) % PROOF_MSGS.length;
+    const el = document.getElementById('proof-text');
+    if (el) { el.style.opacity = '0'; setTimeout(() => { el.textContent = PROOF_MSGS[proofIdx]; el.style.opacity = '1'; }, 300); }
+  }, 4000);
+  const proofEl = document.getElementById('proof-text');
+  if (proofEl) proofEl.style.transition = 'opacity 0.3s';
+
+  // ===== CHOICE INTERACTIONS =====
+  function toggleChoice(btn, group) {
+    btn.classList.toggle('selected');
+    const check = btn.querySelector('.check');
+    if (check) check.textContent = btn.classList.contains('selected') ? '✓' : '';
+    const vals = Array.from(document.querySelectorAll('#' + group + '-choices .choice-btn.selected')).map(b => b.dataset.val);
+    answers[group] = vals;
+  }
+
+  function selectScale(btn, group) {
+    document.querySelectorAll('#' + group + '-choices .scale-btn').forEach(b => b.classList.remove('selected'));
+    btn.classList.add('selected');
+    answers[group] = btn.dataset.val;
+  }
+
+  // ===== INCREMENTAL SAVE =====
+  async function saveDiscoveryProgress() {
+    try {
+      const payload = {
+        session_id: sessionId,
+        discovery_answers: {
+          q1_find_mechanic: answers.q1,
+          q2_price_confidence: answers.q2,
+          q3_would_use: answers.q3,
+          q4_matters_most: answers.q4,
+          q5_hesitations: answers.q5
+        }
+      };
+      if (surveyResponseId) payload.response_id = surveyResponseId;
+      const r = await fetch('/api/survey/response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const d = await r.json();
+      if (d.id && !surveyResponseId) surveyResponseId = d.id;
+    } catch (e) {
+      console.warn('[Survey] incremental save error:', e);
+    }
+  }
+
+  // ===== PARTIAL PROGRESS EXIT TRIGGER =====
+  function triggerAbandonedFollowup() {
+    if (!capturedEmail || customerProfileId) return;
+    try {
+      fetch('/api/survey/abandoned', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          response_id: surveyResponseId,
+          email: capturedEmail,
+          first_name: capturedFirstName,
+          type: 'discovery_survey'
+        }),
+        keepalive: true
+      }).catch(() => {});
+    } catch (e) {}
+  }
+
+  // ===== Q1 =====
+  function nextFromQ1() {
+    if (answers.q1.length === 0) {
+      document.getElementById('q1-error').classList.add('visible');
+      return;
+    }
+    document.getElementById('q1-error').classList.remove('visible');
+    saveDiscoveryProgress();
+    goToStep('q2');
+  }
+
+  // ===== Q2 =====
+  function nextFromQ2() {
+    if (!answers.q2) {
+      document.getElementById('q2-error').classList.add('visible');
+      return;
+    }
+    document.getElementById('q2-error').classList.remove('visible');
+    saveDiscoveryProgress();
+    goToStep('q3');
+  }
+
+  // ===== Q3 =====
+  function nextFromQ3() {
+    if (!answers.q3) {
+      document.getElementById('q3-error').classList.add('visible');
+      return;
+    }
+    document.getElementById('q3-error').classList.remove('visible');
+    saveDiscoveryProgress();
+    goToStep('q4');
+  }
+
+  // ===== Q4 =====
+  function nextFromQ4() {
+    if (answers.q4.length === 0) {
+      document.getElementById('q4-error').classList.add('visible');
+      return;
+    }
+    document.getElementById('q4-error').classList.remove('visible');
+    saveDiscoveryProgress();
+    goToStep('q5');
+  }
+
+  // ===== Q5 =====
+  async function nextFromQ5() {
+    if (answers.q5.length === 0) {
+      document.getElementById('q5-error').classList.add('visible');
+      return;
+    }
+    document.getElementById('q5-error').classList.remove('visible');
+    const btn = document.getElementById('btn-finish-discovery');
+    btn.textContent = 'Loading…';
+    btn.disabled = true;
+    await saveDiscoveryProgress();
+    btn.textContent = 'See What We Found →';
+    btn.disabled = false;
+    goToStep('reveal');
+  }
+
+  // ===== OB1: FIRST NAME =====
+  function nextFromOb1() {
+    const first = document.getElementById('ob-first').value.trim();
+    if (!first) {
+      document.getElementById('ob1-error').classList.add('visible');
+      return;
+    }
+    document.getElementById('ob1-error').classList.remove('visible');
+    capturedFirstName = first;
+    document.getElementById('ob2-name-display').textContent = first;
+    goToStep('ob2');
+  }
+
+  // ===== OB2: EMAIL + SMS =====
+  document.addEventListener('DOMContentLoaded', () => {
+    const smsOpt = document.getElementById('ob-sms-opt');
+    const phoneGroup = document.getElementById('ob-phone-group');
+    if (smsOpt && phoneGroup) {
+      smsOpt.addEventListener('change', () => {
+        phoneGroup.style.display = smsOpt.checked ? 'flex' : 'none';
+      });
+    }
+  });
+
+  async function nextFromOb2() {
+    const email = document.getElementById('ob-email').value.trim();
+    const zip   = document.getElementById('ob-zip') ? document.getElementById('ob-zip').value.trim() : '';
+    const errEl = document.getElementById('ob2-error');
+    if (!email || !email.includes('@')) {
+      errEl.textContent = 'Please enter a valid email address.';
+      errEl.classList.add('visible');
+      return;
+    }
+    if (!zip) {
+      errEl.textContent = 'Please enter your ZIP code so we can check your area.';
+      errEl.classList.add('visible');
+      return;
+    }
+    errEl.classList.remove('visible');
+    capturedEmail = email;
+    capturedZip = zip;
+
+    try {
+      const payload = {
+        session_id: sessionId,
+        response_id: surveyResponseId,
+        email: email,
+        first_name: capturedFirstName,
+        zip: zip,
+        interested: true,
+        discovery_answers: {
+          q1_find_mechanic: answers.q1,
+          q2_price_confidence: answers.q2,
+          q3_would_use: answers.q3,
+          q4_matters_most: answers.q4,
+          q5_hesitations: answers.q5
+        }
+      };
+      const r = await fetch('/api/survey/response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload)
+      });
+      const d = await r.json();
+      if (d.id) surveyResponseId = d.id;
+    } catch (e) {
+      console.warn('[Survey] email update error:', e);
+    }
+
+    goToStep('ob3');
+  }
+
+  // ===== OB3: VEHICLE + CREATE PROFILE =====
+  async function createProfile() {
+    const errEl = document.getElementById('ob3-error');
+    errEl.classList.remove('visible');
+    const btn = document.getElementById('btn-create-profile');
+    btn.textContent = 'Creating profile…';
+    btn.disabled = true;
+
+    const year  = document.getElementById('ob-year').value.trim();
+    const make  = document.getElementById('ob-make').value.trim();
+    const model = document.getElementById('ob-model').value.trim();
+    const phoneEl = document.getElementById('ob-phone');
+    const phone = phoneEl ? phoneEl.value.trim() : '';
+
+    try {
+      const r = await fetch('/api/survey/profile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          survey_response_id: surveyResponseId,
+          session_id: sessionId,
+          first_name: capturedFirstName || '',
+          last_name: null,
+          email: capturedEmail,
+          phone: phone || null,
+          zip: capturedZip || null,
+          vehicle_year:  year  || null,
+          vehicle_make:  make  || null,
+          vehicle_model: model || null
+        })
+      });
+      if (!r.ok) {
+        throw new Error('Server returned ' + r.status);
+      }
+      const d = await r.json();
+      if (!d.id) {
+        throw new Error('No profile ID returned');
+      }
+      customerProfileId = d.id;
+    } catch (e) {
+      console.warn('[Survey] profile save error:', e);
+      errEl.textContent = 'Something went wrong saving your profile. Please try again.';
+      errEl.classList.add('visible');
+      btn.textContent = 'Create My Free Profile →';
+      btn.disabled = false;
+      return;
+    }
+
+    const name = capturedFirstName || 'You';
+    document.getElementById('confirm-name-msg').textContent = name + ', you\'re in!';
+
+    goToStep('confirm');
+
+    // Check if MCC is live in this ZIP to show area-aware messaging and CTA
+    applyAreaRouting(capturedZip);
+
+    loadReferralLink();
+
+    btn.textContent = 'Create My Free Profile →';
+    btn.disabled = false;
+  }
+
+  // ===== AREA-BASED ROUTING =====
+  async function applyAreaRouting(zip) {
+    const bodyEl = document.getElementById('confirm-body');
+    const ctaArea = document.getElementById('confirm-cta-area');
+    if (!zip) {
+      if (bodyEl) bodyEl.textContent = 'Your profile is set up. We\'ll notify you the moment My Car Concierge launches near you.';
+      return;
+    }
+    try {
+      const r = await fetch('/api/survey/area-check?zip=' + encodeURIComponent(zip));
+      if (!r.ok) throw new Error('area-check failed');
+      const d = await r.json();
+      if (bodyEl) bodyEl.textContent = 'Your profile is set up. ' + d.message;
+      if (ctaArea && d.live) {
+        ctaArea.innerHTML = '<a href="/signup-member.html" class="btn btn-gold" style="text-decoration:none; display:inline-flex;">Join the Platform Now &rarr;</a>';
+      }
+    } catch (e) {
+      if (bodyEl) bodyEl.textContent = 'Your profile is set up. We\'ll notify you the moment My Car Concierge launches near you.';
+    }
+  }
+
+  // ===== REFERRAL LINK (uses real backend endpoint) =====
+  async function loadReferralLink() {
+    const box = document.getElementById('referral-box');
+    if (!box) return;
+    try {
+      const r = await fetch('/api/survey/referral-link', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customer_profile_id: customerProfileId || null,
+          survey_response_id: surveyResponseId || null,
+          session_id: sessionId,
+          email: capturedEmail || null
+        })
+      });
+      if (!r.ok) throw new Error('Referral link request failed');
+      const d = await r.json();
+      if (d.referral_url) {
+        document.getElementById('referral-link-input').value = d.referral_url;
+        box.style.display = 'block';
+      }
+    } catch (e) {
+      console.warn('[Survey] referral link error:', e);
+    }
+  }
+
+  function copyReferral() {
+    const input = document.getElementById('referral-link-input');
+    if (!input) return;
+    input.select();
+    try {
+      navigator.clipboard.writeText(input.value).catch(() => {
+        document.execCommand('copy');
+      });
+    } catch (e) {
+      document.execCommand('copy');
+    }
+    const btn = document.querySelector('.copy-btn');
+    if (btn) { const orig = btn.textContent; btn.textContent = 'Copied!'; setTimeout(() => { btn.textContent = orig; }, 2000); }
+  }
+
+  function shareReferral(platform) {
+    const link = document.getElementById('referral-link-input').value;
+    const text = encodeURIComponent('I just joined My Car Concierge — get competing bids from vetted mechanics and never overpay for car service again. Use my link: ');
+    const url = encodeURIComponent(link);
+    const maps = {
+      sms: 'sms:?body=' + text + url,
+      email: 'mailto:?subject=' + encodeURIComponent('My Car Concierge — Give $10, Get $10') + '&body=' + text + url,
+      twitter: 'https://twitter.com/intent/tweet?text=' + text + url,
+      facebook: 'https://www.facebook.com/sharer/sharer.php?u=' + url
+    };
+    if (maps[platform]) window.open(maps[platform], '_blank');
+  }
+
+  // ===== NOT INTERESTED =====
+  async function submitNotInterested() {
+    const email = document.getElementById('ni-email').value.trim();
+    const errEl = document.getElementById('ni-error');
+    const sucEl = document.getElementById('ni-success');
+    if (!email || !email.includes('@')) {
+      errEl.textContent = 'Please enter a valid email address.';
+      errEl.classList.add('visible');
+      return;
+    }
+    errEl.classList.remove('visible');
+    capturedEmail = email;
+    try {
+      await fetch('/api/survey/response', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          session_id: sessionId,
+          response_id: surveyResponseId,
+          email,
+          interested: false,
+          discovery_answers: {
+            q1_find_mechanic: answers.q1,
+            q2_price_confidence: answers.q2,
+            q3_would_use: answers.q3,
+            q4_matters_most: answers.q4,
+            q5_hesitations: answers.q5
+          }
+        })
+      });
+    } catch (e) { console.warn('[Survey] NI email error:', e); }
+    sucEl.classList.add('visible');
+    document.getElementById('ni-email-row').style.display = 'none';
+    document.getElementById('ni-back-btn').style.display = 'none';
+  }
+
+  // ===== PARTIAL EXIT HANDLER =====
+  window.addEventListener('beforeunload', () => {
+    if (answers.q1.length > 0 && !customerProfileId) {
+      triggerAbandonedFollowup();
+    }
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'hidden' && answers.q1.length > 0 && !customerProfileId) {
+      triggerAbandonedFollowup();
+    }
+  });
+</script>
+</body>
+</html>

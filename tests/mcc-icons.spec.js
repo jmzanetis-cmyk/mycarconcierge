@@ -93,7 +93,7 @@ test.describe('Icon Usage Validation', () => {
 
   test('All mccIcon() calls in source files reference valid icon names from MCC_ICONS', async () => {
     const iconNameMatches = mccIconsContent.match(/^\s+'?([\w-]+)'?\s*:/gm);
-    const validNames = iconNameMatches.map(m => m.trim().replace(/[':]/g, ''));
+    const validNames = iconNameMatches.map(m => m.trim().replaceAll(/[':]/g, ''));
     expect(validNames.length).toBeGreaterThanOrEqual(70);
 
     const wwwDir = path.join(__dirname, '..', 'www');

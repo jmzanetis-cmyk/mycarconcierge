@@ -1,38 +1,64 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8" />
   <title>Our Services – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Explore all automotive services available through My Car Concierge - from detailing to mechanical repairs, EV maintenance to classic car restoration." />
-  <meta name="theme-color" content="#0a0a0f" />
+  <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
-      --bg-deep: #0a0a0f;
-      --bg-card: rgba(18, 18, 28, 0.85);
-      --bg-elevated: rgba(28, 28, 42, 0.9);
-      --text-primary: #f4f4f6;
-      --text-secondary: #9898a8;
-      --text-muted: #6b6b7a;
-      --accent-gold: #d4a855;
-      --accent-gold-soft: rgba(212, 168, 85, 0.15);
-      --accent-blue: #4a90d9;
-      --accent-blue-soft: rgba(74, 144, 217, 0.12);
-      --border-subtle: rgba(148, 148, 168, 0.12);
-      --border-medium: rgba(148, 148, 168, 0.2);
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-blue: #38bdf8;
+      --accent-blue-soft: rgba(56, 189, 248, 0.12);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
-      --shadow-glow: 0 0 60px rgba(212, 168, 85, 0.08);
+      --shadow-glow: 0 0 60px rgba(201, 162, 39, 0.1);
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #f3f4f6;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f9f7f4;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-blue-soft: rgba(30, 58, 95, 0.1);
+      --accent-green: #059669;
+      --accent-green-soft: rgba(5, 150, 105, 0.12);
+      --shadow-glow: 0 0 40px rgba(201, 169, 98, 0.15);
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -53,8 +79,15 @@
       z-index: 0;
       background:
         radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 144, 217, 0.05), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 144, 217, 0.03), transparent 60%);
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(56, 189, 248, 0.05), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(56, 189, 248, 0.03), transparent 60%);
+    }
+
+    [data-theme="light"] .ambient-bg {
+      background:
+        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(184, 148, 45, 0.06), transparent 50%),
+        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.03), transparent 50%),
+        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(255, 248, 235, 0.4), transparent 60%);
     }
 
     .noise {
@@ -97,9 +130,10 @@
     }
 
     .brand-icon {
-      height: 80px;
+      height: 120px;
       width: auto;
       border-radius: var(--radius-md);
+      filter: drop-shadow(0 4px 20px rgba(212, 168, 85, 0.3));
     }
 
     nav {
@@ -162,6 +196,13 @@
       background-clip: text;
     }
 
+    [data-theme="light"] .hero h1 .highlight {
+      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
     .hero-subtitle {
       max-width: 620px;
       margin: 0 auto 40px;
@@ -201,7 +242,20 @@
       align-items: center;
       justify-content: center;
       margin-bottom: 20px;
-      font-size: 28px;
+    }
+
+    .service-icon svg {
+      width: 28px;
+      height: 28px;
+      stroke: var(--accent-gold);
+      stroke-width: 1.8;
+      fill: none;
+      stroke-linecap: round;
+      stroke-linejoin: round;
+    }
+
+    .service-card:nth-child(even) .service-icon svg {
+      stroke: var(--accent-blue);
     }
 
     .service-card:nth-child(even) .service-icon {
@@ -314,6 +368,37 @@
       border-color: var(--accent-blue);
     }
 
+    [data-theme="light"] .btn-primary {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+      box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
+      font-weight: 600;
+    }
+
+    [data-theme="light"] .btn-primary:hover {
+      background: linear-gradient(135deg, #a6852a, #c49a35);
+      box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
+    }
+
+    [data-theme="light"] .btn-secondary {
+      background: #ffffff;
+      color: #1e3a5f;
+      border: 2px solid #1e3a5f;
+    }
+
+    [data-theme="light"] .btn-secondary:hover {
+      background: #1e3a5f;
+      color: #ffffff;
+      border-color: #1e3a5f;
+    }
+
+    [data-theme="light"] .service-card,
+    [data-theme="light"] .cta-box {
+      background: #ffffff;
+      box-shadow: 0 2px 12px rgba(30, 58, 95, 0.06), 0 1px 3px rgba(30, 58, 95, 0.04);
+      border: 1px solid rgba(30, 58, 95, 0.08);
+    }
+
     footer {
       border-top: 1px solid var(--border-subtle);
       padding: 48px 0;
@@ -364,11 +449,65 @@
         padding: 40px 24px;
       }
     }
+
+    .onboarding-banner {
+      position: relative;
+      z-index: 101;
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #0a0a0f;
+      text-align: center;
+      padding: 10px 48px 10px 20px;
+      font-size: 0.9rem;
+      font-weight: 500;
+      line-height: 1.4;
+    }
+    .onboarding-banner a {
+      color: #0a0a0f;
+      font-weight: 700;
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+    .onboarding-banner a:hover { opacity: 0.8; }
+    .onboarding-banner .banner-dismiss {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: #0a0a0f;
+      font-size: 1.2rem;
+      cursor: pointer;
+      padding: 4px 8px;
+      line-height: 1;
+      opacity: 0.7;
+      transition: opacity 0.2s;
+    }
+    .onboarding-banner .banner-dismiss:hover { opacity: 1; }
+    [data-theme="light"] .onboarding-banner {
+      background: linear-gradient(135deg, #b8942d, #d4a63a);
+      color: #ffffff;
+    }
+    [data-theme="light"] .onboarding-banner a { color: #ffffff; }
+    [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
+    @media (max-width: 600px) {
+      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
+    }
   </style>
 </head>
 <body>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
+
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
+    We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
+    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
+  </div>
+  <script>
+    if (!localStorage.getItem('onboardingBannerDismissed')) {
+      document.getElementById('onboardingBanner').style.display = '';
+    }
+  </script>
 
   <header>
     <div class="container">
@@ -376,9 +515,9 @@
         <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
       </a>
       <nav>
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/login.html" class="btn-login">Log In</a>
       </nav>
     </div>
@@ -397,7 +536,7 @@
 
     <section class="services-grid container">
       <div class="service-card">
-        <div class="service-icon">✨</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M12 3l1.5 4.5L18 9l-4.5 1.5L12 15l-1.5-4.5L6 9l4.5-1.5L12 3z"/><path d="M19 13l.75 2.25L22 16l-2.25.75L19 19l-.75-2.25L16 16l2.25-.75L19 13z"/><path d="M5 17l.5 1.5L7 19l-1.5.5L5 21l-.5-1.5L3 19l1.5-.5L5 17z"/></svg></div>
         <h3>Detailing</h3>
         <p>Professional interior and exterior detailing to keep your vehicle looking showroom-fresh.</p>
         <ul class="service-features">
@@ -409,7 +548,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🔧</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
         <h3>Mechanical</h3>
         <p>Expert mechanical repairs and maintenance from certified technicians.</p>
         <ul class="service-features">
@@ -421,7 +560,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🛞</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="2"/><line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/><line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/></svg></div>
         <h3>Tires</h3>
         <p>Complete tire services including sales, installation, and alignment.</p>
         <ul class="service-features">
@@ -433,7 +572,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🎨</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M19 3H5a2 2 0 0 0-2 2v4a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2z"/><path d="M12 11v6"/><path d="M8 17h8a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2v0a2 2 0 0 1 2-2z"/></svg></div>
         <h3>Body & Paint</h3>
         <p>Collision repair and custom paint work by skilled body shop professionals.</p>
         <ul class="service-features">
@@ -445,7 +584,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">⚡</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg></div>
         <h3>Performance</h3>
         <p>Upgrades and tuning to maximize your vehicle's potential.</p>
         <ul class="service-features">
@@ -457,7 +596,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🔋</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><rect x="1" y="6" width="18" height="12" rx="2" ry="2"/><line x1="23" y1="13" x2="23" y2="11"/><line x1="11" y1="9" x2="11" y2="15"/><line x1="8" y1="12" x2="14" y2="12"/></svg></div>
         <h3>EV & Hybrid</h3>
         <p>Specialized service for electric and hybrid vehicles.</p>
         <ul class="service-features">
@@ -469,7 +608,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🏛️</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M12 2L2 7h20L12 2z"/><rect x="4" y="10" width="2" height="8"/><rect x="9" y="10" width="2" height="8"/><rect x="14" y="10" width="2" height="8"/><rect x="19" y="10" width="2" height="8"/><rect x="2" y="18" width="21" height="2" rx="1"/><rect x="1" y="20" width="23" height="2" rx="1"/></svg></div>
         <h3>Classic & Vintage</h3>
         <p>Restoration and preservation of classic automobiles.</p>
         <ul class="service-features">
@@ -481,7 +620,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🚐</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><rect x="1" y="3" width="15" height="13" rx="2"/><path d="M16 8h4l3 5v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg></div>
         <h3>Fleet Services</h3>
         <p>Comprehensive fleet management and maintenance programs.</p>
         <ul class="service-features">
@@ -493,7 +632,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🏍️</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><circle cx="5" cy="17" r="3"/><circle cx="19" cy="17" r="3"/><path d="M5 14l3-7h4l2 3h5"/><path d="M12 10l2 4h5"/><path d="M8 7h2"/></svg></div>
         <h3>Motorcycle</h3>
         <p>Service and repair for all types of motorcycles.</p>
         <ul class="service-features">
@@ -505,7 +644,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">🚌</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><rect x="1" y="4" width="20" height="13" rx="2"/><path d="M21 10h1a1 1 0 0 1 1 1v5a1 1 0 0 1-1 1h-1"/><circle cx="6" cy="19" r="2"/><circle cx="16" cy="19" r="2"/><line x1="8" y1="17" x2="14" y2="17"/><line x1="14" y1="4" x2="14" y2="11"/></svg></div>
         <h3>RV & Motorhome</h3>
         <p>Specialized RV service including living quarters systems.</p>
         <ul class="service-features">
@@ -517,7 +656,7 @@
       </div>
 
       <div class="service-card">
-        <div class="service-icon">⛵</div>
+        <div class="service-icon"><svg viewBox="0 0 24 24"><path d="M2 20s3-2 5-2 4 2 7 2 5-2 7-2 3 2 3 2"/><path d="M12 4v12"/><path d="M12 4l6 8H6l6-8z"/><line x1="12" y1="16" x2="4" y2="16"/></svg></div>
         <h3>Marine & Boat</h3>
         <p>Complete boat and marine engine service.</p>
         <ul class="service-features">
@@ -533,7 +672,7 @@
       <div class="container">
         <div class="cta-box">
           <h2>Ready to Get Started?</h2>
-          <p>Create your free account and post your first service request. Let vetted providers compete for your business.</p>
+          <p>Create your free account and post your first service request. Let vetted providers compete for your business. Plus, earn loyalty rewards through provider Car Clubs.</p>
           <div class="cta-buttons">
             <a href="/signup-member.html" class="btn btn-primary">Create Free Account</a>
             <a href="/login.html" class="btn btn-secondary">Sign In</a>
@@ -546,9 +685,9 @@
   <footer>
     <div class="container">
       <div class="footer-links">
-        <a href="/marketing/services.html">Services</a>
-        <a href="/marketing/providers.html">For Providers</a>
-        <a href="/marketing/about.html">About</a>
+        <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
+        <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
+        <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
         <a href="/privacy.html">Privacy</a>
         <a href="/terms.html">Terms</a>
       </div>

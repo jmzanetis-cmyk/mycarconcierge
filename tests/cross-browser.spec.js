@@ -199,7 +199,7 @@ async function setupCdnMocks(page, mockJs) {
 
 async function addAuthToken(page, userId, email) {
   await page.addInitScript(({ userId, email }) => {
-    window.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
+    globalThis.localStorage.setItem('sb-ifbyjxuaclwmadqbjcyp-auth-token', JSON.stringify({
       access_token: 'fake-access-token',
       token_type: 'bearer',
       expires_in: 3600,
@@ -220,30 +220,30 @@ async function addFunctionStubs(page) {
   await page.addInitScript(() => {
     var noop = function() {};
     var asyncNoop = function() { return Promise.resolve(); };
-    window.vehicleRecalls = {};
-    window.vehicleRegistrationStatus = {};
-    window.checkActiveEmergency = asyncNoop;
-    window.updateVehicleSelects = noop;
-    window.loadAllVehicleRecalls = noop;
-    window.loadDestinationServices = asyncNoop;
-    window.loadRecommendations = asyncNoop;
-    window.loadServiceHistory = asyncNoop;
-    window.loadConversations = asyncNoop;
-    window.loadNotifications = asyncNoop;
-    window.loadNotificationPreferences = asyncNoop;
-    window.loadUpsellRequests = asyncNoop;
-    window.setupEventListeners = noop;
-    window.setupRealtimeSubscriptions = noop;
-    window.renderRecentActivity = noop;
-    window.renderPackages = noop;
-    window.renderReminders = noop;
-    window.loadPackagePaymentStatuses = asyncNoop;
-    window.getDismissedReminderIds = function() { return []; };
-    window.getSnoozedReminderIds = function() { return []; };
-    window.showToast = noop;
-    window.escapeHtml = function(text) {
+    globalThis.vehicleRecalls = {};
+    globalThis.vehicleRegistrationStatus = {};
+    globalThis.checkActiveEmergency = asyncNoop;
+    globalThis.updateVehicleSelects = noop;
+    globalThis.loadAllVehicleRecalls = noop;
+    globalThis.loadDestinationServices = asyncNoop;
+    globalThis.loadRecommendations = asyncNoop;
+    globalThis.loadServiceHistory = asyncNoop;
+    globalThis.loadConversations = asyncNoop;
+    globalThis.loadNotifications = asyncNoop;
+    globalThis.loadNotificationPreferences = asyncNoop;
+    globalThis.loadUpsellRequests = asyncNoop;
+    globalThis.setupEventListeners = noop;
+    globalThis.setupRealtimeSubscriptions = noop;
+    globalThis.renderRecentActivity = noop;
+    globalThis.renderPackages = noop;
+    globalThis.renderReminders = noop;
+    globalThis.loadPackagePaymentStatuses = asyncNoop;
+    globalThis.getDismissedReminderIds = function() { return []; };
+    globalThis.getSnoozedReminderIds = function() { return []; };
+    globalThis.showToast = noop;
+    globalThis.escapeHtml = function(text) {
       if (!text) return '';
-      return String(text).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      return String(text).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
     };
   });
 }
@@ -482,13 +482,13 @@ test.describe('Responsive Element Tests', () => {
     const body = page.locator('body');
     const fontSize = await body.evaluate(el => {
       const style = getComputedStyle(el);
-      return parseFloat(style.fontSize);
+      return Number.parseFloat(style.fontSize);
     });
     expect(fontSize).toBeGreaterThanOrEqual(12);
 
     const h1 = page.locator('h1');
     if (await h1.count() > 0) {
-      const h1FontSize = await h1.first().evaluate(el => parseFloat(getComputedStyle(el).fontSize));
+      const h1FontSize = await h1.first().evaluate(el => Number.parseFloat(getComputedStyle(el).fontSize));
       expect(h1FontSize).toBeGreaterThanOrEqual(16);
     }
   });

@@ -170,7 +170,7 @@
       const notSupportedEl = document.getElementById('push-not-supported');
       const contentEl = document.getElementById('push-content');
       
-      if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+      if (!('serviceWorker' in navigator) || !('PushManager' in globalThis)) {
         if (notSupportedEl) notSupportedEl.style.display = 'block';
         if (contentEl) contentEl.style.display = 'none';
         return;
@@ -284,7 +284,7 @@
     
     async function getVapidKey() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/push/vapid-key`);
         const data = await response.json();
         return data.publicKey;
@@ -301,7 +301,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session?.access_token) return;
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         await fetch(`${apiBase}/api/push/subscribe`, {
           method: 'POST',
           headers: { 
@@ -324,7 +324,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session?.access_token) return;
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         await fetch(`${apiBase}/api/push/unsubscribe`, {
           method: 'POST',
           headers: { 
@@ -393,8 +393,8 @@
     
     function urlBase64ToUint8Array(base64String) {
       const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
-      const rawData = window.atob(base64);
+      const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
+      const rawData = globalThis.atob(base64);
       const outputArray = new Uint8Array(rawData.length);
       for (let i = 0; i < rawData.length; ++i) {
         outputArray[i] = rawData.charCodeAt(i);
@@ -422,7 +422,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/2fa/status`, {
           headers: {
             'Authorization': `Bearer ${session.access_token}`
@@ -476,7 +476,7 @@
     }
 
     function format2FAPhoneInput(input) {
-      let value = input.value.replace(/\D/g, '');
+      let value = input.value.replaceAll(/\D/g, '');
       if (value.length > 10) value = value.slice(0, 10);
       
       if (value.length >= 6) {
@@ -490,7 +490,7 @@
 
     async function initiate2FAEnable() {
       const phoneInput = document.getElementById('2fa-phone-input');
-      const phone = phoneInput.value.replace(/\D/g, '');
+      const phone = phoneInput.value.replaceAll(/\D/g, '');
       
       if (phone.length !== 10) {
         showToast('Please enter a valid 10-digit phone number', 'error');
@@ -509,7 +509,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/2fa/send-code`, {
           method: 'POST',
           headers: { 
@@ -563,7 +563,7 @@
     }
 
     function handle2FADigitInput(input, position) {
-      const value = input.value.replace(/\D/g, '');
+      const value = input.value.replaceAll(/\D/g, '');
       input.value = value.slice(0, 1);
       
       if (value && position < 6) {
@@ -625,7 +625,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         // First verify the code
         const verifyResponse = await fetch(`${apiBase}/api/2fa/verify-code`, {
           method: 'POST',
@@ -691,7 +691,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/2fa/send-code`, {
           method: 'POST',
           headers: { 
@@ -733,7 +733,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/2fa/disable`, {
           method: 'POST',
           headers: { 
@@ -764,7 +764,7 @@
         if (storedToken) {
           const { data: { session } } = await supabaseClient.auth.getSession();
           if (session) {
-            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+            const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
             await fetch(`${apiBase}/api/push/unregister-device`, {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
@@ -775,7 +775,7 @@
         }
       } catch {}
       await supabaseClient.auth.signOut();
-      window.location.href = 'login.html';
+      globalThis.location.href = 'login.html';
     }
 
     // =============================================

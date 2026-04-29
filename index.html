@@ -2146,11 +2146,11 @@
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', data.user.id).single();
         
         if (profile?.role === 'admin') {
-          window.location.href = 'admin.html';
+          globalThis.location.href = 'admin.html';
         } else if (profile?.role === 'provider' || profile?.role === 'pending_provider') {
-          window.location.href = 'providers.html';
+          globalThis.location.href = 'providers.html';
         } else {
-          window.location.href = 'members.html';
+          globalThis.location.href = 'members.html';
         }
       } catch (err) {
         console.error('Login error:', err);
@@ -2311,7 +2311,7 @@
   <!-- Facebook SDK for JavaScript (Task #182) -->
   <div id="fb-root"></div>
   <script>
-    window.fbAsyncInit = function() {
+    globalThis.fbAsyncInit = function() {
       FB.init({
         appId: '1210351411006961',
         cookie: true,

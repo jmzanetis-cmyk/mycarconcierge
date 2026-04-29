@@ -67,8 +67,8 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
     await page.goto('http://127.0.0.1:5000/_test_blank', { waitUntil: 'domcontentloaded' });
 
     await page.evaluate(({ profile, packs, userId }) => {
-      window.currentUser = { id: userId, email: 'provider@example.com' };
-      window.providerProfile = profile;
+      globalThis.currentUser = { id: userId, email: 'provider@example.com' };
+      globalThis.providerProfile = profile;
 
       function makeChainable(table) {
         const result = (table === 'bid_packs')
@@ -89,7 +89,7 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
         return chain;
       }
 
-      window.supabaseClient = {
+      globalThis.supabaseClient = {
         auth: {
           getSession: () => Promise.resolve({
             data: {
@@ -115,15 +115,15 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
         removeChannel: () => {}
       };
 
-      window.showToast = (msg, type) => {
-        window.__lastToast = { msg, type };
+      globalThis.showToast = (msg, type) => {
+        globalThis.__lastToast = { msg, type };
       };
 
-      window.mccIcon = (name, size) => `<svg width="${size || 16}" height="${size || 16}"></svg>`;
+      globalThis.mccIcon = (name, size) => `<svg width="${size || 16}" height="${size || 16}"></svg>`;
 
-      window.isMobileWalletAvailable = () => Promise.resolve({ available: false });
+      globalThis.isMobileWalletAvailable = () => Promise.resolve({ available: false });
 
-      window.loadSubscription = () => Promise.resolve();
+      globalThis.loadSubscription = () => Promise.resolve();
     }, { profile: PROVIDER_PROFILE, packs: BID_PACKS_DATA, userId: FAKE_PROVIDER_ID });
 
     const bidsJs = await (await page.request.get('http://127.0.0.1:5000/providers-bids.js')).text();
@@ -132,8 +132,8 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
     await page.waitForTimeout(200);
 
     await page.evaluate(() => {
-      if (typeof window.loadServiceCredits === 'function') {
-        return window.loadServiceCredits();
+      if (typeof globalThis.loadServiceCredits === 'function') {
+        return globalThis.loadServiceCredits();
       }
     });
 
@@ -144,7 +144,7 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
     await loadBidsModuleInIsolation(page);
 
     const rendered = await page.evaluate((packs) => {
-      window.bidPacks = packs;
+      globalThis.bidPacks = packs;
       if (typeof renderServiceCredits === 'function') {
         renderServiceCredits();
         const grid = document.getElementById('bid-packs-grid');
@@ -203,14 +203,14 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
     });
 
     await page.evaluate(() => {
-      window.__stripeRedirectUrl = null;
+      globalThis.__stripeRedirectUrl = null;
       const origDescriptor = Object.getOwnPropertyDescriptor(Location.prototype, 'href');
       if (origDescriptor && origDescriptor.set) {
         const origSetter = origDescriptor.set;
         Object.defineProperty(Location.prototype, 'href', {
           set: function(v) {
             if (v && v.includes('stripe.com')) {
-              window.__stripeRedirectUrl = v;
+              globalThis.__stripeRedirectUrl = v;
               return;
             }
             origSetter.call(this, v);
@@ -231,7 +231,7 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
     expect(checkoutPayload.packId).toBe('pack-starter');
     expect(checkoutPayload.providerId).toBe(FAKE_PROVIDER_ID);
 
-    const redirectUrl = await page.evaluate(() => window.__stripeRedirectUrl).catch(() => null);
+    const redirectUrl = await page.evaluate(() => globalThis.__stripeRedirectUrl).catch(() => null);
     if (redirectUrl) {
       expect(redirectUrl).toContain('checkout.stripe.com');
     }
@@ -258,7 +258,7 @@ test.describe('Bid Pack Checkout - Function Tests', () => {
 
     await page.waitForTimeout(3000);
 
-    const toast = await page.evaluate(() => window.__lastToast);
+    const toast = await page.evaluate(() => globalThis.__lastToast);
     expect(toast).toBeTruthy();
     expect(toast.type).toBe('error');
   });

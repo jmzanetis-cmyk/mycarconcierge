@@ -6,6 +6,8 @@
   "scripts": {
     "start": "node www/server.js",
     "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint .",
+    "lint:fix": "eslint . --fix",
     "electron": "electron .",
     "electron:dev": "electron .",
     "build:www": "mkdir -p www && cp -r *.html *.png manifest.json pwa-init.js sw.js supabaseclient.js icons www/",
@@ -49,6 +51,9 @@
     "@supabase/supabase-js": "^2.45.0",
     "archiver": "^7.0.1",
     "esbuild": "^0.27.3",
+    "eslint": "^10.2.1",
+    "eslint-plugin-html": "^8.1.4",
+    "eslint-plugin-unicorn": "^64.0.0",
     "netlify-cli": "^23.12.3",
     "openai": "^4.50.0",
     "pg": "^8.18.0",

@@ -34,15 +34,15 @@ function authenticateAdmin(event) {
 }
 
 async function getAiOpsSettings(supabase) {
-  const threshold = parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefund = parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
+  const threshold = Number.parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
+  const maxRefund = Number.parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
   try {
     const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
     if (rows) {
       const s = {};
       for (const r of rows) {
-        if (r.key === 'confidence_threshold') s.threshold = parseFloat(r.value);
-        if (r.key === 'max_auto_refund') s.maxRefund = parseFloat(r.value);
+        if (r.key === 'confidence_threshold') s.threshold = Number.parseFloat(r.value);
+        if (r.key === 'max_auto_refund') s.maxRefund = Number.parseFloat(r.value);
       }
       return { threshold: s.threshold ?? threshold, maxRefund: s.maxRefund ?? maxRefund };
     }
@@ -95,7 +95,7 @@ async function aiOpsSendSMS(toPhone, body) {
   const from = process.env.TWILIO_PHONE_NUMBER;
   if (!sid || !token || !from || !toPhone) return { sent: false };
   try {
-    const clean = toPhone.replace(/\D/g, '');
+    const clean = toPhone.replaceAll(/\D/g, '');
     const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
     const auth = Buffer.from(`${sid}:${token}`).toString('base64');
     const form = new URLSearchParams({ To: to, From: from, Body: body });
@@ -434,8 +434,8 @@ exports.handler = async function(event, context) {
     // GET /api/admin/ai-ops/actions
     // Optional filters: module, target_id (Task #139 — used by inline activity panels)
     if (method === 'GET' && path === 'actions') {
-      const page = parseInt(params.page || '1');
-      const limit = Math.min(parseInt(params.limit || '25'), 100);
+      const page = Number.parseInt(params.page || '1');
+      const limit = Math.min(Number.parseInt(params.limit || '25'), 100);
       const mod = params.module || '';
       const targetId = (params.target_id || '').trim();
       const outcome = (params.outcome || '').trim();
@@ -505,7 +505,7 @@ exports.handler = async function(event, context) {
     if (method === 'POST' && path === 'settings') {
       const { confidence_threshold, max_auto_refund } = body;
       if (confidence_threshold !== undefined) {
-        const t = parseFloat(confidence_threshold);
+        const t = Number.parseFloat(confidence_threshold);
         if (isNaN(t) || t < 0 || t > 1) {
           return jsonResponse(400, { error: 'confidence_threshold must be 0.0–1.0' });
         }
@@ -516,7 +516,7 @@ exports.handler = async function(event, context) {
         if (error) console.error('[AiOpsAdmin] Settings persist error:', error.message);
       }
       if (max_auto_refund !== undefined) {
-        const m = parseFloat(max_auto_refund);
+        const m = Number.parseFloat(max_auto_refund);
         if (isNaN(m) || m < 0) {
           return jsonResponse(400, { error: 'max_auto_refund must be a positive number' });
         }
@@ -554,8 +554,8 @@ exports.handler = async function(event, context) {
     // Task #150 Light: list completions with optional status filter.
     if (method === 'GET' && path === 'care-plan-completions') {
       const status = (params.status || '').trim();
-      const limit = Math.min(parseInt(params.limit || '50'), 200);
-      const agingDays = parseInt(params.aging_days || '0');
+      const limit = Math.min(Number.parseInt(params.limit || '50'), 200);
+      const agingDays = Number.parseInt(params.aging_days || '0');
       let q = supabase.from('care_plan_completions')
         .select('*, care_plans(id, title, services, value_min, value_max)')
         .order('created_at', { ascending: false })

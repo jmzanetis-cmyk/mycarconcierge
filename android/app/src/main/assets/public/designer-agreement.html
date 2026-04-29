@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Designer Collaboration Agreement - My Car Concierge</title>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <meta name="robots" content="noindex, nofollow">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-bronze: #cd7f32;
+      --accent-bronze-soft: rgba(205, 127, 50, 0.15);
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f1f5f9;
+      --text-primary: #1e293b;
+      --text-secondary: #475569;
+      --text-muted: #64748b;
+      --border-subtle: rgba(30, 58, 95, 0.12);
+      --border-medium: rgba(30, 58, 95, 0.2);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-bronze: #a06424;
+      --accent-bronze-soft: rgba(160, 100, 36, 0.12);
+      --accent-blue: #1e3a5f;
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+    }
+
+    body {
+      font-family: 'Georgia', serif;
+      line-height: 1.8;
+      padding: 40px;
+      max-width: 900px;
+      margin: 0 auto;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+    }
+    h1 {
+      text-align: center;
+      font-size: 24px;
+      margin-bottom: 10px;
+      text-transform: uppercase;
+      letter-spacing: 2px;
+      color: var(--text-primary);
+    }
+    .subtitle {
+      text-align: center;
+      color: var(--text-secondary);
+      margin-bottom: 40px;
+    }
+    .contract-badge {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    .contract-badge span {
+      display: inline-block;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: white;
+      padding: 8px 24px;
+      border-radius: 30px;
+      font-family: 'Outfit', sans-serif;
+      font-weight: bold;
+      font-size: 14px;
+    }
+    h2 {
+      font-size: 16px;
+      margin: 30px 0 15px;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      border-bottom: 1px solid var(--border-subtle);
+      padding-bottom: 8px;
+      color: var(--text-primary);
+    }
+    p { margin-bottom: 15px; text-align: justify; color: var(--text-primary); }
+    .section { margin-bottom: 30px; }
+    .indent { margin-left: 30px; }
+    ol, ul { margin-left: 40px; margin-bottom: 15px; color: var(--text-primary); }
+    li { margin-bottom: 10px; }
+    .highlight-box {
+      background: var(--accent-gold-soft);
+      border-left: 4px solid var(--accent-gold);
+      padding: 20px;
+      margin: 20px 0;
+      border-radius: 0 8px 8px 0;
+    }
+    .effective-date {
+      text-align: center;
+      font-weight: bold;
+      margin: 40px 0;
+      padding: 20px;
+      background: var(--accent-gold-soft);
+      border: 2px solid var(--accent-gold);
+      color: var(--text-primary);
+      border-radius: var(--radius-md);
+    }
+    @media print {
+      body { padding: 20px; background: #fff; color: #222; }
+      .no-print { display: none !important; }
+      #agreement-form-container { display: none !important; }
+      .highlight-box, .effective-date { background: #fff8e1 !important; }
+      p, li, h1, h2, td, th { color: #222 !important; }
+    }
+    .nav-buttons {
+      position: fixed;
+      top: 20px;
+      left: 0;
+      right: 0;
+      padding: 0 20px;
+      display: flex;
+      justify-content: space-between;
+      z-index: 100;
+    }
+    .back-link {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-gold);
+      text-decoration: none;
+      font-family: 'Outfit', sans-serif;
+      font-weight: 500;
+      padding: 10px 16px;
+      background: var(--bg-card);
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border-subtle);
+      transition: all 0.2s ease;
+    }
+    .back-link:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .print-btn {
+      padding: 10px 20px;
+      background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
+      color: #fff;
+      border: none;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: var(--radius-md);
+      font-family: 'Outfit', sans-serif;
+      transition: all 0.2s ease;
+    }
+    .print-btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
+    }
+    .theme-toggle {
+      position: fixed;
+      top: 20px;
+      right: 180px;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      padding: 10px;
+      cursor: pointer;
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s ease;
+    }
+    .theme-toggle:hover {
+      background: var(--bg-elevated);
+      border-color: var(--accent-gold);
+    }
+    .agreement-form-section {
+      margin-top: 60px;
+      padding-top: 40px;
+      border-top: 2px solid var(--border-subtle);
+    }
+    .agreement-form-section h2 {
+      text-align: center;
+      margin-bottom: 30px;
+    }
+    #agreement-form-container {
+      max-width: 600px;
+      margin: 0 auto;
+    }
+    strong { color: var(--text-primary); }
+    .footer-note {
+      text-align: center;
+      margin-top: 60px;
+      color: var(--text-muted);
+      font-size: 12px;
+    }
+    @media (max-width: 768px) {
+      body { padding: 20px 16px; }
+      .nav-buttons { padding: 0 12px; }
+      .theme-toggle { right: 140px; }
+      h1 { font-size: 20px; }
+      ol, ul { margin-left: 24px; }
+    }
+  </style>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/designer-agreement.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Designer collaboration agreement for partners working on My Car Concierge merchandise and brand assets." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/designer-agreement.html" />
+  <meta property="og:title" content="Designer Collaboration Agreement - My Car Concierge" />
+  <meta property="og:description" content="Designer collaboration agreement for partners working on My Car Concierge merchandise and brand assets." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="Designer Collaboration Agreement - My Car Concierge" />
+  <meta name="twitter:description" content="Designer collaboration agreement for partners working on My Car Concierge merchandise and brand assets." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
+</head>
+<body>
+  <div class="nav-buttons no-print">
+    <a href="/" class="back-link">
+      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="15 18 9 12 15 6"></polyline>
+      </svg>
+      Home
+    </a>
+    <div style="display: flex; gap: 12px;">
+      <button class="theme-toggle" id="themeToggle" title="Toggle theme">
+        <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="5"></circle>
+          <line x1="12" y1="1" x2="12" y2="3"></line>
+          <line x1="12" y1="21" x2="12" y2="23"></line>
+          <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
+          <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
+          <line x1="1" y1="12" x2="3" y2="12"></line>
+          <line x1="21" y1="12" x2="23" y2="12"></line>
+          <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
+          <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
+        </svg>
+        <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+        </svg>
+      </button>
+      <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
+    </div>
+  </div>
+
+  <div style="height: 60px;"></div>
+
+  <div class="contract-badge">
+    <span>DESIGNER COLLABORATION AGREEMENT</span>
+  </div>
+
+  <h1>Designer Collaboration Agreement</h1>
+  <p class="subtitle">My Car Concierge — Merchandise Design & Creative Services</p>
+
+  <div class="effective-date">
+    Effective Date: <input type="date" id="contract-effective-date" style="font-family:inherit;font-size:inherit;font-weight:bold;background:transparent;border:none;border-bottom:2px solid var(--accent-gold);color:var(--text-primary);padding:2px 8px;cursor:pointer;text-align:center;">
+  </div>
+
+  <div class="section">
+    <p>This Designer Collaboration Agreement ("Agreement") is entered into by and between:</p>
+    <p class="indent"><strong>My Car Concierge LLC</strong> ("Company")<br>
+    A technology company operating an automotive service marketplace platform</p>
+    <p>AND</p>
+    <p class="indent"><strong>Designer Name:</strong> <span id="live-name" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span><br>
+    <strong>Email:</strong> <span id="live-email" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span><br>
+    <strong>Portfolio / Website:</strong> <span id="live-website" style="border-bottom:2px dashed var(--accent-gold);padding:0 4px;min-width:180px;display:inline-block;color:var(--accent-gold);font-style:italic;">Enter below</span></p>
+    <p class="indent">(collectively, "Designer")</p>
+  </div>
+
+  <div class="highlight-box">
+    <p><strong>COLLABORATION SUMMARY:</strong> Designer will create original merchandise designs and help shape the My Car Concierge merch store. Designer retains full creative license and ownership of all designs. Designer receives 100% of profit from sales of Designer's items through the MCC merch store. The Company benefits from professionally designed merchandise and an enhanced brand presence at no upfront cost.</p>
+  </div>
+
+  <h2>1. Purpose and Relationship</h2>
+  <div class="section">
+    <p>1.1. The Company operates "My Car Concierge," an automotive service marketplace platform connecting vehicle owners with service providers ("Platform"). The Platform includes a branded merchandise store ("Merch Store") powered by Printful's print-on-demand fulfillment service.</p>
+    <p>1.2. The Company engages Designer to create original merchandise designs tailored to the My Car Concierge brand and to provide creative direction for the Merch Store's visual identity and product offerings.</p>
+    <p>1.3. <strong>Designer is an independent collaborator and NOT an employee, partner, agent, or joint venturer of the Company.</strong> Nothing in this Agreement creates an employment relationship, partnership, or agency.</p>
+    <p>1.4. Designer has no authority to bind the Company, enter into contracts on behalf of the Company, or create any obligations for the Company.</p>
+  </div>
+
+  <h2>2. Scope of Services</h2>
+  <div class="section">
+    <p>Designer's services include:</p>
+    <ol type="a">
+      <li><strong>Merchandise Design:</strong> Creating original artwork, illustrations, graphics, patterns, and designs for print-on-demand merchandise items (including but not limited to t-shirts, hoodies, mugs, stickers, hats, tote bags, and other products available through Printful).</li>
+      <li><strong>Brand Alignment:</strong> Designing items that complement and enhance the My Car Concierge brand identity, including automotive themes, brand colors, taglines, and the overall premium aesthetic of the Platform.</li>
+      <li><strong>Merch Store Curation:</strong> Advising on product selection, layout, and visual presentation within the Merch Store to maximize appeal and sales.</li>
+      <li><strong>Product Mockups:</strong> Providing production-ready design files in formats compatible with Printful's print specifications.</li>
+    </ol>
+    <p>2.2. Specific designs and product launches will be coordinated between Designer and the Company. Designer may propose new designs at any time, and the Company reserves the right to approve which items are listed in the Merch Store.</p>
+    <p>2.3. Designer is not required to meet a minimum number of designs or a production schedule. The collaboration is voluntary and flexible.</p>
+  </div>
+
+  <h2>3. Compensation — Designer Keeps All Profit</h2>
+  <div class="section">
+    <div class="highlight-box">
+      <p><strong>100% PROFIT TO DESIGNER:</strong> Designer receives all profit from the sale of Designer's merchandise items. There is no platform fee, commission, or revenue share taken by the Company on Designer's products.</p>
+    </div>
+
+    <p><strong>3.1. Profit Definition:</strong></p>
+    <p>"Profit" means the retail sale price of each item, minus:</p>
+    <ol type="a">
+      <li><strong>Printful production and fulfillment costs</strong> (manufacturing, printing, packaging, and shipping for each item)</li>
+      <li><strong>Payment processing fees</strong> (Stripe transaction fees, currently approximately 2.9% + $0.30 per transaction)</li>
+    </ol>
+    <p>The remaining amount after these deductions is the Designer's Profit.</p>
+
+    <p><strong>3.2. No Platform Fee:</strong> The Company does not charge any platform fee, commission, or revenue share on Designer's merchandise sales.</p>
+
+    <p><strong>3.3. Pricing:</strong> Designer and the Company will collaborate to set retail prices for each item. Designer has input on pricing to ensure fair profit margins after production costs. Final pricing decisions are made jointly, with neither party setting prices unilaterally.</p>
+
+    <p><strong>3.4. Payout Schedule:</strong></p>
+    <ol type="a">
+      <li>The Company will track all sales of Designer's items and calculate Designer's Profit on a monthly basis.</li>
+      <li>Payout reports with itemized sales data will be provided to Designer by the 5th of each month for the prior month's sales.</li>
+      <li>Payment of Designer's Profit will be made within fifteen (15) days of the payout report, via PayPal, Wise, direct bank transfer, or other mutually agreed electronic method.</li>
+      <li>Designer may request a payout at any time for accumulated profit exceeding $50.00.</li>
+    </ol>
+
+    <p><strong>3.5. Transparency:</strong> Designer shall have access to real-time or near-real-time sales data for Designer's items, including units sold, revenue, production costs, and net profit per item.</p>
+
+    <p><strong>3.6. Taxes:</strong> Designer is solely responsible for all tax obligations arising from income earned under this Agreement. The Company will issue a Form 1099-NEC if Designer's earnings exceed $600 in a calendar year (for US-based Designers). International Designers are responsible for reporting income per their local tax laws.</p>
+  </div>
+
+  <h2>4. Creative License and Intellectual Property</h2>
+  <div class="section">
+    <div class="highlight-box">
+      <p><strong>DESIGNER RETAINS CREATIVE LICENSE:</strong> Unlike a work-for-hire arrangement, Designer retains full ownership and creative license for all designs created under this Agreement. The Company receives a license to sell the designs through the Merch Store.</p>
+    </div>
+
+    <p><strong>4.1. Ownership:</strong> Designer retains full ownership of all original artwork, illustrations, designs, and creative works produced under this Agreement ("Designs"). This Agreement does not constitute a work-for-hire arrangement.</p>
+
+    <p><strong>4.2. License Grant to Company:</strong> Designer grants the Company a non-exclusive, royalty-free license to:</p>
+    <ol type="a">
+      <li>Reproduce the Designs on merchandise items sold through the Merch Store</li>
+      <li>Display the Designs in the Merch Store, on the Platform, and in marketing materials promoting the Merch Store</li>
+      <li>Use the Designs in social media posts, advertisements, and promotional content related to the Merch Store</li>
+    </ol>
+    <p>This license is limited to the sale and promotion of Designer's merchandise through MCC channels and does not extend to any other commercial use.</p>
+
+    <p><strong>4.3. License Termination:</strong> The license granted in Section 4.2 terminates upon the termination of this Agreement, subject to a wind-down period described in Section 8.4.</p>
+
+    <p><strong>4.4. Designer's Rights:</strong> Designer retains the right to:</p>
+    <ol type="a">
+      <li>Use the Designs in Designer's own portfolio, website, and social media</li>
+      <li>Sell or license the Designs through other channels, platforms, or clients, provided such use does not directly compete with MCC merchandise sales (e.g., selling identical items through a competing automotive platform)</li>
+      <li>Create derivative works from the Designs for non-competing purposes</li>
+      <li>Be credited as the creator of the Designs wherever they appear</li>
+    </ol>
+
+    <p><strong>4.5. Company Brand Assets:</strong> The Company grants Designer a limited, revocable license to use Company trademarks, logos, brand colors, and taglines solely for creating Designs under this Agreement. Designer shall follow any brand guidelines provided by the Company. This license terminates upon termination of this Agreement.</p>
+
+    <p><strong>4.6. Originality:</strong> Designer represents that all Designs are original works and do not infringe any third-party intellectual property rights. Designer shall not incorporate third-party copyrighted material, stock imagery with restrictive licenses, or trademarked elements without prior written approval.</p>
+  </div>
+
+  <h2>5. Attribution and Credit</h2>
+  <div class="section">
+    <p>5.1. The Company will credit Designer on all merchandise listings in the Merch Store (e.g., "Designed by [Designer Name]") with a link to Designer's portfolio or website where applicable.</p>
+    <p>5.2. Designer will be featured on an "Our Designers" or "Artist Spotlight" section of the Merch Store or Platform, if such a section exists or is created.</p>
+    <p>5.3. Designer may publicly state their collaboration with My Car Concierge and include MCC merchandise in their portfolio, social media, and promotional materials.</p>
+  </div>
+
+  <h2>6. Confidentiality</h2>
+  <div class="section">
+    <p>6.1. Each party agrees to keep confidential any non-public business information shared by the other party during the course of this collaboration, including but not limited to:</p>
+    <ol type="a">
+      <li>Sales data, revenue figures, and financial information</li>
+      <li>Upcoming product plans, marketing strategies, and business plans</li>
+      <li>User data, customer information, and platform analytics</li>
+      <li>Unreleased designs and creative concepts</li>
+    </ol>
+    <p>6.2. Confidential Information does not include information that: (a) is or becomes publicly available through no fault of the receiving party; (b) was known before disclosure; (c) is independently developed; or (d) is required to be disclosed by law.</p>
+    <p>6.3. This confidentiality obligation survives termination of this Agreement for a period of two (2) years.</p>
+  </div>
+
+  <h2>7. Quality and Approval Process</h2>
+  <div class="section">
+    <p>7.1. All Designs must meet Printful's technical specifications for print quality (resolution, color format, bleed, etc.).</p>
+    <p>7.2. The Company may request reasonable revisions to Designs to ensure brand alignment. Designer retains the right to decline revisions that compromise creative integrity, in which case the Design may not be listed in the Merch Store.</p>
+    <p>7.3. Both parties must approve a Design before it is listed for sale. Neither party may list or remove a Design unilaterally without discussion, except as provided in Section 7.4.</p>
+    <p>7.4. The Company reserves the right to immediately remove any listing that: (a) receives a valid intellectual property complaint from a third party; (b) violates applicable law; or (c) materially damages the Company's reputation. The Company will promptly notify Designer and discuss resolution.</p>
+  </div>
+
+  <h2>8. Term and Termination</h2>
+  <div class="section">
+    <p>8.1. <strong>Term:</strong> This Agreement commences on the Effective Date and continues until terminated by either party.</p>
+    <p>8.2. <strong>Termination Without Cause:</strong> Either party may terminate this Agreement at any time with thirty (30) days written notice via email.</p>
+    <p>8.3. <strong>Termination for Cause:</strong> Either party may terminate this Agreement immediately if the other party materially breaches any term and fails to cure within fifteen (15) days of written notice.</p>
+    <p>8.4. <strong>Wind-Down Period:</strong> Upon termination:</p>
+    <ol type="a">
+      <li>Designer's items will remain listed in the Merch Store for a ninety (90) day wind-down period to fulfill any pending orders and allow an orderly transition.</li>
+      <li>Designer continues to receive 100% of profit from sales during the wind-down period.</li>
+      <li>After the wind-down period, all Designer's items will be removed from the Merch Store and the Company's license to the Designs terminates.</li>
+      <li>Any outstanding profit owed to Designer will be paid within thirty (30) days of the end of the wind-down period.</li>
+    </ol>
+    <p>8.5. <strong>Early Removal:</strong> Designer may request immediate removal of any or all Designs from the Merch Store at any time, subject to fulfillment of existing orders.</p>
+    <p>8.6. <strong>Survival:</strong> Sections 4.1 (ownership), 6 (confidentiality), 9 (indemnification), and 10 (limitation of liability) survive termination.</p>
+  </div>
+
+  <h2>9. Indemnification</h2>
+  <div class="section">
+    <p>9.1. Designer agrees to indemnify and hold harmless the Company from any claims arising from: (a) infringement or alleged infringement of third-party intellectual property rights by Designer's Designs; (b) Designer's breach of originality representations in Section 4.6.</p>
+    <p>9.2. The Company agrees to indemnify and hold harmless Designer from any claims arising from: (a) the Company's use of Designs beyond the scope of the license in Section 4.2; (b) defective merchandise due to production or fulfillment errors by Printful or the Company.</p>
+  </div>
+
+  <h2>10. Limitation of Liability</h2>
+  <div class="section">
+    <p>10.1. IN NO EVENT SHALL EITHER PARTY BE LIABLE FOR ANY INDIRECT, INCIDENTAL, SPECIAL, CONSEQUENTIAL, OR PUNITIVE DAMAGES ARISING FROM THIS AGREEMENT.</p>
+    <p>10.2. Each party's total aggregate liability under this Agreement shall not exceed the total profit paid or payable to Designer in the twelve (12) months preceding the claim.</p>
+  </div>
+
+  <h2>11. Dispute Resolution</h2>
+  <div class="section">
+    <p>11.1. The parties agree to first attempt to resolve any dispute through good-faith negotiation for a period of thirty (30) days.</p>
+    <p>11.2. If negotiation fails, the parties agree to submit the dispute to mediation before a mutually agreed-upon mediator.</p>
+    <p>11.3. If mediation fails, any remaining dispute shall be resolved by binding arbitration under the rules of the American Arbitration Association (AAA).</p>
+    <p>11.4. <strong>Governing Law:</strong> This Agreement shall be governed by the laws of the State of Florida, United States.</p>
+  </div>
+
+  <h2>12. General Provisions</h2>
+  <div class="section">
+    <p>12.1. <strong>Entire Agreement:</strong> This Agreement constitutes the entire agreement between the parties regarding the subject matter herein and supersedes all prior discussions and agreements.</p>
+    <p>12.2. <strong>Amendment:</strong> This Agreement may only be modified by written agreement signed by both parties.</p>
+    <p>12.3. <strong>Severability:</strong> If any provision is found unenforceable, the remaining provisions remain in full force and effect.</p>
+    <p>12.4. <strong>Waiver:</strong> Failure to enforce any right under this Agreement shall not constitute a waiver of that right.</p>
+    <p>12.5. <strong>Assignment:</strong> Neither party may assign this Agreement without the other party's prior written consent, except that the Company may assign in connection with a merger or acquisition.</p>
+    <p>12.6. <strong>Notices:</strong> All notices shall be in writing and delivered by email to the addresses provided by each party.</p>
+    <p>12.7. <strong>Force Majeure:</strong> Neither party shall be liable for delays caused by events beyond their reasonable control.</p>
+    <p>12.8. <strong>Counterparts:</strong> This Agreement may be executed in counterparts, including electronic signatures, each of which shall be deemed an original.</p>
+  </div>
+
+  <h2>13. Acknowledgment</h2>
+  <div class="section">
+    <p>BY SIGNING BELOW, DESIGNER ACKNOWLEDGES THAT:</p>
+    <ol type="a">
+      <li>Designer has read and understands this Agreement in its entirety</li>
+      <li>Designer has had the opportunity to consult with legal counsel</li>
+      <li>Designer voluntarily enters into this collaboration</li>
+      <li>Designer retains full creative license and ownership of all Designs</li>
+      <li>Designer will receive 100% of profit from sales of Designer's merchandise</li>
+      <li>Designer is solely responsible for all taxes on income earned</li>
+      <li>Designer's Designs are original and do not infringe third-party rights</li>
+      <li>Designer's electronic signature is legally binding</li>
+    </ol>
+  </div>
+
+  <div class="agreement-form-section">
+    <h2>Sign This Agreement</h2>
+    <div id="agreement-form-container"></div>
+  </div>
+
+  <p class="footer-note">
+    This document should be reviewed by a qualified attorney before use.<br>
+    &copy; 2025 My Car Concierge LLC. All rights reserved.
+  </p>
+
+  <script src="/i18n.js"></script>
+  <script src="/agreement-form.js"></script>
+  <script src="/footer.js"></script>
+  <script>
+    (function() {
+      function getPreferredTheme() {
+        var saved = localStorage.getItem('mcc_theme');
+        if (saved) return saved;
+        return window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark';
+      }
+
+      function setTheme(theme) {
+        document.documentElement.setAttribute('data-theme', theme);
+        localStorage.setItem('mcc_theme', theme);
+        updateThemeIcon(theme);
+      }
+
+      function updateThemeIcon(theme) {
+        var sunIcon = document.querySelector('.sun-icon');
+        var moonIcon = document.querySelector('.moon-icon');
+        if (sunIcon && moonIcon) {
+          if (theme === 'light') {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+          } else {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+          }
+        }
+      }
+
+      setTheme(getPreferredTheme());
+
+      document.getElementById('themeToggle').addEventListener('click', function() {
+        var currentTheme = document.documentElement.getAttribute('data-theme');
+        var newTheme = currentTheme === 'light' ? 'dark' : 'light';
+        document.documentElement.classList.add('theme-transition');
+        setTheme(newTheme);
+        setTimeout(function() {
+          document.documentElement.classList.remove('theme-transition');
+        }, 300);
+      });
+    })();
+
+    document.addEventListener('DOMContentLoaded', function() {
+      var today = new Date().toISOString().split('T')[0];
+      var dateInput = document.getElementById('contract-effective-date');
+      if (dateInput) dateInput.value = today;
+
+      AgreementForm.createAgreementForm({
+        containerId: 'agreement-form-container',
+        agreementType: 'designer',
+        fields: ['full_name', 'email', 'website'],
+        acknowledgments: [
+          'I have read and understand this Agreement in its entirety',
+          'I have had the opportunity to consult with legal counsel',
+          'I voluntarily enter into this collaboration as an independent designer',
+          'I retain full creative license and ownership of all my designs',
+          'I will receive 100% of profit from sales of my merchandise items',
+          'I am solely responsible for all taxes on income earned under this Agreement',
+          'All designs I create are original and do not infringe third-party rights',
+          'I acknowledge that my electronic signature is legally binding'
+        ]
+      });
+
+      function wireField(inputId, liveId) {
+        var interval = setInterval(function() {
+          var el = document.getElementById(inputId);
+          if (el) {
+            clearInterval(interval);
+            var liveEl = document.getElementById(liveId);
+            el.addEventListener('input', function() {
+              var val = el.value.trim();
+              if (val) {
+                liveEl.textContent = val;
+                liveEl.style.color = 'var(--text-primary)';
+                liveEl.style.fontStyle = 'normal';
+                liveEl.style.fontWeight = 'bold';
+                liveEl.style.borderBottomStyle = 'solid';
+              } else {
+                liveEl.textContent = 'Enter below';
+                liveEl.style.color = 'var(--accent-gold)';
+                liveEl.style.fontStyle = 'italic';
+                liveEl.style.fontWeight = 'normal';
+                liveEl.style.borderBottomStyle = 'dashed';
+              }
+            });
+          }
+        }, 200);
+      }
+
+      wireField('agreement-full-name', 'live-name');
+      wireField('agreement-email', 'live-email');
+      wireField('agreement-website', 'live-website');
+
+      var syncInterval = setInterval(function() {
+        var formDate = document.getElementById('agreement-date');
+        if (formDate && dateInput) {
+          clearInterval(syncInterval);
+          dateInput.addEventListener('change', function() {
+            formDate.value = dateInput.value;
+          });
+          formDate.addEventListener('change', function() {
+            dateInput.value = formDate.value;
+          });
+        }
+      }, 200);
+    });
+  </script>
+</body>
+</html>

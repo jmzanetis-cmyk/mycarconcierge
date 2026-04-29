@@ -34,13 +34,13 @@ exports.handler = async function(event) {
   var modeLabel = modeLabels[mode] || 'Chat';
 
   function escapeHtml(text) {
-    return String(text).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return String(text).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   }
 
   var messagesHtml = conversation.map(function(m) {
     var label = m.role === 'user' ? escapeHtml(name || 'You') : 'My Car Concierge';
     var bgColor = m.role === 'user' ? '#f0f0f0' : '#fff3cd';
-    var content = escapeHtml(m.content || '').replace(/\n/g, '<br>');
+    var content = escapeHtml(m.content || '').replaceAll('\n', '<br>');
     return '<div style="background:' + bgColor + ';padding:12px 16px;border-radius:8px;margin-bottom:8px;"><strong>' + label + ':</strong><br>' + content + '</div>';
   }).join('');
 

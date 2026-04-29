@@ -5,17 +5,17 @@ const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBh
 let supabaseClient;
 
 function initSupabaseClient() {
-  if (typeof window.supabase !== 'undefined' && window.supabase.createClient) {
-    supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  if (typeof globalThis.supabase !== 'undefined' && globalThis.supabase.createClient) {
+    supabaseClient = globalThis.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: {
         persistSession: true,
         storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token',
-        storage: window.localStorage,
+        storage: globalThis.localStorage,
         autoRefreshToken: true,
         detectSessionInUrl: true
       }
     });
-    window.supabaseClient = supabaseClient;
+    globalThis.supabaseClient = supabaseClient;
     return true;
   }
   return false;
@@ -49,7 +49,7 @@ async function getCurrentUser() {
   return data?.user ?? null;
 }
 
-window.getCurrentUser = getCurrentUser;
+globalThis.getCurrentUser = getCurrentUser;
 
 // ------- DOCUMENT EXPIRATION HELPERS -------
 
@@ -96,13 +96,13 @@ function getExpirationStatus(uploadDate) {
   }
 }
 
-window.getExpirationDate = getExpirationDate;
-window.isDocumentExpired = isDocumentExpired;
-window.isDocumentExpiringSoon = isDocumentExpiringSoon;
-window.getDaysUntilExpiration = getDaysUntilExpiration;
-window.getExpirationStatus = getExpirationStatus;
-window.DOCUMENT_VALIDITY_DAYS = DOCUMENT_VALIDITY_DAYS;
-window.EXPIRATION_WARNING_DAYS = EXPIRATION_WARNING_DAYS;
+globalThis.getExpirationDate = getExpirationDate;
+globalThis.isDocumentExpired = isDocumentExpired;
+globalThis.isDocumentExpiringSoon = isDocumentExpiringSoon;
+globalThis.getDaysUntilExpiration = getDaysUntilExpiration;
+globalThis.getExpirationStatus = getExpirationStatus;
+globalThis.DOCUMENT_VALIDITY_DAYS = DOCUMENT_VALIDITY_DAYS;
+globalThis.EXPIRATION_WARNING_DAYS = EXPIRATION_WARNING_DAYS;
 
 // ------- IMAGE RESIZE HELPER -------
 
@@ -257,14 +257,14 @@ async function listVehicleDocuments(vehicleId) {
 }
 
 // Export all functions
-window.uploadVehiclePhoto = uploadVehiclePhoto;
-window.listVehiclePhotos = listVehiclePhotos;
-window.deleteVehiclePhoto = deleteVehiclePhoto;
-window.uploadPackagePhoto = uploadPackagePhoto;
-window.listPackagePhotos = listPackagePhotos;
-window.deletePackagePhoto = deletePackagePhoto;
-window.uploadVehicleDocument = uploadVehicleDocument;
-window.listVehicleDocuments = listVehicleDocuments;
+globalThis.uploadVehiclePhoto = uploadVehiclePhoto;
+globalThis.listVehiclePhotos = listVehiclePhotos;
+globalThis.deleteVehiclePhoto = deleteVehiclePhoto;
+globalThis.uploadPackagePhoto = uploadPackagePhoto;
+globalThis.listPackagePhotos = listPackagePhotos;
+globalThis.deletePackagePhoto = deletePackagePhoto;
+globalThis.uploadVehicleDocument = uploadVehicleDocument;
+globalThis.listVehicleDocuments = listVehicleDocuments;
 
 // ------- NOTIFICATIONS -------
 
@@ -422,16 +422,16 @@ async function notifyNewMessage(recipientId, senderName, packageTitle, packageId
   );
 }
 
-window.createNotification = createNotification;
-window.getNotifications = getNotifications;
-window.markNotificationRead = markNotificationRead;
-window.markAllNotificationsRead = markAllNotificationsRead;
-window.getUnreadCount = getUnreadCount;
-window.notifyBidReceived = notifyBidReceived;
-window.notifyBidAccepted = notifyBidAccepted;
-window.notifyWorkStarted = notifyWorkStarted;
-window.notifyWorkCompleted = notifyWorkCompleted;
-window.notifyNewMessage = notifyNewMessage;
+globalThis.createNotification = createNotification;
+globalThis.getNotifications = getNotifications;
+globalThis.markNotificationRead = markNotificationRead;
+globalThis.markAllNotificationsRead = markAllNotificationsRead;
+globalThis.getUnreadCount = getUnreadCount;
+globalThis.notifyBidReceived = notifyBidReceived;
+globalThis.notifyBidAccepted = notifyBidAccepted;
+globalThis.notifyWorkStarted = notifyWorkStarted;
+globalThis.notifyWorkCompleted = notifyWorkCompleted;
+globalThis.notifyNewMessage = notifyNewMessage;
 
 // =====================================================
 // SERVICE SCHEDULING & COORDINATION FUNCTIONS
@@ -1009,29 +1009,29 @@ async function canProviderBid(providerId) {
 }
 
 // Export scheduling and coordination functions
-window.createAppointment = createAppointment;
-window.getAppointment = getAppointment;
-window.confirmAppointment = confirmAppointment;
-window.proposeNewTime = proposeNewTime;
-window.acceptCounterProposal = acceptCounterProposal;
-window.createVehicleTransfer = createVehicleTransfer;
-window.getVehicleTransfer = getVehicleTransfer;
-window.updateVehicleStatus = updateVehicleStatus;
-window.confirmPickup = confirmPickup;
-window.confirmReturn = confirmReturn;
-window.shareLocation = shareLocation;
-window.getActiveLocationShare = getActiveLocationShare;
-window.deactivateLocationShare = deactivateLocationShare;
-window.markLocationViewed = markLocationViewed;
+globalThis.createAppointment = createAppointment;
+globalThis.getAppointment = getAppointment;
+globalThis.confirmAppointment = confirmAppointment;
+globalThis.proposeNewTime = proposeNewTime;
+globalThis.acceptCounterProposal = acceptCounterProposal;
+globalThis.createVehicleTransfer = createVehicleTransfer;
+globalThis.getVehicleTransfer = getVehicleTransfer;
+globalThis.updateVehicleStatus = updateVehicleStatus;
+globalThis.confirmPickup = confirmPickup;
+globalThis.confirmReturn = confirmReturn;
+globalThis.shareLocation = shareLocation;
+globalThis.getActiveLocationShare = getActiveLocationShare;
+globalThis.deactivateLocationShare = deactivateLocationShare;
+globalThis.markLocationViewed = markLocationViewed;
 
 // Export rating and suspension functions
-window.checkProviderSuspension = checkProviderSuspension;
-window.isProviderSuspended = isProviderSuspended;
-window.getProviderReviewsSummary = getProviderReviewsSummary;
-window.getProviderReviews = getProviderReviews;
-window.submitProviderReview = submitProviderReview;
-window.getProviderCreditRefunds = getProviderCreditRefunds;
-window.canProviderBid = canProviderBid;
+globalThis.checkProviderSuspension = checkProviderSuspension;
+globalThis.isProviderSuspended = isProviderSuspended;
+globalThis.getProviderReviewsSummary = getProviderReviewsSummary;
+globalThis.getProviderReviews = getProviderReviews;
+globalThis.submitProviderReview = submitProviderReview;
+globalThis.getProviderCreditRefunds = getProviderCreditRefunds;
+globalThis.canProviderBid = canProviderBid;
 
 // ========== SERVICE EVIDENCE SYSTEM ==========
 
@@ -1137,11 +1137,11 @@ async function deleteEvidence(evidenceId) {
 }
 
 // Export evidence functions
-window.uploadEvidencePhoto = uploadEvidencePhoto;
-window.uploadEvidencePhotos = uploadEvidencePhotos;
-window.saveEvidence = saveEvidence;
-window.getPackageEvidence = getPackageEvidence;
-window.deleteEvidence = deleteEvidence;
+globalThis.uploadEvidencePhoto = uploadEvidencePhoto;
+globalThis.uploadEvidencePhotos = uploadEvidencePhotos;
+globalThis.saveEvidence = saveEvidence;
+globalThis.getPackageEvidence = getPackageEvidence;
+globalThis.deleteEvidence = deleteEvidence;
 
 // ========== LIVE GPS DRIVER TRACKING ==========
 
@@ -1189,9 +1189,9 @@ async function clearDriverLocation(packageId) {
 }
 
 // Export GPS tracking functions
-window.updateDriverLocation = updateDriverLocation;
-window.getDriverLocation = getDriverLocation;
-window.clearDriverLocation = clearDriverLocation;
+globalThis.updateDriverLocation = updateDriverLocation;
+globalThis.getDriverLocation = getDriverLocation;
+globalThis.clearDriverLocation = clearDriverLocation;
 
 // ========== EMERGENCY ROADSIDE CONCIERGE ==========
 
@@ -1549,21 +1549,21 @@ function calculateDistance(lat1, lng1, lat2, lng2) {
 }
 
 // Export emergency functions
-window.createEmergencyRequest = createEmergencyRequest;
-window.getMyEmergencies = getMyEmergencies;
-window.getActiveEmergency = getActiveEmergency;
-window.getNearbyEmergencies = getNearbyEmergencies;
-window.extendEmergencyRound = extendEmergencyRound;
-window.getMyAcceptedEmergencies = getMyAcceptedEmergencies;
-window.acceptEmergency = acceptEmergency;
-window.respondToEmergency = respondToEmergency;
-window.updateEmergencyStatus = updateEmergencyStatus;
-window.getEmergencyDetails = getEmergencyDetails;
-window.cancelEmergency = cancelEmergency;
-window.uploadEmergencyPhoto = uploadEmergencyPhoto;
-window.getProviderEmergencySettings = getProviderEmergencySettings;
-window.updateProviderEmergencySettings = updateProviderEmergencySettings;
-window.calculateDistance = calculateDistance;
+globalThis.createEmergencyRequest = createEmergencyRequest;
+globalThis.getMyEmergencies = getMyEmergencies;
+globalThis.getActiveEmergency = getActiveEmergency;
+globalThis.getNearbyEmergencies = getNearbyEmergencies;
+globalThis.extendEmergencyRound = extendEmergencyRound;
+globalThis.getMyAcceptedEmergencies = getMyAcceptedEmergencies;
+globalThis.acceptEmergency = acceptEmergency;
+globalThis.respondToEmergency = respondToEmergency;
+globalThis.updateEmergencyStatus = updateEmergencyStatus;
+globalThis.getEmergencyDetails = getEmergencyDetails;
+globalThis.cancelEmergency = cancelEmergency;
+globalThis.uploadEmergencyPhoto = uploadEmergencyPhoto;
+globalThis.getProviderEmergencySettings = getProviderEmergencySettings;
+globalThis.updateProviderEmergencySettings = updateProviderEmergencySettings;
+globalThis.calculateDistance = calculateDistance;
 
 // ========================
 // PROVIDER PERFORMANCE SCORING
@@ -1842,14 +1842,14 @@ function getPerformanceTips(performance) {
 }
 
 // Export performance functions
-window.getProviderPerformance = getProviderPerformance;
-window.getProviderPerformanceByIds = getProviderPerformanceByIds;
-window.calculateProviderPerformance = calculateProviderPerformance;
-window.getTierIcon = getTierIcon;
-window.getTierLabel = getTierLabel;
-window.formatResponseTime = formatResponseTime;
-window.generateStarsHtml = generateStarsHtml;
-window.getPerformanceTips = getPerformanceTips;
+globalThis.getProviderPerformance = getProviderPerformance;
+globalThis.getProviderPerformanceByIds = getProviderPerformanceByIds;
+globalThis.calculateProviderPerformance = calculateProviderPerformance;
+globalThis.getTierIcon = getTierIcon;
+globalThis.getTierLabel = getTierLabel;
+globalThis.formatResponseTime = formatResponseTime;
+globalThis.generateStarsHtml = generateStarsHtml;
+globalThis.getPerformanceTips = getPerformanceTips;
 
 // =====================================================
 // SPENDING LIMIT & APPROVAL WORKFLOW
@@ -1872,7 +1872,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
     return result;
   }
   
-  const amountNum = parseFloat(amount) || 0;
+  const amountNum = Number.parseFloat(amount) || 0;
   
   if (context === 'fleet' || context === null) {
     const { data: fleetMember } = await supabaseClient
@@ -1889,7 +1889,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
       result.memberRecord = fleetMember;
       
       if (fleetMember.spending_limit !== null && fleetMember.spending_limit !== undefined) {
-        result.limit = parseFloat(fleetMember.spending_limit);
+        result.limit = Number.parseFloat(fleetMember.spending_limit);
         if (amountNum > result.limit) {
           result.allowed = false;
           result.message = `Exceeds spending limit of $${result.limit.toFixed(2)}`;
@@ -1920,7 +1920,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
       result.memberRecord = householdMember;
       
       if (householdMember.spending_limit !== null && householdMember.spending_limit !== undefined) {
-        result.limit = parseFloat(householdMember.spending_limit);
+        result.limit = Number.parseFloat(householdMember.spending_limit);
         if (amountNum > result.limit) {
           result.allowed = false;
           result.message = `Exceeds spending limit of $${result.limit.toFixed(2)}`;
@@ -1939,7 +1939,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
   return result;
 }
 
-window.checkSpendingLimit = checkSpendingLimit;
+globalThis.checkSpendingLimit = checkSpendingLimit;
 
 // =====================================================
 // DESTINATION SERVICES
@@ -1955,7 +1955,7 @@ async function createDestinationService(data) {
   // If so, verify their spending limit and requires_approval status.
   // If estimated cost exceeds spending_limit, return error.
   // If requires_approval is true, set approval_status to 'pending_approval'.
-  const estimatedCost = parseFloat(data.estimated_cost) || 0;
+  const estimatedCost = Number.parseFloat(data.estimated_cost) || 0;
   const spendingCheck = await checkSpendingLimit(user.id, estimatedCost, data.context || null);
   
   if (!spendingCheck.allowed) {
@@ -2133,11 +2133,11 @@ async function getProviderDestinationServices(providerId) {
 }
 
 // Export destination service functions
-window.createDestinationService = createDestinationService;
-window.getDestinationService = getDestinationService;
-window.updateDestinationServiceStatus = updateDestinationServiceStatus;
-window.getMyDestinationServices = getMyDestinationServices;
-window.getProviderDestinationServices = getProviderDestinationServices;
+globalThis.createDestinationService = createDestinationService;
+globalThis.getDestinationService = getDestinationService;
+globalThis.updateDestinationServiceStatus = updateDestinationServiceStatus;
+globalThis.getMyDestinationServices = getMyDestinationServices;
+globalThis.getProviderDestinationServices = getProviderDestinationServices;
 
 // =====================================================
 // TRANSPORT TASKS
@@ -2272,11 +2272,11 @@ async function completeTransportTask(taskId, photoUrl, notes) {
 }
 
 // Export transport task functions
-window.createTransportTask = createTransportTask;
-window.getTransportTasks = getTransportTasks;
-window.updateTransportTask = updateTransportTask;
-window.getDriverTasks = getDriverTasks;
-window.completeTransportTask = completeTransportTask;
+globalThis.createTransportTask = createTransportTask;
+globalThis.getTransportTasks = getTransportTasks;
+globalThis.updateTransportTask = updateTransportTask;
+globalThis.getDriverTasks = getDriverTasks;
+globalThis.completeTransportTask = completeTransportTask;
 
 // =====================================================
 // HOUSEHOLD SHARING MANAGEMENT
@@ -2518,17 +2518,17 @@ async function removeVehicleFromHousehold(accessId) {
 }
 
 // Export household management functions
-window.createHousehold = createHousehold;
-window.getMyHouseholds = getMyHouseholds;
-window.getHouseholdDetails = getHouseholdDetails;
-window.inviteHouseholdMember = inviteHouseholdMember;
-window.acceptHouseholdInvitation = acceptHouseholdInvitation;
-window.updateHouseholdMemberPermissions = updateHouseholdMemberPermissions;
-window.removeHouseholdMember = removeHouseholdMember;
-window.shareVehicleWithHousehold = shareVehicleWithHousehold;
-window.getHouseholdVehicles = getHouseholdVehicles;
-window.updateVehicleAccess = updateVehicleAccess;
-window.removeVehicleFromHousehold = removeVehicleFromHousehold;
+globalThis.createHousehold = createHousehold;
+globalThis.getMyHouseholds = getMyHouseholds;
+globalThis.getHouseholdDetails = getHouseholdDetails;
+globalThis.inviteHouseholdMember = inviteHouseholdMember;
+globalThis.acceptHouseholdInvitation = acceptHouseholdInvitation;
+globalThis.updateHouseholdMemberPermissions = updateHouseholdMemberPermissions;
+globalThis.removeHouseholdMember = removeHouseholdMember;
+globalThis.shareVehicleWithHousehold = shareVehicleWithHousehold;
+globalThis.getHouseholdVehicles = getHouseholdVehicles;
+globalThis.updateVehicleAccess = updateVehicleAccess;
+globalThis.removeVehicleFromHousehold = removeVehicleFromHousehold;
 
 // =====================================================
 // FLEET MANAGEMENT
@@ -2744,15 +2744,15 @@ async function getFleetVehicles(fleetId) {
 }
 
 // Export fleet management functions
-window.createFleet = createFleet;
-window.getMyFleets = getMyFleets;
-window.getFleetDetails = getFleetDetails;
-window.addFleetMember = addFleetMember;
-window.updateFleetMember = updateFleetMember;
-window.removeFleetMember = removeFleetMember;
-window.assignVehicleToFleet = assignVehicleToFleet;
-window.updateFleetVehicleAssignment = updateFleetVehicleAssignment;
-window.getFleetVehicles = getFleetVehicles;
+globalThis.createFleet = createFleet;
+globalThis.getMyFleets = getMyFleets;
+globalThis.getFleetDetails = getFleetDetails;
+globalThis.addFleetMember = addFleetMember;
+globalThis.updateFleetMember = updateFleetMember;
+globalThis.removeFleetMember = removeFleetMember;
+globalThis.assignVehicleToFleet = assignVehicleToFleet;
+globalThis.updateFleetVehicleAssignment = updateFleetVehicleAssignment;
+globalThis.getFleetVehicles = getFleetVehicles;
 
 // =====================================================
 // BULK SERVICE SCHEDULING
@@ -2799,11 +2799,11 @@ async function createBulkServiceBatch(fleetId, data) {
   }
   
   // SPENDING LIMIT CHECK: Compare total_estimated_cost with creator's spending_limit
-  const totalEstimatedCost = parseFloat(data.total_estimated_cost) || 0;
+  const totalEstimatedCost = Number.parseFloat(data.total_estimated_cost) || 0;
   
   if (!isOwner && userMembership) {
     if (userMembership.spending_limit !== null && userMembership.spending_limit !== undefined) {
-      const limit = parseFloat(userMembership.spending_limit);
+      const limit = Number.parseFloat(userMembership.spending_limit);
       if (totalEstimatedCost > limit) {
         return { data: null, error: `Service cost exceeds your spending limit of $${limit.toFixed(2)}` };
       }
@@ -3291,13 +3291,13 @@ async function updateBulkItemStatus(itemId, status, packageId = null) {
 }
 
 // Export bulk service scheduling functions
-window.createBulkServiceBatch = createBulkServiceBatch;
-window.getFleetBulkBatches = getFleetBulkBatches;
-window.getBulkBatchDetails = getBulkBatchDetails;
-window.addVehiclesToBulkBatch = addVehiclesToBulkBatch;
-window.submitBatchForApproval = submitBatchForApproval;
-window.approveBulkBatch = approveBulkBatch;
-window.updateBulkItemStatus = updateBulkItemStatus;
-window.createPackageFromBulkItem = createPackageFromBulkItem;
-window.createPackagesForBulkBatch = createPackagesForBulkBatch;
-window.linkBulkItemToPackage = linkBulkItemToPackage;
+globalThis.createBulkServiceBatch = createBulkServiceBatch;
+globalThis.getFleetBulkBatches = getFleetBulkBatches;
+globalThis.getBulkBatchDetails = getBulkBatchDetails;
+globalThis.addVehiclesToBulkBatch = addVehiclesToBulkBatch;
+globalThis.submitBatchForApproval = submitBatchForApproval;
+globalThis.approveBulkBatch = approveBulkBatch;
+globalThis.updateBulkItemStatus = updateBulkItemStatus;
+globalThis.createPackageFromBulkItem = createPackageFromBulkItem;
+globalThis.createPackagesForBulkBatch = createPackagesForBulkBatch;
+globalThis.linkBulkItemToPackage = linkBulkItemToPackage;
