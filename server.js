@@ -5440,46 +5440,23 @@ const openai = new OpenAI({
 
 let stripeClient = null;
 
+// Stripe is configured via the STRIPE_SECRET_KEY secret only (Replit Secrets in
+// dev, Netlify env in prod). The Replit Stripe connector is intentionally
+// unused — do NOT reintroduce a connector lookup here. Netlify Functions read
+// process.env.STRIPE_SECRET_KEY the same way, so dev and prod stay in sync and
+// the workspace never prompts to "reconnect Stripe".
 async function getStripeClient() {
   if (stripeClient) return stripeClient;
-  
-  const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-  const xReplitToken = process.env.REPL_IDENTITY
-    ? 'repl ' + process.env.REPL_IDENTITY
-    : process.env.WEB_REPL_RENEWAL
-      ? 'depl ' + process.env.WEB_REPL_RENEWAL
-      : null;
 
-  if (!xReplitToken || !hostname) {
-    throw new Error('Replit Stripe integration not configured');
+  const secret = process.env.STRIPE_SECRET_KEY;
+  if (!secret) {
+    throw new Error('STRIPE_SECRET_KEY is not configured');
   }
 
-  const isProduction = process.env.REPLIT_DEPLOYMENT === '1';
-  const targetEnvironment = isProduction ? 'production' : 'development';
-
-  const url = new URL(`https://${hostname}/api/v2/connection`);
-  url.searchParams.set('include_secrets', 'true');
-  url.searchParams.set('connector_names', 'stripe');
-  url.searchParams.set('environment', targetEnvironment);
-
-  const response = await fetch(url.toString(), {
-    headers: {
-      'Accept': 'application/json',
-      'X_REPLIT_TOKEN': xReplitToken
-    }
-  });
-
-  const data = await response.json();
-  const connectionSettings = data.items?.[0];
-
-  if (!connectionSettings?.settings?.secret) {
-    throw new Error('Stripe connection not found or missing secret key');
-  }
-
-  stripeClient = new Stripe(connectionSettings.settings.secret, {
+  stripeClient = new Stripe(secret, {
     apiVersion: '2023-10-16'
   });
-  
+
   return stripeClient;
 }
 
