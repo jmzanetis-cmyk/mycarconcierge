@@ -4886,32 +4886,141 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
         </div>
       </div>
 
-      <!-- Charts grid -->
-      <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
-        <div class="card">
-          <div class="card-header"><h2 class="card-title" style="font-size:1rem;">How They Find Providers</h2></div>
-          <div style="position:relative;height:240px;"><canvas id="ms-mech-sat-chart"></canvas></div>
+      <!-- Charts grouped by theme — every dimension collected by the survey is rendered here.
+           Canvas IDs follow the `ms-chart-<survey_field>` convention so the JS chart loop in
+           admin.js (CHART_KEYS) can wire them up by key without a per-chart entry. -->
+      <div style="display:flex;flex-direction:column;gap:28px;">
+
+        <!-- Group: Discovery & Satisfaction -->
+        <div>
+          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Discovery &amp; Satisfaction</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">How They Find Providers</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-provider_discovery"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Provider Satisfaction</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-provider_satisfaction"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Top Priority</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-top_priority"></canvas></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Provider Satisfaction</h2></div>
-          <div style="position:relative;height:240px;"><canvas id="ms-cosmetic-chart"></canvas></div>
+
+        <!-- Group: Service Habits -->
+        <div>
+          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Service Habits</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Service Frequency</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-service_frequency"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Service Types</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-service_types"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Vehicles per Member</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-vehicle_count"></canvas></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Pricing Confidence</h2></div>
-          <div style="position:relative;height:240px;"><canvas id="ms-pain-chart"></canvas></div>
+
+        <!-- Group: Spending Habits -->
+        <div>
+          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Spending Habits</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Annual Spend</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-annual_spend"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Pricing Confidence</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-pricing_confidence"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Estimate Surprises</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-estimate_surprise"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Quote Behavior</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-quote_behavior"></canvas></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Estimate Surprises</h2></div>
-          <div style="position:relative;height:240px;"><canvas id="ms-improvement-chart"></canvas></div>
+
+        <!-- Group: Trust Signals -->
+        <div>
+          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Trust Signals</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Provider Honesty</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-provider_honesty"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Provider Vetting</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-provider_vetting"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Skipped Maintenance</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-maintenance_avoidance"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Dispute History</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-dispute_history"></canvas></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Top Priority</h2></div>
-          <div style="position:relative;height:240px;"><canvas id="ms-discovery-chart"></canvas></div>
+
+        <!-- Group: Tracking & Communication -->
+        <div>
+          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Tracking &amp; Communication</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Service-History Tracking</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-history_tracking"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Job Status Updates</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-job_status_updates"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Maintenance Reminders</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-maintenance_reminders"></canvas></div>
+            </div>
+          </div>
         </div>
-        <div class="card">
-          <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Vehicle Count</h2></div>
-          <div style="position:relative;height:240px;"><canvas id="ms-services-chart"></canvas></div>
+
+        <!-- Group: Adoption Readiness -->
+        <div>
+          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Adoption Readiness</h3>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Competitive Bids Appetite</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-competitive_bids"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Existing App Usage</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-app_usage"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">In-App Payment Comfort</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-payment_comfort"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Decision Maker</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-decision_maker"></canvas></div>
+            </div>
+            <div class="card">
+              <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Near-Term Need</h2></div>
+              <div style="position:relative;height:240px;"><canvas id="ms-chart-near_term_need"></canvas></div>
+            </div>
+          </div>
         </div>
+
       </div>
     </section>
 

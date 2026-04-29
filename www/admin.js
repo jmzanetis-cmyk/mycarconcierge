@@ -11943,7 +11943,7 @@
           placeholder = document.createElement('p');
           placeholder.className = 'ms-chart-empty';
           placeholder.style.cssText = 'color:var(--text-muted);text-align:center;font-size:0.88rem;padding:32px 0;';
-          placeholder.textContent = 'No data yet';
+          placeholder.textContent = 'Not enough responses yet';
           canvas.parentElement.appendChild(placeholder);
         }
         return;
@@ -11997,16 +11997,20 @@
         const topSat = Object.entries(data.by_provider_satisfaction || {}).sort((a,b) => b[1]-a[1])[0];
         if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topSat ? (MS_LABELS.provider_satisfaction[topSat[0]] || topSat[0]) : '—';
 
-        const CHART_MAP = [
-          ['ms-mech-sat-chart', 'provider_discovery'],
-          ['ms-cosmetic-chart', 'provider_satisfaction'],
-          ['ms-pain-chart', 'pricing_confidence'],
-          ['ms-improvement-chart', 'estimate_surprise'],
-          ['ms-discovery-chart', 'top_priority'],
-          ['ms-services-chart', 'vehicle_count']
+        // Render every survey dimension. Order matches the visual groups in admin.html
+        // (Discovery & Satisfaction → Service Habits → Spending → Trust → Tracking & Comms → Adoption).
+        // Canvases are named `ms-chart-<key>` so adding a new dimension only requires
+        // appending the key here AND a matching canvas card in admin.html.
+        const CHART_KEYS = [
+          'provider_discovery','provider_satisfaction','top_priority',
+          'service_frequency','service_types','vehicle_count',
+          'annual_spend','pricing_confidence','estimate_surprise','quote_behavior',
+          'provider_honesty','provider_vetting','maintenance_avoidance','dispute_history',
+          'history_tracking','job_status_updates','maintenance_reminders',
+          'competitive_bids','app_usage','payment_comfort','decision_maker','near_term_need'
         ];
-        for (const [canvasId, key] of CHART_MAP) {
-          buildMsDoughnut(canvasId, MS_LABELS[key] || {}, data['by_' + key] || {});
+        for (const key of CHART_KEYS) {
+          buildMsDoughnut('ms-chart-' + key, MS_LABELS[key] || {}, data['by_' + key] || {});
         }
 
         // Surface "schema not yet migrated" hint to the admin if the server told us so
