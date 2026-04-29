@@ -68,6 +68,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     await loadEngineState();
     switchOutreachTab('pipeline');
     setupOutreachRealtime();
+    // Task #243 — render the Facebook Page connection picker card.
+    // Safe to fail independently of the rest of the panel.
+    try { await initFacebookPageConnection(); }
+    catch (e) { console.warn('[FB Page] init failed:', e); }
   }
 
   async function loadEngineState() {
@@ -1379,4 +1383,283 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   window.pauseCampaign = pauseCampaign;
   window.resumeCampaign = resumeCampaign;
   window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
+
+  // ===================================================================
+  // Task #243 — Facebook Page admin OAuth picker
+  // -------------------------------------------------------------------
+  // Three-state card on the outreach panel:
+  //   1. Disconnected — "Connect Facebook Page" button
+  //   2. Picking      — dropdown of Pages returned by /me/accounts
+  //   3. Connected    — current Page name + ID + "Disconnect"
+  //
+  // Auto-enters the "Picking" state when /admin.html loads with
+  // ?picking=facebook-page (the OAuth callback redirect).
+  // ===================================================================
+
+  function fbHeaders() {
+    const headers = { 'Content-Type': 'application/json' };
+    const adminTeamToken = localStorage.getItem('mcc_admin_team_token');
+    const adminPass = localStorage.getItem('mcc_admin_pass');
+    if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+    else if (adminPass) headers['x-admin-password'] = adminPass;
+    return headers;
+  }
+
+  async function fbApi(method, endpoint, body) {
+    const opts = { method, headers: fbHeaders() };
+    if (body !== undefined) opts.body = JSON.stringify(body);
+    const res = await fetch(`/api/admin/facebook${endpoint}`, opts);
+    let json = null;
+    try { json = await res.json(); } catch (_) {}
+    return { ok: res.ok, status: res.status, json: json || {} };
+  }
+
+  function fbEscape(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => (
+      { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]
+    ));
+  }
+
+  function fbCardEl() {
+    return document.getElementById('facebook-page-connection-card');
+  }
+
+  function fbReadFlashError() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      const err = params.get('fb_error');
+      if (err) {
+        params.delete('fb_error');
+        const qs = params.toString();
+        const newUrl = window.location.pathname + (qs ? '?' + qs : '');
+        window.history.replaceState({}, '', newUrl);
+        return err;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  function fbIsPicking() {
+    try {
+      return new URLSearchParams(window.location.search).get('picking') === 'facebook-page';
+    } catch (_) { return false; }
+  }
+
+  function fbClearPickingParam() {
+    try {
+      const params = new URLSearchParams(window.location.search);
+      if (params.has('picking')) {
+        params.delete('picking');
+        const qs = params.toString();
+        window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
+      }
+    } catch (_) {}
+  }
+
+  async function initFacebookPageConnection() {
+    const card = fbCardEl();
+    if (!card) return;
+    const flashError = fbReadFlashError();
+    card.innerHTML = `
+      <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+        <h2 class="card-title" style="margin:0;">Facebook Page Connection</h2>
+        <span style="font-size:12px;color:var(--text-muted);">App Review · pages_show_list</span>
+      </div>
+      <div id="fb-page-card-body" style="padding:16px;">
+        <div style="color:var(--text-muted);">Loading…</div>
+      </div>
+    `;
+    if (flashError) {
+      const body = document.getElementById('fb-page-card-body');
+      body.innerHTML = `<div style="padding:12px;border-left:3px solid var(--accent-red,#c0392b);background:rgba(192,57,43,0.08);margin-bottom:12px;border-radius:4px;color:var(--text-default);"><strong>Facebook OAuth error:</strong> ${fbEscape(flashError)}</div>` + body.innerHTML;
+    }
+    await renderFacebookPageCard();
+  }
+
+  async function renderFacebookPageCard() {
+    const body = document.getElementById('fb-page-card-body');
+    if (!body) return;
+
+    // 1. Schema/connection check
+    const conn = await fbApi('GET', '/connection');
+    if (!conn.ok) {
+      body.innerHTML = `<div style="color:var(--accent-red,#c0392b);">Failed to load connection (HTTP ${conn.status}). ${fbEscape(conn.json.error || '')}</div>`;
+      return;
+    }
+    if (conn.json.schema_missing) {
+      body.innerHTML = `
+        <div style="padding:16px;border-left:3px solid var(--accent-gold);background:rgba(184,148,45,0.08);border-radius:4px;">
+          <strong>Database table not yet created.</strong>
+          <p style="margin:8px 0 4px;color:var(--text-muted);">Open the Supabase SQL Editor and apply:</p>
+          <pre style="background:var(--bg-elevated);padding:8px 12px;border-radius:4px;display:inline-block;font-size:13px;">supabase/migrations/20260429e_facebook_page_connections.sql</pre>
+        </div>
+      `;
+      return;
+    }
+
+    // 2. If returning from OAuth callback, attempt to load the Pages list
+    if (fbIsPicking()) {
+      const pending = await fbApi('GET', '/pending-pages');
+      if (pending.ok && Array.isArray(pending.json.pages) && pending.json.pages.length > 0) {
+        renderFacebookPicker(body, pending.json.pages, conn.json.connection);
+        return;
+      }
+      // Expired or empty — fall through to default state and clear the param
+      fbClearPickingParam();
+      if (pending.json.expired) {
+        body.innerHTML = `<div style="padding:12px;border-left:3px solid var(--accent-gold);background:rgba(184,148,45,0.08);margin-bottom:12px;border-radius:4px;">Page list expired. Please reconnect.</div>`;
+      } else if (pending.ok && pending.json.pages && pending.json.pages.length === 0) {
+        body.innerHTML = `<div style="padding:12px;border-left:3px solid var(--accent-gold);background:rgba(184,148,45,0.08);margin-bottom:12px;border-radius:4px;">Your Facebook account doesn't manage any Pages. Create one on facebook.com first, then try again.</div>`;
+      }
+    }
+
+    // 3. Render connected vs disconnected state
+    const c = conn.json.connection;
+    if (c) {
+      renderFacebookConnected(body, c);
+    } else {
+      renderFacebookDisconnected(body);
+    }
+  }
+
+  function renderFacebookDisconnected(body) {
+    const existing = body.innerHTML; // preserve any flash banner
+    body.innerHTML = existing + `
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:240px;">
+          <p style="margin:0 0 6px;color:var(--text-default);">No Facebook Page is connected yet.</p>
+          <p style="margin:0;color:var(--text-muted);font-size:13px;">Connect a Page to satisfy Meta App Review for the <code>pages_show_list</code> permission. You'll be sent to facebook.com to authorize, then returned here to pick which Page to use.</p>
+        </div>
+        <button class="btn btn-primary" id="fb-connect-btn" onclick="window.startFacebookPageConnect()">
+          <span class="icon-inline" data-icon="link"></span> Connect Facebook Page
+        </button>
+      </div>
+    `;
+    if (typeof initInlineIcons !== 'undefined') initInlineIcons(body);
+  }
+
+  function renderFacebookPicker(body, pages, currentConn) {
+    const opts = pages.map(p => `<option value="${fbEscape(p.id)}">${fbEscape(p.name)}${p.category ? ' — ' + fbEscape(p.category) : ''} (${fbEscape(p.id)})</option>`).join('');
+    body.innerHTML = `
+      <div>
+        <p style="margin:0 0 12px;color:var(--text-default);">
+          Pick the Facebook Page to associate with My Car Concierge.
+          ${currentConn ? `<br><span style="color:var(--text-muted);font-size:13px;">Currently connected: <strong>${fbEscape(currentConn.page_name)}</strong> (${fbEscape(currentConn.page_id)}). Selecting a new Page replaces it.</span>` : ''}
+        </p>
+        <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <select id="fb-page-select" class="form-input" style="flex:1;min-width:280px;">${opts}</select>
+          <button class="btn btn-primary" onclick="window.confirmFacebookPagePick()">
+            <span class="icon-inline" data-icon="check"></span> Use this Page
+          </button>
+          <button class="btn" onclick="window.cancelFacebookPagePick()">Cancel</button>
+        </div>
+      </div>
+    `;
+    if (typeof initInlineIcons !== 'undefined') initInlineIcons(body);
+  }
+
+  function renderFacebookConnected(body, c) {
+    const existing = body.innerHTML;
+    const when = c.connected_at ? new Date(c.connected_at).toLocaleString() : '—';
+    const who = c.connected_by_email || (c.connected_by_user_id ? c.connected_by_user_id : 'env-admin');
+    body.innerHTML = existing + `
+      <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:260px;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;">
+            <span class="icon-inline" data-icon="check-circle" style="color:#27ae60;"></span>
+            <strong style="font-size:15px;">${fbEscape(c.page_name)}</strong>
+          </div>
+          <div style="color:var(--text-muted);font-size:13px;line-height:1.6;">
+            <div>Page ID: <code>${fbEscape(c.page_id)}</code></div>
+            <div>Connected by: ${fbEscape(who)}</div>
+            <div>Connected at: ${fbEscape(when)}</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <button class="btn" onclick="window.startFacebookPageConnect()">
+            <span class="icon-inline" data-icon="refresh-cw"></span> Change Page
+          </button>
+          <button class="btn" onclick="window.disconnectFacebookPage()" style="color:var(--accent-red,#c0392b);">
+            <span class="icon-inline" data-icon="x-circle"></span> Disconnect
+          </button>
+        </div>
+      </div>
+    `;
+    if (typeof initInlineIcons !== 'undefined') initInlineIcons(body);
+  }
+
+  async function startFacebookPageConnect() {
+    const btn = document.getElementById('fb-connect-btn');
+    if (btn) { btn.disabled = true; btn.textContent = 'Opening Facebook…'; }
+    const res = await fbApi('POST', '/oauth-start');
+    if (!res.ok || !res.json.oauth_url) {
+      const msg = res.json.error || `Failed to start OAuth (HTTP ${res.status})`;
+      alert('Could not start Facebook OAuth: ' + msg);
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="link"></span> Connect Facebook Page'; }
+      return;
+    }
+    window.location.href = res.json.oauth_url;
+  }
+
+  async function confirmFacebookPagePick() {
+    const sel = document.getElementById('fb-page-select');
+    if (!sel || !sel.value) {
+      alert('Please pick a Page.');
+      return;
+    }
+    const res = await fbApi('POST', '/select-page', { page_id: sel.value });
+    if (!res.ok) {
+      alert('Failed to save selection: ' + (res.json.error || `HTTP ${res.status}`));
+      return;
+    }
+    fbClearPickingParam();
+    await renderFacebookPageCard();
+  }
+
+  function cancelFacebookPagePick() {
+    fbClearPickingParam();
+    renderFacebookPageCard();
+  }
+
+  async function disconnectFacebookPage() {
+    if (!confirm('Disconnect the current Facebook Page? You can reconnect at any time.')) return;
+    const res = await fbApi('POST', '/disconnect');
+    if (!res.ok) {
+      alert('Failed to disconnect: ' + (res.json.error || `HTTP ${res.status}`));
+      return;
+    }
+    await renderFacebookPageCard();
+  }
+
+  window.startFacebookPageConnect = startFacebookPageConnect;
+  window.confirmFacebookPagePick = confirmFacebookPagePick;
+  window.cancelFacebookPagePick = cancelFacebookPagePick;
+  window.disconnectFacebookPage = disconnectFacebookPage;
+  window.initFacebookPageConnection = initFacebookPageConnection;
+
+  // Auto-switch to the marketing-outreach panel when returning from the
+  // Facebook OAuth callback. The OAuth callback redirects to
+  // /admin.html?picking=facebook-page; admin.js doesn't read URL params
+  // for tab routing, so we trigger showSection() ourselves once the
+  // sidebar nav is available.
+  (function fbAutoSwitchOnCallbackReturn() {
+    if (!fbIsPicking()) return;
+    let attempts = 0;
+    function tryActivate() {
+      attempts++;
+      if (typeof window.showSection === 'function' &&
+          document.querySelector('.nav-item[data-section="marketing-outreach"]') &&
+          document.getElementById('marketing-outreach')) {
+        try { window.showSection('marketing-outreach'); }
+        catch (e) { console.warn('[FB Page] showSection failed:', e); }
+        return;
+      }
+      if (attempts < 60) setTimeout(tryActivate, 250);
+    }
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(tryActivate, 500));
+    } else {
+      setTimeout(tryActivate, 500);
+    }
+  })();
 })();

@@ -48,6 +48,7 @@ Key architectural patterns and features include:
 - **AI Helpdesk Widget**: Anthropic Claude-powered chat with Car Expert, Provider Support, and Car Academy modes.
 - **Blog (`/blog/`)**: SEO-driven editorial pillar with evergreen posts, static HTML generation, JSON-LD, SEO meta injection, and sitemap generation.
 - **Provider Onboarding Walkthrough**: 7-step interactive guided tour for new providers.
+- **Facebook Page Connection (Admin)**: OAuth-driven picker in the admin Marketing → Outreach panel that satisfies Meta App Review for the `pages_show_list` permission. Server endpoints under `/api/admin/facebook/*` (oauth-start / oauth-callback / pending-pages / select-page / disconnect / connection); HMAC-signed one-time `state` param protects the callback; persisted Page ID + name only (no access tokens) in the singleton `facebook_page_connections` Supabase table.
 - **Deployment Architecture**: GitHub for source control, Netlify for production hosting, Replit for development.
 
 ## External Dependencies
