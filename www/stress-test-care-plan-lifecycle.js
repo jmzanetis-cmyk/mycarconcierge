@@ -137,6 +137,23 @@ async function loadSimProviders() {
   ).slice(0, 5);
 }
 
+// Authenticated provider sessions used for cross-actor pressure on the
+// /complete and /dispute endpoints. The endpoints are member-scoped (a
+// provider session should be rejected by the auth/ownership check), so
+// these requests will return 4xx — exactly the cross-actor race we want
+// to verify the auth gate handles correctly under load. Any 2xx from a
+// provider session would be an authorization regression and is asserted
+// by the dedicated criterion below.
+async function loadProviderSessions() {
+  const providerUsers = await loadSimProviders();
+  const sessions = [];
+  for (const u of providerUsers) {
+    const s = await getSession(u.email);
+    if (s) sessions.push(s);
+  }
+  return sessions;
+}
+
 async function seedPlans(memberSessions, providerIds) {
   const seeded = [];
   for (let i = 0; i < CONFIG.planCount; i++) {
@@ -174,31 +191,40 @@ async function seedPlans(memberSessions, providerIds) {
   return seeded;
 }
 
-async function complete(plan) {
-  const { status, latency } = await timedFetch(`${BASE_URL}/api/care-plans/${plan.planId}/complete`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${plan.member.token}`,
-    },
-    body: JSON.stringify({ accepted_bid_id: plan.bidId, completion_notes: 'stress test complete' }),
-  });
-  recordMetric(metrics.complete, latency, status);
-}
+// Track per-actor 2xx outcomes so we can prove the auth gate rejects
+// non-owner actor attempts. A 2xx from a provider session would be an
+// authorization regression and is asserted in the criteria.
+const providerSuccesses = { complete: 0, dispute: 0 };
 
-async function dispute(plan) {
+async function dispute(plan, sessionOverride) {
+  const sess = sessionOverride || plan.member;
   const { status, latency } = await timedFetch(`${BASE_URL}/api/care-plans/${plan.planId}/dispute`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${plan.member.token}`,
+      'Authorization': `Bearer ${sess.token}`,
     },
     body: JSON.stringify({ dispute_reason: 'no-show', dispute_description: 'stress test dispute' }),
   });
   recordMetric(metrics.dispute, latency, status);
+  if (sessionOverride && status >= 200 && status < 300) providerSuccesses.dispute++;
 }
 
-async function runPhase(name, concurrency, durationMs, plans) {
+async function complete(plan, sessionOverride) {
+  const sess = sessionOverride || plan.member;
+  const { status, latency } = await timedFetch(`${BASE_URL}/api/care-plans/${plan.planId}/complete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${sess.token}`,
+    },
+    body: JSON.stringify({ accepted_bid_id: plan.bidId, completion_notes: 'stress test complete' }),
+  });
+  recordMetric(metrics.complete, latency, status);
+  if (sessionOverride && status >= 200 && status < 300) providerSuccesses.complete++;
+}
+
+async function runPhase(name, concurrency, durationMs, plans, providerSessions) {
   const endTime = Date.now() + durationMs;
   let active = 0;
   await new Promise(resolve => {
@@ -206,8 +232,24 @@ async function runPhase(name, concurrency, durationMs, plans) {
       while (active < concurrency && Date.now() < endTime) {
         active++;
         const plan = pick(plans);
-        // 50/50 race: half workers go for /complete, half /dispute
-        const op = Math.random() < 0.5 ? complete(plan) : dispute(plan);
+        // Cross-actor race mix per the spec ("from member + provider sims"):
+        //   ~40% member /complete (legitimate)
+        //   ~40% member /dispute (legitimate)
+        //   ~10% provider /complete (auth regression bait — must 4xx)
+        //   ~10% provider /dispute (auth regression bait — must 4xx)
+        // Provider attempts add real cross-actor pressure on the auth gate
+        // for the same plan that members are racing against.
+        const r = Math.random();
+        let op;
+        if (providerSessions.length > 0 && r >= 0.9) {
+          op = dispute(plan, pick(providerSessions));
+        } else if (providerSessions.length > 0 && r >= 0.8) {
+          op = complete(plan, pick(providerSessions));
+        } else if (r >= 0.4) {
+          op = dispute(plan);
+        } else {
+          op = complete(plan);
+        }
         op.then(() => {
           active--;
           if (Date.now() < endTime) tick();
@@ -354,6 +396,12 @@ function printResults(testDurationSec, integrity) {
       // persisting).
       value: `${terminalReached}/${integrity.totalPlans}`,
       pass: integrity.totalPlans > 0 && terminalReached >= terminalFloor },
+    { name: 'No cross-actor 2xx (provider session on /complete or /dispute)',
+      // Cross-actor regression bait: provider sessions hitting member-
+      // scoped endpoints must always be rejected by the auth/ownership
+      // gate. Any 2xx here is an authorization regression.
+      value: `complete=${providerSuccesses.complete}, dispute=${providerSuccesses.dispute}`,
+      pass: providerSuccesses.complete === 0 && providerSuccesses.dispute === 0 },
   ];
   for (const c of criteria) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(36)} ${c.value}`);
@@ -396,6 +444,10 @@ async function main() {
     }
     console.log(`  Authenticated ${memberSessions.length} sim member sessions`);
 
+    console.log('[Setup] Authenticating sim provider sessions for cross-actor pressure...');
+    const providerSessions = await loadProviderSessions();
+    console.log(`  Authenticated ${providerSessions.length} sim provider sessions (cross-actor /complete + /dispute attempts will route through these)`);
+
     console.log(`[Setup] Seeding ${CONFIG.planCount} care plans with accepted bids...`);
     const plans = await seedPlans(memberSessions, providerUsers.map(u => u.id));
     console.log(`  Seeded ${plans.length} plans (target ${CONFIG.planCount})`);
@@ -407,13 +459,13 @@ async function main() {
 
     const testStart = Date.now();
     console.log('\n[Phase 1/4] Ramp-up...');
-    await runPhase('Ramp', Math.ceil(CONFIG.concurrency * 0.3), CONFIG.rampUpTime * 1000, plans);
+    await runPhase('Ramp', Math.ceil(CONFIG.concurrency * 0.3), CONFIG.rampUpTime * 1000, plans, providerSessions);
     console.log('[Phase 2/4] Sustained...');
-    await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, plans);
+    await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, plans, providerSessions);
     console.log('[Phase 3/4] Spike...');
-    await runPhase('Spike', CONFIG.concurrency * CONFIG.spikeMultiplier, CONFIG.spikeDuration * 1000, plans);
+    await runPhase('Spike', CONFIG.concurrency * CONFIG.spikeMultiplier, CONFIG.spikeDuration * 1000, plans, providerSessions);
     console.log('[Phase 4/4] Cool-down...');
-    await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, plans);
+    await runPhase('Cool', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, plans, providerSessions);
     const dur = (Date.now() - testStart) / 1000;
 
     await new Promise(r => setTimeout(r, 1500));

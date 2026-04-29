@@ -163,6 +163,58 @@ async function preSeedSuppressed(emails) {
   return inserted;
 }
 
+// Suppression source #2: outreach_leads.status IN ('unsubscribed','bounced').
+// The broadcast script unions these emails into the suppression set via
+// loadOutreachOptOuts(), so any candidate present here must be skipped
+// even if they were never written to email_unsubscribes.
+async function preSeedOutreachOptOuts(emails) {
+  if (!emails.length) return 0;
+  const BATCH = 200;
+  let inserted = 0;
+  for (let off = 0; off < emails.length; off += BATCH) {
+    const rows = emails.slice(off, off + BATCH).map(email => ({
+      email,
+      status: 'unsubscribed',
+      source: STRESS_TAG,
+    }));
+    try {
+      const { error } = await supabaseAdmin.from('outreach_leads').insert(rows);
+      if (!error) inserted += rows.length;
+    } catch (e) {
+      console.warn(`  [WARN] outreach_leads table missing? ${e.message}`);
+      return 0;
+    }
+  }
+  return inserted;
+}
+
+// Suppression source #3: member_notification_preferences.marketing_emails=false.
+// The broadcast script unions these member_ids via loadMarketingOptOuts()
+// and skips them with reason='marketing_opt_out'. We need profile.id values
+// here, not emails — caller passes member rows.
+async function preSeedMarketingOptOuts(memberIds) {
+  if (!memberIds.length) return 0;
+  const BATCH = 200;
+  let inserted = 0;
+  for (let off = 0; off < memberIds.length; off += BATCH) {
+    const rows = memberIds.slice(off, off + BATCH).map(id => ({
+      member_id: id,
+      marketing_emails: false,
+    }));
+    try {
+      // Use upsert in case the table has a unique constraint on member_id.
+      const { error } = await supabaseAdmin
+        .from('member_notification_preferences')
+        .upsert(rows, { onConflict: 'member_id' });
+      if (!error) inserted += rows.length;
+    } catch (e) {
+      console.warn(`  [WARN] member_notification_preferences table missing? ${e.message}`);
+      return 0;
+    }
+  }
+  return inserted;
+}
+
 async function cleanup() {
   // Tear down in dependency order. Best-effort on derived tables in case
   // they don't exist locally.
@@ -175,14 +227,17 @@ async function cleanup() {
   if (emails.length > 0) {
     try { await supabaseAdmin.from('bgc_launch_email_sends').delete().in('email', emails); } catch {}
     try { await supabaseAdmin.from('email_unsubscribes').delete().in('email', emails); } catch {}
+    try { await supabaseAdmin.from('outreach_leads').delete().in('email', emails); } catch {}
   }
   if (ids.length > 0) {
+    try { await supabaseAdmin.from('member_notification_preferences').delete().in('member_id', ids); } catch {}
     await supabaseAdmin.from('profiles').delete().in('id', ids);
   }
   // Defensive sweep for orphaned stress-domain rows (in case prior runs leaked).
   await supabaseAdmin.from('profiles').delete().like('email', `%@${STRESS_DOMAIN}`);
-  // Cleanup any unsubscribe rows tagged with our STRESS_TAG.
+  // Cleanup any rows tagged with our STRESS_TAG across all suppression sources.
   try { await supabaseAdmin.from('email_unsubscribes').delete().eq('source', STRESS_TAG); } catch {}
+  try { await supabaseAdmin.from('outreach_leads').delete().eq('source', STRESS_TAG); } catch {}
 }
 
 function runBroadcastDryRun(limit, rate) {
@@ -308,6 +363,8 @@ async function main() {
 
   let exitCode = 1;
   let preSeededAlready = 0;
+  let preSeededOutreach = 0;
+  let preSeededMarketing = 0;
   try {
     console.log('[Setup] Defensive cleanup of any prior stress rows...');
     await cleanup();
@@ -352,6 +409,61 @@ async function main() {
       process.exit(1);
     }
 
+    // Suppression source #2: outreach_leads.status='unsubscribed'.
+    // Use a distinct slice so we can attribute the skip count to the
+    // outreach-leads source independently of email_unsubscribes.
+    const outreachStart = CONFIG.idempotencyPreSeed + CONFIG.suppressionPreSeed;
+    const outreachEnd = outreachStart + CONFIG.suppressionPreSeed;
+    const outreachEmails = seeded.slice(outreachStart, outreachEnd).map(r => r.email);
+    console.log(`[Setup] Pre-seeding ${outreachEmails.length} into outreach_leads (status=unsubscribed)...`);
+    preSeededOutreach = await preSeedOutreachOptOuts(outreachEmails);
+    console.log(`  Inserted ${preSeededOutreach} outreach-opt-out rows`);
+    if (preSeededOutreach !== outreachEmails.length) {
+      // Soft-fail to a warning here — the outreach_leads table may not
+      // exist on every test fixture and we still want the run to proceed
+      // for the primary suppression source. The criterion below downgrades
+      // accordingly.
+      console.warn(`  [WARN] outreach_leads pre-seed inserted ${preSeededOutreach} of ${outreachEmails.length}; outreach-suppression criterion will be skipped.`);
+    }
+
+    // Suppression source #3: member_notification_preferences.marketing_emails=false.
+    // We need profile.id values, not emails — pull them from the seeded set.
+    const marketingStart = outreachEnd;
+    const marketingEnd = marketingStart + CONFIG.suppressionPreSeed;
+    const marketingMembers = seeded.slice(marketingStart, marketingEnd);
+    const marketingIds = marketingMembers.map(r => r.id).filter(Boolean);
+    console.log(`[Setup] Pre-seeding ${marketingIds.length} into member_notification_preferences (marketing_emails=false)...`);
+    preSeededMarketing = await preSeedMarketingOptOuts(marketingIds);
+    console.log(`  Inserted ${preSeededMarketing} marketing-opt-out rows`);
+    if (preSeededMarketing !== marketingIds.length) {
+      console.warn(`  [WARN] member_notification_preferences pre-seed inserted ${preSeededMarketing} of ${marketingIds.length}; marketing-opt-out criterion will be skipped.`);
+    }
+
+    // Concurrent suppression-write pressure: while the broadcast runs, append
+    // additional rows to email_unsubscribes from a separate process to verify
+    // the suppression-write path remains writable under broadcast load (no
+    // table locks, no rate-limit collisions). The rows go into the cleanup
+    // sweep via STRESS_TAG so teardown handles them.
+    const liveSuppressionEmails = [];
+    const liveSuppressionTask = (async () => {
+      // Use an offset that doesn't collide with the deterministic pre-seeds
+      // — these are fresh emails created on the fly to exercise mid-run
+      // INSERT capacity, NOT to be picked up by the broadcast suppression
+      // set (the script loads suppression once at the top of each run).
+      const N = 50;
+      for (let i = 0; i < N; i++) {
+        const email = `stress-${STRESS_TAG}-live-${i}@${STRESS_DOMAIN}`;
+        liveSuppressionEmails.push(email);
+        try {
+          await supabaseAdmin
+            .from('email_unsubscribes')
+            .insert({ email, source: STRESS_TAG });
+        } catch { /* non-fatal */ }
+        // Spread writes across the canonical phase window (~rate=8 → 50 emails ≈ 6s).
+        await new Promise(r => setTimeout(r, 120));
+      }
+    })();
+
     console.log('\n[Phase 1/4] Warm-up broadcast...');
     await runPhase('Warm', CONFIG.warmupLimit);
     console.log('[Phase 2/4] Sustained broadcast (canonical run)...');
@@ -360,6 +472,19 @@ async function main() {
     await runPhase('Spike', CONFIG.spikeLimit);
     console.log('[Phase 4/4] Cool-down broadcast...');
     await runPhase('Cool', CONFIG.cooldownLimit);
+
+    // Drain the concurrent suppression-write task and verify all rows landed.
+    console.log('\n[Integrity] Awaiting concurrent suppression-write task...');
+    await liveSuppressionTask;
+    let liveSuppressionWrites = 0;
+    try {
+      const { data: liveRows } = await supabaseAdmin
+        .from('email_unsubscribes')
+        .select('email')
+        .in('email', liveSuppressionEmails);
+      liveSuppressionWrites = (liveRows || []).length;
+    } catch { /* table absent — handled by criterion */ }
+    console.log(`  Concurrent suppression writes landed: ${liveSuppressionWrites}/${liveSuppressionEmails.length}`);
 
     console.log('\n[Integrity] Verifying --dry-run produced no extra log writes...');
     const logState = await checkNoLogWritesInDryRun(preSeededAlready);
@@ -414,6 +539,34 @@ async function main() {
       { name: `Suppression: ≥ ${expectedSuppressedMin} pre-seeded skipped (suppressed)`,
         value: `saw=${sawSuppressed}`,
         pass: parsedScriptOutput && sawSuppressed >= expectedSuppressedMin },
+      // Suppression source #2 (outreach_leads) — emails marked
+      // status='unsubscribed' are unioned into the suppression set by
+      // loadOutreachOptOuts and therefore counted as 'suppressed' skips
+      // by the script (it doesn't distinguish source). The lower bound
+      // here therefore stacks on top of the email_unsubscribes pre-seed
+      // when the outreach pre-seed succeeded.
+      { name: `Outreach suppression: ≥ ${preSeededOutreach + expectedSuppressedMin} total suppressed (outreach + email_unsubscribes)`,
+        value: preSeededOutreach > 0
+          ? `saw=${sawSuppressed} expected≥${preSeededOutreach + expectedSuppressedMin}`
+          : 'N/A — outreach_leads pre-seed unavailable',
+        pass: preSeededOutreach === 0
+          || (parsedScriptOutput && sawSuppressed >= preSeededOutreach + expectedSuppressedMin) },
+      // Suppression source #3 (member_notification_preferences) — these
+      // recipients are skipped with reason='marketing_opt_out' (a
+      // separate skip-bucket from 'suppressed').
+      { name: `Marketing opt-out: ≥ ${preSeededMarketing} skipped (marketing_opt_out)`,
+        value: preSeededMarketing > 0
+          ? `saw=${canonicalSkips.marketing_opt_out || 0}`
+          : 'N/A — member_notification_preferences pre-seed unavailable',
+        pass: preSeededMarketing === 0
+          || (parsedScriptOutput && (canonicalSkips.marketing_opt_out || 0) >= preSeededMarketing) },
+      // Concurrent suppression-write pressure — every row written mid-run
+      // by liveSuppressionTask must be readable post-run. Anything less
+      // than the full count indicates the suppression-write path was
+      // throttled, locked out, or silently dropped during the broadcast.
+      { name: `Concurrent suppression writes: all ${liveSuppressionEmails.length} landed`,
+        value: `${liveSuppressionWrites}/${liveSuppressionEmails.length}`,
+        pass: liveSuppressionEmails.length > 0 && liveSuppressionWrites === liveSuppressionEmails.length },
     ];
     for (const c of criteria) {
       console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(56)} ${c.value}`);
