@@ -3538,7 +3538,14 @@
         }
       }
 
-      const { error } = await supabaseClient.from('payments').update(updates).eq('id', id);
+      const { error } = await supabaseClient.rpc('admin_edit_payment', {
+        p_id: id,
+        p_status: updates.status,
+        p_amount_total: updates.amount_total,
+        p_amount_mcc_fee: updates.amount_mcc_fee,
+        p_refund_amount: updates.refund_amount,
+        p_admin_note: updates.admin_note
+      });
       if (error) {
         showToast('Failed to save: ' + error.message, 'error');
         return;
@@ -3584,7 +3591,7 @@
         return;
       }
 
-      const { error } = await supabaseClient.from('payments').delete().eq('id', paymentId);
+      const { error } = await supabaseClient.rpc('admin_delete_payment', { p_id: paymentId });
       if (error) {
         showToast('Failed to delete: ' + error.message, 'error');
         return;
