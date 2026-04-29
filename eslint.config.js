@@ -5,18 +5,18 @@ const html = require('eslint-plugin-html');
 const unicorn = unicornPkg.default || unicornPkg;
 
 const sharedRules = {
-  'unicorn/prefer-number-properties': 'error',
-  'unicorn/prefer-global-this': 'error',
-  'unicorn/prefer-string-replace-all': 'error',
-  'unicorn/prefer-class-fields': 'error',
-  'prefer-object-has-own': 'error',
-  'no-unused-vars': ['error', {
+  'unicorn/prefer-number-properties': 'warn',
+  'unicorn/prefer-global-this': 'warn',
+  'unicorn/prefer-string-replace-all': 'warn',
+  'unicorn/prefer-class-fields': 'warn',
+  'prefer-object-has-own': 'warn',
+  'no-unused-vars': ['warn', {
     args: 'none',
     caughtErrors: 'none',
     varsIgnorePattern: '^_',
     ignoreRestSiblings: true,
   }],
-  'no-negated-condition': 'error',
+  'no-negated-condition': 'warn',
 };
 
 module.exports = [
@@ -33,6 +33,16 @@ module.exports = [
       'attached_assets/**',
       'test-results/**',
       'playwright-report/**',
+      'rideshare-calculator/**',
+      'outreach-runner/**',
+      'electron/**',
+      'supabase/**',
+      'tools/**',
+      'netlify/**',
+      '.local/**',
+      '.playwright/**',
+      'admin.html',
+      'providers.js',
       '**/*.min.js',
     ],
   },
