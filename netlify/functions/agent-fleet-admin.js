@@ -13,6 +13,11 @@
 //   POST /run/orchestrator               — fire orchestrator tick now
 //   POST /run/analyst                    — run analyst now
 //   POST /run/gatekeeper-smoke           — run the Gatekeeper smoke now (Task #161)
+//   GET  /director/alerts?status=open|all|resolved — Director alert log
+//   POST /director/alerts/:id/resolve    — manually close an open Director alert
+//   GET  /director/config                — current Director thresholds + quiet-hours
+//   PUT  /director/config                — update Director thresholds + quiet-hours
+//   POST /run/director                   — fire the Director sweep now
 //   GET  /smoke-runs?limit=20&agent=gatekeeper — recent smoke run log
 //   GET  /dead-letter?limit=50&offset=0&open=1   — list DLQ entries
 //   POST /dead-letter/:id/replay         — re-emit the event (attempts=0)
@@ -1046,6 +1051,161 @@ exports.handler = async function(event) {
     if (route === 'run/gatekeeper-smoke' && method === 'POST') {
       const baseUrl = siteBaseUrl(event);
       const r = await fetch(`${baseUrl}/.netlify/functions/gatekeeper-smoke-scheduled`, {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'x-admin-password': process.env.ADMIN_PASSWORD || ''
+        },
+        body: JSON.stringify({ source: 'admin' })
+      });
+      const text = await r.text();
+      let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+      return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
+    }
+
+    // -------- Director (acquisition chief-of-staff) ────────────────────
+    // GET  /director/alerts?status=open|all&limit=50  — list alerts
+    // POST /director/alerts/:id/resolve               — manually mark resolved
+    // GET  /director/config                           — current thresholds
+    // PUT  /director/config                           — { quiet_hours_utc?, digest_hour_utc?, dedupe_repage_hours?, thresholds? }
+    // POST /run/director                              — fire the Director sweep now
+    if (route === 'director/alerts' && method === 'GET') {
+      const lim = Math.min(Math.max(parseInt(qs.limit, 10) || 50, 1), 200);
+      const status = (qs.status || 'open').toLowerCase();
+      let listQ = supabase.from('agent_director_alerts')
+        .select('*')
+        .order('last_fired_at', { ascending: false })
+        .limit(lim);
+      if (status === 'open')     listQ = listQ.is('resolved_at', null);
+      if (status === 'resolved') listQ = listQ.not('resolved_at', 'is', null);
+
+      // Headline KPIs must reflect the FULL open population, not the
+      // paginated page (otherwise >limit alerts under-report). Run the
+      // list + two count queries in parallel.
+      const [listRes, openRes, critRes] = await Promise.all([
+        listQ,
+        supabase.from('agent_director_alerts')
+          .select('id', { count: 'exact', head: true })
+          .is('resolved_at', null),
+        supabase.from('agent_director_alerts')
+          .select('id', { count: 'exact', head: true })
+          .is('resolved_at', null)
+          .eq('severity', 'critical')
+      ]);
+      if (listRes.error) {
+        const msg = listRes.error.message || '';
+        if (/relation .* does not exist|schema cache/i.test(msg)) {
+          return jsonResponse(503, {
+            error: 'Director schema not applied yet. Run supabase/migrations/20260429b_agent_director.sql in the Supabase SQL editor.',
+            code: 'schema_pending'
+          });
+        }
+        throw new Error(msg);
+      }
+      return jsonResponse(200, {
+        alerts: listRes.data || [],
+        open_count:          openRes.count || 0,
+        critical_open_count: critRes.count || 0
+      });
+    }
+    const directorResolveMatch = route.match(/^director\/alerts\/(\d+)\/resolve$/);
+    if (directorResolveMatch && method === 'POST') {
+      const aid = parseInt(directorResolveMatch[1], 10);
+      const { data, error } = await supabase.from('agent_director_alerts')
+        .update({ resolved_at: new Date().toISOString() })
+        .eq('id', aid)
+        .is('resolved_at', null)
+        .select('*')
+        .maybeSingle();
+      if (error) return jsonResponse(500, { error: error.message });
+      if (!data)  return jsonResponse(404, { error: 'Alert not found or already resolved' });
+      return jsonResponse(200, { alert: data });
+    }
+    if (route === 'director/config' && method === 'GET') {
+      const { data, error } = await supabase.from('agents')
+        .select('config').eq('slug', 'director').maybeSingle();
+      if (error) return jsonResponse(500, { error: error.message });
+      if (!data) {
+        return jsonResponse(503, {
+          error: 'Director agent is not registered. Run supabase/migrations/20260429b_agent_director.sql in the Supabase SQL editor.',
+          code: 'director_not_seeded'
+        });
+      }
+      return jsonResponse(200, { config: data.config || {} });
+    }
+    if (route === 'director/config' && method === 'PUT') {
+      const body = (() => { try { return JSON.parse(event.body || '{}'); } catch { return {}; } })();
+      // Whitelist fields and validate types/ranges. Unknown keys are ignored.
+      const { data: existing, error: readErr } = await supabase.from('agents')
+        .select('config').eq('slug', 'director').maybeSingle();
+      if (readErr) return jsonResponse(500, { error: readErr.message });
+      if (!existing) {
+        return jsonResponse(503, {
+          error: 'Director agent is not registered. Run supabase/migrations/20260429b_agent_director.sql in the Supabase SQL editor before tuning thresholds.',
+          code: 'director_not_seeded'
+        });
+      }
+      const current = existing.config || {};
+      const next = JSON.parse(JSON.stringify(current));
+
+      if (body.quiet_hours_utc && typeof body.quiet_hours_utc === 'object') {
+        const s = parseInt(body.quiet_hours_utc.start, 10);
+        const e = parseInt(body.quiet_hours_utc.end, 10);
+        if (Number.isInteger(s) && Number.isInteger(e) && s >= 0 && s <= 23 && e >= 0 && e <= 23) {
+          next.quiet_hours_utc = { start: s, end: e };
+        } else {
+          return jsonResponse(400, { error: 'quiet_hours_utc.start/end must be integers 0-23' });
+        }
+      }
+      if (body.digest_hour_utc != null) {
+        const h = parseInt(body.digest_hour_utc, 10);
+        if (!Number.isInteger(h) || h < 0 || h > 23) {
+          return jsonResponse(400, { error: 'digest_hour_utc must be an integer 0-23' });
+        }
+        next.digest_hour_utc = h;
+      }
+      if (body.dedupe_repage_hours != null) {
+        const h = Number(body.dedupe_repage_hours);
+        if (!Number.isFinite(h) || h < 0.25 || h > 168) {
+          return jsonResponse(400, { error: 'dedupe_repage_hours must be 0.25-168' });
+        }
+        next.dedupe_repage_hours = h;
+      }
+      if (body.thresholds && typeof body.thresholds === 'object') {
+        const allowed = new Set([
+          'gatekeeper_error_min_in_6h','promoter_drafts_pile_min','promoter_idle_days',
+          'hunter_unscored_min_2h','social_dry_window_h','matchmaker_unranked_min_h',
+          'signup_drop_pct'
+        ]);
+        const merged = Object.assign({}, current.thresholds || {});
+        for (const [k, v] of Object.entries(body.thresholds)) {
+          if (!allowed.has(k)) continue;
+          const n = Number(v);
+          if (!Number.isFinite(n) || n < 0) {
+            return jsonResponse(400, { error: `threshold ${k} must be a non-negative number` });
+          }
+          merged[k] = n;
+        }
+        next.thresholds = merged;
+      }
+
+      const { data: updated, error: updErr } = await supabase.from('agents')
+        .update({ config: next, updated_at: new Date().toISOString() })
+        .eq('slug', 'director')
+        .select('config')
+        .maybeSingle();
+      if (updErr) return jsonResponse(500, { error: updErr.message });
+      if (!updated) {
+        return jsonResponse(503, {
+          error: 'Director agent row was removed mid-update. Re-apply supabase/migrations/20260429b_agent_director.sql.',
+          code: 'director_not_seeded'
+        });
+      }
+      return jsonResponse(200, { config: updated.config });
+    }
+    if (route === 'run/director' && method === 'POST') {
+      const baseUrl = siteBaseUrl(event);
+      const r = await fetch(`${baseUrl}/.netlify/functions/agent-director-scheduled`, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

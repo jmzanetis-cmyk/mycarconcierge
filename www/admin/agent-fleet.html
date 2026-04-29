@@ -219,6 +219,109 @@
       </div>
     </div>
 
+    <!-- Director (acquisition chief-of-staff) — open alerts + thresholds + on-demand run -->
+    <div class="card" style="margin-bottom:20px;">
+      <div class="row" style="align-items:flex-start; gap:18px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:280px;">
+          <h3 style="margin:0 0 4px;">Director — acquisition watch</h3>
+          <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
+            Runs every 15 minutes. Watches whether the other agents are actually pulling customers through the funnel and pages the admin (SMS + email) with the specific next action when any acquisition lever stalls. Alerts shown here are <strong>open</strong> — they auto-resolve when the underlying condition clears.
+          </div>
+          <div class="row" style="gap:18px; flex-wrap:wrap;">
+            <div>
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Open alerts</div>
+              <div id="dirOpenCount" style="font-size:22px; font-weight:600; line-height:1.1;">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Critical now</div>
+              <div id="dirCritCount" style="font-size:22px; font-weight:600; line-height:1.1;">—</div>
+            </div>
+            <div>
+              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last run</div>
+              <div id="dirLastRun" style="font-size:14px;">—</div>
+            </div>
+          </div>
+        </div>
+        <div style="display:flex; flex-direction:column; gap:8px; min-width:170px;">
+          <button class="btn" id="runDirectorBtn">Run Director now</button>
+          <button class="btn btn-ghost" id="reloadDirectorBtn">Reload alerts</button>
+          <button class="btn btn-ghost" id="toggleDirSettingsBtn">Thresholds…</button>
+        </div>
+      </div>
+
+      <div style="margin-top:16px; max-height:520px; overflow-y:auto;">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:90px;">Severity</th>
+              <th>What stalled</th>
+              <th style="width:90px;" class="right">Fired</th>
+              <th style="width:130px;">Last fired</th>
+              <th style="width:120px;" class="right">Actions</th>
+            </tr>
+          </thead>
+          <tbody id="dirAlertsBody"><tr><td colspan="5" class="empty">Loading…</td></tr></tbody>
+        </table>
+      </div>
+
+      <!-- Threshold + quiet-hours editor (collapsed by default) -->
+      <div id="dirSettingsPanel" style="display:none; margin-top:18px; padding-top:16px; border-top:1px solid var(--slate-border);">
+        <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
+          Tune detection thresholds and quiet-hours for SMS/email paging. Times are in <strong>UTC</strong>. Critical alerts always page through quiet hours; non-critical are suppressed and surface here only.
+        </div>
+        <div class="grid grid-3" style="gap:14px;">
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours start (UTC)</label>
+            <input id="dirCfgQuietStart" type="number" min="0" max="23" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours end (UTC)</label>
+            <input id="dirCfgQuietEnd" type="number" min="0" max="23" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Daily digest hour (UTC)</label>
+            <input id="dirCfgDigestHour" type="number" min="0" max="23" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Re-page critical every N hours</label>
+            <input id="dirCfgRepageH" type="number" min="0.25" max="168" step="0.25" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Gatekeeper errors / 6h to alert</label>
+            <input id="dirCfgGkErr" type="number" min="0" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter draft pile min</label>
+            <input id="dirCfgPromBacklog" type="number" min="0" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter idle days</label>
+            <input id="dirCfgPromIdle" type="number" min="0" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Hunter unscored / 2h to alert</label>
+            <input id="dirCfgHunter" type="number" min="0" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Social-monitor dry window (h)</label>
+            <input id="dirCfgSocialH" type="number" min="0" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Matchmaker unranked min hours</label>
+            <input id="dirCfgMmH" type="number" min="0" step="0.25" class="input" />
+          </div>
+          <div>
+            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Signup drop % to alert</label>
+            <input id="dirCfgSignupPct" type="number" min="0" max="100" class="input" />
+          </div>
+        </div>
+        <div class="row" style="margin-top:14px; gap:8px;">
+          <button class="btn" id="dirCfgSaveBtn">Save thresholds</button>
+          <button class="btn btn-ghost" id="dirCfgResetBtn">Reset (reload from server)</button>
+        </div>
+      </div>
+    </div>
+
     <div class="grid grid-2" style="margin-bottom:20px;">
       <div class="card">
         <h3>Dead-letter queue <span id="dlqTotal" style="font-size:12px; color:var(--muted); font-weight:400;"></span></h3>
@@ -670,9 +773,150 @@ function populateTestAlertAgentPicker() {
 async function refreshAll() {
   await Promise.all([
     loadRegistry(), loadEventsChart(), loadDLQ(), loadSpendAlerts(), loadReviewKpi(),
-    loadSmokeStatus(),
+    loadSmokeStatus(), loadDirector(),
     loadChannels(), loadPosts(), loadLeads()
   ]);
+}
+
+// ─── Director (acquisition watch) ──────────────────────────────────────
+function dirSeverityPill(sev) {
+  const map = {
+    critical: { bg: 'rgba(220,80,80,0.18)', fg: '#ff8b8b', label: 'Critical' },
+    warning:  { bg: 'rgba(245,158,11,0.18)', fg: '#fbbf24', label: 'Warning' },
+    info:     { bg: 'rgba(76,201,193,0.16)', fg: '#5eead4', label: 'Info'    },
+    digest:   { bg: 'rgba(184,148,45,0.18)', fg: '#d4a93b', label: 'Digest'  }
+  };
+  const p = map[sev] || { bg: 'rgba(148,163,184,0.18)', fg: '#cbd5e1', label: sev || 'unknown' };
+  return `<span class="pill" style="background:${p.bg}; color:${p.fg};">${p.label}</span>`;
+}
+
+function dirRelTime(iso) {
+  if (!iso) return '—';
+  const ts = Date.parse(iso);
+  if (Number.isNaN(ts)) return iso;
+  const mins = Math.round((Date.now() - ts) / 60000);
+  if (mins < 1)   return 'just now';
+  if (mins < 60)  return `${mins}m ago`;
+  if (mins < 1440) return `${Math.round(mins / 60)}h ago`;
+  return `${Math.round(mins / 1440)}d ago`;
+}
+
+function dirEscape(s) {
+  return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+    ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' })[c]);
+}
+
+async function loadDirector() {
+  const tbody = document.getElementById('dirAlertsBody');
+  try {
+    const r = await api('/director/alerts?status=open&limit=100');
+    document.getElementById('dirOpenCount').textContent = r.open_count;
+    document.getElementById('dirCritCount').textContent = r.critical_open_count;
+    if (r.critical_open_count > 0) {
+      document.getElementById('dirCritCount').style.color = 'var(--bad)';
+    } else {
+      document.getElementById('dirCritCount').style.color = '';
+    }
+    if (!r.alerts || r.alerts.length === 0) {
+      tbody.innerHTML = '<tr><td colspan="5" class="empty" style="color:var(--good);">No open alerts — all acquisition levers look healthy.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = r.alerts.map(a => {
+      const next = a.next_action
+        ? `<div style="margin-top:6px; padding:8px 10px; background:rgba(184,148,45,0.08); border-left:3px solid var(--gold); border-radius:4px; font-size:12px;"><strong style="color:var(--gold);">Next:</strong> ${dirEscape(a.next_action)}</div>`
+        : '';
+      const pageStatus = a.sms_sent_at || a.email_sent_at
+        ? `<div style="font-size:11px; color:var(--muted); margin-top:4px;">Last paged ${dirRelTime(a.sms_sent_at || a.email_sent_at)} · ${a.sms_sent_at ? 'SMS✓' : ''} ${a.email_sent_at ? 'Email✓' : ''}</div>`
+        : (a.sms_error || a.email_error
+            ? `<div style="font-size:11px; color:var(--bad); margin-top:4px;">Page failed: ${dirEscape(a.sms_error || a.email_error)}</div>`
+            : `<div style="font-size:11px; color:var(--muted); margin-top:4px;">Suppressed (quiet hours or deduped)</div>`);
+      return `<tr>
+        <td>${dirSeverityPill(a.severity)}</td>
+        <td>
+          <div style="font-weight:600; margin-bottom:4px;">${dirEscape(a.title)}</div>
+          <div style="font-size:13px; color:var(--muted); white-space:pre-wrap;">${dirEscape(a.body)}</div>
+          ${next}
+          ${pageStatus}
+        </td>
+        <td class="right">${a.fire_count}×</td>
+        <td>${dirRelTime(a.last_fired_at)}</td>
+        <td class="right">
+          <button class="btn btn-ghost" data-resolve-id="${a.id}" style="padding:6px 12px; font-size:12px;">Resolve</button>
+        </td>
+      </tr>`;
+    }).join('');
+    tbody.querySelectorAll('button[data-resolve-id]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const id = btn.getAttribute('data-resolve-id');
+        if (!confirm('Mark this alert resolved? It will reopen on the next sweep if the underlying condition still holds.')) return;
+        btn.disabled = true;
+        try {
+          await api(`/director/alerts/${id}/resolve`, { method: 'POST' });
+          toast('Alert resolved');
+          loadDirector();
+        } catch (e) { toast(e.message, true); btn.disabled = false; }
+      });
+    });
+  } catch (e) {
+    tbody.innerHTML = `<tr><td colspan="5" class="empty" style="color:var(--bad);">${dirEscape(e.message)}</td></tr>`;
+  }
+}
+
+async function loadDirectorConfig() {
+  try {
+    const r = await api('/director/config');
+    const c = r.config || {};
+    const qh = c.quiet_hours_utc || {};
+    const t  = c.thresholds || {};
+    const set = (id, v) => { const el = document.getElementById(id); if (el) el.value = v == null ? '' : v; };
+    set('dirCfgQuietStart', qh.start);
+    set('dirCfgQuietEnd',   qh.end);
+    set('dirCfgDigestHour', c.digest_hour_utc);
+    set('dirCfgRepageH',    c.dedupe_repage_hours);
+    set('dirCfgGkErr',      t.gatekeeper_error_min_in_6h);
+    set('dirCfgPromBacklog',t.promoter_drafts_pile_min);
+    set('dirCfgPromIdle',   t.promoter_idle_days);
+    set('dirCfgHunter',     t.hunter_unscored_min_2h);
+    set('dirCfgSocialH',    t.social_dry_window_h);
+    set('dirCfgMmH',        t.matchmaker_unranked_min_h);
+    set('dirCfgSignupPct',  t.signup_drop_pct);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function saveDirectorConfig() {
+  const num = id => {
+    const v = document.getElementById(id).value;
+    if (v === '' || v == null) return null;
+    const n = Number(v);
+    return Number.isFinite(n) ? n : null;
+  };
+  const body = {
+    quiet_hours_utc: { start: num('dirCfgQuietStart'), end: num('dirCfgQuietEnd') },
+    digest_hour_utc: num('dirCfgDigestHour'),
+    dedupe_repage_hours: num('dirCfgRepageH'),
+    thresholds: {
+      gatekeeper_error_min_in_6h: num('dirCfgGkErr'),
+      promoter_drafts_pile_min:   num('dirCfgPromBacklog'),
+      promoter_idle_days:         num('dirCfgPromIdle'),
+      hunter_unscored_min_2h:     num('dirCfgHunter'),
+      social_dry_window_h:        num('dirCfgSocialH'),
+      matchmaker_unranked_min_h:  num('dirCfgMmH'),
+      signup_drop_pct:            num('dirCfgSignupPct')
+    }
+  };
+  // Strip nulls so the backend's "preserve current value" semantics kick in.
+  if (body.quiet_hours_utc.start == null || body.quiet_hours_utc.end == null) delete body.quiet_hours_utc;
+  if (body.digest_hour_utc == null)     delete body.digest_hour_utc;
+  if (body.dedupe_repage_hours == null) delete body.dedupe_repage_hours;
+  for (const k of Object.keys(body.thresholds)) {
+    if (body.thresholds[k] == null) delete body.thresholds[k];
+  }
+  if (Object.keys(body.thresholds).length === 0) delete body.thresholds;
+  try {
+    await api('/director/config', { method: 'PUT', body: JSON.stringify(body) });
+    toast('Director thresholds saved — applied on the next sweep.');
+    loadDirectorConfig();
+  } catch (e) { toast(e.message, true); }
 }
 
 async function loadSmokeStatus() {
@@ -1145,6 +1389,41 @@ document.getElementById('runSmokeBtn').addEventListener('click', async () => {
   finally { btn.disabled = false; btn.textContent = orig; }
 });
 document.getElementById('reloadSmokeBtn').addEventListener('click', loadSmokeStatus);
+
+// Director panel handlers
+document.getElementById('reloadDirectorBtn').addEventListener('click', loadDirector);
+document.getElementById('runDirectorBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('runDirectorBtn');
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Running…';
+  try {
+    const r = await api('/run/director', { method: 'POST' });
+    const res = r.result || {};
+    document.getElementById('dirLastRun').textContent = new Date().toLocaleTimeString();
+    if (res.ok) {
+      const parts = [];
+      parts.push(`${res.findings_count || 0} finding(s)`);
+      if (res.paged_count)      parts.push(`${res.paged_count} paged`);
+      if (res.suppressed_count) parts.push(`${res.suppressed_count} suppressed`);
+      if (res.resolved_count)   parts.push(`${res.resolved_count} resolved`);
+      if (res.quiet_hours)      parts.push('quiet hours active');
+      toast('Director: ' + parts.join(' · '));
+    } else {
+      toast('Director run failed: ' + (res.error || 'unknown'), true);
+    }
+    loadDirector();
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
+});
+document.getElementById('toggleDirSettingsBtn').addEventListener('click', () => {
+  const panel = document.getElementById('dirSettingsPanel');
+  const showing = panel.style.display !== 'none';
+  panel.style.display = showing ? 'none' : 'block';
+  if (!showing) loadDirectorConfig();
+});
+document.getElementById('dirCfgSaveBtn').addEventListener('click', saveDirectorConfig);
+document.getElementById('dirCfgResetBtn').addEventListener('click', loadDirectorConfig);
+
 document.getElementById('dlqReload').addEventListener('click', loadDLQ);
 document.getElementById('dlqOpenOnly').addEventListener('change', loadDLQ);
 document.getElementById('alertsReload').addEventListener('click', loadSpendAlerts);
