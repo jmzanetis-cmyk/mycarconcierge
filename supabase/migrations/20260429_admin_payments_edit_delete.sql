@@ -1,46 +1,38 @@
 -- Task #270: Let admins edit, delete, and export transaction history on the
 -- Payments page.
 --
--- This migration:
---   1. Adds the `payments.admin_note` bookkeeping column.
---   2. Installs `payments_caller_is_admin()` — a SECURITY DEFINER helper
---      that returns true only for the Supabase service role
---      (auth.role()='service_role') OR an authenticated user whose
---      `profiles.role = 'admin'`. Anonymous, unauthenticated, non-admin
---      and direct-PG sessions all return false.
---   3. Installs two SECURITY DEFINER RPCs — `admin_edit_payment()` and
---      `admin_delete_payment()` — that the admin Edit / Delete UI calls
---      via `supabaseClient.rpc()`. Both check `payments_caller_is_admin()`
---      first, so non-admin authenticated callers are rejected at the
---      database.
---   4. Installs a BEFORE UPDATE trigger
---      (`payments_enforce_admin_only_writes`) that whitelists only the
---      four sanctioned non-admin member transitions and rejects every
---      other field-level edit. This satisfies the task requirement that
---      "non-admins cannot edit payments via the Supabase client" while
---      keeping the existing browser-side member flows working.
---   5. Installs a BEFORE DELETE trigger that rejects non-admin deletes
---      AND deletes whose payment is referenced by an `open` dispute.
+-- Goal of the security model in this migration:
+--   * Direct browser-side `payments` UPDATE / DELETE via the Supabase JS
+--     client is rejected at the database for everyone except the Supabase
+--     service role (Netlify functions / server.js).
+--   * All legitimate browser-initiated writes — admin Edit/Delete and the
+--     four sanctioned member transitions — go through SECURITY DEFINER
+--     RPCs that role-check before mutating. Because SECURITY DEFINER
+--     functions execute with `current_user = postgres` (the function
+--     owner) the trigger's `current_user` allow-list lets them through.
+--   * Admin Edit/Delete RPCs write the admin_audit_log row in the SAME
+--     transaction as the mutation, so the mutation cannot succeed without
+--     the audit row (best-effort JS audit logging is removed).
 --
--- Sanctioned non-admin transitions (caller must be the package owner):
---   A. Approve additional work — amount_total / amount_provider /
---      amount_mcc_fee may change; status / refund_amount unchanged.
---      (members.js, members-packages.js, members-core.js upsell flows.)
---   B. Release on completion — status held -> released; amount and
---      refund unchanged. released_at may also be set.
---   C. File dispute — status -> disputed; amount and refund unchanged.
---   D. Provider unable to start (refund) — status held -> refunded with
---      refund_amount populated; amount unchanged.
+-- Sanctioned non-admin (member) transitions, each gated to the package
+-- owner via maintenance_packages.member_id = auth.uid():
+--   A. member_approve_additional_work(p_payment_id, p_new_total,
+--                                     p_new_provider, p_new_mcc_fee)
+--      Powers the upsell flow in members.js / members-packages.js /
+--      members-core.js.
+--   B. member_release_payment(p_package_id)
+--      Powers the release-on-completion flow in members.js /
+--      members-packages.js.
+--   C. member_mark_payment_disputed(p_payment_id)
+--      Powers the dispute filing status flip in members.js /
+--      members-packages.js.
+--   D. member_refund_payment_unable_to_start(p_payment_id)
+--      Powers the "provider unable to start" refund flow in members.js.
 --
--- Pattern mirrors restrict_profile_suspension_writes() in
--- 20260428e_provider_writes_rls_lockdown.sql, which uses auth.role() to
--- detect service_role JWTs from Netlify functions.
---
--- OPERATOR NOTE: direct-PG sessions (Supabase SQL Editor, psql with
--- postgres role, pg_cron) have auth.role()=NULL and auth.uid()=NULL, so
--- the helper returns FALSE for them. To repair data manually, either
--- (a) call the RPCs under an admin JWT, or (b) temporarily disable the
--- triggers below.
+-- OPERATOR NOTE: direct-PG sessions in the Supabase SQL Editor or psql
+-- run as the postgres role and bypass the trigger naturally (they are in
+-- the trusted role allow-list). pg_cron jobs running as postgres also
+-- bypass.
 --
 -- Run this in the Supabase Dashboard -> SQL Editor.
 
@@ -85,9 +77,8 @@ REVOKE ALL ON FUNCTION public.payments_caller_is_admin() FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.payments_caller_is_admin() TO authenticated, service_role;
 
 -- ============================================================
--- 3. ADMIN-ONLY EDIT RPC
+-- 3. ADMIN-ONLY EDIT RPC (atomic with audit log)
 -- ============================================================
--- Called from admin.html via supabaseClient.rpc('admin_edit_payment', ...).
 CREATE OR REPLACE FUNCTION public.admin_edit_payment(
   p_id uuid,
   p_status text,
@@ -101,10 +92,19 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth
 AS $$
+DECLARE
+  caller_id  uuid := auth.uid();
+  before_row public.payments;
 BEGIN
   IF NOT public.payments_caller_is_admin() THEN
     RAISE EXCEPTION 'Only admins can edit payments'
       USING ERRCODE = '42501';
+  END IF;
+
+  SELECT * INTO before_row FROM public.payments WHERE id = p_id;
+  IF NOT FOUND THEN
+    RAISE EXCEPTION 'Payment % not found', p_id
+      USING ERRCODE = 'no_data_found';
   END IF;
 
   UPDATE public.payments
@@ -115,10 +115,33 @@ BEGIN
          admin_note     = p_admin_note
    WHERE id = p_id;
 
-  IF NOT FOUND THEN
-    RAISE EXCEPTION 'Payment % not found', p_id
-      USING ERRCODE = 'no_data_found';
-  END IF;
+  -- Audit row written in the same transaction. If this insert fails the
+  -- entire RPC rolls back, so no payment edit can ever succeed without a
+  -- matching admin_audit_log row.
+  INSERT INTO public.admin_audit_log
+    (action, target_type, target_id, performed_by, metadata)
+  VALUES (
+    'edit_payment',
+    'payment',
+    p_id,
+    COALESCE(caller_id::text, 'service_role'),
+    jsonb_build_object(
+      'before', jsonb_build_object(
+        'status',         before_row.status,
+        'amount_total',   before_row.amount_total,
+        'amount_mcc_fee', before_row.amount_mcc_fee,
+        'refund_amount',  before_row.refund_amount,
+        'admin_note',     before_row.admin_note
+      ),
+      'after', jsonb_build_object(
+        'status',         p_status,
+        'amount_total',   p_amount_total,
+        'amount_mcc_fee', p_amount_mcc_fee,
+        'refund_amount',  p_refund_amount,
+        'admin_note',     p_admin_note
+      )
+    )
+  );
 END;
 $$;
 
@@ -126,7 +149,7 @@ REVOKE ALL ON FUNCTION public.admin_edit_payment(uuid, text, numeric, numeric, n
 GRANT EXECUTE ON FUNCTION public.admin_edit_payment(uuid, text, numeric, numeric, numeric, text) TO authenticated;
 
 -- ============================================================
--- 4. ADMIN-ONLY DELETE RPC
+-- 4. ADMIN-ONLY DELETE RPC (atomic with audit log)
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.admin_delete_payment(p_id uuid)
 RETURNS void
@@ -134,6 +157,9 @@ LANGUAGE plpgsql
 SECURITY DEFINER
 SET search_path = public, auth
 AS $$
+DECLARE
+  caller_id  uuid := auth.uid();
+  before_row public.payments;
 BEGIN
   IF NOT public.payments_caller_is_admin() THEN
     RAISE EXCEPTION 'Only admins can delete payments'
@@ -150,12 +176,35 @@ BEGIN
       USING ERRCODE = 'restrict_violation';
   END IF;
 
-  DELETE FROM public.payments WHERE id = p_id;
-
+  SELECT * INTO before_row FROM public.payments WHERE id = p_id;
   IF NOT FOUND THEN
     RAISE EXCEPTION 'Payment % not found', p_id
       USING ERRCODE = 'no_data_found';
   END IF;
+
+  DELETE FROM public.payments WHERE id = p_id;
+
+  INSERT INTO public.admin_audit_log
+    (action, target_type, target_id, performed_by, metadata)
+  VALUES (
+    'delete_payment',
+    'payment',
+    p_id,
+    COALESCE(caller_id::text, 'service_role'),
+    jsonb_build_object(
+      'before', jsonb_build_object(
+        'status',         before_row.status,
+        'amount_total',   before_row.amount_total,
+        'amount_mcc_fee', before_row.amount_mcc_fee,
+        'refund_amount',  before_row.refund_amount,
+        'admin_note',     before_row.admin_note,
+        'package_id',     before_row.package_id,
+        'member_id',      before_row.member_id,
+        'provider_id',    before_row.provider_id
+      ),
+      'after', NULL
+    )
+  );
 END;
 $$;
 
@@ -163,93 +212,182 @@ REVOKE ALL ON FUNCTION public.admin_delete_payment(uuid) FROM PUBLIC;
 GRANT EXECUTE ON FUNCTION public.admin_delete_payment(uuid) TO authenticated;
 
 -- ============================================================
--- 5. ENFORCE ADMIN-ONLY WRITES (whitelist member transitions)
+-- 5. SANCTIONED MEMBER RPCs (ownership-checked, SECURITY DEFINER)
 -- ============================================================
--- Single BEFORE UPDATE trigger that:
---   - lets service-role and admin writes through
---   - lets the package owner perform exactly the four sanctioned member
---     transitions (A-D documented above)
---   - rejects every other non-admin update (including any change to
---     admin_note, refund_reason on its own, or arbitrary field edits).
--- This means non-admin authenticated users that try to edit a payment
--- via the Supabase JS client outside the sanctioned flows are rejected
--- at the database — closing the original Task #270 attack surface.
+-- Helper: assert that auth.uid() owns the maintenance package.
+CREATE OR REPLACE FUNCTION public.payments_assert_member_owns_package(p_package_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+STABLE
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  uid uuid := auth.uid();
+BEGIN
+  IF uid IS NULL THEN
+    RAISE EXCEPTION 'Authentication required'
+      USING ERRCODE = '42501';
+  END IF;
+
+  IF NOT EXISTS (
+    SELECT 1 FROM public.maintenance_packages
+    WHERE id = p_package_id AND member_id = uid
+  ) THEN
+    RAISE EXCEPTION 'Package % is not owned by caller', p_package_id
+      USING ERRCODE = '42501';
+  END IF;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.payments_assert_member_owns_package(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.payments_assert_member_owns_package(uuid) TO authenticated;
+
+-- A. Approve additional work — re-prices a held payment.
+CREATE OR REPLACE FUNCTION public.member_approve_additional_work(
+  p_payment_id    uuid,
+  p_new_total     numeric,
+  p_new_provider  numeric,
+  p_new_mcc_fee   numeric
+)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  pkg uuid;
+BEGIN
+  SELECT package_id INTO pkg FROM public.payments WHERE id = p_payment_id;
+  IF pkg IS NULL THEN
+    RAISE EXCEPTION 'Payment % not found', p_payment_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  PERFORM public.payments_assert_member_owns_package(pkg);
+
+  UPDATE public.payments
+     SET amount_total    = p_new_total,
+         amount_provider = p_new_provider,
+         amount_mcc_fee  = p_new_mcc_fee
+   WHERE id = p_payment_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.member_approve_additional_work(uuid, numeric, numeric, numeric) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.member_approve_additional_work(uuid, numeric, numeric, numeric) TO authenticated;
+
+-- B. Release on completion — held -> released for every payment in a package.
+CREATE OR REPLACE FUNCTION public.member_release_payment(p_package_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+BEGIN
+  PERFORM public.payments_assert_member_owns_package(p_package_id);
+
+  UPDATE public.payments
+     SET status      = 'released',
+         released_at = now()
+   WHERE package_id = p_package_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.member_release_payment(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.member_release_payment(uuid) TO authenticated;
+
+-- C. Mark payment disputed (status flip only).
+CREATE OR REPLACE FUNCTION public.member_mark_payment_disputed(p_payment_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  pkg uuid;
+BEGIN
+  SELECT package_id INTO pkg FROM public.payments WHERE id = p_payment_id;
+  IF pkg IS NULL THEN
+    RAISE EXCEPTION 'Payment % not found', p_payment_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  PERFORM public.payments_assert_member_owns_package(pkg);
+
+  UPDATE public.payments
+     SET status = 'disputed'
+   WHERE id = p_payment_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.member_mark_payment_disputed(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.member_mark_payment_disputed(uuid) TO authenticated;
+
+-- D. Refund — provider unable to start. refund_amount = payment.amount_total
+--    is computed server-side so the client cannot inflate the refund.
+CREATE OR REPLACE FUNCTION public.member_refund_payment_unable_to_start(p_payment_id uuid)
+RETURNS void
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth
+AS $$
+DECLARE
+  pkg            uuid;
+  current_total  numeric;
+BEGIN
+  SELECT package_id, amount_total
+    INTO pkg, current_total
+    FROM public.payments
+   WHERE id = p_payment_id;
+  IF pkg IS NULL THEN
+    RAISE EXCEPTION 'Payment % not found', p_payment_id
+      USING ERRCODE = 'no_data_found';
+  END IF;
+
+  PERFORM public.payments_assert_member_owns_package(pkg);
+
+  UPDATE public.payments
+     SET status        = 'refunded',
+         refund_amount = current_total,
+         refund_reason = 'Provider unable to start work',
+         refunded_at   = now()
+   WHERE id = p_payment_id;
+END;
+$$;
+
+REVOKE ALL ON FUNCTION public.member_refund_payment_unable_to_start(uuid) FROM PUBLIC;
+GRANT EXECUTE ON FUNCTION public.member_refund_payment_unable_to_start(uuid) TO authenticated;
+
+-- ============================================================
+-- 6. ENFORCE: BLOCK ALL DIRECT NON-TRUSTED UPDATES
+-- ============================================================
+-- The trigger allows only:
+--   * trusted Postgres roles (postgres, supabase_admin, service_role) —
+--     this lets every SECURITY DEFINER RPC above through, since they run
+--     with current_user = the function owner (postgres);
+--   * authenticated admins (covered for direct admin SQL Editor work).
+-- Everything else (direct browser updates, anon, non-admin authenticated)
+-- is rejected.
 CREATE OR REPLACE FUNCTION public.payments_enforce_admin_only_writes()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
-DECLARE
-  uid              uuid := auth.uid();
-  is_owner         boolean;
-  status_changed   boolean;
-  refund_changed   boolean;
-  amount_changed   boolean;
-  admin_note_changed boolean;
 BEGIN
-  -- Admins / service-role: pass through.
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') THEN
+    RETURN NEW;
+  END IF;
+
   IF public.payments_caller_is_admin() THEN
     RETURN NEW;
   END IF;
 
-  admin_note_changed := NEW.admin_note IS DISTINCT FROM OLD.admin_note;
-  IF admin_note_changed THEN
-    RAISE EXCEPTION 'Only admins can edit payment.admin_note'
-      USING ERRCODE = '42501';
-  END IF;
-
-  IF uid IS NULL THEN
-    RAISE EXCEPTION 'Anonymous callers cannot modify payments'
-      USING ERRCODE = '42501';
-  END IF;
-
-  -- Non-admin caller must own the package this payment is attached to.
-  is_owner := EXISTS (
-    SELECT 1 FROM public.maintenance_packages
-    WHERE id = NEW.package_id AND member_id = uid
-  );
-  IF NOT is_owner THEN
-    RAISE EXCEPTION 'Only admins or the package owner can modify payment %', OLD.id
-      USING ERRCODE = '42501';
-  END IF;
-
-  status_changed := NEW.status IS DISTINCT FROM OLD.status;
-  refund_changed := NEW.refund_amount IS DISTINCT FROM OLD.refund_amount;
-  amount_changed := (NEW.amount_total   IS DISTINCT FROM OLD.amount_total)
-                 OR (NEW.amount_provider IS DISTINCT FROM OLD.amount_provider)
-                 OR (NEW.amount_mcc_fee  IS DISTINCT FROM OLD.amount_mcc_fee);
-
-  -- Pattern A: approve additional work (amount fields only).
-  IF amount_changed AND NOT status_changed AND NOT refund_changed THEN
-    RETURN NEW;
-  END IF;
-
-  -- Pattern B: release on completion (held -> released).
-  IF NEW.status = 'released' AND OLD.status = 'held'
-     AND NOT amount_changed AND NOT refund_changed THEN
-    RETURN NEW;
-  END IF;
-
-  -- Pattern C: file dispute (-> disputed, status flag only).
-  IF NEW.status = 'disputed'
-     AND NOT amount_changed AND NOT refund_changed THEN
-    RETURN NEW;
-  END IF;
-
-  -- Pattern D: provider unable to start (held -> refunded with refund_amount).
-  IF NEW.status = 'refunded' AND OLD.status = 'held'
-     AND refund_changed AND NOT amount_changed THEN
-    RETURN NEW;
-  END IF;
-
   RAISE EXCEPTION
-    'Non-admin payment update for % does not match an approved member transition (status: % -> %, amount changed: %, refund changed: %). Use the admin Edit modal or fix the call site.',
-    OLD.id, COALESCE(OLD.status, 'NULL'), COALESCE(NEW.status, 'NULL'),
-    amount_changed, refund_changed
+    'Direct payment edits are not allowed. Admins must use admin_edit_payment(); members must use member_approve_additional_work / member_release_payment / member_mark_payment_disputed / member_refund_payment_unable_to_start.'
     USING ERRCODE = '42501';
 END;
 $$;
 
--- Replace the previous narrower trigger with the comprehensive one.
 DROP TRIGGER IF EXISTS payments_admin_only_columns ON public.payments;
 DROP TRIGGER IF EXISTS payments_enforce_admin_only_writes ON public.payments;
 CREATE TRIGGER payments_enforce_admin_only_writes
@@ -258,14 +396,17 @@ CREATE TRIGGER payments_enforce_admin_only_writes
   EXECUTE FUNCTION public.payments_enforce_admin_only_writes();
 
 -- ============================================================
--- 6. BLOCK NON-ADMIN DELETES AND OPEN-DISPUTE DELETES
+-- 7. ENFORCE: BLOCK NON-ADMIN DELETES + OPEN-DISPUTE DELETES
 -- ============================================================
 CREATE OR REPLACE FUNCTION public.payments_block_delete_with_open_dispute()
 RETURNS trigger
 LANGUAGE plpgsql
 AS $$
 BEGIN
-  IF NOT public.payments_caller_is_admin() THEN
+  IF current_user IN ('postgres', 'supabase_admin', 'service_role') THEN
+    -- Trusted role; still enforce open-dispute guard below.
+    NULL;
+  ELSIF NOT public.payments_caller_is_admin() THEN
     RAISE EXCEPTION 'Only admins can delete payments'
       USING ERRCODE = '42501';
   END IF;

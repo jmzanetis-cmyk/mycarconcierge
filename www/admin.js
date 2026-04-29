@@ -3551,17 +3551,6 @@
         return;
       }
 
-      await logAdminAction('edit_payment', id, {
-        before: before ? {
-          status: before.status,
-          amount_total: before.amount_total,
-          amount_mcc_fee: before.amount_mcc_fee,
-          refund_amount: before.refund_amount,
-          admin_note: before.admin_note || null
-        } : null,
-        after: updates
-      });
-
       closeModal('edit-payment-modal');
       showToast('Payment updated');
       await loadPayments();
@@ -3597,19 +3586,7 @@
         return;
       }
 
-      await logAdminAction('delete_payment', paymentId, {
-        before: {
-          status: p.status,
-          amount_total: p.amount_total,
-          amount_mcc_fee: p.amount_mcc_fee,
-          refund_amount: p.refund_amount,
-          admin_note: p.admin_note || null,
-          member_id: p.member_id,
-          provider_id: p.provider_id,
-          package_id: p.package_id
-        },
-        after: null
-      });
+      // Audit log written atomically by admin_delete_payment RPC.
 
       showToast('Payment deleted');
       await loadPayments();
