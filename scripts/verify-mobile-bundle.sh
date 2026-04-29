@@ -30,6 +30,7 @@ source "$ROOT_DIR/scripts/lib/mobile-bundle-cruft.sh"
 PASS=0
 FAIL=0
 FAILURES=()
+TARGETS_VERIFIED=0
 
 check_pass() { echo "  PASS: $1"; PASS=$((PASS + 1)); }
 check_fail() { echo "  FAIL: $1"; FAIL=$((FAIL + 1)); FAILURES+=("$1"); }
@@ -40,9 +41,13 @@ verify_target() {
   echo
   echo "[$label] $target"
   if [ ! -d "$target" ]; then
-    echo "  (skip) public dir does not exist — nothing to verify"
+    echo "  (skip) public dir does not exist — likely no \`cap sync\` has been"
+    echo "         run for this platform yet on this machine. Not a failure;"
+    echo "         the cross-target check below will fail loudly if BOTH are"
+    echo "         missing (i.e. nothing was ever synced)."
     return
   fi
+  TARGETS_VERIFIED=$((TARGETS_VERIFIED + 1))
 
   # --- Assertion 1: required offline-shell files present ---
   for f in "${MOBILE_REQUIRED_FILES[@]}"; do
@@ -53,17 +58,19 @@ verify_target() {
     fi
   done
 
-  # --- Assertion 2: no forbidden directories ---
+  # --- Assertion 2: no forbidden directories (local count, not global) ---
+  local found_dirs=0
   for d in "${MOBILE_CRUFT_DIRS[@]}"; do
     if [ -d "$target/$d" ]; then
       check_fail "[$label] forbidden directory present: $d/"
+      found_dirs=$((found_dirs + 1))
     fi
   done
-  if [ "$FAIL" -eq 0 ]; then
+  if [ "$found_dirs" -eq 0 ]; then
     check_pass "no forbidden directories"
   fi
 
-  # --- Assertion 3: no forbidden specific files ---
+  # --- Assertion 3: no forbidden specific files (local count, not global) ---
   local found_files=0
   for f in "${MOBILE_CRUFT_FILES[@]}"; do
     if [ -e "$target/$f" ]; then
@@ -95,6 +102,14 @@ echo "Verifying Capacitor mobile bundles..."
 
 verify_target "$IOS_PUBLIC" "ios"
 verify_target "$ANDROID_PUBLIC" "android"
+
+# Cross-target: at least one bundle must have been synced. If both public
+# dirs are missing, nothing was ever built — fail loudly so a CI-style
+# build pipeline doesn't quietly green-light an empty release.
+if [ "$TARGETS_VERIFIED" -eq 0 ]; then
+  echo
+  check_fail "no mobile bundle exists — both ios/App/App/public/ AND android/app/src/main/assets/public/ are missing. Run 'npm run cap:sync' first."
+fi
 
 echo
 echo "=================================================="

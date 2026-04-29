@@ -149,6 +149,10 @@ fi
 
 TOTAL_FILES=$(find "$IOS_PUBLIC" -type f | wc -l)
 echo ""
+echo "=== Final hard-gate verification (verify-mobile-bundle.sh) ==="
+bash "$PROJECT_ROOT/scripts/verify-mobile-bundle.sh"
+
+echo ""
 echo "=== Build Complete ==="
 echo "Total files in iOS build: $TOTAL_FILES"
 echo "Ready for Xcode archive at: ios/App/App.xcworkspace"
