@@ -440,7 +440,9 @@ exports.handler = async function(event, context) {
       const targetId = (params.target_id || '').trim();
       const outcome = (params.outcome || '').trim();
       const since = (params.since || '').trim();
-      let q = supabase.from('ai_action_log').select('*', { count: 'exact' })
+      // Task #174 — count: 'planned' avoids a full COUNT(*) scan over
+      // ai_action_log; pagination labels only need an estimate.
+      let q = supabase.from('ai_action_log').select('*', { count: 'planned' })
         .order('created_at', { ascending: false })
         .range((page - 1) * limit, page * limit - 1);
       if (mod) q = q.eq('module', mod);

@@ -525,8 +525,10 @@ async function updateAgent(supabase, slug, body) {
 async function listActions(supabase, { limit = 50, offset = 0, agent = null, status = null, reviewOnly = false, since = null }) {
   const lim = Math.min(Math.max(parseInt(limit, 10) || 50, 1), 200);
   const off = Math.max(parseInt(offset, 10) || 0, 0);
+  // Task #174 — count: 'planned' avoids a full COUNT(*) scan over
+  // agent_actions; pagination labels only need an estimate.
   let q = supabase.from('agent_actions')
-    .select('*', { count: 'exact' })
+    .select('*', { count: 'planned' })
     .order('created_at', { ascending: false })
     .range(off, off + lim - 1);
   if (agent)  q = q.eq('agent_slug', agent);

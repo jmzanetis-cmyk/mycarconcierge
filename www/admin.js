@@ -10207,6 +10207,108 @@
       return headers;
     }
 
+    // Task #174 — diagnostic fetch wrapper for the AI Activity / Agent Fleet
+    // admin loaders. The legacy code path showed a generic "Failed to fetch"
+    // for any failure mode (network, 401, 5xx) which made production triage
+    // impossible. This helper turns every failure into a human-readable error
+    // that names:
+    //   - the HTTP status code (or "network unreachable" when fetch() itself
+    //     rejects, which is what produces the literal "Failed to fetch"
+    //     TypeError)
+    //   - the relative API path that failed
+    //   - a short, plain-language reason ("not signed in", "server error",
+    //     "network unreachable")
+    // Used by loadAiOpsActivity / loadAiOpsEscalations / loadAiOpsDigests /
+    // loadAiOpsSettings so future failures are obvious from the UI without
+    // DevTools.
+    async function aiOpsFetch(url, options) {
+      const opts = options || {};
+      const headers = opts.headers || {};
+      // Detect missing admin auth headers up-front. Without this guard we
+      // would call the function, get a 401, and surface "server said 401" —
+      // but the actual user-actionable problem is that they need to sign in
+      // again. Common production cause: the admin re-logged in on a different
+      // subdomain, or their localStorage was cleared by a tab-restore.
+      let hasAuth = false;
+      for (const k of Object.keys(headers)) {
+        const lk = k.toLowerCase();
+        if ((lk === 'x-admin-password' || lk === 'x-admin-token') && headers[k]) {
+          hasAuth = true; break;
+        }
+      }
+      // Compute a stable display path. Strip query strings only for the
+      // primary label so the message stays short, but include the full
+      // path+query as a parenthetical so admins can replay the exact call.
+      let displayPath = url;
+      let fullPath = url;
+      try {
+        const u = new URL(url, window.location.origin);
+        displayPath = u.pathname;
+        fullPath = u.pathname + (u.search || '');
+      } catch { /* leave url as-is */ }
+      if (!hasAuth) {
+        const e = new Error(`Not signed in as admin — open the admin login page and sign in again, then retry. (${displayPath})`);
+        e.code = 'NO_ADMIN_AUTH';
+        throw e;
+      }
+      let res;
+      try {
+        res = await fetch(url, opts);
+      } catch (netErr) {
+        // fetch() rejects only on network/CORS-level failure. The browser's
+        // TypeError message is usually the literal "Failed to fetch", which
+        // tells the admin nothing. Replace it with something actionable.
+        const e = new Error(`Network unreachable — could not reach ${displayPath} (browser said: ${netErr && netErr.message ? netErr.message : 'fetch failed'}). Check your internet connection or whether the API endpoint is deployed.`);
+        e.code = 'NETWORK_UNREACHABLE';
+        e.path = fullPath;
+        throw e;
+      }
+      if (!res.ok) {
+        // Try to surface the JSON `error`/`message` field the function
+        // returned (agent-fleet-admin / ai-ops-admin both use jsonResponse()
+        // with { error: '...' }). If parsing fails (502 with no body), keep
+        // the bare HTTP status.
+        let serverMsg = '';
+        try {
+          const body = await res.clone().json();
+          serverMsg = (body && (body.error || body.message)) || '';
+        } catch { /* non-JSON body, leave blank */ }
+        const tail = serverMsg ? ` — ${serverMsg}` : '';
+        if (res.status === 401 || res.status === 403) {
+          const e = new Error(`Not signed in as admin (HTTP ${res.status}) on ${displayPath}${tail}. Sign in again from the admin login page.`);
+          e.code = 'ADMIN_AUTH_REJECTED';
+          e.status = res.status;
+          e.path = fullPath;
+          throw e;
+        }
+        if (res.status >= 500) {
+          const e = new Error(`Server error – HTTP ${res.status} on ${displayPath}${tail}.`);
+          e.code = 'SERVER_ERROR';
+          e.status = res.status;
+          e.path = fullPath;
+          throw e;
+        }
+        const e = new Error(`Request failed – HTTP ${res.status} on ${displayPath}${tail}.`);
+        e.code = 'REQUEST_FAILED';
+        e.status = res.status;
+        e.path = fullPath;
+        throw e;
+      }
+      // Defensive: a 200 with non-JSON body still parses as JSON via res.json()
+      // throwing — surface that distinctly so the admin knows the function
+      // returned garbage rather than a true network failure.
+      try {
+        return await res.json();
+      } catch (parseErr) {
+        const e = new Error(`Server returned a non-JSON response (HTTP ${res.status}) on ${displayPath}. ${parseErr && parseErr.message ? parseErr.message : ''}`);
+        e.code = 'NON_JSON_RESPONSE';
+        e.status = res.status;
+        e.path = fullPath;
+        throw e;
+      }
+    }
+    window.aiOpsFetch = aiOpsFetch;
+
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
     // portal. Polls badge-summary every 60s, renders the inline section, and
@@ -10398,9 +10500,9 @@
           const p = new URLSearchParams({ limit: 100 });
           if (agentSlug) p.set('agent', agentSlug);
           if (sinceISO) p.set('since', sinceISO);
-          const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?${p}`, { headers: getAiOpsHeaders() });
-          if (!r.ok) throw new Error(`HTTP ${r.status}`);
-          const j = await r.json();
+          // Task #174 — aiOpsFetch surfaces network/auth/server errors as
+          // human-readable messages instead of bare "Failed to fetch".
+          const j = await aiOpsFetch(`${apiBase}/api/admin/agent-fleet/actions?${p}`, { headers: getAiOpsHeaders() });
           let actions = (j.actions || []).filter(a => matchesOutcome(a, 'fleet'));
           if (sinceISO) actions = actions.filter(a => new Date(a.created_at) >= new Date(sinceISO));
           actions = actions.slice(0, 50);
@@ -10424,16 +10526,34 @@
           const legacyParams = new URLSearchParams({ page: 1, limit: 50 });
           if (mod) legacyParams.set('module', mod);
           if (sinceISO) legacyParams.set('since', sinceISO);
+          // Task #174 — capture per-source errors instead of silently
+          // swallowing them. Previously a 401/network failure on both sides
+          // rendered as the harmless "No AI activity matches the current
+          // filters." empty state, hiding real outages. Now we surface the
+          // diagnostic message from aiOpsFetch when both sides fail and
+          // show a partial-fail banner when only one side fails.
+          const fleetErr = { msg: null };
+          const legacyErr = { msg: null };
           const [fleetRes, legacyRes] = await Promise.all([
             // Skip the fleet round-trip entirely when a legacy-only module filter is set.
             mod
               ? Promise.resolve({ actions: [] })
-              : fetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
-                  .then(r => r.ok ? r.json() : { actions: [] })
-                  .catch(() => ({ actions: [] })),
-            safeFetch(`${apiBase}/api/admin/ai-ops/actions?${legacyParams}`, { headers: getAiOpsHeaders() })
-              .catch(() => ({ actions: [] }))
+              : aiOpsFetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
+                  .catch(e => { fleetErr.msg = e.message; return { actions: [] }; }),
+            aiOpsFetch(`${apiBase}/api/admin/ai-ops/actions?${legacyParams}`, { headers: getAiOpsHeaders() })
+              .catch(e => { legacyErr.msg = e.message; return { actions: [] }; })
           ]);
+          // Both sides failed → render the real error so the admin can act
+          // instead of seeing a misleading empty state.
+          if (fleetErr.msg && legacyErr.msg) {
+            listEl.innerHTML = `<div style="padding:32px;text-align:left;color:var(--accent-red);max-width:760px;margin:0 auto;">
+              <div style="font-weight:600;margin-bottom:8px;">Could not load AI activity.</div>
+              <div style="font-size:0.85rem;margin-bottom:6px;"><strong>Agent Fleet:</strong> ${escapeHtml(fleetErr.msg)}</div>
+              <div style="font-size:0.85rem;">Legacy AI Ops: ${escapeHtml(legacyErr.msg)}</div>
+            </div>`;
+            if (pagEl) pagEl.innerHTML = '';
+            return;
+          }
           const merged = [
             ...(fleetRes.actions  || []).filter(a => matchesOutcome(a, 'fleet'))
               .map(a => ({ __src: 'fleet',  __ts: a.created_at, row: a })),
@@ -10443,12 +10563,20 @@
             .filter(m => !sinceISO || new Date(m.__ts) >= new Date(sinceISO))
             .sort((a, b) => new Date(b.__ts) - new Date(a.__ts))
             .slice(0, 50);
+          // One side failed → surface a banner above whatever data the other
+          // side returned, so the admin sees both the available data AND
+          // the real reason the other source is missing.
+          const partialFailBanner = (fleetErr.msg || legacyErr.msg)
+            ? `<div style="background:var(--bg-tertiary);border-left:3px solid var(--accent-red);padding:10px 14px;margin-bottom:12px;font-size:0.85rem;color:var(--accent-red);">
+                 ${fleetErr.msg ? `Agent Fleet feed unavailable: ${escapeHtml(fleetErr.msg)}` : `Legacy AI Ops feed unavailable: ${escapeHtml(legacyErr.msg)}`}
+               </div>`
+            : '';
           if (merged.length === 0) {
-            listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI activity matches the current filters.</div>';
+            listEl.innerHTML = partialFailBanner + '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI activity matches the current filters.</div>';
             if (pagEl) pagEl.innerHTML = '';
             return;
           }
-          listEl.innerHTML = tableShell(merged.map(m =>
+          listEl.innerHTML = partialFailBanner + tableShell(merged.map(m =>
             m.__src === 'fleet' ? renderFleetRow(m.row) : renderLegacyRow(m.row)
           ).join(''));
           if (pagEl) pagEl.innerHTML = '';
@@ -10463,7 +10591,9 @@
         const params = new URLSearchParams({ page: aiOpsActivityPage, limit: 25 });
         if (mod) params.set('module', mod);
         if (sinceISO) params.set('since', sinceISO);
-        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
+        // Task #174 — aiOpsFetch surfaces the HTTP status, path, and a plain-
+        // language reason instead of a bare "Failed to fetch" / "Server error".
+        const data = await aiOpsFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: getAiOpsHeaders() });
         const actions = (data.actions || []).filter(a => matchesOutcome(a, 'legacy'));
         if (actions.length === 0) {
           listEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No AI actions logged yet. Run an AI Ops module to see activity here.</div>';
@@ -10510,7 +10640,8 @@
       if (!listEl) return;
       listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading escalations…</div>';
       try {
-        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
+        // Task #174 — aiOpsFetch produces actionable error messages.
+        const data = await aiOpsFetch(`${apiBase}/api/admin/ai-ops/escalations?status=pending`, { headers: getAiOpsHeaders() });
         const escs = data.escalations || [];
         const badge = document.getElementById('ai-ops-esc-badge');
         if (badge) { badge.textContent = escs.length; badge.style.display = escs.length > 0 ? 'inline' : 'none'; }
@@ -10593,7 +10724,8 @@
       const dateEl = document.getElementById('ai-ops-digest-date');
       if (!contentEl) return;
       try {
-        const data = await safeFetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
+        // Task #174 — aiOpsFetch produces actionable error messages.
+        const data = await aiOpsFetch(`${apiBase}/api/admin/ai-ops/digests`, { headers: getAiOpsHeaders() });
         aiOpsDigests = data.digests || [];
         if (aiOpsDigests.length === 0) {
           contentEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No digests yet. Click "Generate Now" to create today\'s digest.</div>';
@@ -10849,9 +10981,9 @@
       const contentEl = document.getElementById('ai-ops-settings-content');
       if (!contentEl) return;
       try {
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, { headers: getAiOpsHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
+        // Task #174 — aiOpsFetch produces actionable error messages instead
+        // of "Failed to fetch" / generic "Failed".
+        const data = await aiOpsFetch(`${apiBase}/api/admin/ai-ops/settings`, { headers: getAiOpsHeaders() });
         const shadowMode = data.shadow_mode;
         const shadowBanner = document.getElementById('ai-ops-shadow-banner');
         if (shadowBanner) shadowBanner.style.display = shadowMode ? 'flex' : 'none';
