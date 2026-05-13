@@ -535,6 +535,7 @@
       let result;
       let applyResult = null;       // Task #278 — set when Approve also executed /apply
       let appliedSummary = null;    // Human-readable outcome label for the status span
+      let reviewSucceededButApplyFailed = false;  // partial-failure: re-render so Approve/Reject buttons disappear (review IS persisted)
       if (action === 'approve' || action === 'reject') {
         const id = btn.getAttribute('data-aap-id');
         if (!id) {
@@ -557,6 +558,11 @@
               // partial-success message so the admin knows the recommendation
               // is marked approved but the mutation didn't land. They can
               // still bounce to /admin/agent-fleet.html to retry /apply.
+              // Flag the partial-failure so the panel still re-renders below;
+              // otherwise the now-stale Approve/Reject buttons would stay
+              // visible even though the review_status='approved' update
+              // already landed server-side, confusing the next click.
+              reviewSucceededButApplyFailed = true;
               result = {
                 ok: false, status: applyResult.status,
                 data: { error: `Approved, but apply failed: ${(applyResult.data && (applyResult.data.error || applyResult.data.message)) || ('HTTP ' + (applyResult.status || 'error'))}` }
@@ -607,7 +613,18 @@
           statusEl.setAttribute('data-aap-state', 'error');
           statusEl.textContent = `Failed: ${msg}`;
         }
-        allBtns.forEach(b => { b.disabled = false; });
+        // Task #278 — partial-failure path: /review landed but /apply did not.
+        // The card's review_status is already 'approved' server-side, so
+        // re-render after a longer pause to (a) hide the now-stale
+        // Approve/Reject buttons via the canReview gate, (b) repaint the
+        // REVIEWED: approved badge, and (c) leave enough time for the admin
+        // to actually read the partial-failure message before the repaint.
+        if (reviewSucceededButApplyFailed) {
+          const opts = rootEl.__aapOpts || {};
+          setTimeout(() => { renderAgentActivityPanel(containerId, opts); }, 4000);
+        } else {
+          allBtns.forEach(b => { b.disabled = false; });
+        }
       }
     });
   }
