@@ -12,7 +12,8 @@
       const params = new URLSearchParams(window.location.search);
       return {
         twoFaRequired: params.get('2fa') === 'required',
-        returnTo: params.get('returnTo') || null
+        returnTo: params.get('returnTo') || null,
+        oauth: params.get('oauth') || null
       };
     }
 
@@ -329,6 +330,15 @@
         }
         profile = newProfile;
         error = null;
+
+        // Brand-new Facebook signups go through the onboarding survey,
+        // matching the email signup experience.
+        if (urlParams.oauth === 'facebook') {
+          localStorage.setItem('mcc_portal', 'member');
+          await new Promise(resolve => setTimeout(resolve, 300));
+          window.location.href = 'onboarding-member.html?source=facebook';
+          return;
+        }
       }
 
       if (error || !profile) {

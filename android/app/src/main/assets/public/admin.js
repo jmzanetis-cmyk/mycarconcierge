@@ -28,7 +28,7 @@
     // Task #281 — capture loader errors so renderX functions can surface
     // them instead of falling through to the generic empty-state row that
     // makes failures look like "no data".
-    let loadErrors = { providers: null, members: null, payments: null, disputes: null, tickets: null };
+    let loadErrors = { providers: null, members: null, payments: null, disputes: null, tickets: null, applications: null };
     function setLoadError(key, err) {
       const msg = err && (err.message || err.error || err.hint) ? (err.message || err.error || err.hint) : (err ? String(err) : 'Unknown error');
       loadErrors[key] = msg;
@@ -70,7 +70,7 @@
         const [profilesRes, appsRes] = await Promise.all([
           supabaseClient
             .from('profiles')
-            .select('id, full_name, email, role, suspension_reason, suspended_at, created_at')
+            .select('id, full_name, email, role, suspension_reason, suspended_at, created_at, updated_at')
             .or(`email.ilike.${like},full_name.ilike.${like}`)
             .limit(10),
           supabaseClient
@@ -119,11 +119,12 @@
           if (isSuspended) {
             verdict = `Suspended ${role === 'provider' || role === 'pending_provider' ? 'provider' : role}`;
             badgeBg = 'rgba(239,95,95,0.12)'; badgeBorder = 'rgba(239,95,95,0.35)'; badgeColor = 'var(--accent-red)';
-            detail = `Reason: ${escapeHtml(profile.suspension_reason)}${profile.suspended_at ? ` (since ${new Date(profile.suspended_at).toLocaleDateString()})` : ''}`;
+            detail = `Reason: ${escapeHtml(profile.suspension_reason)}${profile.suspended_at ? ` (since ${new Date(profile.suspended_at).toLocaleDateString()})` : ''}. Suspended providers are hidden from the default "All Status" view above — switch the status filter to <strong>Suspended</strong> to see them in the table.`;
           } else if (role === 'provider') {
             verdict = 'Active provider';
             badgeBg = 'rgba(74,200,140,0.12)'; badgeBorder = 'rgba(74,200,140,0.3)'; badgeColor = 'var(--accent-green)';
-            detail = `This profile has the provider role and is not suspended — should appear in the Active Providers list.`;
+            const lastUpdated = profile.updated_at ? new Date(profile.updated_at).toLocaleString() : (profile.created_at ? new Date(profile.created_at).toLocaleString() : '—');
+            detail = `This profile has the provider role and is not suspended — should appear in the Active Providers list. <span style="color:var(--text-muted);">Last updated ${escapeHtml(lastUpdated)}.</span>`;
           } else if (role === 'pending_provider') {
             verdict = 'Pending provider (application in review)';
             badgeBg = 'rgba(245,158,11,0.12)'; badgeBorder = 'rgba(245,158,11,0.3)'; badgeColor = 'var(--accent-orange)';
@@ -144,7 +145,7 @@
           <div style="margin-top:10px;padding:10px 12px;border-radius:6px;background:rgba(255,255,255,0.02);border:1px solid var(--border-subtle);">
             <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">PROFILE</div>
             <div><strong>${escapeHtml(profile.full_name || '(no name)')}</strong> · ${escapeHtml(profile.email || '(no email)')}</div>
-            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">role: <code>${escapeHtml(profile.role || '(none)')}</code> · id: <code>${escapeHtml(profile.id)}</code> · created ${profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">role: <code>${escapeHtml(profile.role || '(none)')}</code> · id: <code>${escapeHtml(profile.id)}</code> · created ${profile.created_at ? new Date(profile.created_at).toLocaleDateString() : '—'}${profile.updated_at ? ` · updated ${new Date(profile.updated_at).toLocaleString()}` : ''}</div>
           </div>` : '';
 
         const appBlock = app ? `
@@ -1260,7 +1261,17 @@
     }
 
     async function loadApplications() {
-      const { data } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
+      // Task #281 — surface load errors instead of silently rendering "No applications".
+      loadErrors.applications = null;
+      const { data, error } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
+      if (error) {
+        console.error('loadApplications failed:', error);
+        setLoadError('applications', error);
+        applications = [];
+        renderApplications();
+        document.getElementById('app-count').textContent = '!';
+        return;
+      }
       applications = data || [];
       // Task #189 — surface the originating cold-outreach lead on each
       // application. The browser admin client uses the anon JWT and so can
@@ -2364,7 +2375,13 @@
     function renderApplications() {
       const filtered = applications.filter(a => a.status === currentFilters.applications || currentFilters.applications === 'all');
       const tbody = document.getElementById('applications-table');
-      
+
+      // Task #281 — show load error before falling through to "No applications".
+      if (loadErrors.applications) {
+        renderTableLoadErrorRow('applications-table', 7, 'applications', 'loadApplications()');
+        return;
+      }
+
       if (!filtered.length) {
         tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No applications</td></tr>';
         return;
