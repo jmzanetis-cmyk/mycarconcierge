@@ -1232,13 +1232,14 @@
 
     updateProgress();
 
-    // If the user lands here already authenticated via Facebook OAuth
-    // (?source=facebook from login.html / signup-member.html), skip the
-    // name/email/password steps and pre-fill what we know from Facebook.
+    // If the user lands here already authenticated via OAuth
+    // (?source=facebook from #183 or ?source=apple from #287, fired by
+    // login.html / signup-member.html), skip the name/email/password steps
+    // and pre-fill what the provider gave us in user_metadata.
     async function maybeStartFromOAuth() {
       const params = new URLSearchParams(globalThis.location.search);
       const source = params.get('source');
-      if (source !== 'facebook') return;
+      if (source !== 'facebook' && source !== 'apple') return;
 
       let user = null;
       for (let i = 0; i < 20 && !user; i++) {
@@ -1250,17 +1251,20 @@
       }
       if (!user) return;
 
-      oauthSource = 'facebook';
+      oauthSource = source;
       userId = user.id;
 
-      const fbName = user.user_metadata?.full_name
+      // Apple sends `name` only on the first auth and only when we ask for
+      // the `name` scope; later sign-ins will just have email. Both providers
+      // tend to populate user_metadata.full_name or .name when they have it.
+      const oauthName = user.user_metadata?.full_name
         || user.user_metadata?.name
         || (user.email ? user.email.split('@')[0] : '');
-      formData.name = fbName;
+      formData.name = oauthName;
       formData.email = user.email || '';
 
       const nameInput = document.getElementById('input-name');
-      if (nameInput) nameInput.value = fbName;
+      if (nameInput) nameInput.value = oauthName;
       const emailInput = document.getElementById('input-email');
       if (emailInput) emailInput.value = formData.email;
 

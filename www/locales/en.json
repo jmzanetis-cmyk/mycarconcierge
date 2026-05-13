@@ -164,8 +164,10 @@
     "sendResetLink": "Send Reset Link",
     "backToLogin": "Back to Login",
     "signInWithApple": "Sign in with Apple",
+    "signUpWithApple": "Sign up with Apple",
     "continueWithApple": "Continue with Apple",
     "signInWithFacebook": "Continue with Facebook",
+    "signUpWithFacebook": "Continue with Facebook",
     "orContinueWith": "or continue with"
   },
   "member": {
