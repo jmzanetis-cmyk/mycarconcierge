@@ -66,19 +66,34 @@
 
       const term = raw.toLowerCase();
       const like = '%' + raw.replace(/[%_]/g, m => '\\' + m) + '%';
+      // Per code review (Task #281) — when the input looks like an email,
+      // run a deterministic case-insensitive exact match first so we don't
+      // depend on in-memory tie-breaking against ILIKE noise.
+      const looksLikeEmail = /@/.test(raw);
       try {
-        const [profilesRes, appsRes] = await Promise.all([
-          supabaseClient
-            .from('profiles')
-            .select('id, full_name, email, role, suspension_reason, suspended_at, created_at, updated_at')
-            .or(`email.ilike.${like},full_name.ilike.${like}`)
-            .limit(10),
-          supabaseClient
-            .from('provider_applications')
-            .select('id, business_name, contact_name, email, status, created_at, updated_at')
-            .or(`email.ilike.${like},contact_name.ilike.${like},business_name.ilike.${like}`)
-            .limit(10)
-        ]);
+        const profilesQuery = looksLikeEmail
+          ? supabaseClient
+              .from('profiles')
+              .select('id, full_name, email, role, suspension_reason, suspended_at, created_at, updated_at')
+              .or(`email.ilike.${raw.replace(/[%_]/g, m => '\\' + m)},full_name.ilike.${like}`)
+              .limit(10)
+          : supabaseClient
+              .from('profiles')
+              .select('id, full_name, email, role, suspension_reason, suspended_at, created_at, updated_at')
+              .or(`email.ilike.${like},full_name.ilike.${like}`)
+              .limit(10);
+        const appsQuery = looksLikeEmail
+          ? supabaseClient
+              .from('provider_applications')
+              .select('id, business_name, contact_name, email, status, created_at, updated_at')
+              .or(`email.ilike.${raw.replace(/[%_]/g, m => '\\' + m)},contact_name.ilike.${like},business_name.ilike.${like}`)
+              .limit(10)
+          : supabaseClient
+              .from('provider_applications')
+              .select('id, business_name, contact_name, email, status, created_at, updated_at')
+              .or(`email.ilike.${like},contact_name.ilike.${like},business_name.ilike.${like}`)
+              .limit(10);
+        const [profilesRes, appsRes] = await Promise.all([profilesQuery, appsQuery]);
 
         // Treat any single-source failure as degraded — don't emit a definitive
         // "no profile found" verdict from partial data. Per code review (Task #281).
