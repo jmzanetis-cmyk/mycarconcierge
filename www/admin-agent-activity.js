@@ -156,11 +156,46 @@
   // event_id matches an open dead-letter row (replayed_at IS NULL).
   // All three call existing /admin/agent-fleet endpoints — see
   // netlify/functions/agent-fleet-admin.js.
+  // Task #278 — decide whether an Approve click can ALSO call /apply in the
+  // same flow. Mirrors the server-side guards in applyGatekeeperReview /
+  // applyMatchmakerRank (netlify/functions/agent-fleet-admin.js):
+  //   - Gatekeeper review:   recommendation must be 'approve' or 'reject'
+  //                          (manual_review can't be auto-applied — admin
+  //                          must suspend/unsuspend manually).
+  //   - Matchmaker rank:     recommended_winner_bid_id must be non-null
+  //                          (a null winner means no safe bid to accept).
+  // Returns { applyable: boolean, reason: string } — `reason` is rendered
+  // as a tooltip on the Approve button when applyable is false so the
+  // admin understands why the one-click flow is unavailable for that card.
+  function fleetApplyability(a) {
+    let dec = a.decision;
+    if (typeof dec === 'string') { try { dec = JSON.parse(dec); } catch { dec = {}; } }
+    dec = dec || {};
+    if (a.agent_slug === 'gatekeeper' && a.action_type === 'review') {
+      const rec = dec.recommendation;
+      if (rec === 'approve' || rec === 'reject') return { applyable: true, reason: '' };
+      return { applyable: false,
+        reason: `Manual review required — Gatekeeper recommendation "${rec || 'unknown'}" can't be auto-applied. Approve marks reviewed; suspend/unsuspend manually.` };
+    }
+    if (a.agent_slug === 'matchmaker' && a.action_type === 'rank') {
+      if (dec.recommended_winner_bid_id) return { applyable: true, reason: '' };
+      return { applyable: false,
+        reason: 'No recommended winner — Matchmaker proposed null. Approve marks reviewed; re-list the auction or accept a bid manually.' };
+    }
+    // Other action types don't have an /apply path on the server.
+    return { applyable: false, reason: '' };
+  }
+
   function fleetActionButtons(a, dlqEntry) {
     const btns = [];
     const canReview = (a.status === 'proposed') && a.needs_review === true && !a.reviewed_at;
     if (canReview) {
-      btns.push(`<button type="button" class="aap-action-btn aap-action-approve" data-aap-action="approve" data-aap-id="${esc(String(a.id))}">Approve</button>`);
+      const { applyable, reason } = fleetApplyability(a);
+      const approveLabel = applyable ? 'Approve &amp; Apply' : 'Approve';
+      const approveAttrs = applyable
+        ? ' data-aap-applyable="1" title="Approves the recommendation AND executes it server-side in one click."'
+        : (reason ? ` title="${esc(reason)}"` : '');
+      btns.push(`<button type="button" class="aap-action-btn aap-action-approve" data-aap-action="approve" data-aap-id="${esc(String(a.id))}"${approveAttrs}>${approveLabel}</button>`);
       btns.push(`<button type="button" class="aap-action-btn aap-action-reject" data-aap-action="reject" data-aap-id="${esc(String(a.id))}">Reject</button>`);
     }
     if (dlqEntry && dlqEntry.id != null) {
@@ -498,6 +533,8 @@
       }
 
       let result;
+      let applyResult = null;       // Task #278 — set when Approve also executed /apply
+      let appliedSummary = null;    // Human-readable outcome label for the status span
       if (action === 'approve' || action === 'reject') {
         const id = btn.getAttribute('data-aap-id');
         if (!id) {
@@ -507,6 +544,35 @@
             `/api/admin/agent-fleet/actions/${encodeURIComponent(id)}/review`,
             { decision: action === 'approve' ? 'approved' : 'rejected' }
           );
+          // Task #278 — one-click Approve & Apply for safely-applyable cards.
+          // Only chain /apply when the button itself is flagged applyable
+          // (set by fleetApplyability + fleetActionButtons above) so we
+          // never call /apply for actions where it would 4xx.
+          if (result.ok && action === 'approve' && btn.getAttribute('data-aap-applyable') === '1') {
+            if (statusEl) statusEl.textContent = 'Approved — applying…';
+            applyResult = await postAction(
+              `/api/admin/agent-fleet/actions/${encodeURIComponent(id)}/apply`, null);
+            if (!applyResult.ok) {
+              // /review already succeeded — surface the apply failure as a
+              // partial-success message so the admin knows the recommendation
+              // is marked approved but the mutation didn't land. They can
+              // still bounce to /admin/agent-fleet.html to retry /apply.
+              result = {
+                ok: false, status: applyResult.status,
+                data: { error: `Approved, but apply failed: ${(applyResult.data && (applyResult.data.error || applyResult.data.message)) || ('HTTP ' + (applyResult.status || 'error'))}` }
+              };
+            } else {
+              const d = applyResult.data || {};
+              if (d.new_role) {
+                appliedSummary = `Provider role: ${d.prior_role || '?'} → ${d.new_role}`;
+              } else if (d.accepted_bid_id) {
+                const amt = (d.amount != null) ? ` ($${Number(d.amount).toFixed(2)})` : '';
+                appliedSummary = `Bid accepted${amt} · ${d.rejected_count || 0} other bid(s) rejected`;
+              } else {
+                appliedSummary = 'Applied';
+              }
+            }
+          }
         }
       } else if (action === 'replay') {
         const dlqId = btn.getAttribute('data-aap-dlq-id');
@@ -523,8 +589,10 @@
       if (result.ok) {
         if (statusEl) {
           statusEl.setAttribute('data-aap-state', 'success');
-          statusEl.textContent = action === 'replay' ? 'Replayed' :
-                                 action === 'approve' ? 'Approved' : 'Rejected';
+          const baseLabel = action === 'replay' ? 'Replayed' :
+                            action === 'approve' ? (appliedSummary ? `Approved & Applied — ${appliedSummary}` : 'Approved')
+                                                 : 'Rejected';
+          statusEl.textContent = baseLabel;
         }
         // Re-render the whole panel so badges / button visibility / DLQ
         // status all sync up. Stored opts are preserved by the container.
