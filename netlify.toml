@@ -1,6 +1,14 @@
 [build]
   base       = "/"
-  command    = "cd netlify/functions && npm install"
+  # Task #279: run the in-process function regression tests (lockdown
+  # tests for admin-routes-auth, provider-application, etc.) BEFORE we
+  # install function deps. Any auth-guard regression on the agent-fleet
+  # or ai-ops admin handlers fails the build with a clear message
+  # instead of shipping silently. Netlify runs `npm install` at the
+  # repo root automatically before this command, so the root
+  # node_modules (where @supabase/supabase-js lives) is already
+  # populated by the time `npm test` runs.
+  command    = "npm test && cd netlify/functions && npm install"
   publish    = "www"
   functions  = "netlify/functions"
 
