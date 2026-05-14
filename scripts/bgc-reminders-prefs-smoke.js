@@ -8,7 +8,7 @@
 // (mirroring scripts/bgc-launch-broadcast-smoke.js) so it can run in CI
 // without any network or credentials, and exercises the four mute / opt-in
 // permutations introduced by Task #159's `provider_notification_prefs`
-// table:
+// table, plus the per-threshold SMS opt-ins added by Task #201:
 //
 //   1. No prefs row, 30-day check
 //        → 1 reminder_30 notification + 1 bgc_expiring alert (default ON)
@@ -18,6 +18,17 @@
 //        → 1 reminder_1 notification + 1 bgc_expiring alert (opt-in fires)
 //   4. No prefs row, 1-day check
 //        → 0 notifications + 0 alerts (1-day defaults to OFF)
+//   5. SMS-only on (`bgc_reminder_30 = false`, `bgc_reminder_30_sms = true`),
+//      30-day check, sms_phone set
+//        → 0 email dedupe rows, 1 reminder_30_sms dedupe row, 1 Twilio call
+//          with the right To/From/Body, 1 alert (sms_enabled fires alert too)
+//   6. Both channels on (defaults), `sms_phone` set, 30-day check
+//      with `bgc_reminder_30_sms = true` opt-in
+//        → 1 reminder_30 dedupe + 1 reminder_30_sms dedupe + 1 Twilio call
+//          + 1 alert (no double-text, no double-alert)
+//   7. SMS opted in but no phone (no sms_phone, no profile.phone), 30-day
+//        → 0 SMS dedupe rows, 0 Twilio calls, but the alert is still
+//          surfaced because `smsEnabled || emailEnabled` is true
 //
 // Run from project root:
 //   node scripts/bgc-reminders-prefs-smoke.js
@@ -43,7 +54,7 @@ function table(name) {
   if (!state.tables[name]) state.tables[name] = [];
   return state.tables[name];
 }
-function reset() { state.tables = {}; }
+function reset() { state.tables = {}; twilioCalls.length = 0; }
 
 function applyOps(rows, ops) {
   let out = rows.slice();
@@ -145,12 +156,41 @@ hijack([path.join(__dirname, '..', 'netlify', 'functions')],    '@supabase/supab
 // are missing, which would short-circuit the whole handler.
 process.env.SUPABASE_URL = 'https://stub';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub';
-// Force pure dry-run mode — no Resend / Twilio HTTP. The handler still
-// writes the dedupe row in dry-run, which is what we assert against.
+// Email stays in pure dry-run (no Resend creds → handler still writes the
+// dedupe row, which is what we assert against).
 delete process.env.RESEND_API_KEY;
-delete process.env.TWILIO_ACCOUNT_SID;
-delete process.env.TWILIO_AUTH_TOKEN;
-delete process.env.TWILIO_PHONE_NUMBER;
+// Task #296: Twilio creds ARE set so sendSms() reaches the fetch stub
+// below. Without these, sendSms() short-circuits at the creds check and
+// never writes the dedupe row, defeating the SMS-path assertions.
+process.env.TWILIO_ACCOUNT_SID   = 'AC_stub';
+process.env.TWILIO_AUTH_TOKEN    = 'token_stub';
+process.env.TWILIO_PHONE_NUMBER  = '+15555550000';
+
+// ─── Twilio fetch stub (Task #296) ──────────────────────────────────────────
+// `globalThis.fetch` is intercepted so we can (a) keep the test offline and
+// (b) capture every Twilio POST and assert the right body went out. The
+// stub only handles the Twilio Messages endpoint; anything else falls
+// through to the real fetch (the handler doesn't make other HTTP calls in
+// these scenarios, but this keeps the stub honest).
+const twilioCalls = [];
+const realFetch = globalThis.fetch;
+globalThis.fetch = async (url, opts = {}) => {
+  if (typeof url === 'string' && url.includes('api.twilio.com')) {
+    const params = new URLSearchParams(String(opts.body || ''));
+    twilioCalls.push({
+      url,
+      to:   params.get('To'),
+      from: params.get('From'),
+      body: params.get('Body')
+    });
+    return {
+      ok: true,
+      status: 200,
+      text: async () => JSON.stringify({ sid: `SM_stub_${twilioCalls.length}` })
+    };
+  }
+  return realFetch(url, opts);
+};
 
 const { handler } = require(path.join(__dirname, '..', 'netlify', 'functions', 'bgc-send-reminders.js'));
 
@@ -164,14 +204,15 @@ function isoDaysFromNow(days) {
   return d.toISOString();
 }
 
-function seedProvider({ providerId, employeeId, checkId, daysOut, prefs }) {
+function seedProvider({ providerId, employeeId, checkId, daysOut, prefs, profile }) {
   table('profiles').push({
     id: providerId,
     business_name: 'Smoke Garage',
     full_name: 'Smoke Owner',
     email: 'smoke@example.test',
     phone: null,
-    bgc_badge_verified: true
+    bgc_badge_verified: true,
+    ...(profile || {})
   });
   table('provider_employees').push({
     id: employeeId,
@@ -283,12 +324,112 @@ async function scenarioDefault1() {
   expect(as.length === 0, `0 alerts (got ${as.length})`);
 }
 
+// ─── SMS scenarios (Task #296) ─────────────────────────────────────────────
+function smsDedupeRows(employeeId, checkId, smsType) {
+  return (state.tables['bgc_notifications'] || [])
+    .filter(n => n.employee_id === employeeId
+              && n.bgc_check_id === checkId
+              && n.notification_type === smsType);
+}
+
+async function scenarioSmsOnly30() {
+  console.log('\nScenario 5: SMS-only opt-in (email off, sms on), 30-day check → 1 SMS only');
+  reset();
+  seedProvider({
+    providerId: 'p-5', employeeId: 'e-5', checkId: 'c-5',
+    daysOut: 30,
+    profile: { phone: null },
+    prefs: {
+      bgc_reminder_60: true,  bgc_reminder_30: false, bgc_reminder_14: true,
+      bgc_reminder_7:  true,  bgc_reminder_1:  false,
+      bgc_reminder_60_sms: false, bgc_reminder_30_sms: true,  bgc_reminder_14_sms: false,
+      bgc_reminder_7_sms:  false, bgc_reminder_1_sms:  false,
+      sms_phone: '5125551234'
+    }
+  });
+  await handler({});
+  const emailRows = (state.tables['bgc_notifications'] || [])
+    .filter(n => n.employee_id === 'e-5' && n.notification_type === 'reminder_30');
+  const smsRows   = smsDedupeRows('e-5', 'c-5', 'reminder_30_sms');
+  const as        = alerts('p-5');
+  expect(emailRows.length === 0, `0 email dedupe rows (got ${emailRows.length})`);
+  expect(smsRows.length === 1,   `1 SMS dedupe row reminder_30_sms (got ${smsRows.length})`);
+  expect(twilioCalls.length === 1, `1 Twilio fetch call (got ${twilioCalls.length})`);
+  if (twilioCalls[0]) {
+    expect(twilioCalls[0].to === '+15125551234',
+      `Twilio To = +15125551234 normalized (got ${twilioCalls[0].to})`);
+    expect(twilioCalls[0].from === '+15555550000',
+      `Twilio From = stub TWILIO_PHONE_NUMBER (got ${twilioCalls[0].from})`);
+    expect(/expires in 30 days/.test(twilioCalls[0].body || ''),
+      `Twilio body mentions "expires in 30 days" (got "${(twilioCalls[0].body || '').slice(0, 80)}…")`);
+    expect(/MCC: /.test(twilioCalls[0].body || ''),
+      `Twilio body starts with "MCC: " brand prefix`);
+  }
+  expect(as.length === 1, `1 alert (got ${as.length})`);
+}
+
+async function scenarioBothOn30() {
+  console.log('\nScenario 6: both channels on (email default + SMS opt-in), 30-day check → 1 of each');
+  reset();
+  seedProvider({
+    providerId: 'p-6', employeeId: 'e-6', checkId: 'c-6',
+    daysOut: 30,
+    profile: { phone: '5125559999' },
+    prefs: {
+      bgc_reminder_60: true,  bgc_reminder_30: true,  bgc_reminder_14: true,
+      bgc_reminder_7:  true,  bgc_reminder_1:  false,
+      bgc_reminder_60_sms: false, bgc_reminder_30_sms: true,  bgc_reminder_14_sms: false,
+      bgc_reminder_7_sms:  false, bgc_reminder_1_sms:  false,
+      sms_phone: null  // exercise the profile.phone fallback (Task #201 UI promise)
+    }
+  });
+  await handler({});
+  const emailRows = (state.tables['bgc_notifications'] || [])
+    .filter(n => n.employee_id === 'e-6' && n.notification_type === 'reminder_30');
+  const smsRows   = smsDedupeRows('e-6', 'c-6', 'reminder_30_sms');
+  const as        = alerts('p-6');
+  expect(emailRows.length === 1, `1 email dedupe row reminder_30 (got ${emailRows.length})`);
+  expect(smsRows.length === 1,   `1 SMS dedupe row reminder_30_sms (got ${smsRows.length})`);
+  expect(twilioCalls.length === 1, `1 Twilio fetch call — no double-text (got ${twilioCalls.length})`);
+  if (twilioCalls[0]) {
+    expect(twilioCalls[0].to === '+15125559999',
+      `Twilio To falls back to profile.phone normalized (got ${twilioCalls[0].to})`);
+  }
+  expect(as.length === 1, `1 alert — no double-alert (got ${as.length})`);
+}
+
+async function scenarioSmsOptInNoPhone() {
+  console.log('\nScenario 7: SMS opted in but no phone available → no SMS, alert still surfaces');
+  reset();
+  seedProvider({
+    providerId: 'p-7', employeeId: 'e-7', checkId: 'c-7',
+    daysOut: 30,
+    profile: { phone: null },
+    prefs: {
+      bgc_reminder_60: true,  bgc_reminder_30: false, bgc_reminder_14: true,
+      bgc_reminder_7:  true,  bgc_reminder_1:  false,
+      bgc_reminder_60_sms: false, bgc_reminder_30_sms: true,  bgc_reminder_14_sms: false,
+      bgc_reminder_7_sms:  false, bgc_reminder_1_sms:  false,
+      sms_phone: null
+    }
+  });
+  await handler({});
+  const smsRows = smsDedupeRows('e-7', 'c-7', 'reminder_30_sms');
+  const as      = alerts('p-7');
+  expect(smsRows.length === 0,     `0 SMS dedupe rows (got ${smsRows.length})`);
+  expect(twilioCalls.length === 0, `0 Twilio fetch calls (got ${twilioCalls.length})`);
+  expect(as.length === 1,          `1 alert still surfaces because smsEnabled is true (got ${as.length})`);
+}
+
 (async () => {
   try {
     await scenarioDefault30();
     await scenarioMuted30();
     await scenarioOptIn1();
     await scenarioDefault1();
+    await scenarioSmsOnly30();
+    await scenarioBothOn30();
+    await scenarioSmsOptInNoPhone();
   } catch (err) {
     console.error('FATAL:', err.stack || err.message || err);
     process.exit(1);
