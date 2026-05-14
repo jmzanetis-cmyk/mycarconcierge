@@ -161,8 +161,17 @@
     // page reload.
     myCarePlanIds = new Set((plans || []).map(p => p && p.id).filter(Boolean));
     if (badge) {
-      const open = plans.filter(p => (p.status === 'open' || p.payment_status === 'requires_payment')).length;
-      if (open > 0) { badge.textContent = String(open); badge.style.display = ''; }
+      // Task #284 — badge now reflects items the member can act on RIGHT NOW
+      // so a new bid landing on an open plan visibly bumps the count:
+      //   - plans with one or more pending bids waiting for review, OR
+      //   - plans awaiting member payment (requires_payment).
+      // Plans with no bids yet are intentionally NOT counted — there's
+      // nothing for the member to do until the first bid arrives.
+      const actionable = plans.filter(p =>
+        (Number(p.pending_bid_count) || 0) > 0 ||
+        p.payment_status === 'requires_payment'
+      ).length;
+      if (actionable > 0) { badge.textContent = String(actionable); badge.style.display = ''; }
       else { badge.style.display = 'none'; }
     }
     if (!list) return;
