@@ -109,9 +109,16 @@ exports.handler = async function (event) {
   }
 
   var supabase = utils.createSupabaseClient();
+  // Parity with dev (www/server.js POST /api/survey/profile): when the
+  // Supabase client can't be built (missing SUPABASE_URL /
+  // SUPABASE_SERVICE_ROLE_KEY), dev silently returns 200 with id:null
+  // because its `inserted` variable stays null. Mirror that exactly so
+  // the frontend's `if (!d.id) throw` path triggers the same retry UX
+  // in both environments. The misconfiguration is logged loudly so ops
+  // can see it.
   if (!supabase) {
-    console.error('[survey-profile] Supabase not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY)');
-    return utils.errorResponse(503, 'Service temporarily unavailable');
+    console.error('[survey-profile] Supabase not configured (missing SUPABASE_URL or SUPABASE_SERVICE_ROLE_KEY) — returning ok:true id:null per dev parity');
+    return utils.successResponse({ ok: true, id: null });
   }
 
   var firstNameTrimmed = trim(first_name, 100);
