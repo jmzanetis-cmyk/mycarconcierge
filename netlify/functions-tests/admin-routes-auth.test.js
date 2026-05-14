@@ -58,13 +58,25 @@ function makeSupabaseStub() {
   return chain;
 }
 
-const supabasePath = require.resolve('@supabase/supabase-js');
-require.cache[supabasePath] = {
-  id: supabasePath,
-  filename: supabasePath,
-  loaded: true,
-  exports: { createClient: () => makeSupabaseStub() }
-};
+// IMPORTANT: netlify/functions/ has its OWN node_modules (a nested install
+// pinned to the function-runtime versions of resend/supabase/etc.), so the
+// handlers under test resolve `@supabase/supabase-js` to a DIFFERENT file
+// than the repo-root copy. We have to stub BOTH cache entries — otherwise
+// the stub silently misses for these handlers and they fall through to a
+// real Supabase client that tries to `fetch('http://stub.local/...')` and
+// fails with `TypeError: fetch failed`.
+const supabasePaths = new Set([
+  require.resolve('@supabase/supabase-js'),
+  require.resolve('@supabase/supabase-js', { paths: [path.join(__dirname, '..', 'functions')] })
+]);
+for (const sp of supabasePaths) {
+  require.cache[sp] = {
+    id: sp,
+    filename: sp,
+    loaded: true,
+    exports: { createClient: () => makeSupabaseStub() }
+  };
+}
 
 const agentFleet = require('../functions/agent-fleet-admin');
 const aiOps      = require('../functions/ai-ops-admin');
@@ -253,50 +265,54 @@ const ROUTES = [
 // fires and the contributor sees an "obvious update required" failure.
 // ---------------------------------------------------------------------------
 
-function countRouteConditionals(filePath, varName) {
+// agent-fleet-admin.js was refactored to a router table (an array of
+// `{ method, pattern, handler }` entries — see the `const ROUTES = [...]`
+// block near the bottom of the file). Count those entries directly so the
+// completeness check actually catches a future routing addition. The old
+// "if (route === '...')" / route.match() scanner is dead — the new file
+// has zero such conditionals.
+function countFleetRouterTableEntries(filePath) {
   const src = fs.readFileSync(filePath, 'utf8');
-  // Patterns:
-  //   if (route === 'foo' && method === 'X')
-  //   route.match(/^foo\/(\d+)$/)
-  // (and same for `path` in ai-ops)
-  const literalRe = new RegExp(`if \\(${varName} === '[^']+' && method ===`, 'g');
-  const literalAltRe = new RegExp(`if \\(method === '[A-Z]+' && ${varName} === '[^']+'\\)`, 'g');
-  const matchAssignRe = new RegExp(`const \\w+Match = ${varName}\\.match\\(`, 'g');
-  const literals = (src.match(literalRe) || []).length
-                 + (src.match(literalAltRe) || []).length;
-  const matchers = (src.match(matchAssignRe) || []).length;
-  return { literals, matchers, total: literals + matchers };
+  const re = /^\s*\{\s*method:\s*'(?:GET|POST|PUT|PATCH|DELETE)'\s*,\s*pattern:\s*[^,]+,\s*handler:\s*\w+\s*\}/gm;
+  return (src.match(re) || []).length;
+}
+
+// ai-ops-admin.js is still written as a long if/else chain on
+// `path === '...'` / `path.startsWith(...)`. Keep the original literal
+// scanner here so a new ops route without a matching AI_OPS_ROUTES entry
+// still trips the completeness check.
+function countOpsRouteConditionals(filePath) {
+  const src = fs.readFileSync(filePath, 'utf8');
+  const literalRe    = /if \(path === '[^']+' && method ===/g;
+  const literalAltRe = /if \(method === '[A-Z]+' && path === '[^']+'\)/g;
+  const matchAssignRe = /const \w+Match = path\.match\(/g;
+  return (src.match(literalRe)    || []).length
+       + (src.match(literalAltRe) || []).length
+       + (src.match(matchAssignRe) || []).length;
 }
 
 function assertCompleteness() {
-  const fleet = countRouteConditionals(
-    path.join(__dirname, '..', 'functions', 'agent-fleet-admin.js'), 'route');
-  const ops = countRouteConditionals(
-    path.join(__dirname, '..', 'functions', 'ai-ops-admin.js'), 'path');
+  const fleetCount = countFleetRouterTableEntries(
+    path.join(__dirname, '..', 'functions', 'agent-fleet-admin.js'));
+  const opsCount = countOpsRouteConditionals(
+    path.join(__dirname, '..', 'functions', 'ai-ops-admin.js'));
 
-  // Each match-variable in agent-fleet-admin.js may back MULTIPLE methods
-  // (e.g. channelByIdMatch handles PATCH + DELETE). Hand-counted from the
-  // current source: 47 fleet routes (38 conditional branches → 47 handler
-  // invocations after counting all method overloads) + 13 ai-ops routes.
-  // The numbers below MUST be updated alongside any new conditional.
-  // Counted from the current source (Task #280). agent-fleet-admin.js has
-  // many route.match() variables that back multiple methods — both the
-  // assignment AND each method-overloaded `if (xMatch && method === 'Y')`
-  // line counts here, which is why the number is higher than the route
-  // count in AGENT_FLEET_ROUTES.
-  const EXPECTED_FLEET_CONDITIONALS = 45;
+  // Counted from the current source. Bump these when you add or remove a
+  // public route on either handler — and add/remove the matching entry in
+  // AGENT_FLEET_ROUTES / AI_OPS_ROUTES at the top of this file.
+  const EXPECTED_FLEET_ROUTES = 47;
   // ai-ops-admin.js: the GET /escalations branch uses a compound condition
   // (`path === 'escalations' || path.startsWith(...)`) that the simple regex
   // above doesn't catch, so the count is 12 even though there are 13 routes.
-  const EXPECTED_OPS_CONDITIONALS   = 12;
+  const EXPECTED_OPS_CONDITIONALS = 12;
 
-  assert.strictEqual(fleet.total, EXPECTED_FLEET_CONDITIONALS,
-    `agent-fleet-admin.js exposes ${fleet.total} route conditionals but the lockdown ` +
-    `test expects ${EXPECTED_FLEET_CONDITIONALS}. A route was added or removed — ` +
-    `update AGENT_FLEET_ROUTES (and EXPECTED_FLEET_CONDITIONALS) accordingly.`);
+  assert.strictEqual(fleetCount, EXPECTED_FLEET_ROUTES,
+    `agent-fleet-admin.js exposes ${fleetCount} ROUTES table entries but the lockdown ` +
+    `test expects ${EXPECTED_FLEET_ROUTES}. A route was added or removed — ` +
+    `update AGENT_FLEET_ROUTES (and EXPECTED_FLEET_ROUTES) accordingly.`);
 
-  assert.strictEqual(ops.total, EXPECTED_OPS_CONDITIONALS,
-    `ai-ops-admin.js exposes ${ops.total} route conditionals but the lockdown ` +
+  assert.strictEqual(opsCount, EXPECTED_OPS_CONDITIONALS,
+    `ai-ops-admin.js exposes ${opsCount} route conditionals but the lockdown ` +
     `test expects ${EXPECTED_OPS_CONDITIONALS}. A route was added or removed — ` +
     `update AI_OPS_ROUTES (and EXPECTED_OPS_CONDITIONALS) accordingly.`);
 }
