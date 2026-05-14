@@ -61,7 +61,7 @@ const MCCUtils = (function() {
     if (!dateStr) return 'N/A';
     
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return 'Invalid Date';
+    if (Number.isNaN(date.getTime())) return 'Invalid Date';
     
     const defaultOptions = {
       year: 'numeric',
@@ -77,7 +77,7 @@ const MCCUtils = (function() {
     if (!dateStr) return 'N/A';
     
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return 'Invalid Date';
+    if (Number.isNaN(date.getTime())) return 'Invalid Date';
     
     const defaultOptions = {
       year: 'numeric',
@@ -95,7 +95,7 @@ const MCCUtils = (function() {
     if (!dateStr) return 'N/A';
     
     const date = new Date(dateStr);
-    if (isNaN(date.getTime())) return 'Invalid Date';
+    if (Number.isNaN(date.getTime())) return 'Invalid Date';
     
     const now = new Date();
     const diffMs = now - date;

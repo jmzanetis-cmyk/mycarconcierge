@@ -96,7 +96,7 @@ exports.handler = async function(event, context) {
           .eq('event_type', 'send_skipped')
           .order('created_at', { ascending: false })
           .limit(1);
-        if (skipRows && skipRows.length) {
+        if (skipRows?.length) {
           lastSkip = {
             at: skipRows[0].created_at,
             reason: skipRows[0].metadata?.reason || null,
@@ -111,7 +111,7 @@ exports.handler = async function(event, context) {
           .eq('event_type', 'send_failed')
           .order('created_at', { ascending: false })
           .limit(1);
-        if (failRows && failRows.length) {
+        if (failRows?.length) {
           lastResendError = {
             at: failRows[0].created_at,
             channel: failRows[0].metadata?.channel || null,
@@ -192,7 +192,7 @@ exports.handler = async function(event, context) {
         .in('status', ['draft', 'approved']);
 
       let cleared = 0;
-      if (draftMsgs && draftMsgs.length > 0) {
+      if (draftMsgs?.length > 0) {
         const msgIds = draftMsgs.map(m => m.id);
         const leadIds = [...new Set(draftMsgs.map(m => m.lead_id))];
         await supabase.from('outreach_messages').delete().in('id', msgIds);
@@ -680,7 +680,7 @@ exports.handler = async function(event, context) {
         const dd = Number(m[3]);
         const d  = new Date(Date.UTC(y, mo - 1, dd));
         if (
-          isNaN(d.getTime()) ||
+          Number.isNaN(d.getTime()) ||
           d.getUTCFullYear() !== y ||
           d.getUTCMonth()    !== mo - 1 ||
           d.getUTCDate()     !== dd
@@ -799,7 +799,7 @@ exports.handler = async function(event, context) {
       const { campaign_id, lead_ids, filters } = body;
       if (!campaign_id) return jsonResponse(400, { error: 'campaign_id is required' });
       let leadsToAdd;
-      if (lead_ids && lead_ids.length > 0) {
+      if (lead_ids?.length > 0) {
         const { data } = await supabase.from('outreach_leads').select('*').in('id', lead_ids);
         leadsToAdd = data;
       } else {

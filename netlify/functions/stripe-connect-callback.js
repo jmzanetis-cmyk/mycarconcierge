@@ -31,7 +31,7 @@ exports.handler = async function(event) {
       let stripe = Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
       let account = await stripe.accounts.retrieve(stripeAccountId);
 
-      if (account && account.id) {
+      if (account?.id) {
         let supabase = utils.createSupabaseClient();
         if (supabase) {
           await supabase

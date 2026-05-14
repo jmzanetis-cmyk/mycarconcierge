@@ -73,7 +73,7 @@
   }
 
   function confidenceBar(c) {
-    if (c == null || isNaN(c)) return '';
+    if (c == null || Number.isNaN(c)) return '';
     const pct = Math.round(Math.max(0, Math.min(1, Number(c))) * 100);
     const color = pct >= 90 ? '#10b981' : pct >= 70 ? '#b8942d' : '#c0392b';
     return `

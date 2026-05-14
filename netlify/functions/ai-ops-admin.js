@@ -367,7 +367,7 @@ async function runDailyDigest(supabase) {
       .from('engine_state')
       .select('is_running, paused_at, pause_reason')
       .eq('id', 1).single();
-    if (es && es.is_running === false) {
+    if (es?.is_running === false) {
       enginePaused = {
         paused: true,
         reason: es.pause_reason || null,
@@ -478,7 +478,7 @@ exports.handler = async function(event, context) {
       if (mod) q = q.eq('module', mod);
       if (targetId) q = q.eq('target_id', targetId);
       if (outcome) q = q.eq('outcome', outcome);
-      if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
+      if (since && !Number.isNaN(Date.parse(since))) q = q.gte('created_at', since);
       const { data, error, count } = await q;
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, { actions: data || [], total: count || 0, page, limit, totalPages: Math.ceil((count || 0) / limit) });
@@ -551,7 +551,7 @@ exports.handler = async function(event, context) {
       const { confidence_threshold, max_auto_refund } = body;
       if (confidence_threshold !== undefined) {
         const t = Number.parseFloat(confidence_threshold);
-        if (isNaN(t) || t < 0 || t > 1) {
+        if (Number.isNaN(t) || t < 0 || t > 1) {
           return jsonResponse(400, { error: 'confidence_threshold must be 0.0–1.0' });
         }
         const { error } = await supabase.from('ai_ops_settings').upsert(
@@ -562,7 +562,7 @@ exports.handler = async function(event, context) {
       }
       if (max_auto_refund !== undefined) {
         const m = Number.parseFloat(max_auto_refund);
-        if (isNaN(m) || m < 0) {
+        if (Number.isNaN(m) || m < 0) {
           return jsonResponse(400, { error: 'max_auto_refund must be a positive number' });
         }
         const { error } = await supabase.from('ai_ops_settings').upsert(
@@ -675,7 +675,7 @@ exports.handler = async function(event, context) {
         allowed.metadata = body.metadata && typeof body.metadata === 'object' ? body.metadata : {};
       } else if (body.metadata_merge && typeof body.metadata_merge === 'object') {
         const { data: existing } = await supabase.from('care_plan_completions').select('metadata').eq('id', id).maybeSingle();
-        const prior = (existing && existing.metadata && typeof existing.metadata === 'object') ? existing.metadata : {};
+        const prior = (existing?.metadata && typeof existing.metadata === 'object') ? existing.metadata : {};
         allowed.metadata = { ...prior, ...body.metadata_merge };
       }
       if (!Object.keys(allowed).length) return jsonResponse(400, { error: 'No valid fields' });

@@ -97,12 +97,12 @@ async function monitor({ keywords = [], handle = null, limit = 25, since = null 
     throw new Error(`reddit_search_failed status=${r.status} body=${t.slice(0, 200)}`);
   }
   const j = await r.json();
-  const children = (j && j.data && Array.isArray(j.data.children)) ? j.data.children : [];
+  const children = (j?.data && Array.isArray(j.data.children)) ? j.data.children : [];
   const sinceMs = since ? new Date(since).getTime() : 0;
 
   return children
     .map(c => c.data)
-    .filter(d => d && d.id && (!sinceMs || (d.created_utc * 1000) >= sinceMs))
+    .filter(d => d?.id && (!sinceMs || (d.created_utc * 1000) >= sinceMs))
     .map(d => ({
       external_id: `t3_${d.id}`,
       profile_url: `https://www.reddit.com/user/${d.author}`,
@@ -157,11 +157,11 @@ async function publish({ body, channel = null } = {}) {
   }
   const j = await r.json();
   // Reddit returns { json: { errors: [...], data: { url, id, name, drafts_count } } }
-  const errors = j && j.json && j.json.errors;
+  const errors = j?.json && j.json.errors;
   if (Array.isArray(errors) && errors.length) {
     throw new Error('reddit_submit_errors: ' + JSON.stringify(errors));
   }
-  const data = j && j.json && j.json.data;
+  const data = j?.json && j.json.data;
   if (!data || !data.id) throw new Error('reddit_submit_no_id');
   return {
     external_post_id: data.name || `t3_${data.id}`,

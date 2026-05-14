@@ -397,7 +397,7 @@ async function _insertAlert(supabase, alert_key, severity, finding) {
     .eq('alert_key', alert_key)
     .is('resolved_at', null)
     .maybeSingle();
-  return { alertId: re && re.id, shouldPage: false };
+  return { alertId: re?.id, shouldPage: false };
 }
 
 // Send SMS+email and persist their results onto the alert row.
@@ -559,7 +559,7 @@ async function sweepResolutions(supabase, currentFindings) {
 async function loadConfig(supabase) {
   try {
     const { data } = await supabase.from('agents').select('config').eq('slug', SLUG).maybeSingle();
-    const cfg = (data && data.config) || {};
+    const cfg = (data?.config) || {};
     return {
       quietHours:    Object.assign({}, DEFAULTS.quiet_hours_utc,  cfg.quiet_hours_utc || {}),
       digestHourUtc: cfg.digest_hour_utc != null ? cfg.digest_hour_utc : DEFAULTS.digest_hour_utc,

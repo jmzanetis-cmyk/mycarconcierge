@@ -392,7 +392,7 @@ exports.handler = async function(event, context) {
     // Task #306 — surface engine-paused state in the digest. Read from
     // engine_state.is_running so the digest reports *why* the queue isn't
     // draining (paused vs head-blocked vs healthy).
-    const enginePaused = engineState && engineState.is_running === false ? {
+    const enginePaused = engineState?.is_running === false ? {
       paused: true,
       reason: engineState.pause_reason || null,
       paused_at: engineState.paused_at || null

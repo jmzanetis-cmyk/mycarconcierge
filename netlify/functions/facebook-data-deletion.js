@@ -111,7 +111,7 @@ async function lookupUserByFacebookId(supabase, facebookUserId) {
     .select('id, email, facebook_user_id')
     .eq('facebook_user_id', facebookUserId)
     .maybeSingle();
-  if (existing && existing.data && existing.data.id) return existing.data;
+  if (existing?.data && existing.data.id) return existing.data;
 
   try {
     return await _scanIdentitiesForFacebookId(supabase, facebookUserId);
@@ -184,9 +184,9 @@ async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirma
     source: 'facebook_callback',
     sendEmail: null
   });
-  let update = result && result.success
+  let update = result?.success
     ? { status: 'completed', completed_at: new Date().toISOString(), error_message: null }
-    : { status: 'error', completed_at: new Date().toISOString(), error_message: ((result && result.error) || 'Unknown error').slice(0, 500) };
+    : { status: 'error', completed_at: new Date().toISOString(), error_message: ((result?.error) || 'Unknown error').slice(0, 500) };
   try {
     await supabase
       .from('fb_data_deletion_requests')

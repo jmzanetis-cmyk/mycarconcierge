@@ -314,14 +314,14 @@ async function notifyMatchmakerAward(supabase, {
     errors: []
   };
 
-  const planTitle = (carePlan && carePlan.title) || 'your auction';
-  const planId = carePlan && carePlan.id;
-  const memberId = carePlan && carePlan.member_id;
+  const planTitle = (carePlan?.title) || 'your auction';
+  const planId = carePlan?.id;
+  const memberId = carePlan?.member_id;
   const amountLabel = formatAmount(amount);
 
   // ── Look up the people we need to message in one round trip per role ───
   const loserProviderIds = Array.from(new Set(
-    (loserBids || []).map(b => b && b.provider_id).filter(Boolean)
+    (loserBids || []).map(b => b?.provider_id).filter(Boolean)
   ));
 
   const profileSelect = 'id, email, full_name, business_name';
@@ -342,9 +342,9 @@ async function notifyMatchmakerAward(supabase, {
   let loserRows = [];
   try {
     const [memberRes, winnerRes, loserRes] = await Promise.all(lookups);
-    memberRow = memberRes && memberRes.data ? memberRes.data : null;
-    winnerRow = winnerRes && winnerRes.data ? winnerRes.data : null;
-    loserRows = (loserRes && loserRes.data) || [];
+    memberRow = memberRes?.data ? memberRes.data : null;
+    winnerRow = winnerRes?.data ? winnerRes.data : null;
+    loserRows = (loserRes?.data) || [];
   } catch (e) {
     summary.errors.push('profile_lookup:' + e.message);
   }
@@ -413,7 +413,7 @@ async function notifyMatchmakerAward(supabase, {
 
   const emailJobs = [];
 
-  if (winnerRow && winnerRow.email) {
+  if (winnerRow?.email) {
     emailJobs.push((async () => {
       const ok = await sendAwardEmail(
         winnerRow.email,
@@ -444,7 +444,7 @@ async function notifyMatchmakerAward(supabase, {
     })());
   }
 
-  if (memberRow && memberRow.email) {
+  if (memberRow?.email) {
     emailJobs.push((async () => {
       const ok = await sendAwardEmail(
         memberRow.email,
@@ -538,7 +538,7 @@ async function notifyMatchmakerAward(supabase, {
 function siteBaseUrl(event) {
   return process.env.URL
     || process.env.DEPLOY_PRIME_URL
-    || (event && event.headers && event.headers.host
+    || (event?.headers && event.headers.host
           ? `https://${event.headers.host}`
           : 'https://mycarconcierge.com');
 }
@@ -598,7 +598,7 @@ async function listActions(supabase, { limit = 50, offset = 0, agent = null, sta
   if (agent)  q = q.eq('agent_slug', agent);
   if (status) q = q.eq('status', status);
   if (reviewOnly) q = q.eq('needs_review', true).is('reviewed_at', null);
-  if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
+  if (since && !Number.isNaN(Date.parse(since))) q = q.gte('created_at', since);
   const { data, count, error } = await q;
   if (error) throw new Error(error.message);
   return { actions: data || [], total: count || 0, limit: lim, offset: off };
@@ -1008,7 +1008,7 @@ async function handleStats24h(event, ctx) {
   const standaloneCount = (res) => {
     if (res.error || !Array.isArray(res.data)) return 0;
     return res.data.reduce((n, row) => {
-      const aid = row && row.payload && row.payload.action_id;
+      const aid = row?.payload && row.payload.action_id;
       return aid ? n : n + 1;
     }, 0);
   };

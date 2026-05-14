@@ -148,7 +148,7 @@ exports.handler = async function(event) {
     .select('id')
     .single();
   if (insErr || !inserted) {
-    console.error('[BGC initiate] insert failed', insErr && insErr.message);
+    console.error('[BGC initiate] insert failed', insErr?.message);
     return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'db_insert_failed' }) };
   }
 

@@ -228,7 +228,7 @@ exports.handler = async function(event) {
     console.error('[provider-application] rate-limit query failed:', existingErr.message);
     // Fail-open on the rate-limit query — we'd rather accept a duplicate than
     // block a legit application because of a transient query error.
-  } else if (existing && existing.length > 0) {
+  } else if (existing?.length > 0) {
     return jsonResponse(429, {
       error: 'You already submitted an application in the last 24 hours.',
       existing_application_id: existing[0].id

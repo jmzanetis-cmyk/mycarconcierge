@@ -414,13 +414,13 @@
         var pwForm = document.getElementById('admin-password-form');
         var loginForm = document.getElementById('admin-login-form');
         var teamForm = document.getElementById('admin-team-login-form');
-        if (teamForm && teamForm.style.display !== 'none') {
+        if (teamForm?.style.display !== 'none') {
           currentModalState = 'team-login';
           await performTeamLogin();
-        } else if (pwForm && pwForm.style.display !== 'none') {
+        } else if (pwForm?.style.display !== 'none') {
           currentModalState = 'password';
           await verifyAdminPassword();
-        } else if (loginForm && loginForm.style.display !== 'none') {
+        } else if (loginForm?.style.display !== 'none') {
           currentModalState = 'login';
           await performAdminLogin();
         } else {
@@ -1303,7 +1303,7 @@
     async function hydrateApplicationOutreachLeads(apps) {
       if (!Array.isArray(apps) || !apps.length) return;
       const leadIds = Array.from(new Set(
-        apps.map(a => a && a.outreach_lead_id).filter(Boolean)
+        apps.map(a => a?.outreach_lead_id).filter(Boolean)
       ));
       if (!leadIds.length) return;
       try {
@@ -1332,7 +1332,7 @@
     // is safe to drop into innerHTML; everything user-controlled is run
     // through escapeHtml first.
     function renderApplicationLeadBadge(app) {
-      const lead = app && app._outreach_lead;
+      const lead = app?._outreach_lead;
       if (!app || !app.outreach_lead_id) {
         return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:rgba(100,100,120,0.12);color:var(--text-muted);border:1px solid var(--border-subtle);" title="No matching outreach lead — applicant signed up without ever being contacted by the cold-outreach engine.">${mccIcon('user', 14)} Direct signup</span>`;
       }
@@ -1383,9 +1383,9 @@
         const el = e.target && e.target.closest && e.target.closest('.mcc-outreach-lead-link');
         if (!el) return;
         e.preventDefault();
-        const id = el.getAttribute('data-lead-id') || '';
-        const name = el.getAttribute('data-lead-name') || '';
-        const email = el.getAttribute('data-lead-email') || '';
+        const id = el.dataset.leadId || '';
+        const name = el.dataset.leadName || '';
+        const email = el.dataset.leadEmail || '';
         if (typeof globalThis.viewOutreachLead === 'function') {
           globalThis.viewOutreachLead(id, name, email);
         }
@@ -2575,7 +2575,7 @@
     async function bulkAddCredits() {
       const count = selectedProviders.size;
       const credits = prompt(`Add bid credits to ${count} provider(s):\n\nEnter number of credits to add:`);
-      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
+      if (!credits || Number.isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
       const creditsToAdd = Number.parseInt(credits);
 
@@ -2783,7 +2783,7 @@
       const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
 
       const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
-      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
+      if (!credits || Number.isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
       const creditsToAdd = Number.parseInt(credits);
 
@@ -3799,7 +3799,7 @@
         showToast('Could not check disputes: ' + disputeErr.message, 'error');
         return;
       }
-      if (openDisputes && openDisputes.length > 0) {
+      if (openDisputes?.length > 0) {
         showToast('Cannot delete: an open dispute references this payment. Resolve the dispute first.', 'error');
         return;
       }
@@ -4058,7 +4058,7 @@
       const q = document.getElementById('crm-contact-search').value.toLowerCase();
       const filtered = crmContactsData.filter(c => {
         const p = c.properties || {};
-        return [p.firstname, p.lastname, p.email, p.phone, p.company].some(v => v && v.toLowerCase().includes(q));
+        return [p.firstname, p.lastname, p.email, p.phone, p.company].some(v => v?.toLowerCase().includes(q));
       });
       renderCrmContacts(filtered);
     }
@@ -4068,7 +4068,7 @@
       const q = document.getElementById('crm-deal-search').value.toLowerCase();
       const filtered = crmDealsData.filter(d => {
         const p = d.properties || {};
-        return [p.dealname, p.dealstage, p.pipeline].some(v => v && v.toLowerCase().includes(q));
+        return [p.dealname, p.dealstage, p.pipeline].some(v => v?.toLowerCase().includes(q));
       });
       renderCrmDeals(filtered);
     }
@@ -4078,7 +4078,7 @@
       const q = document.getElementById('crm-company-search').value.toLowerCase();
       const filtered = crmCompaniesData.filter(co => {
         const p = co.properties || {};
-        return [p.name, p.domain, p.industry, p.city, p.state].some(v => v && v.toLowerCase().includes(q));
+        return [p.name, p.domain, p.industry, p.city, p.state].some(v => v?.toLowerCase().includes(q));
       });
       renderCrmCompanies(filtered);
     }
@@ -5296,7 +5296,7 @@
       const founderId = document.getElementById('commission-founder-id').value;
       const ratePercent = Number.parseInt(document.getElementById('commission-rate-input').value);
       
-      if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
+      if (Number.isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
         showNotification('Please enter a valid rate between 0 and 100', 'error');
         return;
       }
@@ -6140,7 +6140,7 @@
       const amount = Number.parseFloat(amountInput.value);
       const notes = notesInput.value.trim();
       
-      if (isNaN(amount) || amount === 0) {
+      if (Number.isNaN(amount) || amount === 0) {
         showToast('Please enter a valid non-zero amount', 'error');
         return;
       }
@@ -9072,7 +9072,7 @@
         errorEl.style.display = 'block';
         return;
       }
-      if (password && password.length < 8) {
+      if (password?.length < 8) {
         errorEl.textContent = 'Password must be at least 8 characters.';
         errorEl.style.display = 'block';
         return;
@@ -9197,7 +9197,7 @@
 
     function copyInviteLink() {
       const linkEl = document.getElementById('invite-link-display');
-      if (linkEl && linkEl.value) {
+      if (linkEl?.value) {
         navigator.clipboard.writeText(linkEl.value).then(() => {
           showToast('Invite link copied to clipboard');
         }).catch(() => {
@@ -10879,7 +10879,7 @@
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       return fetch(`${apiBase}/api/admin/outreach${pathname}`, {
         ...opts,
-        headers: { ...getMarketingHeaders(), ...(opts && opts.headers ? opts.headers : {}) }
+        headers: { ...getMarketingHeaders(), ...(opts?.headers ? opts.headers : {}) }
       }).then(r => r.json());
     }
     globalThis.outreachFetch = outreachFetch;
@@ -10954,7 +10954,7 @@
         // fetch() rejects only on network/CORS-level failure. The browser's
         // TypeError message is usually the literal "Failed to fetch", which
         // tells the admin nothing. Replace it with something actionable.
-        const e = new Error(`Network unreachable — could not reach ${displayPath} (browser said: ${netErr && netErr.message ? netErr.message : 'fetch failed'}). Check your internet connection or whether the API endpoint is deployed.`);
+        const e = new Error(`Network unreachable — could not reach ${displayPath} (browser said: ${netErr?.message ? netErr.message : 'fetch failed'}). Check your internet connection or whether the API endpoint is deployed.`);
         e.code = 'NETWORK_UNREACHABLE';
         e.path = fullPath;
         throw e;
@@ -10996,7 +10996,7 @@
       try {
         return await res.json();
       } catch (parseErr) {
-        const e = new Error(`Server returned a non-JSON response (HTTP ${res.status}) on ${displayPath}. ${parseErr && parseErr.message ? parseErr.message : ''}`);
+        const e = new Error(`Server returned a non-JSON response (HTTP ${res.status}) on ${displayPath}. ${parseErr?.message ? parseErr.message : ''}`);
         e.code = 'NON_JSON_RESPONSE';
         e.status = res.status;
         e.path = fullPath;
@@ -11725,8 +11725,8 @@
       const threshold = Number.parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
       const maxRefund = Number.parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
       const msgEl = document.getElementById('ai-ops-settings-save-msg');
-      if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (globalThis.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
-      if (isNaN(maxRefund) || maxRefund < 0) { if (globalThis.showToast) showToast('Max refund must be a positive number', 'error'); return; }
+      if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) { if (globalThis.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
+      if (Number.isNaN(maxRefund) || maxRefund < 0) { if (globalThis.showToast) showToast('Max refund must be a positive number', 'error'); return; }
       if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Saving…'; }
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, {
@@ -11878,7 +11878,7 @@
           }).join('');
           if (globalThis.MCC_ICONS) {
             tbody.querySelectorAll('[data-icon]').forEach(el => {
-              const svg = MCC_ICONS[el.getAttribute('data-icon')];
+              const svg = MCC_ICONS[el.dataset.icon];
               if (svg) el.innerHTML = svg;
             });
           }
@@ -12913,7 +12913,7 @@
         values = daily.map(([, v]) => v);
       }
 
-      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      const isDark = document.documentElement.dataset.theme !== 'light';
       const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
       const textColor = isDark ? '#a0a8b8' : '#4a5568';
       surveyTrendChart = new Chart(canvas.getContext('2d'), {

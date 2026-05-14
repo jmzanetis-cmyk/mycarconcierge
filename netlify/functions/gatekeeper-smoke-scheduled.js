@@ -35,7 +35,7 @@ const AGENT_LABEL = 'Gatekeeper';
 
 
 exports.handler = async function(event) {
-  if (event && event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
+  if (event?.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
 
   const auth = authorizeAgentInvocation(event || {});
   if (!auth) return jsonResponse(401, { error: 'Unauthorized' });

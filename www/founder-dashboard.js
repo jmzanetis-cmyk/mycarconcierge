@@ -1267,7 +1267,7 @@
     }
 
     function formatCompact(n) {
-      if (!n || isNaN(n)) return '—';
+      if (!n || Number.isNaN(n)) return '—';
       if (n >= 1000000) return '$' + (n / 1000000).toFixed(2) + 'M';
       if (n >= 1000) return '$' + Math.round(n / 1000) + 'K';
       return '$' + Math.round(n).toLocaleString();

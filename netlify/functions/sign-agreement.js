@@ -148,7 +148,7 @@ function generatePDF(agreementData) {
 
     var sigData = agreementData.signature_data || '';
     var sigType = agreementData.signature_type || 'type';
-    if (sigType === 'draw' && sigData && sigData.indexOf('data:image') === 0) {
+    if (sigType === 'draw' && sigData?.indexOf('data:image') === 0) {
       try {
         var base64Part = sigData.split(',')[1];
         if (base64Part) {
@@ -158,7 +158,7 @@ function generatePDF(agreementData) {
       } catch (imgErr) {
         doc.fillColor(gold).fontSize(16).font('Helvetica-Oblique').text(agreementData.full_name || 'Provider', 320, sigY + 35, { width: 220 });
       }
-    } else if (sigData && sigData.indexOf('typed:') === 0) {
+    } else if (sigData?.indexOf('typed:') === 0) {
       var typedName = sigData.substring(6);
       doc.fillColor(gold).fontSize(18).font('Helvetica-Oblique').text(typedName, 320, sigY + 35, { width: 220 });
     } else {
@@ -326,7 +326,7 @@ exports.handler = async function(event) {
       return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Signature data too large' }) };
     }
 
-    if (full_name.length > 255 || (business_name && business_name.length > 255)) {
+    if (full_name.length > 255 || (business_name?.length > 255)) {
       return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Name fields too long' }) };
     }
 

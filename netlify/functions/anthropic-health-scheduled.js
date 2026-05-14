@@ -65,17 +65,17 @@ async function probeModel(client, model) {
       model: model,
       ok: true,
       status: 200,
-      response_id: resp && resp.id ? resp.id : null,
+      response_id: resp?.id ? resp.id : null,
       latency_ms: Date.now() - startedAt
     };
   } catch (err) {
-    let status   = (err && err.status)  || (err && err.response && err.response.status) || 0;
-    let code     = (err && err.error && err.error.error && err.error.error.type)
-                || (err && err.code)
-                || (err && err.type)
+    let status   = (err?.status)  || (err?.response && err.response.status) || 0;
+    let code     = (err?.error && err.error.error && err.error.error.type)
+                || (err?.code)
+                || (err?.type)
                 || 'unknown';
-    let message  = (err && err.error && err.error.error && err.error.error.message)
-                || (err && err.message)
+    let message  = (err?.error && err.error.error && err.error.error.message)
+                || (err?.message)
                 || String(err);
     return {
       model: model,

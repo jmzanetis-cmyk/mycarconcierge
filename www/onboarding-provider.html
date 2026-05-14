@@ -1931,7 +1931,7 @@
     function bgcResolveDomIndices() {
       const steps = document.querySelectorAll('.step');
       steps.forEach((s, i) => {
-        const d = s.getAttribute('data-step');
+        const d = s.dataset.step;
         if      (d === 'bgc-1') BGC_STEP_DOM.s1 = i;
         else if (d === 'bgc-2') BGC_STEP_DOM.s2 = i;
         else if (d === 'bgc-3') BGC_STEP_DOM.s3 = i;
@@ -2015,7 +2015,7 @@
       // Show only the matching language for [data-mcc-lang] blocks on this page.
       const lang = oboLang();
       document.querySelectorAll('[data-mcc-lang]').forEach(function (el) {
-        el.hidden = (el.getAttribute('data-mcc-lang') !== lang);
+        el.hidden = (el.dataset.mccLang !== lang);
       });
     }
 

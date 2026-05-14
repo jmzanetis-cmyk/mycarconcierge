@@ -555,7 +555,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   // ------------------------------------------------------------------
   function fmtPct(v) {
     const n = Number(v);
-    if (!isFinite(n)) return '0.0%';
+    if (!Number.isFinite(n)) return '0.0%';
     return n.toFixed(1) + '%';
   }
 
@@ -1923,7 +1923,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     if (!body) return;
     // Clear stale inline banners from prior actions unless the caller
     // explicitly asked to keep them (e.g. a fresh OAuth-callback flash).
-    if (!(opts && opts.preserveFlash)) fbClearFlash();
+    if (!(opts?.preserveFlash)) fbClearFlash();
 
     // 1. Schema/connection check
     const conn = await fbApi('GET', '/connection');

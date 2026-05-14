@@ -2009,7 +2009,7 @@ async function tryAcquireApolloLock(supabase, { ttlMs = APOLLO_LOCK_TTL_MS } = {
     const meta = row?.metadata || {};
     const cfg = meta.apollo_config || {};
     const existingSince = cfg.running_since ? new Date(cfg.running_since) : null;
-    const existingValid = existingSince && !isNaN(existingSince.getTime());
+    const existingValid = existingSince && !Number.isNaN(existingSince.getTime());
     const isStale = existingValid && (now - existingSince) > ttlMs;
 
     if (existingValid && !isStale) {

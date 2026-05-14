@@ -62,7 +62,7 @@ exports.handler = async function(event, context) {
         .from('admin_team_members')
         .select('id, email, display_name, role, status, last_login, created_at')
         .order('created_at', { ascending: true });
-      if (error && error.message && error.message.includes('does not exist')) return jsonResponse(200, []);
+      if (error?.message && error.message.includes('does not exist')) return jsonResponse(200, []);
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, data || []);
     }
@@ -72,7 +72,7 @@ exports.handler = async function(event, context) {
         .from('admin_team_invites')
         .select('id, email, role, status, token, created_at, expires_at, invited_by')
         .order('created_at', { ascending: false });
-      if (error && error.message && error.message.includes('does not exist')) return jsonResponse(200, []);
+      if (error?.message && error.message.includes('does not exist')) return jsonResponse(200, []);
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, data || []);
     }
@@ -92,7 +92,7 @@ exports.handler = async function(event, context) {
         .select('id')
         .eq('email', normalizedEmail)
         .limit(1);
-      if (existingMembers && existingMembers.length > 0) {
+      if (existingMembers?.length > 0) {
         return jsonResponse(409, { error: 'A user with this email already exists' });
       }
       const { data: existingInvites } = await supabase
@@ -101,7 +101,7 @@ exports.handler = async function(event, context) {
         .eq('email', normalizedEmail)
         .eq('status', 'pending')
         .limit(1);
-      if (existingInvites && existingInvites.length > 0) {
+      if (existingInvites?.length > 0) {
         return jsonResponse(409, { error: 'A pending invite already exists for this email' });
       }
       const token = crypto.randomBytes(32).toString('hex');

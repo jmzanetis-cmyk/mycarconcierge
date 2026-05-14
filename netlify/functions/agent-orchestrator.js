@@ -25,7 +25,7 @@ function siteBaseUrl(event) {
   // the orchestrator invocation.
   return process.env.URL
     || process.env.DEPLOY_PRIME_URL
-    || (event && event.headers && event.headers.host
+    || (event?.headers && event.headers.host
           ? `https://${event.headers.host}`
           : 'https://mycarconcierge.com');
 }

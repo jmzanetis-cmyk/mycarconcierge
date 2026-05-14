@@ -299,7 +299,7 @@ exports.handler = async function() {
     if (!resend) return true;
     try {
       const r = await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
-      if (r && r.error) {
+      if (r?.error) {
         console.error('[BGC reminders] Resend returned error:', r.error.message || r.error);
         return false;
       }

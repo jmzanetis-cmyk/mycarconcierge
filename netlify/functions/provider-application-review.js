@@ -290,7 +290,7 @@ async function requestApplicationInfo(supabase, body) {
 // and returns just the columns needed to render the source badge and the
 // detail-modal "Originating Lead" block. Read-only — never mutates.
 async function listOutreachLeads(supabase, body) {
-  const rawIds = Array.isArray(body && body.lead_ids) ? body.lead_ids : [];
+  const rawIds = Array.isArray(body?.lead_ids) ? body.lead_ids : [];
   // Dedupe + filter to UUIDs so a malformed id can't slip into the IN clause.
   const ids = Array.from(new Set(rawIds.filter(isUuid)));
   if (!ids.length) return jsonResponse(200, { leads: [] });

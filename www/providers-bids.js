@@ -614,7 +614,7 @@ async function submitBid() {
     price = customPrice?.value;
   }
   
-  if (!price || isNaN(Number.parseFloat(price))) {
+  if (!price || Number.isNaN(Number.parseFloat(price))) {
     showToast('Please enter a valid price', 'error');
     return;
   }

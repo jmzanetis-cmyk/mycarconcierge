@@ -44,7 +44,7 @@ const TICKS = {
 function pickTicks(event) {
   // Manual admin invocations may pass ?tick=nightly,weekly to fire one or
   // more ticks on demand. Defaults to nightly.
-  const qs = (event && event.queryStringParameters) || {};
+  const qs = (event?.queryStringParameters) || {};
   const requested = (qs.tick || 'nightly').split(',').map(s => s.trim()).filter(Boolean);
   return requested.filter(name => TICKS[name]).map(name => TICKS[name]);
 }

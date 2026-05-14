@@ -142,9 +142,9 @@ test.describe('Admin provider applications — originating outreach lead (Task #
       const a = wrap.querySelector('a.mcc-outreach-lead-link');
       return a ? {
         count: wrap.querySelectorAll('a').length,
-        leadId: a.getAttribute('data-lead-id'),
-        leadName: a.getAttribute('data-lead-name'),
-        leadEmail: a.getAttribute('data-lead-email'),
+        leadId: a.dataset.leadId,
+        leadName: a.dataset.leadName,
+        leadEmail: a.dataset.leadEmail,
         href: a.getAttribute('href')
       } : null;
     }, cases.nasty);

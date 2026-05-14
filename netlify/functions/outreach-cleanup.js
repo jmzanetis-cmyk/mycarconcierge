@@ -28,7 +28,7 @@ exports.handler = async function(event, context) {
     if (fetchError) {
       console.error('[OutreachEngine] Error fetching stale leads:', fetchError.message);
       results.stale_leads_error = fetchError.message;
-    } else if (staleLeads && staleLeads.length > 0) {
+    } else if (staleLeads?.length > 0) {
       const staleIds = staleLeads.map(l => l.id);
 
       await supabase

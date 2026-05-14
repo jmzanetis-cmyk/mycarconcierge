@@ -5,7 +5,7 @@
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.dataset.theme = theme;
     })();
   </script>
   <title>Agent Fleet · Admin · My Car Concierge</title>
@@ -600,8 +600,8 @@ async function loadRegistry() {
     body.querySelectorAll('[data-slug]').forEach(el => {
       const evt = el.tagName === 'SELECT' ? 'change' : (el.type === 'number' ? 'change' : 'change');
       el.addEventListener(evt, async () => {
-        const slug = el.getAttribute('data-slug');
-        const field = el.getAttribute('data-field');
+        const slug = el.dataset.slug;
+        const field = el.dataset.field;
         let val;
         if (field === 'enabled') val = el.checked;
         else if (field === 'daily_spend_cap_usd') val = parseFloat(el.value);
@@ -668,7 +668,7 @@ async function loadDLQ() {
     }
     body.querySelectorAll('[data-dlq-replay]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-dlq-replay');
+        const id = btn.dataset.dlqReplay;
         btn.disabled = true; btn.textContent = '…';
         try {
           const r = await api(`/dead-letter/${id}/replay`, { method: 'POST' });
@@ -719,8 +719,8 @@ async function loadSpendAlerts() {
     }
     body.querySelectorAll('[data-resend-slug]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const slug = btn.getAttribute('data-resend-slug');
-        const day = btn.getAttribute('data-resend-day');
+        const slug = btn.dataset.resendSlug;
+        const day = btn.dataset.resendDay;
         const orig = btn.textContent;
         btn.disabled = true; btn.textContent = '…';
         try {
@@ -831,7 +831,7 @@ async function loadDirector() {
     }).join('');
     tbody.querySelectorAll('button[data-resolve-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-resolve-id');
+        const id = btn.dataset.resolveId;
         if (!confirm('Mark this alert resolved? It will reopen on the next sweep if the underlying condition still holds.')) return;
         btn.disabled = true;
         try {
@@ -1103,20 +1103,20 @@ async function loadChannels() {
 
     body.querySelectorAll('input[data-chan-id]').forEach(inp => {
       inp.addEventListener('change', async () => {
-        const id = inp.getAttribute('data-chan-id');
+        const id = inp.dataset.chanId;
         try { await api(`/social/channels/${id}/toggle`, { method: 'POST' }); toast('Channel updated'); }
         catch (e) { toast(e.message, true); inp.checked = !inp.checked; }
       });
     });
     body.querySelectorAll('button[data-chan-edit]').forEach(btn => {
-      btn.addEventListener('click', () => { __chanEditing.add(parseInt(btn.getAttribute('data-chan-edit'),10)); loadChannels(); });
+      btn.addEventListener('click', () => { __chanEditing.add(parseInt(btn.dataset.chanEdit,10)); loadChannels(); });
     });
     body.querySelectorAll('button[data-chan-cancel]').forEach(btn => {
-      btn.addEventListener('click', () => { __chanEditing.delete(parseInt(btn.getAttribute('data-chan-cancel'),10)); loadChannels(); });
+      btn.addEventListener('click', () => { __chanEditing.delete(parseInt(btn.dataset.chanCancel,10)); loadChannels(); });
     });
     body.querySelectorAll('button[data-chan-save]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = parseInt(btn.getAttribute('data-chan-save'),10);
+        const id = parseInt(btn.dataset.chanSave,10);
         const handle   = (document.querySelector(`[data-edit-handle="${id}"]`)?.value || '').trim();
         const audience = document.querySelector(`[data-edit-audience="${id}"]`)?.value || 'both';
         const kwRaw    = (document.querySelector(`[data-edit-keywords="${id}"]`)?.value || '').trim();
@@ -1133,7 +1133,7 @@ async function loadChannels() {
     });
     body.querySelectorAll('button[data-chan-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-chan-delete');
+        const id = btn.dataset.chanDelete;
         if (!confirm(`Delete channel #${id}? Historical leads/posts survive but lose their channel link.`)) return;
         try { await api(`/social/channels/${id}`, { method: 'DELETE' }); toast(`Channel #${id} deleted`); loadChannels(); }
         catch (e) { toast(e.message, true); }
@@ -1141,7 +1141,7 @@ async function loadChannels() {
     });
     body.querySelectorAll('button[data-chan-run]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-chan-run');
+        const id = btn.dataset.chanRun;
         const orig = btn.textContent;
         btn.disabled = true; btn.textContent = '…';
         try {
@@ -1265,8 +1265,8 @@ async function loadPosts() {
     body.querySelectorAll('button[data-post-act]').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const id = parseInt(btn.getAttribute('data-post-id'), 10);
-        const act = btn.getAttribute('data-post-act');
+        const id = parseInt(btn.dataset.postId, 10);
+        const act = btn.dataset.postAct;
         const ta = document.querySelector(`textarea[data-post-body="${id}"]`);
         const newBody = ta ? ta.value : null;
         const orig = btn.textContent;
@@ -1400,8 +1400,8 @@ async function loadLeads() {
     body.querySelectorAll('button[data-lead-act]').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const id  = btn.getAttribute('data-lead-id');
-        const act = btn.getAttribute('data-lead-act');
+        const id  = btn.dataset.leadId;
+        const act = btn.dataset.leadAct;
         const orig = btn.textContent;
         btn.disabled = true; btn.textContent = '…';
         try { const r = await api(`/social/leads/${id}/${act}`, { method: 'POST' }); toast(`Lead #${id} ${r.lead?.status || act}`); loadLeads(); }

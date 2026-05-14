@@ -27,7 +27,7 @@ const EVENT_TYPES = ['payment.captured', 'payment.refund_requested', 'payout.fai
 const MAX_CAP_USD = 5.0; // matches the registry seed in 20260422_agent_fleet.sql
 
 exports.handler = async function(event) {
-  if (event && event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
+  if (event?.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
 
   const auth = authorizeAgentInvocation(event || {});
   if (!auth) return jsonResponse(401, { error: 'Unauthorized' });

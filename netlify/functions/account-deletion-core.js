@@ -51,7 +51,7 @@ async function _deleteMemberTables(supabase, userId) {
     .from('vehicles')
     .select('id')
     .eq('owner_id', userId);
-  let vehicleIds = (vehiclesRes && vehiclesRes.data ? vehiclesRes.data : []).map(function (v) { return v.id; });
+  let vehicleIds = (vehiclesRes?.data ? vehiclesRes.data : []).map(function (v) { return v.id; });
   if (vehicleIds.length > 0) {
     await supabase.from('service_history').delete().in('vehicle_id', vehicleIds);
     await supabase.from('maintenance_reminders').delete().in('vehicle_id', vehicleIds);
@@ -63,7 +63,7 @@ async function _deleteMemberTables(supabase, userId) {
     .from('maintenance_packages')
     .select('id')
     .eq('member_id', userId);
-  let packageIds = (packagesRes && packagesRes.data ? packagesRes.data : []).map(function (p) { return p.id; });
+  let packageIds = (packagesRes?.data ? packagesRes.data : []).map(function (p) { return p.id; });
   if (packageIds.length > 0) {
     await supabase.from('bids').delete().in('package_id', packageIds);
     await supabase.from('additional_work_requests').delete().in('package_id', packageIds);
@@ -96,9 +96,9 @@ async function _deleteAuthAndNotify(opts, displayName) {
   await supabase.from('signed_agreements').delete().eq('user_id', userId);
   await supabase.from('profiles').delete().eq('id', userId);
 
-  if (serviceSupabase && serviceSupabase.auth && serviceSupabase.auth.admin && typeof serviceSupabase.auth.admin.deleteUser === 'function') {
+  if (serviceSupabase?.auth && serviceSupabase.auth.admin && typeof serviceSupabase.auth.admin.deleteUser === 'function') {
     let authDelRes = await serviceSupabase.auth.admin.deleteUser(userId);
-    if (authDelRes && authDelRes.error) {
+    if (authDelRes?.error) {
       console.error('[' + requestId + '] auth.admin.deleteUser error:', authDelRes.error);
     }
   }
@@ -140,7 +140,7 @@ async function performAccountDeletion(opts) {
       .select('role, full_name, business_name')
       .eq('id', userId)
       .maybeSingle();
-    let profile = profileRes && profileRes.data ? profileRes.data : null;
+    let profile = profileRes?.data ? profileRes.data : null;
     let isProvider = profile && (profile.role === 'provider' || profile.role === 'pending_provider');
     let displayName = (profile && (profile.business_name || profile.full_name)) || userEmail || 'there';
 
@@ -162,7 +162,7 @@ async function performAccountDeletion(opts) {
     return {
       success: false,
       statusCode: 500,
-      error: (error && error.message) ? error.message : 'Failed to delete account. Please try again or contact support.'
+      error: (error?.message) ? error.message : 'Failed to delete account. Please try again or contact support.'
     };
   }
 }

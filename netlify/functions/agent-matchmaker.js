@@ -213,7 +213,7 @@ async function handleEvent(supabase, agent, eventEnvelope) {
   // Both branches log a `skipped` action so the audit trail captures the
   // duplicate dispatch without polluting the review queue.
   const carePlanRow = await loadCarePlan(supabase, payload.care_plan_id);
-  if (carePlanRow && carePlanRow.status === 'awarded') {
+  if (carePlanRow?.status === 'awarded') {
     await logAction(supabase, {
       agentSlug: SLUG, eventId: evt?.event_id,
       actionType: 'rank', status: 'skipped',

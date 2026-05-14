@@ -292,7 +292,7 @@ async function pollForProposal(supabase, agentSlug, eventId, eventType, log, fai
       log.fail(`poll ${eventType} (event_id=${eventId}): ${error.message}`);
       return null;
     }
-    if (data && data.length) return data[0];
+    if (data?.length) return data[0];
     await new Promise(r => setTimeout(r, intervalMs));
   }
   return null;
