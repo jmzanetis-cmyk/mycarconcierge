@@ -17774,7 +17774,7 @@ See you there!`);
         const rawDate = ext.expirationDate || '';
         const formattedDate = rawDate.includes('/') ? rawDate : (() => {
           const d = new Date(rawDate);
-          if (!rawDate || Number.isNaN(d)) return rawDate;
+          if (!rawDate || isNaN(d)) return rawDate;
           const m = String(d.getUTCMonth() + 1).padStart(2, '0');
           const dy = String(d.getUTCDate()).padStart(2, '0');
           return `${m}/${dy}/${d.getUTCFullYear()}`;

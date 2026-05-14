@@ -280,7 +280,7 @@ function escapeHtml(value) {
 
 function formatAmount(amount) {
   const num = Number(amount);
-  if (!Number.isFinite(num)) return '$0.00';
+  if (!isFinite(num)) return '$0.00';
   return '$' + num.toFixed(2);
 }
 
@@ -598,7 +598,7 @@ async function listActions(supabase, { limit = 50, offset = 0, agent = null, sta
   if (agent)  q = q.eq('agent_slug', agent);
   if (status) q = q.eq('status', status);
   if (reviewOnly) q = q.eq('needs_review', true).is('reviewed_at', null);
-  if (since && !Number.isNaN(Date.parse(since))) q = q.gte('created_at', since);
+  if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
   const { data, count, error } = await q;
   if (error) throw new Error(error.message);
   return { actions: data || [], total: count || 0, limit: lim, offset: off };
@@ -1203,7 +1203,7 @@ function _applyDirectorConfigFields(current, body) {
   }
   if (body.dedupe_repage_hours != null) {
     const h = Number(body.dedupe_repage_hours);
-    if (!Number.isFinite(h) || h < 0.25 || h > 168) {
+    if (!isFinite(h) || h < 0.25 || h > 168) {
       return { ok: false, error: 'dedupe_repage_hours must be 0.25-168' };
     }
     next.dedupe_repage_hours = h;
@@ -1218,7 +1218,7 @@ function _applyDirectorConfigFields(current, body) {
     for (const [k, v] of Object.entries(body.thresholds)) {
       if (!allowed.has(k)) continue;
       const n = Number(v);
-      if (!Number.isFinite(n) || n < 0) {
+      if (!isFinite(n) || n < 0) {
         return { ok: false, error: `threshold ${k} must be a non-negative number` };
       }
       merged[k] = n;
@@ -1700,7 +1700,7 @@ async function handleSocialRequestDraft(event, ctx) {
   const audience = (body.audience || 'mixed').toString();
   const brief    = (body.brief || '').toString();
   let variants = Number.parseInt(body.variants, 10);
-  if (!Number.isFinite(variants) || variants < 1) variants = 1;
+  if (!isFinite(variants) || variants < 1) variants = 1;
   if (variants > 10) variants = 10;
   if (!platform) return jsonResponse(400, { error: 'platform required' });
 

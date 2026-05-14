@@ -555,7 +555,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   // ------------------------------------------------------------------
   function fmtPct(v) {
     const n = Number(v);
-    if (!Number.isFinite(n)) return '0.0%';
+    if (!isFinite(n)) return '0.0%';
     return n.toFixed(1) + '%';
   }
 

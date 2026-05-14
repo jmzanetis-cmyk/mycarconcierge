@@ -16387,7 +16387,7 @@ async function handleAdditionalWorkRequest(req, res, requestId) {
       }
       
       const estimatedCostNum = Number.parseFloat(estimated_cost);
-      if (Number.isNaN(estimatedCostNum) || estimatedCostNum < 0) {
+      if (isNaN(estimatedCostNum) || estimatedCostNum < 0) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'estimated_cost must be a valid positive number' }));
         return;
@@ -16931,7 +16931,7 @@ async function handleDiscountOffer(req, res, requestId) {
       }
       
       const discountAmountNum = Number.parseFloat(discount_amount);
-      if (Number.isNaN(discountAmountNum) || discountAmountNum <= 0) {
+      if (isNaN(discountAmountNum) || discountAmountNum <= 0) {
         res.writeHead(400, { 'Content-Type': 'application/json' });
         res.end(JSON.stringify({ error: 'discount_amount must be a positive number' }));
         return;

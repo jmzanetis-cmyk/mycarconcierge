@@ -680,7 +680,7 @@ exports.handler = async function(event, context) {
         const dd = Number(m[3]);
         const d  = new Date(Date.UTC(y, mo - 1, dd));
         if (
-          Number.isNaN(d.getTime()) ||
+          isNaN(d.getTime()) ||
           d.getUTCFullYear() !== y ||
           d.getUTCMonth()    !== mo - 1 ||
           d.getUTCDate()     !== dd

@@ -364,7 +364,7 @@ function printResults(testDurationSec) {
   const realErrorRate = totalRequests > 0
     ? ((totalErrors / (totalRequests - totalRateLimited)) * 100)
     : 0;
-  const safeErrorRate = Number.isFinite(realErrorRate) ? realErrorRate : 0;
+  const safeErrorRate = isFinite(realErrorRate) ? realErrorRate : 0;
 
   const criteria = [
     { name: 'p95 < 5000ms',                    value: `${overallP95}ms`,                     pass: overallP95 < 5000 },

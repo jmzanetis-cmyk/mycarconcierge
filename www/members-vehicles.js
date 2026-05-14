@@ -910,7 +910,7 @@
       if (expiration) {
         try {
           const parsed = new Date(expiration);
-          if (!Number.isNaN(parsed.getTime())) {
+          if (!isNaN(parsed.getTime())) {
             document.getElementById('insurance-doc-end-date').value = parsed.toISOString().split('T')[0];
           }
         } catch (e) {}

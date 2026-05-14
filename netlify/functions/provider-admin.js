@@ -232,7 +232,7 @@ async function adjustCredits(supabase, providerIds, delta, reason) {
       failed.push({ id, error: 'profile not found' });
       continue;
     }
-    const before = Number.isFinite(row.bid_credits) ? row.bid_credits : 0;
+    const before = isFinite(row.bid_credits) ? row.bid_credits : 0;
     const after = before + delta;
     if (after < 0) {
       failed.push({ id, error: `would make balance negative (current=${before}, delta=${delta})` });
@@ -291,7 +291,7 @@ async function _handleActivate(supabase, body) {
 }
 
 async function _handleCheckLowRated(supabase, body) {
-  const threshold = Number.isFinite(body.rating_threshold) ? body.rating_threshold : 4;
+  const threshold = isFinite(body.rating_threshold) ? body.rating_threshold : 4;
   const autosuspend = !!body.autosuspend;
   const reason = (body.reason || `Rating below ${threshold} stars - automatic suspension`).toString().trim();
 

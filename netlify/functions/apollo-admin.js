@@ -95,7 +95,7 @@ function sanitizeConfigUpdates(body) {
         break;
       case 'interval_hours': {
         const n = Number(value);
-        if (!Number.isFinite(n) || n < 1 || n > 168) {
+        if (!isFinite(n) || n < 1 || n > 168) {
           errors.push('interval_hours must be a number between 1 and 168');
         } else {
           out[key] = n;

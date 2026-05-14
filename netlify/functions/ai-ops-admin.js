@@ -478,7 +478,7 @@ exports.handler = async function(event, context) {
       if (mod) q = q.eq('module', mod);
       if (targetId) q = q.eq('target_id', targetId);
       if (outcome) q = q.eq('outcome', outcome);
-      if (since && !Number.isNaN(Date.parse(since))) q = q.gte('created_at', since);
+      if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
       const { data, error, count } = await q;
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, { actions: data || [], total: count || 0, page, limit, totalPages: Math.ceil((count || 0) / limit) });
@@ -551,7 +551,7 @@ exports.handler = async function(event, context) {
       const { confidence_threshold, max_auto_refund } = body;
       if (confidence_threshold !== undefined) {
         const t = Number.parseFloat(confidence_threshold);
-        if (Number.isNaN(t) || t < 0 || t > 1) {
+        if (isNaN(t) || t < 0 || t > 1) {
           return jsonResponse(400, { error: 'confidence_threshold must be 0.0–1.0' });
         }
         const { error } = await supabase.from('ai_ops_settings').upsert(
@@ -562,7 +562,7 @@ exports.handler = async function(event, context) {
       }
       if (max_auto_refund !== undefined) {
         const m = Number.parseFloat(max_auto_refund);
-        if (Number.isNaN(m) || m < 0) {
+        if (isNaN(m) || m < 0) {
           return jsonResponse(400, { error: 'max_auto_refund must be a positive number' });
         }
         const { error } = await supabase.from('ai_ops_settings').upsert(

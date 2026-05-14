@@ -34,7 +34,7 @@
   }
 
   function fmtMoney(n) {
-    if (n == null || Number.isNaN(Number(n))) return '—';
+    if (n == null || isNaN(Number(n))) return '—';
     return '$' + Number(n).toFixed(2);
   }
 
@@ -61,7 +61,7 @@
   function biddingWindowOpen(plan) {
     if (!plan || !plan.bid_closes_at) return false;
     const ts = Date.parse(plan.bid_closes_at);
-    if (Number.isNaN(ts)) return false;
+    if (isNaN(ts)) return false;
     return ts > Date.now();
   }
 
@@ -380,9 +380,9 @@
     // order, but we re-sort defensively in case future endpoints don't.
     const sorted = bids.slice().sort(function (a, b) {
       const av = Number(a.amount); const bv = Number(b.amount);
-      if (Number.isNaN(av) && Number.isNaN(bv)) return 0;
-      if (Number.isNaN(av)) return 1;
-      if (Number.isNaN(bv)) return -1;
+      if (isNaN(av) && isNaN(bv)) return 0;
+      if (isNaN(av)) return 1;
+      if (isNaN(bv)) return -1;
       return av - bv;
     });
     // Accept Bid is only offered when (a) no bid is already accepted, (b) the
@@ -781,7 +781,7 @@
           const row = payload && payload.new;
           if (!row || !row.care_plan_id) return;
           if (!myCarePlanIds.has(row.care_plan_id)) return;
-          const amt = (row.amount != null && !Number.isNaN(Number(row.amount)))
+          const amt = (row.amount != null && !isNaN(Number(row.amount)))
             ? ' (' + fmtMoney(row.amount) + ')' : '';
           showToast(t('member.cpRealtimeNewBid', 'New bid received{{amt}} on your care plan.', { amt: amt }), 'success');
           try { await loadCarePlansSection(); } catch (_) {}

@@ -2575,7 +2575,7 @@
     async function bulkAddCredits() {
       const count = selectedProviders.size;
       const credits = prompt(`Add bid credits to ${count} provider(s):\n\nEnter number of credits to add:`);
-      if (!credits || Number.isNaN(credits) || Number.parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
       const creditsToAdd = Number.parseInt(credits);
 
@@ -2783,7 +2783,7 @@
       const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
 
       const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
-      if (!credits || Number.isNaN(credits) || Number.parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
       const creditsToAdd = Number.parseInt(credits);
 
@@ -3756,7 +3756,7 @@
       };
 
       for (const k of ['amount_total', 'amount_mcc_fee', 'refund_amount']) {
-        if (updates[k] !== null && (Number.isNaN(updates[k]) || updates[k] < 0)) {
+        if (updates[k] !== null && (isNaN(updates[k]) || updates[k] < 0)) {
           showToast(`Invalid value for ${k.replaceAll('_', ' ')}`, 'error');
           return;
         }
@@ -5296,7 +5296,7 @@
       const founderId = document.getElementById('commission-founder-id').value;
       const ratePercent = Number.parseInt(document.getElementById('commission-rate-input').value);
       
-      if (Number.isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
+      if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
         showNotification('Please enter a valid rate between 0 and 100', 'error');
         return;
       }
@@ -6140,7 +6140,7 @@
       const amount = Number.parseFloat(amountInput.value);
       const notes = notesInput.value.trim();
       
-      if (Number.isNaN(amount) || amount === 0) {
+      if (isNaN(amount) || amount === 0) {
         showToast('Please enter a valid non-zero amount', 'error');
         return;
       }
@@ -11621,7 +11621,7 @@
       const cleaned = String(amountStr).replace(/[\s$,]/g, '');
       if (cleaned !== '') {
         const amt = Number(cleaned);
-        if (!Number.isFinite(amt) || amt <= 0) { alert('Invalid amount.'); return; }
+        if (!isFinite(amt) || amt <= 0) { alert('Invalid amount.'); return; }
         body.amount = amt;
       }
       if (!confirm(`Refund ${body.amount ? '$' + body.amount.toFixed(2) : 'FULL amount'} to member? If funds are still held (uncaptured), the authorization will be cancelled. Cannot be undone.`)) return;
@@ -11725,8 +11725,8 @@
       const threshold = Number.parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
       const maxRefund = Number.parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
       const msgEl = document.getElementById('ai-ops-settings-save-msg');
-      if (Number.isNaN(threshold) || threshold < 0 || threshold > 1) { if (globalThis.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
-      if (Number.isNaN(maxRefund) || maxRefund < 0) { if (globalThis.showToast) showToast('Max refund must be a positive number', 'error'); return; }
+      if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (globalThis.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
+      if (isNaN(maxRefund) || maxRefund < 0) { if (globalThis.showToast) showToast('Max refund must be a positive number', 'error'); return; }
       if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Saving…'; }
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, {

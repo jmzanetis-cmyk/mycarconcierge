@@ -10,7 +10,7 @@ function startSplitCountdown(expiresAt, containerId) {
   if (!expiresAt) return;
   if (splitCountdownTimer) clearInterval(splitCountdownTimer);
   const expiresTime = new Date(expiresAt).getTime();
-  if (Number.isNaN(expiresTime)) return;
+  if (isNaN(expiresTime)) return;
 
   const countdownDiv = document.createElement('div');
   countdownDiv.id = containerId;
