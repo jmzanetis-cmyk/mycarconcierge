@@ -8,6 +8,12 @@
   # repo root automatically before this command, so the root
   # node_modules (where @supabase/supabase-js lives) is already
   # populated by the time `npm test` runs.
+  #
+  # Task #309: those test files now live in `netlify/functions-tests/`
+  # (NOT `netlify/functions/`) so Netlify's function bundler doesn't
+  # try to publish `admin-routes-auth.test` / `provider-application.test`
+  # as serverless functions — the dot in `.test.js` is illegal in a
+  # Netlify function name and was failing prod deploys.
   command    = "npm test && cd netlify/functions && npm install"
   publish    = "www"
   functions  = "netlify/functions"
