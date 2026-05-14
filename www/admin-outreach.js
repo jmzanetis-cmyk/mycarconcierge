@@ -290,6 +290,14 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     if (d.last_send_error) {
       chips.push(`<span title="Most recent send_failed (Resend / Twilio error)" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;">last send error: ${escapeHtml(String(d.last_send_error.error || 'unknown').slice(0, 80))}${d.last_send_error.channel ? ' · ' + d.last_send_error.channel : ''} (${fmtAgo(d.last_send_error.at)})</span>`);
     }
+    // Task #306 — AI circuit-breaker chip. Trips open after 3 consecutive
+    // Anthropic/OpenAI failures and pauses the draft pipeline for 5 min.
+    if (d.ai_circuit_breaker?.open) {
+      const fmt = d.ai_circuit_breaker.paused_until ? fmtAgo(d.ai_circuit_breaker.paused_until) : null;
+      chips.push(`<span title="AI draft pipeline tripped open after ${d.ai_circuit_breaker.failures} consecutive Anthropic/OpenAI failures. Will auto-resume when pause window expires." style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171;font-weight:600;">⛔ AI breaker open (${d.ai_circuit_breaker.failures} fails${fmt ? ', resumes by ' + fmt : ''})</span>`);
+    } else if ((d.ai_circuit_breaker?.failures || 0) > 0) {
+      chips.push(`<span title="Recent AI failures recorded; breaker still closed (trips at 3)" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);">AI fails: ${d.ai_circuit_breaker.failures}</span>`);
+    }
     if (d.apollo_likely_credit_exhaustion_at) {
       chips.push(`<span title="Set after 5+ consecutive Apollo cycles returned 0 results — almost always means Apollo credits are exhausted" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;font-weight:600;">⚠ Apollo credit-exhaustion suspected (${d.apollo_consecutive_zero_cycles} zero cycles)</span>`);
     } else if (d.apollo_consecutive_zero_cycles >= 2) {

@@ -132,7 +132,15 @@ exports.handler = async function(event, context) {
           // apollo_config is persisted under engine_state.metadata.apollo_config
           // by saveApolloConfig() in outreach-engine-core.js — read from there.
           apollo_likely_credit_exhaustion_at: data.metadata?.apollo_config?.likely_credit_exhaustion_at || null,
-          apollo_consecutive_zero_cycles: data.metadata?.apollo_config?.consecutive_zero_cycles || 0
+          apollo_consecutive_zero_cycles: data.metadata?.apollo_config?.consecutive_zero_cycles || 0,
+          // Task #306 — surface the in-process AI circuit breaker so the
+          // admin chip strip can show "AI paused — N failures" when Anthropic
+          // / OpenAI is misbehaving and the draft pipeline has tripped open.
+          ai_circuit_breaker: {
+            failures: aiCircuitBreaker.failures || 0,
+            paused_until: aiCircuitBreaker.pausedUntil ? new Date(aiCircuitBreaker.pausedUntil).toISOString() : null,
+            open: !!(aiCircuitBreaker.pausedUntil && Date.now() < aiCircuitBreaker.pausedUntil)
+          }
         }
       });
     }

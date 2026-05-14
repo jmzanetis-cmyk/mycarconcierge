@@ -348,6 +348,13 @@ function buildEmailHtml(today, outreach, aiOps, narrative, apollo) {
 </html>`;
 }
 
+// Task #306 — export the renderer + helper so the offline regression smoke
+// (scripts/paused-digest-rendering-test.js) can call them with synthetic
+// outreach state and assert the engine-paused banner / subject prefix /
+// SMS line all render without standing up a Supabase or Resend mock.
+exports.buildEmailHtml = buildEmailHtml;
+exports.escapeForHtml = escapeForHtml;
+
 exports.handler = async function(event, context) {
   console.log('[DailyDigest] Scheduled run triggered at', new Date().toISOString());
   const t0 = Date.now();

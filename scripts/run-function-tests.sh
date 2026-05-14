@@ -22,6 +22,8 @@ files=(netlify/functions/*.test.js)
 # requires no external credentials (stub out Supabase / Resend / Twilio).
 extra=(
   scripts/bgc-reminders-prefs-smoke.js
+  scripts/queue-flush-skip-test.js
+  scripts/paused-digest-rendering-test.js
 )
 files+=("${extra[@]}")
 

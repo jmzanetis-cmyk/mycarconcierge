@@ -358,6 +358,24 @@ async function runDailyDigest(supabase) {
   const { threshold } = await getAiOpsSettings(supabase);
   const shadowMode = threshold >= 1.0;
 
+  // Task #306 — even the simpler AI-Ops digest must surface engine-paused
+  // state, otherwise on-call hits the manual "Run Now" button, gets a
+  // healthy-looking SMS, and misses that the outreach engine is paused.
+  let enginePaused = { paused: false };
+  try {
+    const { data: es } = await supabase
+      .from('engine_state')
+      .select('is_running, paused_at, pause_reason')
+      .eq('id', 1).single();
+    if (es && es.is_running === false) {
+      enginePaused = {
+        paused: true,
+        reason: es.pause_reason || null,
+        paused_at: es.paused_at || null
+      };
+    }
+  } catch {}
+
   const since = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
   const { data: actions } = await supabase
     .from('ai_action_log')
@@ -390,18 +408,30 @@ async function runDailyDigest(supabase) {
 
   const adminPhone = process.env.ADMIN_PHONE_NUMBER;
   let smsSent = false;
+  const escalated = Object.values(byModule).reduce((s, m) => s + (m.escalated || 0), 0);
+  const autoExec = Object.values(byModule).reduce((s, m) => s + (m.auto_executed || 0), 0);
+  const smsLines = [`MCC AI Ops | ${today} | Actions: ${totalActions} | Auto-exec: ${autoExec} | Escalated: ${escalated}. ${narrative.slice(0, 100)}`];
+  // Task #306 — paused state goes first in the SMS so on-call sees the
+  // reason in the inbox preview without opening the message.
+  if (enginePaused.paused) {
+    smsLines.unshift(`🛑 Engine paused${enginePaused.reason ? ': ' + enginePaused.reason : ''}`);
+  }
   if (adminPhone) {
-    const escalated = Object.values(byModule).reduce((s, m) => s + (m.escalated || 0), 0);
-    const autoExec = Object.values(byModule).reduce((s, m) => s + (m.auto_executed || 0), 0);
-    const smsBody = `MCC AI Ops | ${today} | Actions: ${totalActions} | Auto-exec: ${autoExec} | Escalated: ${escalated}. ${narrative.slice(0, 100)}`;
-    const smsResult = await aiOpsSendSMS(adminPhone, smsBody);
+    const smsResult = await aiOpsSendSMS(adminPhone, smsLines.join('\n'));
     smsSent = smsResult.sent;
     if (smsSent) {
       await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
     }
   }
 
-  return { success: true, date: today, totalActions, narrative, sms_sent: smsSent, ms: Date.now() - t0 };
+  return {
+    success: true, date: today, totalActions, narrative,
+    sms_sent: smsSent, ms: Date.now() - t0,
+    // Task #306 — expose engine_paused + sms_lines so the admin "Run Now"
+    // button (and the offline regression smoke) can verify the paused
+    // signal renders without intercepting Twilio.
+    digest: { sms_lines: smsLines, engine_paused: enginePaused }
+  };
 }
 
 exports.handler = async function(event, context) {
