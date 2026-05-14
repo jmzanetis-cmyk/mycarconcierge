@@ -15,6 +15,16 @@ shopt -s nullglob
 cd "$(dirname "$0")/.."
 
 files=(netlify/functions/*.test.js)
+
+# Task #202 — Offline smokes for scripts that don't live under
+# netlify/functions/ but should still be guarded by `npm test`. Each entry
+# must be a self-contained Node script that exits non-zero on failure and
+# requires no external credentials (stub out Supabase / Resend / Twilio).
+extra=(
+  scripts/bgc-reminders-prefs-smoke.js
+)
+files+=("${extra[@]}")
+
 total=${#files[@]}
 
 if [ "$total" -eq 0 ]; then

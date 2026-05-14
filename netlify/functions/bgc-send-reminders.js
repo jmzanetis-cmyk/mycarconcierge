@@ -332,10 +332,11 @@ exports.handler = async function() {
 
       // Task #159: Respect provider notification preferences. A provider may
       // have muted this threshold (e.g. the 60-day early heads-up). Task
-      // #201 added a parallel SMS opt-in per threshold. We still surface
-      // the in-portal expiring alert regardless — providers can dismiss
-      // those individually if they don't want them. The bgc_expired /
-      // compliance_lost paths below are unaffected and never user-mutable.
+      // #201 added a parallel SMS opt-in per threshold. Task #202 extended
+      // the mute to also suppress the in-portal `bgc_expiring` alert when
+      // BOTH channels for the threshold are off, so the toggle is the
+      // single, comprehensive volume knob providers expect. The bgc_expired
+      // / compliance_lost paths below are unaffected and never user-mutable.
       const prefs = await loadPrefs(ctx.prof.id);
       const emailEnabled = !!prefs[t.prefCol];
       const smsEnabled   = !!prefs[t.prefColSms];
@@ -384,18 +385,25 @@ exports.handler = async function() {
         }
       }
 
-      await upsertAlert(supabase, {
-        provider_id:  ctx.prof.id,
-        employee_id:  c.employee_id,
-        bgc_check_id: c.id,
-        alert_type:   'bgc_expiring',
-        severity:     t.severity,
-        title:        `${employeeName}'s background check expires in ${t.days} ${t.days === 1 ? 'day' : 'days'}`,
-        body:         `Renew before ${fmtDate(c.expires_at)} to keep your MCC Verified badge.`,
-        action_url:   renewUrl,
-        auto_resolve_on: 'new_clear_check'
-      });
-      alertsCreated++;
+      // Task #202: only surface the in-portal `bgc_expiring` alert when the
+      // provider hasn't fully muted this threshold. If both email and SMS
+      // are off for the threshold (e.g. provider opted out of every 60-day
+      // signal), the alert is suppressed too — the toggle is the single
+      // volume knob.
+      if (emailEnabled || smsEnabled) {
+        await upsertAlert(supabase, {
+          provider_id:  ctx.prof.id,
+          employee_id:  c.employee_id,
+          bgc_check_id: c.id,
+          alert_type:   'bgc_expiring',
+          severity:     t.severity,
+          title:        `${employeeName}'s background check expires in ${t.days} ${t.days === 1 ? 'day' : 'days'}`,
+          body:         `Renew before ${fmtDate(c.expires_at)} to keep your MCC Verified badge.`,
+          action_url:   renewUrl,
+          auto_resolve_on: 'new_clear_check'
+        });
+        alertsCreated++;
+      }
     }
   }
 
