@@ -66,8 +66,8 @@ require.cache[supabasePath] = {
   exports: { createClient: () => makeSupabaseStub() }
 };
 
-const agentFleet = require('./agent-fleet-admin');
-const aiOps      = require('./ai-ops-admin');
+const agentFleet = require('../agent-fleet-admin');
+const aiOps      = require('../ai-ops-admin');
 
 // ---------------------------------------------------------------------------
 // Test helpers
@@ -270,9 +270,9 @@ function countRouteConditionals(filePath, varName) {
 
 function assertCompleteness() {
   const fleet = countRouteConditionals(
-    path.join(__dirname, 'agent-fleet-admin.js'), 'route');
+    path.join(__dirname, '..', 'agent-fleet-admin.js'), 'route');
   const ops = countRouteConditionals(
-    path.join(__dirname, 'ai-ops-admin.js'), 'path');
+    path.join(__dirname, '..', 'ai-ops-admin.js'), 'path');
 
   // Each match-variable in agent-fleet-admin.js may back MULTIPLE methods
   // (e.g. channelByIdMatch handles PATCH + DELETE). Hand-counted from the
