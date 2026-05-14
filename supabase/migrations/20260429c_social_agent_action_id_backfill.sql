@@ -13,17 +13,20 @@
 -- recent matching action. The DISTINCT ON pattern ensures we link one action
 -- per lead/post (deduplicating retries) and prefer the latest one.
 --
+-- Both backfills are issued as a single statement using data-modifying CTEs
+-- so the digit-only regex literal is defined exactly once (`digit_regex` CTE)
+-- and reused by both UPDATE blocks. The hunter UPDATE is wrapped in
+-- `hunter_update_cte` (with a trivial RETURNING) so it executes alongside the
+-- promoter UPDATE in the same statement.
+--
 -- Apply via Supabase SQL Editor.
 -- ============================================================================
 
--- ---------- social_leads ----------------------------------------------------
--- Restrict the join to hunter.score actions explicitly so we never link to a
--- different action type that happens to carry the same key in its decision.
--- The digit-only pattern is defined once in the `digit_regex` CTE and shared
--- across both UPDATE blocks below to avoid duplicating the literal.
 WITH digit_regex AS (
   SELECT '^[0-9]+$'::text AS pattern
 ),
+-- Restrict the join to hunter.score actions explicitly so we never link to a
+-- different action type that happens to carry the same key in its decision.
 latest_hunter_action AS (
   SELECT DISTINCT ON ((decision->>'social_lead_id')::bigint)
          (decision->>'social_lead_id')::bigint AS lead_id,
@@ -34,20 +37,8 @@ latest_hunter_action AS (
      AND decision ? 'social_lead_id'
      AND decision->>'social_lead_id' ~ digit_regex.pattern
    ORDER BY (decision->>'social_lead_id')::bigint, created_at DESC
-)
-UPDATE public.social_leads sl
-   SET agent_action_id = lha.action_id
-  FROM latest_hunter_action lha
- WHERE sl.id = lha.lead_id
-   AND sl.agent_action_id IS NULL;
-
--- ---------- social_posts ----------------------------------------------------
--- Restrict to promoter.draft for the same reason. Reuses the digit_regex CTE
--- pattern (re-declared here because each top-level statement has its own
--- WITH scope in PostgreSQL).
-WITH digit_regex AS (
-  SELECT '^[0-9]+$'::text AS pattern
 ),
+-- Restrict to promoter.draft for the same reason.
 latest_promoter_action AS (
   SELECT DISTINCT ON ((decision->>'social_post_id')::bigint)
          (decision->>'social_post_id')::bigint AS post_id,
@@ -58,6 +49,14 @@ latest_promoter_action AS (
      AND decision ? 'social_post_id'
      AND decision->>'social_post_id' ~ digit_regex.pattern
    ORDER BY (decision->>'social_post_id')::bigint, created_at DESC
+),
+hunter_update_cte AS (
+  UPDATE public.social_leads sl
+     SET agent_action_id = lha.action_id
+    FROM latest_hunter_action lha
+   WHERE sl.id = lha.lead_id
+     AND sl.agent_action_id IS NULL
+   RETURNING sl.id
 )
 UPDATE public.social_posts sp
    SET agent_action_id = lpa.action_id

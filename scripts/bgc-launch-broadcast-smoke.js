@@ -78,24 +78,39 @@ function applyOps(rows, ops, columns) {
 
 const inserted = { bgc_launch_email_sends: [] };
 
+// SelectQuery extends Promise so `await query` works through the inherited
+// Promise.prototype.then — there is no own `then` property on the object,
+// which is what Sonar's S4123 cares about. Each chain method returns a fresh
+// SelectQuery with the new op appended; the previous instance still resolves
+// (microtask) but is unobserved.
+class SelectQuery extends Promise {
+  static get [Symbol.species]() { return Promise; }
+  constructor(table, ops, columns) {
+    super((resolve) => {
+      queueMicrotask(() => resolve({
+        data: applyOps(fixture[table] || [], ops, columns),
+        error: null
+      }));
+    });
+    this._table = table;
+    this._ops = ops;
+    this._columns = columns;
+  }
+  _next(op)         { return new SelectQuery(this._table, [...this._ops, op], this._columns); }
+  select(c)         { return new SelectQuery(this._table, this._ops, c); }
+  eq(col, val)      { return this._next({ kind: 'eq', col, val }); }
+  neq(col, val)     { return this._next({ kind: 'neq', col, val }); }
+  in(col, val)      { return this._next({ kind: 'in', col, val }); }
+  gt(col, val)      { return this._next({ kind: 'gt', col, val }); }
+  not(col, _op, val){ return val === null ? this._next({ kind: 'notNull', col }) : this; }
+  order(col)        { return this._next({ kind: 'order', col }); }
+  range(from, to)   { return this._next({ kind: 'range', from, to }); }
+  limit(_n)         { return this; }
+}
+
 function makeQuery(table) {
-  const ops = [];
-  let columns = '*';
-  // The chain methods (.select, .eq, …) live on `methods`. We then wrap that
-  // object in a Proxy that intercepts the `then` property at access time so
-  // `await builder` still resolves to the query result. Defining `then` via a
-  // Proxy trap (instead of as an object literal property) keeps Sonar's
-  // S4123 happy: there is no static `then` field on the query object.
-  const methods = {
-    select(c)         { columns = c; return builder; },
-    eq(col, val)      { ops.push({ kind: 'eq', col, val }); return builder; },
-    neq(col, val)     { ops.push({ kind: 'neq', col, val }); return builder; },
-    in(col, val)      { ops.push({ kind: 'in', col, val }); return builder; },
-    gt(col, val)      { ops.push({ kind: 'gt', col, val }); return builder; },
-    not(col, _op, val){ if (val === null) ops.push({ kind: 'notNull', col }); return builder; },
-    order(col)        { ops.push({ kind: 'order', col }); return builder; },
-    range(from, to)   { ops.push({ kind: 'range', from, to }); return builder; },
-    limit(_n)         { return builder; },
+  return {
+    select(c) { return new SelectQuery(table, [], c); },
     insert(row) {
       const rows = Array.isArray(row) ? row : [row];
       if (!inserted[table]) inserted[table] = [];
@@ -112,18 +127,6 @@ function makeQuery(table) {
       return { eq: () => Promise.resolve({ data: null, error: null }) };
     }
   };
-  const builder = new Proxy(methods, {
-    get(target, prop, receiver) {
-      if (prop === 'then') {
-        return (onFulfilled) => onFulfilled({
-          data: applyOps(fixture[table] || [], ops, columns),
-          error: null
-        });
-      }
-      return Reflect.get(target, prop, receiver);
-    }
-  });
-  return builder;
 }
 
 const supabaseStub = { from: makeQuery };
