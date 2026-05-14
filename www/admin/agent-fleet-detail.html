@@ -483,13 +483,15 @@ async function loadActions() {
       div.className = 'action-row';
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 4).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : String(v).slice(0, 60))}</code>`).join(' ') : '';
-      // Task #161: synthetic events emitted by the Gatekeeper smoke carry
-      // __smoke=true on their payload (and the agent stores the input payload
-      // on decision.payload). Surface them with a Smoke badge so the admin
-      // can dismiss them at a glance without confusing them for real apps.
+      // Task #161 / #322: synthetic events emitted by the daily smoke runs
+      // carry __smoke=true on their payload (the agent stores the input
+      // payload on decision.payload). Surface them with a Smoke badge so
+      // the admin can dismiss them at a glance instead of confusing them
+      // for real apps. Applies to every agent's smoke (gatekeeper,
+      // matchmaker, treasurer).
       const isSmoke = !!(dec && dec.payload && dec.payload.__smoke);
       const smokeBadge = isSmoke
-        ? `<span class="badge" title="Synthetic event from the daily Gatekeeper smoke" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+        ? `<span class="badge" title="Synthetic event from the daily ${escapeHtml(agentSlug)} smoke — safe to dismiss" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
         : '';
       div.innerHTML = `
         <div class="action-head">
@@ -596,6 +598,12 @@ async function loadReviewQueue() {
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 6).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80))}</code>`).join(' ') : '';
 
+      // Task #322: hoisted so the per-agent branches below can check it
+      // before deciding whether to render an Apply button. Synthetic smoke
+      // proposals must NEVER expose a button that fires a real mutation
+      // against the seeded fixtures.
+      const isSmokeRow = !!(dec && dec.payload && dec.payload.__smoke);
+
       // Per-agent action affordances. Gatekeeper proposes a role change for a
       // provider profile; Matchmaker proposes a winning bid on a closed auction.
       let recPill = '';
@@ -607,10 +615,13 @@ async function loadReviewQueue() {
         const providerId = dec && dec.payload && dec.payload.provider_id;
         const canApply = rec === 'approve' || rec === 'reject';
         recPill = rec ? `<span class="kbd" style="margin-left:6px;">rec: ${escapeHtml(rec)}</span>` : '';
-        if (canApply) {
+        // Task #322: never expose Apply on a smoke row — it would mutate
+        // the seeded synthetic profile. Mark-approved/Reject still work
+        // as a Dismiss path.
+        if (canApply && !isSmokeRow) {
           applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="gatekeeper" style="padding:4px 10px; font-size:12px;" title="Execute the recommendation (sets provider role to ${rec === 'approve' ? 'provider' : 'member'})">Apply (${escapeHtml(rec)})</button>`;
         }
-        if (providerId) {
+        if (providerId && !isSmokeRow) {
           extraBtn = `<button class="btn btn-danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`;
         }
       } else if (agentSlug === 'matchmaker') {
@@ -623,7 +634,11 @@ async function loadReviewQueue() {
         if (carePlanId) {
           recPill += ` <span class="kbd" style="margin-left:4px;">plan: ${escapeHtml(String(carePlanId).slice(0, 8))}…</span>`;
         }
-        if (winnerBidId) {
+        // Task #322: gate the real-mutation Accept button behind !isSmokeRow.
+        // The seeded synthetic care_plan + bids would otherwise actually be
+        // marked awarded/accepted/rejected here, which sends spurious push
+        // notifications + emails to the smoke fixture users.
+        if (winnerBidId && !isSmokeRow) {
           applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="matchmaker" style="padding:4px 10px; font-size:12px;" title="Accept this bid (rejects the others) and mark the care plan awarded">Accept winning bid</button>`;
         }
         if (concerns.length) {
@@ -632,14 +647,20 @@ async function loadReviewQueue() {
         }
       }
 
-      // Task #161: tag synthetic smoke rows so admins can dismiss them fast.
-      const isSmoke = !!(dec && dec.payload && dec.payload.__smoke);
-      const smokeBadge = isSmoke
-        ? `<span class="badge" title="Synthetic event from the daily Gatekeeper smoke" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+      // Task #161 / #322: tag synthetic smoke rows so admins can dismiss
+      // them fast. Shared across gatekeeper / matchmaker / treasurer queues.
+      const smokeBadge = isSmokeRow
+        ? `<span class="badge" title="Synthetic event from the daily ${escapeHtml(agentSlug)} smoke — safe to dismiss" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+        : '';
+      // When a smoke row's apply button is suppressed, surface a clear
+      // Dismiss affordance (mark reviewed without firing a real mutation)
+      // instead of leaving the row apparently action-less.
+      const dismissHint = isSmokeRow
+        ? `<span class="kbd" style="margin-left:6px; color:var(--muted);" title="Use Mark approved or Reject to clear this synthetic row from the queue">Dismiss only</span>`
         : '';
       div.innerHTML = `
         <div class="action-head">
-          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${smokeBadge}${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
+          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${smokeBadge}${dismissHint}${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
           <div class="row">
             ${applyBtn}
             <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Mark approved</button>

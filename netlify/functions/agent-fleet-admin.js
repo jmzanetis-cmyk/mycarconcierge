@@ -631,6 +631,26 @@ async function applyAction(supabase, id) {
   if (action.review_status === 'executed') {
     return { error: 'Already executed', status: 409 };
   }
+  // Task #322 — refuse to apply against synthetic smoke fixtures. The
+  // daily smoke runs (gatekeeper / matchmaker / treasurer) seed real
+  // rows tagged with payload.__smoke=true; firing a real apply against
+  // them would mutate the seeded provider profile, mark the seeded
+  // care_plan awarded, send spurious push notifications + emails to
+  // the synthetic fixture users, and race the smoke's own teardownFn.
+  // The UI hides the Apply button on these rows (see
+  // www/admin/agent-fleet-detail.html), but the server-side check is
+  // the authoritative guard.
+  let _decisionForSmokeCheck = action.decision;
+  if (typeof _decisionForSmokeCheck === 'string') {
+    try { _decisionForSmokeCheck = JSON.parse(_decisionForSmokeCheck); }
+    catch { _decisionForSmokeCheck = {}; }
+  }
+  if (_decisionForSmokeCheck && _decisionForSmokeCheck.payload && _decisionForSmokeCheck.payload.__smoke === true) {
+    return {
+      error: 'Cannot apply a synthetic smoke proposal — use Mark approved or Reject to dismiss it from the queue.',
+      status: 400
+    };
+  }
   if (action.agent_slug === 'gatekeeper' && action.action_type === 'review') {
     return applyGatekeeperReview(supabase, id, action);
   }

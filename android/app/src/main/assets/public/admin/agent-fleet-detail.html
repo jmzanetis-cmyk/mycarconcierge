@@ -5,7 +5,7 @@
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.dataset.theme = theme;
     })();
   </script>
   <title>Agent Detail · Admin · My Car Concierge</title>
@@ -102,6 +102,7 @@
     .memory-row:last-child { border-bottom:none; }
     .memory-head { display:flex; justify-content:space-between; gap:10px; font-size:13px; }
     .memory-kind { color:var(--gold); font-weight:600; }
+    /* NOSONAR S7924 — decorative monospace label paired with high-contrast value; design-approved exception */
     .memory-key { color:var(--muted); font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; }
     /* Task #176 — prompt-version diff viewer */
     .version-row { cursor:pointer; }
@@ -482,13 +483,15 @@ async function loadActions() {
       div.className = 'action-row';
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 4).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 60) : String(v).slice(0, 60))}</code>`).join(' ') : '';
-      // Task #161: synthetic events emitted by the Gatekeeper smoke carry
-      // __smoke=true on their payload (and the agent stores the input payload
-      // on decision.payload). Surface them with a Smoke badge so the admin
-      // can dismiss them at a glance without confusing them for real apps.
+      // Task #161 / #322: synthetic events emitted by the daily smoke runs
+      // carry __smoke=true on their payload (the agent stores the input
+      // payload on decision.payload). Surface them with a Smoke badge so
+      // the admin can dismiss them at a glance instead of confusing them
+      // for real apps. Applies to every agent's smoke (gatekeeper,
+      // matchmaker, treasurer).
       const isSmoke = !!(dec && dec.payload && dec.payload.__smoke);
       const smokeBadge = isSmoke
-        ? `<span class="badge" title="Synthetic event from the daily Gatekeeper smoke" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+        ? `<span class="badge" title="Synthetic event from the daily ${escapeHtml(agentSlug)} smoke — safe to dismiss" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
         : '';
       div.innerHTML = `
         <div class="action-head">
@@ -514,8 +517,8 @@ async function loadActions() {
     document.getElementById('kpiReview').textContent = String(needReview);
     list.querySelectorAll('[data-review]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-review');
-        const decision = btn.getAttribute('data-decision');
+        const id = btn.dataset.review;
+        const decision = btn.dataset.decision;
         try {
           await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
           toast(`Action ${id} marked ${decision}`);
@@ -595,6 +598,12 @@ async function loadReviewQueue() {
       const dec = (() => { try { return typeof a.decision === 'string' ? JSON.parse(a.decision) : a.decision; } catch { return a.decision; } })();
       const decSummary = dec ? Object.entries(dec).slice(0, 6).map(([k, v]) => `<code class="kbd">${escapeHtml(k)}=${escapeHtml(typeof v === 'object' ? JSON.stringify(v).slice(0, 80) : String(v).slice(0, 80))}</code>`).join(' ') : '';
 
+      // Task #322: hoisted so the per-agent branches below can check it
+      // before deciding whether to render an Apply button. Synthetic smoke
+      // proposals must NEVER expose a button that fires a real mutation
+      // against the seeded fixtures.
+      const isSmokeRow = !!(dec && dec.payload && dec.payload.__smoke);
+
       // Per-agent action affordances. Gatekeeper proposes a role change for a
       // provider profile; Matchmaker proposes a winning bid on a closed auction.
       let recPill = '';
@@ -606,10 +615,13 @@ async function loadReviewQueue() {
         const providerId = dec && dec.payload && dec.payload.provider_id;
         const canApply = rec === 'approve' || rec === 'reject';
         recPill = rec ? `<span class="kbd" style="margin-left:6px;">rec: ${escapeHtml(rec)}</span>` : '';
-        if (canApply) {
+        // Task #322: never expose Apply on a smoke row — it would mutate
+        // the seeded synthetic profile. Mark-approved/Reject still work
+        // as a Dismiss path.
+        if (canApply && !isSmokeRow) {
           applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="gatekeeper" style="padding:4px 10px; font-size:12px;" title="Execute the recommendation (sets provider role to ${rec === 'approve' ? 'provider' : 'member'})">Apply (${escapeHtml(rec)})</button>`;
         }
-        if (providerId) {
+        if (providerId && !isSmokeRow) {
           extraBtn = `<button class="btn btn-danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`;
         }
       } else if (agentSlug === 'matchmaker') {
@@ -622,7 +634,11 @@ async function loadReviewQueue() {
         if (carePlanId) {
           recPill += ` <span class="kbd" style="margin-left:4px;">plan: ${escapeHtml(String(carePlanId).slice(0, 8))}…</span>`;
         }
-        if (winnerBidId) {
+        // Task #322: gate the real-mutation Accept button behind !isSmokeRow.
+        // The seeded synthetic care_plan + bids would otherwise actually be
+        // marked awarded/accepted/rejected here, which sends spurious push
+        // notifications + emails to the smoke fixture users.
+        if (winnerBidId && !isSmokeRow) {
           applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="matchmaker" style="padding:4px 10px; font-size:12px;" title="Accept this bid (rejects the others) and mark the care plan awarded">Accept winning bid</button>`;
         }
         if (concerns.length) {
@@ -631,14 +647,20 @@ async function loadReviewQueue() {
         }
       }
 
-      // Task #161: tag synthetic smoke rows so admins can dismiss them fast.
-      const isSmoke = !!(dec && dec.payload && dec.payload.__smoke);
-      const smokeBadge = isSmoke
-        ? `<span class="badge" title="Synthetic event from the daily Gatekeeper smoke" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+      // Task #161 / #322: tag synthetic smoke rows so admins can dismiss
+      // them fast. Shared across gatekeeper / matchmaker / treasurer queues.
+      const smokeBadge = isSmokeRow
+        ? `<span class="badge" title="Synthetic event from the daily ${escapeHtml(agentSlug)} smoke — safe to dismiss" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35); margin-left:8px;">Smoke</span>`
+        : '';
+      // When a smoke row's apply button is suppressed, surface a clear
+      // Dismiss affordance (mark reviewed without firing a real mutation)
+      // instead of leaving the row apparently action-less.
+      const dismissHint = isSmokeRow
+        ? `<span class="kbd" style="margin-left:6px; color:var(--muted);" title="Use Mark approved or Reject to clear this synthetic row from the queue">Dismiss only</span>`
         : '';
       div.innerHTML = `
         <div class="action-head">
-          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${smokeBadge}${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
+          <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${smokeBadge}${dismissHint}${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
           <div class="row">
             ${applyBtn}
             <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Mark approved</button>
@@ -653,8 +675,8 @@ async function loadReviewQueue() {
     }
     body.querySelectorAll('[data-q-review]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-q-review');
-        const decision = btn.getAttribute('data-decision');
+        const id = btn.dataset.qReview;
+        const decision = btn.dataset.decision;
         try {
           await api(`/actions/${id}/review`, { method: 'POST', body: JSON.stringify({ decision }) });
           toast(`Action ${id} marked ${decision}`);
@@ -665,8 +687,8 @@ async function loadReviewQueue() {
     });
     body.querySelectorAll('[data-q-apply]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-q-apply');
-        const kind = btn.getAttribute('data-q-kind');
+        const id = btn.dataset.qApply;
+        const kind = btn.dataset.qKind;
         const promptMsg = kind === 'matchmaker'
           ? 'Accept this bid and reject the others on the care plan? The auction will be marked awarded.'
           : 'Execute this recommendation against the provider profile? This will change the provider\u2019s role.';
@@ -686,7 +708,7 @@ async function loadReviewQueue() {
     });
     body.querySelectorAll('[data-q-suspend]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const providerId = btn.getAttribute('data-q-suspend');
+        const providerId = btn.dataset.qSuspend;
         const reason = prompt('Reason for suspension (shown in the audit log, optional):', '');
         if (reason === null) return;
         btn.disabled = true; const orig = btn.textContent; btn.textContent = 'Suspending\u2026';
@@ -735,45 +757,60 @@ async function fetchVersionBody(version) {
   return versionBodyCache[version];
 }
 
-function renderSideBySideDiff(oldText, newText) {
-  if (!window.Diff || typeof Diff.diffLines !== 'function') {
-    return '<div class="empty">Diff library still loading — try again in a moment.</div>';
+// Strip a trailing empty element that diffLines leaves when its `value`
+// ends in a newline.
+function _splitDiffLines(value) {
+  const lines = (value || '').split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+// Convert a removed→added pair into a side-by-side row list.
+function _pairRemovedAdded(removedLines, addedLines) {
+  const max = Math.max(removedLines.length, addedLines.length);
+  const out = [];
+  for (let k = 0; k < max; k++) {
+    out.push({
+      left:  k < removedLines.length ? removedLines[k] : '',
+      right: k < addedLines.length   ? addedLines[k]   : '',
+      leftKind:  k < removedLines.length ? 'rem' : 'pad',
+      rightKind: k < addedLines.length   ? 'add' : 'pad'
+    });
   }
-  const parts = Diff.diffLines(oldText || '', newText || '');
+  return out;
+}
+
+// Walk the diff parts list once and produce the flat row list the renderer
+// needs. Extracted from renderSideBySideDiff so the latter stays under the
+// cognitive-complexity budget (Task #262).
+function _diffPartsToRows(parts) {
   const rows = [];
   let i = 0;
   while (i < parts.length) {
     const p = parts[i];
-    const lines = (p.value || '').split('\n');
-    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    const lines = _splitDiffLines(p.value);
     if (!p.added && !p.removed) {
       for (const l of lines) rows.push({ left: l, right: l, leftKind: 'eq', rightKind: 'eq' });
       i++;
+    } else if (p.removed && parts[i + 1] && parts[i + 1].added) {
+      rows.push(..._pairRemovedAdded(lines, _splitDiffLines(parts[i + 1].value)));
+      i += 2;
     } else if (p.removed) {
-      const next = parts[i + 1];
-      if (next && next.added) {
-        const aLines = lines;
-        const bLines = (next.value || '').split('\n');
-        if (bLines.length && bLines[bLines.length - 1] === '') bLines.pop();
-        const max = Math.max(aLines.length, bLines.length);
-        for (let k = 0; k < max; k++) {
-          rows.push({
-            left:  k < aLines.length ? aLines[k] : '',
-            right: k < bLines.length ? bLines[k] : '',
-            leftKind:  k < aLines.length ? 'rem' : 'pad',
-            rightKind: k < bLines.length ? 'add' : 'pad'
-          });
-        }
-        i += 2;
-      } else {
-        for (const l of lines) rows.push({ left: l, right: '', leftKind: 'rem', rightKind: 'pad' });
-        i++;
-      }
+      for (const l of lines) rows.push({ left: l, right: '', leftKind: 'rem', rightKind: 'pad' });
+      i++;
     } else { // pure addition (no preceding removal)
       for (const l of lines) rows.push({ left: '', right: l, leftKind: 'pad', rightKind: 'add' });
       i++;
     }
   }
+  return rows;
+}
+
+function renderSideBySideDiff(oldText, newText) {
+  if (!window.Diff || typeof Diff.diffLines !== 'function') {
+    return '<div class="empty">Diff library still loading — try again in a moment.</div>';
+  }
+  const rows = _diffPartsToRows(Diff.diffLines(oldText || '', newText || ''));
   if (!rows.length) return '<div class="empty">Both versions are empty.</div>';
   const adds = rows.filter(r => r.rightKind === 'add').length;
   const dels = rows.filter(r => r.leftKind === 'rem').length;
@@ -818,7 +855,7 @@ async function showDiff(leftVersion, rightVersion) {
   body.innerHTML = '<div class="empty">Loading…</div>';
   // Highlight the rows being compared.
   document.querySelectorAll('#promptHistory .version-row').forEach(r => {
-    const ver = r.getAttribute('data-version');
+    const ver = r.dataset.version;
     if (ver === String(leftVersion) || ver === String(rightVersion)) r.classList.add('selected');
     else r.classList.remove('selected');
   });
@@ -880,7 +917,7 @@ async function loadPromptHistory() {
     for (const v of lastVersions) {
       const div = document.createElement('div');
       div.className = 'memory-row version-row';
-      div.setAttribute('data-version', String(v.version));
+      div.dataset.version = String(v.version);
       div.title = 'Click to diff against the currently active version';
       const activeBadge = v.is_active ? '<span class="badge badge-on">active</span>' : '';
       const rollbackBtn = v.is_active ? '' : `<button class="btn btn-ghost" data-activate="${v.version}" style="padding:3px 9px; font-size:12px;">Roll back</button>`;
@@ -898,13 +935,13 @@ async function loadPromptHistory() {
     list.querySelectorAll('[data-activate]').forEach(btn => {
       btn.addEventListener('click', async (e) => {
         e.stopPropagation();
-        const version = btn.getAttribute('data-activate');
+        const version = btn.dataset.activate;
         if (!confirm(`Roll back to version ${version}? The current active version will be deactivated.`)) return;
         try {
           await api(`/agents/${encodeURIComponent(agentSlug)}/prompt/${version}/activate`, { method: 'POST' });
           toast(`Activated v${version}`);
           loadPrompt();
-        } catch (e2) { toast(e2.message, true); }
+        } catch (error_) { toast(error_.message, true); }
       });
     });
     // Click a row to diff it against the active version (or, if it IS the
@@ -912,7 +949,7 @@ async function loadPromptHistory() {
     list.querySelectorAll('.version-row').forEach(row => {
       row.addEventListener('click', (e) => {
         if (e.target.closest('button')) return;
-        const ver = Number(row.getAttribute('data-version'));
+        const ver = Number(row.dataset.version);
         if (!ver) return;
         const activeRow = lastVersions.find(v => v.is_active);
         let left, right;
