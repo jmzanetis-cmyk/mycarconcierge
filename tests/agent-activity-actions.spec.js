@@ -142,7 +142,9 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
     const statusSpan = page.locator('[data-aap-status]').first();
     // Bid-accept summary from the helper's appliedSummary branch.
     await expect(statusSpan).toContainText('Approved & Applied');
-    await expect(statusSpan).toContainText('Bid accepted');
+    // Task #303 — accepted bid id must be surfaced inline so admins
+    // don't have to open the drawer to cross-reference it.
+    await expect(statusSpan).toContainText('Bid #42 accepted');
     await expect(statusSpan).toContainText('$125.50');
     await expect(statusSpan).toContainText('3 other bid(s) rejected');
     await expect(statusSpan).toHaveAttribute('data-aap-state', 'success');

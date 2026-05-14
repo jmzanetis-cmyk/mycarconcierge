@@ -573,7 +573,10 @@
                 appliedSummary = `Provider role: ${d.prior_role || '?'} → ${d.new_role}`;
               } else if (d.accepted_bid_id) {
                 const amt = (d.amount != null) ? ` ($${Number(d.amount).toFixed(2)})` : '';
-                appliedSummary = `Bid accepted${amt} · ${d.rejected_count || 0} other bid(s) rejected`;
+                // Task #303 — Surface the accepted bid id inline so admins
+                // can cross-reference it in #admin Slack / audit log without
+                // re-opening the drawer to find it.
+                appliedSummary = `Bid #${d.accepted_bid_id} accepted${amt} · ${d.rejected_count || 0} other bid(s) rejected`;
               } else {
                 appliedSummary = 'Applied';
               }
