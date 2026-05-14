@@ -508,6 +508,7 @@ async function handleCompleteLeg(event, supabase, driver, jobId, legId) {
   if (!isUuid(jobId) || !isUuid(legId)) return errorResponse(400, 'BAD_REQUEST', 'invalid id');
   const r = await loadJobIfAssigned(supabase, driver.id, jobId);
   if (r.error) return r.error;
+  if (!r.assignment.accepted_at) return errorResponse(409, 'NOT_ACCEPTED', 'Accept the job before completing a leg');
 
   const leg = r.job.legs.find(l => l.id === legId);
   if (!leg) return errorResponse(404, 'LEG_NOT_FOUND', 'Leg not found on this job');
