@@ -22,11 +22,26 @@
 const { test, expect } = require('@playwright/test');
 const { createClient } = require('@supabase/supabase-js');
 const Stripe = require('stripe');
+const crypto = require('crypto');
+const { loginViaUI, navigateToSection, dismissOverlays } = require('./helpers');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
 const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+
+// Build a Stripe-signed webhook envelope for `payload` (a JS object). The
+// server's webhook handler validates the `Stripe-Signature` header using
+// `stripe.webhooks.constructEvent(rawBody, sig, STRIPE_WEBHOOK_SECRET)`,
+// so the signature math here must match Stripe's official scheme:
+//   v1 = HMAC_SHA256(secret, `${timestamp}.${rawBody}`)
+function buildStripeWebhookSignature(rawBody, secret, timestamp) {
+  const ts = timestamp || Math.floor(Date.now() / 1000);
+  const signed = `${ts}.${rawBody}`;
+  const v1 = crypto.createHmac('sha256', secret).update(signed).digest('hex');
+  return `t=${ts},v1=${v1}`;
+}
 
 const TEST_MEMBER_EMAIL = process.env.MEMBER_TEST_EMAIL || 'testmember@mcc-test.com';
 const TEST_MEMBER_PASS = process.env.MEMBER_TEST_PASSWORD || 'TestPass123!';
@@ -220,19 +235,120 @@ test.describe('Care plan payment journey (Task #282)', () => {
     expect(res.status()).toBe(400);
   });
 
-  test('POST /accept-bid blocks 409 when payment_status is already held', async ({ request }) => {
-    // Optimistic-concurrency guard: any plan whose payment_status is outside
-    // {none, requires_payment, failed, cancelled} must reject a fresh
-    // /accept-bid even if a (real or stale) payment is already in flight.
-    const { plan, acceptedBid } = await seedPlan();
+  test('POST /accept-bid: deterministic 409 loser path when funds already held', async ({ request }) => {
+    // Concurrency-loser path made deterministic. The /accept-bid handler's
+    // hard guard rejects any call where `payment_status` is outside
+    // {none, requires_payment, failed, cancelled}. Pre-flipping the plan to
+    // `held` (the state a real winner would leave it in once the
+    // amount_capturable_updated webhook lands) lets us assert the loser path
+    // unambiguously, without depending on Stripe-account readiness or thread
+    // scheduling. This is the same code branch the parallel-race test below
+    // exercises, but proven independently so a flake in the Stripe leg can't
+    // hide a regression in the 409 guard itself.
+    const { plan, acceptedBid, otherBid } = await seedPlan();
     await sb.from('care_plans').update({ payment_status: 'held' }).eq('id', plan.id);
-    const res = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/accept-bid`, {
-      headers: { Authorization: `Bearer ${memberToken}`, 'Content-Type': 'application/json' },
-      data: { bid_id: acceptedBid.id }
+
+    // The original accepted bid AND a competing bid both must be rejected
+    // with 409 — the guard is on plan state, not bid identity.
+    for (const bidId of [acceptedBid.id, otherBid.id]) {
+      const res = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/accept-bid`, {
+        headers: { Authorization: `Bearer ${memberToken}`, 'Content-Type': 'application/json' },
+        data: { bid_id: bidId }
+      });
+      expect(res.status()).toBe(409);
+      const body = await res.json();
+      expect(String(body.error || '').toLowerCase()).toContain('held');
+    }
+  });
+
+  // --- Member-facing UI flow --------------------------------------------------
+
+  test('UI: member sees seeded care plan and can open Accept Bid panel', async ({ page }) => {
+    // Drive the actual member portal: log in via the UI, navigate to the
+    // Care Plans section, and confirm the seeded plan + accepted-eligible
+    // bids render in the list view. This exercises members.html +
+    // members-care-plans.js (load → render → detail-open → bid card)
+    // — the same JavaScript end users run.
+    const { plan, acceptedBid, otherBid } = await seedPlan();
+
+    // The dev server in this repo doesn't implement the GET `/api/care-plans/mine`
+    // or GET `/api/care-plans/:id` endpoints (they live in production but not
+    // the local Node server — fixing that is its own task). Stub them with
+    // payloads shaped exactly like what `renderCarePlansList` and
+    // `renderCarePlanDetail` consume so the real production renderer + click
+    // handlers execute against our seeded fixtures. The /accept-bid POST
+    // is NOT stubbed — that hits the real handler we're verifying.
+    await page.route('**/api/care-plans/mine', (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plans: [{
+            id: plan.id, title: plan.title, status: 'open',
+            payment_status: 'none', bid_closes_at: plan.bid_closes_at,
+            service_types: ['oil_change'], pending_bid_count: 2,
+            accepted_bid: null, escrow_amount: null, vehicle: null
+          }]
+        })
+      });
     });
-    expect(res.status()).toBe(409);
-    const body = await res.json();
-    expect(String(body.error || '').toLowerCase()).toContain('held');
+    await page.route(`**/api/care-plans/${plan.id}`, (route) => {
+      route.fulfill({
+        status: 200,
+        contentType: 'application/json',
+        body: JSON.stringify({
+          plan: {
+            id: plan.id, title: plan.title, status: 'open',
+            payment_status: 'none', bid_closes_at: plan.bid_closes_at,
+            member_id: memberId, accepted_bid_id: null, service_types: ['oil_change']
+          },
+          bids: [
+            { id: acceptedBid.id, provider_id: providerId, amount: 175, status: 'pending', provider_name: 'Test Provider A' },
+            { id: otherBid.id, provider_id: providerBId, amount: 220, status: 'pending', provider_name: 'Test Provider B' }
+          ],
+          completion: null,
+          vehicle: null
+        })
+      });
+    });
+
+    await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
+    await navigateToSection(page, 'care-plans');
+    await dismissOverlays(page);
+
+    // The Care Plans section doesn't auto-load on showSection() — it's
+    // gated on the refresh button or a realtime tick. Drive the load
+    // explicitly via the same global the refresh button calls.
+    await page.waitForFunction(() => typeof window.loadCarePlansSection === 'function', null, { timeout: 10000 });
+    await page.evaluate(() => window.loadCarePlansSection());
+
+    // The plan list (rendered by the real renderCarePlansList) must show
+    // our seeded plan title — this proves members-care-plans.js loaded,
+    // fetched, and rendered correctly inside the real members.html shell.
+    const carePlansList = page.locator('#care-plans-list');
+    await expect(carePlansList).toBeVisible({ timeout: 10000 });
+    await expect(carePlansList).toContainText(plan.title, { timeout: 10000 });
+
+    // Open the detail view via the exposed global the card's
+    // [data-plan-open] handler calls. The real renderCarePlanDetail then
+    // populates #care-plan-detail with the bids list + Accept Bid button.
+    await page.evaluate((id) => window.viewCarePlan(id), plan.id);
+
+    const detail = page.locator('#care-plan-detail');
+    await expect(detail).toBeVisible({ timeout: 10000 });
+    await expect(detail).toContainText('$175.00', { timeout: 10000 });
+    const acceptBtn = detail.locator(`[data-accept-bid="${acceptedBid.id}"]`);
+    await expect(acceptBtn).toBeVisible({ timeout: 5000 });
+
+    // When Stripe is live, actually click Accept Bid and assert the UI
+    // transitions into the card-authorize panel (renderCardAuthorizePanel
+    // keys off `#cp-card-element`). The click drives the real
+    // /accept-bid POST against the live server. Without a usable Stripe
+    // Connect account the server can't mint a PI, so we don't click.
+    if (stripeUsable) {
+      await acceptBtn.click();
+      await expect(page.locator('#cp-card-element')).toBeVisible({ timeout: 15000 });
+    }
   });
 
   // --- Live escrow journey (Stripe) ------------------------------------------
@@ -269,9 +385,38 @@ test.describe('Care plan payment journey (Task #282)', () => {
     const piHeld = await stripe.paymentIntents.retrieve(piId);
     expect(piHeld.status).toBe('requires_capture');
 
-    // 4) Simulate the `amount_capturable_updated` webhook flipping the plan
-    //    into the held-funds state that the /complete endpoint requires.
-    await sb.from('care_plans').update({ payment_status: 'held' }).eq('id', plan.id);
+    // 4) Drive the real webhook path: POST a Stripe-signed
+    //    `payment_intent.amount_capturable_updated` event to /webhook/stripe
+    //    so the production handler is the thing that flips
+    //    `payment_status` to 'held'. This proves the webhook → plan-state
+    //    pipeline still works end-to-end (a regression in the webhook
+    //    branch would slip past a test that just mutates the column).
+    test.skip(!STRIPE_WEBHOOK_SECRET, 'STRIPE_WEBHOOK_SECRET required to drive the real webhook path');
+    const eventPayload = JSON.stringify({
+      id: `evt_test_${Date.now()}`,
+      object: 'event',
+      type: 'payment_intent.amount_capturable_updated',
+      api_version: '2024-06-20',
+      created: Math.floor(Date.now() / 1000),
+      data: { object: { ...piHeld, metadata: { ...(piHeld.metadata || {}), flow: 'care_plan', care_plan_id: plan.id, bid_id: acceptedBid.id } } },
+      livemode: false,
+      pending_webhooks: 0,
+      request: { id: null, idempotency_key: null }
+    });
+    const sigHeader = buildStripeWebhookSignature(eventPayload, STRIPE_WEBHOOK_SECRET);
+    const webhookRes = await request.post(`${BASE_URL}/webhook/stripe`, {
+      headers: { 'Content-Type': 'application/json', 'Stripe-Signature': sigHeader },
+      data: eventPayload
+    });
+    expect(webhookRes.status()).toBe(200);
+    // Webhook handler is fire-and-forget on the DB write; poll briefly.
+    let heldOk = false;
+    for (let i = 0; i < 10 && !heldOk; i++) {
+      const { data } = await sb.from('care_plans').select('payment_status').eq('id', plan.id).single();
+      if (data && data.payment_status === 'held') heldOk = true;
+      else await new Promise(r => setTimeout(r, 200));
+    }
+    expect(heldOk).toBe(true);
 
     // 5) Mark complete → server captures the PI and writes a completion row.
     const completeRes = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/complete`, {
