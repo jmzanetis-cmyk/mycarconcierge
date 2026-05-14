@@ -160,8 +160,8 @@ test.describe('Agent Activity drawer — reasoning / decision / source (T#277)',
 
     // Sibling endpoints were also exercised exactly once each.
     expect(dlqCalls, 'dead-letter endpoint should be called once for the event_id').toBe(1);
-    expect(legacyListCalls, 'legacy list endpoint should be called once (no module filter ⇒ skipped)')
-      .toBe(0); // no includeAiOpsModule passed → fetchLegacy returns early
+    expect(legacyListCalls, 'legacy list endpoint must be skipped when no includeAiOpsModule is set')
+      .toBe(0); // fetchLegacy returns [] early without ever firing the request
   });
 
   test('legacy ai-ops card: drawer hits /api/admin/ai-ops/actions/:id on expand', async ({ page }) => {
