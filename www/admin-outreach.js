@@ -1853,8 +1853,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   }
 
   function apolloEscapeHtml(str) {
-    if (!str) return '';
-    return str.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+    if (str === null || str === undefined || str === '') return '';
+    return String(str).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   }
 
   function timeAgo(date) {
