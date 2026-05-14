@@ -231,11 +231,23 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
       await route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify({ actions: [rowWithDlq, rowWithoutDlq] }) });
     });
-    await page.route('**/api/admin/agent-fleet/dead-letter**', async (route) => {
+    // Replay POST is wired via a regex below. Use a regex here too so
+    // the more-specific replay route can win the match (Playwright
+    // evaluates routes in reverse-registration order; we register the
+    // narrow one second).
+    await page.route(/\/api\/admin\/agent-fleet\/dead-letter(\?|$)/, async (route) => {
+      // Task #302 — after a successful replay the panel re-renders and
+      // re-fetches dead-letter. The newly-replayed row should still be
+      // returned (it sticks around in the table, just with replayed_at
+      // populated) so the front end can show a "REPLAYED at <time>"
+      // pill instead of the row vanishing without explanation.
+      const replayedAt = replayCalls > 0 ? '2026-05-14T11:05:00Z' : null;
       await route.fulfill({ status: 200, contentType: 'application/json',
         body: JSON.stringify({ entries: [
-          // Matches event_id=901 → Replay button on row 7003.
-          { id: 'dlq-555', event_id: 901, replayed_at: null }
+          // Matches event_id=901 → Replay button on row 7003 (when
+          // replayed_at IS NULL); becomes the REPLAYED pill once it has
+          // been replayed.
+          { id: 'dlq-555', event_id: 901, replayed_at: replayedAt }
         ] }) });
     });
     await page.route('**/api/admin/agent-fleet/dead-letter/dlq-555/replay', async (route) => {
@@ -266,6 +278,17 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
     const statusSpan = page.locator('[data-aap-status]').first();
     await expect(statusSpan).toContainText('Replayed');
     await expect(statusSpan).toHaveAttribute('data-aap-state', 'success');
+
+    // Task #302 — after the 250ms post-replay re-render, the success
+    // state must survive the panel repaint. The Replay button on the
+    // matching card disappears (the DLQ row's replayed_at is now set)
+    // but a green "REPLAYED <time>" pill takes its place so admins on
+    // slow connections don't think the click did nothing.
+    const replayedPill = page.locator('[data-aap-replayed-pill="1"]');
+    await expect(replayedPill).toHaveCount(1, { timeout: 5000 });
+    await expect(replayedPill.first()).toContainText(/REPLAYED/);
+    // Replay button is gone now that replayed_at is populated.
+    await expect(page.locator('button.aap-action-replay')).toHaveCount(0);
   });
 
   test('Partial failure: /review 200 + /apply 500 surfaces the failure and re-renders to hide stale buttons', async ({ page }) => {

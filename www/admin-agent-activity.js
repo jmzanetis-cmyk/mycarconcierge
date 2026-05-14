@@ -198,7 +198,11 @@
       btns.push(`<button type="button" class="aap-action-btn aap-action-approve" data-aap-action="approve" data-aap-id="${esc(String(a.id))}"${approveAttrs}>${approveLabel}</button>`);
       btns.push(`<button type="button" class="aap-action-btn aap-action-reject" data-aap-action="reject" data-aap-id="${esc(String(a.id))}">Reject</button>`);
     }
-    if (dlqEntry && dlqEntry.id != null) {
+    // Replay is only offered while the DLQ row is still open. Once it
+    // has been replayed, the entry sticks around in dlqByEventId so the
+    // renderFleetCard "Replayed at <time>" pill can render (Task #302),
+    // but we must NOT keep showing the button.
+    if (dlqEntry && dlqEntry.id != null && dlqEntry.replayed_at == null) {
       btns.push(`<button type="button" class="aap-action-btn aap-action-replay" data-aap-action="replay" data-aap-dlq-id="${esc(String(dlqEntry.id))}">Replay</button>`);
     }
     if (!btns.length) return '';
@@ -219,9 +223,19 @@
       : '';
     const dlqEntry = (dlqByEventId && a.event_id != null)
       ? dlqByEventId.get(String(a.event_id)) : null;
-    const dlqBadge = dlqEntry
-      ? `<span style="background:var(--accent-red, #c0392b);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;margin-left:6px;">DEAD-LETTER</span>`
-      : '';
+    // Two badge states for the same dlq row, depending on whether it
+    // has been replayed yet. The "REPLAYED" pill (Task #302) is what
+    // keeps the success state visible to the admin after the 250ms
+    // post-action panel repaint — without it, a successful Replay
+    // looks like the click did nothing on slow connections.
+    let dlqBadge = '';
+    if (dlqEntry) {
+      if (dlqEntry.replayed_at) {
+        dlqBadge = `<span data-aap-replayed-pill="1" title="Dead-letter entry replayed at ${esc(dlqEntry.replayed_at)}" style="background:var(--accent-green, #2e7d32);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;margin-left:6px;">REPLAYED ${esc(fmtTime(dlqEntry.replayed_at))}</span>`;
+      } else {
+        dlqBadge = `<span style="background:var(--accent-red, #c0392b);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;margin-left:6px;">DEAD-LETTER</span>`;
+      }
+    }
     return `
       <div class="agent-activity-card" style="border:1px solid var(--border-subtle);border-left:3px solid #3b82f6;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
@@ -373,12 +387,14 @@
     }
   }
 
-  // Pull open dead-letter rows for ONLY the event_ids attached to the
-  // fleet cards we're about to render. This makes Replay-button eligibility
-  // deterministic regardless of how big the global DLQ backlog is — a card
-  // tied to event #500 is found even if the most recent 200 DLQ rows are
-  // all newer. Returns a Map<event_id, dlqRow>. Failure is non-fatal
-  // (cards still render, we just don't show Replay buttons).
+  // Pull dead-letter rows for ONLY the event_ids attached to the fleet
+  // cards we're about to render. Includes BOTH open entries (drives the
+  // Replay button) and recently-replayed entries (drives a "Replayed at
+  // <time>" pill — Task #302) so a successful replay's success state
+  // survives the 250ms post-action panel repaint instead of vanishing
+  // along with the now-stale Replay button. Returns a Map<event_id,
+  // dlqRow>; entries are server-sorted by failed_at DESC so the most
+  // recent row per event_id wins. Failure is non-fatal.
   async function fetchOpenDeadLetter(eventIds) {
     if (!eventIds || !eventIds.length) return new Map();
     // Cap matches the server-side cap on the event_ids filter.
@@ -386,13 +402,14 @@
     const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
     try {
       const r = await fetch(
-        `${apiBase}/api/admin/agent-fleet/dead-letter?open=1&limit=200&event_ids=${encodeURIComponent(ids)}`,
+        `${apiBase}/api/admin/agent-fleet/dead-letter?limit=200&event_ids=${encodeURIComponent(ids)}`,
         { headers: authHeaders() });
       if (!r.ok) return new Map();
       const j = await r.json();
       const map = new Map();
       for (const entry of (j.entries || [])) {
-        if (entry && entry.event_id != null && entry.replayed_at == null) {
+        if (entry && entry.event_id != null && !map.has(String(entry.event_id))) {
+          // First (newest) wins — server orders by failed_at DESC.
           map.set(String(entry.event_id), entry);
         }
       }
