@@ -15,6 +15,8 @@ const {
   pushLeadsToInstantly,
   generateSocialCalendar,
   generateSocialProof,
+  releaseApolloLock,
+  APOLLO_LOCK_TTL_MS,
   aiCircuitBreaker,
   UNSUBSCRIBE_URL,
   PHYSICAL_ADDRESS,
@@ -143,6 +145,51 @@ exports.handler = async function(event, context) {
           }
         }
       });
+    }
+
+    // Task #337 — surface stuck Apollo discovery cycle locks in the admin
+    // Outreach panel. Mirrors the lock-health portion of getApolloHealth()
+    // in netlify/functions/daily-digest-scheduled.js so the UI banner and
+    // the daily digest email use the same threshold (>=6 minutes held).
+    if (method === 'GET' && path === 'apollo-health') {
+      let lockStuck = false;
+      let lockHeldMinutes = 0;
+      let lockRunningSince = null;
+      try {
+        const { data: state } = await supabase
+          .from('engine_state').select('metadata').eq('id', 1).single();
+        const cfg = state?.metadata?.apollo_config || {};
+        if (cfg.running_since) {
+          const heldMs = Date.now() - new Date(cfg.running_since).getTime();
+          const heldMin = Number.isFinite(heldMs) && heldMs > 0 ? Math.floor(heldMs / 60000) : 0;
+          lockRunningSince = cfg.running_since;
+          lockHeldMinutes = heldMin;
+          if (heldMs >= 6 * 60 * 1000) lockStuck = true;
+        }
+      } catch (_) {}
+      return jsonResponse(200, {
+        lock_stuck: lockStuck,
+        lock_held_minutes: lockHeldMinutes,
+        lock_running_since: lockRunningSince,
+        lock_ttl_minutes: Math.round((APOLLO_LOCK_TTL_MS || 600000) / 60000)
+      });
+    }
+
+    if (method === 'POST' && path === 'clear-apollo-lock') {
+      // Pass null nonce so releaseApolloLock will clear regardless of who
+      // currently holds the lock — admin force-clear for stuck cycles.
+      const cleared = await releaseApolloLock(supabase, null);
+      try {
+        await supabase.from('outreach_activity_log').insert({
+          event_type: 'apollo_lock_force_cleared',
+          metadata: { source: 'admin_panel', success: !!cleared }
+        });
+        await supabase.from('admin_audit_log').insert({
+          action: 'apollo_lock_force_cleared',
+          metadata: { success: !!cleared }
+        });
+      } catch (_) { /* logging best-effort */ }
+      return jsonResponse(200, { success: !!cleared });
     }
 
     if (method === 'POST' && path === 'engine-toggle') {

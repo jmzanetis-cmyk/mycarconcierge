@@ -1056,6 +1056,11 @@
           <!-- Task #243 — Facebook Page connection picker -->
           <div id="facebook-page-connection-card" class="card" style="margin-bottom:20px;"></div>
 
+          <!-- Task #337 — stuck Apollo discovery cycle warning. Stays empty
+               (display:none via inline style on the inner card) until
+               loadApolloLockHealth() detects a lock held >=6 minutes. -->
+          <div id="apollo-lock-warning-card" style="margin-bottom:20px;"></div>
+
           <div class="card" style="margin-bottom:20px;">
             <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-sm outreach-tab active" data-tab="pipeline" onclick="switchOutreachTab('pipeline')"><span class="icon-inline" data-icon="trending-up"></span> Pipeline</button>

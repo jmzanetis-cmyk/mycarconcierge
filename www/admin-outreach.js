@@ -202,6 +202,91 @@
     if (refreshBtn) refreshBtn.blur();
   }
 
+  // ------------------------------------------------------------------
+  // Task #337 — stuck Apollo cycle warning in the Outreach panel.
+  // Mirrors the lock-health logic in daily-digest-scheduled.js so the
+  // banner and the daily digest email use the same 6-minute threshold.
+  // Endpoints: GET /api/admin/outreach/apollo-health (read state),
+  // POST /api/admin/outreach/clear-apollo-lock (force-clear).
+  // ------------------------------------------------------------------
+  async function loadApolloLockHealth() {
+    const card = document.getElementById('apollo-lock-warning-card');
+    if (!card) return;
+    let health = null;
+    try {
+      const res = await outreachFetch('/apollo-health');
+      if (!res.ok) {
+        // 401/500 here is non-fatal — the rest of the panel still works.
+        // Hide any previously-rendered warning so it doesn't go stale.
+        card.innerHTML = '';
+        return;
+      }
+      health = await res.json();
+    } catch (_) {
+      card.innerHTML = '';
+      return;
+    }
+    if (!health || !health.lock_stuck) {
+      card.innerHTML = '';
+      return;
+    }
+    const heldMin = Number(health.lock_held_minutes) || 0;
+    const since = health.lock_running_since
+      ? new Date(health.lock_running_since).toLocaleString()
+      : 'unknown';
+    const ttl = Number(health.lock_ttl_minutes) || 10;
+    card.innerHTML = `
+      <div class="card" style="border:2px solid var(--danger,#dc2626);background:rgba(220,38,38,0.08);padding:16px 18px;">
+        <div style="display:flex;align-items:flex-start;gap:14px;flex-wrap:wrap;">
+          <span class="icon-inline" data-icon="alert-triangle" style="width:32px;height:32px;color:var(--danger,#dc2626);flex-shrink:0;"></span>
+          <div style="flex:1;min-width:240px;">
+            <div style="font-weight:700;font-size:1rem;color:var(--danger,#dc2626);margin-bottom:4px;">
+              Apollo discovery cycle appears stuck
+            </div>
+            <div style="font-size:0.88rem;color:var(--text-primary);line-height:1.5;">
+              The discovery lock has been held for <strong>~${heldMin}m</strong>
+              (since ${since}). New discovery cycles will be skipped until this
+              lock is released. The lock auto-expires after ${ttl} minutes; use
+              the button below to clear it now if you've confirmed no cycle is
+              actually running.
+            </div>
+          </div>
+          <button class="btn btn-sm" id="apollo-lock-clear-btn" onclick="clearApolloLock()" style="background:var(--danger,#dc2626);color:#fff;font-weight:600;flex-shrink:0;">
+            <span class="icon-inline" data-icon="x-circle"></span> Force-clear lock
+          </button>
+        </div>
+        <div id="apollo-lock-clear-status" style="margin-top:10px;font-size:0.82rem;color:var(--text-muted);"></div>
+      </div>
+    `;
+    if (typeof initInlineIcons !== 'undefined') initInlineIcons(card);
+  }
+
+  async function clearApolloLock() {
+    const btn = document.getElementById('apollo-lock-clear-btn');
+    const status = document.getElementById('apollo-lock-clear-status');
+    if (btn) { btn.disabled = true; btn.textContent = 'Clearing...'; }
+    if (status) { status.style.color = 'var(--text-muted)'; status.textContent = 'Releasing lock...'; }
+    try {
+      const res = await outreachFetch('/clear-apollo-lock', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.success === false) {
+        const msg = data.error || `Clear failed (HTTP ${res.status})`;
+        if (status) { status.style.color = 'var(--danger,#dc2626)'; status.textContent = msg; }
+        if (typeof showToast !== 'undefined') showToast(msg, 'error');
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="x-circle"></span> Force-clear lock'; }
+        return;
+      }
+      if (status) { status.style.color = 'var(--success)'; status.textContent = 'Lock cleared.'; }
+      if (typeof showToast !== 'undefined') showToast('Apollo discovery lock cleared');
+      // Re-check so the warning card disappears once the state confirms it.
+      await loadApolloLockHealth();
+    } catch (e) {
+      if (status) { status.style.color = 'var(--danger,#dc2626)'; status.textContent = 'Clear error: ' + e.message; }
+      if (typeof showToast !== 'undefined') showToast('Clear error: ' + e.message, 'error');
+      if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="x-circle"></span> Force-clear lock'; }
+    }
+  }
+
   async function saveApolloConfig() {
     const status = document.getElementById('apollo-config-save-status');
     if (status) { status.style.color = 'var(--text-muted)'; status.textContent = 'Saving...'; }
@@ -692,7 +777,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       // still renders with a "Discovery — unavailable" badge.
       const [stateRes] = await Promise.all([
         outreachFetch('/engine-state'),
-        loadApolloConfig()
+        loadApolloConfig(),
+        // Task #337 — render stuck-cycle banner up-front so it's visible
+        // regardless of which sub-tab the admin lands on.
+        loadApolloLockHealth()
       ]);
       const data = await stateRes.json();
       outreachState = data;
@@ -982,7 +1070,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       case 'funnel': await loadConversionFunnel(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
       case 'apollo':
-        await Promise.all([loadApolloConfig(), loadApolloStatus(), checkApolloEnrichQueue(), loadApolloAuditLog()]);
+        await Promise.all([loadApolloConfig(), loadApolloStatus(), checkApolloEnrichQueue(), loadApolloAuditLog(), loadApolloLockHealth()]);
         break;
     }
   }
@@ -2213,6 +2301,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.saveApolloSettings = saveApolloSettings;
   globalThis.loadApolloConfig = loadApolloConfig;
   globalThis.loadApolloStatus = loadApolloStatus;
+  globalThis.loadApolloLockHealth = loadApolloLockHealth;
+  globalThis.clearApolloLock = clearApolloLock;
   globalThis.saveApolloConfig = saveApolloConfig;
   globalThis.runApolloCycle = runApolloCycle;
   globalThis.apolloSearch = apolloSearch;

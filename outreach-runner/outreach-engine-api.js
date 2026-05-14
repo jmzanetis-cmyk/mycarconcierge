@@ -1408,6 +1408,55 @@ async function handleOutreachRequest(req, res, { getSupabaseClient, handleAdminA
           }
         }
 
+        // Task #337 — dev mirror of the apollo-health and clear-apollo-lock
+        // endpoints in netlify/functions/outreach-admin.js. Reads/writes
+        // engine_state.metadata.apollo_config directly so the runner doesn't
+        // need to import the lock helpers from outreach-engine-core.
+        else if (req.method === 'GET' && pathname === '/apollo-health') {
+          let lockStuck = false;
+          let lockHeldMinutes = 0;
+          let lockRunningSince = null;
+          try {
+            const { data: state } = await supabase
+              .from('engine_state').select('metadata').eq('id', 1).single();
+            const cfg = state?.metadata?.apollo_config || {};
+            if (cfg.running_since) {
+              const heldMs = Date.now() - new Date(cfg.running_since).getTime();
+              const heldMin = Number.isFinite(heldMs) && heldMs > 0 ? Math.floor(heldMs / 60000) : 0;
+              lockRunningSince = cfg.running_since;
+              lockHeldMinutes = heldMin;
+              if (heldMs >= 6 * 60 * 1000) lockStuck = true;
+            }
+          } catch (_) {}
+          json(res, 200, {
+            lock_stuck: lockStuck,
+            lock_held_minutes: lockHeldMinutes,
+            lock_running_since: lockRunningSince,
+            lock_ttl_minutes: 10
+          });
+        }
+
+        else if (req.method === 'POST' && pathname === '/clear-apollo-lock') {
+          let cleared = false;
+          try {
+            const { data: row } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+            const meta = row?.metadata || {};
+            const cfg = meta.apollo_config || {};
+            const newCfg = { ...cfg };
+            delete newCfg.running_since;
+            delete newCfg.running_nonce;
+            const { error } = await supabase.from('engine_state').update({ metadata: { ...meta, apollo_config: newCfg } }).eq('id', 1);
+            cleared = !error;
+          } catch (_) { cleared = false; }
+          try {
+            await supabase.from('outreach_activity_log').insert({
+              event_type: 'apollo_lock_force_cleared',
+              metadata: { source: 'admin_panel_dev', success: cleared }
+            });
+          } catch (_) {}
+          json(res, 200, { success: cleared });
+        }
+
         else if (req.method === 'POST' && pathname === '/engine-toggle') {
           const body = await parseBody(req);
           const { is_running, pause_reason } = body;
