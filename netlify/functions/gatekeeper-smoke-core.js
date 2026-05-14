@@ -146,13 +146,21 @@ function validateGatekeeperAction(row) {
   return `bad_status:${row.status}|rec:${rec || 'none'}`;
 }
 
-function validateMatchmakerAction(row) {
+function validateMatchmakerAction(row, context) {
   if (row.status === 'error') return `action_error: ${row.error_message || 'unknown'}`;
   if (row.status !== 'proposed') return `bad_status:${row.status}`;
   // The matchmaker rank shape always carries a `recommended_winner_bid_id`
   // key on the decision (may be null on 0-bid synthetic auctions).
   if (!row.decision || !Object.prototype.hasOwnProperty.call(row.decision, 'recommended_winner_bid_id')) {
     return 'missing_winner_bid_id_field';
+  }
+  // Task #301: when the smoke seeded a real auction with bids, the LLM ranking
+  // path must have actually run — winner must be non-null AND must be one of
+  // the seeded bid_ids. A null here means the LLM call/parse silently regressed.
+  if (context && Array.isArray(context.bidIds) && context.bidIds.length > 0) {
+    const winner = row.decision.recommended_winner_bid_id;
+    if (!winner) return 'winner_bid_id_null_on_seeded_auction';
+    if (!context.bidIds.includes(winner)) return `winner_bid_id_not_in_seeded_set:${winner}`;
   }
   return null;
 }
@@ -325,7 +333,7 @@ function _validateRunAgentSmokeOpts(opts) {
 // Build the per-event summary entry from a polled action row and record
 // validation failures on the failures[] list. Returns the entry the caller
 // pushes onto summary.events.
-function _eventEntryForAction(t, eventId, row, validateAction, log, failures) {
+function _eventEntryForAction(t, eventId, row, validateAction, log, failures, context) {
   const rec = (row.decision && (row.decision.recommendation || row.decision.recommended_winner_bid_id)) || null;
   const conf = row.confidence != null ? Number(row.confidence) : null;
   const entry = {
@@ -339,7 +347,7 @@ function _eventEntryForAction(t, eventId, row, validateAction, log, failures) {
     duration_ms: row.duration_ms || 0,
     error_message: row.error_message || null
   };
-  const validationFailure = validateAction(row);
+  const validationFailure = validateAction(row, context);
   if (validationFailure) {
     failures.push(`action_${t}:${validationFailure}`);
     log.fail(`${t} → action ${row.id} ${validationFailure}`);
@@ -351,7 +359,7 @@ function _eventEntryForAction(t, eventId, row, validateAction, log, failures) {
 
 // Poll for a proposal for each emitted event and append a summary entry per
 // event. Returns nothing — mutates the summary.events list and failures[].
-async function _collectEventOutcomes({ supabase, agentSlug, eventTypes, emitted, validateAction, log, failures, summary, pollTimeoutMs, pollIntervalMs, effectiveTimeoutMs }) {
+async function _collectEventOutcomes({ supabase, agentSlug, eventTypes, emitted, validateAction, log, failures, summary, pollTimeoutMs, pollIntervalMs, effectiveTimeoutMs, context }) {
   for (const t of eventTypes) {
     const eventId = emitted[t];
     if (!eventId) {
@@ -367,7 +375,7 @@ async function _collectEventOutcomes({ supabase, agentSlug, eventTypes, emitted,
       summary.events.push({ event_type: t, event_id: eventId, action_id: null, status: 'no_proposal' });
       continue;
     }
-    summary.events.push(_eventEntryForAction(t, eventId, row, validateAction, log, failures));
+    summary.events.push(_eventEntryForAction(t, eventId, row, validateAction, log, failures, context));
   }
 }
 
@@ -377,6 +385,7 @@ async function runAgentSmoke(opts) {
     agentSlug, eventTypes, payloadFn, validateAction,
     expectedMaxCapUsd,
     pollTimeoutMs, pollIntervalMs,
+    setupFn, teardownFn,
     log = NULL_LOGGER
   } = opts || {};
   const effectiveTimeoutMs = pollTimeoutMs ?? POLL_TIMEOUT_MS;
@@ -390,6 +399,10 @@ async function runAgentSmoke(opts) {
     spend_headroom: null,
     events: []
   };
+  // Setup-produced context (e.g. seeded care_plan/bid IDs). Passed to
+  // payloadFn and validateAction; teardownFn always runs in finally with it,
+  // even on uncaught exception, so synthetic rows get cleaned up.
+  let context = null;
 
   try {
     _validateRunAgentSmokeOpts(opts || {});
@@ -432,10 +445,33 @@ async function runAgentSmoke(opts) {
       summary.spend_headroom = spend || { reserved_usd: 0, actual_usd: 0, call_count: 0 };
     }
 
+    if (typeof setupFn === 'function') {
+      log.info('2b. Running agent-specific setup (seeding synthetic fixtures)');
+      try {
+        context = await setupFn({ supabase, log });
+        summary.setup_context = context && context._summary ? context._summary : null;
+      } catch (e) {
+        failures.push(`setup_exception: ${e.message}`);
+        log.fail(`setup failed: ${e.message}`);
+        // Still proceed to teardown via finally; skip the rest of the run.
+        const finishedAt = new Date();
+        return {
+          ok: false,
+          agent_slug: agentSlug,
+          started_at: startedAt.toISOString(),
+          finished_at: finishedAt.toISOString(),
+          duration_ms: finishedAt - startedAt,
+          failure_count: failures.length,
+          failed_checks: failures,
+          summary
+        };
+      }
+    }
+
     log.info(`3. Emitting one synthetic test event for each of the ${eventTypes.length} input type(s)`);
     const emitted = {};
     for (const t of eventTypes) {
-      const payload = payloadFn(t);
+      const payload = payloadFn(t, context);
       emitted[t] = await emitSyntheticEvent(admin, t, payload, log, failures);
     }
 
@@ -444,12 +480,26 @@ async function runAgentSmoke(opts) {
     log.info(`5. Polling agent_actions for proposed rows (timeout ${effectiveTimeoutMs / 1000}s per event)`);
     await _collectEventOutcomes({
       supabase, agentSlug, eventTypes, emitted, validateAction, log, failures, summary,
-      pollTimeoutMs, pollIntervalMs, effectiveTimeoutMs
+      pollTimeoutMs, pollIntervalMs, effectiveTimeoutMs, context
     });
   } catch (e) {
     failures.push(`runner_exception: ${e.message}`);
     log.fail(`UNCAUGHT: ${e.message}`);
     summary.runner_exception = e.message;
+  } finally {
+    // Cleanup ALWAYS runs, even on failure or exception, so smoke-tagged
+    // rows don't accumulate in production.
+    if (typeof teardownFn === 'function' && context) {
+      try {
+        const cleanupSummary = await teardownFn({ supabase, log, context });
+        if (cleanupSummary) summary.teardown = cleanupSummary;
+      } catch (e) {
+        // Cleanup failure should surface as a smoke failure, not crash the
+        // overall run. The caller's persistRun records this on the row.
+        failures.push(`teardown_exception: ${e.message}`);
+        log.fail(`teardown failed: ${e.message}`);
+      }
+    }
   }
 
   const finishedAt = new Date();
