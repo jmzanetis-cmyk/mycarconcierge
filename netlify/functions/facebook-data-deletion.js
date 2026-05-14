@@ -191,7 +191,7 @@ async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirma
       .update(update)
       .eq('id', requestRowId);
   } catch (error_) {
-    console.error('[facebook-data-deletion] failed to record final status:', e2);
+    console.error('[facebook-data-deletion] failed to record final status:', error_);
   }
 }
 

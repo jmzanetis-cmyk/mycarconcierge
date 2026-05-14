@@ -19,15 +19,20 @@
 -- ---------- social_leads ----------------------------------------------------
 -- Restrict the join to hunter.score actions explicitly so we never link to a
 -- different action type that happens to carry the same key in its decision.
-WITH latest_hunter_action AS (
+-- The digit-only pattern is defined once in the `digit_regex` CTE and shared
+-- across both UPDATE blocks below to avoid duplicating the literal.
+WITH digit_regex AS (
+  SELECT '^[0-9]+$'::text AS pattern
+),
+latest_hunter_action AS (
   SELECT DISTINCT ON ((decision->>'social_lead_id')::bigint)
          (decision->>'social_lead_id')::bigint AS lead_id,
          id AS action_id
-    FROM public.agent_actions
+    FROM public.agent_actions, digit_regex
    WHERE agent_slug = 'hunter'
      AND action_type = 'score'
      AND decision ? 'social_lead_id'
-     AND decision->>'social_lead_id' ~ '^[0-9]+$'  -- NOSONAR S6353: digit-only regex repeated across CTEs; \set unsupported in Supabase SQL Editor
+     AND decision->>'social_lead_id' ~ digit_regex.pattern
    ORDER BY (decision->>'social_lead_id')::bigint, created_at DESC
 )
 UPDATE public.social_leads sl
@@ -37,16 +42,21 @@ UPDATE public.social_leads sl
    AND sl.agent_action_id IS NULL;
 
 -- ---------- social_posts ----------------------------------------------------
--- Restrict to promoter.draft for the same reason.
-WITH latest_promoter_action AS (
+-- Restrict to promoter.draft for the same reason. Reuses the digit_regex CTE
+-- pattern (re-declared here because each top-level statement has its own
+-- WITH scope in PostgreSQL).
+WITH digit_regex AS (
+  SELECT '^[0-9]+$'::text AS pattern
+),
+latest_promoter_action AS (
   SELECT DISTINCT ON ((decision->>'social_post_id')::bigint)
          (decision->>'social_post_id')::bigint AS post_id,
          id AS action_id
-    FROM public.agent_actions
+    FROM public.agent_actions, digit_regex
    WHERE agent_slug = 'promoter'
      AND action_type = 'draft'
      AND decision ? 'social_post_id'
-     AND decision->>'social_post_id' ~ '^[0-9]+$'  -- NOSONAR S6353
+     AND decision->>'social_post_id' ~ digit_regex.pattern
    ORDER BY (decision->>'social_post_id')::bigint, created_at DESC
 )
 UPDATE public.social_posts sp
