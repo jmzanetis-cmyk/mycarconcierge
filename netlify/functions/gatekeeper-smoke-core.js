@@ -177,9 +177,11 @@ async function forceOrchestratorTick(admin, log, failures) {
   log.pass(`orchestrator tick fired: ${JSON.stringify(r.body).slice(0, 220)}`);
 }
 
-async function pollForProposal(supabase, eventId, eventType, log, failures) {
+async function pollForProposal(supabase, eventId, eventType, log, failures, opts = {}) {
+  const timeoutMs  = opts.pollTimeoutMs  ?? POLL_TIMEOUT_MS;
+  const intervalMs = opts.pollIntervalMs ?? POLL_INTERVAL_MS;
   const start = Date.now();
-  while (Date.now() - start < POLL_TIMEOUT_MS) {
+  while (Date.now() - start < timeoutMs) {
     const { data, error } = await supabase
       .from('agent_actions')
       .select('id, agent_slug, event_id, status, decision, reasoning, confidence, cost_usd, duration_ms, error_message, created_at')
@@ -193,7 +195,7 @@ async function pollForProposal(supabase, eventId, eventType, log, failures) {
       return null;
     }
     if (data && data.length) return data[0];
-    await new Promise(r => setTimeout(r, POLL_INTERVAL_MS));
+    await new Promise(r => setTimeout(r, intervalMs));
   }
   return null;
 }
@@ -220,7 +222,9 @@ async function pollForProposal(supabase, eventId, eventType, log, failures) {
 // Never throws — runner-level exceptions are converted into a synthetic
 // failure entry so the caller always gets a structured result to persist.
 // ---------------------------------------------------------------------------
-async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL_LOGGER }) {
+async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL_LOGGER, pollTimeoutMs, pollIntervalMs }) {
+  const opts = { pollTimeoutMs, pollIntervalMs };
+  const effectiveTimeoutMs = pollTimeoutMs ?? POLL_TIMEOUT_MS;
   const startedAt = new Date();
   const failures = [];
   const summary = {
@@ -282,17 +286,20 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
 
     await forceOrchestratorTick(admin, log, failures);
 
-    log.info(`5. Polling agent_actions for proposed rows (timeout ${POLL_TIMEOUT_MS / 1000}s per event)`);
+    log.info(`5. Polling agent_actions for proposed rows (timeout ${effectiveTimeoutMs / 1000}s per event)`);
     for (const t of eventTypes) {
       const eventId = emitted[t];
       if (!eventId) {
         summary.events.push({ event_type: t, event_id: null, action_id: null, status: 'emit_failed' });
         continue;
       }
-      const row = await pollForProposal(supabase, eventId, t, log, failures);
+      const row = await pollForProposal(supabase, eventId, t, log, failures, {
+        pollTimeoutMs: opts.pollTimeoutMs,
+        pollIntervalMs: opts.pollIntervalMs
+      });
       if (!row) {
         failures.push(`no_proposal_${t}`);
-        log.fail(`no agent_actions row for ${t} (event_id=${eventId}) within ${POLL_TIMEOUT_MS / 1000}s — check logs for /agent-orchestrator and /agent-gatekeeper`);
+        log.fail(`no agent_actions row for ${t} (event_id=${eventId}) within ${effectiveTimeoutMs / 1000}s — check logs for /agent-orchestrator and /agent-gatekeeper`);
         summary.events.push({ event_type: t, event_id: eventId, action_id: null, status: 'no_proposal' });
         continue;
       }
