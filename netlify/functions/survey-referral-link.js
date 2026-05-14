@@ -27,17 +27,20 @@
 //   - On unrecoverable failure to issue a code, returns 503 — same
 //     as dev — so the frontend can show a retry CTA.
 //
-// Two rate limits apply, matching dev: per-IP (public tier 30 / 60 s)
-// and per-email (3 / 60 s, used as a flood guard against shadow-user
-// creation). The per-email cap is intentionally tighter than the
-// per-IP one because shadow user creation is much more expensive
-// than the IP-level survey reads.
+// Two rate limits apply, matching dev exactly: per-IP and per-email,
+// both using the public tier (30 req / 60 s). The per-email key is
+// the flood guard against shadow-user creation. (Heads-up for future
+// readers: the dev handler at www/server.js:~44753 has a comment that
+// claims "max 3 referral link requests per email per day", but the
+// actual call is `applyRateLimit(req, res, 'public', ...)`, i.e.
+// 30 / 60 s. We match the code, not the stale comment, so prod and
+// dev behave the same.)
 
 var utils = require('./utils');
 
 var RATE_LIMIT_MAX = 30;
 var RATE_LIMIT_WINDOW_MS = 60000;
-var EMAIL_RATE_MAX = 3;
+var EMAIL_RATE_MAX = 30;
 var EMAIL_RATE_WINDOW_MS = 60000;
 var rateBuckets = new Map();
 var emailRateBuckets = new Map();
