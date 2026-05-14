@@ -657,7 +657,504 @@ async function applyAction(supabase, id) {
   if (action.agent_slug === 'matchmaker' && action.action_type === 'rank') {
     return applyMatchmakerRank(supabase, id, action);
   }
-  return { error: 'Apply only supported for Gatekeeper review and Matchmaker rank actions', status: 400 };
+  if (action.agent_slug === 'treasurer' && action.action_type === 'review') {
+    return applyTreasurerReview(supabase, id, action);
+  }
+  return { error: 'Apply only supported for Gatekeeper review, Matchmaker rank, and Treasurer review actions', status: 400 };
+}
+
+// ============================================================================
+// Task #319 — Treasurer apply paths.
+//
+// Treasurer writes one of six recommendations on each `proposed` row:
+//   approve_capture  → capture the held escrow PaymentIntent for the
+//                      care_plan_completion referenced by payload.care_plan_id
+//   approve_refund   → refund the captured amount on that PaymentIntent
+//   deny_refund      → no Stripe op; record the denial as the resolution
+//                      so the dispute can be closed without a refund
+//   retry_payout     → re-create the failed payout to the provider's
+//                      connected account (Stripe Connect)
+//   escalate_payout  → no Stripe op; flag the failure for hands-on admin
+//                      follow-up (kept distinct from manual_review so
+//                      the audit trail captures the agent's intent)
+//   manual_review    → refused — the operator must act in Stripe directly.
+//                      Keeps the review queue from auto-laundering thin-
+//                      context proposals into real money movements.
+//
+// Mirrors the cpc capture/refund admin endpoints in www/server.js
+// (POST /api/admin/ai-ops/care-plan-completions/:id/{capture,refund})
+// so the same DB columns + idempotency conventions apply.
+// ============================================================================
+const VALID_TREASURER_RECOMMENDATIONS = new Set([
+  'approve_capture', 'approve_refund', 'deny_refund',
+  'retry_payout', 'escalate_payout', 'manual_review'
+]);
+
+function _getStripe() {
+  if (!process.env.STRIPE_SECRET_KEY) return null;
+  try {
+    // Match the apiVersion used by other Netlify functions (split-pay,
+    // stripe-connect-status, etc.) so behavior is consistent across the
+    // admin / pay paths.
+    return require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+  } catch (e) {
+    console.error('[agent-fleet-admin] stripe init failed:', e.message);
+    return null;
+  }
+}
+
+async function _markTreasurerExecuted(supabase, id, action, summary) {
+  await supabase.from('agent_actions').update({
+    review_status: 'executed',
+    reviewed_at: new Date().toISOString(),
+    reviewed_by: 'admin',
+    needs_review: false
+  }).eq('id', id);
+  await supabase.from('agent_actions').insert({
+    agent_slug: 'treasurer',
+    action_type: 'apply',
+    status: 'executed',
+    autonomy_used: 'admin',
+    decision: { applied_action_id: id, ...summary },
+    reasoning: summary._reasoning || `Admin applied Treasurer recommendation "${summary.recommendation}".`
+  });
+}
+
+async function applyTreasurerReview(supabase, id, action) {
+  let decision = action.decision;
+  if (typeof decision === 'string') {
+    try { decision = JSON.parse(decision); } catch { decision = {}; }
+  }
+  const rec = decision && decision.recommendation;
+  const payload = (decision && decision.payload) || {};
+
+  if (!rec || !VALID_TREASURER_RECOMMENDATIONS.has(rec)) {
+    return { error: `Unknown Treasurer recommendation "${rec}"`, status: 400 };
+  }
+  if (rec === 'manual_review') {
+    return {
+      error: 'Cannot Apply manual_review — operator must capture, refund, or retry payout manually via the Stripe dashboard. Use Mark approved to clear the row.',
+      status: 400
+    };
+  }
+
+  // Audit-only paths (no Stripe call): record the operator's decision and
+  // close the row. Keeps the trail clean without flipping money.
+  if (rec === 'deny_refund') {
+    return _treasurerDenyRefund(supabase, id, action, payload);
+  }
+  if (rec === 'escalate_payout') {
+    return _treasurerEscalatePayout(supabase, id, action, payload);
+  }
+
+  const stripe = _getStripe();
+  if (!stripe) {
+    return { error: 'STRIPE_SECRET_KEY not configured on this deploy', status: 500 };
+  }
+
+  if (rec === 'approve_capture') return _treasurerCapture(supabase, stripe, id, action, payload);
+  if (rec === 'approve_refund')  return _treasurerRefund(supabase, stripe, id, action, payload);
+  if (rec === 'retry_payout')    return _treasurerRetryPayout(supabase, stripe, id, action, payload);
+
+  /* unreachable */ return { error: 'unhandled recommendation', status: 500 };
+}
+
+async function _treasurerCapture(supabase, stripe, id, action, payload) {
+  const carePlanId = payload.care_plan_id;
+  if (!carePlanId) return { error: 'payload.care_plan_id required for approve_capture', status: 400 };
+
+  const { data: cpc, error: cpcErr } = await supabase
+    .from('care_plan_completions')
+    .select('id, care_plan_id, provider_id, stripe_payment_intent_id, payment_capture_status, founder_commission_status')
+    .eq('care_plan_id', carePlanId)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (cpcErr) return { error: cpcErr.message, status: 500 };
+  if (!cpc) return { error: 'No care_plan_completion for this care_plan_id', status: 404 };
+  if (!cpc.stripe_payment_intent_id) return { error: 'Completion missing stripe_payment_intent_id — cannot capture', status: 400 };
+  if (cpc.payment_capture_status === 'captured') {
+    await _markTreasurerExecuted(supabase, id, action, {
+      recommendation: 'approve_capture', completion_id: cpc.id, already_captured: true,
+      _reasoning: 'Treasurer apply: already captured (no-op).'
+    });
+    return { ok: true, already_captured: true, completion_id: cpc.id };
+  }
+
+  let captureResult;
+  try {
+    captureResult = await stripe.paymentIntents.capture(cpc.stripe_payment_intent_id, {}, {
+      idempotencyKey: `treasurer_apply_capture_${id}`
+    });
+  } catch (e) {
+    return { error: `Stripe capture failed: ${e.message}`, status: 502 };
+  }
+
+  const capturedAmount = (captureResult.amount_received || captureResult.amount || 0) / 100;
+  const nowIso = new Date().toISOString();
+  // Fail-closed (architect finding): if the post-Stripe DB write fails we
+  // surface the error and DO NOT mark the action executed. The Stripe
+  // idempotency key on the capture means the operator can safely re-click
+  // Apply once the DB issue is resolved — Stripe will short-circuit and
+  // we'll fall through to the DB update below.
+  const { error: upErr } = await supabase.from('care_plan_completions').update({
+    payment_capture_status: 'captured',
+    captured_amount: capturedAmount,
+    captured_at: nowIso,
+    status: 'resolved',
+    resolved_at: nowIso
+  }).eq('id', cpc.id);
+  if (upErr) {
+    return { error: `Stripe capture succeeded but DB update failed (action NOT marked executed; safe to retry): ${upErr.message}`, status: 500 };
+  }
+  const { error: planUpErr } = await supabase.from('care_plans')
+    .update({ payment_status: 'captured', status: 'completed' })
+    .eq('id', cpc.care_plan_id);
+  if (planUpErr) {
+    return { error: `Stripe capture + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
+  }
+
+  // Founder commission parity with www/server.js admin capture endpoint.
+  // Best-effort: a transfer failure is logged and surfaced in the audit
+  // summary but does NOT roll back the capture (matches server.js semantics).
+  let commissionResult = null;
+  if (cpc.provider_id && capturedAmount > 0 && cpc.founder_commission_status !== 'paid') {
+    commissionResult = await _processCarePlanFounderCommission(
+      supabase, stripe, cpc.provider_id, capturedAmount, cpc.stripe_payment_intent_id, `treasurer-${id}`
+    );
+    if (commissionResult && !commissionResult.skipped && commissionResult.amount) {
+      await supabase.from('care_plan_completions').update({
+        founder_commission_amount: commissionResult.amount,
+        founder_transfer_id: commissionResult.transferId || null,
+        founder_commission_status: 'paid'
+      }).eq('id', cpc.id);
+    }
+  }
+
+  await _markTreasurerExecuted(supabase, id, action, {
+    recommendation: 'approve_capture',
+    completion_id: cpc.id,
+    payment_intent_id: cpc.stripe_payment_intent_id,
+    captured_amount: capturedAmount,
+    commission: commissionResult,
+    _reasoning: `Treasurer apply: captured PI ${cpc.stripe_payment_intent_id} for $${capturedAmount}${commissionResult && commissionResult.transferId ? ` · founder commission ${commissionResult.transferId}` : ''}.`
+  });
+  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult };
+}
+
+async function _treasurerRefund(supabase, stripe, id, action, payload) {
+  const carePlanId = payload.care_plan_id;
+  if (!carePlanId) return { error: 'payload.care_plan_id required for approve_refund', status: 400 };
+
+  const { data: cpc, error: cpcErr } = await supabase
+    .from('care_plan_completions')
+    .select('id, care_plan_id, stripe_payment_intent_id, payment_capture_status, captured_amount, refund_amount')
+    .eq('care_plan_id', carePlanId)
+    .order('created_at', { ascending: false }).limit(1).maybeSingle();
+  if (cpcErr) return { error: cpcErr.message, status: 500 };
+  if (!cpc) return { error: 'No care_plan_completion for this care_plan_id', status: 404 };
+  if (!cpc.stripe_payment_intent_id) return { error: 'Completion missing stripe_payment_intent_id — cannot refund', status: 400 };
+  if (cpc.payment_capture_status === 'refunded') {
+    await _markTreasurerExecuted(supabase, id, action, {
+      recommendation: 'approve_refund', completion_id: cpc.id, already_refunded: true,
+      _reasoning: 'Treasurer apply: already refunded (no-op).'
+    });
+    return { ok: true, already_refunded: true, completion_id: cpc.id };
+  }
+
+  // Mirror the cpc admin refund endpoint in www/server.js: branch on the
+  // PI status so an uncaptured hold cancels cleanly (no charge ever
+  // landed) instead of trying to refund a non-existent charge.
+  let pi;
+  try {
+    pi = await stripe.paymentIntents.retrieve(cpc.stripe_payment_intent_id);
+  } catch (e) {
+    return { error: `Stripe PI retrieve failed: ${e.message}`, status: 502 };
+  }
+  const nowIso = new Date().toISOString();
+
+  if (pi.status === 'requires_capture') {
+    try {
+      await stripe.paymentIntents.cancel(cpc.stripe_payment_intent_id, undefined, {
+        idempotencyKey: `treasurer_apply_cancel_${id}`
+      });
+    } catch (e) {
+      return { error: `Stripe PI cancel failed: ${e.message}`, status: 502 };
+    }
+    const { error: upErr } = await supabase.from('care_plan_completions').update({
+      payment_capture_status: 'refunded',
+      refund_amount: 0,
+      refunded_at: nowIso,
+      status: 'resolved',
+      resolved_at: nowIso
+    }).eq('id', cpc.id);
+    if (upErr) {
+      return { error: `Stripe cancel succeeded but DB update failed (safe to retry): ${upErr.message}`, status: 500 };
+    }
+    const { error: planUpErr } = await supabase.from('care_plans')
+      .update({ payment_status: 'cancelled' })
+      .eq('id', cpc.care_plan_id);
+    if (planUpErr) {
+      return { error: `Stripe cancel + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
+    }
+    await _markTreasurerExecuted(supabase, id, action, {
+      recommendation: 'approve_refund',
+      completion_id: cpc.id,
+      payment_intent_id: cpc.stripe_payment_intent_id,
+      cancelled: true,
+      refund_amount: 0,
+      _reasoning: `Treasurer apply: cancelled uncaptured hold on PI ${cpc.stripe_payment_intent_id}.`
+    });
+    return { ok: true, cancelled: true, refunded: true, refund_amount: 0, is_full: true };
+  }
+
+  if (pi.status !== 'succeeded') {
+    return { error: `Cannot refund PaymentIntent in status: ${pi.status}`, status: 409 };
+  }
+
+  // Bound the refund amount by what Stripe actually has on the PI so we
+  // can't request more than was charged (Stripe would 400; our error
+  // message is friendlier and avoids fail-closed retries on a request
+  // that will never succeed).
+  const piAmount = pi.amount_received || pi.amount;
+  const requestedAmount = Number(payload.amount);
+  let refundCents;
+  if (Number.isFinite(requestedAmount) && requestedAmount > 0) {
+    refundCents = Math.min(Math.round(requestedAmount * 100), piAmount);
+  } else {
+    refundCents = piAmount;
+  }
+  if (!(refundCents > 0)) {
+    return { error: 'Computed refund amount is zero — nothing to refund', status: 400 };
+  }
+  const refundAmount = refundCents / 100;
+
+  let refund;
+  try {
+    refund = await stripe.refunds.create({
+      payment_intent: cpc.stripe_payment_intent_id,
+      amount: refundCents,
+      reason: 'requested_by_customer',
+      metadata: { care_plan_completion_id: cpc.id, treasurer_action_id: id, admin_action: 'true' }
+    }, { idempotencyKey: `treasurer_apply_refund_${id}_${refundCents}` });
+  } catch (e) {
+    return { error: `Stripe refund failed: ${e.message}`, status: 502 };
+  }
+
+  const isFull = refundCents === piAmount;
+  const { error: upErr } = await supabase.from('care_plan_completions').update({
+    payment_capture_status: isFull ? 'refunded' : 'partially_refunded',
+    refund_amount: refundAmount,
+    refund_id: refund.id,
+    refunded_at: nowIso,
+    status: 'resolved',
+    resolved_at: nowIso
+  }).eq('id', cpc.id);
+  if (upErr) {
+    return { error: `Stripe refund succeeded but DB update failed (safe to retry): ${upErr.message}`, status: 500 };
+  }
+  const { error: planUpErr } = await supabase.from('care_plans')
+    .update({ payment_status: isFull ? 'refunded' : 'partially_refunded' })
+    .eq('id', cpc.care_plan_id);
+  if (planUpErr) {
+    return { error: `Stripe refund + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
+  }
+
+  await _markTreasurerExecuted(supabase, id, action, {
+    recommendation: 'approve_refund',
+    completion_id: cpc.id,
+    payment_intent_id: cpc.stripe_payment_intent_id,
+    refund_id: refund.id,
+    refund_amount: refundAmount,
+    is_full: isFull,
+    _reasoning: `Treasurer apply: refunded $${refundAmount} (${isFull ? 'full' : 'partial'}) on PI ${cpc.stripe_payment_intent_id}.`
+  });
+  return { ok: true, refunded: true, refund_id: refund.id, refund_amount: refundAmount, is_full: isFull };
+}
+
+// Inlined port of processCarePlanFounderCommission from www/server.js so
+// the Treasurer apply path on Netlify has the same behavior as the legacy
+// admin cpc capture endpoint. Returns a `{skipped, reason?, transferId?,
+// amount?, founderId?}` shape; never throws (all errors are logged + a
+// skip reason is returned so the capture itself isn't rolled back).
+async function _processCarePlanFounderCommission(supabase, stripe, providerId, capturedAmount, paymentIntentId, requestId) {
+  try {
+    if (!providerId || !capturedAmount || capturedAmount <= 0) return { skipped: true, reason: 'invalid_inputs' };
+
+    const { data: existingPayout } = await supabase
+      .from('founder_commissions')
+      .select('id, stripe_transfer_id, status')
+      .eq('transaction_id', paymentIntentId)
+      .maybeSingle();
+    if (existingPayout?.stripe_transfer_id || existingPayout?.status === 'paid') {
+      return { skipped: true, reason: 'already_paid', transferId: existingPayout.stripe_transfer_id };
+    }
+
+    const { data: provider } = await supabase
+      .from('profiles').select('id, referred_by_founder_id').eq('id', providerId).maybeSingle();
+    if (!provider?.referred_by_founder_id) return { skipped: true, reason: 'no_referrer' };
+
+    const { data: founder } = await supabase
+      .from('member_founder_profiles')
+      .select('id, user_id, full_name, email, stripe_connect_account_id, instant_payout_enabled, payout_preference, referral_code, total_commissions_earned, total_commissions_paid, status')
+      .eq('user_id', provider.referred_by_founder_id)
+      .maybeSingle();
+    if (!founder) return { skipped: true, reason: 'founder_not_found' };
+    if (founder.status && founder.status !== 'active') return { skipped: true, reason: 'founder_inactive' };
+    if (!founder.instant_payout_enabled || founder.payout_preference !== 'instant') return { skipped: true, reason: 'instant_payout_disabled' };
+    if (!founder.stripe_connect_account_id) return { skipped: true, reason: 'no_connect_account' };
+
+    let account;
+    try {
+      account = await stripe.accounts.retrieve(founder.stripe_connect_account_id);
+    } catch (e) {
+      console.error(`[${requestId}] founder commission: connect retrieve failed:`, e.message);
+      return { skipped: true, reason: 'connect_retrieve_failed' };
+    }
+    if (!account.payouts_enabled || !account.charges_enabled) return { skipped: true, reason: 'connect_not_ready' };
+
+    const isChrisAgrapidis = (founder.email && founder.email.toLowerCase().includes('chris') && founder.email.toLowerCase().includes('agrapidis'))
+      || (founder.referral_code === 'CHRISAGRAPIDIS');
+    const commissionRate = isChrisAgrapidis ? 0.90 : 0.50;
+    const commissionAmount = parseFloat((capturedAmount * commissionRate).toFixed(2));
+    const transferAmountCents = Math.round(commissionAmount * 100);
+    if (transferAmountCents < 100) return { skipped: true, reason: 'amount_below_minimum' };
+
+    let commissionRecord = existingPayout || null;
+    if (!commissionRecord) {
+      const { data: inserted, error: insErr } = await supabase
+        .from('founder_commissions')
+        .insert({
+          founder_id: founder.id,
+          referred_provider_id: providerId,
+          purchase_amount: capturedAmount,
+          original_amount: capturedAmount,
+          commission_rate: commissionRate,
+          commission_amount: commissionAmount,
+          transaction_id: paymentIntentId,
+          source_transaction_id: paymentIntentId,
+          status: 'pending',
+          commission_type: 'care_plan',
+          description: `Care plan capture commission (${commissionRate * 100}%)`
+        })
+        .select('id, founder_id').single();
+      if (insErr) {
+        if (insErr.code === '23505') {
+          const { data: again } = await supabase
+            .from('founder_commissions').select('id, founder_id, status')
+            .eq('transaction_id', paymentIntentId).maybeSingle();
+          if (again?.status === 'paid') return { skipped: true, reason: 'already_paid' };
+          commissionRecord = again;
+        } else {
+          console.error(`[${requestId}] founder commission insert err:`, insErr.message);
+          return { skipped: true, reason: 'insert_failed' };
+        }
+      } else {
+        commissionRecord = inserted;
+      }
+    }
+    if (!commissionRecord) return { skipped: true, reason: 'no_record' };
+
+    let transfer;
+    try {
+      transfer = await stripe.transfers.create({
+        amount: transferAmountCents,
+        currency: 'usd',
+        destination: founder.stripe_connect_account_id,
+        metadata: {
+          type: 'care_plan_commission',
+          founder_id: founder.id,
+          provider_id: providerId,
+          payment_intent_id: paymentIntentId,
+          commission_rate: commissionRate.toString(),
+          captured_amount: capturedAmount.toString()
+        }
+      }, { idempotencyKey: `care_plan_payout_${paymentIntentId}_${founder.id}` });
+    } catch (e) {
+      await supabase.from('founder_commissions')
+        .update({ status: 'cancelled', updated_at: new Date().toISOString() })
+        .eq('id', commissionRecord.id);
+      console.error(`[${requestId}] founder transfer failed:`, e.message);
+      return { skipped: true, reason: 'transfer_failed', error: e.message };
+    }
+
+    await supabase.from('founder_commissions')
+      .update({ stripe_transfer_id: transfer.id, status: 'paid', paid_at: new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq('id', commissionRecord.id);
+
+    return { skipped: false, transferId: transfer.id, amount: commissionAmount, founderId: founder.id };
+  } catch (e) {
+    console.error(`[${requestId}] _processCarePlanFounderCommission unexpected:`, e.message);
+    return { skipped: true, reason: 'unexpected_error', error: e.message };
+  }
+}
+
+async function _treasurerDenyRefund(supabase, id, action, payload) {
+  const carePlanId = payload.care_plan_id;
+  if (carePlanId) {
+    // Best-effort: mark the completion resolved with an admin note so the
+    // dispute closes without a refund. Tolerate a missing completion row.
+    const nowIso = new Date().toISOString();
+    await supabase.from('care_plan_completions')
+      .update({ status: 'resolved', resolved_at: nowIso, admin_notes: 'Refund denied by admin via Treasurer recommendation.' })
+      .eq('care_plan_id', carePlanId);
+  }
+  await _markTreasurerExecuted(supabase, id, action, {
+    recommendation: 'deny_refund', care_plan_id: carePlanId || null,
+    _reasoning: 'Treasurer apply: refund denied; completion marked resolved without payout.'
+  });
+  return { ok: true, denied: true, care_plan_id: carePlanId || null };
+}
+
+async function _treasurerEscalatePayout(supabase, id, action, payload) {
+  // No Stripe op — escalation just records the agent's intent and closes
+  // the row. The audit trail (and the operator's followup queue) carries
+  // it forward; the actual nudge to the provider happens out-of-band.
+  await _markTreasurerExecuted(supabase, id, action, {
+    recommendation: 'escalate_payout',
+    payout_id: payload.payout_id || null,
+    provider_id: payload.provider_id || null,
+    failure_code: payload.failure_code || null,
+    _reasoning: 'Treasurer apply: payout escalated to admin for hands-on follow-up (provider onboarding gap suspected).'
+  });
+  return { ok: true, escalated: true, payout_id: payload.payout_id || null };
+}
+
+async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
+  const providerId = payload.provider_id;
+  const amount = Number(payload.amount);
+  if (!providerId) return { error: 'payload.provider_id required for retry_payout', status: 400 };
+  if (!(amount > 0)) return { error: 'payload.amount required (>0) for retry_payout', status: 400 };
+
+  const { data: prof, error: pErr } = await supabase
+    .from('profiles').select('id, stripe_account_id').eq('id', providerId).maybeSingle();
+  if (pErr) return { error: pErr.message, status: 500 };
+  if (!prof || !prof.stripe_account_id) {
+    return { error: 'Provider profile missing stripe_account_id — cannot retry payout (escalate instead)', status: 400 };
+  }
+
+  const currency = (payload.currency || 'usd').toLowerCase();
+  const amountCents = Math.round(amount * 100);
+
+  let payout;
+  try {
+    payout = await stripe.payouts.create(
+      { amount: amountCents, currency, metadata: { treasurer_action_id: id, original_payout_id: payload.payout_id || '' } },
+      { stripeAccount: prof.stripe_account_id, idempotencyKey: `treasurer_apply_retry_payout_${id}` }
+    );
+  } catch (e) {
+    return { error: `Stripe payout retry failed: ${e.message}`, status: 502 };
+  }
+
+  await _markTreasurerExecuted(supabase, id, action, {
+    recommendation: 'retry_payout',
+    provider_id: providerId,
+    stripe_account_id: prof.stripe_account_id,
+    new_payout_id: payout.id,
+    amount,
+    currency,
+    original_payout_id: payload.payout_id || null,
+    _reasoning: `Treasurer apply: retried payout ($${amount} ${currency}) to ${prof.stripe_account_id} → ${payout.id}.`
+  });
+  return { ok: true, retried: true, new_payout_id: payout.id, amount, currency };
 }
 
 async function applyGatekeeperReview(supabase, id, action) {
