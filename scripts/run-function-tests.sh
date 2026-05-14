@@ -23,6 +23,7 @@ files=(netlify/functions/*.test.js)
 extra=(
   scripts/bgc-reminders-prefs-smoke.js
   scripts/queue-flush-skip-test.js
+  scripts/queue-flush-followup-test.js
   scripts/paused-digest-rendering-test.js
 )
 files+=("${extra[@]}")

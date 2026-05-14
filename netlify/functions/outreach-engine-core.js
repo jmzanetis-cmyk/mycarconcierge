@@ -1065,9 +1065,17 @@ async function sendMessage(supabase, messageId) {
   // leaving it stuck in 'approved' forever. Pre-#306 these returned without
   // any DB update, so the queue-flush kept picking the same oldest 15 dead
   // messages every cycle and never drained.
-  const deadLeadStatus = ['unsubscribed', 'bounced', 'contacted', 'responded', 'converted', 'dead']
-    .includes(lead.status);
-  if (deadLeadStatus) {
+  //
+  // 'contacted' and 'responded' are intentionally NOT in the always-dead list
+  // because runFollowUpDrafts() targets `lead.status='contacted'` to send
+  // step 2/3 follow-ups. We only treat those statuses as dead for messages
+  // at sequence_step <= 1 (i.e. duplicate first-touch sends to a lead we've
+  // already contacted) — follow-up messages (sequence_step >= 2) are valid
+  // and pass through.
+  const seqStep = Number(msg.sequence_step) || 1;
+  const alwaysDead = ['unsubscribed', 'bounced', 'converted', 'dead'].includes(lead.status);
+  const deadForFirstTouchOnly = (lead.status === 'contacted' || lead.status === 'responded') && seqStep <= 1;
+  if (alwaysDead || deadForFirstTouchOnly) {
     await markMessageSkipped(supabase, msg, lead, `lead_${lead.status}`);
     return { error: `Lead has ${lead.status} — message skipped`, skipped: true };
   }
