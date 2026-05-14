@@ -92,7 +92,7 @@ exports.handler = async function(event, context) {
         .select('id')
         .eq('email', normalizedEmail)
         .limit(1);
-      if (existingMembers?.length > 0) {
+      if (existingMembers && existingMembers.length > 0) {
         return jsonResponse(409, { error: 'A user with this email already exists' });
       }
       const { data: existingInvites } = await supabase
@@ -101,7 +101,7 @@ exports.handler = async function(event, context) {
         .eq('email', normalizedEmail)
         .eq('status', 'pending')
         .limit(1);
-      if (existingInvites?.length > 0) {
+      if (existingInvites && existingInvites.length > 0) {
         return jsonResponse(409, { error: 'A pending invite already exists for this email' });
       }
       const token = crypto.randomBytes(32).toString('hex');

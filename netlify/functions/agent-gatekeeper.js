@@ -190,7 +190,7 @@ async function handleEvent(triggeredBy, eventEnvelope) {
 
   const parsed = parseRecommendation(llmResult.text);
   const recommendation = parsed?.recommendation || 'manual_review';
-  const confidence = (typeof parsed?.confidence === 'number' && parsed.confidence >= 0 && parsed.confidence <= 1)
+  const confidence = (typeof parsed && parsed.confidence === 'number' && parsed.confidence >= 0 && parsed.confidence <= 1)
     ? parsed.confidence : null;
   const reasoning = parsed?.reasoning || llmResult.text.trim().slice(0, 600);
   const concerns = Array.isArray(parsed?.concerns) ? parsed.concerns : [];

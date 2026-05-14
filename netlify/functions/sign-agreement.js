@@ -326,7 +326,7 @@ exports.handler = async function(event) {
       return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Signature data too large' }) };
     }
 
-    if (full_name.length > 255 || (business_name?.length > 255)) {
+    if (full_name.length > 255 || (business_name && business_name.length > 255)) {
       return { statusCode: 400, headers: headers, body: JSON.stringify({ error: 'Name fields too long' }) };
     }
 

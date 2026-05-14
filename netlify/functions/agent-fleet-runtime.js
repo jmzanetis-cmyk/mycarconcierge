@@ -234,7 +234,7 @@ function clearPromptCache(slug) {
 }
 async function loadActivePrompt(supabase, agentSlug, fallback) {
   const hit = __promptCache.get(agentSlug);
-  if (hit?.expiresAt > Date.now()) return hit.body;
+  if (hit && hit.expiresAt > Date.now()) return hit.body;
   let body = fallback;
   try {
     const { data } = await supabase

@@ -102,7 +102,7 @@ async function handleSocialLead(supabase, agent, evt, t0) {
 
   const parsed = parseScore(llmResult.text);
   const leadType = ['member','provider','unknown'].includes(parsed?.lead_type) ? parsed.lead_type : 'unknown';
-  const score = (typeof parsed?.score === 'number' && parsed.score >= 0 && parsed.score <= 1) ? parsed.score : null;
+  const score = (typeof parsed && parsed.score === 'number' && parsed.score >= 0 && parsed.score <= 1) ? parsed.score : null;
   const reasoning = parsed?.reasoning || llmResult.text.trim().slice(0, 600);
   const draft = (parsed?.draft_outreach || '').toString().slice(0, 800);
   const signals = Array.isArray(parsed?.intent_signals) ? parsed.intent_signals : [];

@@ -414,13 +414,13 @@
         var pwForm = document.getElementById('admin-password-form');
         var loginForm = document.getElementById('admin-login-form');
         var teamForm = document.getElementById('admin-team-login-form');
-        if (teamForm?.style.display !== 'none') {
+        if (teamForm && teamForm.style.display !== 'none') {
           currentModalState = 'team-login';
           await performTeamLogin();
-        } else if (pwForm?.style.display !== 'none') {
+        } else if (pwForm && pwForm.style.display !== 'none') {
           currentModalState = 'password';
           await verifyAdminPassword();
-        } else if (loginForm?.style.display !== 'none') {
+        } else if (loginForm && loginForm.style.display !== 'none') {
           currentModalState = 'login';
           await performAdminLogin();
         } else {
@@ -498,7 +498,7 @@
         currentUser = session.user;
         globalThis._adminEmail = session.user.email || '';
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
-        if (profile?.role === 'admin') {
+        if (profile && profile.role === 'admin') {
           showModalState('password');
         } else {
           showModalState('not-admin');
@@ -573,7 +573,7 @@
           const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
           console.log('[Admin] Profile:', profile);
           
-          if (profile?.role === 'admin') {
+          if (profile && profile.role === 'admin') {
             showModalState('password');
           } else {
             showModalState('not-admin');
@@ -3063,7 +3063,7 @@
       });
       const tbody = document.getElementById('disputes-table');
 
-      const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
+      const highValue = disputes.filter(d => d.payments && payments.amount_total > 1000 && d.status === 'open');
       document.getElementById('high-value-alert').style.display = highValue.length ? 'block' : 'none';
 
       // Task #281 — show load error before falling through to "No disputes".
@@ -3468,7 +3468,7 @@
 
       const { data: evidence } = await supabaseClient.from('dispute_evidence').select('*').eq('dispute_id', disputeId);
       const d = currentDispute;
-      const isHighValue = d.payments?.amount_total > 1000;
+      const isHighValue = d.payments && payments.amount_total > 1000;
 
       document.getElementById('dispute-modal-body').innerHTML = `
         <div class="form-section">
@@ -3799,7 +3799,7 @@
         showToast('Could not check disputes: ' + disputeErr.message, 'error');
         return;
       }
-      if (openDisputes?.length > 0) {
+      if (openDisputes && openDisputes.length > 0) {
         showToast('Cannot delete: an open dispute references this payment. Resolve the dispute first.', 'error');
         return;
       }
@@ -9072,7 +9072,7 @@
         errorEl.style.display = 'block';
         return;
       }
-      if (password?.length < 8) {
+      if (password && password.length < 8) {
         errorEl.textContent = 'Password must be at least 8 characters.';
         errorEl.style.display = 'block';
         return;

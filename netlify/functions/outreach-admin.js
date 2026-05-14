@@ -192,7 +192,7 @@ exports.handler = async function(event, context) {
         .in('status', ['draft', 'approved']);
 
       let cleared = 0;
-      if (draftMsgs?.length > 0) {
+      if (draftMsgs && draftMsgs.length > 0) {
         const msgIds = draftMsgs.map(m => m.id);
         const leadIds = [...new Set(draftMsgs.map(m => m.lead_id))];
         await supabase.from('outreach_messages').delete().in('id', msgIds);
@@ -450,7 +450,7 @@ exports.handler = async function(event, context) {
         .in('id', message_ids).eq('status', 'draft').select('*, outreach_leads(*)');
 
       const approved = data || [];
-      const providerMsgs = approved.filter(m => m.outreach_leads?.type === 'provider');
+      const providerMsgs = approved.filter(m => m.outreach_leads && outreach_leads.type === 'provider');
 
       (async () => {
         for (const msg of providerMsgs) {
@@ -799,7 +799,7 @@ exports.handler = async function(event, context) {
       const { campaign_id, lead_ids, filters } = body;
       if (!campaign_id) return jsonResponse(400, { error: 'campaign_id is required' });
       let leadsToAdd;
-      if (lead_ids?.length > 0) {
+      if (lead_ids && lead_ids.length > 0) {
         const { data } = await supabase.from('outreach_leads').select('*').in('id', lead_ids);
         leadsToAdd = data;
       } else {

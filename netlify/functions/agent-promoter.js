@@ -185,7 +185,7 @@ async function handlePostRequest(supabase, agent, evt, t0) {
 async function handleEvent(supabase, agent, eventEnvelope) {
   const t0 = Date.now();
   const evt = eventEnvelope?.event || eventEnvelope;
-  if (evt?.event_type === 'social.post_requested') {
+  if (evt && evt.event_type === 'social.post_requested') {
     return handlePostRequest(supabase, agent, evt, t0);
   }
   await logAction(supabase, {

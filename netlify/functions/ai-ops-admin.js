@@ -367,7 +367,7 @@ async function runDailyDigest(supabase) {
       .from('engine_state')
       .select('is_running, paused_at, pause_reason')
       .eq('id', 1).single();
-    if (es?.is_running === false) {
+    if (es && es.is_running === false) {
       enginePaused = {
         paused: true,
         reason: es.pause_reason || null,

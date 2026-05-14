@@ -39,7 +39,7 @@ async function callerCanAdminEmployee(supabase, callerId, employee) {
     .select('role')
     .eq('id', callerId)
     .maybeSingle();
-  return prof?.role === 'admin';
+  return prof && prof.role === 'admin';
 }
 
 exports.handler = async function(event) {

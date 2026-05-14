@@ -321,7 +321,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
     const autoSendOn = outreachState.auto_send !== false;
     const apolloConfigLoaded = apolloConfig !== null;
-    const apolloEnabled = apolloConfig?.enabled === true;
+    const apolloEnabled = apolloConfig && apolloConfig.enabled === true;
     const formatAgo = (iso) => {
       if (!iso) return null;
       const mins = Math.round((Date.now() - new Date(iso)) / 60000);
