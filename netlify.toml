@@ -76,6 +76,20 @@
 [functions."gatekeeper-smoke-scheduled"]
   schedule = "0 9 * * *"
 
+# Task #206 — Matchmaker smoke runs daily at 09:15 UTC (staggered after the
+# gatekeeper smoke so the orchestrator and Resend aren't fighting for capacity).
+# Same early-warning model: synthetic care_plan.auction_closed event must
+# produce a proposed agent_actions row with a recommended_winner_bid_id field.
+[functions."matchmaker-smoke-scheduled"]
+  schedule = "15 9 * * *"
+
+# Task #206 — Treasurer smoke runs daily at 09:30 UTC. Synthetic payment
+# captured / refund_requested / payout_failed events must each produce a
+# proposed agent_actions row. While agent-treasurer is not yet deployed, this
+# smoke fails loudly each day so the gap can't be silently forgotten.
+[functions."treasurer-smoke-scheduled"]
+  schedule = "30 9 * * *"
+
 # Task #217 — Anthropic model availability smoke runs daily at 04:00 UTC.
 # Pings every Claude model in MODELS_IN_USE with a 1-token request and alerts
 # the admin (Resend + ai_action_log) if any model returns model_not_found,

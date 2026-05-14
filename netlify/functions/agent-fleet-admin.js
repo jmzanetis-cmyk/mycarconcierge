@@ -1129,20 +1129,24 @@ exports.handler = async function(event) {
       return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
     }
 
-    // -------- manual run: gatekeeper smoke (Task #161)
-    if (route === 'run/gatekeeper-smoke' && method === 'POST') {
-      const baseUrl = siteBaseUrl(event);
-      const r = await fetch(`${baseUrl}/.netlify/functions/gatekeeper-smoke-scheduled`, {
-        method: 'POST',
-        headers: {
-          'content-type': 'application/json',
-          'x-admin-password': process.env.ADMIN_PASSWORD || ''
-        },
-        body: JSON.stringify({ source: 'admin' })
-      });
-      const text = await r.text();
-      let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
-      return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
+    // -------- manual run: agent smoke (Task #161 gatekeeper, Task #206 matchmaker/treasurer)
+    {
+      const smokeMatch = route.match(/^run\/(gatekeeper|matchmaker|treasurer)-smoke$/);
+      if (smokeMatch && method === 'POST') {
+        const slug = smokeMatch[1];
+        const baseUrl = siteBaseUrl(event);
+        const r = await fetch(`${baseUrl}/.netlify/functions/${slug}-smoke-scheduled`, {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'x-admin-password': process.env.ADMIN_PASSWORD || ''
+          },
+          body: JSON.stringify({ source: 'admin' })
+        });
+        const text = await r.text();
+        let parsed; try { parsed = JSON.parse(text); } catch { parsed = { raw: text }; }
+        return jsonResponse(200, { ok: r.ok, status: r.status, result: parsed });
+      }
     }
 
     // -------- Director (acquisition chief-of-staff) ────────────────────

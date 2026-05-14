@@ -1,12 +1,15 @@
 // ============================================================================
-// Task #161 — Gatekeeper smoke test core
+// Task #161 — Gatekeeper smoke test core (extended Task #206 — Matchmaker /
+// Treasurer)
 //
-// Shared smoke-run engine used by both:
+// Shared smoke-run engine used by every agent's daily smoke:
 //   - scripts/gatekeeper-enable-smoke.js (operator-supervised CLI runner)
-//   - netlify/functions/gatekeeper-smoke-scheduled.js (daily off-hours cron)
+//   - netlify/functions/gatekeeper-smoke-scheduled.js (daily cron)
+//   - netlify/functions/matchmaker-smoke-scheduled.js (daily cron, Task #206)
+//   - netlify/functions/treasurer-smoke-scheduled.js  (daily cron, Task #206)
 //
-// The smoke fires one synthetic event of each Gatekeeper-subscribed type via
-// the same admin HTTPS surface real callers use, forces an orchestrator tick,
+// The smoke fires one synthetic event of each agent-subscribed type via the
+// same admin HTTPS surface real callers use, forces an orchestrator tick,
 // then polls agent_actions for a proposed row tied to each event_id. A clean
 // pass means the trigger → bus → orchestrator → handler → DB pipeline is
 // healthy end-to-end.
@@ -14,6 +17,13 @@
 // Synthetic events carry `__smoke=true` in their payload so they're easy to
 // identify in the admin queue (the agent stores the input payload on the
 // agent_actions.decision row; the admin UI surfaces a "Smoke" badge from it).
+//
+// `runAgentSmoke` (the generic factory) takes the agent-specific bits as
+// parameters: slug, allowed-cap, the synthetic-payload generator for each
+// event type it subscribes to, and an action validator that decides whether
+// the row the orchestrator produced counts as a clean proposal. The original
+// `runGatekeeperSmoke` is now a thin wrapper that supplies the gatekeeper
+// flavour. Matchmaker/Treasurer wrappers live in their own scheduled files.
 //
 // Returns a structured result the caller can both:
 //   - Pretty-print to stdout (operator runner)
@@ -24,12 +34,20 @@ const crypto = require('crypto');
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS  = 60_000;
+
+// Gatekeeper-specific cap expectation (kept for back-compat exports). Other
+// agents pass their own cap to runAgentSmoke.
 const SPEND_CAP_USD    = 3.0;
 
 // Logger interface: { pass(msg), fail(msg), info(msg) }. The CLI runner uses
 // console.log / console.error; the scheduled runner can pass a no-op.
 const NULL_LOGGER = { pass: () => {}, fail: () => {}, info: () => {} };
 
+// ---------------------------------------------------------------------------
+// Synthetic payload builders.
+// ---------------------------------------------------------------------------
+// Gatekeeper events — original behaviour preserved exactly so the existing
+// scheduled runner and operator CLI keep producing identical payloads.
 function syntheticPayloadFor(eventType) {
   const base = { __smoke: true, smoked_at: new Date().toISOString() };
   if (eventType === 'provider.applied') {
@@ -63,6 +81,88 @@ function syntheticPayloadFor(eventType) {
   return base;
 }
 
+// Matchmaker — synthetic auction. The care_plan_id is a fresh UUID that
+// won't resolve in care_plans; matchmaker's loadCarePlan returns
+// `{id, missing:true}`, loadBids returns [], and the handler short-circuits
+// to a `proposed` rank row with recommended_winner_bid_id=null. That's a
+// valid proposal shape — the smoke is testing the trigger → bus →
+// orchestrator → handler → DB wiring, not the LLM's bid-ranking judgment.
+function syntheticMatchmakerPayloadFor(eventType) {
+  const base = { __smoke: true, smoked_at: new Date().toISOString() };
+  if (eventType === 'care_plan.auction_closed') {
+    return { ...base, care_plan_id: crypto.randomUUID() };
+  }
+  return base;
+}
+
+// Treasurer — synthetic spend events for each of its three subscriptions.
+// IDs are fresh UUIDs; the handler can fetch context but the wiring path is
+// what the smoke is verifying.
+function syntheticTreasurerPayloadFor(eventType) {
+  const base = { __smoke: true, smoked_at: new Date().toISOString() };
+  if (eventType === 'payment.captured') {
+    return { ...base,
+      payment_id:    crypto.randomUUID(),
+      care_plan_id:  crypto.randomUUID(),
+      provider_id:   crypto.randomUUID(),
+      member_id:     crypto.randomUUID(),
+      amount:        100.00,
+      currency:      'usd',
+      captured_at:   new Date().toISOString()
+    };
+  }
+  if (eventType === 'payment.refund_requested') {
+    return { ...base,
+      payment_id:    crypto.randomUUID(),
+      care_plan_id:  crypto.randomUUID(),
+      member_id:     crypto.randomUUID(),
+      amount:        50.00,
+      currency:      'usd',
+      reason:        'smoke_test',
+      requested_at:  new Date().toISOString()
+    };
+  }
+  if (eventType === 'payout.failed') {
+    return { ...base,
+      payout_id:     crypto.randomUUID(),
+      provider_id:   crypto.randomUUID(),
+      amount:        75.00,
+      currency:      'usd',
+      failure_code:  'smoke_test',
+      failed_at:     new Date().toISOString()
+    };
+  }
+  return base;
+}
+
+// ---------------------------------------------------------------------------
+// Per-agent action validators. Return null on success, or a short string id
+// describing why the row failed validation (gets pushed onto failed_checks).
+// ---------------------------------------------------------------------------
+function validateGatekeeperAction(row) {
+  const rec = (row.decision && row.decision.recommendation) || null;
+  if (row.status === 'proposed' && rec) return null;
+  if (row.status === 'error') return `action_error: ${row.error_message || 'unknown'}`;
+  return `bad_status:${row.status}|rec:${rec || 'none'}`;
+}
+
+function validateMatchmakerAction(row) {
+  if (row.status === 'error') return `action_error: ${row.error_message || 'unknown'}`;
+  if (row.status !== 'proposed') return `bad_status:${row.status}`;
+  // The matchmaker rank shape always carries a `recommended_winner_bid_id`
+  // key on the decision (may be null on 0-bid synthetic auctions).
+  if (!row.decision || !Object.prototype.hasOwnProperty.call(row.decision, 'recommended_winner_bid_id')) {
+    return 'missing_winner_bid_id_field';
+  }
+  return null;
+}
+
+function validateTreasurerAction(row) {
+  if (row.status === 'error') return `action_error: ${row.error_message || 'unknown'}`;
+  if (row.status !== 'proposed') return `bad_status:${row.status}`;
+  return null;
+}
+
 function makeAdminClient(siteUrl, adminPassword) {
   const base = String(siteUrl || '').replace(/\/+$/, '');
   return {
@@ -82,15 +182,15 @@ function makeAdminClient(siteUrl, adminPassword) {
   };
 }
 
-async function checkRegistry(supabase, log, failures) {
-  log.info('1. Verifying registry row for gatekeeper');
+async function checkRegistry(supabase, agentSlug, expectedEvents, expectedMaxCapUsd, log, failures) {
+  log.info(`1. Verifying registry row for ${agentSlug}`);
   const { data, error } = await supabase
     .from('agents')
     .select('slug, enabled, autonomy, daily_spend_cap_usd, model, handles_events, endpoint')
-    .eq('slug', 'gatekeeper')
+    .eq('slug', agentSlug)
     .maybeSingle();
   if (error) { failures.push(`registry_query: ${error.message}`); log.fail(`registry query: ${error.message}`); return null; }
-  if (!data)  { failures.push('registry_missing'); log.fail('registry has no row for gatekeeper'); return null; }
+  if (!data)  { failures.push('registry_missing'); log.fail(`registry has no row for ${agentSlug}`); return null; }
 
   if (data.enabled !== true) {
     failures.push(`registry_enabled=${data.enabled}`);
@@ -102,13 +202,12 @@ async function checkRegistry(supabase, log, failures) {
     log.fail(`autonomy is "${data.autonomy}" (expected "propose")`);
   } else log.pass('autonomy = propose');
 
-  if (Number(data.daily_spend_cap_usd) > SPEND_CAP_USD) {
+  if (Number(data.daily_spend_cap_usd) > expectedMaxCapUsd) {
     failures.push(`registry_cap=${data.daily_spend_cap_usd}`);
-    log.fail(`daily_spend_cap_usd is $${data.daily_spend_cap_usd} (expected ≤ $${SPEND_CAP_USD})`);
+    log.fail(`daily_spend_cap_usd is $${data.daily_spend_cap_usd} (expected ≤ $${expectedMaxCapUsd})`);
   } else log.pass(`daily_spend_cap_usd = $${data.daily_spend_cap_usd}`);
 
-  const expectedEvents = ['provider.applied','provider.bgc_completed','provider.flagged'];
-  const actualEvents   = data.handles_events || [];
+  const actualEvents = data.handles_events || [];
   for (const t of expectedEvents) {
     if (!actualEvents.includes(t)) {
       failures.push(`registry_handles_missing:${t}`);
@@ -127,13 +226,13 @@ async function checkRegistry(supabase, log, failures) {
   return data;
 }
 
-async function checkSpendHeadroom(supabase, log, failures) {
+async function checkSpendHeadroom(supabase, agentSlug, capUsd, log, failures) {
   log.info("2. Verifying today's spend headroom");
   const today = new Date().toISOString().slice(0, 10);
   const { data, error } = await supabase
     .from('agent_daily_spend')
     .select('reserved_usd, actual_usd, call_count, day')
-    .eq('agent_slug', 'gatekeeper')
+    .eq('agent_slug', agentSlug)
     .eq('day', today)
     .maybeSingle();
   if (error) { failures.push(`spend_query: ${error.message}`); log.fail(`spend query: ${error.message}`); return; }
@@ -141,16 +240,15 @@ async function checkSpendHeadroom(supabase, log, failures) {
   const actual   = Number(data?.actual_usd || 0);
   const total    = reserved + actual;
   const calls    = data?.call_count || 0;
-  if (total >= SPEND_CAP_USD) {
+  if (total >= capUsd) {
     failures.push(`spend_at_cap:${total.toFixed(4)}`);
-    log.fail(`today's reserved+actual = $${total.toFixed(4)} already at/over $${SPEND_CAP_USD} cap`);
+    log.fail(`today's reserved+actual = $${total.toFixed(4)} already at/over $${capUsd} cap`);
   } else {
     log.pass(`today's reserved+actual = $${total.toFixed(4)} (${calls} calls so far) — headroom intact`);
   }
 }
 
-async function emitSyntheticEvent(admin, eventType, log, failures) {
-  const payload = syntheticPayloadFor(eventType);
+async function emitSyntheticEvent(admin, eventType, payload, log, failures) {
   const r = await admin.post('test-event', { event_type: eventType, payload });
   if (!r.ok) {
     failures.push(`emit_${eventType}_http_${r.status}`);
@@ -177,7 +275,7 @@ async function forceOrchestratorTick(admin, log, failures) {
   log.pass(`orchestrator tick fired: ${JSON.stringify(r.body).slice(0, 220)}`);
 }
 
-async function pollForProposal(supabase, eventId, eventType, log, failures, opts = {}) {
+async function pollForProposal(supabase, agentSlug, eventId, eventType, log, failures, opts = {}) {
   const timeoutMs  = opts.pollTimeoutMs  ?? POLL_TIMEOUT_MS;
   const intervalMs = opts.pollIntervalMs ?? POLL_INTERVAL_MS;
   const start = Date.now();
@@ -185,7 +283,7 @@ async function pollForProposal(supabase, eventId, eventType, log, failures, opts
     const { data, error } = await supabase
       .from('agent_actions')
       .select('id, agent_slug, event_id, status, decision, reasoning, confidence, cost_usd, duration_ms, error_message, created_at')
-      .eq('agent_slug', 'gatekeeper')
+      .eq('agent_slug', agentSlug)
       .eq('event_id', eventId)
       .order('created_at', { ascending: false })
       .limit(1);
@@ -201,34 +299,31 @@ async function pollForProposal(supabase, eventId, eventType, log, failures, opts
 }
 
 // ---------------------------------------------------------------------------
-// runGatekeeperSmoke — execute one full smoke cycle.
-//   opts.supabase        — service-role supabase client (required)
-//   opts.siteUrl         — e.g. 'https://mycarconcierge.com' (required)
-//   opts.adminPassword   — admin password header value (required)
-//   opts.log             — { pass(msg), fail(msg), info(msg) } (optional)
-//
-// Resolves to an object the caller can both print and persist:
-//   {
-//     ok: boolean,            // true iff all checks passed
-//     started_at: ISO,
-//     finished_at: ISO,
-//     duration_ms: number,
-//     failure_count: number,
-//     failed_checks: string[], // short identifiers; useful in alert emails
-//     summary: {
-//       site_url, registry, spend_headroom, events: [...]
-//     }
-//   }
-// Never throws — runner-level exceptions are converted into a synthetic
-// failure entry so the caller always gets a structured result to persist.
+// runAgentSmoke — generic agent smoke runner (Task #206).
+//   opts.supabase            — service-role supabase client (required)
+//   opts.siteUrl             — e.g. 'https://mycarconcierge.com' (required)
+//   opts.adminPassword       — admin password header value (required)
+//   opts.agentSlug           — e.g. 'gatekeeper' / 'matchmaker' / 'treasurer'
+//   opts.eventTypes          — string[] of event types to fire one each of
+//   opts.payloadFn           — (eventType) => synthetic payload object
+//   opts.validateAction      — (row) => null | reasonString
+//   opts.expectedMaxCapUsd   — number; registry-cap upper bound
+//   opts.log                 — { pass, fail, info } (optional)
 // ---------------------------------------------------------------------------
-async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL_LOGGER, pollTimeoutMs, pollIntervalMs }) {
-  const opts = { pollTimeoutMs, pollIntervalMs };
+async function runAgentSmoke(opts) {
+  const {
+    supabase, siteUrl, adminPassword,
+    agentSlug, eventTypes, payloadFn, validateAction,
+    expectedMaxCapUsd,
+    pollTimeoutMs, pollIntervalMs,
+    log = NULL_LOGGER
+  } = opts || {};
   const effectiveTimeoutMs = pollTimeoutMs ?? POLL_TIMEOUT_MS;
   const startedAt = new Date();
   const failures = [];
   const summary = {
     site_url: siteUrl,
+    agent_slug: agentSlug,
     started_at: startedAt.toISOString(),
     registry: null,
     spend_headroom: null,
@@ -236,15 +331,19 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
   };
 
   try {
-    if (!supabase) throw new Error('runGatekeeperSmoke: supabase client is required');
-    if (!siteUrl) throw new Error('runGatekeeperSmoke: siteUrl is required');
-    if (!adminPassword) throw new Error('runGatekeeperSmoke: adminPassword is required');
+    if (!supabase) throw new Error('runAgentSmoke: supabase client is required');
+    if (!siteUrl) throw new Error('runAgentSmoke: siteUrl is required');
+    if (!adminPassword) throw new Error('runAgentSmoke: adminPassword is required');
+    if (!agentSlug) throw new Error('runAgentSmoke: agentSlug is required');
+    if (!Array.isArray(eventTypes) || !eventTypes.length) throw new Error('runAgentSmoke: eventTypes is required');
+    if (typeof payloadFn !== 'function') throw new Error('runAgentSmoke: payloadFn is required');
+    if (typeof validateAction !== 'function') throw new Error('runAgentSmoke: validateAction is required');
 
     const admin = makeAdminClient(siteUrl, adminPassword);
 
-    log.info(`Smoking Gatekeeper enablement against ${siteUrl}`);
+    log.info(`Smoking ${agentSlug} enablement against ${siteUrl}`);
 
-    const reg = await checkRegistry(supabase, log, failures);
+    const reg = await checkRegistry(supabase, agentSlug, eventTypes, expectedMaxCapUsd, log, failures);
     summary.registry = reg ? {
       enabled: reg.enabled,
       autonomy: reg.autonomy,
@@ -255,10 +354,10 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
     } : null;
 
     if (!reg || reg.enabled !== true) {
-      // Hard pre-flight failure — bail before emitting events.
       const finishedAt = new Date();
       return {
         ok: false,
+        agent_slug: agentSlug,
         started_at: startedAt.toISOString(),
         finished_at: finishedAt.toISOString(),
         duration_ms: finishedAt - startedAt,
@@ -268,21 +367,22 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
       };
     }
 
-    await checkSpendHeadroom(supabase, log, failures);
-    // Re-read the spend snapshot for the summary
+    await checkSpendHeadroom(supabase, agentSlug, Number(reg.daily_spend_cap_usd) || expectedMaxCapUsd, log, failures);
     {
       const today = new Date().toISOString().slice(0, 10);
       const { data: spend } = await supabase
         .from('agent_daily_spend')
         .select('reserved_usd, actual_usd, call_count')
-        .eq('agent_slug', 'gatekeeper').eq('day', today).maybeSingle();
+        .eq('agent_slug', agentSlug).eq('day', today).maybeSingle();
       summary.spend_headroom = spend || { reserved_usd: 0, actual_usd: 0, call_count: 0 };
     }
 
-    log.info('3. Emitting one synthetic test event for each of the three input types');
-    const eventTypes = ['provider.applied', 'provider.bgc_completed', 'provider.flagged'];
+    log.info(`3. Emitting one synthetic test event for each of the ${eventTypes.length} input type(s)`);
     const emitted = {};
-    for (const t of eventTypes) emitted[t] = await emitSyntheticEvent(admin, t, log, failures);
+    for (const t of eventTypes) {
+      const payload = payloadFn(t);
+      emitted[t] = await emitSyntheticEvent(admin, t, payload, log, failures);
+    }
 
     await forceOrchestratorTick(admin, log, failures);
 
@@ -293,17 +393,16 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
         summary.events.push({ event_type: t, event_id: null, action_id: null, status: 'emit_failed' });
         continue;
       }
-      const row = await pollForProposal(supabase, eventId, t, log, failures, {
-        pollTimeoutMs: opts.pollTimeoutMs,
-        pollIntervalMs: opts.pollIntervalMs
+      const row = await pollForProposal(supabase, agentSlug, eventId, t, log, failures, {
+        pollTimeoutMs, pollIntervalMs
       });
       if (!row) {
         failures.push(`no_proposal_${t}`);
-        log.fail(`no agent_actions row for ${t} (event_id=${eventId}) within ${effectiveTimeoutMs / 1000}s — check logs for /agent-orchestrator and /agent-gatekeeper`);
+        log.fail(`no agent_actions row for ${t} (event_id=${eventId}) within ${effectiveTimeoutMs / 1000}s — check logs for /agent-orchestrator and /agent-${agentSlug}`);
         summary.events.push({ event_type: t, event_id: eventId, action_id: null, status: 'no_proposal' });
         continue;
       }
-      const rec = (row.decision && row.decision.recommendation) || null;
+      const rec = (row.decision && (row.decision.recommendation || row.decision.recommended_winner_bid_id)) || null;
       const conf = row.confidence != null ? Number(row.confidence) : null;
       const entry = {
         event_type: t,
@@ -316,14 +415,12 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
         duration_ms: row.duration_ms || 0,
         error_message: row.error_message || null
       };
-      if (row.status === 'proposed' && rec) {
-        log.pass(`${t} → action ${row.id} status=${row.status} recommendation=${rec} confidence=${conf?.toFixed?.(2) || 'n/a'} cost=$${entry.cost_usd.toFixed(4)} ms=${entry.duration_ms}`);
-      } else if (row.status === 'error') {
-        failures.push(`action_error_${t}`);
-        log.fail(`${t} → action ${row.id} status=error error_message="${row.error_message}"`);
+      const validationFailure = validateAction(row);
+      if (validationFailure) {
+        failures.push(`action_${t}:${validationFailure}`);
+        log.fail(`${t} → action ${row.id} ${validationFailure}`);
       } else {
-        failures.push(`action_status_${t}=${row.status}`);
-        log.fail(`${t} → action ${row.id} status=${row.status} recommendation=${rec || '(none)'} (expected status=proposed with a recommendation)`);
+        log.pass(`${t} → action ${row.id} status=${row.status} rec=${rec || 'n/a'} cost=$${entry.cost_usd.toFixed(4)} ms=${entry.duration_ms}`);
       }
       summary.events.push(entry);
     }
@@ -336,6 +433,7 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
   const finishedAt = new Date();
   return {
     ok: failures.length === 0,
+    agent_slug: agentSlug,
     started_at: startedAt.toISOString(),
     finished_at: finishedAt.toISOString(),
     duration_ms: finishedAt - startedAt,
@@ -345,9 +443,31 @@ async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log = NULL
   };
 }
 
+// ---------------------------------------------------------------------------
+// Back-compat wrapper. Existing callers keep their signature; the body
+// delegates to runAgentSmoke with gatekeeper-flavoured arguments.
+// ---------------------------------------------------------------------------
+async function runGatekeeperSmoke({ supabase, siteUrl, adminPassword, log, pollTimeoutMs, pollIntervalMs }) {
+  return runAgentSmoke({
+    supabase, siteUrl, adminPassword, log,
+    agentSlug: 'gatekeeper',
+    eventTypes: ['provider.applied', 'provider.bgc_completed', 'provider.flagged'],
+    payloadFn: syntheticPayloadFor,
+    validateAction: validateGatekeeperAction,
+    expectedMaxCapUsd: SPEND_CAP_USD,
+    pollTimeoutMs, pollIntervalMs
+  });
+}
+
 module.exports = {
+  runAgentSmoke,
   runGatekeeperSmoke,
   syntheticPayloadFor,
+  syntheticMatchmakerPayloadFor,
+  syntheticTreasurerPayloadFor,
+  validateGatekeeperAction,
+  validateMatchmakerAction,
+  validateTreasurerAction,
   POLL_TIMEOUT_MS,
   SPEND_CAP_USD
 };
