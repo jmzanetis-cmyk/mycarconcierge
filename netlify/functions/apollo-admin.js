@@ -81,7 +81,12 @@ const ALLOWED_CONFIG_KEYS = new Set([
   // so the rotated cycle actually picks up the changes.
   'cities',
   'titles',
-  'industries'
+  'industries',
+  // SMS digest fields surfaced by the dashboard's "Save Notifications"
+  // button. Stored on apollo_config so the digest scheduler can read
+  // them without a new table; null/empty phone disables SMS.
+  'admin_phone',
+  'digest_hour_utc'
 ]);
 
 function parseStringList(value) {
@@ -146,6 +151,32 @@ function sanitizeConfigUpdates(body) {
           out[key] = value.trim();
         }
         break;
+      case 'admin_phone':
+        if (value === null || value === '') {
+          out[key] = null;
+        } else if (typeof value !== 'string') {
+          errors.push('admin_phone must be a string or null');
+        } else {
+          const trimmed = value.trim();
+          // E.164: leading +, 1-15 digits. Empty after trim → disable SMS.
+          if (trimmed === '') {
+            out[key] = null;
+          } else if (!/^\+[1-9]\d{1,14}$/.test(trimmed)) {
+            errors.push('admin_phone must be in E.164 format (e.g. +12015550100) or empty');
+          } else {
+            out[key] = trimmed;
+          }
+        }
+        break;
+      case 'digest_hour_utc': {
+        const n = Number(value);
+        if (!Number.isInteger(n) || n < 0 || n > 23) {
+          errors.push('digest_hour_utc must be an integer between 0 and 23');
+        } else {
+          out[key] = n;
+        }
+        break;
+      }
       case 'cities':
       case 'titles':
       case 'industries': {

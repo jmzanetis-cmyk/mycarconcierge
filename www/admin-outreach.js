@@ -142,6 +142,39 @@
       }
     }
     setText('apollo-last-run-label', cfg.last_run ? `Last run ${timeAgoShort(cfg.last_run)}` : 'No runs yet');
+
+    // SMS notification fields (admin_phone + digest_hour_utc) — both
+    // persisted on apollo_config so they survive across logins.
+    setVal('admin-notification-phone', cfg.admin_phone || '');
+    if (cfg.digest_hour_utc != null) setVal('digest-hour-utc', String(cfg.digest_hour_utc));
+  }
+
+  async function saveNotificationConfig() {
+    const status = document.getElementById('notification-config-status');
+    if (status) { status.style.color = 'var(--text-muted)'; status.textContent = 'Saving...'; }
+    const phoneRaw = (getVal('admin-notification-phone') || '').trim();
+    const hour = Number(getVal('digest-hour-utc'));
+    const updates = {
+      admin_phone: phoneRaw || null,
+      digest_hour_utc: Number.isInteger(hour) ? hour : 1
+    };
+    try {
+      const res = await apolloFetch('/config', { method: 'PUT', body: JSON.stringify(updates) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error || `Save failed (HTTP ${res.status})`;
+        const detail = Array.isArray(data.details) ? ': ' + data.details.join('; ') : '';
+        if (status) { status.style.color = 'var(--danger,#dc2626)'; status.textContent = msg + detail; }
+        if (typeof showToast !== 'undefined') showToast(msg + detail, 'error');
+        return;
+      }
+      apolloConfig = data?.config || apolloConfig;
+      if (status) { status.style.color = 'var(--success)'; status.textContent = phoneRaw ? 'Saved' : 'Saved (SMS disabled)'; }
+      if (typeof showToast !== 'undefined') showToast('Notification settings saved');
+    } catch (e) {
+      if (status) { status.style.color = 'var(--danger,#dc2626)'; status.textContent = 'Save error: ' + e.message; }
+      if (typeof showToast !== 'undefined') showToast('Notification save error: ' + e.message, 'error');
+    }
   }
 
   async function loadApolloStatus() {
@@ -2058,6 +2091,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.apolloSearch = apolloSearch;
   globalThis.apolloEnrich = apolloEnrich;
   globalThis.checkApolloEnrichQueue = checkApolloEnrichQueue;
+  globalThis.saveNotificationConfig = saveNotificationConfig;
   globalThis.switchOutreachTab = switchOutreachTab;
   globalThis.draftForLead = draftForLead;
   globalThis.editLead = editLead;
