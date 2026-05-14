@@ -287,8 +287,8 @@ async function handleEvent(supabase, agent, eventEnvelope) {
   }
 
   const parsed = parseRanking(llmResult.text);
-  const winner = (typeof parsed && parsed.recommended_winner_bid_id === 'string' && parsed.recommended_winner_bid_id.length >= 8) ? parsed.recommended_winner_bid_id : null;
-  const confidence = (typeof parsed && parsed.confidence === 'number' && parsed.confidence >= 0 && parsed.confidence <= 1)
+  const winner = (parsed && typeof parsed.recommended_winner_bid_id === 'string' && parsed.recommended_winner_bid_id.length >= 8) ? parsed.recommended_winner_bid_id : null;
+  const confidence = (parsed && typeof parsed.confidence === 'number' && parsed.confidence >= 0 && parsed.confidence <= 1)
     ? parsed.confidence : null;
   const reasoning = parsed?.reasoning || llmResult.text.trim().slice(0, 600);
   const ranked = Array.isArray(parsed?.ranked_bids) ? parsed.ranked_bids : [];
@@ -326,7 +326,7 @@ async function handleEvent(supabase, agent, eventEnvelope) {
   // identical to the application-level dedupe path) and write a `skipped`
   // audit row so the duplicate dispatch is visible and the LLM cost we
   // already burned is recorded against the daily spend rollup.
-  if (proposedInsert?.error && error.code === '23505') {
+  if (proposedInsert?.error?.code === '23505') {
     await logAction(supabase, {
       agentSlug: SLUG, eventId: evt?.event_id,
       actionType: 'rank', status: 'skipped',

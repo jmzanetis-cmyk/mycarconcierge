@@ -3063,7 +3063,7 @@
       });
       const tbody = document.getElementById('disputes-table');
 
-      const highValue = disputes.filter(d => d.payments && payments.amount_total > 1000 && d.status === 'open');
+      const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
       document.getElementById('high-value-alert').style.display = highValue.length ? 'block' : 'none';
 
       // Task #281 — show load error before falling through to "No disputes".
@@ -3468,7 +3468,7 @@
 
       const { data: evidence } = await supabaseClient.from('dispute_evidence').select('*').eq('dispute_id', disputeId);
       const d = currentDispute;
-      const isHighValue = d.payments && payments.amount_total > 1000;
+      const isHighValue = d.payments?.amount_total > 1000;
 
       document.getElementById('dispute-modal-body').innerHTML = `
         <div class="form-section">

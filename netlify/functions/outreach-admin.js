@@ -450,7 +450,7 @@ exports.handler = async function(event, context) {
         .in('id', message_ids).eq('status', 'draft').select('*, outreach_leads(*)');
 
       const approved = data || [];
-      const providerMsgs = approved.filter(m => m.outreach_leads && outreach_leads.type === 'provider');
+      const providerMsgs = approved.filter(m => m.outreach_leads?.type === 'provider');
 
       (async () => {
         for (const msg of providerMsgs) {
