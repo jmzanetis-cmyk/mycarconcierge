@@ -1014,6 +1014,34 @@ async function checkDailySendLimit(supabase) {
   return sentToday < limit;
 }
 
+// Mark an approved message as 'skipped' with a structured reason so the
+// queue-flush loop stops re-picking it every cycle. Writes a single
+// outreach_activity_log row of event_type 'send_skipped' for observability.
+// Task #306 — fixes "0 sent / 1,084 queued" stall.
+async function markMessageSkipped(supabase, msg, lead, reason) {
+  if (!msg?.id) return;
+  try {
+    await supabase.from('outreach_messages')
+      .update({ status: 'skipped' })
+      .eq('id', msg.id)
+      .eq('status', 'approved'); // CAS guard — don't clobber a parallel send
+    await supabase.from('outreach_activity_log').insert({
+      lead_id: lead?.id || msg.lead_id || null,
+      message_id: msg.id,
+      event_type: 'send_skipped',
+      metadata: {
+        reason,
+        channel: msg.channel,
+        lead_status: lead?.status || null,
+        had_email: Boolean(lead?.email),
+        had_phone: Boolean(lead?.phone)
+      }
+    });
+  } catch (err) {
+    console.error('[OutreachEngine] markMessageSkipped failed for', msg.id, err.message);
+  }
+}
+
 async function sendMessage(supabase, messageId) {
   const { data: msg } = await supabase
     .from('outreach_messages')
@@ -1026,10 +1054,26 @@ async function sendMessage(supabase, messageId) {
   }
 
   const lead = msg.outreach_leads;
-  if (!lead) return { error: 'Lead not found' };
+  if (!lead) {
+    // Orphan message (lead deleted) — skip permanently so the queue-flush
+    // doesn't pick it again every cycle. Task #306.
+    await markMessageSkipped(supabase, msg, null, 'lead_missing');
+    return { error: 'Lead not found', skipped: true };
+  }
 
-  if (lead.status === 'unsubscribed' || lead.status === 'bounced') {
-    return { error: `Lead has ${lead.status} — message blocked` };
+  // Permanent dead-end conditions — mark the message 'skipped' instead of
+  // leaving it stuck in 'approved' forever. Pre-#306 these returned without
+  // any DB update, so the queue-flush kept picking the same oldest 15 dead
+  // messages every cycle and never drained.
+  const deadLeadStatus = ['unsubscribed', 'bounced', 'contacted', 'responded', 'converted', 'dead']
+    .includes(lead.status);
+  if (deadLeadStatus) {
+    await markMessageSkipped(supabase, msg, lead, `lead_${lead.status}`);
+    return { error: `Lead has ${lead.status} — message skipped`, skipped: true };
+  }
+  if (lead.crm_sync_status === 'duplicate') {
+    await markMessageSkipped(supabase, msg, lead, 'lead_crm_duplicate');
+    return { error: 'Lead is a CRM duplicate — message skipped', skipped: true };
   }
 
   const withinLimit = await checkDailySendLimit(supabase);
@@ -1117,7 +1161,11 @@ async function sendMessage(supabase, messageId) {
       error = err.message;
     }
   } else {
-    return { error: 'No valid contact method for this channel' };
+    // Permanent: lead has no email for an email-channel message (or no phone
+    // for an sms-channel one). Mark skipped so the queue-flush stops looping
+    // on it. Task #306.
+    await markMessageSkipped(supabase, msg, lead, `no_${msg.channel}_contact`);
+    return { error: 'No valid contact method for this channel', skipped: true };
   }
 
   await supabase.from('outreach_messages').update({
@@ -1377,38 +1425,52 @@ async function runEngineCycle(supabase) {
     // (e.g. from previous cycles where sendMessage failed) and retry them.
     let queueFlushed = 0;
     let queueErrors = 0;
+    let queueSkipped = 0;
     if (state.auto_send) {
       try {
+        // Pull a wider window than we attempt to send so a cluster of skip-only
+        // messages at the head of the queue can't permanently block delivery.
+        // Pre-#306 this was .limit(15) and the cycle stalled forever on the
+        // oldest 30+ messages whose leads had no email. We now pull 60 and
+        // stop after 15 successful sends or once we've fully drained skips.
+        const QUEUE_FLUSH_PEEK = 60;
+        const QUEUE_FLUSH_SEND_BUDGET = 15;
         const { data: approvedMsgs } = await supabase
           .from('outreach_messages')
           .select('id')
           .eq('status', 'approved')
           .order('created_at', { ascending: true })
-          .limit(15);
+          .limit(QUEUE_FLUSH_PEEK);
 
         for (const msg of (approvedMsgs || [])) {
+          if (queueFlushed >= QUEUE_FLUSH_SEND_BUDGET) break;
           try {
             const sr = await sendMessage(supabase, msg.id);
             if (sr.success) {
               queueFlushed++;
               console.log(`[OutreachEngine] Queue flush: sent message ${msg.id}`);
+              await new Promise(r => setTimeout(r, 600));
+            } else if (sr.skipped) {
+              queueSkipped++;
+              console.log(`[OutreachEngine] Queue flush: skipped message ${msg.id} — ${sr.error}`);
+              // No pause — skips don't hit Resend, no rate-limit risk.
             } else {
               queueErrors++;
-              console.log(`[OutreachEngine] Queue flush: skipped message ${msg.id} — ${sr.error}`);
+              console.log(`[OutreachEngine] Queue flush: error on message ${msg.id} — ${sr.error}`);
               if (sr.error && sr.error.includes('Daily send limit')) break;
+              await new Promise(r => setTimeout(r, 600));
             }
           } catch (sendErr) {
             queueErrors++;
             console.error(`[OutreachEngine] Queue flush error for ${msg.id}:`, sendErr.message);
           }
-          // Small pause between sends to avoid rate-limiting Resend
-          await new Promise(r => setTimeout(r, 600));
         }
       } catch (flushErr) {
         console.error('[OutreachEngine] Queue flush step failed:', flushErr.message);
       }
     }
     results.queue_flushed = queueFlushed;
+    results.queue_skipped = queueSkipped;
     results.queue_errors = queueErrors;
 
     await supabase.from('engine_state').update({
@@ -2476,6 +2538,7 @@ module.exports = {
   enrichAllLeads,
   sendMessage,
   draftMessageWithAI,
+  markMessageSkipped,
   scoreLeadsWithAI,
   syncReengagementLeads,
   checkCrmDuplicate,

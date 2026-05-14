@@ -381,6 +381,46 @@ exports.handler = async function(event, context) {
       wefunderPending: wefunderPending || 0
     };
 
+    // Task #306 — diagnose "queue stuck" (lots of approved, very few sent).
+    // Page through the head of the approved queue (up to 200 oldest) and
+    // classify each by lead status / contact-method. If >50% of the head is
+    // un-sendable AND today's sends are <5% of the queue size, the engine is
+    // effectively stalled even though is_running=true. Cheap query — capped
+    // at 200 rows, no joins beyond the FK.
+    let queueHealth = { sampled: 0, sendable: 0, by_reason: {}, head_blocked: false, stalled: false };
+    try {
+      if (outreach.approvedQueue > 0) {
+        const { data: headRows } = await supabase
+          .from('outreach_messages')
+          .select('id, channel, lead_id, outreach_leads(status, email, phone, crm_sync_status)')
+          .eq('status', 'approved')
+          .order('created_at', { ascending: true })
+          .limit(200);
+        const dead = ['unsubscribed', 'bounced', 'contacted', 'responded', 'converted', 'dead'];
+        for (const m of (headRows || [])) {
+          queueHealth.sampled++;
+          const lead = m.outreach_leads;
+          let reason = 'sendable';
+          if (!lead) reason = 'lead_missing';
+          else if (lead.crm_sync_status === 'duplicate') reason = 'lead_crm_duplicate';
+          else if (dead.includes(lead.status)) reason = `lead_${lead.status}`;
+          else if (m.channel === 'email' && !lead.email) reason = 'no_email';
+          else if (m.channel === 'sms' && !lead.phone) reason = 'no_phone';
+          if (reason === 'sendable') queueHealth.sendable++;
+          else queueHealth.by_reason[reason] = (queueHealth.by_reason[reason] || 0) + 1;
+        }
+        const headDeadPct = queueHealth.sampled > 0 ? (queueHealth.sampled - queueHealth.sendable) / queueHealth.sampled : 0;
+        queueHealth.head_blocked = headDeadPct >= 0.5;
+        // Stall heuristic: large queue + barely any sends today + head is mostly dead
+        queueHealth.stalled = outreach.approvedQueue >= 100
+          && outreach.sentToday < Math.max(5, outreach.approvedQueue * 0.05)
+          && queueHealth.head_blocked;
+      }
+    } catch (qErr) {
+      console.error('[DailyDigest] Queue health probe failed:', qErr.message);
+    }
+    outreach.queueHealth = queueHealth;
+
     // ── AI Ops stats ─────────────────────────────────────────────
     const { data: actions } = await supabase
       .from('ai_action_log')
@@ -406,12 +446,17 @@ exports.handler = async function(event, context) {
     const apollo = await getApolloHealth(supabase);
 
     // ── AI narrative ─────────────────────────────────────────────
+    const qh = outreach.queueHealth || {};
+    const queueStallNarrative = qh.stalled
+      ? `⚠️ Outreach queue is stalled: ${outreach.approvedQueue} approved messages but only ${outreach.sentToday} sent today. Head of queue is ${Math.round((1 - (qh.sendable / Math.max(1, qh.sampled))) * 100)}% un-sendable (${Object.entries(qh.by_reason || {}).map(([r, n]) => `${n}× ${r}`).join(', ')}). Mention this prominently. `
+      : '';
     const narrative = await callAI(
       `Write a 2-sentence daily operations summary for My Car Concierge admin Jordan. ` +
       `Outreach: ${outreach.sentToday} emails sent today, ${outreach.approvedQueue} queued, ${outreach.totalSent} total sent all-time, ${outreach.newLeadsToday} new leads discovered. ` +
       `Investor pipeline: ${outreach.totalInvestors} investor leads total, ${outreach.wefunderPending} Wefunder drafts pending review. ` +
       `AI Ops: ${aiOps.totalActions} actions, ${aiOps.autoExec} auto-executed, ${aiOps.escalated} escalated. ` +
       (apollo.stalled ? `⚠️ Apollo discovery has stalled: ${apollo.consecutive_failures} consecutive cycles produced no leads (likely cause: ${apollo.last_error_kind || 'unknown'}). Mention this prominently. ` : '') +
+      queueStallNarrative +
       `Shadow mode: ${shadowMode}. Keep it brief, concrete, and encouraging.`,
       200
     );
@@ -444,7 +489,11 @@ exports.handler = async function(event, context) {
           }
         }
         if (outreach.sentToday > 0) subjectParts.push(`${outreach.sentToday} emails sent`);
-        if (outreach.approvedQueue > 0) subjectParts.push(`${outreach.approvedQueue} queued`);
+        if (qh.stalled) {
+          subjectParts.push(`⚠️ Queue stalled (${outreach.approvedQueue})`);
+        } else if (outreach.approvedQueue > 0) {
+          subjectParts.push(`${outreach.approvedQueue} queued`);
+        }
         if (aiOps.escalated > 0) subjectParts.push(`⚠️ ${aiOps.escalated} escalated`);
         const subject = `MCC Daily Report — ${today}${subjectParts.length ? ' · ' + subjectParts.join(', ') : ''}`;
 
@@ -480,6 +529,10 @@ exports.handler = async function(event, context) {
       ];
       if (apollo.stalled) {
         smsLines.push(`⚠️ Apollo stalled: ${apollo.consecutive_failures} cycles w/o leads (${apollo.last_error_kind || 'unknown'})`);
+      }
+      if (qh.stalled) {
+        const topReason = Object.entries(qh.by_reason || {}).sort((a, b) => b[1] - a[1])[0];
+        smsLines.push(`⚠️ Queue stalled: ${outreach.approvedQueue} approved, only ${outreach.sentToday} sent today${topReason ? ` (top reason: ${topReason[0]})` : ''}`);
       }
       if (aiOps.escalated > 0) smsLines.push(`⚠️ Check dashboard for ${aiOps.escalated} escalated item${aiOps.escalated > 1 ? 's' : ''}`);
       smsSent = await sendSMS(adminPhone, smsLines.join('\n'));
