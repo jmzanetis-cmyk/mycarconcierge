@@ -1229,8 +1229,7 @@ function _applyDirectorConfigFields(current, body) {
 }
 
 async function handleDirectorConfigPut(event, ctx) {
-  const { supabase } = ctx;
-  const body = (() => { try { return JSON.parse(event.body || '{}'); } catch { return {}; } })();
+  const { body, supabase } = ctx;
   // Whitelist fields and validate types/ranges. Unknown keys are ignored.
   const { data: existing, error: readErr } = await supabase.from('agents')
     .select('config').eq('slug', 'director').maybeSingle();
