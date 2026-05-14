@@ -161,6 +161,78 @@ test.describe('Task #160 — Expiring BGC banner + per-employee pill', () => {
     expect(href).toMatch(/#compliance/);
   });
 
+  // ── Task #204 ──────────────────────────────────────────────────────────
+  // Click the × dismiss button on the rendered banner and assert:
+  //   1. provider_alerts.is_dismissed flips to true for the seeded row.
+  //   2. On a fresh dashboard load, #bgc-alerts-panel-overview is hidden
+  //      (loadAlerts() returns 0 rows → panel.style.display = 'none').
+  //
+  // This guards against an RLS regression that would let dismissed alerts
+  // re-surface, or a column rename on provider_alerts that would silently
+  // no-op the dismiss write.
+  test('Dismiss × hides the alert and persists is_dismissed=true', async ({ page }) => {
+    test.skip(!bgcTablesReady, 'BGC tables not present in this environment');
+    test.skip(!alertId, 'Seeded alert row missing — earlier test consumed it?');
+    test.setTimeout(60000);
+
+    const sb = getSupabaseAdmin();
+
+    // Make sure the seeded row is in the un-dismissed state in case a
+    // previous run of this test (re-using the same providerId between
+    // workers) flipped it. We only touch our own seeded alertId.
+    await sb.from('provider_alerts').update({ is_dismissed: false }).eq('id', alertId);
+
+    await loginViaUI(page, TEST_PROVIDER_EMAIL, TEST_PROVIDER_PASS, 'provider');
+    if (!page.url().includes('providers.html')) {
+      await page.goto(`${BASE_URL}/providers.html`);
+    }
+    await page.waitForLoadState('domcontentloaded');
+    await dismissOverlays(page);
+
+    const banner = page.locator('#bgc-alerts-panel-overview');
+    await expect(banner).toBeVisible({ timeout: 15000 });
+    await expect(banner).toContainText(ALERT_TITLE, { timeout: 5000 });
+
+    // Scope to the alert-card that matches our seeded title so we don't
+    // accidentally dismiss someone else's open alert.
+    const ourCard = banner.locator('div', { hasText: ALERT_TITLE })
+      .filter({ has: page.locator('button[title="Dismiss"]') })
+      .first();
+    await expect(ourCard).toBeVisible();
+    await ourCard.locator('button[title="Dismiss"]').click();
+
+    // dismissAlert() writes to Supabase then re-runs loadAlerts(); wait
+    // until our card is gone from the panel. With only one seeded open
+    // alert, this means the panel is empty / display flips back to 'none'.
+    await expect(banner).not.toContainText(ALERT_TITLE, { timeout: 10000 });
+
+    // Assert the DB row actually flipped — this is the contract the test
+    // exists to protect.
+    const { data: row, error: rowErr } = await sb
+      .from('provider_alerts')
+      .select('is_dismissed')
+      .eq('id', alertId)
+      .single();
+    expect(rowErr).toBeFalsy();
+    expect(row?.is_dismissed).toBe(true);
+
+    // Reload and assert the banner stays hidden — i.e. dismissed alerts
+    // are not re-surfaced by the next loadAlerts() pass.
+    await page.goto(`${BASE_URL}/providers.html`);
+    await page.waitForLoadState('domcontentloaded');
+    await dismissOverlays(page);
+
+    // refreshAlertsOnly() polls Supabase readiness for ~6s before issuing
+    // its query. Use condition-based waits (not a fixed sleep) so the
+    // assertion fires as soon as loadAlerts() sets display:none. We assert
+    // both contracts: the seeded title is absent AND the panel slot
+    // (hard-coded in providers.html, so always attached) is hidden.
+    const reloadedBanner = page.locator('#bgc-alerts-panel-overview');
+    await expect(reloadedBanner).toBeAttached();
+    await expect(reloadedBanner).toBeHidden({ timeout: 20000 });
+    await expect(reloadedBanner).not.toContainText(ALERT_TITLE);
+  });
+
   test('Compliance section shows the "in Nd" pill on the seeded employee row', async ({ page }) => {
     test.skip(!bgcTablesReady, 'BGC tables not present in this environment');
     test.setTimeout(60000);
