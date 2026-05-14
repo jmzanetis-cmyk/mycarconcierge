@@ -35,11 +35,14 @@ const fixture = {
     { id: 'u-mem-8',  email: 'oldie@example.test',   first_name: 'Old',   role: 'member' },          // already sent
     { id: 'u-mem-9',  email: '',                     first_name: 'NoMail',role: 'member' },
     { id: 'u-mem-10', email: 'badformat',            first_name: 'Bad',   role: 'member' },
+    { id: 'u-mem-11', email: 'sofia@example.test',   first_name: 'Sofía', role: 'member', preferred_language: 'es' },  // ES branch
+    { id: 'u-mem-12', email: 'frank@example.test',   first_name: 'Frank', role: 'member', preferred_language: 'fr' },  // unsupported lang → EN fallback
 
     { id: 'u-pro-1', email: 'shop@example.test',  business_name: 'Acme Garage', full_name: 'Acme Owner', role: 'provider' },
     { id: 'u-pro-2', email: 'pend@example.test',  business_name: '',            full_name: 'Pending Pat', role: 'pending_provider' },
     { id: 'u-pro-3', email: 'fail@example.test',  business_name: 'Fail Co',     role: 'provider' },        // simulated failure
     { id: 'u-pro-4', email: 'unsub@example.test', business_name: 'Skipme',      role: 'provider' },        // suppression
+    { id: 'u-pro-5', email: 'taller@example.test', business_name: 'Taller López', full_name: 'José López', role: 'provider', preferred_language: 'es' }, // ES branch
 
     { id: 'u-x-1', email: 'admin@example.test', role: 'admin' },                                            // ignored
   ],
@@ -190,8 +193,22 @@ const broadcaster = require(path.join(__dirname, 'send-bgc-launch-broadcast.js')
   const amyCount = customerEmails.filter(e => e === 'amy@example.test').length;
   expect(amyCount === 1, 'customer audience: duplicate email collapsed to one send');
 
+  // Language routing: Spanish-preferring members get the ES template + subject;
+  // unsupported language codes (fr) and missing prefs fall back to EN.
+  const sofiaSend = customerSends.find(s => s.body.to === 'sofia@example.test');
+  expect(!!sofiaSend, 'customer audience: ES-preferring member sent');
+  expect(sofiaSend && /Hola Sofía:/.test(sofiaSend.body.html), 'customer template: ES greeting rendered for preferred_language=es');
+  expect(sofiaSend && /Ya puedes ver/.test(sofiaSend.body.subject), 'customer subject: Spanish subject used for preferred_language=es');
+
+  const frankSend = customerSends.find(s => s.body.to === 'frank@example.test');
+  expect(!!frankSend, 'customer audience: unsupported-lang member sent');
+  expect(frankSend && /Hi Frank,/.test(frankSend.body.html), 'customer template: EN fallback for unsupported preferred_language');
+  expect(frankSend && /background-checked/.test(frankSend.body.subject), 'customer subject: EN fallback subject for unsupported lang');
+
   const amyHtml = customerSends.find(s => s.body.to === 'amy@example.test').body.html;
+  const amySubj = customerSends.find(s => s.body.to === 'amy@example.test').body.subject;
   expect(/Hi Amy,/.test(amyHtml),                                                                   'customer template: first_name merged');
+  expect(/background-checked/.test(amySubj),                                                         'customer subject: EN subject when preferred_language is null');
   expect(/href="https:\/\/test\.example\/providers-directory\.html\?verified=true"/.test(amyHtml),  'customer template: browse_url merged');
   expect(/href="https:\/\/test\.example\/unsubscribe\?email=amy/.test(amyHtml),                     'customer template: unsubscribe_url merged');
   expect(!/\{\{[^}]+\}\}/.test(amyHtml),                                                            'customer template: no unrendered placeholders');
@@ -206,6 +223,11 @@ const broadcaster = require(path.join(__dirname, 'send-bgc-launch-broadcast.js')
 
   const pendHtml = providerSends.find(s => s.body.to === 'pend@example.test').body.html;
   expect(/Hi Pending Pat,/.test(pendHtml), 'provider template: full_name fallback when business_name is empty');
+
+  const tallerSend = providerSends.find(s => s.body.to === 'taller@example.test');
+  expect(!!tallerSend, 'provider audience: ES-preferring provider sent');
+  expect(tallerSend && /Hola Taller López:/.test(tallerSend.body.html), 'provider template: ES greeting rendered for preferred_language=es');
+  expect(tallerSend && /Presentamos MCC Verificado/.test(tallerSend.body.subject), 'provider subject: Spanish subject used for preferred_language=es');
 
   expect(sentByResend.every(s => (s.body.headers || {})['List-Unsubscribe']), 'every send carries a List-Unsubscribe header');
   expect(sentByResend.every(s => (s.body.headers || {})['List-Unsubscribe-Post'] === 'List-Unsubscribe=One-Click'), 'every send carries List-Unsubscribe-Post one-click');

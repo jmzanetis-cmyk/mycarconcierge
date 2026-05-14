@@ -110,6 +110,15 @@ const GET_VERIFIED_URL = `${PUBLIC_BASE_URL}/providers.html#bgc-state-card`;
 const TEMPLATES_DIR = path.join(__dirname, '..', 'www', 'email-templates');
 const CUSTOMER_TEMPLATE = path.join(TEMPLATES_DIR, 'bgc-launch-customer.html');
 const PROVIDER_TEMPLATE = path.join(TEMPLATES_DIR, 'bgc-launch-provider.html');
+const CUSTOMER_TEMPLATE_ES = path.join(TEMPLATES_DIR, 'bgc-launch-customer-es.html');
+const PROVIDER_TEMPLATE_ES = path.join(TEMPLATES_DIR, 'bgc-launch-provider-es.html');
+
+// Recipients with profiles.preferred_language === 'es' get the Spanish
+// template + subject. Anything else (including null) falls back to English.
+function pickLanguage(profile) {
+  const pref = (profile && profile.preferred_language || '').toLowerCase();
+  return pref === 'es' ? 'es' : 'en';
+}
 
 // Default opt-out preference for the customer audience: members are skipped
 // only when they have explicitly set marketing_emails = false. A missing row
@@ -255,7 +264,7 @@ async function loadMembers(supabase) {
   while (true) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, first_name, last_name, full_name, role')
+      .select('id, email, first_name, last_name, full_name, role, preferred_language')
       .in('role', ['member', 'pending_member'])
       .not('email', 'is', null)
       .range(from, from + page - 1);
@@ -275,7 +284,7 @@ async function loadProviders(supabase) {
   while (true) {
     const { data, error } = await supabase
       .from('profiles')
-      .select('id, email, first_name, last_name, full_name, business_name, role')
+      .select('id, email, first_name, last_name, full_name, business_name, role, preferred_language')
       .in('role', ['provider', 'pending_provider'])
       .not('email', 'is', null)
       .range(from, from + page - 1);
@@ -383,7 +392,7 @@ async function _sendAndLogOne({ supabase, audience, apiKey, subject, profile, em
   }
 }
 
-async function broadcast({ supabase, args, audience, profiles, template, subject, mergeVarsFor, suppressedEmails, marketingOptOutMemberIds, alreadySent }) {
+async function broadcast({ supabase, args, audience, profiles, templates, subjects, mergeVarsFor, suppressedEmails, marketingOptOutMemberIds, alreadySent }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!args.dryRun && !apiKey) {
     throw new Error('RESEND_API_KEY is required (or pass --dry-run).');
@@ -393,7 +402,7 @@ async function broadcast({ supabase, args, audience, profiles, template, subject
   const { eligible, skipped, skipReasons } = _filterEligibleRecipients({
     profiles, audience, suppressedEmails, marketingOptOutMemberIds, alreadySent
   });
-  const counters = { eligible: eligible.length, skipped, sent: 0, failed: 0, dryRun: 0 };
+  const counters = { eligible: eligible.length, skipped, sent: 0, failed: 0, dryRun: 0, byLanguage: { en: 0, es: 0 } };
 
   console.log(`[${audience}] eligible=${eligible.length} skipped=${skipped} totalProfiles=${profiles.length}`);
   if (Object.keys(skipReasons).length) {
@@ -406,12 +415,16 @@ async function broadcast({ supabase, args, audience, profiles, template, subject
   }
 
   for (const { profile, email } of queue) {
+    const lang = pickLanguage(profile);
+    const template = templates[lang] || templates.en;
+    const subject = subjects[lang] || subjects.en;
     const mergeVars = mergeVarsFor(profile, email);
     const html = renderTemplate(template, mergeVars);
+    counters.byLanguage[lang] = (counters.byLanguage[lang] || 0) + 1;
 
     if (args.dryRun) {
       counters.dryRun++;
-      if (args.verbose) console.log(`[${audience}] DRY-RUN → ${email} (${JSON.stringify(mergeVars)})`);
+      if (args.verbose) console.log(`[${audience}] DRY-RUN → ${email} lang=${lang} (${JSON.stringify(mergeVars)})`);
       continue;
     }
 
@@ -423,7 +436,10 @@ async function broadcast({ supabase, args, audience, profiles, template, subject
 }
 
 // ----------------------------- Preview send --------------------------------
-async function sendPreviews({ args, customerTemplate, customerSubject, providerTemplate, providerSubject }) {
+// Sends BOTH the EN and ES variants of each template to every preview address
+// so the operator can sanity-check both subject lines / bodies before pulling
+// the trigger on the live broadcast.
+async function sendPreviews({ args, customerTemplates, customerSubjects, providerTemplates, providerSubjects }) {
   const apiKey = process.env.RESEND_API_KEY;
   if (!apiKey) throw new Error('RESEND_API_KEY is required for previews.');
 
@@ -442,30 +458,32 @@ async function sendPreviews({ args, customerTemplate, customerSubject, providerT
       unsubscribe_url: unsubscribeUrlFor(to, 'provider')
     };
 
-    const customerHtml = renderTemplate(customerTemplate, customerVars);
-    const providerHtml = renderTemplate(providerTemplate, providerVars);
+    for (const lang of ['en', 'es']) {
+      const customerHtml = renderTemplate(customerTemplates[lang], customerVars);
+      const providerHtml = renderTemplate(providerTemplates[lang], providerVars);
 
-    const r1 = await resendSend({
-      apiKey,
-      from: FROM_ADDRESS,
-      to,
-      subject: `[PREVIEW] ${customerSubject}`,
-      html: customerHtml,
-      headers: { 'X-MCC-Broadcast': 'bgc-launch-preview-customer' }
-    });
-    const r1Status = r1.ok ? `sent id=${r1.id}` : `FAILED ${JSON.stringify(r1.error)}`;
-    console.log(`[preview] customer → ${to}: ${r1Status}`);
+      const r1 = await resendSend({
+        apiKey,
+        from: FROM_ADDRESS,
+        to,
+        subject: `[PREVIEW ${lang.toUpperCase()}] ${customerSubjects[lang]}`,
+        html: customerHtml,
+        headers: { 'X-MCC-Broadcast': `bgc-launch-preview-customer-${lang}` }
+      });
+      const r1Status = r1.ok ? `sent id=${r1.id}` : `FAILED ${JSON.stringify(r1.error)}`;
+      console.log(`[preview] customer (${lang}) → ${to}: ${r1Status}`);
 
-    const r2 = await resendSend({
-      apiKey,
-      from: FROM_ADDRESS,
-      to,
-      subject: `[PREVIEW] ${providerSubject}`,
-      html: providerHtml,
-      headers: { 'X-MCC-Broadcast': 'bgc-launch-preview-provider' }
-    });
-    const r2Status = r2.ok ? `sent id=${r2.id}` : `FAILED ${JSON.stringify(r2.error)}`;
-    console.log(`[preview] provider → ${to}: ${r2Status}`);
+      const r2 = await resendSend({
+        apiKey,
+        from: FROM_ADDRESS,
+        to,
+        subject: `[PREVIEW ${lang.toUpperCase()}] ${providerSubjects[lang]}`,
+        html: providerHtml,
+        headers: { 'X-MCC-Broadcast': `bgc-launch-preview-provider-${lang}` }
+      });
+      const r2Status = r2.ok ? `sent id=${r2.id}` : `FAILED ${JSON.stringify(r2.error)}`;
+      console.log(`[preview] provider (${lang}) → ${to}: ${r2Status}`);
+    }
   }
 }
 
@@ -473,16 +491,30 @@ async function sendPreviews({ args, customerTemplate, customerSubject, providerT
 async function main() {
   const args = parseArgs(process.argv);
 
-  const customerTemplate = loadTemplate(CUSTOMER_TEMPLATE);
-  const providerTemplate = loadTemplate(PROVIDER_TEMPLATE);
-  const customerSubject = extractMeta(customerTemplate, 'x-resend-subject') ||
-    'Now you can see which providers are background-checked';
-  const providerSubject = extractMeta(providerTemplate, 'x-resend-subject') ||
-    'Introducing MCC Verified — earn the badge that wins more bids';
+  const customerTemplates = {
+    en: loadTemplate(CUSTOMER_TEMPLATE),
+    es: loadTemplate(CUSTOMER_TEMPLATE_ES)
+  };
+  const providerTemplates = {
+    en: loadTemplate(PROVIDER_TEMPLATE),
+    es: loadTemplate(PROVIDER_TEMPLATE_ES)
+  };
+  const customerSubjects = {
+    en: extractMeta(customerTemplates.en, 'x-resend-subject') ||
+      'Now you can see which providers are background-checked',
+    es: extractMeta(customerTemplates.es, 'x-resend-subject') ||
+      'Ya puedes ver qué proveedores tienen verificación de antecedentes'
+  };
+  const providerSubjects = {
+    en: extractMeta(providerTemplates.en, 'x-resend-subject') ||
+      'Introducing MCC Verified — earn the badge that wins more bids',
+    es: extractMeta(providerTemplates.es, 'x-resend-subject') ||
+      'Presentamos MCC Verificado — obtén la insignia que gana más ofertas'
+  };
 
   if (args.previewTo.length > 0) {
     console.log(`Sending previews to: ${args.previewTo.join(', ')}`);
-    await sendPreviews({ args, customerTemplate, customerSubject, providerTemplate, providerSubject });
+    await sendPreviews({ args, customerTemplates, customerSubjects, providerTemplates, providerSubjects });
     if (!args.continueAfterPreview) {
       // Default behavior: exit after previews so the operator can review
       // them in their inbox before pulling the trigger on the live blast.
@@ -523,8 +555,8 @@ async function main() {
       supabase, args,
       audience: 'customer',
       profiles: members,
-      template: customerTemplate,
-      subject: customerSubject,
+      templates: customerTemplates,
+      subjects: customerSubjects,
       suppressedEmails,
       marketingOptOutMemberIds: marketingOptOuts,
       alreadySent,
@@ -545,8 +577,8 @@ async function main() {
       supabase, args,
       audience: 'provider',
       profiles: providers,
-      template: providerTemplate,
-      subject: providerSubject,
+      templates: providerTemplates,
+      subjects: providerSubjects,
       suppressedEmails,
       marketingOptOutMemberIds: new Set(), // marketing opt-out check is members-only
       alreadySent,
@@ -569,4 +601,4 @@ if (require.main === module) {
   });
 }
 
-module.exports = { renderTemplate, pickFirstName, pickProviderName, unsubscribeUrlFor, extractMeta, loadTemplate, main };
+module.exports = { renderTemplate, pickFirstName, pickProviderName, pickLanguage, unsubscribeUrlFor, extractMeta, loadTemplate, main };
