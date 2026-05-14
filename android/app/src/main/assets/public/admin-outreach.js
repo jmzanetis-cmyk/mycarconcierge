@@ -56,12 +56,289 @@
       }
       const data = await res.json();
       apolloConfig = data?.config || null;
+      // Populate the standalone Apollo dashboard tab fields too if present —
+      // both the engine-strip panel and the standalone tab share /config.
+      populateApolloDashboard(apolloConfig);
       return apolloConfig;
     } catch (e) {
       console.error('Failed to load Apollo config:', e);
       apolloConfig = null;
       return null;
     }
+  }
+
+  // ------------------------------------------------------------------
+  // Standalone "Apollo.io" tab in www/admin.html (lines ~1308+).
+  // Buttons there call runApolloCycle / saveApolloConfig / apolloSearch /
+  // apolloEnrich / loadApolloStatus / checkApolloEnrichQueue, none of
+  // which existed in the bundled JS. Wire them up against the same
+  // /api/admin/apollo/* endpoints used by the engine-strip helpers above.
+  // ------------------------------------------------------------------
+  function setText(id, text) {
+    const el = document.getElementById(id);
+    if (el) el.textContent = text;
+  }
+  function setVal(id, v) {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (el.type === 'checkbox') el.checked = !!v;
+    else el.value = v == null ? '' : v;
+  }
+  function getVal(id) {
+    const el = document.getElementById(id);
+    if (!el) return null;
+    if (el.type === 'checkbox') return el.checked;
+    return el.value;
+  }
+  function timeAgoShort(iso) {
+    if (!iso) return 'never';
+    const ms = Date.now() - new Date(iso).getTime();
+    if (!isFinite(ms) || ms < 0) return 'just now';
+    const m = Math.floor(ms / 60000);
+    if (m < 1) return 'just now';
+    if (m < 60) return `${m}m ago`;
+    const h = Math.floor(m / 60);
+    if (h < 24) return `${h}h ago`;
+    const d = Math.floor(h / 24);
+    return `${d}d ago`;
+  }
+
+  function populateApolloDashboard(cfg) {
+    // The dashboard tab markup may not be in the DOM (e.g., admin is on a
+    // different tab) — every helper noops on missing IDs so this is safe.
+    if (!cfg) return;
+    setVal('apollo-auto-toggle', cfg.enabled === true);
+    setVal('apollo-auto-interval', cfg.interval_hours || 6);
+    setVal('apollo-auto-per-page', cfg.per_page || 25);
+    setVal('apollo-auto-enrich-toggle', cfg.auto_enrich !== false);
+    setVal('apollo-auto-enrich-batch', cfg.enrich_batch || 15);
+    setVal('apollo-instantly-auto-sync', cfg.instantly_auto_sync === true);
+    setVal('apollo-instantly-provider-campaign-id', cfg.instantly_provider_campaign_id || '');
+
+    // Surface the first (Providers) profile's cities/titles/industries
+    // since that's what /search and the rotated cycle use most.
+    const profile = (cfg.search_profiles && cfg.search_profiles[0]) || {};
+    const cityEl = document.getElementById('apollo-auto-cities');
+    if (cityEl) cityEl.value = (profile.cities || []).join('\n');
+    setVal('apollo-auto-titles', (profile.titles || []).join(', '));
+    setVal('apollo-auto-industries', (profile.industries || []).join(', '));
+
+    // Header badge + last-run label.
+    const badge = document.getElementById('apollo-auto-badge');
+    if (badge) {
+      if (cfg.running_since) {
+        badge.style.display = 'inline-block';
+        badge.style.background = 'var(--success)';
+        badge.textContent = 'RUNNING';
+      } else if (cfg.enabled) {
+        badge.style.display = 'inline-block';
+        badge.style.background = 'var(--accent-gold)';
+        badge.style.color = '#000';
+        badge.textContent = 'ENABLED';
+      } else {
+        badge.style.display = 'inline-block';
+        badge.style.background = 'var(--text-muted)';
+        badge.textContent = 'DISABLED';
+      }
+    }
+    setText('apollo-last-run-label', cfg.last_run ? `Last run ${timeAgoShort(cfg.last_run)}` : 'No runs yet');
+  }
+
+  async function loadApolloStatus() {
+    const bar = document.getElementById('apollo-status-bar');
+    if (!bar) return;
+    const refreshBtn = bar.querySelector('button');
+    bar.querySelector('span').textContent = 'Loading Apollo status...';
+    try {
+      const res = await apolloFetch('/status');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || data.ok === false) {
+        bar.querySelector('span').innerHTML = `<strong style="color:var(--danger,#dc2626);">Apollo unavailable:</strong> ${data.error || 'HTTP ' + res.status}`;
+        return;
+      }
+      const parts = [];
+      parts.push(`<strong style="color:var(--success);">Apollo connected</strong>`);
+      if (data.credits != null) parts.push(`${data.credits.toLocaleString()} credits`);
+      if (data.minute_requests_left != null) parts.push(`${data.minute_requests_left}/min`);
+      if (data.hour_requests_left != null) parts.push(`${data.hour_requests_left}/hr`);
+      if (data.day_requests_left != null) parts.push(`${data.day_requests_left}/day`);
+      bar.querySelector('span').innerHTML = parts.join(' &middot; ');
+    } catch (e) {
+      bar.querySelector('span').innerHTML = `<strong style="color:var(--danger,#dc2626);">Status check failed:</strong> ${e.message}`;
+    }
+    if (refreshBtn) refreshBtn.blur();
+  }
+
+  async function saveApolloConfig() {
+    const status = document.getElementById('apollo-config-save-status');
+    if (status) { status.style.color = 'var(--text-muted)'; status.textContent = 'Saving...'; }
+    const updates = {
+      enabled: !!getVal('apollo-auto-toggle'),
+      interval_hours: Number(getVal('apollo-auto-interval')) || 6,
+      per_page: Number(getVal('apollo-auto-per-page')) || 25,
+      auto_enrich: !!getVal('apollo-auto-enrich-toggle'),
+      enrich_batch: Number(getVal('apollo-auto-enrich-batch')) || 15,
+      instantly_auto_sync: !!getVal('apollo-instantly-auto-sync'),
+      instantly_provider_campaign_id: (getVal('apollo-instantly-provider-campaign-id') || '').trim() || null,
+      cities: getVal('apollo-auto-cities') || '',
+      titles: getVal('apollo-auto-titles') || '',
+      industries: getVal('apollo-auto-industries') || ''
+    };
+    try {
+      const res = await apolloFetch('/config', { method: 'PUT', body: JSON.stringify(updates) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error || `Save failed (HTTP ${res.status})`;
+        const detail = Array.isArray(data.details) ? ': ' + data.details.join('; ') : '';
+        if (status) { status.style.color = 'var(--danger,#dc2626)'; status.textContent = msg + detail; }
+        if (typeof showToast !== 'undefined') showToast(msg + detail, 'error');
+        return;
+      }
+      apolloConfig = data?.config || apolloConfig;
+      populateApolloDashboard(apolloConfig);
+      if (status) { status.style.color = 'var(--success)'; status.textContent = 'Saved'; }
+      if (typeof showToast !== 'undefined') showToast('Apollo settings saved');
+    } catch (e) {
+      if (status) { status.style.color = 'var(--danger,#dc2626)'; status.textContent = 'Save error: ' + e.message; }
+      if (typeof showToast !== 'undefined') showToast('Apollo save error: ' + e.message, 'error');
+    }
+  }
+
+  async function runApolloCycle() {
+    const btn = document.getElementById('apollo-run-now-btn');
+    const result = document.getElementById('apollo-cycle-result');
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Running...'; }
+    if (result) { result.style.display = 'block'; result.textContent = 'Triggering Apollo discovery cycle...'; }
+    if (typeof showToast !== 'undefined') showToast('Running Apollo discovery cycle...');
+
+    // /run-now refuses when disabled. If admin clicks "Run Now" and the
+    // toggle is off, flip it on first (auditable via PUT /config) so the
+    // button isn't a silent no-op when discovery is paused.
+    if (apolloConfig && apolloConfig.enabled !== true) {
+      try {
+        const enableRes = await apolloFetch('/config', { method: 'PUT', body: JSON.stringify({ enabled: true }) });
+        const enableData = await enableRes.json().catch(() => ({}));
+        if (enableRes.ok) apolloConfig = enableData?.config || apolloConfig;
+      } catch { /* fall through; /run-now will surface the disabled error */ }
+    }
+
+    try {
+      const res = await apolloFetch('/run-now', { method: 'POST' });
+      const data = await res.json().catch(() => ({}));
+      const r = data?.result || {};
+      let msg;
+      if (!res.ok) {
+        msg = data.error || `Apollo run failed (HTTP ${res.status})`;
+        if (typeof showToast !== 'undefined') showToast(msg, 'error');
+      } else if (r.skipped) {
+        msg = `Cycle skipped: ${r.reason || 'unknown'}`;
+        if (typeof showToast !== 'undefined') showToast(msg, 'error');
+      } else if (r.success === false) {
+        msg = `Apollo cycle error: ${r.error || r.error_kind || 'unknown'}`;
+        if (typeof showToast !== 'undefined') showToast(msg, 'error');
+      } else {
+        msg = `Cycle complete — ${r.search_results || 0} found, ${r.added || 0} added, ${r.enriched || 0} enriched`;
+        if (typeof showToast !== 'undefined') showToast(msg);
+      }
+      if (result) result.textContent = msg;
+    } catch (e) {
+      const msg = 'Apollo run error: ' + e.message;
+      if (result) result.textContent = msg;
+      if (typeof showToast !== 'undefined') showToast(msg, 'error');
+    }
+
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="play"></span> Run Now'; }
+    await loadApolloConfig();
+    renderEngineControlPanel();
+  }
+
+  function splitListInput(raw) {
+    if (!raw) return [];
+    return String(raw).split(/[\n,]+/).map(s => s.trim()).filter(Boolean);
+  }
+
+  async function apolloSearch() {
+    const btn = document.getElementById('apollo-search-btn');
+    const result = document.getElementById('apollo-search-result');
+    const payload = {
+      cities: splitListInput(getVal('apollo-cities')),
+      titles: splitListInput(getVal('apollo-titles')),
+      industries: splitListInput(getVal('apollo-industries')),
+      per_page: Number(getVal('apollo-per-page')) || 25,
+      page: Number(getVal('apollo-page')) || 1,
+      enrich: !!getVal('apollo-enrich')
+    };
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Searching...'; }
+    if (result) { result.style.display = 'block'; result.textContent = 'Searching Apollo...'; }
+    try {
+      const res = await apolloFetch('/search', { method: 'POST', body: JSON.stringify(payload) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error || `Search failed (HTTP ${res.status})`;
+        if (result) result.innerHTML = `<strong style="color:var(--danger,#dc2626);">${msg}</strong>`;
+        if (typeof showToast !== 'undefined') showToast(msg, 'error');
+      } else {
+        const sample = (data.results || []).slice(0, 5).map(r =>
+          `<li>${r.name || '—'}${r.company ? ' · ' + r.company : ''}${r.location ? ' · ' + r.location : ''}${r.has_email ? ' <span style="color:var(--success);">(email)</span>' : ''}</li>`
+        ).join('');
+        if (result) result.innerHTML =
+          `<div><strong>Found ${data.found || 0}</strong> · ${data.with_email || 0} with email · ${data.added || 0} processed</div>` +
+          (sample ? `<ul style="margin:6px 0 0 18px;padding:0;">${sample}</ul>` : '');
+        if (typeof showToast !== 'undefined') showToast(`Apollo search: ${data.found || 0} found, ${data.with_email || 0} with email`);
+      }
+    } catch (e) {
+      const msg = 'Apollo search error: ' + e.message;
+      if (result) result.innerHTML = `<strong style="color:var(--danger,#dc2626);">${msg}</strong>`;
+      if (typeof showToast !== 'undefined') showToast(msg, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="search"></span> Search Apollo'; }
+  }
+
+  async function checkApolloEnrichQueue() {
+    const stats = document.getElementById('apollo-enrich-stats');
+    if (stats) stats.textContent = 'Checking queue...';
+    try {
+      const res = await apolloFetch('/enrich-queue');
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        if (stats) stats.innerHTML = `<strong style="color:var(--danger,#dc2626);">${data.error || 'HTTP ' + res.status}</strong>`;
+        return;
+      }
+      const n = data.pending_enrichment || 0;
+      if (stats) {
+        if (n === 0) stats.innerHTML = '<strong style="color:var(--success);">Queue empty</strong> — no leads need enrichment right now.';
+        else stats.innerHTML = `<strong>${n.toLocaleString()}</strong> lead${n === 1 ? '' : 's'} pending enrichment.`;
+      }
+    } catch (e) {
+      if (stats) stats.innerHTML = `<strong style="color:var(--danger,#dc2626);">Queue check failed: ${e.message}</strong>`;
+    }
+  }
+
+  async function apolloEnrich() {
+    const btn = document.getElementById('apollo-enrich-btn');
+    const result = document.getElementById('apollo-enrich-result');
+    const limit = Number(getVal('apollo-enrich-limit')) || 10;
+    if (btn) { btn.disabled = true; btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Enriching...'; }
+    if (result) { result.style.display = 'block'; result.textContent = 'Enriching leads...'; }
+    try {
+      const res = await apolloFetch('/enrich', { method: 'POST', body: JSON.stringify({ limit }) });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        const msg = data.error || `Enrich failed (HTTP ${res.status})`;
+        if (result) result.innerHTML = `<strong style="color:var(--danger,#dc2626);">${msg}</strong>`;
+        if (typeof showToast !== 'undefined') showToast(msg, 'error');
+      } else {
+        if (result) result.innerHTML =
+          `<div><strong>Enriched ${data.enriched || 0}</strong> of ${data.total || 0} attempted · ${data.failed || 0} failed</div>`;
+        if (typeof showToast !== 'undefined') showToast(`Enrichment complete — ${data.enriched || 0}/${data.total || 0}`);
+        await checkApolloEnrichQueue();
+      }
+    } catch (e) {
+      const msg = 'Enrich error: ' + e.message;
+      if (result) result.innerHTML = `<strong style="color:var(--danger,#dc2626);">${msg}</strong>`;
+      if (typeof showToast !== 'undefined') showToast(msg, 'error');
+    }
+    if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Enrich Leads Now'; }
   }
 
   async function setApolloEnabled(enabled) {
@@ -544,6 +821,9 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       case 'analytics': await loadAnalytics(); break;
       case 'funnel': await loadConversionFunnel(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
+      case 'apollo':
+        await Promise.all([loadApolloConfig(), loadApolloStatus(), checkApolloEnrichQueue()]);
+        break;
     }
   }
 
@@ -1772,6 +2052,12 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.showApolloSettings = showApolloSettings;
   globalThis.saveApolloSettings = saveApolloSettings;
   globalThis.loadApolloConfig = loadApolloConfig;
+  globalThis.loadApolloStatus = loadApolloStatus;
+  globalThis.saveApolloConfig = saveApolloConfig;
+  globalThis.runApolloCycle = runApolloCycle;
+  globalThis.apolloSearch = apolloSearch;
+  globalThis.apolloEnrich = apolloEnrich;
+  globalThis.checkApolloEnrichQueue = checkApolloEnrichQueue;
   globalThis.switchOutreachTab = switchOutreachTab;
   globalThis.draftForLead = draftForLead;
   globalThis.editLead = editLead;
