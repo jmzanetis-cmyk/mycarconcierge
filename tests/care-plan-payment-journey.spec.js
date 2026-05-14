@@ -469,11 +469,18 @@ test.describe('Care plan payment journey (Task #282)', () => {
     expect(planRow.stripe_payment_intent_id).toBe(winner.payment_intent_id);
 
     // Authoritative orphan-absence check via Stripe metadata search.
-    const search = await stripe.paymentIntents.search({
-      query: `metadata['flow']:'care_plan' AND metadata['care_plan_id']:'${plan.id}'`,
-      limit: 10
-    });
-    const live = (search.data || []).filter((pi) => pi.status !== 'canceled');
+    // Search has eventual-consistency latency, so poll briefly until the
+    // winner's PI shows up; an orphan would also show up here if it existed.
+    let live = [];
+    for (let i = 0; i < 10; i++) {
+      const search = await stripe.paymentIntents.search({
+        query: `metadata['flow']:'care_plan' AND metadata['care_plan_id']:'${plan.id}'`,
+        limit: 10
+      });
+      live = (search.data || []).filter((pi) => pi.status !== 'canceled');
+      if (live.some((pi) => pi.id === winner.payment_intent_id)) break;
+      await new Promise(r => setTimeout(r, 500));
+    }
     expect(live.length).toBe(1);
     expect(live[0].id).toBe(winner.payment_intent_id);
   });
