@@ -128,6 +128,65 @@ async function sendSmokeFailureEmail(supabase, run) {
 }
 
 // ---------------------------------------------------------------------------
+// sendSmokeFailureSms — pages the admin's phone via Twilio when the daily
+// smoke fails. Mirrors the Twilio call shape used elsewhere (daily-digest,
+// bgc-send-reminders, ai-ops-admin). Best-effort: records sent/error on the
+// agent_smoke_runs row but never throws.
+// ---------------------------------------------------------------------------
+async function sendSmokeFailureSms(supabase, run) {
+  if (!run) return { sent: false, reason: 'no_run' };
+
+  const sid     = process.env.TWILIO_ACCOUNT_SID;
+  const token   = process.env.TWILIO_AUTH_TOKEN;
+  const from    = process.env.TWILIO_PHONE_NUMBER;
+  const toPhone = process.env.ADMIN_PHONE_NUMBER;
+  if (!sid || !token || !from || !toPhone) {
+    return { sent: false, reason: 'sms_not_configured' };
+  }
+
+  const failedChecks = Array.isArray(run.failed_checks) ? run.failed_checks : [];
+  const summary = `MCC Gatekeeper smoke FAILED: ${run.failure_count} check${run.failure_count === 1 ? '' : 's'}${failedChecks[0] ? ` (${failedChecks[0]})` : ''}`;
+  const adminUrl = `${MCC_APP_URL}/admin/agent-fleet.html`;
+  const body = `${summary}\n${adminUrl}`;
+
+  try {
+    const clean = String(toPhone).replaceAll(/\D/g, '');
+    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
+    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+    const form = new URLSearchParams({ To: to, From: from, Body: body });
+    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
+      method: 'POST',
+      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: form.toString()
+    });
+    if (!r.ok) {
+      const txt = await r.text();
+      const errMsg = `Twilio ${r.status}: ${txt.slice(0, 200)}`;
+      try {
+        await supabase.from('agent_smoke_runs')
+          .update({ alert_sms_error: errMsg })
+          .eq('id', run.id);
+      } catch (_) { /* swallow */ }
+      return { sent: false, reason: 'twilio_error', error: errMsg };
+    }
+    try {
+      await supabase.from('agent_smoke_runs')
+        .update({ alert_sms_sent: true, alert_sms_error: null })
+        .eq('id', run.id);
+    } catch (_) { /* swallow */ }
+    return { sent: true };
+  } catch (e) {
+    console.error('[smoke-scheduled] alert sms crashed:', e.message);
+    try {
+      await supabase.from('agent_smoke_runs')
+        .update({ alert_sms_error: e.message.slice(0, 200) })
+        .eq('id', run.id);
+    } catch (_) { /* swallow */ }
+    return { sent: false, reason: 'exception', error: e.message };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // persistRun — write the result row first, then attempt the alert email so
 // the row's id is available for update. Returns the inserted row.
 // ---------------------------------------------------------------------------
@@ -211,8 +270,12 @@ exports.handler = async function(event) {
   const row = await persistRun(supabase, result, triggeredBy);
 
   let email = { sent: false, reason: 'not_attempted' };
+  let sms   = { sent: false, reason: 'not_attempted' };
   if (!result.ok && row) {
-    email = await sendSmokeFailureEmail(supabase, row);
+    [email, sms] = await Promise.all([
+      sendSmokeFailureEmail(supabase, row),
+      sendSmokeFailureSms(supabase, row)
+    ]);
   }
 
   return jsonResponse(200, {
@@ -223,9 +286,11 @@ exports.handler = async function(event) {
     failure_count: result.failure_count,
     failed_checks: result.failed_checks,
     duration_ms: result.duration_ms,
-    email
+    email,
+    sms
   });
 };
 
 module.exports.sendSmokeFailureEmail = sendSmokeFailureEmail;
+module.exports.sendSmokeFailureSms = sendSmokeFailureSms;
 module.exports.persistRun = persistRun;
