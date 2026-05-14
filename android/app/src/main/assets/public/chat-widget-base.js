@@ -659,7 +659,7 @@ class ChatWidgetBase {
       if (feedbackBtn) {
         const feedback = feedbackBtn.getAttribute('data-feedback');
         const feedbackContainer = feedbackBtn.closest('.chat-widget-feedback');
-        const msgIndex = feedbackContainer ? parseInt(feedbackContainer.getAttribute('data-msg-index'), 10) : -1;
+        const msgIndex = feedbackContainer ? Number.parseInt(feedbackContainer.getAttribute('data-msg-index'), 10) : -1;
         if (feedbackContainer) {
           feedbackContainer.innerHTML = '<span class="chat-widget-feedback-done">Thanks for the feedback!</span>';
         }

@@ -18,7 +18,7 @@ const RewardEngine = {
   evaluators: {
     punch_card(balance, params) {
       const current = balance.punch_count || 0;
-      const needed = parseInt(params.punches_required) || 1;
+      const needed = Number.parseInt(params.punches_required) || 1;
       return {
         progress: current,
         threshold: needed,

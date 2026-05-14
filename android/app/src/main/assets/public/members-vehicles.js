@@ -709,7 +709,7 @@
       const updateData = {};
       if (vin) updateData.vin = vin;
       if (plate) updateData.license_plate = plate;
-      if (year) updateData.year = parseInt(year) || null;
+      if (year) updateData.year = Number.parseInt(year) || null;
       if (make) updateData.make = make;
       if (model) updateData.model = model;
       if (state) updateData.registration_state = state;

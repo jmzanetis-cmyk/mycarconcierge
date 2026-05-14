@@ -337,7 +337,7 @@ function openAdditionalWorkModal(packageId) {
 async function submitAdditionalWorkRequest() {
   const packageId = document.getElementById('additional-work-package-id')?.value;
   const description = document.getElementById('additional-work-description')?.value?.trim();
-  const estimatedCost = parseFloat(document.getElementById('additional-work-cost')?.value) || 0;
+  const estimatedCost = Number.parseFloat(document.getElementById('additional-work-cost')?.value) || 0;
   const photosInput = document.getElementById('additional-work-photos');
   
   if (!packageId) {
@@ -412,7 +412,7 @@ function openDiscountModal(packageId) {
 
 async function submitDiscountOffer() {
   const packageId = document.getElementById('discount-package-id')?.value;
-  const discountAmount = parseFloat(document.getElementById('discount-amount')?.value) || 0;
+  const discountAmount = Number.parseFloat(document.getElementById('discount-amount')?.value) || 0;
   const discountType = document.getElementById('discount-type')?.value || 'fixed';
   const reason = document.getElementById('discount-reason')?.value?.trim() || '';
   
@@ -494,7 +494,7 @@ async function viewAdditionalWorkRequests(packageId) {
       return `
         <div style="padding:16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;background:var(--bg-input);">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
-            <span style="font-weight:600;">$${parseFloat(req.estimated_cost || 0).toFixed(2)}</span>
+            <span style="font-weight:600;">$${Number.parseFloat(req.estimated_cost || 0).toFixed(2)}</span>
             <span style="padding:4px 12px;border-radius:100px;font-size:0.8rem;background:${status.bg};color:${status.color};">${status.label}</span>
           </div>
           <p style="margin:0 0 8px 0;color:var(--text-secondary);font-size:0.9rem;">${req.description || 'No description'}</p>
@@ -543,7 +543,7 @@ async function viewDiscountsOffered(packageId) {
       const status = statusBadges[disc.status] || statusBadges['offered'];
       const amountDisplay = disc.discount_type === 'percentage' 
         ? `${disc.discount_amount}%` 
-        : `$${parseFloat(disc.discount_amount || 0).toFixed(2)}`;
+        : `$${Number.parseFloat(disc.discount_amount || 0).toFixed(2)}`;
       
       return `
         <div style="padding:16px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:12px;background:var(--bg-input);">
@@ -710,7 +710,7 @@ function renderEmergencyQueue() {
   container.innerHTML = nearbyEmergencies.map(e => {
     const timeAgo = formatTimeAgo(e.created_at);
     const distance = e.distance_miles ? `${e.distance_miles.toFixed(1)} mi away` : 'Nearby';
-    const escrowAmount = e.escrow_amount ? `$${parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
+    const escrowAmount = e.escrow_amount ? `$${Number.parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
     
     return `
       <div class="emergency-card">
@@ -1393,7 +1393,7 @@ async function loadProviderRefunds() {
 }
 
 function renderRefundCard(refund, showActions) {
-  const amount = refund.amount_cents ? `$${(refund.amount_cents / 100).toFixed(2)}` : (refund.amount ? `$${parseFloat(refund.amount).toFixed(2)}` : '$0.00');
+  const amount = refund.amount_cents ? `$${(refund.amount_cents / 100).toFixed(2)}` : (refund.amount ? `$${Number.parseFloat(refund.amount).toFixed(2)}` : '$0.00');
   const memberName = refund.member_name || refund.member?.full_name || refund.member?.email || 'Member';
   const packageTitle = refund.package_title || refund.package?.title || 'Service Package';
   const refundType = refund.refund_type || refund.type || 'full';
@@ -1439,7 +1439,7 @@ function renderRefundCard(refund, showActions) {
   }
 
   if (showActions) {
-    const amountCents = refund.amount_cents || Math.round(parseFloat(refund.amount || 0) * 100);
+    const amountCents = refund.amount_cents || Math.round(Number.parseFloat(refund.amount || 0) * 100);
     html += `<div style="display:flex;gap:8px;flex-wrap:wrap;">`;
     html += `<button class="btn btn-sm" style="background:var(--accent-green);color:#fff;border:none;padding:8px 16px;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;font-size:0.85rem;" onclick="approveProviderRefund('${refund.id}', ${amountCents})">${mccIcon('check-circle', 16)} Approve Refund</button>`;
     html += `<button class="btn btn-sm" style="background:var(--accent-red);color:#fff;border:none;padding:8px 16px;border-radius:var(--radius-sm);cursor:pointer;font-weight:600;font-size:0.85rem;" onclick="denyProviderRefund('${refund.id}')">${mccIcon('x', 16)} Deny Refund</button>`;
@@ -1555,14 +1555,14 @@ function showProviderApptCalendarOptions(apptId, dateStr, timeStr, serviceTitle)
     if (!t) return '090000';
     const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
     if (!m) return '090000';
-    let h = parseInt(m[1]); const min = m[2];
+    let h = Number.parseInt(m[1]); const min = m[2];
     if (m[3] && m[3].toUpperCase() === 'PM' && h < 12) h += 12;
     if (m[3] && m[3].toUpperCase() === 'AM' && h === 12) h = 0;
     return String(h).padStart(2, '0') + min + '00';
   }
   const dtDate = toISODate(dateStr);
   const startH = to24h(timeStr);
-  const endHour = String(Math.min(parseInt(startH.substring(0, 2)) + 1, 23)).padStart(2, '0');
+  const endHour = String(Math.min(Number.parseInt(startH.substring(0, 2)) + 1, 23)).padStart(2, '0');
   const dtStart = dtDate + 'T' + startH;
   const dtEnd = dtDate + 'T' + endHour + startH.substring(2);
 

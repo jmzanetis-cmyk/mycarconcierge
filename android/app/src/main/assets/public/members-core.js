@@ -1887,7 +1887,7 @@ async function saveReminder() {
     reminder_type: reminderType,
     description: notes || null,
     due_date: dueType === 'date' ? dueDate : null,
-    due_mileage: dueType === 'mileage' ? parseInt(dueMileage) : null,
+    due_mileage: dueType === 'mileage' ? Number.parseInt(dueMileage) : null,
     status: 'pending'
   };
   
@@ -2640,7 +2640,7 @@ function setupEventListeners() {
     opt.addEventListener('click', () => {
       document.querySelectorAll('.bid-window-option').forEach(o => o.classList.remove('selected'));
       opt.classList.add('selected');
-      selectedBiddingWindowHours = parseInt(opt.dataset.hours);
+      selectedBiddingWindowHours = Number.parseInt(opt.dataset.hours);
     });
   });
 
@@ -3429,7 +3429,7 @@ async function mountContributeCardElement() {
 async function submitContribution(packageId) {
   const amountInput = document.getElementById('contribute-amount');
   const messageInput = document.getElementById('contribute-message');
-  const amount = parseFloat(amountInput?.value);
+  const amount = Number.parseFloat(amountInput?.value);
   if (!amount || amount < 1) {
     showToast('Please enter a valid amount (minimum $1)', 'error');
     return;

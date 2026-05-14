@@ -1,7 +1,7 @@
 // MCC Background Check pricing — single source of truth.
 //
 // The JS surfaces (bgc-onboarding.js, provider-onboarding.js) read the
-// price from window.MCC_BGC_PRICING.display at runtime. The same value
+// price from globalThis.MCC_BGC_PRICING.display at runtime. The same value
 // is also baked as a literal into static HTML files that cannot run JS:
 //
 //   www/email-templates/bgc-launch-provider.html

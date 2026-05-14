@@ -594,6 +594,51 @@
 
     @keyframes spin { to { transform: rotate(360deg); } }
 
+    /* Task #318 — Facebook signup button on the provider survey. Mirrors
+       the styles in www/onboarding-member.html so the two onboarding
+       surfaces stay visually consistent. */
+    .oauth-divider {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      margin: 18px 0 14px;
+      color: #9ca3af;
+      font-size: 0.78rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+    }
+    .oauth-divider::before,
+    .oauth-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: rgba(156, 163, 175, 0.35);
+    }
+    .btn-facebook-signup {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: #1877F2;
+      border: none;
+      border-radius: 14px;
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-facebook-signup:hover {
+      background: #166FE5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3);
+    }
+    .btn-facebook-signup:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-facebook-signup .facebook-icon { flex-shrink: 0; }
+
     .login-link {
       display: block;
       text-align: center;
@@ -970,6 +1015,13 @@
             <div class="input-error" id="error-contact-name">Please enter your name</div>
           </div>
           <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <div class="oauth-divider">or</div>
+          <button type="button" class="btn-facebook-signup" id="facebook-signup-btn" onclick="signUpWithFacebook()">
+            <svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            <span>Continue with Facebook</span>
+          </button>
           <div class="login-link">Already have an account? <a href="login.html">Log in</a></div>
         </div>
       </div>
@@ -1642,18 +1694,24 @@
       btn.innerHTML = '<div class="loading-spinner"></div> Creating account...';
 
       try {
-        const { data, error } = await supabaseClient.auth.signUp({
-          email: formData.email,
-          password: formData.password
-        });
+        // Task #318: OAuth (Facebook) signups already have a user
+        // session and a profiles row created by maybeStartFromOAuth() —
+        // calling auth.signUp again would fail with "User already
+        // registered". Detect that case via the pre-set userId and
+        // UPDATE the existing row with the survey answers instead.
+        const isOAuthFlow = !!userId;
 
-        if (error) throw error;
+        if (!isOAuthFlow) {
+          const { data, error } = await supabaseClient.auth.signUp({
+            email: formData.email,
+            password: formData.password
+          });
+          if (error) throw error;
+          if (data.user) userId = data.user.id;
+        }
 
-        if (data.user) {
-          userId = data.user.id;
-
-          const { error: profileError } = await supabaseClient.from('profiles').insert({
-            id: userId,
+        if (userId) {
+          const profilePayload = {
             email: formData.email,
             role: 'pending_provider',
             is_also_member: true,
@@ -1664,9 +1722,14 @@
             state: formData.state,
             services_offered: formData.services,
             free_trial_bids: 1
-          });
+          };
 
-          if (profileError) console.error('Profile insert error:', profileError);
+          const profileOp = isOAuthFlow
+            ? supabaseClient.from('profiles').update(profilePayload).eq('id', userId)
+            : supabaseClient.from('profiles').insert({ id: userId, ...profilePayload });
+          const { error: profileError } = await profileOp;
+
+          if (profileError) console.error('Profile ' + (isOAuthFlow ? 'update' : 'insert') + ' error:', profileError);
 
           // Submit application via server-side endpoint (validates JWT-derived
           // user_id, captures real client IP, rate-limits, and emits an event).
@@ -2249,6 +2312,109 @@
     bgcResolveDomIndices();
     bgcPopulateCopy();
     updateProgress();
+
+    // ─── Task #318: Facebook OAuth signup for the provider survey ──────
+    // Mirrors the member flow in www/onboarding-member.html. Clicking the
+    // "Continue with Facebook" button redirects to facebook.com via the
+    // Supabase OAuth flow, then back to this same page with
+    // ?source=facebook. maybeStartFromOAuth() picks up the session,
+    // creates a profiles row with role='pending_provider' if none
+    // exists, and skips the credential steps. We tag the localStorage
+    // intent so login.html (the callback target for some browsers) knows
+    // to keep us on the provider track instead of bouncing to the
+    // member onboarding survey.
+    async function signUpWithFacebook() {
+      const fbBtn = document.getElementById('facebook-signup-btn');
+      if (fbBtn) {
+        fbBtn.disabled = true;
+        fbBtn.innerHTML = '<div class="loading-spinner"></div> Connecting...';
+      }
+      try {
+        try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* private mode */ }
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'facebook',
+          options: {
+            redirectTo: window.location.origin + '/onboarding-provider.html?source=facebook',
+            scopes: 'email,public_profile'
+          }
+        });
+        if (error) {
+          console.error('Facebook signup error:', error);
+          alert('Failed to connect to Facebook. Please try again.');
+          if (fbBtn) {
+            fbBtn.disabled = false;
+            fbBtn.innerHTML = '<svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg><span>Continue with Facebook</span>';
+          }
+        }
+      } catch (err) {
+        console.error('Facebook signup exception:', err);
+        alert('Something went wrong. Please try again.');
+        if (fbBtn) fbBtn.disabled = false;
+      }
+    }
+    globalThis.signUpWithFacebook = signUpWithFacebook;
+
+    async function maybeStartFromOAuth() {
+      const params = new URLSearchParams(window.location.search);
+      const source = params.get('source');
+      if (source !== 'facebook') return;
+
+      let user = null;
+      for (let i = 0; i < 20 && !user; i++) {
+        try {
+          const { data } = await supabaseClient.auth.getUser();
+          user = data && data.user || null;
+        } catch (_e) { /* not ready yet */ }
+        if (!user) await new Promise(r => setTimeout(r, 150));
+      }
+      if (!user) return;
+
+      userId = user.id;
+      const fbName = (user.user_metadata && (user.user_metadata.full_name || user.user_metadata.name))
+        || (user.email ? user.email.split('@')[0] : '');
+      formData.contactName = fbName;
+      formData.email = user.email || '';
+
+      // Create profile row if it doesn't exist yet — login.html may have
+      // created one already with role='pending_provider' if intent was
+      // set there, but the FB button on this page can redirect directly
+      // back here on first signup. If a profile already exists and the
+      // user has finished onboarding (role=provider with phone set),
+      // bounce them straight to the provider dashboard.
+      const { data: existing, error: selErr } = await supabaseClient
+        .from('profiles')
+        .select('id, role, phone')
+        .eq('id', user.id)
+        .single();
+
+      if (selErr && selErr.code === 'PGRST116') {
+        const { error: insErr } = await supabaseClient.from('profiles').insert({
+          id: user.id,
+          email: user.email,
+          role: 'pending_provider',
+          is_also_member: true,
+          full_name: fbName,
+          created_at: new Date().toISOString()
+        });
+        if (insErr) console.error('Failed to create provider profile for OAuth user:', insErr);
+      } else if (existing && existing.role === 'provider' && existing.phone) {
+        try { localStorage.setItem('mcc_portal', 'provider'); } catch (_e) { /* ignore */ }
+        window.location.href = '/providers.html';
+        return;
+      }
+
+      const nameInput = document.getElementById('input-contact-name');
+      if (nameInput) nameInput.value = fbName;
+      const emailInput = document.getElementById('input-email');
+      if (emailInput) emailInput.value = formData.email;
+
+      // Jump straight to the phone step (data-step=2 in the DOM order:
+      // 0=name, 1=email, 2=phone). Name and email come from Facebook,
+      // password isn't needed for OAuth users.
+      showStep(2);
+    }
+
+    maybeStartFromOAuth();
   </script>
 </body>
 </html>

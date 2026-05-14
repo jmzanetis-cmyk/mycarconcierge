@@ -10,7 +10,7 @@
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.dataset.theme = theme;
     })();
   </script>
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
@@ -199,7 +199,7 @@
         meta.hidden = true;
         meta.textContent = '';
         var state = (payload && payload.status) || 'not_found';
-        block.setAttribute('data-state', state);
+        block.dataset.state = state;
         if (state === 'completed') {
           label.textContent = 'Deletion Complete';
           var when = fmtDate(payload.completed_at);
@@ -225,7 +225,7 @@
       }
 
       function lookup(code) {
-        block.setAttribute('data-state', 'pending');
+        block.dataset.state = 'pending';
         label.textContent = 'Checking…';
         headline.textContent = 'Looking up your request…';
         detail.textContent = '';
@@ -236,7 +236,7 @@
           .then(function (r) { return r.json().catch(function () { return { status: 'error' }; }); })
           .then(render)
           .catch(function () {
-            block.setAttribute('data-state', 'error');
+            block.dataset.state = 'error';
             label.textContent = 'Network Error';
             headline.textContent = "We couldn't reach the lookup service.";
             detail.textContent = 'Please try again in a moment.';

@@ -616,7 +616,7 @@
                     ${mccIcon('map-pin', 16)} Live Location
                   </div>
                   <div style="font-size:0.95rem;color:var(--text-primary);margin-bottom:4px;">
-                    ${parseFloat(driverLocation.lat).toFixed(6)}, ${parseFloat(driverLocation.lng).toFixed(6)}
+                    ${Number.parseFloat(driverLocation.lat).toFixed(6)}, ${Number.parseFloat(driverLocation.lng).toFixed(6)}
                   </div>
                   ${driverLocation.speed ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:4px;">Speed: ${driverLocation.speed} mph</div>` : ''}
                   <div style="font-size:0.8rem;color:var(--text-muted);">Last update: ${updatedAt} on ${updatedDate}</div>
@@ -630,7 +630,7 @@
             <div style="text-align:center;">
               <div style="display:inline-block;padding:8px 16px;background:var(--bg-card);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
                 <iframe 
-                  src="https://www.openstreetmap.org/export/embed.html?bbox=${parseFloat(driverLocation.lng) - 0.01},${parseFloat(driverLocation.lat) - 0.01},${parseFloat(driverLocation.lng) + 0.01},${parseFloat(driverLocation.lat) + 0.01}&layer=mapnik&marker=${driverLocation.lat},${driverLocation.lng}" 
+                  src="https://www.openstreetmap.org/export/embed.html?bbox=${Number.parseFloat(driverLocation.lng) - 0.01},${Number.parseFloat(driverLocation.lat) - 0.01},${Number.parseFloat(driverLocation.lng) + 0.01},${Number.parseFloat(driverLocation.lat) + 0.01}&layer=mapnik&marker=${driverLocation.lat},${driverLocation.lng}" 
                   style="width:100%;min-width:280px;height:180px;border:none;border-radius:var(--radius-sm);"
                   loading="lazy"
                 ></iframe>
@@ -901,7 +901,7 @@
           packageId,
           type,
           photos: photoUrls,
-          odometer: parseInt(odometer),
+          odometer: Number.parseInt(odometer),
           fuelLevel,
           exteriorCondition,
           interiorCondition,
@@ -1102,7 +1102,7 @@
 
       container.style.display = 'block';
       const dateParts = dateStr.split('-');
-      const dispDate = new Date(parseInt(dateParts[0]), parseInt(dateParts[1])-1, parseInt(dateParts[2]));
+      const dispDate = new Date(Number.parseInt(dateParts[0]), Number.parseInt(dateParts[1])-1, Number.parseInt(dateParts[2]));
       dateLabel.textContent = mccIcon('calendar', 16) + ' ' + dispDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
       slotsList.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);"><div class="spinner" style="width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 0.8s linear infinite;margin:0 auto 8px;"></div>Loading slots...</div>';
@@ -1201,7 +1201,7 @@
             date: _selectedDate,
             start_time: _selectedSlot.startTime,
             end_time: _selectedSlot.endTime,
-            duration_minutes: parseInt(duration),
+            duration_minutes: Number.parseInt(duration),
             service_location: location,
             notes: notes
           })
@@ -1232,7 +1232,7 @@
       const date = document.getElementById('schedule-date').value;
       const timeStart = document.getElementById('schedule-time-start').value;
       const timeEnd = document.getElementById('schedule-time-end').value;
-      const duration = parseInt(document.getElementById('schedule-duration').value) || 1;
+      const duration = Number.parseInt(document.getElementById('schedule-duration').value) || 1;
       const notes = document.getElementById('schedule-notes').value;
 
       if (!date) {
@@ -1710,7 +1710,7 @@
       const emergencyType = document.getElementById('emergency-type').value;
       if (!emergencyType) return;
       
-      const miles = parseFloat(document.getElementById('emergency-tow-miles').value) || 10;
+      const miles = Number.parseFloat(document.getElementById('emergency-tow-miles').value) || 10;
       const escrow = calculateEmergencyEscrow(emergencyType, miles);
       const total = EMERGENCY_ACTIVATION_FEE + escrow;
       
@@ -1745,14 +1745,14 @@
       }
       
       const needsDistance = emergencyType === 'tow_needed' || emergencyType === 'accident';
-      const estimatedMiles = needsDistance ? (parseFloat(document.getElementById('emergency-tow-miles').value) || 10) : null;
+      const estimatedMiles = needsDistance ? (Number.parseFloat(document.getElementById('emergency-tow-miles').value) || 10) : null;
       const escrowAmount = calculateEmergencyEscrow(emergencyType, estimatedMiles || 10);
       const totalAmount = EMERGENCY_ACTIVATION_FEE + escrowAmount;
       
       pendingEmergencyPaymentData = {
         vehicleId: vehicleId || null,
-        lat: parseFloat(lat),
-        lng: parseFloat(lng),
+        lat: Number.parseFloat(lat),
+        lng: Number.parseFloat(lng),
         address: document.getElementById('emergency-address').value || null,
         emergencyType: emergencyType,
         description: description,
@@ -2788,7 +2788,7 @@
         can_request_services: document.getElementById('perm-request-services').checked,
         can_approve_services: document.getElementById('perm-approve-services').checked,
         spending_limit: document.getElementById('invite-spending-limit').value ? 
-          parseFloat(document.getElementById('invite-spending-limit').value) : null
+          Number.parseFloat(document.getElementById('invite-spending-limit').value) : null
       };
       
       const { data, error } = await inviteHouseholdMember(currentHousehold.id, email, role, currentUser.id);
@@ -2996,7 +2996,7 @@
         can_request_services: document.getElementById('manage-perm-request').checked,
         can_approve_services: document.getElementById('manage-perm-approve').checked,
         spending_limit: document.getElementById('manage-spending-limit').value ? 
-          parseFloat(document.getElementById('manage-spending-limit').value) : null
+          Number.parseFloat(document.getElementById('manage-spending-limit').value) : null
       };
       
       await supabaseClient
@@ -4327,16 +4327,16 @@
         if (vehicleId && payment.packages?.vehicle_id !== vehicleId) return;
         
         const month = new Date(payment.created_at).getMonth();
-        const total = parseFloat(payment.amount) || 0;
+        const total = Number.parseFloat(payment.amount) || 0;
         const bid = payment.bids || {};
         const pkg = payment.packages || {};
         
         const platformFee = total * 0.075;
-        const parts = parseFloat(bid.parts_cost) || 0;
-        const labor = parseFloat(bid.labor_cost) || 0;
-        const taxes = parseFloat(bid.tax_amount) || (total * 0.08);
-        const isTowing = pkg.transfer_type === 'towing' || parseFloat(bid.towing_cost) > 0;
-        const towing = parseFloat(bid.towing_cost) || (isTowing ? total * 0.15 : 0);
+        const parts = Number.parseFloat(bid.parts_cost) || 0;
+        const labor = Number.parseFloat(bid.labor_cost) || 0;
+        const taxes = Number.parseFloat(bid.tax_amount) || (total * 0.08);
+        const isTowing = pkg.transfer_type === 'towing' || Number.parseFloat(bid.towing_cost) > 0;
+        const towing = Number.parseFloat(bid.towing_cost) || (isTowing ? total * 0.15 : 0);
         
         let calculatedTotal = parts + labor + taxes + towing + platformFee;
         let other = 0;
@@ -4491,7 +4491,7 @@
       }
       
       document.querySelectorAll('.va-step').forEach(step => {
-        const stepNum = parseInt(step.dataset.step);
+        const stepNum = Number.parseInt(step.dataset.step);
         step.classList.remove('active', 'completed');
         if (stepNum === vaCurrentStep) step.classList.add('active');
         else if (stepNum < vaCurrentStep) step.classList.add('completed');
@@ -5529,8 +5529,8 @@ Note: This assessment was generated by AI and is for informational purposes only
             user_id: session.user.id,
             make: data.make || '',
             model: data.model || '',
-            year: data.year ? parseInt(data.year) : null,
-            max_price: data.price ? parseFloat(data.price) : null,
+            year: data.year ? Number.parseInt(data.year) : null,
+            max_price: data.price ? Number.parseFloat(data.price) : null,
             status: 'considering',
             notes: 'Saved from Dream Car Finder market intelligence'
           }]);
@@ -5696,19 +5696,19 @@ Note: This assessment was generated by AI and is for informational purposes only
         const searchData = {
           user_id: session.user.id,
           search_name: document.getElementById('ai-search-name').value.trim(),
-          min_year: parseInt(document.getElementById('ai-search-min-year').value) || null,
-          max_year: parseInt(document.getElementById('ai-search-max-year').value) || null,
-          min_price: parseFloat(document.getElementById('ai-search-min-price').value) || null,
-          max_price: parseFloat(document.getElementById('ai-search-max-price').value) || null,
-          min_mileage: parseInt(document.getElementById('ai-search-min-mileage').value) || null,
-          max_mileage: parseInt(document.getElementById('ai-search-max-mileage').value) || null,
+          min_year: Number.parseInt(document.getElementById('ai-search-min-year').value) || null,
+          max_year: Number.parseInt(document.getElementById('ai-search-max-year').value) || null,
+          min_price: Number.parseFloat(document.getElementById('ai-search-min-price').value) || null,
+          max_price: Number.parseFloat(document.getElementById('ai-search-max-price').value) || null,
+          min_mileage: Number.parseInt(document.getElementById('ai-search-min-mileage').value) || null,
+          max_mileage: Number.parseInt(document.getElementById('ai-search-max-mileage').value) || null,
           preferred_makes: preferredMakes,
           preferred_models: document.getElementById('ai-search-models').value.split(',').map(s => s.trim()).filter(s => s),
           preferred_trims: document.getElementById('ai-search-trims').value.split(',').map(s => s.trim()).filter(s => s),
           body_styles: bodyStyles,
           fuel_types: fuelTypes,
           zip_code: document.getElementById('ai-search-zip').value.trim() || null,
-          max_distance_miles: parseInt(document.getElementById('ai-search-radius').value) || null,
+          max_distance_miles: Number.parseInt(document.getElementById('ai-search-radius').value) || null,
           exterior_colors: exteriorColors,
           must_have_features: mustHaveFeatures,
           search_frequency: document.getElementById('ai-search-frequency').value,
@@ -5920,7 +5920,7 @@ Note: This assessment was generated by AI and is for informational purposes only
 
         const prospectData = {
           user_id: session.user.id,
-          year: parseInt(currentMatchDetail.year) || null,
+          year: Number.parseInt(currentMatchDetail.year) || null,
           make: currentMatchDetail.make,
           model: currentMatchDetail.model,
           trim: currentMatchDetail.trim,
@@ -6152,7 +6152,7 @@ Note: This assessment was generated by AI and is for informational purposes only
 
     function updateRatingStars() {
       document.querySelectorAll('#prospect-rating-stars .rating-star').forEach(star => {
-        const r = parseInt(star.dataset.rating);
+        const r = Number.parseInt(star.dataset.rating);
         star.style.opacity = r <= selectedProspectRating ? '1' : '0.3';
       });
     }
@@ -6234,23 +6234,23 @@ Note: This assessment was generated by AI and is for informational purposes only
         const prospectData = {
           user_id: session.user.id,
           vin: document.getElementById('prospect-vin').value.trim().toUpperCase() || null,
-          year: parseInt(document.getElementById('prospect-year').value) || null,
+          year: Number.parseInt(document.getElementById('prospect-year').value) || null,
           make: document.getElementById('prospect-make').value.trim() || null,
           model: document.getElementById('prospect-model').value.trim() || null,
           trim: document.getElementById('prospect-trim').value.trim() || null,
           body_style: document.getElementById('prospect-body-style').value || null,
           engine: document.getElementById('prospect-engine').value.trim() || null,
           fuel_type: document.getElementById('prospect-fuel-type').value || null,
-          mileage: parseInt(document.getElementById('prospect-mileage').value) || null,
-          asking_price: parseFloat(document.getElementById('prospect-price').value) || null,
+          mileage: Number.parseInt(document.getElementById('prospect-mileage').value) || null,
+          asking_price: Number.parseFloat(document.getElementById('prospect-price').value) || null,
           exterior_color: document.getElementById('prospect-ext-color').value.trim() || null,
           interior_color: document.getElementById('prospect-int-color').value.trim() || null,
           seller_type: document.getElementById('prospect-seller-type').value || null,
           seller_name: document.getElementById('prospect-seller-name').value.trim() || null,
           seller_location: document.getElementById('prospect-location').value.trim() || null,
           listing_url: document.getElementById('prospect-listing-url').value.trim() || null,
-          carfax_accidents: parseInt(document.getElementById('prospect-accidents').value) || 0,
-          carfax_owners: parseInt(document.getElementById('prospect-owners').value) || null,
+          carfax_accidents: Number.parseInt(document.getElementById('prospect-accidents').value) || 0,
+          carfax_owners: Number.parseInt(document.getElementById('prospect-owners').value) || null,
           carfax_service_records: document.getElementById('prospect-service-records').checked,
           carfax_notes: document.getElementById('prospect-carfax-notes').value.trim() || null,
           personal_rating: selectedProspectRating || null,
@@ -6645,11 +6645,11 @@ Note: This assessment was generated by AI and is for informational purposes only
 
         const prefData = {
           user_id: session.user.id,
-          min_budget: parseFloat(document.getElementById('pref-min-budget').value) || null,
-          max_budget: parseFloat(document.getElementById('pref-max-budget').value) || null,
-          min_year: parseInt(document.getElementById('pref-min-year').value) || null,
-          max_year: parseInt(document.getElementById('pref-max-year').value) || null,
-          max_mileage: parseInt(document.getElementById('pref-max-mileage').value) || null,
+          min_budget: Number.parseFloat(document.getElementById('pref-min-budget').value) || null,
+          max_budget: Number.parseFloat(document.getElementById('pref-max-budget').value) || null,
+          min_year: Number.parseInt(document.getElementById('pref-min-year').value) || null,
+          max_year: Number.parseInt(document.getElementById('pref-max-year').value) || null,
+          max_mileage: Number.parseInt(document.getElementById('pref-max-mileage').value) || null,
           fuel_preference: document.getElementById('pref-fuel').value || null,
           transmission_preference: document.getElementById('pref-transmission').value || null,
           drivetrain_preference: document.getElementById('pref-drivetrain').value || null,
@@ -7693,9 +7693,9 @@ See you there!`);
                     <td style="padding:14px 8px;font-size:0.9rem;">${date}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;">${vehicleName}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${log.odometer.toLocaleString()} mi</td>
-                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${fuelTypeEmoji} ${parseFloat(log.gallons).toFixed(2)}</td>
-                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">$${parseFloat(log.price_per_gallon).toFixed(2)}</td>
-                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${parseFloat(log.total_cost).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">${fuelTypeEmoji} ${Number.parseFloat(log.gallons).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;">$${Number.parseFloat(log.price_per_gallon).toFixed(2)}</td>
+                    <td style="padding:14px 8px;font-size:0.9rem;text-align:right;font-weight:600;color:var(--accent-gold);">$${Number.parseFloat(log.total_cost).toFixed(2)}</td>
                     <td style="padding:14px 8px;font-size:0.9rem;color:var(--text-secondary);">${log.station_name || '-'}</td>
                     <td style="padding:14px 8px;text-align:center;">
                       <button class="btn btn-ghost btn-sm" onclick="editFuelLog('${log.id}')" title="Edit">${mccIcon('file-text', 16)}</button>
@@ -7807,7 +7807,7 @@ See you there!`);
         data: {
           labels: sortedMonths.map(m => {
             const [year, month] = m.split('-');
-            return new Date(year, parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
+            return new Date(year, Number.parseInt(month) - 1).toLocaleDateString('en-US', { month: 'short', year: '2-digit' });
           }),
           datasets: [{
             label: 'Fuel Spending',
@@ -7890,8 +7890,8 @@ See you there!`);
       const totalInput = document.getElementById('fuel-log-total');
       
       const calcTotal = () => {
-        const gallons = parseFloat(gallonsInput.value) || 0;
-        const price = parseFloat(priceInput.value) || 0;
+        const gallons = Number.parseFloat(gallonsInput.value) || 0;
+        const price = Number.parseFloat(priceInput.value) || 0;
         if (gallons > 0 && price > 0) {
           totalInput.value = (gallons * price).toFixed(2);
         }
@@ -7943,10 +7943,10 @@ See you there!`);
         const payload = {
           vehicle_id: vehicleId,
           date,
-          odometer: parseInt(odometer),
-          gallons: parseFloat(gallons),
-          price_per_gallon: parseFloat(pricePerGallon),
-          total_cost: totalCost ? parseFloat(totalCost) : null,
+          odometer: Number.parseInt(odometer),
+          gallons: Number.parseFloat(gallons),
+          price_per_gallon: Number.parseFloat(pricePerGallon),
+          total_cost: totalCost ? Number.parseFloat(totalCost) : null,
           fuel_type: fuelType,
           station_name: stationName || null,
           notes: notes || null,

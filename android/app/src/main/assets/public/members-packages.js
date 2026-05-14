@@ -383,7 +383,7 @@
             actionButtons = `
               <button class="btn btn-success" onclick="approveUpsell('${u.id}')">${mccIcon('check', 16)} Approve ($${(u.estimated_cost || 0).toFixed(2)})</button>
               <button class="btn btn-secondary" onclick="declineUpsell('${u.id}')">${mccIcon('x', 16)} Decline</button>
-              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replace(/'/g, "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 16)} Get Competing Bids</button>
+              <button class="btn btn-ghost" onclick="rebidUpsell('${u.id}', '${u.title.replaceAll('\'', "\\'")}', ${u.estimated_cost || 0})">${mccIcon('refresh-cw', 16)} Get Competing Bids</button>
               <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 16)} Call Me</button>
             `;
           } else if (updateType === 'car_ready') {
@@ -400,7 +400,7 @@
             `;
           } else if (updateType === 'question') {
             actionButtons = `
-              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replace(/'/g, "\\'")}')">${mccIcon('message-square', 16)} Reply</button>
+              <button class="btn btn-primary" onclick="openReplyModal('${u.id}', '${u.title.replaceAll('\'', "\\'")}')">${mccIcon('message-square', 16)} Reply</button>
               <button class="btn btn-ghost" onclick="requestCallBack('${u.id}')">${mccIcon('phone', 16)} Call Me</button>
             `;
           } else if (updateType === 'request_call') {
@@ -859,7 +859,7 @@
             </div>
           </div>
           <div class="reminder-actions">
-            <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replace(/'/g, "\\'")}')">Schedule</button>
+            <button class="btn btn-sm btn-primary" onclick="createPackageFromReminder('${r.vehicleId}', '${r.title.replaceAll('\'', "\\'")}')">Schedule</button>
             <button class="btn btn-sm btn-secondary" onclick="snoozeReminder('${r.id}', ${r.dbId ? `'${r.dbId}'` : 'null'})" title="Snooze for 7 days">${mccIcon('clock', 16)}</button>
             <button class="btn btn-sm btn-ghost" onclick="dismissReminder('${r.id}')" title="Dismiss reminder">${mccIcon('x', 16)}</button>
           </div>
@@ -1436,7 +1436,7 @@
 
       const descriptionText = document.getElementById('p-description').value.trim() || null;
       const fullDescription = isSnowRemoval && snowRemovalDetails
-        ? `${descriptionText || ''}\n\n[Property: ${snowRemovalDetails.property_address} | Type: ${snowRemovalDetails.property_type.replace(/_/g, ' ')} | Size: ${snowRemovalDetails.property_size.replace(/_/g, ' ')}]`.trim()
+        ? `${descriptionText || ''}\n\n[Property: ${snowRemovalDetails.property_address} | Type: ${snowRemovalDetails.property_type.replaceAll('_', ' ')} | Size: ${snowRemovalDetails.property_size.replaceAll('_', ' ')}]`.trim()
         : descriptionText;
 
       const packageData = {
@@ -1463,7 +1463,7 @@
         status: 'open',
         crowd_funded: document.getElementById('p-crowd-funded')?.checked || false,
         funding_goal_cents: (document.getElementById('p-crowd-funded')?.checked && document.getElementById('p-funding-goal')?.value)
-          ? Math.round(parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
+          ? Math.round(Number.parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
       };
 
       // Check if this is a private job request
@@ -1522,7 +1522,7 @@
 
       setTimeout(() => {
         try {
-          const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+          const vehicleCount = Number.parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
           const tipContainer = document.getElementById('post-create-tip');
           if (tipContainer) {
             if (vehicleCount < 1) {
@@ -1705,7 +1705,7 @@
     function selectRepostWindow(el) {
       document.querySelectorAll('.repost-window-option').forEach(o => o.classList.remove('selected'));
       el.classList.add('selected');
-      selectedRepostHours = parseInt(el.dataset.hours);
+      selectedRepostHours = Number.parseInt(el.dataset.hours);
     }
 
     async function confirmRepost() {
@@ -1762,7 +1762,7 @@
     function selectExtendTime(el) {
       document.querySelectorAll('.extend-option').forEach(opt => opt.classList.remove('selected'));
       el.classList.add('selected');
-      selectedExtendHours = parseInt(el.dataset.hours);
+      selectedExtendHours = Number.parseInt(el.dataset.hours);
       updateExtendPreview();
     }
 
@@ -2410,7 +2410,7 @@
                 <strong style="color:var(--text-primary);font-size:0.92rem;">You got competitive pricing on ${_service}!</strong>
                 <p style="color:var(--text-muted);font-size:0.82rem;margin:2px 0 0;">Share My Car Concierge and earn $5 referral credit when a friend signs up.</p>
               </div>
-              <button class="btn btn-secondary btn-sm" onclick="shareSavings('${_service.replace(/'/g, "\\'")}',${amount})" style="white-space:nowrap;">${mccIcon('share', 16)} Share</button>
+              <button class="btn btn-secondary btn-sm" onclick="shareSavings('${_service.replaceAll('\'', "\\'")}',${amount})" style="white-space:nowrap;">${mccIcon('share', 16)} Share</button>
               <button class="btn btn-ghost btn-sm" onclick="document.getElementById('post-create-tip').innerHTML=''" style="padding:4px 8px;">×</button>
             </div>`;
           }
@@ -2452,7 +2452,7 @@
 
         const pkg = packages.find(p => p.id === packageId);
         const title = encodeURIComponent(pkg?.title || 'Service Appointment');
-        const startDate = appt.confirmed_date ? appt.confirmed_date.replace(/-/g, '') : '';
+        const startDate = appt.confirmed_date ? appt.confirmed_date.replaceAll('-', '') : '';
         const startTime = appt.confirmed_time_start ? appt.confirmed_time_start.replace(':', '') + '00' : '090000';
         const gcal = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${startDate}T${startTime}/${startDate}T${startTime}`;
 
@@ -2617,7 +2617,7 @@
               ` : ''}
               
               <div style="display:flex;gap:10px;flex-wrap:wrap;">
-                <button class="btn btn-success" onclick="openApproveAdditionalWorkModal('${work.id}', '${(work.title || 'Additional Work').replace(/'/g, "\\'")}', ${work.amount || 0}, '${packageId}', ${!!isCrowdFunded})">
+                <button class="btn btn-success" onclick="openApproveAdditionalWorkModal('${work.id}', '${(work.title || 'Additional Work').replaceAll('\'', "\\'")}', ${work.amount || 0}, '${packageId}', ${!!isCrowdFunded})">
                   ${mccIcon('check', 16)} Approve ($${(work.amount || 0).toFixed(2)})
                 </button>
                 <button class="btn btn-secondary" onclick="declineAdditionalWork('${work.id}', '${packageId}')">
@@ -2774,13 +2774,13 @@
               </p>
 
               <div style="display:flex;flex-direction:column;gap:12px;">
-                <button class="btn btn-primary" onclick="document.getElementById('additional-work-choice-modal').remove(); openApproveAdditionalWorkCardModal('${workId}', '${title.replace(/'/g, "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;">
+                <button class="btn btn-primary" onclick="document.getElementById('additional-work-choice-modal').remove(); openApproveAdditionalWorkCardModal('${workId}', '${title.replaceAll('\'', "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;">
                   <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
                     <span style="font-size:1.2rem;">${mccIcon('credit-card', 20)}</span>
                     <span>Pay In Full ($${amount.toFixed(2)})</span>
                   </span>
                 </button>
-                <button class="btn btn-secondary" onclick="document.getElementById('additional-work-choice-modal').remove(); openCrowdFundAdditionalWorkModal('${workId}', '${title.replace(/'/g, "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;border:2px solid var(--accent-blue);">
+                <button class="btn btn-secondary" onclick="document.getElementById('additional-work-choice-modal').remove(); openCrowdFundAdditionalWorkModal('${workId}', '${title.replaceAll('\'', "\\'")}', ${amount}, '${packageId}')" style="width:100%;padding:16px;border:2px solid var(--accent-blue);">
                   <span style="display:flex;align-items:center;justify-content:center;gap:8px;">
                     <span style="font-size:1.2rem;">${mccIcon('users', 20)}</span>
                     <span>Crowd Fund ($${amount.toFixed(2)})</span>
@@ -4210,11 +4210,11 @@
     }
 
     async function submitReview() {
-      const overallRating = parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
-      const qualityRating = parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
-      const communicationRating = parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
-      const timelinessRating = parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
-      const valueRating = parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
+      const overallRating = Number.parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
+      const qualityRating = Number.parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
+      const communicationRating = Number.parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
+      const timelinessRating = Number.parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
+      const valueRating = Number.parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
       const reviewTitle = document.getElementById('review-title').value.trim();
       const reviewText = document.getElementById('review-text').value.trim();
       
@@ -4473,7 +4473,7 @@
       
       let amountCents = null;
       if (refundType === 'partial') {
-        const amountDollars = parseFloat(document.getElementById('refund-amount-input').value);
+        const amountDollars = Number.parseFloat(document.getElementById('refund-amount-input').value);
         if (!amountDollars || amountDollars <= 0) {
           showToast('Please enter a valid refund amount', 'error');
           return;
@@ -5194,7 +5194,7 @@
       const makeLower = (make || '').toLowerCase();
       const modelLower = (model || '').toLowerCase();
       const trimLower = (trim || '').toLowerCase();
-      const yearNum = parseInt(year) || 0;
+      const yearNum = Number.parseInt(year) || 0;
       
       const europeanMakes = ['bmw', 'mercedes-benz', 'mercedes', 'audi', 'volkswagen', 'vw', 'porsche', 'mini', 'volvo', 'land rover', 'jaguar'];
       const electricMakes = ['tesla', 'rivian', 'lucid', 'polestar'];
@@ -5793,7 +5793,7 @@
             </div>
             <div style="display:flex;gap:8px;">
               <button class="btn btn-sm btn-secondary" onclick="openLogServiceModal('${item.code}')">Log Service</button>
-              ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replace(/'/g, "\\'")}')">Post Request</button>` : ''}
+              ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replaceAll('\'', "\\'")}')">Post Request</button>` : ''}
             </div>
           </div>
           ${item.notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);">${mccIcon('lightbulb', 16)} ${item.notes}</div>` : ''}
@@ -5811,7 +5811,7 @@
 
     async function updateVehicleMileage() {
       const input = document.getElementById('current-mileage-input');
-      const mileage = parseInt(input.value);
+      const mileage = Number.parseInt(input.value);
       if (!mileage || mileage < 0) {
         showToast('Please enter a valid mileage', 'error');
         return;
@@ -5861,9 +5861,9 @@
     async function saveServiceLog() {
       const serviceCode = document.getElementById('log-service-type').value;
       const serviceDate = document.getElementById('log-service-date').value;
-      const mileage = parseInt(document.getElementById('log-service-mileage').value);
+      const mileage = Number.parseInt(document.getElementById('log-service-mileage').value);
       const performedBy = document.getElementById('log-service-by').value.trim();
-      const cost = parseFloat(document.getElementById('log-service-cost').value) || null;
+      const cost = Number.parseFloat(document.getElementById('log-service-cost').value) || null;
       const notes = document.getElementById('log-service-notes').value.trim();
       
       if (!serviceCode) {
@@ -7119,7 +7119,7 @@
 
     function updateSplitParticipantAmount(index, dollarValue, totalAmountCents) {
       if (splitParticipantRows[index]) {
-        splitParticipantRows[index].amount_cents = Math.round(parseFloat(dollarValue) * 100) || 0;
+        splitParticipantRows[index].amount_cents = Math.round(Number.parseFloat(dollarValue) * 100) || 0;
         renderSplitParticipantsList(totalAmountCents);
       }
     }
@@ -7535,7 +7535,7 @@
                 <span style="font-size:0.78rem;font-weight:600;color:var(--accent-blue);">AI Service Summary</span>
                 <span style="font-size:0.68rem;color:var(--text-muted);margin-left:auto;padding:2px 6px;background:var(--bg-input);border-radius:100px;">AI-generated</span>
               </div>
-              <p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;margin:0;">${data.summary.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</p>
+              <p style="font-size:0.9rem;color:var(--text-secondary);line-height:1.6;margin:0;">${data.summary.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</p>
             </div>
           `;
         } else {
@@ -7574,7 +7574,7 @@
                 <span style="font-size:0.78rem;font-weight:600;color:var(--accent-orange);">Counter-Offer Suggestion</span>
               </div>
               <div style="font-size:1.1rem;font-weight:700;color:var(--accent-gold);margin-bottom:6px;">$${data.suggested_counter.toFixed(2)}</div>
-              <p style="font-size:0.84rem;color:var(--text-secondary);line-height:1.5;margin:0;">${data.rationale?.replace(/</g,'&lt;').replace(/>/g,'&gt;') || ''}</p>
+              <p style="font-size:0.84rem;color:var(--text-secondary);line-height:1.5;margin:0;">${data.rationale?.replaceAll('<', '&lt;').replaceAll('>', '&gt;') || ''}</p>
               <div style="margin-top:8px;font-size:0.75rem;color:var(--text-muted);">Market range: $${data.market_low}–$${data.market_high}</div>
             </div>
           `;
@@ -7800,7 +7800,7 @@
         const serviceCode = document.getElementById('log-service-type')?.value;
         const serviceDate = document.getElementById('log-service-date')?.value;
         const mileageVal = document.getElementById('log-service-mileage')?.value;
-        if (!serviceCode || !serviceDate || !mileageVal || parseInt(mileageVal) < 0) {
+        if (!serviceCode || !serviceDate || !mileageVal || Number.parseInt(mileageVal) < 0) {
           if (_origSaveServiceLog) await _origSaveServiceLog();
           return;
         }
@@ -7966,7 +7966,7 @@
                 <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:12px;gap:12px;flex-wrap:wrap;">
                   <div>
                     <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${s.pkg?.title || 'Service Package'}</div>
-                    <div style="font-size:0.82rem;color:var(--text-muted);">${s.pkg?.service_type ? s.pkg.service_type.replace(/_/g,' ') : ''} ${s.pkg?.member_zip ? '· ' + s.pkg.member_zip : ''}</div>
+                    <div style="font-size:0.82rem;color:var(--text-muted);">${s.pkg?.service_type ? s.pkg.service_type.replaceAll('_', ' ') : ''} ${s.pkg?.member_zip ? '· ' + s.pkg.member_zip : ''}</div>
                   </div>
                   <div style="text-align:right;">
                     <div style="font-size:1.1rem;font-weight:700;color:var(--accent-gold);">$${(s.total_amount_cents / 100).toFixed(2)}</div>

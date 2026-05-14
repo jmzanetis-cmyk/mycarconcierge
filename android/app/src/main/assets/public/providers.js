@@ -623,7 +623,7 @@
 
         tbody.innerHTML = data.transactions.map(tx => {
           const date = new Date(tx.created_at || tx.timestamp || tx.transaction_date).toLocaleDateString();
-          const amount = typeof tx.amount === 'number' ? (tx.amount / 100).toFixed(2) : parseFloat(tx.amount || 0).toFixed(2);
+          const amount = typeof tx.amount === 'number' ? (tx.amount / 100).toFixed(2) : Number.parseFloat(tx.amount || 0).toFixed(2);
           const card = tx.card_last_four ? `•••• ${tx.card_last_four}` : '—';
           const statusClass = tx.status === 'success' || tx.status === 'completed' ? 'status-success' : tx.status === 'pending' ? 'status-pending' : 'status-failed';
           const source = tx.pos_provider || tx.source || 'unknown';
@@ -874,7 +874,7 @@
           suspensionAlert.style.display = 'none';
           carFormContainer.style.display = 'none';
           carSubmittedStatus.style.display = 'none';
-          const avgRating = parseFloat(current_rating) || 0;
+          const avgRating = Number.parseFloat(current_rating) || 0;
           const reviewCount = myReviews.length;
           if (avgRating >= 3.0 && avgRating < 3.5 && reviewCount >= 2) {
             ratingWarning.style.display = 'block';
@@ -961,7 +961,7 @@
       const card = document.getElementById('ai-review-summary-card');
       if (!card || !data.summary_text) return;
 
-      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const esc = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
       card.style.display = 'block';
       document.getElementById('ai-summary-text').textContent = data.summary_text;
@@ -1286,7 +1286,7 @@
               <button onclick="document.getElementById('earnings-debrief-panel-${packageId}').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);">${mccIcon('x', 14)}</button>
             </div>
             <p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 6px;">Review and edit before saving to service record.</p>
-            <textarea id="earnings-debrief-edit-${packageId}" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;resize:vertical;font-family:inherit;">${summaryText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+            <textarea id="earnings-debrief-edit-${packageId}" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;resize:vertical;font-family:inherit;">${summaryText.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</textarea>
             <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
               <button onclick="saveEarningsDebrief('${packageId}')" class="btn btn-primary btn-sm" id="earnings-debrief-save-${packageId}">${mccIcon('save', 14)} Save to Service Record</button>
             </div>
@@ -1484,7 +1484,7 @@
         document.getElementById('filter-results-info').textContent = `${packagesToRender.length} open packages`;
       }
       
-      container.innerHTML = packagesToRender.map(p => renderPackageCard(p, true)).join('');
+      container.innerHTML = packagesToRender.map((p) => { return renderPackageCard(p, true); }).join('');
     }
 
     function applyFilters() {
@@ -1502,7 +1502,7 @@
           if (!p.member_zip) return true; // Show packages without location (legacy)
           const dist = estimateZipDistance(providerProfile.zip_code, p.member_zip);
           p._estimatedDistance = dist; // Store for display and sorting
-          return dist <= parseInt(distance);
+          return dist <= Number.parseInt(distance);
         });
       } else {
         // Calculate distance for display even if not filtering
@@ -1573,11 +1573,11 @@
       
       // Same first 3 digits = roughly same area (0-25 miles)
       if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
-        return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5; // Rough estimate
+        return Math.abs(Number.parseInt(zip1) - Number.parseInt(zip2)) * 0.5; // Rough estimate
       }
       
       // Different first 3 digits - use a rough approximation based on ZIP difference
-      const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
+      const diff = Math.abs(Number.parseInt(zip1.substring(0, 3)) - Number.parseInt(zip2.substring(0, 3)));
       
       // Very rough estimate: each ZIP prefix represents ~20-50 miles
       if (diff <= 2) return 15 + (diff * 10);
@@ -1623,7 +1623,7 @@
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 48)}</div><p>No open packages.</p></div>`;
         return;
       }
-      container.innerHTML = recent.map(p => renderPackageCard(p, true)).join('');
+      container.innerHTML = recent.map((p) => { return renderPackageCard(p, true); }).join('');
     }
 
     function renderPackageCard(p, showBidButton = false) {
@@ -1793,9 +1793,9 @@
               ${showBidButton && !biddingExpired ? `
                 ${alreadyBid ? `
                   <span style="color:var(--accent-green);font-size:0.85rem;margin-right:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
-                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
                 ` : `
-                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')">Submit Bid</button>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}')">Submit Bid</button>
                 `}
               ` : ''}
               ${biddingExpired && !alreadyBid ? '<span style="color:var(--text-muted);font-size:0.85rem;">Bidding closed</span>' : ''}
@@ -2019,12 +2019,12 @@
       const desc = 'Service appointment booked via My Car Concierge';
 
       function toISODate(ds) {
-        try { const d = new Date(ds); return d.toISOString().split('T')[0].replace(/-/g, ''); } catch { return ''; }
+        try { const d = new Date(ds); return d.toISOString().split('T')[0].replaceAll('-', ''); } catch { return ''; }
       }
       function to24h(t) {
         const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
         if (!m) return '120000';
-        let h = parseInt(m[1]); const min = m[2];
+        let h = Number.parseInt(m[1]); const min = m[2];
         if (m[3] && m[3].toUpperCase() === 'PM' && h < 12) h += 12;
         if (m[3] && m[3].toUpperCase() === 'AM' && h === 12) h = 0;
         return String(h).padStart(2, '0') + min + '00';
@@ -2041,7 +2041,7 @@
           <div class="modal-header"><h3 class="modal-title">Add to Calendar</h3><button class="modal-close" onclick="document.getElementById('provider-cal-modal').remove()">×</button></div>
           <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
             <button class="btn btn-primary" onclick="(function(){
-              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replace(/'/g, '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
+              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replaceAll('\'', '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
               const blob=new Blob([ics],{type:'text/calendar'});
               const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mcc-appointment.ics';a.click();
               document.getElementById('provider-cal-modal').remove();
@@ -2120,7 +2120,7 @@
               <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Proposed by: ${proposedBy}</div>
               ${appointment.provider_notes || appointment.member_notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">${mccIcon('file-text', 14)} ${appointment.provider_notes || appointment.member_notes}</div>` : ''}
               <div style="margin-top:10px;">
-                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replace(/'/g, '')}', '${(timeRange || '').replace(/'/g, '')}')">
+                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replaceAll('\'', '')}', '${(timeRange || '').replaceAll('\'', '')}')">
                   ${mccIcon('calendar', 14)} Add to Calendar
                 </button>
               </div>
@@ -2480,7 +2480,7 @@
       const duration = document.getElementById('schedule-duration').value;
       const notes = document.getElementById('schedule-notes').value;
       if (!date) return showToast('Please select a date', 'error');
-      const { error } = await window.createAppointment(packageId, memberId, providerId, date, timeStart, timeEnd, parseInt(duration), notes);
+      const { error } = await window.createAppointment(packageId, memberId, providerId, date, timeStart, timeEnd, Number.parseInt(duration), notes);
       if (error) return showToast('Failed to propose appointment: ' + error.message, 'error');
       closeModal('provider-schedule-modal');
       showToast('Appointment proposal sent!', 'success');
@@ -2668,7 +2668,7 @@
           packageId,
           type,
           photos: photoUrls,
-          odometer: parseInt(odometer),
+          odometer: Number.parseInt(odometer),
           fuelLevel,
           exteriorCondition,
           interiorCondition,
@@ -3111,7 +3111,7 @@
       const config = updateTypeConfig[updateType];
       const title = document.getElementById('upsell-title').value.trim();
       const description = document.getElementById('upsell-description').value.trim();
-      const cost = parseFloat(document.getElementById('upsell-cost').value) || 0;
+      const cost = Number.parseFloat(document.getElementById('upsell-cost').value) || 0;
       const urgency = document.getElementById('upsell-urgency').value;
       const isUrgent = document.getElementById('upsell-urgent').checked;
 
@@ -3423,7 +3423,7 @@
               ⚡ Accept Private Job
             </button>
           ` : `
-            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replace(/'/g, "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
+            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replaceAll('\'', "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
           `}
         </div>
       `;
@@ -3650,14 +3650,14 @@
     
     function updateBidCalculation() {
       // Get values
-      const parts = parseFloat(document.getElementById('calc-parts').value) || 0;
-      const laborHours = parseFloat(document.getElementById('calc-labor-hours').value) || 0;
-      const laborRate = parseFloat(document.getElementById('calc-labor-rate').value) || 75;
-      const profitMargin = parseFloat(document.getElementById('calc-profit-margin').value) || 20;
+      const parts = Number.parseFloat(document.getElementById('calc-parts').value) || 0;
+      const laborHours = Number.parseFloat(document.getElementById('calc-labor-hours').value) || 0;
+      const laborRate = Number.parseFloat(document.getElementById('calc-labor-rate').value) || 75;
+      const profitMargin = Number.parseFloat(document.getElementById('calc-profit-margin').value) || 20;
       const travelEnabled = document.getElementById('calc-travel-enabled').checked;
-      const travel = travelEnabled ? (parseFloat(document.getElementById('calc-travel').value) || 0) : 0;
+      const travel = travelEnabled ? (Number.parseFloat(document.getElementById('calc-travel').value) || 0) : 0;
       const transportEnabled = document.getElementById('calc-transport-enabled').checked;
-      const transport = transportEnabled ? (parseFloat(document.getElementById('calc-transport').value) || 0) : 0;
+      const transport = transportEnabled ? (Number.parseFloat(document.getElementById('calc-transport').value) || 0) : 0;
       const urgencyEnabled = document.getElementById('calc-urgency').checked;
       
       // Update profit margin display
@@ -3856,14 +3856,14 @@
     
     function applyCalculatorToForm() {
       // Get calculated values
-      const parts = parseFloat(document.getElementById('calc-parts').value) || 0;
-      const laborHours = parseFloat(document.getElementById('calc-labor-hours').value) || 0;
-      const laborRate = parseFloat(document.getElementById('calc-labor-rate').value) || 75;
+      const parts = Number.parseFloat(document.getElementById('calc-parts').value) || 0;
+      const laborHours = Number.parseFloat(document.getElementById('calc-labor-hours').value) || 0;
+      const laborRate = Number.parseFloat(document.getElementById('calc-labor-rate').value) || 75;
       const labor = laborHours * laborRate;
       
       // Get total from display (parse it back)
       const totalText = document.getElementById('calc-display-total').textContent;
-      const total = parseFloat(totalText.replace('$', '').replace(',', '')) || 0;
+      const total = Number.parseFloat(totalText.replace('$', '').replace(',', '')) || 0;
       
       if (total <= 0) {
         showToast('Please enter values in the calculator first', 'error');
@@ -3875,7 +3875,7 @@
       
       // Set the price field
       const priceSelect = document.getElementById('bid-price');
-      const priceOptions = Array.from(priceSelect.options).map(o => parseFloat(o.value));
+      const priceOptions = Array.from(priceSelect.options).map(o => Number.parseFloat(o.value));
       const matchingOption = priceOptions.find(p => p === roundedTotal);
       
       if (matchingOption) {
@@ -4670,7 +4670,7 @@
         full_name: document.getElementById('profile-full-name').value.trim() || null,
         business_phone: document.getElementById('profile-phone').value.trim() || null,
         business_address: document.getElementById('profile-address').value.trim() || null,
-        years_in_business: document.getElementById('profile-years').value ? parseInt(document.getElementById('profile-years').value) : null,
+        years_in_business: document.getElementById('profile-years').value ? Number.parseInt(document.getElementById('profile-years').value) : null,
         services_offered: services.length > 0 ? services : null,
         certifications: certs.length > 0 ? certs : null,
         service_areas: zipCodes.length > 0 ? zipCodes : null,
@@ -4678,7 +4678,7 @@
         business_hours: getBusinessHours(),
         emergency_enabled: document.getElementById('emergency-accept-calls')?.checked || false,
         emergency_services: emergencyServices.length > 0 ? emergencyServices : null,
-        emergency_radius: parseInt(document.getElementById('emergency-radius')?.value) || 15,
+        emergency_radius: Number.parseInt(document.getElementById('emergency-radius')?.value) || 15,
         is_24_seven: document.getElementById('emergency-24-7')?.checked || false,
         can_tow: document.getElementById('emergency-can-tow')?.checked || false,
         updated_at: new Date().toISOString()
@@ -5463,7 +5463,7 @@
         name,
         role,
         bio: bio || null,
-        years_experience: experience ? parseInt(experience) : null,
+        years_experience: experience ? Number.parseInt(experience) : null,
         certifications,
         specialties,
         photo_url: photoUrl,
@@ -5997,7 +5997,7 @@
       container.innerHTML = nearbyEmergencies.map(e => {
         const timeAgo = formatTimeAgo(e.created_at);
         const distance = e.distance_miles ? `${e.distance_miles.toFixed(1)} mi away` : 'Nearby';
-        const escrowAmount = e.escrow_amount ? `$${parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
+        const escrowAmount = e.escrow_amount ? `$${Number.parseFloat(e.escrow_amount).toFixed(2)}` : 'Pending';
         
         // Calculate time remaining for claim
         let countdownHtml = '';
@@ -6196,7 +6196,7 @@
           ${e.escrow_amount ? `
             <div style="margin-bottom:16px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);">
               <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('dollar-sign', 14)} Member Escrow Authorized</div>
-              <div style="font-size:1.2rem;font-weight:600;color:var(--accent-green);">$${parseFloat(e.escrow_amount).toFixed(2)}</div>
+              <div style="font-size:1.2rem;font-weight:600;color:var(--accent-green);">$${Number.parseFloat(e.escrow_amount).toFixed(2)}</div>
             </div>
           ` : ''}
           
@@ -6238,7 +6238,7 @@
 
     async function confirmAcceptEmergency() {
       const emergencyId = document.getElementById('accept-emergency-id').value;
-      const eta = parseInt(document.getElementById('accept-eta').value);
+      const eta = Number.parseInt(document.getElementById('accept-eta').value);
       
       if (!eta) {
         showToast('Please select your ETA', 'error');
@@ -6375,7 +6375,7 @@
       // Show escrow amount
       const escrowDisplay = document.getElementById('complete-escrow-display');
       if (myActiveEmergency?.escrow_amount) {
-        escrowDisplay.textContent = `$${parseFloat(myActiveEmergency.escrow_amount).toFixed(2)}`;
+        escrowDisplay.textContent = `$${Number.parseFloat(myActiveEmergency.escrow_amount).toFixed(2)}`;
       } else {
         escrowDisplay.textContent = 'Not set';
       }
@@ -6386,9 +6386,9 @@
     async function confirmCompleteEmergency() {
       const emergencyId = document.getElementById('complete-emergency-id').value;
       const notes = document.getElementById('complete-notes').value;
-      const amount = parseFloat(document.getElementById('complete-amount').value) || 0;
+      const amount = Number.parseFloat(document.getElementById('complete-amount').value) || 0;
       const isTowing = document.getElementById('complete-is-towing').value === 'true';
-      const actualMiles = isTowing ? parseFloat(document.getElementById('complete-actual-miles').value) || null : null;
+      const actualMiles = isTowing ? Number.parseFloat(document.getElementById('complete-actual-miles').value) || null : null;
       
       if (amount <= 0) {
         showToast('Please enter a valid invoice amount', 'error');
@@ -6587,13 +6587,13 @@
         technician_notes: document.getElementById('inspection-notes').value || null,
         recommendations: document.getElementById('inspection-recommendations').value || null,
         ...inspectionData,
-        brake_pads_front_percent: parseInt(document.getElementById('brake_pads_front_percent').value) || null,
-        brake_pads_rear_percent: parseInt(document.getElementById('brake_pads_rear_percent').value) || null,
-        tire_front_left_tread: parseInt(document.getElementById('tire_front_left_tread').value) || null,
-        tire_front_right_tread: parseInt(document.getElementById('tire_front_right_tread').value) || null,
-        tire_rear_left_tread: parseInt(document.getElementById('tire_rear_left_tread').value) || null,
-        tire_rear_right_tread: parseInt(document.getElementById('tire_rear_right_tread').value) || null,
-        battery_voltage: parseFloat(document.getElementById('battery_voltage').value) || null,
+        brake_pads_front_percent: Number.parseInt(document.getElementById('brake_pads_front_percent').value) || null,
+        brake_pads_rear_percent: Number.parseInt(document.getElementById('brake_pads_rear_percent').value) || null,
+        tire_front_left_tread: Number.parseInt(document.getElementById('tire_front_left_tread').value) || null,
+        tire_front_right_tread: Number.parseInt(document.getElementById('tire_front_right_tread').value) || null,
+        tire_rear_left_tread: Number.parseInt(document.getElementById('tire_rear_left_tread').value) || null,
+        tire_rear_right_tread: Number.parseInt(document.getElementById('tire_rear_right_tread').value) || null,
+        battery_voltage: Number.parseFloat(document.getElementById('battery_voltage').value) || null,
         updated_at: new Date().toISOString()
       };
       
@@ -7242,19 +7242,19 @@
         if (notes) extraData.notes = notes;
         if (parkingSpot) extraData.parking_spot = parkingSpot;
         if (lat && lng) {
-          extraData.last_location_lat = parseFloat(lat);
-          extraData.last_location_lng = parseFloat(lng);
+          extraData.last_location_lat = Number.parseFloat(lat);
+          extraData.last_location_lng = Number.parseFloat(lng);
         }
         
         // Capture odometer and fuel level for pickup
         if (newStatus === 'picked_up') {
-          if (odometerReading) extraData.pickup_odometer = parseInt(odometerReading);
+          if (odometerReading) extraData.pickup_odometer = Number.parseInt(odometerReading);
           if (fuelLevel) extraData.pickup_fuel_level = fuelLevel;
         }
         
         // Capture final odometer for completion
         if (newStatus === 'completed') {
-          if (finalOdometer) extraData.dropoff_odometer = parseInt(finalOdometer);
+          if (finalOdometer) extraData.dropoff_odometer = Number.parseInt(finalOdometer);
           if (notes) extraData.delivery_notes = notes;
         }
         
@@ -7868,7 +7868,7 @@
 
     function updateFleetBidTotal() {
       const pricingType = document.querySelector('input[name="fleet-pricing-type"]:checked')?.value || 'per_vehicle';
-      const price = parseFloat(document.getElementById('fleet-bid-price').value) || 0;
+      const price = Number.parseFloat(document.getElementById('fleet-bid-price').value) || 0;
       const vehicleCount = currentFleetBidBatch?.items?.length || currentFleetBidBatch?.vehicle_count || 0;
 
       const label = document.getElementById('fleet-bid-price-label');
@@ -7888,7 +7888,7 @@
 
     async function submitFleetBulkBid() {
       const batchId = document.getElementById('fleet-bid-batch-id').value;
-      const price = parseFloat(document.getElementById('fleet-bid-price').value);
+      const price = Number.parseFloat(document.getElementById('fleet-bid-price').value);
       const pricingType = document.querySelector('input[name="fleet-pricing-type"]:checked')?.value;
       const duration = document.getElementById('fleet-bid-duration').value;
       const notes = document.getElementById('fleet-bid-notes').value;
@@ -8095,11 +8095,11 @@
       
       (data || []).forEach(payment => {
         const month = new Date(payment.created_at).getMonth();
-        const total = parseFloat(payment.amount) || 0;
+        const total = Number.parseFloat(payment.amount) || 0;
         const providerAmount = total * 0.925;
-        const tip = parseFloat(payment.tip_amount) || 0;
-        const upsell = parseFloat(payment.upsell_amount) || 0;
-        const reimbursement = parseFloat(payment.reimbursement_amount) || 0;
+        const tip = Number.parseFloat(payment.tip_amount) || 0;
+        const upsell = Number.parseFloat(payment.upsell_amount) || 0;
+        const reimbursement = Number.parseFloat(payment.reimbursement_amount) || 0;
         
         monthlyData[month].revenue += providerAmount;
         monthlyData[month].tips += tip;
@@ -8541,7 +8541,7 @@
               }),
               datasets: [{
                 label: 'Average Rating',
-                data: trendData.map(t => parseFloat(t.average)),
+                data: trendData.map(t => Number.parseFloat(t.average)),
                 borderColor: '#d4a855',
                 backgroundColor: 'rgba(212, 168, 85, 0.2)',
                 tension: 0.3,
@@ -8780,7 +8780,7 @@
     }
 
     function formatReferralCurrency(amount) {
-      return '$' + parseFloat(amount || 0).toFixed(2);
+      return '$' + Number.parseFloat(amount || 0).toFixed(2);
     }
 
     async function getOrCreateFounderProfile() {
@@ -9441,7 +9441,7 @@
       document.querySelectorAll('.pos-step-content').forEach(el => el.classList.remove('active'));
       document.getElementById(`pos-step-${step}`)?.classList.add('active');
       document.querySelectorAll('.pos-step').forEach(el => {
-        const s = parseInt(el.dataset.step);
+        const s = Number.parseInt(el.dataset.step);
         el.classList.remove('active', 'completed');
         if (s < step) el.classList.add('completed');
         if (s === step) el.classList.add('active');
@@ -10446,7 +10446,7 @@
           return;
         }
         
-        posState.newVehicle = { year: parseInt(year), make, model, color, license_plate: plate, vin };
+        posState.newVehicle = { year: Number.parseInt(year), make, model, color, license_plate: plate, vin };
       } else if (!posState.selectedVehicleId) {
         errorEl.textContent = 'Please select a vehicle or add a new one';
         errorEl.style.display = 'block';
@@ -10487,8 +10487,8 @@
       
       const category = document.getElementById('pos-service-category').value;
       const description = document.getElementById('pos-service-description').value.trim();
-      const laborPrice = parseFloat(document.getElementById('pos-labor-price').value) || 0;
-      const partsPrice = parseFloat(document.getElementById('pos-parts-price').value) || 0;
+      const laborPrice = Number.parseFloat(document.getElementById('pos-labor-price').value) || 0;
+      const partsPrice = Number.parseFloat(document.getElementById('pos-parts-price').value) || 0;
       const notes = document.getElementById('pos-service-notes').value.trim();
       
       if (!category) {
@@ -12206,7 +12206,7 @@
     
     function urlBase64ToUint8ArrayProvider(base64String) {
       const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
       const rawData = window.atob(base64);
       const outputArray = new Uint8Array(rawData.length);
       for (let i = 0; i < rawData.length; ++i) {
@@ -12649,7 +12649,7 @@
             is_active: document.getElementById('day-active-' + d).checked,
             start_time: document.getElementById('day-start-' + d).value,
             end_time: document.getElementById('day-end-' + d).value,
-            bay_capacity: parseInt(document.getElementById('day-bays-' + d).value) || 1
+            bay_capacity: Number.parseInt(document.getElementById('day-bays-' + d).value) || 1
           });
         }
         const response = await fetch('/api/provider/availability', {

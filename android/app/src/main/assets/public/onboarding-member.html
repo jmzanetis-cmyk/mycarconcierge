@@ -1344,7 +1344,7 @@
     // www/shared/survey-questions.js. The server's ALLOWED enum and the admin's
     // display labels are derived from the same definition, so they cannot drift.
     // To add or change a question, edit shared/survey-questions.js only.
-    const SURVEY_QUESTIONS = (window.MCCSurvey && window.MCCSurvey.QUESTIONS) || [];
+    const SURVEY_QUESTIONS = (globalThis.MCCSurvey && globalThis.MCCSurvey.QUESTIONS) || [];
 
     let surveyStep = 0;
     const surveyAnswers = {};
@@ -1562,7 +1562,7 @@
         if (fbBtn) fbBtn.disabled = false;
       }
     }
-    window.signUpWithFacebook = signUpWithFacebook;
+    globalThis.signUpWithFacebook = signUpWithFacebook;
 
     // If the user lands here already authenticated via Facebook OAuth
     // (?source=facebook from login.html or this page's own FB button),

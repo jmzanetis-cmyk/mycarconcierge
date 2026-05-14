@@ -1914,7 +1914,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
     return result;
   }
   
-  const amountNum = parseFloat(amount) || 0;
+  const amountNum = Number.parseFloat(amount) || 0;
   
   if (context === 'fleet' || context === null) {
     const { data: fleetMember } = await supabaseClient
@@ -1931,7 +1931,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
       result.memberRecord = fleetMember;
       
       if (fleetMember.spending_limit !== null && fleetMember.spending_limit !== undefined) {
-        result.limit = parseFloat(fleetMember.spending_limit);
+        result.limit = Number.parseFloat(fleetMember.spending_limit);
         if (amountNum > result.limit) {
           result.allowed = false;
           result.message = `Exceeds spending limit of $${result.limit.toFixed(2)}`;
@@ -1962,7 +1962,7 @@ async function checkSpendingLimit(userId, amount, context = null) {
       result.memberRecord = householdMember;
       
       if (householdMember.spending_limit !== null && householdMember.spending_limit !== undefined) {
-        result.limit = parseFloat(householdMember.spending_limit);
+        result.limit = Number.parseFloat(householdMember.spending_limit);
         if (amountNum > result.limit) {
           result.allowed = false;
           result.message = `Exceeds spending limit of $${result.limit.toFixed(2)}`;
@@ -1997,7 +1997,7 @@ async function createDestinationService(data) {
   // If so, verify their spending limit and requires_approval status.
   // If estimated cost exceeds spending_limit, return error.
   // If requires_approval is true, set approval_status to 'pending_approval'.
-  const estimatedCost = parseFloat(data.estimated_cost) || 0;
+  const estimatedCost = Number.parseFloat(data.estimated_cost) || 0;
   const spendingCheck = await checkSpendingLimit(user.id, estimatedCost, data.context || null);
   
   if (!spendingCheck.allowed) {
@@ -2841,11 +2841,11 @@ async function createBulkServiceBatch(fleetId, data) {
   }
   
   // SPENDING LIMIT CHECK: Compare total_estimated_cost with creator's spending_limit
-  const totalEstimatedCost = parseFloat(data.total_estimated_cost) || 0;
+  const totalEstimatedCost = Number.parseFloat(data.total_estimated_cost) || 0;
   
   if (!isOwner && userMembership) {
     if (userMembership.spending_limit !== null && userMembership.spending_limit !== undefined) {
-      const limit = parseFloat(userMembership.spending_limit);
+      const limit = Number.parseFloat(userMembership.spending_limit);
       if (totalEstimatedCost > limit) {
         return { data: null, error: `Service cost exceeds your spending limit of $${limit.toFixed(2)}` };
       }

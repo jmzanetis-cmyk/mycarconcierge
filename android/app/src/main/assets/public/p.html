@@ -249,7 +249,7 @@
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     let providerSlug = '';
     let providerData = null;
 
@@ -293,11 +293,11 @@
 
     async function requestQuote() {
       try {
-        if (typeof window.supabase !== 'undefined') {
-          const sb = window.supabase.createClient(
+        if (typeof globalThis.supabase !== 'undefined') {
+          const sb = globalThis.supabase.createClient(
             'https://ifbyjxuaclwmadqbjcyp.supabase.co',
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnlqeHVhY2x3bWFkcWJqY3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI0OTUsImV4cCI6MjA4MDQ3ODQ5NX0.wts2W0ICqTSCUpF9ewvEk59P2A0stvqqmP0CNsPfIt8',
-            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: window.localStorage } }
+            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: globalThis.localStorage } }
           );
           const { data: { session } } = await sb.auth.getSession();
           if (session) {
@@ -401,33 +401,30 @@
       document.getElementById('jsonld-data').textContent = JSON.stringify(jsonLd);
     }
 
-    function renderProfile(p) {
-      const initials = (p.business_name || 'P').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
-      const avatarContent = p.avatar_url
-        ? '<img src="' + escapeHtml(p.avatar_url) + '" alt="' + escapeHtml(p.business_name) + '">'
-        : initials;
-      const location = [p.city, p.state].filter(Boolean).join(', ');
-
-      let statsHtml = '';
+    // Stats row (rating, completed jobs). Extracted from renderProfile so
+    // the main function stays under the cognitive-complexity budget (Task #262).
+    function _renderStatsHtml(p) {
+      let html = '';
       if (p.avg_rating) {
-        statsHtml += '<div class="stat-item"><span class="stars">' + renderStars(parseFloat(p.avg_rating)) + '</span><span class="stat-value">' + p.avg_rating + '</span><span class="stat-label">(' + p.review_count + ' review' + (p.review_count !== 1 ? 's' : '') + ')</span></div>';
+        html += '<div class="stat-item"><span class="stars">' + renderStars(parseFloat(p.avg_rating)) + '</span><span class="stat-value">' + p.avg_rating + '</span><span class="stat-label">(' + p.review_count + ' review' + (p.review_count !== 1 ? 's' : '') + ')</span></div>';
       }
       if (p.completed_jobs > 0) {
-        statsHtml += '<div class="stat-item"><span class="stat-value">' + p.completed_jobs + '</span><span class="stat-label">jobs completed</span></div>';
+        html += '<div class="stat-item"><span class="stat-value">' + p.completed_jobs + '</span><span class="stat-label">jobs completed</span></div>';
       }
+      return html;
+    }
 
-      let badgesHtml = '';
+    function _renderBadgesHtml(p, mccVerified) {
       const badges = [];
-      const __mccVerified = !!p.bgc_badge_verified;
-      if (window.MCC_BGC) {
-        const __pill = window.MCC_BGC.renderBadge({
-          verified: __mccVerified,
+      if (globalThis.MCC_BGC) {
+        const __pill = globalThis.MCC_BGC.renderBadge({
+          verified: mccVerified,
           variant: 'full',
           compliantEmployees: p.bgc_compliant_employees,
           totalEmployees: p.bgc_total_employees
         });
         if (__pill) badges.push('<div class="badge-card bgc-badge-lg">' + __pill + '</div>');
-      } else if (__mccVerified) {
+      } else if (mccVerified) {
         badges.push('<div class="badge-card bgc-badge-verified bgc-badge-lg" title="MCC Verified — at least 90% of this team have completed an active background check"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</div>');
       }
       if (p.years_in_business && p.years_in_business >= 1) {
@@ -446,7 +443,19 @@
       if (p.can_tow) {
         badges.push('<div class="badge-card"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10 17h4V5H2v12h3"/><path d="M20 17h2v-3.34a4 4 0 0 0-1.17-2.83L19 9h-5v8h1"/><circle cx="7.5" cy="17.5" r="2.5"/><circle cx="17.5" cy="17.5" r="2.5"/></svg> Towing Available</div>');
       }
-      if (badges.length > 0) badgesHtml = '<div class="badges-row">' + badges.join('') + '</div>';
+      return badges.length > 0 ? '<div class="badges-row">' + badges.join('') + '</div>' : '';
+    }
+
+    function renderProfile(p) {
+      const initials = (p.business_name || 'P').split(' ').map(w => w[0]).join('').substring(0, 2).toUpperCase();
+      const avatarContent = p.avatar_url
+        ? '<img src="' + escapeHtml(p.avatar_url) + '" alt="' + escapeHtml(p.business_name) + '">'
+        : initials;
+      const location = [p.city, p.state].filter(Boolean).join(', ');
+
+      const statsHtml = _renderStatsHtml(p);
+      const __mccVerified = !!p.bgc_badge_verified;
+      const badgesHtml = _renderBadgesHtml(p, __mccVerified);
 
       let servicesHtml = '';
       if (p.services && p.services.length > 0) {
@@ -514,7 +523,7 @@
               '</p>' +
             '</details>' +
             '<p style="margin-top:18px;font-size:0.78rem;color:var(--text-muted);line-height:1.55;">' +
-              (window.MCC_BGC ? window.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
+              (globalThis.MCC_BGC ? globalThis.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
             '</p>' +
           '</div>';
       } else {

@@ -11,7 +11,7 @@
       const res = await fetch(url, options);
       if (!res.ok) {
         let errMsg = `Server error (${res.status})`;
-        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch {}
+        try { const e = await res.clone().json(); errMsg = e.error || e.message || errMsg; } catch { /* Intentionally silent */ }
         throw new Error(errMsg);
       }
       return res.json();
@@ -191,7 +191,7 @@
         </div>`;
       }
     }
-    window.lookupUserOnProvidersPage = lookupUserOnProvidersPage;
+    globalThis.lookupUserOnProvidersPage = lookupUserOnProvidersPage;
 
     let registrationVerifications = [];
     let currentApplication = null;
@@ -309,7 +309,7 @@
       crm: async () => { await loadCrmData(); },
       'team-management': async () => { await loadTeamMembers(); },
       traffic: async () => { await loadTrafficData(); },
-      'marketing-outreach': async () => { await initMarketingHub(); if (typeof window.initOutreachEngine === 'function') await window.initOutreachEngine(); },
+      'marketing-outreach': async () => { await initMarketingHub(); if (typeof globalThis.initOutreachEngine === 'function') await globalThis.initOutreachEngine(); },
       'ai-ops': async () => { await initAiOps(); },
       'agent-fleet': async () => { await loadAgentFleetSection(); },
       'sms-log': async () => { await loadSmsLog(1); },
@@ -496,9 +496,9 @@
       
       if (event === 'SIGNED_IN' && session?.user && currentModalState === 'login') {
         currentUser = session.user;
-        window._adminEmail = session.user.email || '';
+        globalThis._adminEmail = session.user.email || '';
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
-        if (profile?.role === 'admin') {
+        if (profile && profile.role === 'admin') {
           showModalState('password');
         } else {
           showModalState('not-admin');
@@ -516,7 +516,7 @@
       }
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/auth/check-access`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
@@ -563,7 +563,7 @@
         
         if (session?.user) {
           currentUser = session.user;
-          window._adminEmail = session.user.email || '';
+          globalThis._adminEmail = session.user.email || '';
           
           // Check 2FA authorization before checking admin role
           const authorized = await checkAccessAuthorization();
@@ -573,7 +573,7 @@
           const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
           console.log('[Admin] Profile:', profile);
           
-          if (profile?.role === 'admin') {
+          if (profile && profile.role === 'admin') {
             showModalState('password');
           } else {
             showModalState('not-admin');
@@ -642,8 +642,8 @@
       }
     }
     
-    window.handleAdminModalAction = handleAdminModalAction;
-    window.verifyAdminPassword = verifyAdminPassword;
+    globalThis.handleAdminModalAction = handleAdminModalAction;
+    globalThis.verifyAdminPassword = verifyAdminPassword;
 
     (function bindAdminButtons() {
       function attach() {
@@ -669,7 +669,7 @@
       const infoDiv = document.getElementById('admin-forgot-password-info');
       infoDiv.style.display = infoDiv.style.display === 'none' ? 'block' : 'none';
     }
-    window.showForgotAdminPassword = showForgotAdminPassword;
+    globalThis.showForgotAdminPassword = showForgotAdminPassword;
 
     async function loadAllData() {
       await Promise.all([
@@ -688,7 +688,7 @@
         loadAgentFleetBadge();
         if (!_agentFleetBadgeTimer) {
           _agentFleetBadgeTimer = setInterval(() => {
-            try { loadAgentFleetBadge(); } catch (_) {}
+            try { loadAgentFleetBadge(); } catch { /* Intentionally silent */ }
           }, 60000);
         }
       }
@@ -1040,7 +1040,7 @@
       if (e.target.classList.contains('analytics-range')) {
         document.querySelectorAll('.analytics-range').forEach(btn => btn.classList.remove('active'));
         e.target.classList.add('active');
-        analyticsDateRange = parseInt(e.target.dataset.days);
+        analyticsDateRange = Number.parseInt(e.target.dataset.days);
         loadAnalytics();
       }
     });
@@ -1096,7 +1096,7 @@
 
     async function loadDashboardCharts() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const statsHeaders = getAdminHeaders();
         const [overviewRes, revenueRes, usersRes, ordersRes] = await Promise.all([
           fetch(`${apiBase}/api/admin/stats/overview`, { headers: statsHeaders }),
@@ -1303,11 +1303,11 @@
     async function hydrateApplicationOutreachLeads(apps) {
       if (!Array.isArray(apps) || !apps.length) return;
       const leadIds = Array.from(new Set(
-        apps.map(a => a && a.outreach_lead_id).filter(Boolean)
+        apps.map(a => a?.outreach_lead_id).filter(Boolean)
       ));
       if (!leadIds.length) return;
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/provider-application/outreach-leads`, {
           method: 'POST',
           headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
@@ -1332,7 +1332,7 @@
     // is safe to drop into innerHTML; everything user-controlled is run
     // through escapeHtml first.
     function renderApplicationLeadBadge(app) {
-      const lead = app && app._outreach_lead;
+      const lead = app?._outreach_lead;
       if (!app || !app.outreach_lead_id) {
         return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:rgba(100,100,120,0.12);color:var(--text-muted);border:1px solid var(--border-subtle);" title="No matching outreach lead — applicant signed up without ever being contacted by the cold-outreach engine.">${mccIcon('user', 14)} Direct signup</span>`;
       }
@@ -1344,11 +1344,11 @@
       }
       const sourceLabel = (lead.source || 'outreach').toString();
       // Title-case the source code for display ("hunter" → "Hunter").
-      const sourceDisplay = sourceLabel.charAt(0).toUpperCase() + sourceLabel.slice(1).replace(/_/g, ' ');
+      const sourceDisplay = sourceLabel.charAt(0).toUpperCase() + sourceLabel.slice(1).replaceAll('_', ' ');
       const parts = [sourceDisplay];
       if (lead.location) parts.push(lead.location);
       if (lead.created_at) {
-        try { parts.push(new Date(lead.created_at).toLocaleDateString()); } catch (e) {}
+        try { parts.push(new Date(lead.created_at).toLocaleDateString()); } catch { /* Intentionally silent */ }
       }
       const label = parts.join(' — ');
       const tooltip = `From cold-outreach lead "${lead.name || 'Unknown'}" (${lead.type || '?'}) — click to open the lead`;
@@ -1359,8 +1359,8 @@
       // serializer, which escapes & < > but NOT " or ' — unsafe for raw
       // attribute interpolation. encodeAttr handles the additional chars.
       const encodeAttr = (v) => String(v == null ? '' : v)
-        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        .replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;').replaceAll('\'', '&#39;');
       const safeId = encodeAttr(lead.id);
       const safeName = encodeAttr(lead.name || '');
       const safeEmail = encodeAttr(lead.email || '');
@@ -1371,26 +1371,26 @@
     }
     // Test seam: exposed so unit tests can exercise the real renderer
     // against full DOM output instead of a re-implemented stub.
-    window.renderApplicationLeadBadge = renderApplicationLeadBadge;
+    globalThis.renderApplicationLeadBadge = renderApplicationLeadBadge;
 
     // Delegated click handler for outreach-lead badges (Task #189). Installed
     // once per page load — guarded by a window flag so repeated re-renders or
     // hot-reloads don't stack listeners. Reads data-* attributes (which the
     // browser already decodes back to plain text) and dispatches to
     // viewOutreachLead, so untrusted values never touch a JS literal.
-    if (!window.__mccOutreachLeadLinkBound) {
+    if (!globalThis.__mccOutreachLeadLinkBound) {
       document.addEventListener('click', function(e) {
         const el = e.target && e.target.closest && e.target.closest('.mcc-outreach-lead-link');
         if (!el) return;
         e.preventDefault();
-        const id = el.getAttribute('data-lead-id') || '';
-        const name = el.getAttribute('data-lead-name') || '';
-        const email = el.getAttribute('data-lead-email') || '';
-        if (typeof window.viewOutreachLead === 'function') {
-          window.viewOutreachLead(id, name, email);
+        const id = el.dataset.leadId || '';
+        const name = el.dataset.leadName || '';
+        const email = el.dataset.leadEmail || '';
+        if (typeof globalThis.viewOutreachLead === 'function') {
+          globalThis.viewOutreachLead(id, name, email);
         }
       });
-      window.__mccOutreachLeadLinkBound = true;
+      globalThis.__mccOutreachLeadLinkBound = true;
     }
 
     // Task #189 — deep-link from the application row's source badge into the
@@ -1411,8 +1411,8 @@
         const moTab = document.querySelector('.mo-tab[data-tab="outreach-engine"]');
         if (moTab && !moTab.classList.contains('active')) moTab.click();
         // 3. Switch to the Leads sub-tab inside Outreach Engine.
-        if (typeof window.switchOutreachTab === 'function') {
-          window.switchOutreachTab('leads');
+        if (typeof globalThis.switchOutreachTab === 'function') {
+          globalThis.switchOutreachTab('leads');
         }
         // 4. Pre-fill the leads search input. Email is the most precise
         //    match; fall back to name. loadLeads() reads the input value
@@ -1423,14 +1423,14 @@
           searchEl.value = leadEmail || leadName || '';
           searchEl.dispatchEvent(new Event('input', { bubbles: true }));
         }
-        if (typeof window.loadLeads === 'function') {
-          await window.loadLeads();
+        if (typeof globalThis.loadLeads === 'function') {
+          await globalThis.loadLeads();
         }
       } catch (e) {
         console.warn('[admin] viewOutreachLead failed:', e);
       }
     }
-    window.viewOutreachLead = viewOutreachLead;
+    globalThis.viewOutreachLead = viewOutreachLead;
 
     async function loadProviders(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
@@ -1446,7 +1446,7 @@
         filter: state.filter
       });
 
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       // Task #281 — clear any prior load error before re-fetching so a
       // successful retry repaints the table cleanly.
       loadErrors.providers = null;
@@ -1454,7 +1454,7 @@
         const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
+        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
         const result = await response.json();
 
         if (result.success) {
@@ -1476,11 +1476,11 @@
       }
       // Task #139 — agent activity strip (matchmaker / treasurer / gatekeeper / advocate touch providers).
       // Runs on both success and failure paths so the strip always reflects fleet activity.
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        try { window.renderAgentActivityPanel('providers-agent-activity', {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        try { globalThis.renderAgentActivityPanel('providers-agent-activity', {
           agentSlug: ['matchmaker', 'treasurer', 'gatekeeper', 'advocate'],
           limit: 10, title: 'Recent Provider-related Agent Activity', showEmpty: false
-        }); } catch (e) {}
+        }); } catch { /* Intentionally silent */ }
       }
     }
     
@@ -1519,12 +1519,12 @@
       payments = data || [];
       renderPayments();
       // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        try { window.renderAgentActivityPanel('payments-agent-activity', {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        try { globalThis.renderAgentActivityPanel('payments-agent-activity', {
           agentSlug: 'treasurer',
           includeAiOpsModule: 'payment_tracker',
           limit: 10, title: 'Recent Payment-related Agent Activity', showEmpty: false
-        }); } catch (e) {}
+        }); } catch { /* Intentionally silent */ }
       }
     }
 
@@ -1562,14 +1562,14 @@
         filter: state.filter
       });
 
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       // Task #281 — clear any prior load error before re-fetching.
       loadErrors.members = null;
       try {
         const response = await fetch(`${apiBase}/api/admin/members?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch {} throw new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`); }
+        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`); }
         const result = await response.json();
 
         if (result.success) {
@@ -1638,7 +1638,7 @@
         params.append('type', state.filter);
       }
       
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const response = await fetch(`${apiBase}/api/admin/agreements?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -1669,7 +1669,7 @@
         loadAgreements(newPage);
       }
     }
-    window.changeAgreementsPage = changeAgreementsPage;
+    globalThis.changeAgreementsPage = changeAgreementsPage;
     
     function searchAgreements() {
       debounceSearch('agreements', () => {
@@ -1679,7 +1679,7 @@
         loadAgreements(1);
       });
     }
-    window.searchAgreements = searchAgreements;
+    globalThis.searchAgreements = searchAgreements;
     
     function filterAgreementsApi() {
       const typeFilter = document.getElementById('agreement-type-filter')?.value || 'all';
@@ -1687,7 +1687,7 @@
       paginationState.agreements.page = 1;
       loadAgreements(1);
     }
-    window.filterAgreementsApi = filterAgreementsApi;
+    globalThis.filterAgreementsApi = filterAgreementsApi;
 
     async function submitAddAgreement() {
       const name = document.getElementById('add-agreement-name')?.value?.trim();
@@ -1703,7 +1703,7 @@
         return;
       }
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const headers = { 'Content-Type': 'application/json' };
         if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
         else if (localStorage.getItem('mcc_admin_pass')) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass');
@@ -1715,13 +1715,13 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to save agreement');
         document.getElementById('add-agreement-modal').style.display = 'none';
-        if (window.showToast) showToast('Agreement added successfully', 'success');
+        if (globalThis.showToast) showToast('Agreement added successfully', 'success');
         loadAgreements(1);
       } catch (err) {
         if (errEl) { errEl.textContent = 'Error: ' + err.message; errEl.style.display = 'block'; }
       }
     }
-    window.submitAddAgreement = submitAddAgreement;
+    globalThis.submitAddAgreement = submitAddAgreement;
 
     function formatAgreementType(type) {
       const types = {
@@ -1783,7 +1783,7 @@
       if (a.acknowledgments && typeof a.acknowledgments === 'object') {
         const ackList = Object.entries(a.acknowledgments)
           .filter(([key, value]) => value === true)
-          .map(([key]) => `<li style="margin:4px 0;">${key.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}</li>`)
+          .map(([key]) => `<li style="margin:4px 0;">${key.replaceAll('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</li>`)
           .join('');
         if (ackList) {
           acknowledgmentsHtml = `
@@ -1847,7 +1847,7 @@
 
       document.getElementById('agreement-modal').classList.add('active');
     }
-    window.viewAgreement = viewAgreement;
+    globalThis.viewAgreement = viewAgreement;
 
     async function downloadAgreementPDF() {
       if (!currentAgreement) return;
@@ -1858,7 +1858,7 @@
       btn.disabled = true;
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) throw new Error('Not authenticated');
 
@@ -1889,7 +1889,7 @@
         btn.disabled = false;
       }
     }
-    window.downloadAgreementPDF = downloadAgreementPDF;
+    globalThis.downloadAgreementPDF = downloadAgreementPDF;
 
     // ========== USER ROLES MANAGEMENT ==========
     let allUsersForRoles = [];
@@ -2038,7 +2038,7 @@
         filter: state.filter
       });
       
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const response = await fetch(`${apiBase}/api/admin/packages?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -2575,9 +2575,9 @@
     async function bulkAddCredits() {
       const count = selectedProviders.size;
       const credits = prompt(`Add bid credits to ${count} provider(s):\n\nEnter number of credits to add:`);
-      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
-      const creditsToAdd = parseInt(credits);
+      const creditsToAdd = Number.parseInt(credits);
 
       try {
         const res = await fetch('/api/admin/provider-actions/adjust-credits', {
@@ -2736,40 +2736,44 @@
       }
     }
 
-    function bulkExport() {
-      const data = [];
-      for (const providerId of selectedProviders) {
-        const p = providers.find(pr => pr.id === providerId);
-        if (p) {
-          const stats = p.provider_stats?.[0] || {};
-          data.push({
-            business_name: p.business_name || '',
-            full_name: p.full_name || '',
-            email: p.email || '',
-            phone: p.business_phone || '',
-            bid_credits: (p.bid_credits || 0) + (p.free_trial_bids || 0),
-            rating: stats.average_rating || 'N/A',
-            jobs_completed: stats.jobs_completed || 0,
-            total_earnings: stats.total_earnings || 0,
-            status: p.suspension_reason ? 'Suspended' : 'Active'
-          });
-        }
-      }
+    // Build a single CSV-export row from a provider profile + stats.
+    // Extracted from bulkExport to keep that function under the cognitive
+    // complexity budget (Task #262).
+    function _providerToCsvRow(p) {
+      const stats = p.provider_stats?.[0] || {};
+      return {
+        business_name: p.business_name || '',
+        full_name: p.full_name || '',
+        email: p.email || '',
+        phone: p.business_phone || '',
+        bid_credits: (p.bid_credits || 0) + (p.free_trial_bids || 0),
+        rating: stats.average_rating || 'N/A',
+        jobs_completed: stats.jobs_completed || 0,
+        total_earnings: stats.total_earnings || 0,
+        status: p.suspension_reason ? 'Suspended' : 'Active'
+      };
+    }
 
-      // Create CSV
+    function _downloadCsv(data, filenamePrefix) {
       const headers = Object.keys(data[0] || {}).join(',');
       const rows = data.map(row => Object.values(row).join(','));
       const csv = [headers, ...rows].join('\n');
-
-      // Download
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `providers-export-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `${filenamePrefix}-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+    }
 
+    function bulkExport() {
+      const data = [];
+      for (const providerId of selectedProviders) {
+        const p = providers.find(pr => pr.id === providerId);
+        if (p) data.push(_providerToCsvRow(p));
+      }
+      _downloadCsv(data, 'providers-export');
       showToast(`Exported ${data.length} provider(s)`, 'success');
     }
 
@@ -2779,9 +2783,9 @@
       const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
 
       const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
-      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
-      const creditsToAdd = parseInt(credits);
+      const creditsToAdd = Number.parseInt(credits);
 
       try {
         const res = await fetch('/api/admin/provider-actions/adjust-credits', {
@@ -2862,7 +2866,7 @@
         filter: state.filter
       });
       
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const response = await fetch(`${apiBase}/api/admin/refunds?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
@@ -2950,7 +2954,7 @@
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) return;
       
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const response = await fetch(`${apiBase}/api/admin/refunds/${refundId}/process`, {
           method: 'POST',
@@ -3013,8 +3017,8 @@
       ` : '';
 
       const refundUserId = r.user_id || r.requested_by;
-      if (refundUserId && typeof window.renderOutreachHistoryPanel === 'function') {
-        try { window.renderOutreachHistoryPanel(`refund-outreach-history-body-${r.id}`, refundUserId); }
+      if (refundUserId && typeof globalThis.renderOutreachHistoryPanel === 'function') {
+        try { globalThis.renderOutreachHistoryPanel(`refund-outreach-history-body-${r.id}`, refundUserId); }
         catch (e) { console.warn('[admin] refund outreach history panel failed:', e); }
       }
 
@@ -3027,7 +3031,7 @@
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (!session) return;
       
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const response = await fetch(`${apiBase}/api/admin/refunds/${refundId}/process`, {
           method: 'POST',
@@ -3335,13 +3339,13 @@
       }
 
       document.getElementById('application-modal').classList.add('active');
-      if (app.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
-        window.renderOutreachHistoryPanel('application-outreach-history-body', app.user_id);
+      if (app.user_id && typeof globalThis.renderOutreachHistoryPanel === 'function') {
+        globalThis.renderOutreachHistoryPanel('application-outreach-history-body', app.user_id);
       }
-      if (typeof window.renderAgentActivityPanel === 'function') {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
         // Gatekeeper writes payload.provider_id = applicant user_id; fall back to application id.
         const targetId = app.user_id || app.id;
-        try { window.renderAgentActivityPanel(`app-agent-${app.id}`, {
+        try { globalThis.renderAgentActivityPanel(`app-agent-${app.id}`, {
           targetId, targetKind: 'application', agentSlug: 'gatekeeper',
           title: 'Gatekeeper Review', limit: 8, showEmpty: true
         }); } catch (e) { console.warn('[admin] gatekeeper panel failed:', e); }
@@ -3523,8 +3527,8 @@
       `;
 
       const disputeUserId = d.user_id || d.filed_by;
-      if (disputeUserId && typeof window.renderOutreachHistoryPanel === 'function') {
-        try { window.renderOutreachHistoryPanel(`dispute-outreach-history-body-${d.id}`, disputeUserId); }
+      if (disputeUserId && typeof globalThis.renderOutreachHistoryPanel === 'function') {
+        try { globalThis.renderOutreachHistoryPanel(`dispute-outreach-history-body-${d.id}`, disputeUserId); }
         catch (e) { console.warn('[admin] dispute outreach history panel failed:', e); }
       }
 
@@ -3540,8 +3544,8 @@
       }
 
       document.getElementById('dispute-modal').classList.add('active');
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        try { window.renderAgentActivityPanel(`dispute-agent-${d.id}`, {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        try { globalThis.renderAgentActivityPanel(`dispute-agent-${d.id}`, {
           targetId: d.id, targetKind: 'dispute',
           agentSlug: 'advocate', includeAiOpsModule: 'dispute_resolver',
           title: 'AI Dispute Analysis', limit: 8, showEmpty: true
@@ -3551,7 +3555,7 @@
 
     async function resolveDispute(winner) {
       if (!currentDispute) return;
-      const resolutionAmount = parseFloat(document.getElementById('resolution-amount').value) || 0;
+      const resolutionAmount = Number.parseFloat(document.getElementById('resolution-amount').value) || 0;
       const notes = document.getElementById('resolution-notes').value;
 
       if (!notes) return showToast('Please provide resolution notes', 'error');
@@ -3659,14 +3663,14 @@
         </div>
       `;
 
-      if (t.user_id && typeof window.renderOutreachHistoryPanel === 'function') {
-        try { window.renderOutreachHistoryPanel(`ticket-outreach-history-body-${t.id}`, t.user_id); }
+      if (t.user_id && typeof globalThis.renderOutreachHistoryPanel === 'function') {
+        try { globalThis.renderOutreachHistoryPanel(`ticket-outreach-history-body-${t.id}`, t.user_id); }
         catch (e) { console.warn('[admin] outreach history panel failed:', e); }
       }
 
       // Task #139: AI Helpdesk module rows for this ticket (legacy ai_action_log).
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        try { window.renderAgentActivityPanel(`ticket-agent-${t.id}`, {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        try { globalThis.renderAgentActivityPanel(`ticket-agent-${t.id}`, {
           targetId: t.id, targetKind: 'ticket',
           includeAiOpsModule: 'ai_helpdesk',
           title: 'AI Helpdesk', limit: 8, showEmpty: true
@@ -3752,7 +3756,7 @@
       };
 
       for (const k of ['amount_total', 'amount_mcc_fee', 'refund_amount']) {
-        if (updates[k] !== null && (Number.isNaN(updates[k]) || updates[k] < 0)) {
+        if (updates[k] !== null && (isNaN(updates[k]) || updates[k] < 0)) {
           showToast(`Invalid value for ${k.replaceAll('_', ' ')}`, 'error');
           return;
         }
@@ -3866,7 +3870,7 @@
       document.querySelectorAll('.quick-stat-btn[data-nav]').forEach(btn => {
         btn.addEventListener('click', () => {
           showSection(btn.dataset.nav);
-          window.scrollTo({ top: 0, behavior: 'smooth' });
+          globalThis.scrollTo({ top: 0, behavior: 'smooth' });
         });
       });
 
@@ -3910,9 +3914,9 @@
 
     function navigateToSection(id) {
       showSection(id);
-      window.scrollTo({ top: 0, behavior: 'smooth' });
+      globalThis.scrollTo({ top: 0, behavior: 'smooth' });
     }
-    window.navigateToSection = navigateToSection;
+    globalThis.navigateToSection = navigateToSection;
 
     function closeModal(id) { const m = document.getElementById(id); m.classList.remove('active'); m.style.display = 'none'; }
 
@@ -3992,7 +3996,7 @@
       }
       tbody.innerHTML = deals.map(d => {
         const p = d.properties || {};
-        const amount = p.amount ? `$${parseFloat(p.amount).toLocaleString('en-US', {minimumFractionDigits:2})}` : '—';
+        const amount = p.amount ? `$${Number.parseFloat(p.amount).toLocaleString('en-US', {minimumFractionDigits:2})}` : '—';
         const stageColors = {
           closedwon: 'background:var(--accent-green-soft);color:var(--accent-green);',
           closedlost: 'background:var(--accent-red-soft);color:var(--accent-red);',
@@ -4048,37 +4052,37 @@
         activeBtn.classList.add('btn-primary');
       }
     }
-    window.switchCrmTab = switchCrmTab;
+    globalThis.switchCrmTab = switchCrmTab;
 
     function filterCrmContacts() {
       const q = document.getElementById('crm-contact-search').value.toLowerCase();
       const filtered = crmContactsData.filter(c => {
         const p = c.properties || {};
-        return [p.firstname, p.lastname, p.email, p.phone, p.company].some(v => v && v.toLowerCase().includes(q));
+        return [p.firstname, p.lastname, p.email, p.phone, p.company].some(v => v?.toLowerCase().includes(q));
       });
       renderCrmContacts(filtered);
     }
-    window.filterCrmContacts = filterCrmContacts;
+    globalThis.filterCrmContacts = filterCrmContacts;
 
     function filterCrmDeals() {
       const q = document.getElementById('crm-deal-search').value.toLowerCase();
       const filtered = crmDealsData.filter(d => {
         const p = d.properties || {};
-        return [p.dealname, p.dealstage, p.pipeline].some(v => v && v.toLowerCase().includes(q));
+        return [p.dealname, p.dealstage, p.pipeline].some(v => v?.toLowerCase().includes(q));
       });
       renderCrmDeals(filtered);
     }
-    window.filterCrmDeals = filterCrmDeals;
+    globalThis.filterCrmDeals = filterCrmDeals;
 
     function filterCrmCompanies() {
       const q = document.getElementById('crm-company-search').value.toLowerCase();
       const filtered = crmCompaniesData.filter(co => {
         const p = co.properties || {};
-        return [p.name, p.domain, p.industry, p.city, p.state].some(v => v && v.toLowerCase().includes(q));
+        return [p.name, p.domain, p.industry, p.city, p.state].some(v => v?.toLowerCase().includes(q));
       });
       renderCrmCompanies(filtered);
     }
-    window.filterCrmCompanies = filterCrmCompanies;
+    globalThis.filterCrmCompanies = filterCrmCompanies;
 
     function showCrmModal(type) {
       currentCrmFormType = type;
@@ -4091,14 +4095,14 @@
       modal.style.display = 'flex';
       modal.classList.add('active');
     }
-    window.showCrmModal = showCrmModal;
+    globalThis.showCrmModal = showCrmModal;
 
     function closeCrmModal() {
       const modal = document.getElementById('crm-add-modal');
       modal.classList.remove('active');
       modal.style.display = 'none';
     }
-    window.closeCrmModal = closeCrmModal;
+    globalThis.closeCrmModal = closeCrmModal;
 
     async function saveCrmRecord() {
       const btn = document.getElementById('crm-modal-save-btn');
@@ -4166,7 +4170,7 @@
         btn.textContent = 'Save';
       }
     }
-    window.saveCrmRecord = saveCrmRecord;
+    globalThis.saveCrmRecord = saveCrmRecord;
 
     async function syncMembersToHubSpot() {
       const btn = event.target;
@@ -4193,7 +4197,7 @@
         btn.textContent = 'Sync Members';
       }
     }
-    window.syncMembersToHubSpot = syncMembersToHubSpot;
+    globalThis.syncMembersToHubSpot = syncMembersToHubSpot;
 
     // ========== GLOBAL 2FA TOGGLE ==========
     async function load2faGlobalStatus() {
@@ -4201,7 +4205,7 @@
         const session = await supabaseClient.auth.getSession();
         if (!session?.data?.session?.access_token) return;
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/2fa-global-status`, {
           headers: { 'Authorization': `Bearer ${session.data.session.access_token}` }
         });
@@ -4239,7 +4243,7 @@
           return;
         }
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/2fa-global-toggle`, {
           method: 'POST',
           headers: {
@@ -4292,7 +4296,7 @@
         statusMsg.style.color = 'var(--text-secondary)';
         statusMsg.textContent = 'Sending welcome emails... This may take a few minutes.';
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/send-bulk-welcome-emails`, {
           method: 'POST',
           headers: {
@@ -4348,11 +4352,11 @@
         updatePilotStats();
         renderPilotApplications();
         // Task #139 — Gatekeeper screens applications.
-        if (typeof window.renderAgentActivityPanel === 'function') {
-          try { window.renderAgentActivityPanel('pilot-agent-activity', {
+        if (typeof globalThis.renderAgentActivityPanel === 'function') {
+          try { globalThis.renderAgentActivityPanel('pilot-agent-activity', {
             agentSlug: 'gatekeeper',
             limit: 10, title: 'Recent Gatekeeper Reviews', showEmpty: false
-          }); } catch (e) {}
+          }); } catch { /* Intentionally silent */ }
         }
       } catch (err) {
         console.error('loadPilotApplications error:', err);
@@ -4606,11 +4610,11 @@
         updateMFStats();
         renderMemberFounderApplications();
         // Task #139 — Concierge + Advocate touch member-founder onboarding.
-        if (typeof window.renderAgentActivityPanel === 'function') {
-          try { window.renderAgentActivityPanel('member-founders-agent-activity', {
+        if (typeof globalThis.renderAgentActivityPanel === 'function') {
+          try { globalThis.renderAgentActivityPanel('member-founders-agent-activity', {
             agentSlug: ['concierge', 'advocate'],
             limit: 10, title: 'Recent Member-Founder Agent Activity', showEmpty: false
-          }); } catch (e) {}
+          }); } catch { /* Intentionally silent */ }
         }
       } catch (err) {
         console.error('loadMemberFounderApplications error:', err);
@@ -4893,7 +4897,7 @@
         showToast(`${app.full_name} approved! Referral code: ${referralCode}`, 'success');
         
         try {
-          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
           const emailResponse = await fetch(`${apiBase}/api/email/founder-approved`, {
             method: 'POST',
             headers: {
@@ -4987,7 +4991,7 @@
       }
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/email/founder-approved`, {
           method: 'POST',
           headers: {
@@ -5065,16 +5069,16 @@
     function updatePayoutStats() {
       const activeFounders = founderProfiles.filter(f => f.status === 'active').length;
       const totalReferrals = founderProfiles.reduce((sum, f) => sum + (f.total_provider_referrals || 0), 0);
-      const pendingBalance = founderProfiles.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
-      const totalPaid = founderProfiles.reduce((sum, f) => sum + parseFloat(f.total_commissions_paid || 0), 0);
+      const pendingBalance = founderProfiles.reduce((sum, f) => sum + Number.parseFloat(f.pending_balance || 0), 0);
+      const totalPaid = founderProfiles.reduce((sum, f) => sum + Number.parseFloat(f.total_commissions_paid || 0), 0);
       
       const eligibleFounders = founderProfiles.filter(f => 
         f.status === 'active' && 
-        parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
+        Number.parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
         f.stripe_connect_account_id
       );
       const eligibleCount = eligibleFounders.length;
-      const eligibleTotal = eligibleFounders.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
+      const eligibleTotal = eligibleFounders.reduce((sum, f) => sum + Number.parseFloat(f.pending_balance || 0), 0);
       const pendingPayoutsCount = eligibleCount;
 
       document.getElementById('total-founders').textContent = activeFounders;
@@ -5126,8 +5130,8 @@
             stripePending ? 
             '<span class="status-badge orange" title="Onboarding incomplete">' + mccIcon('clock', 16) + ' Pending</span>' : 
             '<span class="status-badge" style="background:var(--bg-input);color:var(--text-muted);">Not Setup</span>';
-          const commissionRate = parseFloat(f.commission_rate || 0.50) * 100;
-          const pendingBal = parseFloat(f.pending_balance || 0);
+          const commissionRate = Number.parseFloat(f.commission_rate || 0.50) * 100;
+          const pendingBal = Number.parseFloat(f.pending_balance || 0);
           const isEligible = f.status === 'active' && pendingBal >= PAYOUT_THRESHOLD && f.stripe_connect_account_id;
           const eligibilityBadge = isEligible ? 
             '<span class="status-badge approved" style="margin-left:6px;font-size:0.7rem;" title="Ready for bulk payout">' + mccIcon('check', 16) + ' Eligible</span>' : 
@@ -5146,7 +5150,7 @@
             </td>
             <td>${f.total_provider_referrals || 0}</td>
             <td style="font-weight:600;color:${pendingBal >= PAYOUT_THRESHOLD ? 'var(--accent-green)' : 'var(--text-primary)'};">$${pendingBal.toFixed(2)}${pendingBal >= PAYOUT_THRESHOLD ? ' ' + mccIcon('check', 16) : ''}</td>
-            <td>$${parseFloat(f.total_commissions_earned || 0).toFixed(2)}</td>
+            <td>$${Number.parseFloat(f.total_commissions_earned || 0).toFixed(2)}</td>
             <td>${stripeStatus}</td>
             <td><span class="status-badge ${f.status === 'active' ? 'approved' : f.status}">${f.status}</span></td>
             <td>
@@ -5183,7 +5187,7 @@
               <div style="font-size:0.8rem;color:var(--text-muted);">${p.founder?.email || ''}</div>
             </td>
             <td>${p.payout_period}</td>
-            <td style="font-weight:600;color:var(--accent-green);">$${parseFloat(p.amount).toFixed(2)}</td>
+            <td style="font-weight:600;color:var(--accent-green);">$${Number.parseFloat(p.amount).toFixed(2)}</td>
             <td>${p.payout_method}</td>
             <td>
               <select id="payout-type-${p.id}" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;">
@@ -5221,9 +5225,9 @@
         }
 
         tbody.innerHTML = completedPayouts.map(p => {
-          const grossAmount = parseFloat(p.amount || 0);
-          const feeAmount = parseFloat(p.fee_amount || 0);
-          const netAmount = parseFloat(p.net_amount || grossAmount);
+          const grossAmount = Number.parseFloat(p.amount || 0);
+          const feeAmount = Number.parseFloat(p.fee_amount || 0);
+          const netAmount = Number.parseFloat(p.net_amount || grossAmount);
           const payoutType = p.payout_type || 'instant';
           
           return `
@@ -5256,7 +5260,7 @@
       historyContainer.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Loading history...</p>';
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/founders/${founderId}/commission-history`, {
           headers: {
             'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
@@ -5290,7 +5294,7 @@
 
     async function saveFounderCommission() {
       const founderId = document.getElementById('commission-founder-id').value;
-      const ratePercent = parseInt(document.getElementById('commission-rate-input').value);
+      const ratePercent = Number.parseInt(document.getElementById('commission-rate-input').value);
       
       if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
         showNotification('Please enter a valid rate between 0 and 100', 'error');
@@ -5298,7 +5302,7 @@
       }
 
       const commissionRate = ratePercent / 100; // Convert to decimal (e.g., 50% -> 0.50)
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       
       try {
         const response = await fetch(`${apiBase}/api/admin/founders/${founderId}/commission`, {
@@ -5362,15 +5366,15 @@
               <div style="font-size:0.8rem;color:var(--text-muted);">Provider Referrals</div>
             </div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <div style="font-size:1.4rem;font-weight:600;color:var(--accent-green);">$${parseFloat(founder.pending_balance || 0).toFixed(2)}</div>
+              <div style="font-size:1.4rem;font-weight:600;color:var(--accent-green);">$${Number.parseFloat(founder.pending_balance || 0).toFixed(2)}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Pending Balance</div>
             </div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <div style="font-size:1.4rem;font-weight:600;">$${parseFloat(founder.total_commissions_earned || 0).toFixed(2)}</div>
+              <div style="font-size:1.4rem;font-weight:600;">$${Number.parseFloat(founder.total_commissions_earned || 0).toFixed(2)}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Total Earned</div>
             </div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <div style="font-size:1.4rem;font-weight:600;">$${parseFloat(founder.total_commissions_paid || 0).toFixed(2)}</div>
+              <div style="font-size:1.4rem;font-weight:600;">$${Number.parseFloat(founder.total_commissions_paid || 0).toFixed(2)}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Total Paid</div>
             </div>
           </div>
@@ -5400,7 +5404,7 @@
               ${commissions.map(c => `
                 <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-input);padding:12px;border-radius:var(--radius-md);">
                   <div>
-                    <strong>$${parseFloat(c.commission_amount).toFixed(2)}</strong>
+                    <strong>$${Number.parseFloat(c.commission_amount).toFixed(2)}</strong>
                     <span style="font-size:0.8rem;color:var(--text-muted);">(${c.commission_type === 'bid_pack' ? mccIcon('package', 16) + ' Bid Pack' : mccIcon('credit-card', 16) + ' Platform Fee'})</span>
                     <div style="font-size:0.8rem;color:var(--text-muted);">${new Date(c.created_at).toLocaleDateString()}</div>
                   </div>
@@ -5423,7 +5427,7 @@
       document.getElementById('application-modal-body').innerHTML = modalContent;
       document.querySelector('#application-modal .modal-footer').innerHTML = `
         <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
-        ${parseFloat(founder.pending_balance || 0) >= 25 ? `<button class="btn btn-success" onclick="createPayout('${founder.id}'); closeModal('application-modal');">Create Payout</button>` : ''}
+        ${Number.parseFloat(founder.pending_balance || 0) >= 25 ? `<button class="btn btn-success" onclick="createPayout('${founder.id}'); closeModal('application-modal');">Create Payout</button>` : ''}
       `;
       document.getElementById('application-modal').classList.add('active');
     }
@@ -5432,7 +5436,7 @@
       const founder = founderProfiles.find(f => f.id === founderId);
       if (!founder) return;
 
-      const amount = parseFloat(founder.pending_balance || 0);
+      const amount = Number.parseFloat(founder.pending_balance || 0);
       if (amount < 25) {
         showToast('Minimum payout amount is $25', 'error');
         return;
@@ -5541,7 +5545,7 @@
             await supabaseClient
               .from('member_founder_profiles')
               .update({
-                pending_balance: parseFloat(founder.pending_balance || 0) + parseFloat(payout.amount),
+                pending_balance: Number.parseFloat(founder.pending_balance || 0) + Number.parseFloat(payout.amount),
                 updated_at: new Date().toISOString()
               })
               .eq('id', payout.founder_id);
@@ -5567,7 +5571,7 @@
       const payoutType = payoutTypeSelect?.value || 'weekly';
       const feeText = payoutType === 'instant' ? ' (1% fee will be deducted)' : ' (no fee)';
 
-      if (!confirm(`Process Stripe transfer of $${parseFloat(payout.amount).toFixed(2)} to ${payout.founder?.full_name || 'founder'}?${feeText}\n\nThis will initiate a real payment.`)) {
+      if (!confirm(`Process Stripe transfer of $${Number.parseFloat(payout.amount).toFixed(2)} to ${payout.founder?.full_name || 'founder'}?${feeText}\n\nThis will initiate a real payment.`)) {
         return;
       }
 
@@ -5577,7 +5581,7 @@
       try {
         showToast('Processing Stripe transfer...', 'info');
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/process-founder-payout`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5606,7 +5610,7 @@
     async function processBulkPayouts() {
       const eligibleFounders = founderProfiles.filter(f => 
         f.status === 'active' && 
-        parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
+        Number.parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
         f.stripe_connect_account_id
       );
       
@@ -5615,7 +5619,7 @@
         return;
       }
 
-      const totalAmount = eligibleFounders.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
+      const totalAmount = eligibleFounders.reduce((sum, f) => sum + Number.parseFloat(f.pending_balance || 0), 0);
       
       const payoutType = await new Promise(resolve => {
         const choice = confirm(
@@ -5641,7 +5645,7 @@
       try {
         showToast(`Processing ${eligibleFounders.length} payouts...`, 'info');
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/process-bulk-payouts`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -5756,7 +5760,7 @@
 
     async function loadPayoutSettings() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/payout-settings`, {
           headers: {
             'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
@@ -5781,11 +5785,11 @@
 
     async function savePayoutSettings() {
       const settings = {
-        min_payout_threshold: parseFloat(document.getElementById('setting-min-payout-threshold').value) || 10.00,
-        instant_payout_fee_percent: parseFloat(document.getElementById('setting-instant-fee-percent').value) || 1.00,
-        instant_payout_fee_min: parseFloat(document.getElementById('setting-instant-fee-min').value) || 0.50,
-        instant_payout_fee_max: parseFloat(document.getElementById('setting-instant-fee-max').value) || 10.00,
-        weekly_payout_fee: parseFloat(document.getElementById('setting-weekly-fee').value) || 0.00
+        min_payout_threshold: Number.parseFloat(document.getElementById('setting-min-payout-threshold').value) || 10.00,
+        instant_payout_fee_percent: Number.parseFloat(document.getElementById('setting-instant-fee-percent').value) || 1.00,
+        instant_payout_fee_min: Number.parseFloat(document.getElementById('setting-instant-fee-min').value) || 0.50,
+        instant_payout_fee_max: Number.parseFloat(document.getElementById('setting-instant-fee-max').value) || 10.00,
+        weekly_payout_fee: Number.parseFloat(document.getElementById('setting-weekly-fee').value) || 0.00
       };
 
       if (settings.min_payout_threshold < 1) {
@@ -5809,7 +5813,7 @@
       }
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/payout-settings`, {
           method: 'POST',
           headers: {
@@ -5842,7 +5846,7 @@
 
     async function loadMilestonesData() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/milestones`, {
           headers: {
             'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
@@ -5904,8 +5908,8 @@
       if (chrisPartner) {
         const achievedBonuses = milestones.filter(m => m.is_achieved && m.is_paid);
         const pendingBonuses = milestones.filter(m => m.is_achieved && !m.is_paid);
-        const achievedTotal = achievedBonuses.reduce((sum, m) => sum + parseFloat(m.bonus_amount || 0), 0);
-        const pendingTotal = pendingBonuses.reduce((sum, m) => sum + parseFloat(m.bonus_amount || 0), 0);
+        const achievedTotal = achievedBonuses.reduce((sum, m) => sum + Number.parseFloat(m.bonus_amount || 0), 0);
+        const pendingTotal = pendingBonuses.reduce((sum, m) => sum + Number.parseFloat(m.bonus_amount || 0), 0);
         
         document.getElementById('founding-partner-info').innerHTML = `
           <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;">
@@ -5960,8 +5964,8 @@
         
         return `
           <tr style="${m.is_achieved ? 'background:var(--accent-green-soft);' : ''}">
-            <td style="font-weight:600;">$${parseFloat(m.threshold_amount).toLocaleString()}</td>
-            <td style="font-weight:600;color:var(--accent-gold);">$${parseFloat(m.bonus_amount).toLocaleString()}</td>
+            <td style="font-weight:600;">$${Number.parseFloat(m.threshold_amount).toLocaleString()}</td>
+            <td style="font-weight:600;color:var(--accent-gold);">$${Number.parseFloat(m.bonus_amount).toLocaleString()}</td>
             <td>${m.description}</td>
             <td>${statusBadge}</td>
             <td>${paidDate}</td>
@@ -5986,7 +5990,7 @@
       const notes = prompt('Add notes (optional):');
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/milestones/${milestoneId}/pay`, {
           method: 'POST',
           headers: {
@@ -6015,7 +6019,7 @@
 
     async function loadBonusReserveData() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/bonus-reserve`, {
           headers: {
             'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
@@ -6097,8 +6101,8 @@
         monthlyTbody.innerHTML = monthlyData.map(m => `
           <tr>
             <td style="font-weight:600;">${m.month_year}</td>
-            <td>$${parseFloat(m.bid_pack_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-            <td style="color:var(--accent-green);">$${parseFloat(m.reserve_accrual || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td>$${Number.parseFloat(m.bid_pack_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td style="color:var(--accent-green);">$${Number.parseFloat(m.reserve_accrual || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
             <td><span class="status-badge ${m.status === 'finalized' ? 'approved' : 'orange'}">${m.status || 'pending'}</span></td>
           </tr>
         `).join('');
@@ -6120,8 +6124,8 @@
             <tr>
               <td>${new Date(t.created_at).toLocaleString()}</td>
               <td><span style="color:${typeColor};font-weight:600;text-transform:capitalize;">${t.transaction_type}</span></td>
-              <td style="font-weight:600;color:${t.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amountPrefix}$${parseFloat(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-              <td>$${parseFloat(t.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="font-weight:600;color:${t.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amountPrefix}$${Number.parseFloat(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td>$${Number.parseFloat(t.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.notes || ''}">${t.notes || '-'}</td>
             </tr>
           `;
@@ -6133,7 +6137,7 @@
       const amountInput = document.getElementById('reserve-adjust-amount');
       const notesInput = document.getElementById('reserve-adjust-notes');
       
-      const amount = parseFloat(amountInput.value);
+      const amount = Number.parseFloat(amountInput.value);
       const notes = notesInput.value.trim();
       
       if (isNaN(amount) || amount === 0) {
@@ -6156,7 +6160,7 @@
       if (!confirmed) return;
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/bonus-reserve/adjust`, {
           method: 'POST',
           headers: {
@@ -6379,7 +6383,7 @@
       const updates = {
         status: 'confirmed',
         resolved_at: new Date().toISOString(),
-        reward_amount: rewardAmount ? parseFloat(rewardAmount) : null
+        reward_amount: rewardAmount ? Number.parseFloat(rewardAmount) : null
       };
 
       const { error } = await supabaseClient
@@ -6705,9 +6709,9 @@
             <span class="detail-label">Tier:</span>
             <span class="detail-value">${mfp.tier || 'Standard'}</span>
             <span class="detail-label">Total Earnings:</span>
-            <span class="detail-value" style="color:var(--accent-green);">$${parseFloat(mfp.total_commissions_earned || 0).toFixed(2)}</span>
+            <span class="detail-value" style="color:var(--accent-green);">$${Number.parseFloat(mfp.total_commissions_earned || 0).toFixed(2)}</span>
             <span class="detail-label">Pending Balance:</span>
-            <span class="detail-value" style="color:var(--accent-gold);">$${parseFloat(mfp.pending_balance || 0).toFixed(2)}</span>
+            <span class="detail-value" style="color:var(--accent-gold);">$${Number.parseFloat(mfp.pending_balance || 0).toFixed(2)}</span>
             <span class="detail-label">Provider Referrals:</span>
             <span class="detail-value">${user.referralCount}</span>
             <span class="detail-label">Stripe Connect:</span>
@@ -6801,8 +6805,8 @@
       const userEditModal = document.getElementById('user-edit-modal');
       userEditModal.style.display = '';
       userEditModal.classList.add('active');
-      if (typeof window.renderOutreachHistoryPanel === 'function') {
-        window.renderOutreachHistoryPanel('user-edit-outreach-history-body', user.id);
+      if (typeof globalThis.renderOutreachHistoryPanel === 'function') {
+        globalThis.renderOutreachHistoryPanel('user-edit-outreach-history-body', user.id);
       }
     }
 
@@ -7573,7 +7577,7 @@
 
       document.getElementById('verification-modal').classList.add('active');
     }
-    window.openVerificationDetail = openVerificationDetail;
+    globalThis.openVerificationDetail = openVerificationDetail;
 
     async function approveVerification() {
       if (!currentVerification) {
@@ -7592,7 +7596,7 @@
           return;
         }
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/registration/verifications/${currentVerification.id}`, {
           method: 'PUT',
           headers: {
@@ -7618,7 +7622,7 @@
         showToast('Error: ' + err.message, 'error');
       }
     }
-    window.approveVerification = approveVerification;
+    globalThis.approveVerification = approveVerification;
 
     async function rejectVerification() {
       if (!currentVerification) {
@@ -7637,7 +7641,7 @@
           return;
         }
 
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/registration/verifications/${currentVerification.id}`, {
           method: 'PUT',
           headers: {
@@ -7663,7 +7667,7 @@
         showToast('Error: ' + err.message, 'error');
       }
     }
-    window.rejectVerification = rejectVerification;
+    globalThis.rejectVerification = rejectVerification;
 
     document.getElementById('registration-tabs')?.addEventListener('click', (e) => {
       if (e.target.classList.contains('tab')) {
@@ -7674,14 +7678,14 @@
       }
     });
 
-    window.loadRefunds = loadRefunds;
-    window.changeRefundsPage = changeRefundsPage;
-    window.approveRefund = approveRefund;
-    window.denyRefund = denyRefund;
-    window.viewRefund = viewRefund;
+    globalThis.loadRefunds = loadRefunds;
+    globalThis.changeRefundsPage = changeRefundsPage;
+    globalThis.approveRefund = approveRefund;
+    globalThis.denyRefund = denyRefund;
+    globalThis.viewRefund = viewRefund;
 
     async function logout() { localStorage.removeItem('mcc_admin_pass'); localStorage.removeItem('mcc_admin_team_token'); await supabaseClient.auth.signOut(); window.location.href = 'login.html'; }
-    window.logout = logout;
+    globalThis.logout = logout;
 
     function toggleSidebar() {
       const sidebar = document.getElementById('sidebar');
@@ -7689,7 +7693,7 @@
       sidebar.classList.toggle('open');
       overlay.classList.toggle('active');
     }
-    window.toggleSidebar = toggleSidebar;
+    globalThis.toggleSidebar = toggleSidebar;
 
     // ========== PRINTFUL MERCH MANAGER ==========
     let printfulCatalog = [];
@@ -7728,13 +7732,13 @@
         console.error('Error loading merch preferences:', err);
       }
     }
-    window.loadMerchPreferences = loadMerchPreferences;
+    globalThis.loadMerchPreferences = loadMerchPreferences;
 
     function saveMerchPreferences() {
       try {
         const prefs = {
-          defaultPrice: parseFloat(document.getElementById('merch-pref-price').value) || 29.99,
-          priceMarkup: parseInt(document.getElementById('merch-pref-markup').value) || 50,
+          defaultPrice: Number.parseFloat(document.getElementById('merch-pref-price').value) || 29.99,
+          priceMarkup: Number.parseInt(document.getElementById('merch-pref-markup').value) || 50,
           favoriteColors: []
         };
         document.querySelectorAll('.merch-color-pref input[type="checkbox"]:checked').forEach(cb => {
@@ -7747,7 +7751,7 @@
         showToast('Failed to save preferences', 'error');
       }
     }
-    window.saveMerchPreferences = saveMerchPreferences;
+    globalThis.saveMerchPreferences = saveMerchPreferences;
 
     function getMerchDefaultPrice() {
       try {
@@ -7763,7 +7767,7 @@
       }
       return 29.99;
     }
-    window.getMerchDefaultPrice = getMerchDefaultPrice;
+    globalThis.getMerchDefaultPrice = getMerchDefaultPrice;
 
     function getMerchDefaultColors() {
       try {
@@ -7779,7 +7783,7 @@
       }
       return ['Black', 'White', 'Navy'];
     }
-    window.getMerchDefaultColors = getMerchDefaultColors;
+    globalThis.getMerchDefaultColors = getMerchDefaultColors;
 
     function toggleMerchPreferencesPanel() {
       const panel = document.getElementById('merch-preferences-panel');
@@ -7792,7 +7796,7 @@
         toggle.style.transform = 'rotate(0deg)';
       }
     }
-    window.toggleMerchPreferencesPanel = toggleMerchPreferencesPanel;
+    globalThis.toggleMerchPreferencesPanel = toggleMerchPreferencesPanel;
 
     function updateMerchColorPrefStyle(checkbox) {
       const label = checkbox.closest('label');
@@ -7819,7 +7823,7 @@
         if (session?.access_token) {
           return { 'Authorization': `Bearer ${session.access_token}` };
         }
-      } catch (_) {}
+      } catch { /* Intentionally silent */ }
       const headers = {};
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
       else if (adminPasswordVerified || localStorage.getItem('mcc_admin_pass')) {
@@ -7843,7 +7847,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/catalog`, { headers });
         const data = await response.json();
         
@@ -7866,7 +7870,7 @@
         emptyEl.style.display = 'block';
       }
     }
-    window.loadPrintfulCatalog = loadPrintfulCatalog;
+    globalThis.loadPrintfulCatalog = loadPrintfulCatalog;
 
     function renderCatalog(filter = 'all') {
       const loadingEl = document.getElementById('catalog-loading');
@@ -7904,7 +7908,7 @@
       const filter = document.getElementById('catalog-category-filter').value;
       renderCatalog(filter);
     }
-    window.filterCatalogByCategory = filterCatalogByCategory;
+    globalThis.filterCatalogByCategory = filterCatalogByCategory;
 
     async function openProductCreator(catalogProductId) {
       const modal = document.getElementById('product-creator-modal');
@@ -7923,7 +7927,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/catalog/${catalogProductId}`, { headers });
         const data = await response.json();
         
@@ -7980,7 +7984,7 @@
         closeProductCreatorModal();
       }
     }
-    window.openProductCreator = openProductCreator;
+    globalThis.openProductCreator = openProductCreator;
 
     function toggleColorSelection(btn, color) {
       if (selectedColors.has(color)) {
@@ -7994,7 +7998,7 @@
       }
       updateVariantCount();
     }
-    window.toggleColorSelection = toggleColorSelection;
+    globalThis.toggleColorSelection = toggleColorSelection;
 
     function toggleSizeSelection(btn, size) {
       if (selectedSizes.has(size)) {
@@ -8008,7 +8012,7 @@
       }
       updateVariantCount();
     }
-    window.toggleSizeSelection = toggleSizeSelection;
+    globalThis.toggleSizeSelection = toggleSizeSelection;
 
     function updateVariantCount() {
       const variantIds = getSelectedVariantIds();
@@ -8057,7 +8061,7 @@
         }
         
         const authHeaders = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/products`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -8086,14 +8090,14 @@
         submitBtn.textContent = originalText;
       }
     }
-    window.submitProductCreation = submitProductCreation;
+    globalThis.submitProductCreation = submitProductCreation;
 
     function closeProductCreatorModal() {
       document.getElementById('product-creator-modal').style.display = 'none';
       currentCatalogProduct = null;
       hideMockupPreview();
     }
-    window.closeProductCreatorModal = closeProductCreatorModal;
+    globalThis.closeProductCreatorModal = closeProductCreatorModal;
 
     async function generateMockupPreview() {
       const designUrl = document.getElementById('product-creator-design').value.trim();
@@ -8130,7 +8134,7 @@
       
       try {
         const authHeaders = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/mockup`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...authHeaders },
@@ -8161,7 +8165,7 @@
         btnText.innerHTML = mccIcon('eye', 16) + ' Preview';
       }
     }
-    window.generateMockupPreview = generateMockupPreview;
+    globalThis.generateMockupPreview = generateMockupPreview;
     
     function hideMockupPreview() {
       const previewArea = document.getElementById('mockup-preview-area');
@@ -8169,7 +8173,7 @@
         previewArea.style.display = 'none';
       }
     }
-    window.hideMockupPreview = hideMockupPreview;
+    globalThis.hideMockupPreview = hideMockupPreview;
 
     async function refreshStoreProducts() {
       const loadingEl = document.getElementById('store-products-loading');
@@ -8182,7 +8186,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/store-products`, { headers });
         const data = await response.json();
         
@@ -8207,7 +8211,7 @@
               <div style="font-weight:600;font-size:0.85rem;margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${product.name}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);">${product.variants} variants</div>
             </div>
-            <button onclick="deleteStoreProduct(${product.id}, '${product.name.replace(/'/g, "\\'")}')" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(239,95,95,0.9);border:none;color:white;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">×</button>
+            <button onclick="deleteStoreProduct(${product.id}, '${product.name.replaceAll('\'', "\\'")}')" style="position:absolute;top:8px;right:8px;width:28px;height:28px;border-radius:50%;background:rgba(239,95,95,0.9);border:none;color:white;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center;">×</button>
           </div>
         `).join('');
       } catch (error) {
@@ -8217,7 +8221,7 @@
         emptyEl.style.display = 'block';
       }
     }
-    window.refreshStoreProducts = refreshStoreProducts;
+    globalThis.refreshStoreProducts = refreshStoreProducts;
 
     async function deleteStoreProduct(productId, productName) {
       if (!confirm(`Delete "${productName}" from your store?`)) {
@@ -8226,7 +8230,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/products/${productId}`, {
           method: 'DELETE',
           headers
@@ -8245,7 +8249,7 @@
         showToast('Error: ' + error.message, 'error');
       }
     }
-    window.deleteStoreProduct = deleteStoreProduct;
+    globalThis.deleteStoreProduct = deleteStoreProduct;
 
     // ========== BULK PRODUCT CREATOR ==========
     const BULK_CATEGORY_DEFAULTS = {
@@ -8280,12 +8284,12 @@
       updateBulkCategoryCount();
       renderBulkModalDesignGallery();
     }
-    window.openBulkCreatorModal = openBulkCreatorModal;
+    globalThis.openBulkCreatorModal = openBulkCreatorModal;
 
     function closeBulkCreatorModal() {
       document.getElementById('bulk-product-creator-modal').style.display = 'none';
     }
-    window.closeBulkCreatorModal = closeBulkCreatorModal;
+    globalThis.closeBulkCreatorModal = closeBulkCreatorModal;
 
     function toggleAllCategories(checked) {
       const checkboxes = document.querySelectorAll('.bulk-category-checkbox');
@@ -8295,7 +8299,7 @@
       });
       updateBulkCategoryCount();
     }
-    window.toggleAllCategories = toggleAllCategories;
+    globalThis.toggleAllCategories = toggleAllCategories;
 
     function updateCategoryLabelStyle(checkbox) {
       const label = checkbox.closest('label');
@@ -8358,7 +8362,7 @@
         }
       }
     }
-    window.selectBulkDesign = selectBulkDesign;
+    globalThis.selectBulkDesign = selectBulkDesign;
 
     async function submitBulkCreation() {
       const submitBtn = document.getElementById('bulk-creator-submit');
@@ -8379,7 +8383,7 @@
       const selectedCategories = [];
       document.querySelectorAll('.bulk-category-checkbox:checked').forEach(cb => {
         selectedCategories.push({
-          categoryId: parseInt(cb.value),
+          categoryId: Number.parseInt(cb.value),
           categoryName: cb.dataset.categoryName
         });
       });
@@ -8411,7 +8415,7 @@
         
         try {
           const headers = await getAdminAuthHeader();
-          const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+          const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
           const response = await fetch(`${apiBase}/api/admin/printful/catalog/${config.productId}`, { headers });
           const data = await response.json();
           
@@ -8468,7 +8472,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/printful/products/bulk`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', ...headers },
@@ -8516,7 +8520,7 @@
         submitBtn.textContent = 'Retry';
       }
     }
-    window.submitBulkCreation = submitBulkCreation;
+    globalThis.submitBulkCreation = submitBulkCreation;
 
     // ========== DESIGN LIBRARY ==========
     let designLibrary = [];
@@ -8534,7 +8538,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/designs`, { headers });
         const data = await response.json();
         
@@ -8560,7 +8564,7 @@
         emptyEl.style.display = 'block';
       }
     }
-    window.loadDesignLibrary = loadDesignLibrary;
+    globalThis.loadDesignLibrary = loadDesignLibrary;
 
     function renderDesignLibrary() {
       const gridEl = document.getElementById('design-library-grid');
@@ -8603,7 +8607,7 @@
         const formData = new FormData();
         formData.append('file', file);
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/designs/upload`, {
           method: 'POST',
           headers: headers,
@@ -8623,7 +8627,7 @@
         showToast('Upload failed: ' + error.message, 'error');
       }
     }
-    window.uploadDesign = uploadDesign;
+    globalThis.uploadDesign = uploadDesign;
 
     async function deleteDesign(encodedFilename) {
       const filename = decodeURIComponent(encodedFilename);
@@ -8631,7 +8635,7 @@
       
       try {
         const headers = await getAdminAuthHeader();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/designs/${encodedFilename}`, {
           method: 'DELETE',
           headers
@@ -8650,7 +8654,7 @@
         showToast('Delete failed: ' + error.message, 'error');
       }
     }
-    window.deleteDesign = deleteDesign;
+    globalThis.deleteDesign = deleteDesign;
 
     function copyDesignUrl(url) {
       navigator.clipboard.writeText(url).then(() => {
@@ -8666,12 +8670,12 @@
         showToast('URL copied to clipboard!', 'success');
       });
     }
-    window.copyDesignUrl = copyDesignUrl;
+    globalThis.copyDesignUrl = copyDesignUrl;
 
     function triggerDesignUpload() {
       document.getElementById('design-upload-input').click();
     }
-    window.triggerDesignUpload = triggerDesignUpload;
+    globalThis.triggerDesignUpload = triggerDesignUpload;
 
     function handleDesignFileSelect(event) {
       const file = event.target.files[0];
@@ -8680,7 +8684,7 @@
       }
       event.target.value = '';
     }
-    window.handleDesignFileSelect = handleDesignFileSelect;
+    globalThis.handleDesignFileSelect = handleDesignFileSelect;
 
     function handleDesignDragOver(event) {
       event.preventDefault();
@@ -8691,7 +8695,7 @@
         dropZone.style.background = 'var(--accent-gold-soft)';
       }
     }
-    window.handleDesignDragOver = handleDesignDragOver;
+    globalThis.handleDesignDragOver = handleDesignDragOver;
 
     function handleDesignDragLeave(event) {
       event.preventDefault();
@@ -8702,7 +8706,7 @@
         dropZone.style.background = 'transparent';
       }
     }
-    window.handleDesignDragLeave = handleDesignDragLeave;
+    globalThis.handleDesignDragLeave = handleDesignDragLeave;
 
     function handleDesignDrop(event) {
       event.preventDefault();
@@ -8718,7 +8722,7 @@
         uploadDesign(files[0]);
       }
     }
-    window.handleDesignDrop = handleDesignDrop;
+    globalThis.handleDesignDrop = handleDesignDrop;
 
     function selectDesignForProduct(url) {
       const designInput = document.getElementById('product-creator-design');
@@ -8727,7 +8731,7 @@
         showToast('Design selected', 'success');
       }
     }
-    window.selectDesignForProduct = selectDesignForProduct;
+    globalThis.selectDesignForProduct = selectDesignForProduct;
 
     function renderModalDesignGallery() {
       const galleryEl = document.getElementById('modal-design-gallery');
@@ -8744,7 +8748,7 @@
         </div>
       `).join('');
     }
-    window.renderModalDesignGallery = renderModalDesignGallery;
+    globalThis.renderModalDesignGallery = renderModalDesignGallery;
 
     async function loadChatInsights() {
       try {
@@ -8809,7 +8813,7 @@
       if (errorEl) errorEl.style.display = 'none';
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-login`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -8832,9 +8836,9 @@
         // www/admin-agent-activity.js) can read the same credential when
         // assembling auth headers. Mirrors how mcc_admin_pass is persisted.
         try {
-          window.adminTeamToken = data.token;
+          globalThis.adminTeamToken = data.token;
           if (data.token) localStorage.setItem('adminTeamToken', data.token);
-        } catch (e) {}
+        } catch { /* Intentionally silent */ }
         
         document.getElementById('admin-password-modal').style.display = 'none';
         applyRolePermissions(data.permissions);
@@ -8846,19 +8850,19 @@
         btn.disabled = false;
       }
     }
-    window.performTeamLogin = performTeamLogin;
+    globalThis.performTeamLogin = performTeamLogin;
 
     function showTeamLoginMode(e) {
       if (e) e.preventDefault();
       showModalState('team-login');
     }
-    window.showTeamLoginMode = showTeamLoginMode;
+    globalThis.showTeamLoginMode = showTeamLoginMode;
 
     function showAdminLoginMode(e) {
       if (e) e.preventDefault();
       showModalState(currentUser ? 'password' : 'login');
     }
-    window.showAdminLoginMode = showAdminLoginMode;
+    globalThis.showAdminLoginMode = showAdminLoginMode;
 
     function applyRolePermissions(permissions) {
       const navItems = document.querySelectorAll('.nav-item[data-section]');
@@ -8899,7 +8903,7 @@
         const badge = document.createElement('div');
         badge.id = 'admin-role-badge';
         badge.style.cssText = 'padding:12px 16px;margin-bottom:12px;background:var(--accent-blue-soft);border-radius:var(--radius-md);text-align:center;';
-        const roleLabel = (adminTeamUser.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const roleLabel = (adminTeamUser.role || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
         badge.innerHTML = `<div style="font-weight:600;color:var(--text-primary);font-size:0.9rem;">${escapeHtml(adminTeamUser.displayName)}</div><div style="font-size:0.8rem;color:var(--accent-gold);margin-top:4px;">${escapeHtml(roleLabel)}</div>`;
         const sidebarNav = document.querySelector('.sidebar-nav');
         if (sidebarNav) sidebarNav.insertBefore(badge, sidebarNav.firstChild);
@@ -8911,7 +8915,7 @@
 
     async function loadTeamMembers() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
         if (!response.ok) throw new Error('Failed to fetch');
         const data = await response.json();
@@ -8957,7 +8961,7 @@
       };
       
       tbody.innerHTML = teamMembers.map(m => {
-        const roleLabel = (m.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+        const roleLabel = (m.role || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
         const badgeClass = roleBadgeClass[m.role] || 'badge-blue';
         const statusBadge = m.status === 'active' ? '<span class="badge badge-green">Active</span>' : '<span class="badge badge-red">Disabled</span>';
         const lastLogin = m.last_login ? new Date(m.last_login).toLocaleDateString() + ' ' + new Date(m.last_login).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) : 'Never';
@@ -8983,12 +8987,12 @@
       document.getElementById('team-add-error').style.display = 'none';
       document.getElementById('add-team-member-modal').style.display = 'flex';
     }
-    window.showAddTeamMemberModal = showAddTeamMemberModal;
+    globalThis.showAddTeamMemberModal = showAddTeamMemberModal;
 
     function closeTeamMemberModal() {
       document.getElementById('add-team-member-modal').style.display = 'none';
     }
-    window.closeTeamMemberModal = closeTeamMemberModal;
+    globalThis.closeTeamMemberModal = closeTeamMemberModal;
 
     async function addTeamMember() {
       const name = document.getElementById('team-add-name').value.trim();
@@ -9014,7 +9018,7 @@
       errorEl.style.display = 'none';
       
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-members`, {
           method: 'POST',
           headers: getAdminHeaders(),
@@ -9023,7 +9027,7 @@
         const data = await response.json();
         if (!response.ok) throw new Error(data.error || 'Failed to add member');
         
-        showToast(`${name} added as ${role.replace(/_/g, ' ')}`);
+        showToast(`${name} added as ${role.replaceAll('_', ' ')}`);
         closeTeamMemberModal();
         await loadTeamMembers();
       } catch (err) {
@@ -9034,7 +9038,7 @@
         btn.disabled = false;
       }
     }
-    window.addTeamMember = addTeamMember;
+    globalThis.addTeamMember = addTeamMember;
 
     function editTeamMember(id) {
       const member = teamMembers.find(m => m.id === id);
@@ -9047,12 +9051,12 @@
       document.getElementById('team-edit-error').style.display = 'none';
       document.getElementById('edit-team-member-modal').style.display = 'flex';
     }
-    window.editTeamMember = editTeamMember;
+    globalThis.editTeamMember = editTeamMember;
 
     function closeEditTeamModal() {
       document.getElementById('edit-team-member-modal').style.display = 'none';
     }
-    window.closeEditTeamModal = closeEditTeamModal;
+    globalThis.closeEditTeamModal = closeEditTeamModal;
 
     async function saveTeamMember() {
       const id = document.getElementById('team-edit-id').value;
@@ -9082,7 +9086,7 @@
         const body = { display_name: name, role, status };
         if (password) body.password = password;
         
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-members/${id}`, {
           method: 'PUT',
           headers: getAdminHeaders(),
@@ -9102,12 +9106,12 @@
         btn.disabled = false;
       }
     }
-    window.saveTeamMember = saveTeamMember;
+    globalThis.saveTeamMember = saveTeamMember;
 
     async function deleteTeamMember(id, name) {
       if (!confirm(`Are you sure you want to remove ${name} from the team? This cannot be undone.`)) return;
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-members/${id}`, {
           method: 'DELETE',
           headers: getAdminHeaders()
@@ -9119,7 +9123,7 @@
         showToast('Failed to remove team member', 'error');
       }
     }
-    window.deleteTeamMember = deleteTeamMember;
+    globalThis.deleteTeamMember = deleteTeamMember;
 
     // ========== TEAM INVITES ==========
     let currentInviteId = null;
@@ -9139,13 +9143,13 @@
       currentInviteUrl = null;
       document.getElementById('invite-team-member-modal').style.display = 'flex';
     }
-    window.showInviteModal = showInviteModal;
+    globalThis.showInviteModal = showInviteModal;
 
     function closeInviteModal() {
       document.getElementById('invite-team-member-modal').style.display = 'none';
       if (currentInviteId) loadPendingInvites();
     }
-    window.closeInviteModal = closeInviteModal;
+    globalThis.closeInviteModal = closeInviteModal;
 
     async function generateInvite() {
       const email = document.getElementById('invite-email').value.trim();
@@ -9164,7 +9168,7 @@
       errorEl.style.display = 'none';
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-invites`, {
           method: 'POST',
           headers: getAdminHeaders(),
@@ -9189,11 +9193,11 @@
         btn.textContent = 'Generate Invite';
       }
     }
-    window.generateInvite = generateInvite;
+    globalThis.generateInvite = generateInvite;
 
     function copyInviteLink() {
       const linkEl = document.getElementById('invite-link-display');
-      if (linkEl && linkEl.value) {
+      if (linkEl?.value) {
         navigator.clipboard.writeText(linkEl.value).then(() => {
           showToast('Invite link copied to clipboard');
         }).catch(() => {
@@ -9203,7 +9207,7 @@
         });
       }
     }
-    window.copyInviteLink = copyInviteLink;
+    globalThis.copyInviteLink = copyInviteLink;
 
     async function sendInviteEmail() {
       if (!currentInviteId) return;
@@ -9214,7 +9218,7 @@
       statusEl.textContent = '';
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-invites/${currentInviteId}/send-email`, {
           method: 'POST',
           headers: getAdminHeaders()
@@ -9230,7 +9234,7 @@
         btn.textContent = 'Send via Email';
       }
     }
-    window.sendInviteEmail = sendInviteEmail;
+    globalThis.sendInviteEmail = sendInviteEmail;
 
     function showSmsSendDialog() {
       if (!currentInviteId) return;
@@ -9244,7 +9248,7 @@
       const phoneInput = document.getElementById('invite-sms-phone');
       if (phoneInput) phoneInput.focus();
     }
-    window.showSmsSendDialog = showSmsSendDialog;
+    globalThis.showSmsSendDialog = showSmsSendDialog;
 
     async function sendInviteSms() {
       if (!currentInviteId) return;
@@ -9261,7 +9265,7 @@
       if (smsBtn) { smsBtn.disabled = true; smsBtn.textContent = 'Sending...'; }
 
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-invites/${currentInviteId}/send-sms`, {
           method: 'POST',
           headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
@@ -9277,13 +9281,13 @@
         if (smsBtn) { smsBtn.disabled = false; smsBtn.textContent = 'Send via SMS'; }
       }
     }
-    window.sendInviteSms = sendInviteSms;
+    globalThis.sendInviteSms = sendInviteSms;
 
     async function loadPendingInvites() {
       const tbody = document.getElementById('pending-invites-body');
       if (!tbody) return;
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
         if (!response.ok) throw new Error('Failed to fetch');
         const invites = await response.json();
@@ -9299,7 +9303,7 @@
         }
 
         tbody.innerHTML = invites.map(inv => {
-          const roleLabel = (inv.role || '').replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+          const roleLabel = (inv.role || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
           const badgeClass = roleBadgeClass[inv.role] || 'badge-blue';
           const statusClass = inv.status === 'pending' ? 'badge-orange' : inv.status === 'accepted' ? 'badge-green' : 'badge-red';
           const statusLabel = inv.status.charAt(0).toUpperCase() + inv.status.slice(1);
@@ -9331,7 +9335,7 @@
 
     async function resendInviteEmail(inviteId) {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-invites/${inviteId}/send-email`, {
           method: 'POST',
           headers: getAdminHeaders()
@@ -9343,12 +9347,12 @@
         showToast('Failed to resend: ' + err.message, 'error');
       }
     }
-    window.resendInviteEmail = resendInviteEmail;
+    globalThis.resendInviteEmail = resendInviteEmail;
 
     async function revokeInvite(id, email) {
       if (!confirm(`Revoke invite for ${email}? They will no longer be able to use this invite link.`)) return;
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-invites/${id}`, {
           method: 'DELETE',
           headers: getAdminHeaders()
@@ -9360,7 +9364,7 @@
         showToast('Failed to revoke invite', 'error');
       }
     }
-    window.revokeInvite = revokeInvite;
+    globalThis.revokeInvite = revokeInvite;
 
     function getTeamApiUrl(endpoint) {
       const isNetlify = window.location.hostname.includes('netlify') ||
@@ -9369,7 +9373,7 @@
       if (isNetlify) {
         return `/.netlify/functions/admin-team/${endpoint}`;
       }
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       if (endpoint === 'members') return `${apiBase}/api/admin/team-members`;
       if (endpoint === 'invites') return `${apiBase}/api/admin/team-invites`;
       return `${apiBase}/api/admin/team-${endpoint}`;
@@ -9390,7 +9394,7 @@
       modal.style.display = 'flex';
       loadMarketingSharePeople();
     }
-    window.openMarketingShareModal = openMarketingShareModal;
+    globalThis.openMarketingShareModal = openMarketingShareModal;
     const _mktShareBtn = document.getElementById('marketing-share-btn');
     if (_mktShareBtn) _mktShareBtn.addEventListener('click', openMarketingShareModal);
 
@@ -9398,7 +9402,7 @@
       const modal = document.getElementById('marketing-share-modal');
       if (modal) modal.style.display = 'none';
     }
-    window.closeMarketingShareModal = closeMarketingShareModal;
+    globalThis.closeMarketingShareModal = closeMarketingShareModal;
 
     async function loadMarketingSharePeople() {
       const container = document.getElementById('mkt-share-people-list');
@@ -9414,7 +9418,7 @@
         const allMembers = (membersData.members || membersData || []).filter(m =>
           m.role === 'marketing' || m.role === 'super_admin'
         );
-        const currentEmail = window._adminEmail || '';
+        const currentEmail = globalThis._adminEmail || '';
         let html = '';
         if (allMembers.length === 0 && (!invitesRes.ok)) {
           html = '<p style="color:var(--text-muted);text-align:center;padding:16px;font-size:0.88rem;">No collaborators yet. Add people above or share a link.</p>';
@@ -9493,7 +9497,7 @@
         btn.textContent = 'Send invite';
       }
     }
-    window.sendMarketingInvite = sendMarketingInvite;
+    globalThis.sendMarketingInvite = sendMarketingInvite;
 
     async function copyMarketingShareLink() {
       const copyText = document.getElementById('mkt-share-copy-text');
@@ -9528,7 +9532,7 @@
         btn.disabled = false;
       }
     }
-    window.copyMarketingShareLink = copyMarketingShareLink;
+    globalThis.copyMarketingShareLink = copyMarketingShareLink;
 
     async function clipboardCopy(text) {
       try {
@@ -9551,14 +9555,14 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.traffic-range').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        trafficDays = parseInt(btn.dataset.days);
+        trafficDays = Number.parseInt(btn.dataset.days);
         loadedSections['traffic'] = false;
         loadTrafficData();
       });
     });
 
     async function loadTrafficData() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const headers = {};
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
       else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
@@ -9759,13 +9763,13 @@
       btn.disabled = false;
       btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Generate Posts for All Platforms';
     }
-    window.generateSocialPosts = generateSocialPosts;
+    globalThis.generateSocialPosts = generateSocialPosts;
 
     function copySocialPost(platform) {
       const el = document.getElementById('social-post-' + platform);
       if (el) { navigator.clipboard.writeText(el.textContent); showToast('Copied ' + platform + ' post'); }
     }
-    window.copySocialPost = copySocialPost;
+    globalThis.copySocialPost = copySocialPost;
 
     function copyAllSocialPosts() {
       const posts = [];
@@ -9775,7 +9779,7 @@
       });
       if (posts.length) { navigator.clipboard.writeText(posts.join('\n\n')); showToast('All posts copied'); }
     }
-    window.copyAllSocialPosts = copyAllSocialPosts;
+    globalThis.copyAllSocialPosts = copyAllSocialPosts;
 
     function saveSocialPost(platform) {
       const el = document.getElementById('social-post-' + platform);
@@ -9786,7 +9790,7 @@
       localStorage.setItem('mcc_social_posts', JSON.stringify(saved));
       showToast('Post saved to history');
     }
-    window.saveSocialPost = saveSocialPost;
+    globalThis.saveSocialPost = saveSocialPost;
 
     function loadSocialPostHistory() {
       const container = document.getElementById('social-post-history');
@@ -9804,10 +9808,10 @@
           </div>
           <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:80px;overflow:hidden;text-overflow:ellipsis;">${p.content.substring(0, 200)}${p.content.length > 200 ? '...' : ''}</div>
         </div>
-        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(p.content).replace(/'/g, "\\'")}); showToast('Copied');"><span class="icon-inline" data-icon="clipboard"></span></button>
+        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(p.content).replaceAll('\'', "\\'")}); showToast('Copied');"><span class="icon-inline" data-icon="clipboard"></span></button>
       </div>`).join('');
     }
-    window.loadSocialPostHistory = loadSocialPostHistory;
+    globalThis.loadSocialPostHistory = loadSocialPostHistory;
 
     function updatePlatformVisibility() {
       const type = document.getElementById('mkt-content-type')?.value;
@@ -9824,8 +9828,8 @@
       updatePlatformVisibility();
       await loadSavedCampaigns();
       // Task #139 — Hunter & Promoter activity strip at top of section.
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        try { window.renderAgentActivityPanel('mo-agent-activity', {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        try { globalThis.renderAgentActivityPanel('mo-agent-activity', {
           agentSlug: ['hunter', 'promoter'], limit: 15,
           title: 'Recent Hunter & Promoter Activity', showEmpty: true
         }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
@@ -9857,7 +9861,7 @@
       btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Generating...';
       output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is crafting your content...</p></div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -9875,13 +9879,13 @@
         if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
       }
     }
-    window.generateMarketingContent = generateMarketingContent;
+    globalThis.generateMarketingContent = generateMarketingContent;
 
     function copyMarketingContent() {
       if (!currentMktContent) { showToast('No content to copy', 'error'); return; }
       navigator.clipboard.writeText(currentMktContent).then(() => showToast('Content copied to clipboard'));
     }
-    window.copyMarketingContent = copyMarketingContent;
+    globalThis.copyMarketingContent = copyMarketingContent;
 
     async function saveMarketingContent() {
       if (!currentMktContent) { showToast('No content to save', 'error'); return; }
@@ -9889,7 +9893,7 @@
       const topic = document.getElementById('mkt-topic').value;
       await saveCampaignToServer(topic || 'Untitled', type, currentMktContent, { platform: document.getElementById('mkt-platform').value });
     }
-    window.saveMarketingContent = saveMarketingContent;
+    globalThis.saveMarketingContent = saveMarketingContent;
 
     async function generateEmailCampaign() {
       const campaignType = document.getElementById('email-campaign-type').value;
@@ -9899,7 +9903,7 @@
       const preview = document.getElementById('email-preview');
       preview.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:#999;"><div style="width:32px;height:32px;border:3px solid #ddd;border-top-color:#007bff;border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">Generating email...</p></div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -9917,7 +9921,7 @@
         preview.innerHTML = '<p style="color:red;padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
       }
     }
-    window.generateEmailCampaign = generateEmailCampaign;
+    globalThis.generateEmailCampaign = generateEmailCampaign;
 
     async function sendEmailCampaign() {
       if (!currentEmailHtml) { showToast('Generate an email first', 'error'); return; }
@@ -9930,7 +9934,7 @@
       btn.disabled = true;
       btn.textContent = 'Sending...';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/send-email`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -9947,19 +9951,19 @@
         if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
       }
     }
-    window.sendEmailCampaign = sendEmailCampaign;
+    globalThis.sendEmailCampaign = sendEmailCampaign;
 
     function copyEmailContent() {
       if (!currentEmailHtml) { showToast('No email to copy', 'error'); return; }
       navigator.clipboard.writeText(currentEmailHtml).then(() => showToast('Email HTML copied'));
     }
-    window.copyEmailContent = copyEmailContent;
+    globalThis.copyEmailContent = copyEmailContent;
 
     function saveEmailCampaign() {
       if (!currentEmailHtml) { showToast('No email to save', 'error'); return; }
       saveCampaignToServer(currentEmailSubject || 'Email Campaign', 'email_campaign', currentEmailHtml, {});
     }
-    window.saveEmailCampaign = saveEmailCampaign;
+    globalThis.saveEmailCampaign = saveEmailCampaign;
 
     async function generateStrategy() {
       const goal = document.getElementById('strategy-goal').value;
@@ -9970,7 +9974,7 @@
       const output = document.getElementById('strategy-output');
       output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is building your strategy...</p></div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/strategy`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -9984,19 +9988,19 @@
         output.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
       }
     }
-    window.generateStrategy = generateStrategy;
+    globalThis.generateStrategy = generateStrategy;
 
     function copyStrategyContent() {
       if (!currentStrategyContent) { showToast('No strategy to copy', 'error'); return; }
       navigator.clipboard.writeText(currentStrategyContent).then(() => showToast('Strategy copied'));
     }
-    window.copyStrategyContent = copyStrategyContent;
+    globalThis.copyStrategyContent = copyStrategyContent;
 
     function saveStrategyContent() {
       if (!currentStrategyContent) { showToast('No strategy to save', 'error'); return; }
       saveCampaignToServer(document.getElementById('strategy-goal').value || 'Marketing Strategy', 'campaign_strategy', currentStrategyContent, {});
     }
-    window.saveStrategyContent = saveStrategyContent;
+    globalThis.saveStrategyContent = saveStrategyContent;
 
     async function generateFundraising() {
       const type = document.getElementById('fund-type').value;
@@ -10007,7 +10011,7 @@
       const output = document.getElementById('fund-output');
       output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is generating fundraising content...</p></div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10021,23 +10025,23 @@
         output.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
       }
     }
-    window.generateFundraising = generateFundraising;
+    globalThis.generateFundraising = generateFundraising;
 
     function copyFundraisingContent() {
       if (!currentFundContent) { showToast('No content to copy', 'error'); return; }
       navigator.clipboard.writeText(currentFundContent).then(() => showToast('Content copied'));
     }
-    window.copyFundraisingContent = copyFundraisingContent;
+    globalThis.copyFundraisingContent = copyFundraisingContent;
 
     function saveFundraisingContent() {
       if (!currentFundContent) { showToast('No content to save', 'error'); return; }
       saveCampaignToServer(document.getElementById('fund-goal').value || 'Fundraising Content', document.getElementById('fund-type').value, currentFundContent, { stage: document.getElementById('fund-stage').value });
     }
-    window.saveFundraisingContent = saveFundraisingContent;
+    globalThis.saveFundraisingContent = saveFundraisingContent;
 
     async function saveCampaignToServer(title, type, content, metadata) {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/save-campaign`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10055,7 +10059,7 @@
       const container = document.getElementById('saved-campaigns-list');
       if (!container) return;
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/saved-campaigns`, { headers: getMarketingHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -10079,7 +10083,7 @@
         container.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error loading saved content: ' + escapeHtml(err.message) + '</p>';
       }
     }
-    window.loadSavedCampaigns = loadSavedCampaigns;
+    globalThis.loadSavedCampaigns = loadSavedCampaigns;
 
     async function runResearch() {
       const category = document.getElementById('research-category').value;
@@ -10092,7 +10096,7 @@
       btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Searching the web...';
       resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is searching the internet for real opportunities...</p><p style="font-size:0.85rem;margin-top:8px;">This may take 30-60 seconds</p></div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/research`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10115,7 +10119,7 @@
         if (typeof initInlineIcons !== 'undefined') initInlineIcons(btn);
       }
     }
-    window.runResearch = runResearch;
+    globalThis.runResearch = runResearch;
 
     function renderResearchResults(opportunities, sources) {
       const container = document.getElementById('research-results');
@@ -10167,7 +10171,7 @@
       const btn = evt ? evt.target.closest('button') : null;
       if (btn) { btn.disabled = true; btn.textContent = 'Sending...'; }
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/outreach-send`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10182,13 +10186,13 @@
         if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Email'; }
       }
     }
-    window.sendOutreach = sendOutreach;
+    globalThis.sendOutreach = sendOutreach;
 
     async function updateOutreach(id) {
       const subjectEl = document.querySelector('.outreach-subject[data-id="' + id + '"]');
       const bodyEl = document.querySelector('.outreach-body[data-id="' + id + '"]');
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/outreach-update`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10201,7 +10205,7 @@
         showToast('Failed to save: ' + err.message, 'error');
       }
     }
-    window.updateOutreach = updateOutreach;
+    globalThis.updateOutreach = updateOutreach;
 
     function copyOutreachEmail(id) {
       const subjectEl = document.querySelector('.outreach-subject[data-id="' + id + '"]');
@@ -10209,14 +10213,14 @@
       const text = 'Subject: ' + (subjectEl?.value || '') + '\n\n' + (bodyEl?.value || '');
       navigator.clipboard.writeText(text).then(() => showToast('Email copied'));
     }
-    window.copyOutreachEmail = copyOutreachEmail;
+    globalThis.copyOutreachEmail = copyOutreachEmail;
 
     async function loadOutreachQueue() {
       const resultsDiv = document.getElementById('research-results');
       if (!resultsDiv) return;
       resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">Loading outreach queue...</p></div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue`, { headers: getMarketingHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
@@ -10230,7 +10234,7 @@
         resultsDiv.innerHTML = '<p style="color:var(--accent-red);padding:20px;">Error: ' + escapeHtml(err.message) + '</p>';
       }
     }
-    window.loadOutreachQueue = loadOutreachQueue;
+    globalThis.loadOutreachQueue = loadOutreachQueue;
 
     let emailOutreachLeads = [];
 
@@ -10242,7 +10246,7 @@
       filtersDiv.style.display = isHidden ? 'flex' : 'none';
       if (icon) icon.style.transform = isHidden ? 'rotate(180deg)' : 'rotate(0deg)';
     }
-    window.toggleEmailOutreachSection = toggleEmailOutreachSection;
+    globalThis.toggleEmailOutreachSection = toggleEmailOutreachSection;
 
     async function loadEmailOutreachLeads() {
       const preview = document.getElementById('email-outreach-leads-preview');
@@ -10250,7 +10254,7 @@
       preview.style.display = 'block';
       preview.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">Loading leads...</div>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const type = document.getElementById('email-lead-type')?.value || '';
         const minScore = document.getElementById('email-lead-score')?.value || '';
         const source = document.getElementById('email-lead-source')?.value || '';
@@ -10280,24 +10284,24 @@
         if (addBtn) addBtn.style.display = 'none';
       }
     }
-    window.loadEmailOutreachLeads = loadEmailOutreachLeads;
+    globalThis.loadEmailOutreachLeads = loadEmailOutreachLeads;
 
     function toggleAllEmailLeads(checked) {
       document.querySelectorAll('.email-lead-cb').forEach(cb => cb.checked = checked);
     }
-    window.toggleAllEmailLeads = toggleAllEmailLeads;
+    globalThis.toggleAllEmailLeads = toggleAllEmailLeads;
 
     function updateEmailLeadCount() {
       const checked = document.querySelectorAll('.email-lead-cb:checked').length;
       const selectAll = document.getElementById('email-lead-select-all');
       if (selectAll) selectAll.checked = checked === emailOutreachLeads.length;
     }
-    window.updateEmailLeadCount = updateEmailLeadCount;
+    globalThis.updateEmailLeadCount = updateEmailLeadCount;
 
     function addSelectedLeadsToRecipients() {
       const selected = [];
       document.querySelectorAll('.email-lead-cb:checked').forEach(cb => {
-        const idx = parseInt(cb.dataset.idx);
+        const idx = Number.parseInt(cb.dataset.idx);
         if (emailOutreachLeads[idx]?.email) selected.push(emailOutreachLeads[idx].email);
       });
       if (selected.length === 0) { showToast('No leads selected', 'error'); return; }
@@ -10309,7 +10313,7 @@
       showToast(`Added ${selected.length} leads (${merged.length} total recipients)`);
       checkEmailDedup();
     }
-    window.addSelectedLeadsToRecipients = addSelectedLeadsToRecipients;
+    globalThis.addSelectedLeadsToRecipients = addSelectedLeadsToRecipients;
 
     async function checkEmailDedup() {
       const status = document.getElementById('email-dedup-status');
@@ -10320,7 +10324,7 @@
       if (emails.length === 0) { status.textContent = ''; return; }
       status.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem;">Checking duplicates...</span>';
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/check-dedup`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10338,19 +10342,19 @@
         status.innerHTML = '<span style="color:var(--text-muted);font-size:0.8rem;">Dedup check unavailable</span>';
       }
     }
-    window.checkEmailDedup = checkEmailDedup;
+    globalThis.checkEmailDedup = checkEmailDedup;
 
     async function sendCampaignToLeads() {
       if (!currentEmailHtml) { showToast('Generate an email first', 'error'); return; }
       const selectedIds = [];
       document.querySelectorAll('.email-lead-cb:checked').forEach(cb => {
-        const idx = parseInt(cb.dataset.idx);
+        const idx = Number.parseInt(cb.dataset.idx);
         if (emailOutreachLeads[idx]?.id) selectedIds.push(emailOutreachLeads[idx].id);
       });
       if (selectedIds.length === 0) { showToast('No leads selected', 'error'); return; }
       if (!confirm(`Send this email campaign to ${selectedIds.length} outreach leads? This will also log the send in the Outreach Engine.`)) return;
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/campaign-to-leads`, {
           method: 'POST',
           headers: getMarketingHeaders(),
@@ -10363,10 +10367,10 @@
         showToast('Send failed: ' + err.message, 'error');
       }
     }
-    window.sendCampaignToLeads = sendCampaignToLeads;
+    globalThis.sendCampaignToLeads = sendCampaignToLeads;
 
     async function loadGrowthFunnel() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/marketing/pipeline-metrics`, { headers: getMarketingHeaders() });
         const data = await res.json();
@@ -10397,7 +10401,7 @@
           const srcTotal = Object.values(bySource).reduce((s, v) => s + v, 0) || 1;
           const sourceLabels = { google_places: 'Google Places', community_discovery: 'Community Discovery', crm_reengagement: 'CRM Re-engagement', referral_nudge: 'Referral Nudge', stalled_application: 'Stalled Applications', manual: 'Manual Entry', csv_import: 'CSV Import', member_places: 'Member Places' };
           sourceContainer.innerHTML = Object.entries(bySource).sort((a,b) => b[1]-a[1]).map(([src, count]) => 
-            `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;"><span style="font-size:0.9rem;">${sourceLabels[src] || src.replace(/_/g, ' ')}</span><div style="display:flex;align-items:center;gap:8px;"><div style="width:80px;height:5px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--accent-blue);width:${(count/srcTotal*100).toFixed(0)}%;border-radius:3px;"></div></div><span style="font-weight:500;min-width:30px;text-align:right;">${count}</span></div></div>`
+            `<div style="display:flex;align-items:center;justify-content:space-between;padding:6px 0;"><span style="font-size:0.9rem;">${sourceLabels[src] || src.replaceAll('_', ' ')}</span><div style="display:flex;align-items:center;gap:8px;"><div style="width:80px;height:5px;background:var(--bg-tertiary);border-radius:3px;overflow:hidden;"><div style="height:100%;background:var(--accent-blue);width:${(count/srcTotal*100).toFixed(0)}%;border-radius:3px;"></div></div><span style="font-weight:500;min-width:30px;text-align:right;">${count}</span></div></div>`
           ).join('') || '<p style="color:var(--text-muted);text-align:center;padding:20px;">No data</p>';
         }
 
@@ -10431,7 +10435,7 @@
         console.error('Growth funnel load error:', err);
       }
     }
-    window.loadGrowthFunnel = loadGrowthFunnel;
+    globalThis.loadGrowthFunnel = loadGrowthFunnel;
 
     function switchOutreachTab(tab) {
       const panels = document.querySelectorAll('.outreach-panel');
@@ -10453,16 +10457,43 @@
       else if (tab === 'leads') loadOutreachLeads();
       else if (tab === 'campaigns') loadOutreachCampaigns();
       else if (tab === 'pipeline') loadOutreachPipeline();
-      else if (tab === 'analytics') { if (window.loadGrowthFunnel) loadGrowthFunnel(); if (window.loadOutreachAnalytics) loadOutreachAnalytics(); }
+      else if (tab === 'analytics') { if (globalThis.loadGrowthFunnel) loadGrowthFunnel(); if (globalThis.loadOutreachAnalytics) loadOutreachAnalytics(); }
       else if (tab === 'instantly') loadInstantlyCampaigns();
     }
-    window.switchOutreachTab = switchOutreachTab;
+    globalThis.switchOutreachTab = switchOutreachTab;
+
+    // Render one queued message card. Extracted from loadApprovalQueue so
+    // the loader stays under the cognitive-complexity budget (Task #262).
+    function _renderQueueMessageCard(m) {
+      const lead = m.outreach_leads || {};
+      const ch = m.channel === 'email' ? '✉️' : '💬';
+      const contact = m.channel === 'email' ? (lead.email || '') : (lead.phone || '');
+      const body = m.body || '';
+      const bodyPreview = escapeHtml(body.substring(0, 400)) + (body.length > 400 ? '…' : '');
+      const subjectLine = m.subject
+        ? `<div style="font-size:0.85rem;font-weight:500;margin-bottom:6px;">Subject: ${escapeHtml(m.subject)}</div>`
+        : '';
+      return `<div id="queue-msg-${m.id}" style="padding:16px;border-bottom:1px solid var(--border-subtle);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;margin-bottom:2px;">${ch} ${escapeHtml(lead.name || 'Unknown')} <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">${escapeHtml(lead.company || lead.type || '')}</span></div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(contact)}</div>
+            ${subjectLine}
+            <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:hidden;line-height:1.5;">${bodyPreview}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn btn-sm btn-primary" onclick="approveMessage('${m.id}')"><span class="icon-inline" data-icon="check"></span> Approve</button>
+            <button class="btn btn-sm" onclick="skipMessage('${m.id}')" style="border-color:var(--text-muted);color:var(--text-muted);"><span class="icon-inline" data-icon="x"></span> Skip</button>
+          </div>
+        </div>
+      </div>`;
+    }
 
     async function loadApprovalQueue() {
       const listEl = document.getElementById('outreach-queue-list');
       const bulkBar = document.getElementById('outreach-bulk-bar');
       if (!listEl) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
       try {
         const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
@@ -10474,33 +10505,16 @@
           listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No messages pending approval. Run a cycle to generate new drafts.</p>';
           return;
         }
-        listEl.innerHTML = messages.map(m => {
-          const lead = m.outreach_leads || {};
-          const ch = m.channel === 'email' ? '✉️' : '💬';
-          return `<div id="queue-msg-${m.id}" style="padding:16px;border-bottom:1px solid var(--border-subtle);">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-weight:600;margin-bottom:2px;">${ch} ${escapeHtml(lead.name || 'Unknown')} <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">${escapeHtml(lead.company || lead.type || '')}</span></div>
-                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(m.channel === 'email' ? (lead.email || '') : (lead.phone || ''))}</div>
-                ${m.subject ? `<div style="font-size:0.85rem;font-weight:500;margin-bottom:6px;">Subject: ${escapeHtml(m.subject)}</div>` : ''}
-                <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:hidden;line-height:1.5;">${escapeHtml((m.body || '').substring(0, 400))}${(m.body || '').length > 400 ? '…' : ''}</div>
-              </div>
-              <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="btn btn-sm btn-primary" onclick="approveMessage('${m.id}')"><span class="icon-inline" data-icon="check"></span> Approve</button>
-                <button class="btn btn-sm" onclick="skipMessage('${m.id}')" style="border-color:var(--text-muted);color:var(--text-muted);"><span class="icon-inline" data-icon="x"></span> Skip</button>
-              </div>
-            </div>
-          </div>`;
-        }).join('');
-        if (window.renderIcons) renderIcons(listEl);
+        listEl.innerHTML = messages.map(_renderQueueMessageCard).join('');
+        if (globalThis.renderIcons) renderIcons(listEl);
       } catch (err) {
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
       }
     }
-    window.loadApprovalQueue = loadApprovalQueue;
+    globalThis.loadApprovalQueue = loadApprovalQueue;
 
     async function approveMessage(messageId) {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve`, {
           method: 'POST',
@@ -10511,15 +10525,15 @@
         if (!res.ok) throw new Error(data.error || 'Failed to approve');
         const el = document.getElementById(`queue-msg-${messageId}`);
         if (el) { el.style.opacity = '0.4'; el.style.pointerEvents = 'none'; el.querySelector('.btn.btn-primary').textContent = '✓ Approved'; }
-        if (window.showToast) showToast('Message approved and queued for sending', 'success');
+        if (globalThis.showToast) showToast('Message approved and queued for sending', 'success');
       } catch (err) {
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.approveMessage = approveMessage;
+    globalThis.approveMessage = approveMessage;
 
     async function skipMessage(messageId) {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/outreach/messages/skip`, {
           method: 'POST',
@@ -10530,15 +10544,15 @@
         if (!res.ok) throw new Error(data.error || 'Failed to skip');
         const el = document.getElementById(`queue-msg-${messageId}`);
         if (el) el.remove();
-        if (window.showToast) showToast('Message skipped', 'success');
+        if (globalThis.showToast) showToast('Message skipped', 'success');
       } catch (err) {
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.skipMessage = skipMessage;
+    globalThis.skipMessage = skipMessage;
 
     async function runCycleNow() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const btn = document.querySelector('[onclick="runCycleNow()"]');
       if (btn) { btn.disabled = true; btn.textContent = 'Running…'; }
       try {
@@ -10548,18 +10562,18 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Cycle failed');
-        if (window.showToast) showToast(`Cycle complete — ${data.drafted || 0} drafted, ${data.sent || 0} sent`, 'success');
+        if (globalThis.showToast) showToast(`Cycle complete — ${data.drafted || 0} drafted, ${data.sent || 0} sent`, 'success');
         setTimeout(loadApprovalQueue, 1000);
       } catch (err) {
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Run Cycle Now'; if (window.renderIcons) renderIcons(btn); }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Run Cycle Now'; if (globalThis.renderIcons) renderIcons(btn); }
       }
     }
-    window.runCycleNow = runCycleNow;
+    globalThis.runCycleNow = runCycleNow;
 
     async function flushApprovedQueue() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const btn = document.getElementById('flush-queue-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Sending…'; }
       try {
@@ -10570,19 +10584,19 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Flush failed');
-        if (window.showToast) showToast(`Sent ${data.sent} — ${data.skipped} skipped (${data.errors} errors)`, data.sent > 0 ? 'success' : 'info');
+        if (globalThis.showToast) showToast(`Sent ${data.sent} — ${data.skipped} skipped (${data.errors} errors)`, data.sent > 0 ? 'success' : 'info');
         setTimeout(loadApprovalQueue, 1500);
       } catch (err) {
-        if (window.showToast) showToast('Flush error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Flush error: ' + err.message, 'error');
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Approved'; if (window.renderIcons) renderIcons(btn); }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Send Approved'; if (globalThis.renderIcons) renderIcons(btn); }
       }
     }
-    window.flushApprovedQueue = flushApprovedQueue;
+    globalThis.flushApprovedQueue = flushApprovedQueue;
 
     async function clearAndRedraft() {
       if (!confirm('This will delete all draft/approved messages and run a fresh cycle. Continue?')) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/outreach/clear-and-redraft`, {
           method: 'POST',
@@ -10590,23 +10604,23 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        if (window.showToast) showToast(`Cleared ${data.cleared || 0} messages and ran fresh cycle`, 'success');
+        if (globalThis.showToast) showToast(`Cleared ${data.cleared || 0} messages and ran fresh cycle`, 'success');
         setTimeout(loadApprovalQueue, 1000);
       } catch (err) {
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.clearAndRedraft = clearAndRedraft;
+    globalThis.clearAndRedraft = clearAndRedraft;
 
     async function bulkApproveAll() {
       if (!confirm('Approve all draft messages for sending?')) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const listRes = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=200`, { headers: getMarketingHeaders() });
         const listData = await listRes.json();
         if (!listRes.ok) throw new Error(listData.error || 'Failed to load messages');
         const messageIds = (listData.data || listData.items || []).map(m => m.id);
-        if (messageIds.length === 0) { if (window.showToast) showToast('No draft messages to approve', 'error'); return; }
+        if (messageIds.length === 0) { if (globalThis.showToast) showToast('No draft messages to approve', 'error'); return; }
         const res = await fetch(`${apiBase}/api/admin/outreach/messages/approve-bulk`, {
           method: 'POST',
           headers: { ...getMarketingHeaders(), 'Content-Type': 'application/json' },
@@ -10614,18 +10628,18 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed to approve');
-        if (window.showToast) showToast(`Approved ${data.approved || 0} messages`, 'success');
+        if (globalThis.showToast) showToast(`Approved ${data.approved || 0} messages`, 'success');
         setTimeout(loadApprovalQueue, 800);
       } catch (err) {
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.bulkApproveAll = bulkApproveAll;
+    globalThis.bulkApproveAll = bulkApproveAll;
 
     async function syncLeadsToInstantly() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value?.trim() || '';
-      const syncLimit = parseInt((document.getElementById('instantly-sync-limit') || {}).value || '500', 10);
+      const syncLimit = Number.parseInt((document.getElementById('instantly-sync-limit') || {}).value || '500', 10);
       const resultEl = document.getElementById('instantly-sync-result');
       const btn = document.getElementById('instantly-sync-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
@@ -10645,21 +10659,21 @@
           resultEl.style.color = 'var(--accent-green)';
           resultEl.innerHTML = `<strong>Sync complete!</strong><br>Leads synced: ${data.synced || 0}<br>${data.message || ''}`;
         }
-        if (window.showToast) showToast(`Synced ${data.synced || 0} leads to Instantly.ai`, 'success');
+        if (globalThis.showToast) showToast(`Synced ${data.synced || 0} leads to Instantly.ai`, 'success');
       } catch (err) {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       } finally {
-        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Sync Leads Now'; if (window.renderIcons) renderIcons(btn); }
+        if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="send"></span> Sync Leads Now'; if (globalThis.renderIcons) renderIcons(btn); }
       }
     }
-    window.syncLeadsToInstantly = syncLeadsToInstantly;
+    globalThis.syncLeadsToInstantly = syncLeadsToInstantly;
 
     async function createInstantlyCampaign() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const name = (document.getElementById('instantly-campaign-name') || {}).value?.trim() || '';
       const resultEl = document.getElementById('instantly-campaign-result');
-      if (!name) { if (window.showToast) showToast('Campaign name is required', 'error'); return; }
+      if (!name) { if (globalThis.showToast) showToast('Campaign name is required', 'error'); return; }
       if (resultEl) { resultEl.style.display = 'none'; resultEl.innerHTML = ''; }
       try {
         const res = await fetch(`${apiBase}/api/admin/marketing/instantly-create-campaign`, {
@@ -10674,17 +10688,42 @@
           resultEl.style.color = 'var(--accent-green)';
           resultEl.innerHTML = `<strong>Campaign created!</strong><br>ID: ${data.id || data.campaign_id || 'N/A'}<br>Name: ${escapeHtml(data.name || name)}`;
         }
-        if (window.showToast) showToast('Instantly campaign created successfully', 'success');
+        if (globalThis.showToast) showToast('Instantly campaign created successfully', 'success');
         setTimeout(loadInstantlyCampaigns, 1000);
       } catch (err) {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.createInstantlyCampaign = createInstantlyCampaign;
+    globalThis.createInstantlyCampaign = createInstantlyCampaign;
+
+    // Pick the rate-cell color based on the rate value. Pure data — keeps
+    // the row template under the cognitive-complexity budget (Task #262).
+    function _instantlyRateColor(rate, hotThreshold) {
+      if (rate > hotThreshold) return 'var(--accent-green)';
+      if (rate > 0) return 'var(--text-primary)';
+      return 'var(--text-muted)';
+    }
+
+    function _renderInstantlyCampaignRow(c) {
+      const sent = c.emails_sent_count || 0;
+      const openRate = typeof c.open_rate === 'number' ? c.open_rate.toFixed(1) + '%' : '—';
+      const replyRate = typeof c.reply_rate === 'number' ? c.reply_rate.toFixed(1) + '%' : '—';
+      const statusBg = c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)';
+      const statusFg = c.status === 'active' ? '#fff' : 'var(--text-muted)';
+      const openColor  = _instantlyRateColor(c.open_rate || 0, 20);
+      const replyColor = _instantlyRateColor(c.reply_rate || 0, 5);
+      return `<tr style="border-bottom:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
+        <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${statusBg};color:${statusFg};">${escapeHtml(c.status || 'draft')}</span></td>
+        <td style="padding:10px 12px;text-align:right;">${sent.toLocaleString()}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:${c.open_rate > 0 ? '600' : '400'};color:${openColor};">${openRate}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:${c.reply_rate > 0 ? '600' : '400'};color:${replyColor};">${replyRate}</td>
+      </tr>`;
+    }
 
     async function loadInstantlyCampaigns() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const listEl = document.getElementById('instantly-campaigns-list');
       if (!listEl) return;
       listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:24px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
@@ -10705,29 +10744,18 @@
             <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Open Rate</th>
             <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Reply Rate</th>
           </tr></thead>
-          <tbody>${campaigns.map(c => {
-            const sent = c.emails_sent_count || 0;
-            const openRate = typeof c.open_rate === 'number' ? c.open_rate.toFixed(1) + '%' : '—';
-            const replyRate = typeof c.reply_rate === 'number' ? c.reply_rate.toFixed(1) + '%' : '—';
-            return `<tr style="border-bottom:1px solid var(--border-subtle);">
-              <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
-              <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-muted)'};">${escapeHtml(c.status || 'draft')}</span></td>
-              <td style="padding:10px 12px;text-align:right;">${sent.toLocaleString()}</td>
-              <td style="padding:10px 12px;text-align:right;font-weight:${c.open_rate > 0 ? '600' : '400'};color:${c.open_rate > 20 ? 'var(--accent-green)' : c.open_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${openRate}</td>
-              <td style="padding:10px 12px;text-align:right;font-weight:${c.reply_rate > 0 ? '600' : '400'};color:${c.reply_rate > 5 ? 'var(--accent-green)' : c.reply_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${replyRate}</td>
-            </tr>`;
-          }).join('')}</tbody>
+          <tbody>${campaigns.map(_renderInstantlyCampaignRow).join('')}</tbody>
         </table>`;
       } catch (err) {
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
       }
     }
-    window.loadInstantlyCampaigns = loadInstantlyCampaigns;
+    globalThis.loadInstantlyCampaigns = loadInstantlyCampaigns;
 
     async function loadOutreachPipeline() {
       const listEl = document.getElementById('outreach-pipeline-list');
       if (!listEl) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const priority = document.getElementById('pipeline-filter-priority')?.value || '';
       const stage = document.getElementById('pipeline-filter-stage')?.value || '';
       listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading pipeline…</div>';
@@ -10757,19 +10785,19 @@
             <span style="font-size:0.8rem;">${r.preferred_channel || 'email'}</span>
             <span style="padding:2px 8px;border-radius:20px;background:var(--bg-tertiary);font-size:0.75rem;">${stageLabels[r.stage] || r.stage || ''}</span>
             <span style="font-size:0.75rem;color:var(--text-muted);">${r.added_at ? new Date(r.added_at).toLocaleDateString() : '—'}</span>
-            <button class="btn btn-sm" onclick="window.outreachFetch && outreachFetch('/messages/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:'${lead.id}'})}).then(()=>{showToast('Draft created');loadApprovalQueue();switchOutreachTab('queue');})">Draft</button>
+            <button class="btn btn-sm" onclick="globalThis.outreachFetch && outreachFetch('/messages/draft',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({lead_id:'${lead.id}'})}).then(()=>{showToast('Draft created');loadApprovalQueue();switchOutreachTab('queue');})">Draft</button>
           </div>`;
         }).join('');
       } catch (err) {
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
       }
     }
-    window.loadOutreachPipeline = loadOutreachPipeline;
+    globalThis.loadOutreachPipeline = loadOutreachPipeline;
 
     async function loadOutreachLeads() {
       const listEl = document.getElementById('outreach-leads-list');
       if (!listEl) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const search = document.getElementById('leads-search')?.value?.trim() || '';
       const type = document.getElementById('leads-filter-type')?.value || '';
       const status = document.getElementById('leads-filter-status')?.value || '';
@@ -10809,12 +10837,12 @@
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
       }
     }
-    window.loadOutreachLeads = loadOutreachLeads;
+    globalThis.loadOutreachLeads = loadOutreachLeads;
 
     async function loadOutreachCampaigns() {
       const listEl = document.getElementById('outreach-campaigns-list');
       if (!listEl) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
       try {
         const res = await fetch(`${apiBase}/api/admin/outreach/campaigns`, { headers: getMarketingHeaders() });
@@ -10845,16 +10873,16 @@
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
       }
     }
-    window.loadOutreachCampaigns = loadOutreachCampaigns;
+    globalThis.loadOutreachCampaigns = loadOutreachCampaigns;
 
     function outreachFetch(pathname, opts) {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       return fetch(`${apiBase}/api/admin/outreach${pathname}`, {
         ...opts,
-        headers: { ...getMarketingHeaders(), ...(opts && opts.headers ? opts.headers : {}) }
+        headers: { ...getMarketingHeaders(), ...(opts?.headers ? opts.headers : {}) }
       }).then(r => r.json());
     }
-    window.outreachFetch = outreachFetch;
+    globalThis.outreachFetch = outreachFetch;
 
     // ========== AI OPS AGENT ==========
 
@@ -10926,7 +10954,7 @@
         // fetch() rejects only on network/CORS-level failure. The browser's
         // TypeError message is usually the literal "Failed to fetch", which
         // tells the admin nothing. Replace it with something actionable.
-        const e = new Error(`Network unreachable — could not reach ${displayPath} (browser said: ${netErr && netErr.message ? netErr.message : 'fetch failed'}). Check your internet connection or whether the API endpoint is deployed.`);
+        const e = new Error(`Network unreachable — could not reach ${displayPath} (browser said: ${netErr?.message ? netErr.message : 'fetch failed'}). Check your internet connection or whether the API endpoint is deployed.`);
         e.code = 'NETWORK_UNREACHABLE';
         e.path = fullPath;
         throw e;
@@ -10968,14 +10996,14 @@
       try {
         return await res.json();
       } catch (parseErr) {
-        const e = new Error(`Server returned a non-JSON response (HTTP ${res.status}) on ${displayPath}. ${parseErr && parseErr.message ? parseErr.message : ''}`);
+        const e = new Error(`Server returned a non-JSON response (HTTP ${res.status}) on ${displayPath}. ${parseErr?.message ? parseErr.message : ''}`);
         e.code = 'NON_JSON_RESPONSE';
         e.status = res.status;
         e.path = fullPath;
         throw e;
       }
     }
-    window.aiOpsFetch = aiOpsFetch;
+    globalThis.aiOpsFetch = aiOpsFetch;
 
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
@@ -10986,7 +11014,7 @@
 
     async function loadAgentFleetBadge() {
       try {
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const r = await fetch(`${apiBase}/api/admin/agent-fleet/badge-summary`, { headers: getAiOpsHeaders() });
         if (!r.ok) return;
         const j = await r.json();
@@ -11002,10 +11030,10 @@
         }
       } catch (e) { /* silent — badge is best-effort */ }
     }
-    window.loadAgentFleetBadge = loadAgentFleetBadge;
+    globalThis.loadAgentFleetBadge = loadAgentFleetBadge;
 
     async function loadAgentFleetSection() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const summaryEl = document.getElementById('agent-fleet-summary');
       // Pull badge summary (counts) and recent actions in parallel.
       try {
@@ -11031,16 +11059,16 @@
           `<div style="grid-column:1/-1;padding:14px;color:var(--accent-red);font-size:0.85rem;">Failed to load summary: ${escapeHtml(e.message)}</div>`;
       }
       // Render last 25 across all agents using the shared helper.
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        window.renderAgentActivityPanel('agent-fleet-recent', {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        globalThis.renderAgentActivityPanel('agent-fleet-recent', {
           limit: 25, title: '', showEmpty: true
         });
       }
     }
-    window.loadAgentFleetSection = loadAgentFleetSection;
+    globalThis.loadAgentFleetSection = loadAgentFleetSection;
 
     async function loadDashboardAgentTile() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const tileEl = document.getElementById('dashboard-agent-fleet-tile');
       if (!tileEl) return;
       try {
@@ -11064,13 +11092,13 @@
       } catch (e) {
         tileEl.innerHTML = `<div style="grid-column:1/-1;padding:10px;color:var(--text-muted);font-size:0.82rem;">Agent metrics unavailable</div>`;
       }
-      if (typeof window.renderAgentActivityPanel === 'function') {
-        window.renderAgentActivityPanel('dashboard-agent-recent', {
+      if (typeof globalThis.renderAgentActivityPanel === 'function') {
+        globalThis.renderAgentActivityPanel('dashboard-agent-recent', {
           limit: 10, title: 'Recent Agent Actions', showEmpty: true
         });
       }
     }
-    window.loadDashboardAgentTile = loadDashboardAgentTile;
+    globalThis.loadDashboardAgentTile = loadDashboardAgentTile;
 
 
     function switchAiOpsTab(tab) {
@@ -11086,7 +11114,7 @@
       else if (tab === 'digest') loadAiOpsDigests();
       else if (tab === 'settings') loadAiOpsSettings();
     }
-    window.switchAiOpsTab = switchAiOpsTab;
+    globalThis.switchAiOpsTab = switchAiOpsTab;
 
     async function initAiOps() {
       await loadAiOpsActivity();
@@ -11095,7 +11123,7 @@
     }
 
     async function loadAiOpsActivity() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const listEl = document.getElementById('ai-ops-activity-list');
       const pagEl = document.getElementById('ai-ops-activity-pagination');
       if (!listEl) return;
@@ -11297,13 +11325,13 @@
         listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
       }
     }
-    window.loadAiOpsActivity = loadAiOpsActivity;
+    globalThis.loadAiOpsActivity = loadAiOpsActivity;
 
     function changeAiOpsActivityPage(delta) { aiOpsActivityPage += delta; loadAiOpsActivity(); }
-    window.changeAiOpsActivityPage = changeAiOpsActivityPage;
+    globalThis.changeAiOpsActivityPage = changeAiOpsActivityPage;
 
     async function loadAiOpsEscalations() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const listEl = document.getElementById('ai-ops-escalations-list');
       if (!listEl) return;
       listEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading escalations…</div>';
@@ -11357,16 +11385,16 @@
         listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
       }
     }
-    window.loadAiOpsEscalations = loadAiOpsEscalations;
+    globalThis.loadAiOpsEscalations = loadAiOpsEscalations;
 
     function showEscalationOverride(id) {
       const el = document.getElementById(`esc-override-${id}`);
       if (el) el.style.display = el.style.display === 'none' ? '' : 'none';
     }
-    window.showEscalationOverride = showEscalationOverride;
+    globalThis.showEscalationOverride = showEscalationOverride;
 
     async function resolveAiEscalation(id, action) {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const notes = document.getElementById(`esc-notes-${id}`)?.value || '';
       const adminDecision = action === 'override' ? (document.getElementById(`esc-decision-${id}`)?.value || 'manual_review') : action;
       try {
@@ -11377,16 +11405,16 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        if (window.showToast) showToast(action === 'approve' ? 'AI recommendation approved' : 'Override recorded', 'success');
+        if (globalThis.showToast) showToast(action === 'approve' ? 'AI recommendation approved' : 'Override recorded', 'success');
         loadAiOpsEscalations();
       } catch (err) {
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.resolveAiEscalation = resolveAiEscalation;
+    globalThis.resolveAiEscalation = resolveAiEscalation;
 
     async function loadAiOpsDigests() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const contentEl = document.getElementById('ai-ops-digest-content');
       const selectorEl = document.getElementById('ai-ops-digest-selector');
       const dateEl = document.getElementById('ai-ops-digest-date');
@@ -11409,7 +11437,7 @@
         contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
       }
     }
-    window.loadAiOpsDigests = loadAiOpsDigests;
+    globalThis.loadAiOpsDigests = loadAiOpsDigests;
 
     function renderSelectedDigest() {
       const dateEl = document.getElementById('ai-ops-digest-date');
@@ -11427,36 +11455,36 @@
         </div>
         ${moduleCount > 0 ? `<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:12px;">
           ${Object.entries(stats).map(([mod, s]) => `<div style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;">
-            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">${escapeHtml(mod.replace(/_/g,' '))}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.06em;margin-bottom:8px;">${escapeHtml(mod.replaceAll('_', ' '))}</div>
             <div style="font-size:1.6rem;font-weight:700;color:var(--text-primary);">${s.total || 0}</div>
             <div style="font-size:0.8rem;color:var(--text-secondary);">actions<br>${s.auto_executed || 0} auto · ${s.escalated || 0} escalated</div>
           </div>`).join('')}
         </div>` : ''}
       `;
     }
-    window.renderSelectedDigest = renderSelectedDigest;
+    globalThis.renderSelectedDigest = renderSelectedDigest;
 
     async function runAiOpsDigest() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const resultEl = document.getElementById('ai-ops-digest-trigger-result');
       try {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Generating…'; }
         const res = await fetch(`${apiBase}/api/admin/ai-ops/daily-digest/run`, { method: 'POST', headers: getAiOpsHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        if (window.showToast) showToast('Digest generated successfully', 'success');
+        if (globalThis.showToast) showToast('Digest generated successfully', 'success');
         if (resultEl) { resultEl.style.color = 'var(--accent-green)'; resultEl.textContent = `Generated: ${data.date} (${data.totalActions} actions)`; }
         if (aiOpsCurrentTab === 'digest') setTimeout(loadAiOpsDigests, 500);
       } catch (err) {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.runAiOpsDigest = runAiOpsDigest;
+    globalThis.runAiOpsDigest = runAiOpsDigest;
 
     // === Task #150 Light: Dispute Resolver / Payment Tracker / Care Plan Completions ===
     async function runAiOpsDisputeResolver() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const resultEl = document.getElementById('ai-ops-dispute-trigger-result');
       const idEl = document.getElementById('ai-ops-dispute-completion-id');
       const completionId = (idEl?.value || '').trim();
@@ -11472,38 +11500,38 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        if (window.showToast) showToast(`Dispute ${data.action || 'processed'}`, 'success');
+        if (globalThis.showToast) showToast(`Dispute ${data.action || 'processed'}`, 'success');
         if (resultEl) { resultEl.style.color = 'var(--accent-green)'; resultEl.textContent = `${data.action} (conf ${(data.confidence || 0).toFixed(2)}) — ${data.reasoning || ''}`; }
         if (typeof loadCarePlanCompletions === 'function') loadCarePlanCompletions();
       } catch (err) {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.runAiOpsDisputeResolver = runAiOpsDisputeResolver;
+    globalThis.runAiOpsDisputeResolver = runAiOpsDisputeResolver;
 
     async function runAiOpsPaymentTracker() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const resultEl = document.getElementById('ai-ops-payment-trigger-result');
       try {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Scanning…'; }
         const res = await fetch(`${apiBase}/api/admin/ai-ops/payment-tracker/run`, { method: 'POST', headers: getAiOpsHeaders() });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        if (window.showToast) showToast('Payment scan complete', 'success');
+        if (globalThis.showToast) showToast('Payment scan complete', 'success');
         if (resultEl) {
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = `Aging: ${data.aging_pending || 0} · Mismatches: ${data.amount_mismatches || 0} · Missing amount: ${data.missing_amount || 0} · New findings: ${data.new_findings_logged || 0}`;
         }
       } catch (err) {
         if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.runAiOpsPaymentTracker = runAiOpsPaymentTracker;
+    globalThis.runAiOpsPaymentTracker = runAiOpsPaymentTracker;
 
     async function loadCarePlanCompletions() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const contentEl = document.getElementById('ai-ops-completions-content');
       if (!contentEl) return;
       const status = (document.getElementById('ai-ops-completions-status-filter')?.value || '').trim();
@@ -11547,7 +11575,7 @@
                     <td style="padding:8px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">${r.payout_batch_id ? esc(r.payout_batch_id) : '—'}</td>
                     <td style="padding:8px;color:var(--text-muted);">${dt(r.created_at)}</td>
                     <td style="padding:8px;display:flex;gap:4px;flex-wrap:wrap;">
-                      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';window.scrollTo({top:0,behavior:'smooth'});">Use ID</button>
+                      <button class="btn btn-secondary btn-sm" onclick="document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';globalThis.scrollTo({top:0,behavior:'smooth'});">Use ID</button>
                       ${r.status === 'disputed' ? `<button class="btn btn-primary btn-sm" onclick="(async()=>{document.getElementById('ai-ops-dispute-completion-id').value='${esc(r.id)}';await runAiOpsDisputeResolver();})()">Resolve</button>` : ''}
                       ${canCapture ? `<button class="btn btn-primary btn-sm" style="background:var(--accent-green);" onclick="captureCarePlanEscrow('${esc(r.id)}')">Capture</button>` : ''}
                       ${canRefund ? `<button class="btn btn-secondary btn-sm" style="border-color:var(--accent-red);color:var(--accent-red);" onclick="refundCarePlanEscrow('${esc(r.id)}')">Refund</button>` : ''}
@@ -11564,12 +11592,12 @@
         contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${err.message}</div>`;
       }
     }
-    window.loadCarePlanCompletions = loadCarePlanCompletions;
+    globalThis.loadCarePlanCompletions = loadCarePlanCompletions;
 
     async function captureCarePlanEscrow(completionId) {
       if (!completionId) return;
       if (!confirm('Capture held escrow funds for this completion? This will release payment to the provider AND trigger founder commission. Cannot be undone.')) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions/${completionId}/capture`, {
           method: 'POST',
@@ -11583,7 +11611,7 @@
         alert(`Capture failed: ${err.message}`);
       }
     }
-    window.captureCarePlanEscrow = captureCarePlanEscrow;
+    globalThis.captureCarePlanEscrow = captureCarePlanEscrow;
 
     async function refundCarePlanEscrow(completionId) {
       if (!completionId) return;
@@ -11593,11 +11621,11 @@
       const cleaned = String(amountStr).replace(/[\s$,]/g, '');
       if (cleaned !== '') {
         const amt = Number(cleaned);
-        if (!Number.isFinite(amt) || amt <= 0) { alert('Invalid amount.'); return; }
+        if (!isFinite(amt) || amt <= 0) { alert('Invalid amount.'); return; }
         body.amount = amt;
       }
       if (!confirm(`Refund ${body.amount ? '$' + body.amount.toFixed(2) : 'FULL amount'} to member? If funds are still held (uncaptured), the authorization will be cancelled. Cannot be undone.`)) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions/${completionId}/refund`, {
           method: 'POST',
@@ -11616,7 +11644,7 @@
         alert(`Refund failed: ${err.message}`);
       }
     }
-    window.refundCarePlanEscrow = refundCarePlanEscrow;
+    globalThis.refundCarePlanEscrow = refundCarePlanEscrow;
 
     // Task #150: tag a completion with a payout-batch label so weekly
     // settlement runs can be reconciled in one place. Pass empty string to clear.
@@ -11624,7 +11652,7 @@
       if (!completionId) return;
       const next = prompt('Payout batch ID (e.g. 2026-W17). Leave blank to clear.', currentValue || '');
       if (next === null) return;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions/${completionId}`, {
           method: 'PATCH',
@@ -11636,16 +11664,16 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
-        if (window.showToast) showToast('Payout batch updated', 'success');
+        if (globalThis.showToast) showToast('Payout batch updated', 'success');
         await loadCarePlanCompletions();
       } catch (err) {
         alert(`Tag failed: ${err.message}`);
       }
     }
-    window.tagCarePlanPayoutBatch = tagCarePlanPayoutBatch;
+    globalThis.tagCarePlanPayoutBatch = tagCarePlanPayoutBatch;
 
     async function loadAiOpsSettings() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const contentEl = document.getElementById('ai-ops-settings-content');
       if (!contentEl) return;
       try {
@@ -11690,15 +11718,15 @@
         if (contentEl) contentEl.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Settings unavailable: ${escapeHtml(err.message)}</div>`;
       }
     }
-    window.loadAiOpsSettings = loadAiOpsSettings;
+    globalThis.loadAiOpsSettings = loadAiOpsSettings;
 
     async function saveAiOpsSettings() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-      const threshold = parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
-      const maxRefund = parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const threshold = Number.parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
+      const maxRefund = Number.parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
       const msgEl = document.getElementById('ai-ops-settings-save-msg');
-      if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (window.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
-      if (isNaN(maxRefund) || maxRefund < 0) { if (window.showToast) showToast('Max refund must be a positive number', 'error'); return; }
+      if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (globalThis.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
+      if (isNaN(maxRefund) || maxRefund < 0) { if (globalThis.showToast) showToast('Max refund must be a positive number', 'error'); return; }
       if (msgEl) { msgEl.style.display = 'block'; msgEl.style.color = 'var(--text-muted)'; msgEl.textContent = 'Saving…'; }
       try {
         const res = await fetch(`${apiBase}/api/admin/ai-ops/settings`, {
@@ -11709,20 +11737,20 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Save failed');
         if (msgEl) { msgEl.style.color = 'var(--accent-green)'; msgEl.textContent = '✓ Settings saved'; setTimeout(() => { msgEl.style.display = 'none'; }, 3000); }
-        if (window.showToast) showToast('AI Ops settings saved', 'success');
+        if (globalThis.showToast) showToast('AI Ops settings saved', 'success');
         setTimeout(loadAiOpsSettings, 500);
       } catch (err) {
         if (msgEl) { msgEl.style.color = 'var(--accent-red)'; msgEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Save failed: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Save failed: ' + err.message, 'error');
       }
     }
-    window.saveAiOpsSettings = saveAiOpsSettings;
+    globalThis.saveAiOpsSettings = saveAiOpsSettings;
 
     async function triggerDisputeResolver() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const disputeId = document.getElementById('ai-ops-dispute-id')?.value?.trim();
       const resultEl = document.getElementById('ai-ops-dispute-result');
-      if (!disputeId) { if (window.showToast) showToast('Enter a dispute ID', 'error'); return; }
+      if (!disputeId) { if (globalThis.showToast) showToast('Enter a dispute ID', 'error'); return; }
       if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Analyzing dispute…'; }
       try {
         const data = await safeFetch(`${apiBase}/api/admin/ai-ops/dispute-resolver/trigger`, {
@@ -11734,17 +11762,17 @@
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = `Action: ${data.action || '—'} | Confidence: ${((data.confidence || 0) * 100).toFixed(0)}% | ${data.reasoning || ''}`;
         }
-        if (window.showToast) showToast(`Dispute ${data.action || 'analyzed'} (${((data.confidence || 0) * 100).toFixed(0)}% confidence)`, 'success');
+        if (globalThis.showToast) showToast(`Dispute ${data.action || 'analyzed'} (${((data.confidence || 0) * 100).toFixed(0)}% confidence)`, 'success');
         setTimeout(() => { if (aiOpsCurrentTab === 'activity') loadAiOpsActivity(); else if (aiOpsCurrentTab === 'escalations') loadAiOpsEscalations(); }, 500);
       } catch (err) {
         if (resultEl) { resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.triggerDisputeResolver = triggerDisputeResolver;
+    globalThis.triggerDisputeResolver = triggerDisputeResolver;
 
     async function triggerPaymentTracker() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const resultEl = document.getElementById('ai-ops-payment-result');
       if (resultEl) { resultEl.style.display = 'block'; resultEl.style.color = 'var(--text-muted)'; resultEl.textContent = 'Running payment tracker…'; }
       try {
@@ -11753,13 +11781,13 @@
           resultEl.style.color = 'var(--accent-green)';
           resultEl.textContent = data.message || `Processed ${data.processed || 0} orders, ${data.anomalies || 0} anomalies`;
         }
-        if (window.showToast) showToast(data.message || `Payment tracker: ${data.processed || 0} orders`, 'success');
+        if (globalThis.showToast) showToast(data.message || `Payment tracker: ${data.processed || 0} orders`, 'success');
       } catch (err) {
         if (resultEl) { resultEl.style.color = 'var(--accent-red)'; resultEl.textContent = 'Error: ' + err.message; }
-        if (window.showToast) showToast('Error: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Error: ' + err.message, 'error');
       }
     }
-    window.triggerPaymentTracker = triggerPaymentTracker;
+    globalThis.triggerPaymentTracker = triggerPaymentTracker;
 
     // ========== END AI OPS AGENT ==========
 
@@ -11848,9 +11876,9 @@
               <td>${actionCell}</td>
             </tr>`;
           }).join('');
-          if (window.MCC_ICONS) {
+          if (globalThis.MCC_ICONS) {
             tbody.querySelectorAll('[data-icon]').forEach(el => {
-              const svg = MCC_ICONS[el.getAttribute('data-icon')];
+              const svg = MCC_ICONS[el.dataset.icon];
               if (svg) el.innerHTML = svg;
             });
           }
@@ -11891,18 +11919,18 @@
         if (!res.ok) throw new Error(data.error || 'Failed');
         const result = data.results?.[0];
         if (result?.status) {
-          if (window.showToast) showToast(`Status updated: ${result.status}`, 'success');
+          if (globalThis.showToast) showToast(`Status updated: ${result.status}`, 'success');
           await loadSmsLog(smsLogPage);
         }
       } catch (err) {
-        if (window.showToast) showToast('Refresh failed: ' + err.message, 'error');
+        if (globalThis.showToast) showToast('Refresh failed: ' + err.message, 'error');
       } finally {
-        if (btn) { btn.disabled = false; if (btn.querySelector) btn.innerHTML = (window.MCC_ICONS?.['refresh-cw'] || '↻'); }
+        if (btn) { btn.disabled = false; if (btn.querySelector) btn.innerHTML = (globalThis.MCC_ICONS?.['refresh-cw'] || '↻'); }
       }
     }
 
-    window.loadSmsLog = loadSmsLog;
-    window.refreshSingleSmsStatus = refreshSingleSmsStatus;
+    globalThis.loadSmsLog = loadSmsLog;
+    globalThis.refreshSingleSmsStatus = refreshSingleSmsStatus;
 
     // ========== END SMS LOG ==========
 
@@ -11913,7 +11941,7 @@
       container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading subscription data…</div>';
       try {
         const resp = await safeFetch('/api/admin/saas/subscriptions', {
-          headers: { 'x-admin-token': window.__adminToken || '' }
+          headers: { 'x-admin-token': globalThis.__adminToken || '' }
         });
 
         const { subscriptions = [], stats = {}, by_product = {}, recent_churns = [] } = resp;
@@ -12047,7 +12075,7 @@
       }
     }
 
-    window.loadSaasSubscriptions = loadSaasSubscriptions;
+    globalThis.loadSaasSubscriptions = loadSaasSubscriptions;
 
     // ========== END SAAS SUBSCRIPTIONS ADMIN ==========
 
@@ -12143,7 +12171,7 @@
           </div>`;
 
         // Store for edit lookups
-        window._wlTenants = tenants;
+        globalThis._wlTenants = tenants;
       } catch (err) {
         contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
       }
@@ -12239,24 +12267,34 @@
       }
     }
 
+    // Read the tenant-wizard form fields into the POST body. Extracted so
+    // _saveTenantFromWizard stays under the cognitive-complexity budget
+    // (Task #262).
+    function _collectTenantWizardBody() {
+      const trimVal = id => document.getElementById(id)?.value.trim();
+      const optTrimVal = id => trimVal(id) || null;
+      const valOr = (id, fallback) => document.getElementById(id)?.value || fallback;
+      return {
+        name:          trimVal('tenant-name'),
+        brand_name:    trimVal('tenant-brand-name'),
+        owner_email:   optTrimVal('tenant-owner-email'),
+        domain:        optTrimVal('tenant-domain'),
+        subdomain:     optTrimVal('tenant-subdomain'),
+        logo_url:      optTrimVal('tenant-logo-url'),
+        favicon_url:   optTrimVal('tenant-favicon-url'),
+        support_email: optTrimVal('tenant-support-email'),
+        primary_color: valOr('tenant-primary-color', '#C9A227'),
+        accent_color:  valOr('tenant-accent-color',  '#2CC4B4'),
+        bg_color:      valOr('tenant-bg-color',      '#12161c'),
+        plan:          valOr('tenant-plan',          'starter'),
+        status:        valOr('tenant-status',        'active')
+      };
+    }
+
     async function _saveTenantFromWizard() {
       const errEl = document.getElementById('tenant-modal-error');
       if (errEl) errEl.style.display = 'none';
-      const body = {
-        name: document.getElementById('tenant-name')?.value.trim(),
-        brand_name: document.getElementById('tenant-brand-name')?.value.trim(),
-        owner_email: document.getElementById('tenant-owner-email')?.value.trim() || null,
-        domain: document.getElementById('tenant-domain')?.value.trim() || null,
-        subdomain: document.getElementById('tenant-subdomain')?.value.trim() || null,
-        logo_url: document.getElementById('tenant-logo-url')?.value.trim() || null,
-        favicon_url: document.getElementById('tenant-favicon-url')?.value.trim() || null,
-        support_email: document.getElementById('tenant-support-email')?.value.trim() || null,
-        primary_color: document.getElementById('tenant-primary-color')?.value || '#C9A227',
-        accent_color: document.getElementById('tenant-accent-color')?.value || '#2CC4B4',
-        bg_color: document.getElementById('tenant-bg-color')?.value || '#12161c',
-        plan: document.getElementById('tenant-plan')?.value || 'starter',
-        status: document.getElementById('tenant-status')?.value || 'active'
-      };
+      const body = _collectTenantWizardBody();
       if (!body.name || !body.brand_name) {
         if (errEl) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; }
         return;
@@ -12300,7 +12338,7 @@
     }
 
     function openEditTenantModal(id) {
-      const t = (window._wlTenants || []).find(x => x.id === id);
+      const t = (globalThis._wlTenants || []).find(x => x.id === id);
       if (!t) return;
       _editingTenantId = id;
       const editModal = document.getElementById('tenant-edit-modal');
@@ -12431,13 +12469,13 @@
       } catch (err) { alert('Preview failed: ' + err.message); }
     }
 
-    window.loadWhiteLabelTenants = loadWhiteLabelTenants;
-    window.openCreateTenantModal = openCreateTenantModal;
-    window.openEditTenantModal = openEditTenantModal;
-    window.closeTenantModal = closeTenantModal;
-    window.saveTenant = saveTenant;
-    window.deactivateTenant = deactivateTenant;
-    window.previewTenantBranding = previewTenantBranding;
+    globalThis.loadWhiteLabelTenants = loadWhiteLabelTenants;
+    globalThis.openCreateTenantModal = openCreateTenantModal;
+    globalThis.openEditTenantModal = openEditTenantModal;
+    globalThis.closeTenantModal = closeTenantModal;
+    globalThis.saveTenant = saveTenant;
+    globalThis.deactivateTenant = deactivateTenant;
+    globalThis.previewTenantBranding = previewTenantBranding;
 
     // ===== TENANT PORTAL ACCESS MODAL (Admin Impersonation-Lite) =====
     async function openTenantAccessModal(tenantId) {
@@ -12524,8 +12562,8 @@
       if (modal) modal.style.display = 'none';
     }
 
-    window.openTenantAccessModal = openTenantAccessModal;
-    window.closeTenantAccessModal = closeTenantAccessModal;
+    globalThis.openTenantAccessModal = openTenantAccessModal;
+    globalThis.closeTenantAccessModal = closeTenantAccessModal;
 
     // ========== END WHITE-LABEL TENANTS ==========
 
@@ -12556,7 +12594,7 @@
           // Estimated revenue: avg blended rate per call
           const totalCalls = callValues.reduce((a, b) => a + b, 0);
           const revenuePerCall = totalCalls > 0 ? (data.estimated_revenue_cents || 0) / 100 / totalCalls : 0;
-          const revenueValues = callValues.map(c => parseFloat((c * revenuePerCall).toFixed(2)));
+          const revenueValues = callValues.map(c => Number.parseFloat((c * revenuePerCall).toFixed(2)));
           if (_apiUsageChart) _apiUsageChart.destroy();
           _apiUsageChart = new Chart(canvas, {
             type: 'bar',
@@ -12607,7 +12645,7 @@
         console.error('[Admin] API usage load error:', err.message);
       }
     }
-    window.loadApiUsage = loadApiUsage;
+    globalThis.loadApiUsage = loadApiUsage;
 
     async function adminRevokeApiKey(keyId, btn) {
       if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
@@ -12638,7 +12676,7 @@
         alert('Network error');
       }
     }
-    window.adminRevokeApiKey = adminRevokeApiKey;
+    globalThis.adminRevokeApiKey = adminRevokeApiKey;
     // ========== END AI API USAGE DASHBOARD ==========
 
     // ========== SURVEY LEADS (Task #93) ==========
@@ -12674,7 +12712,7 @@
     async function loadSurveyAnalytics() {
       try {
         const headers = getAdminHeaders();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(apiBase + '/api/admin/survey-stats', { headers });
         if (!res.ok) throw new Error('Stats fetch failed');
         const data = await res.json();
@@ -12699,13 +12737,13 @@
         console.error('[SurveyLeads] loadSurveyAnalytics error:', err.message);
       }
     }
-    window.loadSurveyAnalytics = loadSurveyAnalytics;
+    globalThis.loadSurveyAnalytics = loadSurveyAnalytics;
 
     // ===== MEMBER SURVEY ANALYTICS =====
     // Labels come from the shared survey definition (www/shared/survey-questions.js)
     // so they cannot drift from the form options (onboarding-member.html) or the
     // server's ALLOWED enum map (server.js). Unknown values fall back to the raw enum code.
-    const MS_LABELS = (typeof window !== 'undefined' && window.MCCSurvey && window.MCCSurvey.LABELS) || {};
+    const MS_LABELS = (typeof window !== 'undefined' && globalThis.MCCSurvey && globalThis.MCCSurvey.LABELS) || {};
     const MS_CHART_COLORS = ['#c9a227','#22d3ee','#38bdf8','#34d399','#fb923c','#f87171','#a78bfa'];
     let _msCharts = {};
 
@@ -12757,11 +12795,11 @@
       if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
       try {
         const headers = getAdminHeaders();
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
         if (!res.ok) {
           let serverMsg = '';
-          try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch (_) {}
+          try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch { /* Intentionally silent */ }
           throw new Error(`HTTP ${res.status}${serverMsg ? ' — ' + serverMsg : ''}`);
         }
         const data = await res.json();
@@ -12812,7 +12850,7 @@
         if (el('ms-top-improvement')) el('ms-top-improvement').textContent = '—';
       }
     }
-    window.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;
+    globalThis.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;
 
     function renderSurveyHeatmap(heatmap) {
       const container = document.getElementById('sl-heatmap');
@@ -12875,7 +12913,7 @@
         values = daily.map(([, v]) => v);
       }
 
-      const isDark = document.documentElement.getAttribute('data-theme') !== 'light';
+      const isDark = document.documentElement.dataset.theme !== 'light';
       const gridColor = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)';
       const textColor = isDark ? '#a0a8b8' : '#4a5568';
       surveyTrendChart = new Chart(canvas.getContext('2d'), {
@@ -12915,11 +12953,11 @@
       if (weeklyBtn) weeklyBtn.style.color        = view === 'weekly' ? 'var(--accent-blue)' : '';
       renderSurveyTrendChart();
     }
-    window.switchTrendView = switchTrendView;
+    globalThis.switchTrendView = switchTrendView;
 
     async function loadSurveyLeads(page) {
       page = page || surveyLeadsState.page;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const search  = (document.getElementById('sl-search')?.value || '').trim();
       const filter  = document.getElementById('sl-filter')?.value || 'all';
       const sortDir = surveyLeadsState.sortDir || 'desc';
@@ -12969,7 +13007,7 @@
             tbody.querySelectorAll('.sl-lead-row').forEach(row => {
               row.addEventListener('click', e => {
                 if (e.target.classList.contains('sl-email-link')) return;
-                openSurveyLeadDetail(_surveyLeadsCache[parseInt(row.dataset.idx, 10)]);
+                openSurveyLeadDetail(_surveyLeadsCache[Number.parseInt(row.dataset.idx, 10)]);
               });
             });
           }
@@ -12982,13 +13020,13 @@
         if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--accent-red);">Failed to load leads.</td></tr>';
       }
     }
-    window.loadSurveyLeads = loadSurveyLeads;
+    globalThis.loadSurveyLeads = loadSurveyLeads;
 
     function toggleSurveyDateSort() {
       surveyLeadsState.sortDir = surveyLeadsState.sortDir === 'desc' ? 'asc' : 'desc';
       loadSurveyLeads(1);
     }
-    window.toggleSurveyDateSort = toggleSurveyDateSort;
+    globalThis.toggleSurveyDateSort = toggleSurveyDateSort;
 
     function openSurveyLeadDetail(lead) {
       if (!lead) return;
@@ -13038,11 +13076,11 @@
 
       modal.classList.add('active');
     }
-    window.openSurveyLeadDetail = openSurveyLeadDetail;
+    globalThis.openSurveyLeadDetail = openSurveyLeadDetail;
 
     async function loadSurveyNotInterested(page) {
       page = page || surveyNiState.page;
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const tbody   = document.getElementById('sl-ni-body');
       if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
       try {
@@ -13077,7 +13115,7 @@
         if (tbody) tbody.innerHTML = '<tr><td colspan="3" style="text-align:center;padding:24px;color:var(--accent-red);">Failed to load emails.</td></tr>';
       }
     }
-    window.loadSurveyNotInterested = loadSurveyNotInterested;
+    globalThis.loadSurveyNotInterested = loadSurveyNotInterested;
 
     function switchSurveyTab(tab, el) {
       document.querySelectorAll('#survey-leads-tabs .tab').forEach(t => t.classList.remove('active'));
@@ -13089,16 +13127,16 @@
       if (tab === 'not-interested') loadSurveyNotInterested(1);
       if (tab === 'trends' && surveyTrendData) setTimeout(renderSurveyTrendChart, 50);
     }
-    window.switchSurveyTab = switchSurveyTab;
+    globalThis.switchSurveyTab = switchSurveyTab;
 
     function debounceSurveySearch() {
       if (surveySearchTimer) clearTimeout(surveySearchTimer);
       surveySearchTimer = setTimeout(() => loadSurveyLeads(1), 300);
     }
-    window.debounceSurveySearch = debounceSurveySearch;
+    globalThis.debounceSurveySearch = debounceSurveySearch;
 
     function exportSurveyLeads() {
-      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const headers = getAdminHeaders();
       const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
       const url     = apiBase + '/api/admin/survey-leads/export';
@@ -13113,6 +13151,6 @@
         setTimeout(() => URL.revokeObjectURL(blobUrl), 5000);
       }).catch(err => { console.error('[SurveyLeads] export error:', err); alert('Export failed.'); });
     }
-    window.exportSurveyLeads = exportSurveyLeads;
+    globalThis.exportSurveyLeads = exportSurveyLeads;
 
     // ========== END SURVEY LEADS ==========

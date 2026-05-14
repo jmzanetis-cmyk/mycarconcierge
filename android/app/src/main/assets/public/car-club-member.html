@@ -6,7 +6,7 @@
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.dataset.theme = theme;
     })();
   </script>
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -528,7 +528,7 @@
         <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#4CAF50;color:#fff;font-weight:700;font-size:11px;vertical-align:middle;margin-right:4px;">&#10003;</span>
         Look for the <strong>MCC Verified</strong> badge on Car Club profiles &mdash; it means the provider&rsquo;s team is background-checked and current.
       </p>
-      <p data-mcc-lang="es" hidden style="margin-top:10px;color:var(--text-muted);font-size:0.85rem;">
+      <p data-mcc-lang="es" hidden style="margin-top:10px;color:var(--text-secondary);font-size:0.85rem;">
         <span style="display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;background:#4CAF50;color:#fff;font-weight:700;font-size:11px;vertical-align:middle;margin-right:4px;">&#10003;</span>
         Busca la insignia <strong>MCC Verificado</strong> en los perfiles de Car Club &mdash; significa que el equipo del proveedor cuenta con verificación de antecedentes vigente.
       </p>
@@ -798,9 +798,9 @@
     function toggleTheme() {
       const html = document.documentElement;
       html.classList.add('theme-transition');
-      const current = html.getAttribute('data-theme');
+      const current = html.dataset.theme;
       const next = current === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', next);
+      html.dataset.theme = next;
       localStorage.setItem('theme', next);
       setTimeout(() => html.classList.remove('theme-transition'), 400);
     }
@@ -974,7 +974,7 @@
               myClubsData = myData.clubs || [];
               joinedClubIds = new Set(myClubsData.map(c => c.club_id));
             }
-          } catch(e) {}
+          } catch { /* Intentionally silent */ }
         }
         const [browseResult, recResult] = await Promise.all([
           apiFetch('/api/car-club/browse'),
@@ -1200,7 +1200,7 @@
               try {
                 const d = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
                 if (d.provider_name) extraMsg = `<div style="font-size:0.82rem;color:var(--accent-green);margin-top:4px;">You helped ${escHtml(d.provider_name)} earn rewards by booking with them!</div>`;
-              } catch(e) {}
+              } catch { /* Intentionally silent */ }
             }
             return `<div class="notif-item unread">
               <div class="notif-icon">${isReward ? '🎁' : isBid ? '🎫' : '🔔'}</div>
@@ -1272,7 +1272,7 @@
           notifsData = notifData.notifications || [];
           updateNotifBadge();
         }
-      } catch(e) {}
+      } catch { /* Intentionally silent */ }
     }
 
     let selectedStoreClubId = null;
@@ -1526,7 +1526,7 @@
         var lang = (localStorage.getItem('mcc_language') || 'en').toLowerCase();
         if (lang !== 'es') lang = 'en';
         document.querySelectorAll('[data-mcc-lang]').forEach(function (el) {
-          el.hidden = (el.getAttribute('data-mcc-lang') !== lang);
+          el.hidden = (el.dataset.mccLang !== lang);
         });
       } catch (_) { /* localStorage unavailable */ }
     })();

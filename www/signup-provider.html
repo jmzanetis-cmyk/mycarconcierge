@@ -277,6 +277,22 @@
         <h2 class="step-title" data-i18n="auth.createAccount">Account & Business Info</h2>
         <p class="step-subtitle">Set up your login and tell us about your business.</p>
 
+        <!-- Task #318 — Facebook OAuth shortcut. Mirrors login.html and
+             onboarding-provider.html. Sets mcc_signup_intent='provider'
+             so login.js routes the callback to the provider survey. -->
+        <button type="button" id="facebook-signup-btn" onclick="signUpWithFacebookProvider()"
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#1877F2;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:16px;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0;">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span>Continue with Facebook</span>
+        </button>
+        <div style="display:flex;align-items:center;gap:12px;margin:0 0 18px;color:#9ca3af;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;">
+          <span style="flex:1;height:1px;background:rgba(156,163,175,0.35);"></span>
+          <span>or</span>
+          <span style="flex:1;height:1px;background:rgba(156,163,175,0.35);"></span>
+        </div>
+
         <div class="form-row">
           <div class="form-group">
             <label class="form-label"><span data-i18n="auth.email">Email</span> <span class="required">*</span></label>
@@ -865,6 +881,40 @@
   <script src="/utils.js"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
+    // Task #318 — Facebook OAuth shortcut on the legacy provider form.
+    // Sets mcc_signup_intent='provider' so login.js's PGRST116 branch
+    // creates a pending_provider profile and forwards to the provider
+    // survey when Facebook posts back the OAuth callback.
+    async function signUpWithFacebookProvider() {
+      const fbBtn = document.getElementById('facebook-signup-btn');
+      if (fbBtn) fbBtn.disabled = true;
+      try {
+        try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* private mode */ }
+        const client = window.supabaseClient;
+        if (!client || !client.auth) {
+          alert('Sign-in is still loading. Please try again in a moment.');
+          if (fbBtn) fbBtn.disabled = false;
+          return;
+        }
+        const { error } = await client.auth.signInWithOAuth({
+          provider: 'facebook',
+          options: {
+            redirectTo: window.location.origin + '/login.html?oauth=facebook',
+            scopes: 'email,public_profile'
+          }
+        });
+        if (error) {
+          console.error('Facebook signup error:', error);
+          alert('Failed to connect to Facebook. Please try again.');
+          if (fbBtn) fbBtn.disabled = false;
+        }
+      } catch (err) {
+        console.error('Facebook signup exception:', err);
+        if (fbBtn) fbBtn.disabled = false;
+      }
+    }
+    globalThis.signUpWithFacebookProvider = signUpWithFacebookProvider;
+
     let currentStep = 1;
     const uploadedFiles = { insurance: [], certs: [] };
 

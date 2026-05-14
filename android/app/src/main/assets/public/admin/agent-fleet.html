@@ -5,7 +5,7 @@
   <script>
     (function() {
       const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
+      document.documentElement.dataset.theme = theme;
     })();
   </script>
   <title>Agent Fleet · Admin · My Car Concierge</title>
@@ -255,47 +255,47 @@
         </div>
         <div class="grid grid-3" style="gap:14px;">
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours start (UTC)</label>
+            <label for="dirCfgQuietStart" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours start (UTC)</label>
             <input id="dirCfgQuietStart" type="number" min="0" max="23" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours end (UTC)</label>
+            <label for="dirCfgQuietEnd" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours end (UTC)</label>
             <input id="dirCfgQuietEnd" type="number" min="0" max="23" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Daily digest hour (UTC)</label>
+            <label for="dirCfgDigestHour" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Daily digest hour (UTC)</label>
             <input id="dirCfgDigestHour" type="number" min="0" max="23" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Re-page critical every N hours</label>
+            <label for="dirCfgRepageH" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Re-page critical every N hours</label>
             <input id="dirCfgRepageH" type="number" min="0.25" max="168" step="0.25" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Gatekeeper errors / 6h to alert</label>
+            <label for="dirCfgGkErr" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Gatekeeper errors / 6h to alert</label>
             <input id="dirCfgGkErr" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter draft pile min</label>
+            <label for="dirCfgPromBacklog" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter draft pile min</label>
             <input id="dirCfgPromBacklog" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter idle days</label>
+            <label for="dirCfgPromIdle" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter idle days</label>
             <input id="dirCfgPromIdle" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Hunter unscored / 2h to alert</label>
+            <label for="dirCfgHunter" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Hunter unscored / 2h to alert</label>
             <input id="dirCfgHunter" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Social-monitor dry window (h)</label>
+            <label for="dirCfgSocialH" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Social-monitor dry window (h)</label>
             <input id="dirCfgSocialH" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Matchmaker unranked min hours</label>
+            <label for="dirCfgMmH" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Matchmaker unranked min hours</label>
             <input id="dirCfgMmH" type="number" min="0" step="0.25" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Signup drop % to alert</label>
+            <label for="dirCfgSignupPct" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Signup drop % to alert</label>
             <input id="dirCfgSignupPct" type="number" min="0" max="100" class="input" />
           </div>
         </div>
@@ -313,7 +313,7 @@
           Events that failed dispatch 3 times. Replay re-emits with a fresh attempt counter.
         </div>
         <div class="row" style="margin-bottom:10px;">
-          <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
+          <label for="dlqOpenOnly" style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="dlqOpenOnly" checked /> Open only
           </label>
           <button class="btn btn-ghost" id="dlqReload" style="margin-left:auto;">Reload</button>
@@ -600,8 +600,8 @@ async function loadRegistry() {
     body.querySelectorAll('[data-slug]').forEach(el => {
       const evt = el.tagName === 'SELECT' ? 'change' : (el.type === 'number' ? 'change' : 'change');
       el.addEventListener(evt, async () => {
-        const slug = el.getAttribute('data-slug');
-        const field = el.getAttribute('data-field');
+        const slug = el.dataset.slug;
+        const field = el.dataset.field;
         let val;
         if (field === 'enabled') val = el.checked;
         else if (field === 'daily_spend_cap_usd') val = parseFloat(el.value);
@@ -668,7 +668,7 @@ async function loadDLQ() {
     }
     body.querySelectorAll('[data-dlq-replay]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-dlq-replay');
+        const id = btn.dataset.dlqReplay;
         btn.disabled = true; btn.textContent = '…';
         try {
           const r = await api(`/dead-letter/${id}/replay`, { method: 'POST' });
@@ -719,8 +719,8 @@ async function loadSpendAlerts() {
     }
     body.querySelectorAll('[data-resend-slug]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const slug = btn.getAttribute('data-resend-slug');
-        const day = btn.getAttribute('data-resend-day');
+        const slug = btn.dataset.resendSlug;
+        const day = btn.dataset.resendDay;
         const orig = btn.textContent;
         btn.disabled = true; btn.textContent = '…';
         try {
@@ -831,7 +831,7 @@ async function loadDirector() {
     }).join('');
     tbody.querySelectorAll('button[data-resolve-id]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-resolve-id');
+        const id = btn.dataset.resolveId;
         if (!confirm('Mark this alert resolved? It will reopen on the next sweep if the underlying condition still holds.')) return;
         btn.disabled = true;
         try {
@@ -984,13 +984,23 @@ async function loadSmokeStatusFor(slug) {
     failEl.textContent = r.last_fail ? `${relTime(r.last_fail.started_at)} · ${fmtTime(r.last_fail.started_at)}` : 'none on file';
     if (!passed) {
       const checks = Array.isArray(latest.failed_checks) ? latest.failed_checks : [];
-      const emailLine = latest.alert_email_sent
-        ? `Admin email sent.`
-        : (latest.alert_email_error ? `Admin email FAILED to send: ${escapeHtml(latest.alert_email_error)}` : 'Admin email not sent (Resend not configured?).');
+      // Task #161 — admin email pill
+      const emailPill = latest.alert_email_sent
+        ? `<span class="badge badge-on" title="Admin email delivered via Resend.">Email sent</span>`
+        : (latest.alert_email_error
+            ? `<span class="badge" style="background:rgba(239,68,68,0.15); color:var(--bad); border:1px solid rgba(239,68,68,0.35);" title="${escapeHtml(latest.alert_email_error)}">Email error</span>`
+            : `<span class="badge badge-off" title="No admin email sent (Resend not configured, or send not attempted).">Email not sent</span>`);
+      // Task #290 — admin SMS pill (Twilio pager). Mirrors the email pill so
+      // admins can see at a glance whether their phone actually rang.
+      const smsPill = latest.alert_sms_sent
+        ? `<span class="badge badge-on" title="Admin SMS delivered via Twilio.">SMS sent</span>`
+        : (latest.alert_sms_error
+            ? `<span class="badge" style="background:rgba(239,68,68,0.15); color:var(--bad); border:1px solid rgba(239,68,68,0.35);" title="${escapeHtml(latest.alert_sms_error)}">SMS error</span>`
+            : `<span class="badge badge-off" title="No admin SMS sent (Twilio / ADMIN_PHONE_NUMBER not configured, or send not attempted).">SMS not sent</span>`);
       detailEl.style.display = 'block';
       detailEl.innerHTML = `
         <div><strong>${latest.failure_count} failed check(s):</strong> ${checks.map(c => `<code class="kbd">${escapeHtml(c)}</code>`).join(' ')}</div>
-        <div style="margin-top:6px; color:var(--muted);">${emailLine}</div>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">${emailPill}${smsPill}</div>
       `;
     }
   } catch (e) {
@@ -1015,7 +1025,20 @@ async function runSmokeForAgent(slug, btn) {
     toast(`Running ${label} smoke (this can take up to 2 minutes)…`);
     const r = await api(`/run/${slug}-smoke`, { method: 'POST' });
     if (r.result?.ok) toast(`${label} smoke PASSED in ${(r.result.duration_ms / 1000).toFixed(1)}s`);
-    else toast(`${label} smoke FAILED: ${(r.result?.failed_checks || []).slice(0, 3).join(', ')}`, true);
+    else {
+      // Task #290 — echo email + sms send status so the admin can see at a
+      // glance whether their pager actually fired (the SMS path was added in
+      // Task #201's bgc-reminder-style helper and now lands on every smoke
+      // failure response). The handler shape is { email, sms } where each is
+      // { sent: bool, reason?: string, error?: string }.
+      const checksTxt = (r.result?.failed_checks || []).slice(0, 3).join(', ');
+      const pageBits = [];
+      const e = r.result?.email, s = r.result?.sms;
+      if (e) pageBits.push(e.sent ? 'email sent' : `email ${e.error ? 'error' : (e.reason || 'not sent')}`);
+      if (s) pageBits.push(s.sent ? 'SMS sent'   : `SMS ${s.error ? 'error' : (s.reason || 'not sent')}`);
+      const pageTxt = pageBits.length ? ` · ${pageBits.join(' · ')}` : '';
+      toast(`${label} smoke FAILED: ${checksTxt}${pageTxt}`, true);
+    }
     loadSmokeStatusFor(slug);
   } catch (e) { toast(e.message, true); }
   finally { btn.disabled = false; btn.textContent = orig; }
@@ -1103,20 +1126,20 @@ async function loadChannels() {
 
     body.querySelectorAll('input[data-chan-id]').forEach(inp => {
       inp.addEventListener('change', async () => {
-        const id = inp.getAttribute('data-chan-id');
+        const id = inp.dataset.chanId;
         try { await api(`/social/channels/${id}/toggle`, { method: 'POST' }); toast('Channel updated'); }
         catch (e) { toast(e.message, true); inp.checked = !inp.checked; }
       });
     });
     body.querySelectorAll('button[data-chan-edit]').forEach(btn => {
-      btn.addEventListener('click', () => { __chanEditing.add(parseInt(btn.getAttribute('data-chan-edit'),10)); loadChannels(); });
+      btn.addEventListener('click', () => { __chanEditing.add(parseInt(btn.dataset.chanEdit,10)); loadChannels(); });
     });
     body.querySelectorAll('button[data-chan-cancel]').forEach(btn => {
-      btn.addEventListener('click', () => { __chanEditing.delete(parseInt(btn.getAttribute('data-chan-cancel'),10)); loadChannels(); });
+      btn.addEventListener('click', () => { __chanEditing.delete(parseInt(btn.dataset.chanCancel,10)); loadChannels(); });
     });
     body.querySelectorAll('button[data-chan-save]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = parseInt(btn.getAttribute('data-chan-save'),10);
+        const id = parseInt(btn.dataset.chanSave,10);
         const handle   = (document.querySelector(`[data-edit-handle="${id}"]`)?.value || '').trim();
         const audience = document.querySelector(`[data-edit-audience="${id}"]`)?.value || 'both';
         const kwRaw    = (document.querySelector(`[data-edit-keywords="${id}"]`)?.value || '').trim();
@@ -1133,7 +1156,7 @@ async function loadChannels() {
     });
     body.querySelectorAll('button[data-chan-delete]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-chan-delete');
+        const id = btn.dataset.chanDelete;
         if (!confirm(`Delete channel #${id}? Historical leads/posts survive but lose their channel link.`)) return;
         try { await api(`/social/channels/${id}`, { method: 'DELETE' }); toast(`Channel #${id} deleted`); loadChannels(); }
         catch (e) { toast(e.message, true); }
@@ -1141,7 +1164,7 @@ async function loadChannels() {
     });
     body.querySelectorAll('button[data-chan-run]').forEach(btn => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-chan-run');
+        const id = btn.dataset.chanRun;
         const orig = btn.textContent;
         btn.disabled = true; btn.textContent = '…';
         try {
@@ -1265,8 +1288,8 @@ async function loadPosts() {
     body.querySelectorAll('button[data-post-act]').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const id = parseInt(btn.getAttribute('data-post-id'), 10);
-        const act = btn.getAttribute('data-post-act');
+        const id = parseInt(btn.dataset.postId, 10);
+        const act = btn.dataset.postAct;
         const ta = document.querySelector(`textarea[data-post-body="${id}"]`);
         const newBody = ta ? ta.value : null;
         const orig = btn.textContent;
@@ -1400,8 +1423,8 @@ async function loadLeads() {
     body.querySelectorAll('button[data-lead-act]').forEach(btn => {
       btn.addEventListener('click', async (ev) => {
         ev.stopPropagation();
-        const id  = btn.getAttribute('data-lead-id');
-        const act = btn.getAttribute('data-lead-act');
+        const id  = btn.dataset.leadId;
+        const act = btn.dataset.leadAct;
         const orig = btn.textContent;
         btn.disabled = true; btn.textContent = '…';
         try { const r = await api(`/social/leads/${id}/${act}`, { method: 'POST' }); toast(`Lead #${id} ${r.lead?.status || act}`); loadLeads(); }

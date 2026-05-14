@@ -310,14 +310,24 @@
         .single();
 
       if (error && error.code === 'PGRST116') {
-        console.log('Creating profile for new OAuth user:', user.email);
+        // Task #318: honor `mcc_signup_intent='provider'` set by the
+        // Facebook button on signup-provider.html / onboarding-provider.html
+        // so brand-new OAuth users started from a provider surface land
+        // on the provider survey with role=pending_provider, not the
+        // default member onboarding.
+        let signupIntent = null;
+        try { signupIntent = localStorage.getItem('mcc_signup_intent'); } catch (_e) { /* ignore */ }
+        const isProviderIntent = signupIntent === 'provider';
+
+        console.log('Creating profile for new OAuth user:', user.email, 'intent:', signupIntent || 'member');
         const { data: newProfile, error: createError } = await supabaseClient
           .from('profiles')
           .insert({
             id: user.id,
             email: user.email,
             full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
-            role: 'member',
+            role: isProviderIntent ? 'pending_provider' : 'member',
+            is_also_member: isProviderIntent ? true : undefined,
             created_at: new Date().toISOString()
           })
           .select('role, is_also_member, is_also_provider')
@@ -332,8 +342,16 @@
         error = null;
 
         // Brand-new Facebook signups go through the onboarding survey,
-        // matching the email signup experience.
+        // matching the email signup experience. Provider-intent users
+        // get routed to the provider survey instead of the member one.
         if (urlParams.oauth === 'facebook') {
+          if (isProviderIntent) {
+            try { localStorage.removeItem('mcc_signup_intent'); } catch (_e) { /* ignore */ }
+            localStorage.setItem('mcc_portal', 'provider');
+            await new Promise(resolve => setTimeout(resolve, 300));
+            window.location.href = 'onboarding-provider.html?source=facebook';
+            return;
+          }
           localStorage.setItem('mcc_portal', 'member');
           await new Promise(resolve => setTimeout(resolve, 300));
           window.location.href = 'onboarding-member.html?source=facebook';
