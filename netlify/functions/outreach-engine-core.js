@@ -1164,7 +1164,10 @@ async function sendMessage(supabase, messageId) {
     // Permanent: lead has no email for an email-channel message (or no phone
     // for an sms-channel one). Mark skipped so the queue-flush stops looping
     // on it. Task #306.
-    await markMessageSkipped(supabase, msg, lead, `no_${msg.channel}_contact`);
+    // Use `no_email` / `no_phone` to match the daily-digest queue-health
+    // classifier labels — keeps diagnostics consistent across surfaces.
+    const noContactReason = msg.channel === 'sms' ? 'no_phone' : 'no_email';
+    await markMessageSkipped(supabase, msg, lead, noContactReason);
     return { error: 'No valid contact method for this channel', skipped: true };
   }
 
@@ -2473,12 +2476,28 @@ async function runApolloDiscoveryCycle(supabase) {
       cfgUpdates.last_successful_enriched = results.enriched;
       cfgUpdates.last_successful_profile = profile.name;
     }
-    await saveApolloConfig(supabase, cfgUpdates);
 
-    // Classify silent zero-result cycles — Apollo returns 200 OK with empty
-    // people array when credits are exhausted, so no HTTP error is raised.
+    // Task #306 — runtime telemetry for silent credit-exhaustion stalls.
+    // Apollo returns 200 OK + people:[] (instead of 402) when credits run out,
+    // so we count consecutive zero cycles and surface a remediation flag at 5+
+    // (the prod stall this fix targeted hit 8 before anyone noticed).
     const silentZero = results.search_results === 0 && results.added === 0 && results.enriched === 0;
     const errorKind = silentZero ? 'no_results' : null;
+    const prevZero = cfg.consecutive_zero_cycles || 0;
+    if (silentZero) {
+      const nextZero = prevZero + 1;
+      cfgUpdates.consecutive_zero_cycles = nextZero;
+      cfgUpdates.last_zero_cycle_at = now.toISOString();
+      if (nextZero >= 5 && !cfg.likely_credit_exhaustion_at) {
+        cfgUpdates.likely_credit_exhaustion_at = now.toISOString();
+        console.warn(`[Apollo] LIKELY CREDIT EXHAUSTION — ${nextZero} consecutive zero-result cycles. Top up Apollo credits or check API key.`);
+      }
+    } else if (results.search_results > 0) {
+      // Genuine success — clear the stall flags.
+      cfgUpdates.consecutive_zero_cycles = 0;
+      cfgUpdates.likely_credit_exhaustion_at = null;
+    }
+    await saveApolloConfig(supabase, cfgUpdates);
 
     try {
       await supabase.from('outreach_activity_log').insert({

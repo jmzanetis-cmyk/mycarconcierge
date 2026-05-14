@@ -82,7 +82,57 @@ exports.handler = async function(event, context) {
         .from('outreach_messages')
         .select('id', { count: 'exact', head: true })
         .eq('status', 'draft');
-      return jsonResponse(200, { ...data, drafts_in_queue: draftCount || 0 });
+
+      // Task #306 — operational diagnostics surfaced in the admin panel.
+      // Pulls the most recent send_skipped + send_failed activity rows so
+      // ops can see *why* the queue is or isn't draining without leaving
+      // the panel.
+      let lastSkip = null;
+      let lastResendError = null;
+      try {
+        const { data: skipRows } = await supabase
+          .from('outreach_activity_log')
+          .select('created_at, metadata')
+          .eq('event_type', 'send_skipped')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (skipRows && skipRows.length) {
+          lastSkip = {
+            at: skipRows[0].created_at,
+            reason: skipRows[0].metadata?.reason || null,
+            channel: skipRows[0].metadata?.channel || null
+          };
+        }
+      } catch (_) {}
+      try {
+        const { data: failRows } = await supabase
+          .from('outreach_activity_log')
+          .select('created_at, metadata')
+          .eq('event_type', 'send_failed')
+          .order('created_at', { ascending: false })
+          .limit(1);
+        if (failRows && failRows.length) {
+          lastResendError = {
+            at: failRows[0].created_at,
+            channel: failRows[0].metadata?.channel || null,
+            error: failRows[0].metadata?.error || failRows[0].metadata?.message || null
+          };
+        }
+      } catch (_) {}
+
+      return jsonResponse(200, {
+        ...data,
+        drafts_in_queue: draftCount || 0,
+        diagnostics: {
+          is_running: !!data.is_running,
+          paused_at: data.paused_at || null,
+          pause_reason: data.pause_reason || null,
+          last_skip: lastSkip,
+          last_send_error: lastResendError,
+          apollo_likely_credit_exhaustion_at: data.apollo_config?.likely_credit_exhaustion_at || null,
+          apollo_consecutive_zero_cycles: data.apollo_config?.consecutive_zero_cycles || 0
+        }
+      });
     }
 
     if (method === 'POST' && path === 'engine-toggle') {

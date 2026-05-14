@@ -209,7 +209,7 @@ function makeMessage(id, lead_id, channel = 'email') {
     const r = await sendMessage(sb, 'm3');
     assert(r.skipped === true, 'returns { skipped: true }');
     assert(sb._state.messages.get('m3').status === 'skipped', "message flipped to status='skipped'");
-    assert(sb._state.activityLog.some(a => a.event_type === 'send_skipped' && a.metadata.reason === 'no_email_contact'), "activity log: reason=no_email_contact");
+    assert(sb._state.activityLog.some(a => a.event_type === 'send_skipped' && a.metadata.reason === 'no_email'), "activity log: reason=no_email (matches digest classifier label)");
   }
 
   // Case 4: lead.status = unsubscribed

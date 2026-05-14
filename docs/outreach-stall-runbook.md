@@ -137,7 +137,10 @@ The cycle resumes within 15 minutes.
 ## 5. Reference
 
 - **Diagnostic script:** `scripts/diagnose-apollo-and-queue.js`
-- **Regression test:** `scripts/queue-flush-skip-test.js` — verifies `sendMessage` marks dead-end messages `skipped` instead of leaving them stuck `approved`
+- **Regression tests:**
+  - `scripts/queue-flush-skip-test.js` — unit-level: verifies `sendMessage` marks dead-end messages `skipped` instead of leaving them stuck `approved`
+  - `tests/outreach-engine-paused-digest.spec.js` — Playwright: verifies the `engine_paused` signal contract that the daily digest depends on (pause → cycle returns `{skipped:true, reason:'engine_paused'}` → diagnostics block reflects it)
+- **Admin diagnostics:** the Outreach admin panel's engine card now renders a "Diagnostics" strip with `is_running`, last skip reason, last Resend/Twilio error, and an Apollo credit-exhaustion warning chip when `apollo_config.likely_credit_exhaustion_at` is set (auto-flagged after 5+ consecutive zero cycles).
 - **Concurrency test:** `scripts/apollo-lock-test.js`
 - **Code paths:**
   - Apollo cycle: `outreach-engine-core.js` → `runApolloDiscoveryCycle`
