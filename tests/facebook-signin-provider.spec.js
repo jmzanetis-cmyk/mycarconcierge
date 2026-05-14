@@ -45,17 +45,27 @@ const STUB_INIT = `
         if (v && typeof v.from === 'function') {
           v.from = (table) => {
             const isProfiles = table === 'profiles';
+            // A chain-result object that supports every Supabase query
+            // builder method we've seen in onboarding code paths
+            // (.eq, .is, .order, .limit, .neq, .in) so unrelated
+            // queries on the page don't blow up with
+            // "x.is is not a function" page errors that mask the
+            // signal we actually care about.
+            const chainResult = (terminalData) => {
+              const obj = {};
+              const passThrough = () => obj;
+              ['eq', 'is', 'neq', 'in', 'order', 'limit', 'gte', 'lte', 'gt', 'lt', 'match', 'or', 'filter'].forEach(m => { obj[m] = passThrough; });
+              obj.single = async () => terminalData;
+              obj.maybeSingle = async () => ({ data: terminalData.data, error: null });
+              obj.then = (resolve) => resolve(terminalData);
+              return obj;
+            };
+            const profilesTerminal = window.__fbExistingProfile
+              ? { data: window.__fbExistingProfile, error: null }
+              : { data: null, error: { code: 'PGRST116' } };
+            const otherTerminal = { data: null, error: null };
             return {
-              select: () => ({
-                eq: () => ({
-                  single: async () => isProfiles && window.__fbExistingProfile
-                    ? { data: window.__fbExistingProfile, error: null }
-                    : isProfiles
-                      ? { data: null, error: { code: 'PGRST116' } }
-                      : { data: null, error: null },
-                  maybeSingle: async () => ({ data: isProfiles ? (window.__fbExistingProfile || null) : null, error: null })
-                })
-              }),
+              select: () => chainResult(isProfiles ? profilesTerminal : otherTerminal),
               insert: (row) => {
                 window.__fbCalls.inserts.push({ table, row });
                 const p = Promise.resolve({ data: null, error: null });
@@ -122,16 +132,26 @@ test.describe('Facebook signup — provider track (Task #318)', () => {
   });
 
   test('login.html?oauth=facebook with provider intent: brand-new FB user → INSERT pending_provider profile + redirect to onboarding-provider.html?source=facebook', async ({ page }) => {
+    // The stub user/profile bindings are safe to addInitScript (they
+    // re-run on the redirected document and we want them there too).
+    // Intent seeding is NOT — it must run only on the initial login
+    // document so we can also assert that login.js cleared the flag
+    // after consumption. Guard with a localStorage marker so the
+    // re-run on the redirected onboarding-provider.html document
+    // doesn't repopulate the intent.
     await page.addInitScript(() => {
-      // Provider intent stored before the OAuth round-trip is what
-      // distinguishes this from the member-track variant.
-      try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* ignore */ }
       window.__fbStubUser = {
         id: 'cccccccc-dddd-eeee-ffff-000000000000',
         email: 'newprovider@example.com',
         user_metadata: { full_name: 'New Provider User' }
       };
       window.__fbExistingProfile = null;
+      try {
+        if (!localStorage.getItem('mcc_intent_seeded_p318')) {
+          localStorage.setItem('mcc_signup_intent', 'provider');
+          localStorage.setItem('mcc_intent_seeded_p318', '1');
+        }
+      } catch (_e) { /* ignore */ }
     });
     await page.goto('/login.html?oauth=facebook');
     await page.waitForURL(/\/onboarding-provider\.html\?source=facebook/, { timeout: 10000 });
@@ -145,8 +165,11 @@ test.describe('Facebook signup — provider track (Task #318)', () => {
     expect(inserted.row.role).toBe('pending_provider');
     expect(inserted.row.is_also_member).toBe(true);
     expect(inserted.row.full_name).toBe('New Provider User');
-    // Intent flag should be cleared after consumption so a later member
-    // signup from the same browser doesn't get mis-routed.
+    // Intent flag should be cleared after consumption so a later
+    // member signup from the same browser isn't mis-routed. The
+    // localStorage seed-marker above ensures the init script doesn't
+    // re-set it on the redirected document, so this assertion is
+    // actually exercising login.js's removeItem call.
     const intentAfter = await page.evaluate(() => localStorage.getItem('mcc_signup_intent'));
     expect(intentAfter).toBeNull();
   });

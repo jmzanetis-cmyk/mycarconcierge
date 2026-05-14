@@ -882,39 +882,47 @@
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
     // Task #318 — Facebook OAuth shortcut on the legacy provider form.
-    // Sets mcc_signup_intent='provider' so login.js's PGRST116 branch
+    // Defined in its OWN <script> tag so it stays available even if the
+    // sibling inline block below throws (signup-provider.js already
+    // declares `currentStep` / `nextStep` / etc., so re-declaring them
+    // in a shared inline scope used to abort the entire block at parse
+    // time and stripped this handler from the global scope). Sets
+    // mcc_signup_intent='provider' so login.js's PGRST116 branch
     // creates a pending_provider profile and forwards to the provider
     // survey when Facebook posts back the OAuth callback.
-    async function signUpWithFacebookProvider() {
-      const fbBtn = document.getElementById('facebook-signup-btn');
-      if (fbBtn) fbBtn.disabled = true;
-      try {
-        try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* private mode */ }
-        const client = window.supabaseClient;
-        if (!client || !client.auth) {
-          alert('Sign-in is still loading. Please try again in a moment.');
-          if (fbBtn) fbBtn.disabled = false;
-          return;
-        }
-        const { error } = await client.auth.signInWithOAuth({
-          provider: 'facebook',
-          options: {
-            redirectTo: window.location.origin + '/login.html?oauth=facebook',
-            scopes: 'email,public_profile'
+    (function () {
+      async function signUpWithFacebookProvider() {
+        const fbBtn = document.getElementById('facebook-signup-btn');
+        if (fbBtn) fbBtn.disabled = true;
+        try {
+          try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* private mode */ }
+          const client = window.supabaseClient;
+          if (!client || !client.auth) {
+            alert('Sign-in is still loading. Please try again in a moment.');
+            if (fbBtn) fbBtn.disabled = false;
+            return;
           }
-        });
-        if (error) {
-          console.error('Facebook signup error:', error);
-          alert('Failed to connect to Facebook. Please try again.');
+          const { error } = await client.auth.signInWithOAuth({
+            provider: 'facebook',
+            options: {
+              redirectTo: window.location.origin + '/login.html?oauth=facebook',
+              scopes: 'email,public_profile'
+            }
+          });
+          if (error) {
+            console.error('Facebook signup error:', error);
+            alert('Failed to connect to Facebook. Please try again.');
+            if (fbBtn) fbBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error('Facebook signup exception:', err);
           if (fbBtn) fbBtn.disabled = false;
         }
-      } catch (err) {
-        console.error('Facebook signup exception:', err);
-        if (fbBtn) fbBtn.disabled = false;
       }
-    }
-    globalThis.signUpWithFacebookProvider = signUpWithFacebookProvider;
-
+      globalThis.signUpWithFacebookProvider = signUpWithFacebookProvider;
+    })();
+  </script>
+  <script>
     let currentStep = 1;
     const uploadedFiles = { insurance: [], certs: [] };
 
