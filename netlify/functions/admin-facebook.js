@@ -28,7 +28,7 @@
 //     to the browser — only Page id + name (which the singleton row in
 //     facebook_page_connections also holds).
 
-var crypto = require('crypto');
+var crypto = require('node:crypto');
 var utils = require('./utils.js');
 
 var FB_APP_ID = '1210351411006961';

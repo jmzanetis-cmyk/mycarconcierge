@@ -22,8 +22,8 @@
 // (useful from the AI Ops admin page or for verifying a model swap).
 // ============================================================================
 
-var Anthropic = require('@anthropic-ai/sdk');
-var {
+let Anthropic = require('@anthropic-ai/sdk');
+let {
   getSupabase, authorizeAgentInvocation, jsonResponse
 } = require('./agent-fleet-runtime');
 
@@ -37,14 +37,14 @@ var {
 //   rg "claude-(sonnet|opus|haiku|3-5)-[0-9a-z-]+" --type js \
 //     -g '!node_modules' -g '!android' -g '!www-ios' -g '!tests' -o | sort -u
 // ---------------------------------------------------------------------------
-var MODELS_IN_USE = [
+let MODELS_IN_USE = [
   'claude-sonnet-4-5',
   'claude-sonnet-4-20250514',
   'claude-haiku-4-5-20251001',
   'claude-opus-4-5'
 ];
 
-var MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
+let MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
 
 // ---------------------------------------------------------------------------
 // probeModel: minimal `messages.create` call. We don't care about the answer,
@@ -54,9 +54,9 @@ var MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
 // Never throws — failures are returned as data so the caller can aggregate.
 // ---------------------------------------------------------------------------
 async function probeModel(client, model) {
-  var startedAt = Date.now();
+  let startedAt = Date.now();
   try {
-    var resp = await client.messages.create({
+    let resp = await client.messages.create({
       model: model,
       max_tokens: 1,
       messages: [{ role: 'user', content: 'hi' }]
@@ -69,12 +69,12 @@ async function probeModel(client, model) {
       latency_ms: Date.now() - startedAt
     };
   } catch (err) {
-    var status   = (err && err.status)  || (err && err.response && err.response.status) || 0;
-    var code     = (err && err.error && err.error.error && err.error.error.type)
+    let status   = (err && err.status)  || (err && err.response && err.response.status) || 0;
+    let code     = (err && err.error && err.error.error && err.error.error.type)
                 || (err && err.code)
                 || (err && err.type)
                 || 'unknown';
-    var message  = (err && err.error && err.error.error && err.error.error.message)
+    let message  = (err && err.error && err.error.error && err.error.error.message)
                 || (err && err.message)
                 || String(err);
     return {
@@ -92,7 +92,7 @@ async function probeModel(client, model) {
 // runHealthCheck: probe every model in MODELS_IN_USE in parallel, aggregate.
 // ---------------------------------------------------------------------------
 async function runHealthCheck() {
-  var apiKey = process.env.ANTHROPIC_API_KEY;
+  let apiKey = process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       ok: false,
@@ -104,11 +104,11 @@ async function runHealthCheck() {
       checked_at: new Date().toISOString()
     };
   }
-  var client = new Anthropic({ apiKey: apiKey });
-  var results = await Promise.all(MODELS_IN_USE.map(function (m) {
+  let client = new Anthropic({ apiKey: apiKey });
+  let results = await Promise.all(MODELS_IN_USE.map(function (m) {
     return probeModel(client, m);
   }));
-  var failed = results.filter(function (r) { return !r.ok; });
+  let failed = results.filter(function (r) { return !r.ok; });
   return {
     ok: failed.length === 0,
     results: results,
@@ -156,12 +156,12 @@ async function logToAiActionLog(supabase, summary, triggeredBy) {
 // effort Resend call; never throws. Returns a tag describing what happened.
 // ---------------------------------------------------------------------------
 async function sendFailureEmail(summary) {
-  var apiKey    = process.env.RESEND_API_KEY;
-  var toEmail   = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
-  var fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  let apiKey    = process.env.RESEND_API_KEY;
+  let toEmail   = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
+  let fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
   if (!apiKey || !toEmail) return { sent: false, reason: 'email_not_configured' };
 
-  var rows = summary.failed.map(function (f) {
+  let rows = summary.failed.map(function (f) {
     return '<tr>'
       + '<td style="padding:6px 12px 6px 0;font-family:monospace;">' + f.model + '</td>'
       + '<td style="padding:6px 0;"><strong>' + (f.status || '—') + '</strong></td>'
@@ -170,11 +170,11 @@ async function sendFailureEmail(summary) {
       + '</tr>';
   }).join('');
 
-  var subject = '[MCC] Anthropic model smoke FAILED ('
+  let subject = '[MCC] Anthropic model smoke FAILED ('
     + summary.failure_count + '/' + summary.total + ' model'
     + (summary.failure_count === 1 ? '' : 's') + ')';
 
-  var html =
+  let html =
     '<div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:640px;margin:0 auto;color:#222;">'
     + '<h2 style="color:#c0392b;margin:0 0 12px;">Anthropic model smoke check failed</h2>'
     + '<p style="margin:0 0 16px;">One or more Claude models referenced in production code returned an error from the daily 1-token probe. AI features that use these models may be silently failing for users right now.</p>'
@@ -196,14 +196,14 @@ async function sendFailureEmail(summary) {
     + '<p style="font-size:12px;color:#888;margin-top:24px;">Checked at ' + summary.checked_at + '. Source: <code>netlify/functions/anthropic-health-scheduled.js</code>.</p>'
     + '</div>';
 
-  var textLines = ['Anthropic model smoke check failed', '', 'Failed models:'];
+  let textLines = ['Anthropic model smoke check failed', '', 'Failed models:'];
   summary.failed.forEach(function (f) {
     textLines.push('  ' + f.model + '  status=' + f.status + '  code=' + f.code + '  ' + f.message);
   });
   textLines.push('', 'Checked at: ' + summary.checked_at);
 
   try {
-    var r = await fetch('https://api.resend.com/emails', {
+    let r = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -218,7 +218,7 @@ async function sendFailureEmail(summary) {
       })
     });
     if (!r.ok) {
-      var txt = await r.text().catch(function () { return ''; });
+      let txt = await r.text().catch(function () { return ''; });
       return { sent: false, reason: 'resend_error', error: 'Resend ' + r.status + ': ' + txt.slice(0, 200) };
     }
     return { sent: true };
@@ -231,16 +231,16 @@ async function sendFailureEmail(summary) {
 // handler: standard Netlify function entry point.
 // ---------------------------------------------------------------------------
 exports.handler = async function (event) {
-  var auth = authorizeAgentInvocation(event);
+  let auth = authorizeAgentInvocation(event);
   if (!auth) {
     return jsonResponse(401, { error: 'unauthorized' });
   }
 
-  var summary = await runHealthCheck();
-  var supabase = getSupabase();
+  let summary = await runHealthCheck();
+  let supabase = getSupabase();
   await logToAiActionLog(supabase, summary, auth);
 
-  var emailResult = { sent: false, reason: 'all_models_passed' };
+  let emailResult = { sent: false, reason: 'all_models_passed' };
   if (!summary.ok) {
     emailResult = await sendFailureEmail(summary);
   }

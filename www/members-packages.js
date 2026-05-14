@@ -1463,7 +1463,7 @@
         status: 'open',
         crowd_funded: document.getElementById('p-crowd-funded')?.checked || false,
         funding_goal_cents: (document.getElementById('p-crowd-funded')?.checked && document.getElementById('p-funding-goal')?.value)
-          ? Math.round(parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
+          ? Math.round(Number.parseFloat(document.getElementById('p-funding-goal').value) * 100) : null
       };
 
       // Check if this is a private job request
@@ -1522,7 +1522,7 @@
 
       setTimeout(() => {
         try {
-          const vehicleCount = parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
+          const vehicleCount = Number.parseInt(document.getElementById('stat-vehicles')?.textContent || '0');
           const tipContainer = document.getElementById('post-create-tip');
           if (tipContainer) {
             if (vehicleCount < 1) {
@@ -1705,7 +1705,7 @@
     function selectRepostWindow(el) {
       document.querySelectorAll('.repost-window-option').forEach(o => o.classList.remove('selected'));
       el.classList.add('selected');
-      selectedRepostHours = parseInt(el.dataset.hours);
+      selectedRepostHours = Number.parseInt(el.dataset.hours);
     }
 
     async function confirmRepost() {
@@ -1762,7 +1762,7 @@
     function selectExtendTime(el) {
       document.querySelectorAll('.extend-option').forEach(opt => opt.classList.remove('selected'));
       el.classList.add('selected');
-      selectedExtendHours = parseInt(el.dataset.hours);
+      selectedExtendHours = Number.parseInt(el.dataset.hours);
       updateExtendPreview();
     }
 
@@ -4210,11 +4210,11 @@
     }
 
     async function submitReview() {
-      const overallRating = parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
-      const qualityRating = parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
-      const communicationRating = parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
-      const timelinessRating = parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
-      const valueRating = parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
+      const overallRating = Number.parseInt(document.querySelector('.star-rating[data-type="overall"]').dataset.value) || 5;
+      const qualityRating = Number.parseInt(document.querySelector('.star-rating[data-type="quality"]').dataset.value) || 5;
+      const communicationRating = Number.parseInt(document.querySelector('.star-rating[data-type="communication"]').dataset.value) || 5;
+      const timelinessRating = Number.parseInt(document.querySelector('.star-rating[data-type="timeliness"]').dataset.value) || 5;
+      const valueRating = Number.parseInt(document.querySelector('.star-rating[data-type="value"]').dataset.value) || 5;
       const reviewTitle = document.getElementById('review-title').value.trim();
       const reviewText = document.getElementById('review-text').value.trim();
       
@@ -4473,7 +4473,7 @@
       
       let amountCents = null;
       if (refundType === 'partial') {
-        const amountDollars = parseFloat(document.getElementById('refund-amount-input').value);
+        const amountDollars = Number.parseFloat(document.getElementById('refund-amount-input').value);
         if (!amountDollars || amountDollars <= 0) {
           showToast('Please enter a valid refund amount', 'error');
           return;
@@ -5194,7 +5194,7 @@
       const makeLower = (make || '').toLowerCase();
       const modelLower = (model || '').toLowerCase();
       const trimLower = (trim || '').toLowerCase();
-      const yearNum = parseInt(year) || 0;
+      const yearNum = Number.parseInt(year) || 0;
       
       const europeanMakes = ['bmw', 'mercedes-benz', 'mercedes', 'audi', 'volkswagen', 'vw', 'porsche', 'mini', 'volvo', 'land rover', 'jaguar'];
       const electricMakes = ['tesla', 'rivian', 'lucid', 'polestar'];
@@ -5811,7 +5811,7 @@
 
     async function updateVehicleMileage() {
       const input = document.getElementById('current-mileage-input');
-      const mileage = parseInt(input.value);
+      const mileage = Number.parseInt(input.value);
       if (!mileage || mileage < 0) {
         showToast('Please enter a valid mileage', 'error');
         return;
@@ -5861,9 +5861,9 @@
     async function saveServiceLog() {
       const serviceCode = document.getElementById('log-service-type').value;
       const serviceDate = document.getElementById('log-service-date').value;
-      const mileage = parseInt(document.getElementById('log-service-mileage').value);
+      const mileage = Number.parseInt(document.getElementById('log-service-mileage').value);
       const performedBy = document.getElementById('log-service-by').value.trim();
-      const cost = parseFloat(document.getElementById('log-service-cost').value) || null;
+      const cost = Number.parseFloat(document.getElementById('log-service-cost').value) || null;
       const notes = document.getElementById('log-service-notes').value.trim();
       
       if (!serviceCode) {
@@ -7119,7 +7119,7 @@
 
     function updateSplitParticipantAmount(index, dollarValue, totalAmountCents) {
       if (splitParticipantRows[index]) {
-        splitParticipantRows[index].amount_cents = Math.round(parseFloat(dollarValue) * 100) || 0;
+        splitParticipantRows[index].amount_cents = Math.round(Number.parseFloat(dollarValue) * 100) || 0;
         renderSplitParticipantsList(totalAmountCents);
       }
     }
@@ -7800,7 +7800,7 @@
         const serviceCode = document.getElementById('log-service-type')?.value;
         const serviceDate = document.getElementById('log-service-date')?.value;
         const mileageVal = document.getElementById('log-service-mileage')?.value;
-        if (!serviceCode || !serviceDate || !mileageVal || parseInt(mileageVal) < 0) {
+        if (!serviceCode || !serviceDate || !mileageVal || Number.parseInt(mileageVal) < 0) {
           if (_origSaveServiceLog) await _origSaveServiceLog();
           return;
         }

@@ -24,7 +24,7 @@
 // (mirroring tests/agent-matchmaker.spec.js) so no email is ever sent.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const path = require('path');
+const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 
 // ─── Env stubs (must be set BEFORE requiring the netlify modules) ──────────

@@ -38,7 +38,7 @@ function flag(name) { return args.includes(`--${name}`); }
 const ALLOW_ANALYTICS_SKIP = flag('allow-analytics-skip');
 function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
-  return f ? parseInt(f.split('=')[1], 10) : def;
+  return f ? Number.parseInt(f.split('=')[1], 10) : def;
 }
 function strParam(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));

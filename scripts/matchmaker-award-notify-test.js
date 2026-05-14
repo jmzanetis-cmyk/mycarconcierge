@@ -22,7 +22,7 @@
 // Exit codes: 0 all passed, 1 any check failed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const path = require('path');
+const path = require('node:path');
 
 const ADMIN_PATH = require.resolve('../netlify/functions/agent-fleet-admin');
 // Resend is installed under netlify/functions/node_modules, not the repo
@@ -85,7 +85,7 @@ globalThis.fetch = async (url, opts) => {
 // Synthetic FCM service-account JSON (private key is a real RSA PEM so the
 // JWT signing step in getFCMAccessToken doesn't throw). Generated once at
 // startup so every test case can rely on it.
-const _crypto = require('crypto');
+const _crypto = require('node:crypto');
 const { privateKey: _pk } = _crypto.generateKeyPairSync('rsa', {
   modulusLength: 2048,
   privateKeyEncoding: { type: 'pkcs8', format: 'pem' },

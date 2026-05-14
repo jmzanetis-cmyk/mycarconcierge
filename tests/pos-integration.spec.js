@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const providersHtml = fs.readFileSync(path.join(__dirname, '..', 'www', 'providers.html'), 'utf8');
 const providersJs = fs.readFileSync(path.join(__dirname, '..', 'www', 'providers.js'), 'utf8');

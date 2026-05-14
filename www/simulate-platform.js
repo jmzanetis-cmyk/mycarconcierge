@@ -19,7 +19,7 @@ const args = process.argv.slice(2);
 function flag(name) { return args.includes(`--${name}`); }
 function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
-  return f ? parseInt(f.split('=')[1], 10) : def;
+  return f ? Number.parseInt(f.split('=')[1], 10) : def;
 }
 
 const CONFIG = {

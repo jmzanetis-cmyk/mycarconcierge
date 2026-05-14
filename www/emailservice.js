@@ -1912,11 +1912,11 @@ async function sendFounderCommissionEarnedEmail(founderEmail, founderName, commi
   return queueEmail(founderEmail, founderName, 'founder_commission_earned', {
     founder_name: founderName,
     commission_type: commissionData.type === 'bid_pack' ? 'Service Credit Purchase' : 'Platform Fee',
-    original_amount: parseFloat(commissionData.original_amount).toFixed(2),
-    commission_amount: parseFloat(commissionData.commission_amount).toFixed(2),
-    commission_rate: (parseFloat(commissionData.commission_rate) * 100).toFixed(0),
-    total_earnings: parseFloat(commissionData.total_earnings || 0).toFixed(2),
-    pending_balance: parseFloat(commissionData.pending_balance || 0).toFixed(2),
+    original_amount: Number.parseFloat(commissionData.original_amount).toFixed(2),
+    commission_amount: Number.parseFloat(commissionData.commission_amount).toFixed(2),
+    commission_rate: (Number.parseFloat(commissionData.commission_rate) * 100).toFixed(0),
+    total_earnings: Number.parseFloat(commissionData.total_earnings || 0).toFixed(2),
+    pending_balance: Number.parseFloat(commissionData.pending_balance || 0).toFixed(2),
     total_referrals: commissionData.total_referrals || 0,
     dashboard_url: 'https://mycarconcierge.com/founder-dashboard.html'
   });
@@ -1931,7 +1931,7 @@ async function sendFounderReferralSignupEmail(founderEmail, founderName, referra
     is_provider: referralData.type === 'provider',
     provider_referrals: referralData.provider_referrals || 0,
     member_referrals: referralData.member_referrals || 0,
-    total_earnings: parseFloat(referralData.total_earnings || 0).toFixed(2),
+    total_earnings: Number.parseFloat(referralData.total_earnings || 0).toFixed(2),
     dashboard_url: 'https://mycarconcierge.com/founder-dashboard.html'
   });
 }
@@ -1939,7 +1939,7 @@ async function sendFounderReferralSignupEmail(founderEmail, founderName, referra
 async function sendFounderPayoutProcessedEmail(founderEmail, founderName, payoutData) {
   return queueEmail(founderEmail, founderName, 'founder_payout_processed', {
     founder_name: founderName,
-    payout_amount: parseFloat(payoutData.amount).toFixed(2),
+    payout_amount: Number.parseFloat(payoutData.amount).toFixed(2),
     payout_period: payoutData.period,
     payout_method: payoutData.method,
     payout_date: new Date().toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }),
@@ -1955,7 +1955,7 @@ async function sendFounderTierUpgradeEmail(founderEmail, founderName, tierData) 
     new_bid_pack_rate: tierData.new_bid_pack_rate,
     new_platform_fee_rate: tierData.new_platform_fee_rate,
     total_referrals: tierData.total_referrals || 0,
-    total_earnings: parseFloat(tierData.total_earnings || 0).toFixed(2),
+    total_earnings: Number.parseFloat(tierData.total_earnings || 0).toFixed(2),
     months_active: tierData.months_active || 1,
     dashboard_url: 'https://mycarconcierge.com/founder-dashboard.html'
   });

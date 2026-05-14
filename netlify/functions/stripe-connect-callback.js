@@ -1,4 +1,4 @@
-var utils = require('./utils');
+let utils = require('./utils');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -9,13 +9,13 @@ exports.handler = async function(event) {
     return utils.errorResponse(405, 'Method not allowed');
   }
 
-  var params = event.queryStringParameters || {};
-  var errorCode = params.error;
-  var errorDescription = params.error_description;
+  let params = event.queryStringParameters || {};
+  let errorCode = params.error;
+  let errorDescription = params.error_description;
 
   if (errorCode) {
     console.warn('[StripeConnect] Callback error:', errorCode, errorDescription);
-    var encoded = encodeURIComponent(errorDescription || errorCode);
+    let encoded = encodeURIComponent(errorDescription || errorCode);
     return {
       statusCode: 302,
       headers: { 'Location': 'https://mycarconcierge.com/founder-dashboard.html?stripe=error&reason=' + encoded },
@@ -23,16 +23,16 @@ exports.handler = async function(event) {
     };
   }
 
-  var stripeAccountId = params.stripe_account || params.state;
+  let stripeAccountId = params.stripe_account || params.state;
 
   if (stripeAccountId && process.env.STRIPE_SECRET_KEY) {
     try {
-      var Stripe = require('stripe');
-      var stripe = Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-      var account = await stripe.accounts.retrieve(stripeAccountId);
+      let Stripe = require('stripe');
+      let stripe = Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+      let account = await stripe.accounts.retrieve(stripeAccountId);
 
       if (account && account.id) {
-        var supabase = utils.createSupabaseClient();
+        let supabase = utils.createSupabaseClient();
         if (supabase) {
           await supabase
             .from('member_founder_profiles')

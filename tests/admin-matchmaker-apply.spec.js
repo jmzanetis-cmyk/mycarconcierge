@@ -17,7 +17,7 @@
 // the network.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const path = require('path');
+const path = require('node:path');
 const { test, expect } = require('@playwright/test');
 const { BASE_URL, SUPABASE_SERVICE_KEY, ADMIN_PASSWORD, getSupabaseAdmin } = require('./helpers');
 

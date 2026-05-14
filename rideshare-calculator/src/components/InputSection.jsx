@@ -41,7 +41,7 @@ const InputSection = ({ inputs, setInputs, onPlatformChange, onInsuranceChange }
   const [showRiskWarning, setShowRiskWarning] = useState(false);
 
   const handleChange = (field) => (e) => {
-    setInputs(prev => ({ ...prev, [field]: parseFloat(e.target.value) || 0 }));
+    setInputs(prev => ({ ...prev, [field]: Number.parseFloat(e.target.value) || 0 }));
   };
 
   const handlePlatformChange = (e) => {

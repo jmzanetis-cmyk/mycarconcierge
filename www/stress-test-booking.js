@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const args = process.argv.slice(2);
 function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
-  return f ? parseInt(f.split('=')[1], 10) : def;
+  return f ? Number.parseInt(f.split('=')[1], 10) : def;
 }
 function strParam(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
@@ -460,9 +460,9 @@ async function checkDoubleBookings(providerIds) {
     const allMinutes = new Set();
     for (const b of provBookings) {
       const parts = b.start_time.split(':');
-      const startMin = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+      const startMin = Number.parseInt(parts[0]) * 60 + Number.parseInt(parts[1]);
       const endParts = b.end_time.split(':');
-      const endMin = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+      const endMin = Number.parseInt(endParts[0]) * 60 + Number.parseInt(endParts[1]);
       for (let m = startMin; m < endMin; m += 30) {
         allMinutes.add(m);
       }
@@ -472,9 +472,9 @@ async function checkDoubleBookings(providerIds) {
       let overlapping = 0;
       for (const b of provBookings) {
         const parts = b.start_time.split(':');
-        const bStart = parseInt(parts[0]) * 60 + parseInt(parts[1]);
+        const bStart = Number.parseInt(parts[0]) * 60 + Number.parseInt(parts[1]);
         const endParts = b.end_time.split(':');
-        const bEnd = parseInt(endParts[0]) * 60 + parseInt(endParts[1]);
+        const bEnd = Number.parseInt(endParts[0]) * 60 + Number.parseInt(endParts[1]);
         if (minute >= bStart && minute < bEnd) {
           overlapping++;
         }

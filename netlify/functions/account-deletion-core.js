@@ -47,11 +47,11 @@ async function _deleteProviderTables(supabase, userId) {
 async function _deleteMemberTables(supabase, userId) {
   await supabase.from('member_founder_profiles').delete().eq('member_id', userId);
 
-  var vehiclesRes = await supabase
+  let vehiclesRes = await supabase
     .from('vehicles')
     .select('id')
     .eq('owner_id', userId);
-  var vehicleIds = (vehiclesRes && vehiclesRes.data ? vehiclesRes.data : []).map(function (v) { return v.id; });
+  let vehicleIds = (vehiclesRes && vehiclesRes.data ? vehiclesRes.data : []).map(function (v) { return v.id; });
   if (vehicleIds.length > 0) {
     await supabase.from('service_history').delete().in('vehicle_id', vehicleIds);
     await supabase.from('maintenance_reminders').delete().in('vehicle_id', vehicleIds);
@@ -59,11 +59,11 @@ async function _deleteMemberTables(supabase, userId) {
   }
   await supabase.from('vehicles').delete().eq('owner_id', userId);
 
-  var packagesRes = await supabase
+  let packagesRes = await supabase
     .from('maintenance_packages')
     .select('id')
     .eq('member_id', userId);
-  var packageIds = (packagesRes && packagesRes.data ? packagesRes.data : []).map(function (p) { return p.id; });
+  let packageIds = (packagesRes && packagesRes.data ? packagesRes.data : []).map(function (p) { return p.id; });
   if (packageIds.length > 0) {
     await supabase.from('bids').delete().in('package_id', packageIds);
     await supabase.from('additional_work_requests').delete().in('package_id', packageIds);
@@ -82,13 +82,13 @@ async function _deleteMemberTables(supabase, userId) {
 }
 
 async function _deleteAuthAndNotify(opts, displayName) {
-  var supabase = opts.supabase;
-  var serviceSupabase = opts.serviceSupabase || opts.supabase;
-  var userId = opts.userId;
-  var userEmail = opts.userEmail;
-  var requestId = opts.requestId;
-  var source = opts.source;
-  var sendEmail = opts.sendEmail;
+  let supabase = opts.supabase;
+  let serviceSupabase = opts.serviceSupabase || opts.supabase;
+  let userId = opts.userId;
+  let userEmail = opts.userEmail;
+  let requestId = opts.requestId;
+  let source = opts.source;
+  let sendEmail = opts.sendEmail;
 
   await supabase.from('referral_code_usages').delete().eq('referred_user_id', userId);
   await supabase.from('messages').delete().eq('sender_id', userId);
@@ -97,7 +97,7 @@ async function _deleteAuthAndNotify(opts, displayName) {
   await supabase.from('profiles').delete().eq('id', userId);
 
   if (serviceSupabase && serviceSupabase.auth && serviceSupabase.auth.admin && typeof serviceSupabase.auth.admin.deleteUser === 'function') {
-    var authDelRes = await serviceSupabase.auth.admin.deleteUser(userId);
+    let authDelRes = await serviceSupabase.auth.admin.deleteUser(userId);
     if (authDelRes && authDelRes.error) {
       console.error('[' + requestId + '] auth.admin.deleteUser error:', authDelRes.error);
     }
@@ -118,12 +118,12 @@ async function _deleteAuthAndNotify(opts, displayName) {
 }
 
 async function performAccountDeletion(opts) {
-  var supabase = opts.supabase;
-  var userId = opts.userId;
-  var userEmail = opts.userEmail;
-  var requestId = opts.requestId || 'noreq';
-  var source = opts.source || 'in_app';
-  var sendEmail = typeof opts.sendEmail === 'function' ? opts.sendEmail : null;
+  let supabase = opts.supabase;
+  let userId = opts.userId;
+  let userEmail = opts.userEmail;
+  let requestId = opts.requestId || 'noreq';
+  let source = opts.source || 'in_app';
+  let sendEmail = typeof opts.sendEmail === 'function' ? opts.sendEmail : null;
 
   if (!supabase) {
     return { success: false, statusCode: 500, error: 'Database not configured' };
@@ -135,14 +135,14 @@ async function performAccountDeletion(opts) {
   try {
     console.log('[' + requestId + '] Account deletion requested for user ' + userId + ' (' + (userEmail || 'unknown email') + ') via ' + source);
 
-    var profileRes = await supabase
+    let profileRes = await supabase
       .from('profiles')
       .select('role, full_name, business_name')
       .eq('id', userId)
       .maybeSingle();
-    var profile = profileRes && profileRes.data ? profileRes.data : null;
-    var isProvider = profile && (profile.role === 'provider' || profile.role === 'pending_provider');
-    var displayName = (profile && (profile.business_name || profile.full_name)) || userEmail || 'there';
+    let profile = profileRes && profileRes.data ? profileRes.data : null;
+    let isProvider = profile && (profile.role === 'provider' || profile.role === 'pending_provider');
+    let displayName = (profile && (profile.business_name || profile.full_name)) || userEmail || 'there';
 
     await _deleteSharedTables(supabase, userId);
     if (isProvider) {
@@ -168,7 +168,7 @@ async function performAccountDeletion(opts) {
 }
 
 function buildDeletionEmailHtml(displayName, source) {
-  var reasonClause = source === 'facebook_callback'
+  let reasonClause = source === 'facebook_callback'
     ? ' because you removed the My Car Concierge app from your Facebook account'
     : ' as requested';
   return ''

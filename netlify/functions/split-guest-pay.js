@@ -1,4 +1,4 @@
-var utils = require('./utils');
+let utils = require('./utils');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -10,25 +10,25 @@ exports.handler = async function(event) {
   }
 
   try {
-    var participantId = utils.extractPathParam(event.path);
+    let participantId = utils.extractPathParam(event.path);
 
     if (!utils.isValidUUID(participantId)) {
       return utils.errorResponse(400, 'Invalid participant ID');
     }
 
-    var body = JSON.parse(event.body || '{}');
-    var token = body.token;
+    let body = JSON.parse(event.body || '{}');
+    let token = body.token;
 
     if (!utils.verifyGuestToken(participantId, token)) {
       return utils.errorResponse(403, 'Invalid or expired token');
     }
 
-    var supabase = utils.createSupabaseClient();
+    let supabase = utils.createSupabaseClient();
     if (!supabase) {
       return utils.errorResponse(503, 'Service temporarily unavailable');
     }
 
-    var result = await supabase
+    let result = await supabase
       .from('split_participants')
       .select('id, email, display_name, amount_cents, status, split_payment_id, member_id, payment_intent_id, split_payments(package_id, total_amount_cents, status, expires_at)')
       .eq('id', participantId)
@@ -38,7 +38,7 @@ exports.handler = async function(event) {
       return utils.errorResponse(404, 'Participant not found');
     }
 
-    var participant = result.data;
+    let participant = result.data;
 
     if (participant.member_id) {
       return utils.errorResponse(400, 'This participant is linked to an account. Please log in to pay.');
@@ -56,13 +56,13 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'This split payment is no longer accepting payments');
     }
 
-    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-    var clientSecret;
-    var paymentIntentId;
+    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    let clientSecret;
+    let paymentIntentId;
 
     if (participant.payment_intent_id) {
       try {
-        var existingPI = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
+        let existingPI = await stripe.paymentIntents.retrieve(participant.payment_intent_id);
         if (existingPI && (existingPI.status === 'requires_payment_method' || existingPI.status === 'requires_confirmation' || existingPI.status === 'requires_action')) {
           clientSecret = existingPI.client_secret;
           paymentIntentId = existingPI.id;
@@ -73,7 +73,7 @@ exports.handler = async function(event) {
     }
 
     if (!clientSecret) {
-      var paymentIntent = await stripe.paymentIntents.create({
+      let paymentIntent = await stripe.paymentIntents.create({
         amount: participant.amount_cents,
         currency: 'usd',
         capture_method: 'automatic',

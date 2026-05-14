@@ -49,7 +49,7 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const args = process.argv.slice(2);
 function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
-  return f ? parseInt(f.split('=')[1], 10) : def;
+  return f ? Number.parseInt(f.split('=')[1], 10) : def;
 }
 function flag(name) {
   return args.includes(`--${name}`);

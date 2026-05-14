@@ -101,7 +101,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         if (!club) { json(res, 200, { club: null }); return; }
         const rulesResult = await db.query('SELECT cr.*, rt.slug as template_slug, rt.icon as template_icon FROM club_reward_rules cr JOIN reward_type_templates rt ON cr.template_id = rt.id WHERE cr.club_id = $1 ORDER BY cr.created_at DESC', [club.id]);
         const memberCount = await db.query('SELECT COUNT(*) as count FROM club_memberships WHERE club_id = $1 AND is_active = true', [club.id]);
-        json(res, 200, { club: { ...club, reward_rules: rulesResult.rows, member_count: parseInt(memberCount.rows[0].count) } });
+        json(res, 200, { club: { ...club, reward_rules: rulesResult.rows, member_count: Number.parseInt(memberCount.rows[0].count) } });
         return;
       }
 
@@ -254,7 +254,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         try { body = await parseBody(req); } catch(e) { json(res, 400, { error: 'Invalid request body' }); return; }
         if (!body.template_id || !body.name || !body.parameters) { json(res, 400, { error: 'template_id, name, and parameters are required' }); return; }
         const activeCount = await db.query('SELECT COUNT(*) as count FROM club_reward_rules WHERE club_id = $1 AND is_active = true', [club.id]);
-        if (parseInt(activeCount.rows[0].count) >= 3) { json(res, 400, { error: 'Maximum 3 active reward rules per club' }); return; }
+        if (Number.parseInt(activeCount.rows[0].count) >= 3) { json(res, 400, { error: 'Maximum 3 active reward rules per club' }); return; }
         const insertFields = ['club_id', 'template_id', 'name', 'description', 'parameters'];
         const insertValues = [club.id, body.template_id, body.name, body.description || null, JSON.stringify(body.parameters)];
         if (body.valid_until) { insertFields.push('valid_until'); insertValues.push(body.valid_until); }
@@ -288,13 +288,13 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
           try { body = await parseBody(req); } catch(e) { json(res, 400, { error: 'Invalid request body' }); return; }
           if (body.is_active === true && !existing.rows[0].is_active) {
             const activeCount = await db.query('SELECT COUNT(*) FROM club_reward_rules WHERE club_id = $1 AND is_active = true', [club.id]);
-            if (parseInt(activeCount.rows[0].count) >= 3) {
+            if (Number.parseInt(activeCount.rows[0].count) >= 3) {
               json(res, 400, { error: 'Maximum 3 active reward rules allowed. Deactivate one first.' });
               return;
             }
           }
           if (body.parameters && body.parameters.punches_required !== undefined) {
-            const pr = parseInt(body.parameters.punches_required);
+            const pr = Number.parseInt(body.parameters.punches_required);
             if (!pr || pr < 1) { json(res, 400, { error: 'punches_required must be at least 1' }); return; }
           }
           const fields = [];
@@ -453,11 +453,11 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
             'SELECT punch_multiplier FROM club_promotions WHERE club_id = $1 AND is_active = true AND NOW() BETWEEN starts_at AND ends_at ORDER BY punch_multiplier DESC LIMIT 1',
             [club.id]
           );
-          const multiplier = activePromo.rows.length > 0 ? (parseInt(activePromo.rows[0].punch_multiplier) || 1) : 1;
+          const multiplier = activePromo.rows.length > 0 ? (Number.parseInt(activePromo.rows[0].punch_multiplier) || 1) : 1;
           const effectiveQty = qty * multiplier;
           const newPunchCount = (balance.punch_count || 0) + effectiveQty;
           await db.query('UPDATE member_club_balances SET punch_count = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newPunchCount, balance.id]);
-          const punchesRequired = Math.max(parseInt(rewardRule.parameters.punches_required) || 1, 1);
+          const punchesRequired = Math.max(Number.parseInt(rewardRule.parameters.punches_required) || 1, 1);
           const threshold75 = Math.ceil(punchesRequired * 0.75);
           if (newPunchCount >= threshold75 && newPunchCount < punchesRequired) {
             const existingAlert = await db.query(
@@ -477,7 +477,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
               'SELECT COUNT(*) FROM club_reward_redemptions WHERE membership_id = $1 AND reward_rule_id = $2 AND status = $3',
               [membershipId, body.reward_rule_id, 'available']
             );
-            if (parseInt(existingAvailable.rows[0].count) === 0) {
+            if (Number.parseInt(existingAvailable.rows[0].count) === 0) {
               await db.query(
                 'INSERT INTO club_reward_redemptions (membership_id, reward_rule_id, status) VALUES ($1, $2, $3)',
                 [membershipId, body.reward_rule_id, 'available']
@@ -493,7 +493,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
             }
           }
         } else if (rewardRule.template_slug === 'spend_discount') {
-          const newSpend = parseFloat(balance.total_spend || 0) + parseFloat(body.amount || 0);
+          const newSpend = Number.parseFloat(balance.total_spend || 0) + Number.parseFloat(body.amount || 0);
           await db.query('UPDATE member_club_balances SET total_spend = $1, last_activity_at = NOW(), updated_at = NOW() WHERE id = $2', [newSpend, balance.id]);
         } else if (rewardRule.template_slug === 'visit_milestone') {
           const newVisitCount = (balance.visit_count || 0) + qty;
@@ -611,7 +611,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         try { body = await parseBody(req); } catch(e) { json(res, 400, { error: 'Invalid request body' }); return; }
         if (!body.club_id || !body.rating || !body.content) { json(res, 400, { error: 'club_id, rating, and content are required' }); return; }
         if (body.content.length < 3) { json(res, 400, { error: 'Content too short' }); return; }
-        const rating = parseInt(body.rating);
+        const rating = Number.parseInt(body.rating);
         if (rating < 1 || rating > 5) { json(res, 400, { error: 'Rating must be between 1 and 5' }); return; }
         const membership = await db.query('SELECT id FROM club_memberships WHERE club_id = $1 AND member_id = $2 AND is_active = true', [body.club_id, user.id]);
         if (membership.rows.length === 0) { json(res, 403, { error: 'You must be an active member of this club' }); return; }
@@ -663,10 +663,10 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         try { body = await parseBody(req); } catch(e) { json(res, 400, { error: 'Invalid request body' }); return; }
         if (!body.name || !body.starts_at || !body.ends_at) { json(res, 400, { error: 'name, starts_at, and ends_at are required' }); return; }
         const activeCount = await db.query('SELECT COUNT(*) as count FROM club_promotions WHERE club_id = $1 AND is_active = true', [club.id]);
-        if (parseInt(activeCount.rows[0].count) >= 3) { json(res, 400, { error: 'Maximum 3 active promotions allowed' }); return; }
+        if (Number.parseInt(activeCount.rows[0].count) >= 3) { json(res, 400, { error: 'Maximum 3 active promotions allowed' }); return; }
         const result = await db.query(
           'INSERT INTO club_promotions (club_id, name, description, punch_multiplier, starts_at, ends_at) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
-          [club.id, body.name, body.description || null, parseInt(body.punch_multiplier) || 2, body.starts_at, body.ends_at]
+          [club.id, body.name, body.description || null, Number.parseInt(body.punch_multiplier) || 2, body.starts_at, body.ends_at]
         );
         json(res, 201, { promotion: result.rows[0] });
         return;
@@ -694,7 +694,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
           let idx = 1;
           if (body.name !== undefined) { fields.push(`name = $${idx++}`); values.push(body.name); }
           if (body.description !== undefined) { fields.push(`description = $${idx++}`); values.push(body.description); }
-          if (body.punch_multiplier !== undefined) { fields.push(`punch_multiplier = $${idx++}`); values.push(parseInt(body.punch_multiplier) || 2); }
+          if (body.punch_multiplier !== undefined) { fields.push(`punch_multiplier = $${idx++}`); values.push(Number.parseInt(body.punch_multiplier) || 2); }
           if (body.starts_at !== undefined) { fields.push(`starts_at = $${idx++}`); values.push(body.starts_at); }
           if (body.ends_at !== undefined) { fields.push(`ends_at = $${idx++}`); values.push(body.ends_at); }
           if (body.is_active !== undefined) { fields.push(`is_active = $${idx++}`); values.push(body.is_active); }
@@ -768,15 +768,15 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
           [club.id]
         );
 
-        const activeCount = parseInt(totalMembers.rows[0].active) || 0;
-        const totalPunchCount = parseInt(totalPunches.rows[0].total) || 0;
+        const activeCount = Number.parseInt(totalMembers.rows[0].active) || 0;
+        const totalPunchCount = Number.parseInt(totalPunches.rows[0].total) || 0;
         const avgPunches = activeCount > 0 ? Math.round((totalPunchCount / activeCount) * 10) / 10 : 0;
 
         const retentionQuery = await db.query(
           'SELECT COUNT(DISTINCT cm.member_id) as count FROM club_activity_log cal JOIN club_memberships cm ON cm.id = cal.membership_id WHERE cm.club_id = $1 AND cm.is_active = true AND cal.created_at >= NOW() - INTERVAL \'30 days\'',
           [club.id]
         );
-        const retentionRate = activeCount > 0 ? Math.round((parseInt(retentionQuery.rows[0].count) / activeCount) * 100) : 0;
+        const retentionRate = activeCount > 0 ? Math.round((Number.parseInt(retentionQuery.rows[0].count) / activeCount) * 100) : 0;
 
         const activePromos = await db.query(
           'SELECT COUNT(*) as count FROM club_promotions WHERE club_id = $1 AND is_active = true AND NOW() BETWEEN starts_at AND ends_at',
@@ -785,17 +785,17 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
 
         json(res, 200, {
           analytics: {
-            total_members: parseInt(totalMembers.rows[0].total) || 0,
+            total_members: Number.parseInt(totalMembers.rows[0].total) || 0,
             active_members: activeCount,
-            new_members_30d: parseInt(newMembers.rows[0].count) || 0,
+            new_members_30d: Number.parseInt(newMembers.rows[0].count) || 0,
             total_punches: totalPunchCount,
-            rewards_redeemed: parseInt(rewardsRedeemed.rows[0].count) || 0,
-            rewards_available: parseInt(rewardsAvailable.rows[0].count) || 0,
-            activity_30d: parseInt(activity30.rows[0].count) || 0,
+            rewards_redeemed: Number.parseInt(rewardsRedeemed.rows[0].count) || 0,
+            rewards_available: Number.parseInt(rewardsAvailable.rows[0].count) || 0,
+            activity_30d: Number.parseInt(activity30.rows[0].count) || 0,
             monthly_trend: monthlyTrend.rows,
             avg_punches_per_member: avgPunches,
             retention_rate: retentionRate,
-            active_promotions: parseInt(activePromos.rows[0].count) || 0
+            active_promotions: Number.parseInt(activePromos.rows[0].count) || 0
           }
         });
         return;
@@ -980,7 +980,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         for (const item of body.items) {
           const product = productMap[item.product_id];
           if (!product) { json(res, 400, { error: 'Product not found: ' + item.product_id }); return; }
-          const qty = parseInt(item.quantity) || 1;
+          const qty = Number.parseInt(item.quantity) || 1;
           subtotal += product.price * qty;
           lineItems.push({
             price_data: {
@@ -1018,7 +1018,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
           const product = productMap[item.product_id];
           await db.query(
             'INSERT INTO club_order_items (order_id, product_id, product_name, product_price, quantity, variant) VALUES ($1, $2, $3, $4, $5, $6)',
-            [order.rows[0].id, item.product_id, product.name, product.price, parseInt(item.quantity) || 1, item.variant || null]
+            [order.rows[0].id, item.product_id, product.name, product.price, Number.parseInt(item.quantity) || 1, item.variant || null]
           );
         }
         json(res, 200, { checkout_url: session.url, order_id: order.rows[0].id });

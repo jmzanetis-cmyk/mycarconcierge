@@ -370,7 +370,7 @@ function applyFilters() {
       if (!p.member_zip) return true;
       const dist = estimateZipDistance(providerProfile.zip_code, p.member_zip);
       p._estimatedDistance = dist;
-      return dist <= parseInt(distance);
+      return dist <= Number.parseInt(distance);
     });
   } else {
     filtered.forEach(p => {
@@ -437,9 +437,9 @@ function estimateZipDistance(zip1, zip2) {
   if (!zip1 || !zip2) return 999;
   if (zip1 === zip2) return 0;
   if (zip1.substring(0, 3) === zip2.substring(0, 3)) {
-    return Math.abs(parseInt(zip1) - parseInt(zip2)) * 0.5;
+    return Math.abs(Number.parseInt(zip1) - Number.parseInt(zip2)) * 0.5;
   }
-  const diff = Math.abs(parseInt(zip1.substring(0, 3)) - parseInt(zip2.substring(0, 3)));
+  const diff = Math.abs(Number.parseInt(zip1.substring(0, 3)) - Number.parseInt(zip2.substring(0, 3)));
   if (diff <= 2) return 15 + (diff * 10);
   if (diff <= 5) return 30 + (diff * 8);
   if (diff <= 10) return 50 + (diff * 5);
@@ -614,7 +614,7 @@ async function submitBid() {
     price = customPrice?.value;
   }
   
-  if (!price || isNaN(parseFloat(price))) {
+  if (!price || isNaN(Number.parseFloat(price))) {
     showToast('Please enter a valid price', 'error');
     return;
   }
@@ -629,7 +629,7 @@ async function submitBid() {
       if (existingBid) {
         const { error } = await supabaseClient
           .from('bids')
-          .update({ price: parseFloat(price), notes, estimated_duration: duration })
+          .update({ price: Number.parseFloat(price), notes, estimated_duration: duration })
           .eq('id', existingBid.id);
         
         if (error) throw error;
@@ -652,7 +652,7 @@ async function submitBid() {
         },
         body: JSON.stringify({
           package_id: currentBidPackageId,
-          price: parseFloat(price),
+          price: Number.parseFloat(price),
           notes,
           estimated_duration: duration,
           availability,
@@ -742,14 +742,14 @@ function resetBidCalculator() {
 }
 
 function updateBidCalculation() {
-  const parts = parseFloat(document.getElementById('calc-parts')?.value) || 0;
-  const laborHours = parseFloat(document.getElementById('calc-labor-hours')?.value) || 0;
-  const laborRate = parseFloat(document.getElementById('calc-labor-rate')?.value) || 75;
-  const profitMargin = parseFloat(document.getElementById('calc-profit-margin')?.value) || 20;
+  const parts = Number.parseFloat(document.getElementById('calc-parts')?.value) || 0;
+  const laborHours = Number.parseFloat(document.getElementById('calc-labor-hours')?.value) || 0;
+  const laborRate = Number.parseFloat(document.getElementById('calc-labor-rate')?.value) || 75;
+  const profitMargin = Number.parseFloat(document.getElementById('calc-profit-margin')?.value) || 20;
   const travelEnabled = document.getElementById('calc-travel-enabled')?.checked;
-  const travel = travelEnabled ? (parseFloat(document.getElementById('calc-travel')?.value) || 0) : 0;
+  const travel = travelEnabled ? (Number.parseFloat(document.getElementById('calc-travel')?.value) || 0) : 0;
   const transportEnabled = document.getElementById('calc-transport-enabled')?.checked;
-  const transport = transportEnabled ? (parseFloat(document.getElementById('calc-transport')?.value) || 0) : 0;
+  const transport = transportEnabled ? (Number.parseFloat(document.getElementById('calc-transport')?.value) || 0) : 0;
   const urgencyEnabled = document.getElementById('calc-urgency')?.checked;
   
   const profitValue = document.getElementById('calc-profit-value');
@@ -805,7 +805,7 @@ function updateBidCalculation() {
 
 function applyCalculatedPrice() {
   const totalDisplay = document.getElementById('calc-display-total');
-  const total = parseFloat(totalDisplay?.textContent?.replace('$', '') || '0');
+  const total = Number.parseFloat(totalDisplay?.textContent?.replace('$', '') || '0');
   
   if (total > 0) {
     const priceSelect = document.getElementById('bid-price');

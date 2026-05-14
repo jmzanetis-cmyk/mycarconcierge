@@ -41,7 +41,7 @@ const {
   sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
 const { Resend } = require('resend');
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 const ALLOWED_AUTONOMY = new Set(['propose','assist','autonomous']);
 const MCC_FROM_EMAIL = process.env.RESEND_FROM_EMAIL

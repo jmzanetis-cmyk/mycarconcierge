@@ -19,9 +19,9 @@
 // duration=permanent  →  refresh token never expires (until you revoke it).
 // ============================================================================
 
-const http = require('http');
-const crypto = require('crypto');
-const { URL } = require('url');
+const http = require('node:http');
+const crypto = require('node:crypto');
+const { URL } = require('node:url');
 
 const PORT = 8765;
 const REDIRECT_URI = `http://localhost:${PORT}/callback`;

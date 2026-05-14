@@ -1040,7 +1040,7 @@
       if (e.target.classList.contains('analytics-range')) {
         document.querySelectorAll('.analytics-range').forEach(btn => btn.classList.remove('active'));
         e.target.classList.add('active');
-        analyticsDateRange = parseInt(e.target.dataset.days);
+        analyticsDateRange = Number.parseInt(e.target.dataset.days);
         loadAnalytics();
       }
     });
@@ -2575,9 +2575,9 @@
     async function bulkAddCredits() {
       const count = selectedProviders.size;
       const credits = prompt(`Add bid credits to ${count} provider(s):\n\nEnter number of credits to add:`);
-      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
-      const creditsToAdd = parseInt(credits);
+      const creditsToAdd = Number.parseInt(credits);
 
       try {
         const res = await fetch('/api/admin/provider-actions/adjust-credits', {
@@ -2783,9 +2783,9 @@
       const currentCredits = (provider?.bid_credits || 0) + (provider?.free_trial_bids || 0);
 
       const credits = prompt(`Add credits to ${name}\nCurrent balance: ${currentCredits}\n\nEnter credits to add:`);
-      if (!credits || isNaN(credits) || parseInt(credits) <= 0) return;
+      if (!credits || isNaN(credits) || Number.parseInt(credits) <= 0) return;
 
-      const creditsToAdd = parseInt(credits);
+      const creditsToAdd = Number.parseInt(credits);
 
       try {
         const res = await fetch('/api/admin/provider-actions/adjust-credits', {
@@ -3555,7 +3555,7 @@
 
     async function resolveDispute(winner) {
       if (!currentDispute) return;
-      const resolutionAmount = parseFloat(document.getElementById('resolution-amount').value) || 0;
+      const resolutionAmount = Number.parseFloat(document.getElementById('resolution-amount').value) || 0;
       const notes = document.getElementById('resolution-notes').value;
 
       if (!notes) return showToast('Please provide resolution notes', 'error');
@@ -3996,7 +3996,7 @@
       }
       tbody.innerHTML = deals.map(d => {
         const p = d.properties || {};
-        const amount = p.amount ? `$${parseFloat(p.amount).toLocaleString('en-US', {minimumFractionDigits:2})}` : '—';
+        const amount = p.amount ? `$${Number.parseFloat(p.amount).toLocaleString('en-US', {minimumFractionDigits:2})}` : '—';
         const stageColors = {
           closedwon: 'background:var(--accent-green-soft);color:var(--accent-green);',
           closedlost: 'background:var(--accent-red-soft);color:var(--accent-red);',
@@ -5069,16 +5069,16 @@
     function updatePayoutStats() {
       const activeFounders = founderProfiles.filter(f => f.status === 'active').length;
       const totalReferrals = founderProfiles.reduce((sum, f) => sum + (f.total_provider_referrals || 0), 0);
-      const pendingBalance = founderProfiles.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
-      const totalPaid = founderProfiles.reduce((sum, f) => sum + parseFloat(f.total_commissions_paid || 0), 0);
+      const pendingBalance = founderProfiles.reduce((sum, f) => sum + Number.parseFloat(f.pending_balance || 0), 0);
+      const totalPaid = founderProfiles.reduce((sum, f) => sum + Number.parseFloat(f.total_commissions_paid || 0), 0);
       
       const eligibleFounders = founderProfiles.filter(f => 
         f.status === 'active' && 
-        parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
+        Number.parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
         f.stripe_connect_account_id
       );
       const eligibleCount = eligibleFounders.length;
-      const eligibleTotal = eligibleFounders.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
+      const eligibleTotal = eligibleFounders.reduce((sum, f) => sum + Number.parseFloat(f.pending_balance || 0), 0);
       const pendingPayoutsCount = eligibleCount;
 
       document.getElementById('total-founders').textContent = activeFounders;
@@ -5130,8 +5130,8 @@
             stripePending ? 
             '<span class="status-badge orange" title="Onboarding incomplete">' + mccIcon('clock', 16) + ' Pending</span>' : 
             '<span class="status-badge" style="background:var(--bg-input);color:var(--text-muted);">Not Setup</span>';
-          const commissionRate = parseFloat(f.commission_rate || 0.50) * 100;
-          const pendingBal = parseFloat(f.pending_balance || 0);
+          const commissionRate = Number.parseFloat(f.commission_rate || 0.50) * 100;
+          const pendingBal = Number.parseFloat(f.pending_balance || 0);
           const isEligible = f.status === 'active' && pendingBal >= PAYOUT_THRESHOLD && f.stripe_connect_account_id;
           const eligibilityBadge = isEligible ? 
             '<span class="status-badge approved" style="margin-left:6px;font-size:0.7rem;" title="Ready for bulk payout">' + mccIcon('check', 16) + ' Eligible</span>' : 
@@ -5150,7 +5150,7 @@
             </td>
             <td>${f.total_provider_referrals || 0}</td>
             <td style="font-weight:600;color:${pendingBal >= PAYOUT_THRESHOLD ? 'var(--accent-green)' : 'var(--text-primary)'};">$${pendingBal.toFixed(2)}${pendingBal >= PAYOUT_THRESHOLD ? ' ' + mccIcon('check', 16) : ''}</td>
-            <td>$${parseFloat(f.total_commissions_earned || 0).toFixed(2)}</td>
+            <td>$${Number.parseFloat(f.total_commissions_earned || 0).toFixed(2)}</td>
             <td>${stripeStatus}</td>
             <td><span class="status-badge ${f.status === 'active' ? 'approved' : f.status}">${f.status}</span></td>
             <td>
@@ -5187,7 +5187,7 @@
               <div style="font-size:0.8rem;color:var(--text-muted);">${p.founder?.email || ''}</div>
             </td>
             <td>${p.payout_period}</td>
-            <td style="font-weight:600;color:var(--accent-green);">$${parseFloat(p.amount).toFixed(2)}</td>
+            <td style="font-weight:600;color:var(--accent-green);">$${Number.parseFloat(p.amount).toFixed(2)}</td>
             <td>${p.payout_method}</td>
             <td>
               <select id="payout-type-${p.id}" style="padding:4px 8px;border-radius:4px;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;">
@@ -5225,9 +5225,9 @@
         }
 
         tbody.innerHTML = completedPayouts.map(p => {
-          const grossAmount = parseFloat(p.amount || 0);
-          const feeAmount = parseFloat(p.fee_amount || 0);
-          const netAmount = parseFloat(p.net_amount || grossAmount);
+          const grossAmount = Number.parseFloat(p.amount || 0);
+          const feeAmount = Number.parseFloat(p.fee_amount || 0);
+          const netAmount = Number.parseFloat(p.net_amount || grossAmount);
           const payoutType = p.payout_type || 'instant';
           
           return `
@@ -5294,7 +5294,7 @@
 
     async function saveFounderCommission() {
       const founderId = document.getElementById('commission-founder-id').value;
-      const ratePercent = parseInt(document.getElementById('commission-rate-input').value);
+      const ratePercent = Number.parseInt(document.getElementById('commission-rate-input').value);
       
       if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
         showNotification('Please enter a valid rate between 0 and 100', 'error');
@@ -5366,15 +5366,15 @@
               <div style="font-size:0.8rem;color:var(--text-muted);">Provider Referrals</div>
             </div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <div style="font-size:1.4rem;font-weight:600;color:var(--accent-green);">$${parseFloat(founder.pending_balance || 0).toFixed(2)}</div>
+              <div style="font-size:1.4rem;font-weight:600;color:var(--accent-green);">$${Number.parseFloat(founder.pending_balance || 0).toFixed(2)}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Pending Balance</div>
             </div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <div style="font-size:1.4rem;font-weight:600;">$${parseFloat(founder.total_commissions_earned || 0).toFixed(2)}</div>
+              <div style="font-size:1.4rem;font-weight:600;">$${Number.parseFloat(founder.total_commissions_earned || 0).toFixed(2)}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Total Earned</div>
             </div>
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <div style="font-size:1.4rem;font-weight:600;">$${parseFloat(founder.total_commissions_paid || 0).toFixed(2)}</div>
+              <div style="font-size:1.4rem;font-weight:600;">$${Number.parseFloat(founder.total_commissions_paid || 0).toFixed(2)}</div>
               <div style="font-size:0.8rem;color:var(--text-muted);">Total Paid</div>
             </div>
           </div>
@@ -5404,7 +5404,7 @@
               ${commissions.map(c => `
                 <div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-input);padding:12px;border-radius:var(--radius-md);">
                   <div>
-                    <strong>$${parseFloat(c.commission_amount).toFixed(2)}</strong>
+                    <strong>$${Number.parseFloat(c.commission_amount).toFixed(2)}</strong>
                     <span style="font-size:0.8rem;color:var(--text-muted);">(${c.commission_type === 'bid_pack' ? mccIcon('package', 16) + ' Bid Pack' : mccIcon('credit-card', 16) + ' Platform Fee'})</span>
                     <div style="font-size:0.8rem;color:var(--text-muted);">${new Date(c.created_at).toLocaleDateString()}</div>
                   </div>
@@ -5427,7 +5427,7 @@
       document.getElementById('application-modal-body').innerHTML = modalContent;
       document.querySelector('#application-modal .modal-footer').innerHTML = `
         <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
-        ${parseFloat(founder.pending_balance || 0) >= 25 ? `<button class="btn btn-success" onclick="createPayout('${founder.id}'); closeModal('application-modal');">Create Payout</button>` : ''}
+        ${Number.parseFloat(founder.pending_balance || 0) >= 25 ? `<button class="btn btn-success" onclick="createPayout('${founder.id}'); closeModal('application-modal');">Create Payout</button>` : ''}
       `;
       document.getElementById('application-modal').classList.add('active');
     }
@@ -5436,7 +5436,7 @@
       const founder = founderProfiles.find(f => f.id === founderId);
       if (!founder) return;
 
-      const amount = parseFloat(founder.pending_balance || 0);
+      const amount = Number.parseFloat(founder.pending_balance || 0);
       if (amount < 25) {
         showToast('Minimum payout amount is $25', 'error');
         return;
@@ -5545,7 +5545,7 @@
             await supabaseClient
               .from('member_founder_profiles')
               .update({
-                pending_balance: parseFloat(founder.pending_balance || 0) + parseFloat(payout.amount),
+                pending_balance: Number.parseFloat(founder.pending_balance || 0) + Number.parseFloat(payout.amount),
                 updated_at: new Date().toISOString()
               })
               .eq('id', payout.founder_id);
@@ -5571,7 +5571,7 @@
       const payoutType = payoutTypeSelect?.value || 'weekly';
       const feeText = payoutType === 'instant' ? ' (1% fee will be deducted)' : ' (no fee)';
 
-      if (!confirm(`Process Stripe transfer of $${parseFloat(payout.amount).toFixed(2)} to ${payout.founder?.full_name || 'founder'}?${feeText}\n\nThis will initiate a real payment.`)) {
+      if (!confirm(`Process Stripe transfer of $${Number.parseFloat(payout.amount).toFixed(2)} to ${payout.founder?.full_name || 'founder'}?${feeText}\n\nThis will initiate a real payment.`)) {
         return;
       }
 
@@ -5610,7 +5610,7 @@
     async function processBulkPayouts() {
       const eligibleFounders = founderProfiles.filter(f => 
         f.status === 'active' && 
-        parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
+        Number.parseFloat(f.pending_balance || 0) >= PAYOUT_THRESHOLD &&
         f.stripe_connect_account_id
       );
       
@@ -5619,7 +5619,7 @@
         return;
       }
 
-      const totalAmount = eligibleFounders.reduce((sum, f) => sum + parseFloat(f.pending_balance || 0), 0);
+      const totalAmount = eligibleFounders.reduce((sum, f) => sum + Number.parseFloat(f.pending_balance || 0), 0);
       
       const payoutType = await new Promise(resolve => {
         const choice = confirm(
@@ -5785,11 +5785,11 @@
 
     async function savePayoutSettings() {
       const settings = {
-        min_payout_threshold: parseFloat(document.getElementById('setting-min-payout-threshold').value) || 10.00,
-        instant_payout_fee_percent: parseFloat(document.getElementById('setting-instant-fee-percent').value) || 1.00,
-        instant_payout_fee_min: parseFloat(document.getElementById('setting-instant-fee-min').value) || 0.50,
-        instant_payout_fee_max: parseFloat(document.getElementById('setting-instant-fee-max').value) || 10.00,
-        weekly_payout_fee: parseFloat(document.getElementById('setting-weekly-fee').value) || 0.00
+        min_payout_threshold: Number.parseFloat(document.getElementById('setting-min-payout-threshold').value) || 10.00,
+        instant_payout_fee_percent: Number.parseFloat(document.getElementById('setting-instant-fee-percent').value) || 1.00,
+        instant_payout_fee_min: Number.parseFloat(document.getElementById('setting-instant-fee-min').value) || 0.50,
+        instant_payout_fee_max: Number.parseFloat(document.getElementById('setting-instant-fee-max').value) || 10.00,
+        weekly_payout_fee: Number.parseFloat(document.getElementById('setting-weekly-fee').value) || 0.00
       };
 
       if (settings.min_payout_threshold < 1) {
@@ -5908,8 +5908,8 @@
       if (chrisPartner) {
         const achievedBonuses = milestones.filter(m => m.is_achieved && m.is_paid);
         const pendingBonuses = milestones.filter(m => m.is_achieved && !m.is_paid);
-        const achievedTotal = achievedBonuses.reduce((sum, m) => sum + parseFloat(m.bonus_amount || 0), 0);
-        const pendingTotal = pendingBonuses.reduce((sum, m) => sum + parseFloat(m.bonus_amount || 0), 0);
+        const achievedTotal = achievedBonuses.reduce((sum, m) => sum + Number.parseFloat(m.bonus_amount || 0), 0);
+        const pendingTotal = pendingBonuses.reduce((sum, m) => sum + Number.parseFloat(m.bonus_amount || 0), 0);
         
         document.getElementById('founding-partner-info').innerHTML = `
           <div style="display:grid;grid-template-columns:repeat(4, 1fr);gap:16px;">
@@ -5964,8 +5964,8 @@
         
         return `
           <tr style="${m.is_achieved ? 'background:var(--accent-green-soft);' : ''}">
-            <td style="font-weight:600;">$${parseFloat(m.threshold_amount).toLocaleString()}</td>
-            <td style="font-weight:600;color:var(--accent-gold);">$${parseFloat(m.bonus_amount).toLocaleString()}</td>
+            <td style="font-weight:600;">$${Number.parseFloat(m.threshold_amount).toLocaleString()}</td>
+            <td style="font-weight:600;color:var(--accent-gold);">$${Number.parseFloat(m.bonus_amount).toLocaleString()}</td>
             <td>${m.description}</td>
             <td>${statusBadge}</td>
             <td>${paidDate}</td>
@@ -6101,8 +6101,8 @@
         monthlyTbody.innerHTML = monthlyData.map(m => `
           <tr>
             <td style="font-weight:600;">${m.month_year}</td>
-            <td>$${parseFloat(m.bid_pack_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-            <td style="color:var(--accent-green);">$${parseFloat(m.reserve_accrual || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td>$${Number.parseFloat(m.bid_pack_revenue || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+            <td style="color:var(--accent-green);">$${Number.parseFloat(m.reserve_accrual || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
             <td><span class="status-badge ${m.status === 'finalized' ? 'approved' : 'orange'}">${m.status || 'pending'}</span></td>
           </tr>
         `).join('');
@@ -6124,8 +6124,8 @@
             <tr>
               <td>${new Date(t.created_at).toLocaleString()}</td>
               <td><span style="color:${typeColor};font-weight:600;text-transform:capitalize;">${t.transaction_type}</span></td>
-              <td style="font-weight:600;color:${t.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amountPrefix}$${parseFloat(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
-              <td>$${parseFloat(t.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td style="font-weight:600;color:${t.amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amountPrefix}$${Number.parseFloat(t.amount).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
+              <td>$${Number.parseFloat(t.balance_after || 0).toLocaleString(undefined, {minimumFractionDigits: 2})}</td>
               <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;" title="${t.notes || ''}">${t.notes || '-'}</td>
             </tr>
           `;
@@ -6137,7 +6137,7 @@
       const amountInput = document.getElementById('reserve-adjust-amount');
       const notesInput = document.getElementById('reserve-adjust-notes');
       
-      const amount = parseFloat(amountInput.value);
+      const amount = Number.parseFloat(amountInput.value);
       const notes = notesInput.value.trim();
       
       if (isNaN(amount) || amount === 0) {
@@ -6383,7 +6383,7 @@
       const updates = {
         status: 'confirmed',
         resolved_at: new Date().toISOString(),
-        reward_amount: rewardAmount ? parseFloat(rewardAmount) : null
+        reward_amount: rewardAmount ? Number.parseFloat(rewardAmount) : null
       };
 
       const { error } = await supabaseClient
@@ -6709,9 +6709,9 @@
             <span class="detail-label">Tier:</span>
             <span class="detail-value">${mfp.tier || 'Standard'}</span>
             <span class="detail-label">Total Earnings:</span>
-            <span class="detail-value" style="color:var(--accent-green);">$${parseFloat(mfp.total_commissions_earned || 0).toFixed(2)}</span>
+            <span class="detail-value" style="color:var(--accent-green);">$${Number.parseFloat(mfp.total_commissions_earned || 0).toFixed(2)}</span>
             <span class="detail-label">Pending Balance:</span>
-            <span class="detail-value" style="color:var(--accent-gold);">$${parseFloat(mfp.pending_balance || 0).toFixed(2)}</span>
+            <span class="detail-value" style="color:var(--accent-gold);">$${Number.parseFloat(mfp.pending_balance || 0).toFixed(2)}</span>
             <span class="detail-label">Provider Referrals:</span>
             <span class="detail-value">${user.referralCount}</span>
             <span class="detail-label">Stripe Connect:</span>
@@ -7737,8 +7737,8 @@
     function saveMerchPreferences() {
       try {
         const prefs = {
-          defaultPrice: parseFloat(document.getElementById('merch-pref-price').value) || 29.99,
-          priceMarkup: parseInt(document.getElementById('merch-pref-markup').value) || 50,
+          defaultPrice: Number.parseFloat(document.getElementById('merch-pref-price').value) || 29.99,
+          priceMarkup: Number.parseInt(document.getElementById('merch-pref-markup').value) || 50,
           favoriteColors: []
         };
         document.querySelectorAll('.merch-color-pref input[type="checkbox"]:checked').forEach(cb => {
@@ -8383,7 +8383,7 @@
       const selectedCategories = [];
       document.querySelectorAll('.bulk-category-checkbox:checked').forEach(cb => {
         selectedCategories.push({
-          categoryId: parseInt(cb.value),
+          categoryId: Number.parseInt(cb.value),
           categoryName: cb.dataset.categoryName
         });
       });
@@ -9555,7 +9555,7 @@
       btn.addEventListener('click', () => {
         document.querySelectorAll('.traffic-range').forEach(b => b.classList.remove('active'));
         btn.classList.add('active');
-        trafficDays = parseInt(btn.dataset.days);
+        trafficDays = Number.parseInt(btn.dataset.days);
         loadedSections['traffic'] = false;
         loadTrafficData();
       });
@@ -10301,7 +10301,7 @@
     function addSelectedLeadsToRecipients() {
       const selected = [];
       document.querySelectorAll('.email-lead-cb:checked').forEach(cb => {
-        const idx = parseInt(cb.dataset.idx);
+        const idx = Number.parseInt(cb.dataset.idx);
         if (emailOutreachLeads[idx]?.email) selected.push(emailOutreachLeads[idx].email);
       });
       if (selected.length === 0) { showToast('No leads selected', 'error'); return; }
@@ -10348,7 +10348,7 @@
       if (!currentEmailHtml) { showToast('Generate an email first', 'error'); return; }
       const selectedIds = [];
       document.querySelectorAll('.email-lead-cb:checked').forEach(cb => {
-        const idx = parseInt(cb.dataset.idx);
+        const idx = Number.parseInt(cb.dataset.idx);
         if (emailOutreachLeads[idx]?.id) selectedIds.push(emailOutreachLeads[idx].id);
       });
       if (selectedIds.length === 0) { showToast('No leads selected', 'error'); return; }
@@ -10639,7 +10639,7 @@
     async function syncLeadsToInstantly() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       const campaignId = (document.getElementById('instantly-sync-campaign') || {}).value?.trim() || '';
-      const syncLimit = parseInt((document.getElementById('instantly-sync-limit') || {}).value || '500', 10);
+      const syncLimit = Number.parseInt((document.getElementById('instantly-sync-limit') || {}).value || '500', 10);
       const resultEl = document.getElementById('instantly-sync-result');
       const btn = document.getElementById('instantly-sync-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Syncing…'; }
@@ -11722,8 +11722,8 @@
 
     async function saveAiOpsSettings() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-      const threshold = parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
-      const maxRefund = parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
+      const threshold = Number.parseFloat(document.getElementById('ai-ops-threshold-input')?.value || '1');
+      const maxRefund = Number.parseFloat(document.getElementById('ai-ops-max-refund-input')?.value || '500');
       const msgEl = document.getElementById('ai-ops-settings-save-msg');
       if (isNaN(threshold) || threshold < 0 || threshold > 1) { if (window.showToast) showToast('Threshold must be between 0.0 and 1.0', 'error'); return; }
       if (isNaN(maxRefund) || maxRefund < 0) { if (window.showToast) showToast('Max refund must be a positive number', 'error'); return; }
@@ -12594,7 +12594,7 @@
           // Estimated revenue: avg blended rate per call
           const totalCalls = callValues.reduce((a, b) => a + b, 0);
           const revenuePerCall = totalCalls > 0 ? (data.estimated_revenue_cents || 0) / 100 / totalCalls : 0;
-          const revenueValues = callValues.map(c => parseFloat((c * revenuePerCall).toFixed(2)));
+          const revenueValues = callValues.map(c => Number.parseFloat((c * revenuePerCall).toFixed(2)));
           if (_apiUsageChart) _apiUsageChart.destroy();
           _apiUsageChart = new Chart(canvas, {
             type: 'bar',
@@ -13007,7 +13007,7 @@
             tbody.querySelectorAll('.sl-lead-row').forEach(row => {
               row.addEventListener('click', e => {
                 if (e.target.classList.contains('sl-email-link')) return;
-                openSurveyLeadDetail(_surveyLeadsCache[parseInt(row.dataset.idx, 10)]);
+                openSurveyLeadDetail(_surveyLeadsCache[Number.parseInt(row.dataset.idx, 10)]);
               });
             });
           }

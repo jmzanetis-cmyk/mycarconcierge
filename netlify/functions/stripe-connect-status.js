@@ -1,4 +1,4 @@
-var utils = require('./utils');
+let utils = require('./utils');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -10,32 +10,32 @@ exports.handler = async function(event) {
   }
 
   try {
-    var founderId = utils.extractPathParam(event.path);
+    let founderId = utils.extractPathParam(event.path);
 
     if (!utils.isValidUUID(founderId)) {
       return utils.errorResponse(400, 'Invalid founder ID');
     }
 
-    var authHeader = event.headers['authorization'] || event.headers['Authorization'] || '';
-    var token = authHeader.replace('Bearer ', '');
+    let authHeader = event.headers['authorization'] || event.headers['Authorization'] || '';
+    let token = authHeader.replace('Bearer ', '');
 
     if (!token) {
       return utils.errorResponse(401, 'Authentication required');
     }
 
-    var supabase = utils.createSupabaseClient();
+    let supabase = utils.createSupabaseClient();
     if (!supabase) {
       return utils.errorResponse(503, 'Service temporarily unavailable');
     }
 
-    var authResult = await supabase.auth.getUser(token);
-    var user = authResult.data && authResult.data.user;
+    let authResult = await supabase.auth.getUser(token);
+    let user = authResult.data && authResult.data.user;
 
     if (!user) {
       return utils.errorResponse(401, 'Invalid or expired token');
     }
 
-    var founderResult = await supabase
+    let founderResult = await supabase
       .from('member_founder_profiles')
       .select('stripe_connect_account_id, user_id')
       .eq('id', founderId)
@@ -45,7 +45,7 @@ exports.handler = async function(event) {
       return utils.errorResponse(404, 'Founder profile not found');
     }
 
-    var founder = founderResult.data;
+    let founder = founderResult.data;
 
     if (founder.user_id !== user.id) {
       return utils.errorResponse(403, 'Not authorized to access this founder profile');
@@ -60,8 +60,8 @@ exports.handler = async function(event) {
       });
     }
 
-    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-    var account = await stripe.accounts.retrieve(founder.stripe_connect_account_id);
+    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    let account = await stripe.accounts.retrieve(founder.stripe_connect_account_id);
 
     return utils.successResponse({
       connected: true,

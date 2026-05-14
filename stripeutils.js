@@ -455,8 +455,8 @@ async function createBidPackCheckout(packId, packName, price, bids, bonusBids, p
  *     // Add credits to provider
  *     await supabase.from('profiles')
  *       .update({ 
- *         bid_credits: supabase.raw('bid_credits + ?', [parseInt(bids) + parseInt(bonus_bids)]),
- *         total_bids_purchased: supabase.raw('total_bids_purchased + ?', [parseInt(bids) + parseInt(bonus_bids)])
+ *         bid_credits: supabase.raw('bid_credits + ?', [Number.parseInt(bids) + Number.parseInt(bonus_bids)]),
+ *         total_bids_purchased: supabase.raw('total_bids_purchased + ?', [Number.parseInt(bids) + Number.parseInt(bonus_bids)])
  *       })
  *       .eq('id', provider_id);
  *     
@@ -464,8 +464,8 @@ async function createBidPackCheckout(packId, packName, price, bids, bonusBids, p
  *     await supabase.from('bid_credit_purchases').insert({
  *       provider_id,
  *       pack_id,
- *       bids_purchased: parseInt(bids),
- *       bonus_bids: parseInt(bonus_bids),
+ *       bids_purchased: Number.parseInt(bids),
+ *       bonus_bids: Number.parseInt(bonus_bids),
  *       amount_paid: session.amount_total / 100,
  *       stripe_payment_id: session.payment_intent,
  *       status: 'completed'

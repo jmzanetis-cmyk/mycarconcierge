@@ -32,8 +32,8 @@
 'use strict';
 
 const assert = require('assert');
-const fs     = require('fs');
-const path   = require('path');
+const fs     = require('node:fs');
+const path   = require('node:path');
 
 const ADMIN_PASSWORD = 'test-admin-password-task-146';
 process.env.ADMIN_PASSWORD = ADMIN_PASSWORD;

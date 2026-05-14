@@ -393,14 +393,14 @@ test.describe('Club Merch Store - API Auth', () => {
 
 test.describe('Club Merch Store - Webhook Handler', () => {
   test('server has club_merch webhook handler', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/server.js', 'utf8');
     expect(code).toContain("metadata.type === 'club_merch'");
     expect(code).toContain('Club merch checkout completed');
   });
 
   test('webhook uses supabase client to update club_orders', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/server.js', 'utf8');
     const idx = code.indexOf("metadata.type === 'club_merch'");
     const section = code.substring(idx, idx + 600);
@@ -429,14 +429,14 @@ test.describe('Club Merch Store - Provider Page', () => {
 
 test.describe('Club Merch Store - API Endpoints Exist', () => {
   test('car-club-api has store products endpoint', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/car-club-api.js', 'utf8');
     expect(code).toContain('/api/car-club/store/');
     expect(code).toContain('club_products');
   });
 
   test('car-club-api has checkout endpoint', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/car-club-api.js', 'utf8');
     expect(code).toContain('/api/car-club/store/checkout');
     expect(code).toContain('stripe');
@@ -445,7 +445,7 @@ test.describe('Club Merch Store - API Endpoints Exist', () => {
   });
 
   test('car-club-api has my-orders endpoint', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/car-club-api.js', 'utf8');
     expect(code).toContain('/api/car-club/my-orders');
     expect(code).toContain('club_orders');
@@ -453,7 +453,7 @@ test.describe('Club Merch Store - API Endpoints Exist', () => {
   });
 
   test('car-club-api has order management endpoint', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/car-club-api.js', 'utf8');
     expect(code).toContain('/api/car-club/orders');
     expect(code).toContain('tracking_number');
@@ -461,14 +461,14 @@ test.describe('Club Merch Store - API Endpoints Exist', () => {
   });
 
   test('checkout applies 2% platform fee', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/car-club-api.js', 'utf8');
     expect(code).toContain('0.02');
     expect(code).toContain('platformFee');
   });
 
   test('checkout uses stripe connect destination charges', async () => {
-    const fs = require('fs');
+    const fs = require('node:fs');
     const code = fs.readFileSync('www/car-club-api.js', 'utf8');
     expect(code).toContain('transfer_data');
     expect(code).toContain('destination');

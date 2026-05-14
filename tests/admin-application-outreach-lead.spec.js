@@ -20,7 +20,7 @@
 // rendered/handled deterministically given the inputs we feed in.
 
 const { test, expect } = require('@playwright/test');
-const path = require('path');
+const path = require('node:path');
 
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 

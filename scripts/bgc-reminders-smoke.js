@@ -17,7 +17,7 @@
 // mode if it is unset, which is exactly what we want for a smoke test.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const path = require('path');
+const path = require('node:path');
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL;
@@ -47,9 +47,9 @@ async function main() {
 
   // Provider profile (uses a real auth user id would be ideal, but profiles
   // table commonly accepts arbitrary UUIDs in dev). We use a random uuid.
-  const providerId = (require('crypto').randomUUID());
-  const employeeId = (require('crypto').randomUUID());
-  const checkId    = (require('crypto').randomUUID());
+  const providerId = (require('node:crypto').randomUUID());
+  const employeeId = (require('node:crypto').randomUUID());
+  const checkId    = (require('node:crypto').randomUUID());
 
   console.log('Seeding synthetic provider', providerId);
 

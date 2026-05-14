@@ -15,7 +15,7 @@ const supabaseAdmin = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
 const args = process.argv.slice(2);
 function param(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
-  return f ? parseInt(f.split('=')[1], 10) : def;
+  return f ? Number.parseInt(f.split('=')[1], 10) : def;
 }
 function strParam(name, def) {
   const f = args.find(a => a.startsWith(`--${name}=`));
@@ -208,7 +208,7 @@ async function setupClubAndMemberships(providerSession, memberSessions) {
   createdIds.ruleCreatedByTest = true;
 
   const actualParams = rewardRes.data.reward_rule.parameters || {};
-  const actualPunchesRequired = parseInt(actualParams.punches_required) || CONFIG.punchesRequired;
+  const actualPunchesRequired = Number.parseInt(actualParams.punches_required) || CONFIG.punchesRequired;
   const actualAutoReset = actualParams.auto_reset !== false;
 
   console.log(`  Club ID: ${clubId}${createdIds.clubCreatedByTest ? ' (created)' : ' (reused)'}`);
@@ -228,7 +228,7 @@ async function setupClubAndMemberships(providerSession, memberSessions) {
 
   let punchMultiplier = 1;
   if (activePromos && activePromos.length > 0) {
-    punchMultiplier = Math.max(...activePromos.map(p => parseInt(p.punch_multiplier) || 1));
+    punchMultiplier = Math.max(...activePromos.map(p => Number.parseInt(p.punch_multiplier) || 1));
     console.warn(`  WARNING: Active promotion detected with punch_multiplier=${punchMultiplier}`);
     console.warn('  Integrity check will account for this multiplier in expected punch counts.');
   }

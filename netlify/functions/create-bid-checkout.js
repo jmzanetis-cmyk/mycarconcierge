@@ -1,5 +1,5 @@
-var utils = require('./utils');
-var Stripe = require('stripe');
+let utils = require('./utils');
+let Stripe = require('stripe');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -10,31 +10,31 @@ exports.handler = async function(event) {
     return utils.errorResponse(405, 'Method not allowed');
   }
 
-  var authHeader = event.headers['authorization'] || event.headers['Authorization'];
+  let authHeader = event.headers['authorization'] || event.headers['Authorization'];
   if (!authHeader || !authHeader.startsWith('Bearer ')) {
     return utils.errorResponse(401, 'Authentication required');
   }
 
-  var token = authHeader.substring(7);
-  var supabase = utils.createSupabaseClient();
+  let token = authHeader.substring(7);
+  let supabase = utils.createSupabaseClient();
   if (!supabase) {
     return utils.errorResponse(500, 'Server configuration error');
   }
 
-  var authResult = await supabase.auth.getUser(token);
+  let authResult = await supabase.auth.getUser(token);
   if (authResult.error || !authResult.data.user) {
     return utils.errorResponse(401, 'Invalid or expired token');
   }
 
-  var parsed;
+  let parsed;
   try {
     parsed = JSON.parse(event.body);
   } catch (e) {
     return utils.errorResponse(400, 'Invalid JSON');
   }
 
-  var packId = parsed.packId;
-  var providerId = parsed.providerId;
+  let packId = parsed.packId;
+  let providerId = parsed.providerId;
 
   if (!packId || !utils.isValidUUID(packId)) {
     return utils.errorResponse(400, 'Valid packId is required');
@@ -43,7 +43,7 @@ exports.handler = async function(event) {
     return utils.errorResponse(400, 'Valid providerId is required');
   }
 
-  var packResult = await supabase
+  let packResult = await supabase
     .from('bid_packs')
     .select('*')
     .eq('id', packId)
@@ -54,15 +54,15 @@ exports.handler = async function(event) {
     return utils.errorResponse(400, 'Invalid service credit pack');
   }
 
-  var pack = packResult.data;
-  var priceInCents = Math.round(pack.price * 100);
-  var totalBids = pack.bid_count + (pack.bonus_bids || 0);
+  let pack = packResult.data;
+  let priceInCents = Math.round(pack.price * 100);
+  let totalBids = pack.bid_count + (pack.bonus_bids || 0);
 
   try {
-    var stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-    var domain = 'https://www.mycarconcierge.com';
+    let stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    let domain = 'https://www.mycarconcierge.com';
 
-    var session = await stripe.checkout.sessions.create({
+    let session = await stripe.checkout.sessions.create({
       payment_method_types: ['card'],
       line_items: [{
         price_data: {
@@ -90,7 +90,7 @@ exports.handler = async function(event) {
 
   } catch (error) {
     console.error('Stripe checkout error:', error.message, error.type || '', error.code || '');
-    var msg = 'Failed to create checkout session';
+    let msg = 'Failed to create checkout session';
     if (error.type === 'StripeAuthenticationError') {
       msg = 'Payment service configuration error. Please contact support.';
     } else if (error.type === 'StripeInvalidRequestError') {

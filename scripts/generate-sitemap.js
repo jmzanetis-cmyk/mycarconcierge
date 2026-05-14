@@ -10,8 +10,8 @@
  * both the meta injection AND the sitemap on the next run.
  */
 
-const fs   = require('fs');
-const path = require('path');
+const fs   = require('node:fs');
+const path = require('node:path');
 
 const SITE_URL = 'https://www.mycarconcierge.com';
 const WWW_DIR  = path.join(__dirname, '..', 'www');

@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const FAKE_PROVIDER_ID = '00000000-aaaa-bbbb-cccc-000000000002';
 const FAKE_PROVIDER_EMAIL = 'provider@example.com';

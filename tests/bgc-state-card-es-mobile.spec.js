@@ -164,8 +164,8 @@ test.describe('Task #293 — ES mobile compliance dashboard (fixture)', () => {
             .evaluate((el) => {
               const r = el.getBoundingClientRect();
               const cs = getComputedStyle(el);
-              return { h: r.height, fs: parseFloat(cs.fontSize),
-                lh: parseFloat(cs.lineHeight) || parseFloat(cs.fontSize) * 1.2 };
+              return { h: r.height, fs: Number.parseFloat(cs.fontSize),
+                lh: Number.parseFloat(cs.lineHeight) || Number.parseFloat(cs.fontSize) * 1.2 };
             });
           expect(pctMetrics.h, 'percent figure must stay on one line').toBeLessThan(pctMetrics.lh * 1.5);
 

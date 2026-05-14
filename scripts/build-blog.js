@@ -14,8 +14,8 @@
  * and auto-derives title / description from the rendered HTML).
  */
 
-const fs   = require('fs');
-const path = require('path');
+const fs   = require('node:fs');
+const path = require('node:path');
 
 const SITE       = 'https://www.mycarconcierge.com';
 const SITE_NAME  = 'My Car Concierge';

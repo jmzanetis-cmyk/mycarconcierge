@@ -61,7 +61,7 @@
     }
 
     function formatCurrency(amount) {
-      return '$' + parseFloat(amount).toFixed(2);
+      return '$' + Number.parseFloat(amount).toFixed(2);
     }
 
     function formatDate(dateStr) {
@@ -331,7 +331,7 @@
       commissions.forEach(comm => {
         const date = new Date(comm.created_at);
         const monthKey = date.toLocaleDateString('en-US', { month: 'short', year: 'numeric' });
-        const amount = parseFloat(comm.commission_amount) || 0;
+        const amount = Number.parseFloat(comm.commission_amount) || 0;
         
         monthlyEarnings[monthKey] = (monthlyEarnings[monthKey] || 0) + amount;
         
@@ -471,7 +471,7 @@
         'check': 'Check'
       };
       
-      const hasFees = data.some(p => parseFloat(p.fee_amount || 0) > 0);
+      const hasFees = data.some(p => Number.parseFloat(p.fee_amount || 0) > 0);
       
       if (hasFees) {
         document.querySelector('#payouts-table thead tr').innerHTML = `
@@ -487,9 +487,9 @@
       }
       
       tbody.innerHTML = data.map(payout => {
-        const grossAmount = parseFloat(payout.amount || 0);
-        const feeAmount = parseFloat(payout.fee_amount || 0);
-        const netAmount = parseFloat(payout.net_amount || grossAmount);
+        const grossAmount = Number.parseFloat(payout.amount || 0);
+        const feeAmount = Number.parseFloat(payout.fee_amount || 0);
+        const netAmount = Number.parseFloat(payout.net_amount || grossAmount);
         
         if (hasFees) {
           return `
@@ -919,7 +919,7 @@
       const hasBackupMethod = profile.payout_method && profile.payout_method !== 'stripe_connect' && profile.payout_email;
       const taxVerified = profile.tax_info_verified;
       const taxVerifiedAt = profile.tax_info_verified_at;
-      const outstandingBalance = parseFloat(profile.outstanding_balance || 0);
+      const outstandingBalance = Number.parseFloat(profile.outstanding_balance || 0);
       
       if (stripeConnected) {
         document.getElementById('stripe-connect-info').textContent = 'Account connected';

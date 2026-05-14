@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const { globSync } = require('glob');
 
 const mccIconsContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'mcc-icons.js'), 'utf8');

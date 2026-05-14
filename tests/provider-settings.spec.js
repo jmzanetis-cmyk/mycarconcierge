@@ -1,6 +1,6 @@
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const FAKE_PROVIDER_ID = '00000000-aaaa-bbbb-cccc-000000000002';
 const FAKE_PROVIDER_EMAIL = 'provider@example.com';
@@ -303,7 +303,7 @@ test.describe('Provider Settings Module', () => {
     });
 
     test('Emergency radius defaults to 15 miles when not set', async () => {
-      expect(providersSettingsJs).toContain("parseInt(document.getElementById('emergency-radius')?.value) || 15");
+      expect(providersSettingsJs).toContain("Number.parseInt(document.getElementById('emergency-radius')?.value) || 15");
     });
   });
 

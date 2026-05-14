@@ -30,7 +30,7 @@
 //   - Persist to agent_smoke_runs + alert on failure (scheduled runner)
 // ============================================================================
 
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 
 const POLL_INTERVAL_MS = 2000;
 const POLL_TIMEOUT_MS  = 60_000;

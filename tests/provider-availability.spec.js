@@ -188,8 +188,8 @@ test.describe('Provider Availability & Booking System', () => {
 
   test.describe('Provider Availability SQL Setup', () => {
     test('SQL setup file exists with required tables', async () => {
-      const fs = require('fs');
-      const path = require('path');
+      const fs = require('node:fs');
+      const path = require('node:path');
       const sqlPath = path.join(__dirname, '..', 'www', 'PROVIDER_AVAILABILITY_SETUP.sql');
       expect(fs.existsSync(sqlPath)).toBe(true);
       const sql = fs.readFileSync(sqlPath, 'utf8');

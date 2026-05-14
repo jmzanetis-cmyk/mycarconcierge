@@ -17,7 +17,7 @@ async function saveProviderProfile() {
     state: document.getElementById('profile-state')?.value,
     zip_code: document.getElementById('profile-zip-code')?.value,
     bio: document.getElementById('profile-bio')?.value,
-    hourly_rate: parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
+    hourly_rate: Number.parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
   };
   
   try {
@@ -49,7 +49,7 @@ async function saveProviderProfile() {
 
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
-  const radius = parseInt(document.getElementById('emergency-radius')?.value) || 15;
+  const radius = Number.parseInt(document.getElementById('emergency-radius')?.value) || 15;
   const is24Seven = document.getElementById('emergency-24-7')?.checked;
   const canTow = document.getElementById('emergency-can-tow')?.checked;
   
@@ -1869,7 +1869,7 @@ async function updateAutoBidPreview() {
   const countEl = document.getElementById('ab-preview-count');
   if (!countEl) return;
   try {
-    const dist = parseInt(document.getElementById('ab-max-distance')?.value || 25);
+    const dist = Number.parseInt(document.getElementById('ab-max-distance')?.value || 25);
     const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
       .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
     const params = new URLSearchParams({ max_distance: dist });
@@ -1888,8 +1888,8 @@ async function updateAutoBidPreview() {
 async function saveAutoBidSettings() {
   try {
     const enabled = document.getElementById('auto-bid-toggle')?.checked || false;
-    const dist = parseInt(document.getElementById('ab-max-distance')?.value || 25);
-    const pct = parseInt(document.getElementById('ab-pct')?.value || 85);
+    const dist = Number.parseInt(document.getElementById('ab-max-distance')?.value || 25);
+    const pct = Number.parseInt(document.getElementById('ab-pct')?.value || 85);
     const selected = Array.from(document.querySelectorAll('.ab-svc-chip'))
       .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
     const token = (await supabaseClient.auth.getSession()).data.session?.access_token;

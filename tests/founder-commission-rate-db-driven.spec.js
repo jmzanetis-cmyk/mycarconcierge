@@ -24,8 +24,8 @@
  */
 
 const { test, expect } = require('@playwright/test');
-const fs = require('fs');
-const path = require('path');
+const fs = require('node:fs');
+const path = require('node:path');
 const vm = require('vm');
 
 const SERVER_PATH = path.join(__dirname, '..', 'www', 'server.js');
@@ -339,7 +339,7 @@ test.describe('Founder commission rate is database-driven (Task #158 contract)',
         sb.client, providerId, purchaseAmount, transactionId, 'req-test'
       );
 
-      const expectedAmount = parseFloat((purchaseAmount * founderRow.commission_rate).toFixed(2));
+      const expectedAmount = Number.parseFloat((purchaseAmount * founderRow.commission_rate).toFixed(2));
 
       expect(result).not.toBeNull();
       expect(result.success).toBe(true);
@@ -378,7 +378,7 @@ test.describe('Founder commission rate is database-driven (Task #158 contract)',
         sb.client, providerId, capturedAmount, paymentIntentId, 'req-test-cp'
       );
 
-      const expectedAmount = parseFloat((capturedAmount * founderRow.commission_rate).toFixed(2));
+      const expectedAmount = Number.parseFloat((capturedAmount * founderRow.commission_rate).toFixed(2));
 
       expect(result.skipped).toBe(false);
       expect(result.amount).toBeCloseTo(expectedAmount, 2);

@@ -1,4 +1,4 @@
-var utils = require('./utils');
+let utils = require('./utils');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -10,15 +10,15 @@ exports.handler = async function(event) {
   }
 
   try {
-    var participantId = utils.extractPathParam(event.path);
+    let participantId = utils.extractPathParam(event.path);
 
     if (!utils.isValidUUID(participantId)) {
       return utils.errorResponse(400, 'Invalid participant ID');
     }
 
-    var body = JSON.parse(event.body || '{}');
-    var token = body.token;
-    var payment_intent_id = body.payment_intent_id;
+    let body = JSON.parse(event.body || '{}');
+    let token = body.token;
+    let payment_intent_id = body.payment_intent_id;
 
     if (!utils.verifyGuestToken(participantId, token)) {
       return utils.errorResponse(403, 'Invalid or expired token');
@@ -28,12 +28,12 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'Missing payment_intent_id');
     }
 
-    var supabase = utils.createSupabaseClient();
+    let supabase = utils.createSupabaseClient();
     if (!supabase) {
       return utils.errorResponse(503, 'Service temporarily unavailable');
     }
 
-    var result = await supabase
+    let result = await supabase
       .from('split_participants')
       .select('id, status, payment_intent_id, split_payment_id')
       .eq('id', participantId)
@@ -43,7 +43,7 @@ exports.handler = async function(event) {
       return utils.errorResponse(404, 'Participant not found');
     }
 
-    var participant = result.data;
+    let participant = result.data;
 
     if (participant.status === 'paid') {
       return utils.errorResponse(400, 'This share has already been paid');
@@ -53,8 +53,8 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'Payment intent mismatch');
     }
 
-    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
-    var paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    let paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
 
     if (paymentIntent.status !== 'succeeded') {
       return utils.errorResponse(400, 'Payment has not been completed. Status: ' + paymentIntent.status);
@@ -68,13 +68,13 @@ exports.handler = async function(event) {
       })
       .eq('id', participantId);
 
-    var allParticipants = await supabase
+    let allParticipants = await supabase
       .from('split_participants')
       .select('id, status')
       .eq('split_payment_id', participant.split_payment_id);
 
     if (allParticipants.data) {
-      var allPaid = true;
+      let allPaid = true;
       for (var i = 0; i < allParticipants.data.length; i++) {
         if (allParticipants.data[i].id === participantId) continue;
         if (allParticipants.data[i].status !== 'paid') {
@@ -84,14 +84,14 @@ exports.handler = async function(event) {
       }
 
       if (allPaid) {
-        var splitResult = await supabase
+        let splitResult = await supabase
           .from('split_payments')
           .select('id, package_id, total_amount_cents, created_by')
           .eq('id', participant.split_payment_id)
           .single();
 
-        var packageId = splitResult.data && splitResult.data.package_id;
-        var splitPaymentData = splitResult.data || {};
+        let packageId = splitResult.data && splitResult.data.package_id;
+        let splitPaymentData = splitResult.data || {};
 
         await supabase
           .from('split_payments')
@@ -108,7 +108,7 @@ exports.handler = async function(event) {
             })
             .eq('id', packageId);
 
-          var pendingWorkResult = await supabase
+          let pendingWorkResult = await supabase
             .from('additional_work_requests')
             .select('id, provider_id, title, estimated_cost')
             .eq('package_id', packageId)
@@ -117,8 +117,8 @@ exports.handler = async function(event) {
             .limit(1);
 
           if (pendingWorkResult.data && pendingWorkResult.data.length > 0) {
-            var work = pendingWorkResult.data[0];
-            var workAmountCents = Math.round((work.estimated_cost || 0) * 100);
+            let work = pendingWorkResult.data[0];
+            let workAmountCents = Math.round((work.estimated_cost || 0) * 100);
             if (workAmountCents === splitPaymentData.total_amount_cents) {
               await supabase
                 .from('additional_work_requests')
@@ -149,14 +149,14 @@ exports.handler = async function(event) {
             });
           }
 
-          var acceptedBidResult = await supabase
+          let acceptedBidResult = await supabase
             .from('maintenance_packages')
             .select('accepted_bid_id')
             .eq('id', packageId)
             .single();
 
           if (acceptedBidResult.data && acceptedBidResult.data.accepted_bid_id) {
-            var bidResult = await supabase
+            let bidResult = await supabase
               .from('bids')
               .select('provider_id')
               .eq('id', acceptedBidResult.data.accepted_bid_id)

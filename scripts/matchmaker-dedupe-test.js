@@ -19,7 +19,7 @@
 // Exit codes: 0 all passed, 1 any check failed.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const path = require('path');
+const path = require('node:path');
 
 const RUNTIME_PATH = require.resolve('../netlify/functions/agent-fleet-runtime');
 

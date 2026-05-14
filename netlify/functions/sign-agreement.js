@@ -181,7 +181,7 @@ function generatePDF(agreementData) {
 
 function sendEmailWithResend(apiKey, emailData) {
   return new Promise(function(resolve, reject) {
-    var https = require('https');
+    var https = require('node:https');
     var postData = JSON.stringify(emailData);
     var options = {
       hostname: 'api.resend.com',

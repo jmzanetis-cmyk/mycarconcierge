@@ -17,8 +17,8 @@
  * Run:  node scripts/inject-seo-meta.js
  */
 
-const fs   = require('fs');
-const path = require('path');
+const fs   = require('node:fs');
+const path = require('node:path');
 
 const SITE_URL    = 'https://www.mycarconcierge.com';
 const OG_IMAGE    = `${SITE_URL}/og-card.png`;

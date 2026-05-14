@@ -284,7 +284,7 @@ async function loadPosTransactionSummary() {
     
     const totalCount = allTx.length;
     const totalRevenue = allTx.reduce((sum, tx) => {
-      const amount = typeof tx.amount === 'number' ? tx.amount / 100 : parseFloat(tx.amount || 0);
+      const amount = typeof tx.amount === 'number' ? tx.amount / 100 : Number.parseFloat(tx.amount || 0);
       return sum + amount;
     }, 0);
     
@@ -331,7 +331,7 @@ async function loadPosRevenueChart() {
     const dailyData = {};
     data.transactions.forEach(tx => {
       const date = new Date(tx.created_at || tx.timestamp).toLocaleDateString();
-      const amount = typeof tx.amount === 'number' ? tx.amount / 100 : parseFloat(tx.amount || 0);
+      const amount = typeof tx.amount === 'number' ? tx.amount / 100 : Number.parseFloat(tx.amount || 0);
       if (!dailyData[date]) dailyData[date] = 0;
       dailyData[date] += amount;
     });
@@ -406,7 +406,7 @@ async function loadAllPosTransactions() {
 
     tbody.innerHTML = data.transactions.map(tx => {
       const date = new Date(tx.created_at || tx.timestamp).toLocaleDateString();
-      const amount = typeof tx.amount === 'number' ? (tx.amount / 100).toFixed(2) : parseFloat(tx.amount || 0).toFixed(2);
+      const amount = typeof tx.amount === 'number' ? (tx.amount / 100).toFixed(2) : Number.parseFloat(tx.amount || 0).toFixed(2);
       const card = tx.card_last_four ? `•••• ${tx.card_last_four}` : '—';
       const statusClass = tx.status === 'success' || tx.status === 'completed' ? 'accent-green' : tx.status === 'pending' ? 'accent-gold' : 'accent-red';
       const source = tx.pos_provider || tx.source || 'unknown';

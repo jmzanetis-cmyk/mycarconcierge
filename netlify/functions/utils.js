@@ -1,4 +1,4 @@
-var crypto = require('crypto');
+var crypto = require('node:crypto');
 
 var headers = {
   'Access-Control-Allow-Origin': '*',

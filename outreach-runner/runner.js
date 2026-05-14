@@ -1,4 +1,4 @@
-const http = require('http');
+const http = require('node:http');
 const { createClient } = require('@supabase/supabase-js');
 const { startEngineSchedulers, initEngineState, handleOutreachRequest, handleUnsubscribe, handleEmailTracking, handleResendWebhook } = require('./outreach-engine-api');
 

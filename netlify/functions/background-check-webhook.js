@@ -6,7 +6,7 @@
 // employee_background_checks row, and recomputes provider compliance.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const { createSupabaseClient } = require('./utils');
 
 function timingSafeHexEqual(a, b) {

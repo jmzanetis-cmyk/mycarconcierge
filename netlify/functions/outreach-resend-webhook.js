@@ -1,4 +1,4 @@
-const crypto = require('crypto');
+const crypto = require('node:crypto');
 const { createSupabaseClient } = require('./outreach-engine-core');
 
 function verifyResendWebhookSignature(rawBody, headers) {

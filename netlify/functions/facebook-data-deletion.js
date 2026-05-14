@@ -14,12 +14,12 @@
 // without needing a separate function. The status route is matched on the
 // presence of the `code` query parameter.
 
-var crypto = require('crypto');
-var utils = require('./utils.js');
-var core = require('./account-deletion-core.js');
+let crypto = require('node:crypto');
+let utils = require('./utils.js');
+let core = require('./account-deletion-core.js');
 
 function base64UrlDecode(str) {
-  var pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
+  let pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
   return Buffer.from(str.replaceAll('-', '+').replaceAll('_', '/') + pad, 'base64');
 }
 
@@ -27,12 +27,12 @@ function parseSignedRequest(signedRequest, appSecret) {
   if (!signedRequest || typeof signedRequest !== 'string') {
     throw new Error('Missing signed_request');
   }
-  var parts = signedRequest.split('.');
+  let parts = signedRequest.split('.');
   if (parts.length !== 2) throw new Error('Malformed signed_request');
-  var encodedSig = parts[0];
-  var payload = parts[1];
-  var expected = crypto.createHmac('sha256', appSecret).update(payload).digest();
-  var provided;
+  let encodedSig = parts[0];
+  let payload = parts[1];
+  let expected = crypto.createHmac('sha256', appSecret).update(payload).digest();
+  let provided;
   try {
     provided = base64UrlDecode(encodedSig);
   } catch (e) {
@@ -41,7 +41,7 @@ function parseSignedRequest(signedRequest, appSecret) {
   if (provided.length !== expected.length || !crypto.timingSafeEqual(provided, expected)) {
     throw new Error('Invalid signed_request signature');
   }
-  var parsed;
+  let parsed;
   try {
     parsed = JSON.parse(base64UrlDecode(payload).toString('utf8'));
   } catch (e) {
@@ -54,16 +54,16 @@ function parseSignedRequest(signedRequest, appSecret) {
 }
 
 function parseBody(event) {
-  var body = event.body || '';
+  let body = event.body || '';
   if (event.isBase64Encoded) {
     body = Buffer.from(body, 'base64').toString('utf8');
   }
-  var ct = ((event.headers && (event.headers['content-type'] || event.headers['Content-Type'])) || '').toLowerCase();
+  let ct = ((event.headers && (event.headers['content-type'] || event.headers['Content-Type'])) || '').toLowerCase();
   if (ct.indexOf('application/json') !== -1) {
     try { return body ? JSON.parse(body) : {}; } catch (e) { throw new Error('Invalid JSON body'); }
   }
-  var params = new URLSearchParams(body);
-  var obj = {};
+  let params = new URLSearchParams(body);
+  let obj = {};
   params.forEach(function (v, k) { obj[k] = v; });
   return obj;
 }
@@ -72,10 +72,10 @@ function parseBody(event) {
 // null when no row in the page links the given facebook_user_id.
 function _findFacebookMatchInPage(users, facebookUserId) {
   for (var i = 0; i < users.length; i++) {
-    var u = users[i];
-    var idents = Array.isArray(u.identities) ? u.identities : [];
+    let u = users[i];
+    let idents = Array.isArray(u.identities) ? u.identities : [];
     for (var j = 0; j < idents.length; j++) {
-      var ident = idents[j];
+      let ident = idents[j];
       if (ident.provider === 'facebook' && (ident.provider_id === facebookUserId || ident.id === facebookUserId)) {
         return u;
       }
@@ -85,16 +85,16 @@ function _findFacebookMatchInPage(users, facebookUserId) {
 }
 
 async function _scanIdentitiesForFacebookId(supabase, facebookUserId) {
-  var page = 1;
-  var perPage = 200;
+  let page = 1;
+  let perPage = 200;
   while (page <= 50) {
-    var listed = await supabase.auth.admin.listUsers({ page: page, perPage: perPage });
+    let listed = await supabase.auth.admin.listUsers({ page: page, perPage: perPage });
     if (listed.error) {
       console.error('[facebook-data-deletion] listUsers error:', listed.error);
       return null;
     }
-    var users = (listed.data && listed.data.users) || [];
-    var matched = _findFacebookMatchInPage(users, facebookUserId);
+    let users = (listed.data && listed.data.users) || [];
+    let matched = _findFacebookMatchInPage(users, facebookUserId);
     if (matched) {
       await supabase.from('profiles').update({ facebook_user_id: facebookUserId }).eq('id', matched.id);
       return { id: matched.id, email: matched.email, facebook_user_id: facebookUserId };
@@ -106,7 +106,7 @@ async function _scanIdentitiesForFacebookId(supabase, facebookUserId) {
 }
 
 async function lookupUserByFacebookId(supabase, facebookUserId) {
-  var existing = await supabase
+  let existing = await supabase
     .from('profiles')
     .select('id, email, facebook_user_id')
     .eq('facebook_user_id', facebookUserId)
@@ -125,12 +125,12 @@ async function handleStatusLookup(supabase, code) {
   // confirmation_code is generated as crypto.randomBytes(8).toString('hex'),
   // so it must be exactly 16 hex chars. Reject anything else up-front so we
   // never run an arbitrary string against the database.
-  var CONFIRMATION_CODE_RE = /^[0-9a-f]{16}$/;
-  var normalized = String(code || '').trim().toLowerCase();
+  let CONFIRMATION_CODE_RE = /^[0-9a-f]{16}$/;
+  let normalized = String(code || '').trim().toLowerCase();
   if (!normalized || !CONFIRMATION_CODE_RE.test(normalized)) {
     return utils.successResponse({ status: 'not_found' });
   }
-  var res = await supabase
+  let res = await supabase
     .from('fb_data_deletion_requests')
     .select('status, confirmation_code, created_at, completed_at')
     .eq('confirmation_code', normalized)
@@ -151,14 +151,14 @@ async function handleStatusLookup(supabase, code) {
 // Parses + verifies the signed_request and returns either a structured error
 // response (statusCode/error) or { facebookUserId } on success.
 function _parseDeletionRequest(event, appSecret) {
-  var body;
+  let body;
   try {
     body = parseBody(event);
   } catch (e) {
     return { error: utils.errorResponse(400, e.message) };
   }
 
-  var payload;
+  let payload;
   try {
     payload = parseSignedRequest(body.signed_request, appSecret);
   } catch (e) {
@@ -166,7 +166,7 @@ function _parseDeletionRequest(event, appSecret) {
     return { error: utils.errorResponse(400, e.message) };
   }
 
-  var facebookUserId = String(payload.user_id || '').trim();
+  let facebookUserId = String(payload.user_id || '').trim();
   if (!facebookUserId) {
     return { error: utils.errorResponse(400, 'signed_request missing user_id') };
   }
@@ -175,7 +175,7 @@ function _parseDeletionRequest(event, appSecret) {
 
 // Run the deletion cascade for a matched user and persist the final status.
 async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirmationCode) {
-  var result = await core.performAccountDeletion({
+  let result = await core.performAccountDeletion({
     supabase: supabase,
     serviceSupabase: supabase,
     userId: matchedUser.id,
@@ -184,7 +184,7 @@ async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirma
     source: 'facebook_callback',
     sendEmail: null
   });
-  var update = result && result.success
+  let update = result && result.success
     ? { status: 'completed', completed_at: new Date().toISOString(), error_message: null }
     : { status: 'error', completed_at: new Date().toISOString(), error_message: ((result && result.error) || 'Unknown error').slice(0, 500) };
   try {
@@ -198,20 +198,20 @@ async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirma
 }
 
 async function _handleDeletionPost(event, supabase) {
-  var appSecret = process.env.FACEBOOK_APP_SECRET;
+  let appSecret = process.env.FACEBOOK_APP_SECRET;
   if (!appSecret) {
     console.error('[facebook-data-deletion] FACEBOOK_APP_SECRET is not configured');
     return utils.errorResponse(500, 'Facebook integration not configured');
   }
 
-  var parsed = _parseDeletionRequest(event, appSecret);
+  let parsed = _parseDeletionRequest(event, appSecret);
   if (parsed.error) return parsed.error;
-  var facebookUserId = parsed.facebookUserId;
+  let facebookUserId = parsed.facebookUserId;
 
-  var confirmationCode = crypto.randomBytes(8).toString('hex');
-  var matchedUser = await lookupUserByFacebookId(supabase, facebookUserId);
+  let confirmationCode = crypto.randomBytes(8).toString('hex');
+  let matchedUser = await lookupUserByFacebookId(supabase, facebookUserId);
 
-  var insertRes = await supabase
+  let insertRes = await supabase
     .from('fb_data_deletion_requests')
     .insert({
       confirmation_code: confirmationCode,
@@ -227,8 +227,8 @@ async function _handleDeletionPost(event, supabase) {
     return utils.errorResponse(500, 'Failed to record deletion request');
   }
 
-  var baseUrl = process.env.PUBLIC_BASE_URL || 'https://mycarconcierge.com';
-  var statusUrl = baseUrl.replace(/\/+$/, '') + '/data-deletion-status.html?code=' + confirmationCode;
+  let baseUrl = process.env.PUBLIC_BASE_URL || 'https://mycarconcierge.com';
+  let statusUrl = baseUrl.replace(/\/+$/, '') + '/data-deletion-status.html?code=' + confirmationCode;
 
   if (matchedUser) {
     await _runDeletionCascade(supabase, matchedUser, insertRes.data.id, confirmationCode);
@@ -242,13 +242,13 @@ async function _handleDeletionPost(event, supabase) {
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
-  var supabase = utils.createSupabaseClient();
+  let supabase = utils.createSupabaseClient();
   if (!supabase) {
     return utils.errorResponse(500, 'Database not configured');
   }
 
   if (event.httpMethod === 'GET') {
-    var qs = event.queryStringParameters || {};
+    let qs = event.queryStringParameters || {};
     return await handleStatusLookup(supabase, (qs.code || '').trim());
   }
 

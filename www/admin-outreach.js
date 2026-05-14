@@ -165,9 +165,9 @@
   }
 
   async function saveApolloSettings() {
-    const intervalHours = parseInt(document.getElementById('apollo-cfg-interval').value, 10);
-    const perPage = parseInt(document.getElementById('apollo-cfg-per-page').value, 10);
-    const enrichBatch = parseInt(document.getElementById('apollo-cfg-enrich-batch').value, 10);
+    const intervalHours = Number.parseInt(document.getElementById('apollo-cfg-interval').value, 10);
+    const perPage = Number.parseInt(document.getElementById('apollo-cfg-per-page').value, 10);
+    const enrichBatch = Number.parseInt(document.getElementById('apollo-cfg-enrich-batch').value, 10);
     const autoEnrich = !!document.getElementById('apollo-cfg-auto-enrich').checked;
     const instantlySync = !!document.getElementById('apollo-cfg-instantly-sync').checked;
     const instantlyCampaignRaw = document.getElementById('apollo-cfg-instantly-campaign').value.trim();
@@ -512,10 +512,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const res = await outreachFetch('/engine-settings', {
       method: 'POST',
       body: JSON.stringify({
-        discovery_interval_minutes: parseInt(document.getElementById('eng-interval').value) || 30,
-        max_drafts_per_cycle: parseInt(document.getElementById('eng-max-drafts').value) || 20,
+        discovery_interval_minutes: Number.parseInt(document.getElementById('eng-interval').value) || 30,
+        max_drafts_per_cycle: Number.parseInt(document.getElementById('eng-max-drafts').value) || 20,
         target_cities: cities,
-        search_radius_meters: parseInt(document.getElementById('eng-radius').value) || 15000,
+        search_radius_meters: Number.parseInt(document.getElementById('eng-radius').value) || 15000,
         auto_send: document.getElementById('eng-auto-send')?.checked ?? true
       })
     });
@@ -1134,7 +1134,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
     const res = await outreachFetch('/leads/import-places', {
       method: 'POST',
-      body: JSON.stringify({ location, radius_meters: parseInt(radius) })
+      body: JSON.stringify({ location, radius_meters: Number.parseInt(radius) })
     });
     const data = await res.json();
     if (res.ok) {
@@ -1338,7 +1338,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
             <div class="breakdown-row"><span style="color:#9ca3af;">Daily Limit</span><span>${data.warmup_daily_limit || 100}</span></div>
             <div class="breakdown-row"><span style="color:#9ca3af;">Sent Today</span><span>${data.sent_today || 0}</span></div>
             <div class="breakdown-row"><span style="color:#9ca3af;">Bounced</span><span style="color:${(data.bounced || 0) > 0 ? '#ef4444' : 'inherit'}">${data.bounced || 0}</span></div>
-            <div class="breakdown-row"><span style="color:#9ca3af;">Bounce Rate</span><span style="color:${parseFloat(data.bounce_rate) > 5 ? '#ef4444' : 'inherit'}">${data.bounce_rate || '0.0%'}</span></div>
+            <div class="breakdown-row"><span style="color:#9ca3af;">Bounce Rate</span><span style="color:${Number.parseFloat(data.bounce_rate) > 5 ? '#ef4444' : 'inherit'}">${data.bounce_rate || '0.0%'}</span></div>
           </div>
         </div>
       </div>
@@ -1439,7 +1439,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
     const res = await outreachFetch('/leads/import-places', {
       method: 'POST',
-      body: JSON.stringify({ location, radius_meters: parseInt(radius) })
+      body: JSON.stringify({ location, radius_meters: Number.parseInt(radius) })
     });
     const data = await res.json();
     if (resultDiv) {
@@ -1573,7 +1573,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const btn = document.getElementById('instantly-sync-btn');
     const resultDiv = document.getElementById('instantly-sync-result');
     const campaignId = document.getElementById('instantly-sync-campaign')?.value?.trim() || '';
-    const limit = parseInt(document.getElementById('instantly-sync-limit')?.value) || 500;
+    const limit = Number.parseInt(document.getElementById('instantly-sync-limit')?.value) || 500;
     if (btn) btn.disabled = true;
     if (btn) btn.innerHTML = '<span class="icon-inline" data-icon="loader"></span> Syncing...';
     resultDiv.style.display = 'none';

@@ -263,12 +263,12 @@
       // Create vehicle
       const { data: vehicle } = await supabaseClient.from('vehicles').insert({
         owner_id: currentUser.id,
-        year: parseInt(document.getElementById('av-year').value) || null,
+        year: Number.parseInt(document.getElementById('av-year').value) || null,
         make,
         model,
         vin: document.getElementById('av-vin').value.trim() || null,
         license_plate: document.getElementById('av-plate').value.trim() || null,
-        mileage: parseInt(document.getElementById('av-mileage').value) || null
+        mileage: Number.parseInt(document.getElementById('av-mileage').value) || null
       }).select().single();
 
       if (!vehicle) return showToast('Failed to create vehicle.', 'error');
