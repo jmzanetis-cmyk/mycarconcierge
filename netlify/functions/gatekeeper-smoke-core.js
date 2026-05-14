@@ -505,9 +505,20 @@ async function runAgentSmoke(opts) {
       try {
         const cleanupSummary = await teardownFn({ supabase, log, context });
         if (cleanupSummary) summary.teardown = cleanupSummary;
+        // teardownFn is best-effort by convention (each delete is wrapped
+        // so all attempts run even when one fails) and returns
+        // { errors: [...] } for any deletes that failed. Promote those to
+        // smoke failures so an alert fires when synthetic rows leaked.
+        const cleanupErrors = (cleanupSummary && Array.isArray(cleanupSummary.errors))
+          ? cleanupSummary.errors : [];
+        for (const errMsg of cleanupErrors) {
+          failures.push(`teardown_error: ${errMsg}`);
+          log.fail(`teardown error: ${errMsg}`);
+        }
       } catch (e) {
-        // Cleanup failure should surface as a smoke failure, not crash the
-        // overall run. The caller's persistRun records this on the row.
+        // A throw from teardownFn (e.g. unexpected programmer error) also
+        // becomes a smoke failure. The caller's persistRun records this on
+        // the row and the failure-email path picks it up.
         failures.push(`teardown_exception: ${e.message}`);
         log.fail(`teardown failed: ${e.message}`);
       }
