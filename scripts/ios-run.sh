@@ -4,7 +4,7 @@ set -euo pipefail
 PROJECT_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 IOS_DIR="$PROJECT_ROOT/ios/App"
 SIM_NAME="${SIMULATOR_NAME:-}"
-if [ -z "$SIM_NAME" ]; then
+if [[ -z "$SIM_NAME" ]]; then
   SIM_NAME="$(
     python3 - <<'PY'
 import json, subprocess, re
@@ -77,7 +77,7 @@ print("")
 PY
 )"
 
-if [ -z "$UDID" ]; then
+if [[ -z "$UDID" ]]; then
   echo "Simulator not found: ${SIM_NAME}"
   exit 1
 fi

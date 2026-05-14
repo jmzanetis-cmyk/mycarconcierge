@@ -441,6 +441,19 @@ async function recordAndPage(supabase, finding, ctx) {
   return await _dispatchAndRecord(supabase, alertId, finding);
 }
 
+
+function _severityTag(severity) {
+  if (severity === 'critical') return '[MCC URGENT]';
+  if (severity === 'digest') return '[MCC Digest]';
+  return '[MCC]';
+}
+
+function _severityHeaderColor(severity) {
+  if (severity === 'critical') return '#c0392b';
+  if (severity === 'digest') return '#1e3a5f';
+  return '#b8942d';
+}
+
 async function sendSms(finding) {
   const sid   = process.env.TWILIO_ACCOUNT_SID;
   const token = process.env.TWILIO_AUTH_TOKEN;
@@ -448,9 +461,7 @@ async function sendSms(finding) {
   const to    = process.env.ADMIN_ALERT_PHONE;
   if (!sid || !token || !from || !to) return { sent: false, error: 'twilio_not_configured' };
 
-  const tag = finding.severity === 'critical' ? '[MCC URGENT]'
-            : finding.severity === 'digest'   ? '[MCC Digest]'
-            : '[MCC]';
+  const tag = _severityTag(finding.severity);
   let body = `${tag} ${finding.title}\n\n${finding.body}`;
   if (finding.next_action) body += `\n\nNext: ${finding.next_action}`;
   if (body.length > 1500) body = body.slice(0, 1497) + '...';
@@ -479,12 +490,8 @@ async function sendEmail(finding) {
   const fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
   if (!apiKey || !toEmail) return { sent: false, error: 'email_not_configured' };
 
-  const headerColor = finding.severity === 'critical' ? '#c0392b'
-                    : finding.severity === 'digest'   ? '#1e3a5f'
-                    : '#b8942d';
-  const tag = finding.severity === 'critical' ? '[MCC URGENT]'
-            : finding.severity === 'digest'   ? '[MCC Digest]'
-            : '[MCC]';
+  const headerColor = _severityHeaderColor(finding.severity);
+  const tag = _severityTag(finding.severity);
   const subject = `${tag} ${finding.title}`;
 
   const html =

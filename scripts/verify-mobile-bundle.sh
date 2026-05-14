@@ -40,7 +40,7 @@ verify_target() {
   local label="$2"
   echo
   echo "[$label] $target"
-  if [ ! -d "$target" ]; then
+  if [[ ! -d "$target" ]]; then
     echo "  (skip) public dir does not exist — likely no \`cap sync\` has been"
     echo "         run for this platform yet on this machine. Not a failure;"
     echo "         the cross-target check below will fail loudly if BOTH are"
@@ -51,7 +51,7 @@ verify_target() {
 
   # --- Assertion 1: required offline-shell files present ---
   for f in "${MOBILE_REQUIRED_FILES[@]}"; do
-    if [ -f "$target/$f" ]; then
+    if [[ -f "$target/$f" ]]; then
       check_pass "required file present: $f"
     else
       check_fail "[$label] required offline-shell file MISSING: $f"
@@ -61,24 +61,24 @@ verify_target() {
   # --- Assertion 2: no forbidden directories (local count, not global) ---
   local found_dirs=0
   for d in "${MOBILE_CRUFT_DIRS[@]}"; do
-    if [ -d "$target/$d" ]; then
+    if [[ -d "$target/$d" ]]; then
       check_fail "[$label] forbidden directory present: $d/"
       found_dirs=$((found_dirs + 1))
     fi
   done
-  if [ "$found_dirs" -eq 0 ]; then
+  if [[ "$found_dirs" -eq 0 ]]; then
     check_pass "no forbidden directories"
   fi
 
   # --- Assertion 3: no forbidden specific files (local count, not global) ---
   local found_files=0
   for f in "${MOBILE_CRUFT_FILES[@]}"; do
-    if [ -e "$target/$f" ]; then
+    if [[ -e "$target/$f" ]]; then
       check_fail "[$label] forbidden file present: $f"
       found_files=$((found_files + 1))
     fi
   done
-  if [ "$found_files" -eq 0 ]; then
+  if [[ "$found_files" -eq 0 ]]; then
     check_pass "no forbidden named files"
   fi
 
@@ -89,7 +89,7 @@ verify_target() {
       glob_hits+=("${hit#"$target/"} (matches $g)")
     done < <(find "$target" -type f -name "$g" -print0 2>/dev/null)
   done
-  if [ "${#glob_hits[@]}" -eq 0 ]; then
+  if [[ "${#glob_hits[@]}" -eq 0 ]]; then
     check_pass "no forbidden glob matches"
   else
     for hit in "${glob_hits[@]}"; do
@@ -106,7 +106,7 @@ verify_target "$ANDROID_PUBLIC" "android"
 # Cross-target: at least one bundle must have been synced. If both public
 # dirs are missing, nothing was ever built — fail loudly so a CI-style
 # build pipeline doesn't quietly green-light an empty release.
-if [ "$TARGETS_VERIFIED" -eq 0 ]; then
+if [[ "$TARGETS_VERIFIED" -eq 0 ]]; then
   echo
   check_fail "no mobile bundle exists — both ios/App/App/public/ AND android/app/src/main/assets/public/ are missing. Run 'npm run cap:sync' first."
 fi
@@ -116,7 +116,7 @@ echo "=================================================="
 echo "Results: $PASS passed, $FAIL failed"
 echo "=================================================="
 
-if [ "$FAIL" -gt 0 ]; then
+if [[ "$FAIL" -gt 0 ]]; then
   echo
   echo "MOBILE BUNDLE VERIFY FAILED — $FAIL check(s) did not pass:"
   for f in "${FAILURES[@]}"; do

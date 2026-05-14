@@ -1,5 +1,5 @@
 (function() {
-  const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+  const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
   let outreachState = {};
   let outreachLeads = [];
   let outreachPipeline = [];
@@ -155,9 +155,9 @@
           </div>
           <div>
             <label style="font-weight:500;display:block;margin-bottom:6px;">Instantly provider campaign ID</label>
-            <input type="text" id="apollo-cfg-instantly-campaign" class="form-input" value="${cfg.instantly_provider_campaign_id ? String(cfg.instantly_provider_campaign_id).replace(/"/g, '&quot;') : ''}" placeholder="campaign_abc123...">
+            <input type="text" id="apollo-cfg-instantly-campaign" class="form-input" value="${cfg.instantly_provider_campaign_id ? String(cfg.instantly_provider_campaign_id).replaceAll('"', '&quot;') : ''}" placeholder="campaign_abc123...">
           </div>
-          <button class="btn btn-primary" onclick="window.saveApolloSettings()">Save Apollo Settings</button>
+          <button class="btn btn-primary" onclick="globalThis.saveApolloSettings()">Save Apollo Settings</button>
         </div>
       </div>
     `;
@@ -229,7 +229,7 @@ supabase/migrations/20260424_outreach_email_events.sql
 supabase/migrations/20260425_outreach_crm_bridge.sql
 (plus any later 20260*_outreach_*.sql)</pre>
           <div>
-            <button class="btn" onclick="window.initOutreachEngine()">Check Again</button>
+            <button class="btn" onclick="globalThis.initOutreachEngine()">Check Again</button>
           </div>
         </div>
       `;
@@ -364,14 +364,14 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
            <span style="width:7px;height:7px;border-radius:50%;background:#f87171;display:inline-block;"></span>
            Discovery Disabled
          </span>
-         <button class="btn btn-sm" onclick="window.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
+         <button class="btn btn-sm" onclick="globalThis.enableApolloDiscovery()" style="font-size:12px;padding:3px 10px;background:var(--accent-blue,#2563eb);color:#fff;border:none;">Enable Discovery</button>`;
     // Action buttons rendered next to the Apollo discovery badge — Run Now,
     // Settings, and Pause are only meaningful when discovery is enabled, so
     // they only appear in that state.
     const apolloActionsHtml = apolloConfigLoaded && apolloEnabled
-      ? `<button class="btn btn-sm" onclick="window.runApolloNow()" title="Trigger one Apollo discovery cycle now" style="font-size:12px;padding:3px 10px;background:var(--accent-gold,#d4a843);color:#000;border:none;">Run Now</button>
-         <button class="btn btn-sm" onclick="window.showApolloSettings()" title="Edit Apollo discovery settings" style="font-size:12px;padding:3px 10px;"><span class="icon-inline" data-icon="settings"></span> Settings</button>
-         <button class="btn btn-sm" onclick="window.disableApolloDiscovery()" title="Pause scheduled Apollo discovery" style="font-size:12px;padding:3px 10px;">Pause</button>`
+      ? `<button class="btn btn-sm" onclick="globalThis.runApolloNow()" title="Trigger one Apollo discovery cycle now" style="font-size:12px;padding:3px 10px;background:var(--accent-gold,#d4a843);color:#000;border:none;">Run Now</button>
+         <button class="btn btn-sm" onclick="globalThis.showApolloSettings()" title="Edit Apollo discovery settings" style="font-size:12px;padding:3px 10px;"><span class="icon-inline" data-icon="settings"></span> Settings</button>
+         <button class="btn btn-sm" onclick="globalThis.disableApolloDiscovery()" title="Pause scheduled Apollo discovery" style="font-size:12px;padding:3px 10px;">Pause</button>`
       : '';
     const apolloHealthHtml = apolloConfigLoaded && apolloEnabled
       ? `<span style="font-size:11px;color:${apolloStalled ? '#fbbf24' : 'var(--text-muted)'};margin-left:4px;">
@@ -397,13 +397,13 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         </div>
         <div class="engine-controls">
           <label class="engine-toggle">
-            <input type="checkbox" ${isRunning ? 'checked' : ''} onchange="window.toggleOutreachEngine(this.checked)">
+            <input type="checkbox" ${isRunning ? 'checked' : ''} onchange="globalThis.toggleOutreachEngine(this.checked)">
             <span class="toggle-slider"></span>
             <span class="toggle-text">${isRunning ? 'Active' : 'Paused'}</span>
           </label>
-          <button class="btn btn-sm" onclick="window.showEngineSettings()" title="Engine Settings"><span class="icon-inline" data-icon="settings"></span></button>
-          <button class="btn btn-sm" onclick="window.runManualCycle()" title="Run Cycle Now"><span class="icon-inline" data-icon="refresh-cw"></span></button>
-          <button class="btn btn-sm" onclick="window.enrichLeadContacts()" title="Enrich Lead Contacts" style="background:var(--accent-gold,#d4a843);color:#000"><span class="icon-inline" data-icon="search"></span> Enrich Contacts</button>
+          <button class="btn btn-sm" onclick="globalThis.showEngineSettings()" title="Engine Settings"><span class="icon-inline" data-icon="settings"></span></button>
+          <button class="btn btn-sm" onclick="globalThis.runManualCycle()" title="Run Cycle Now"><span class="icon-inline" data-icon="refresh-cw"></span></button>
+          <button class="btn btn-sm" onclick="globalThis.enrichLeadContacts()" title="Enrich Lead Contacts" style="background:var(--accent-gold,#d4a843);color:#000"><span class="icon-inline" data-icon="search"></span> Enrich Contacts</button>
         </div>
       </div>
       <div style="display:flex;align-items:center;gap:10px;padding:8px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
@@ -464,7 +464,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     }
     await loadCurrentTab();
   }
-  window.enrichLeadContacts = enrichLeadContacts;
+  globalThis.enrichLeadContacts = enrichLeadContacts;
 
   function showEngineSettings() {
     const modal = document.createElement('div');
@@ -500,7 +500,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
               <span style="font-size:12px;color:var(--text-muted);">Automatically send outreach to providers and members. Investor messages always require manual approval.</span>
             </div>
           </div>
-          <button class="btn btn-primary" onclick="window.saveEngineSettings()">Save Settings</button>
+          <button class="btn btn-primary" onclick="globalThis.saveEngineSettings()">Save Settings</button>
         </div>
       </div>
     `;
@@ -759,11 +759,11 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           </div>
           <div class="pipeline-cell pipeline-notes">${escapeHtml(opp.ai_notes || '-')}</div>
           <div class="pipeline-cell"><span class="channel-badge">${opp.recommended_channel}</span></div>
-          <div class="pipeline-cell"><span class="stage-badge ${opp.stage}">${opp.stage.replace(/_/g, ' ')}</span></div>
+          <div class="pipeline-cell"><span class="stage-badge ${opp.stage}">${opp.stage.replaceAll('_', ' ')}</span></div>
           <div class="pipeline-cell">${timeAgo(new Date(opp.added_at))}</div>
           <div class="pipeline-cell" style="display:flex;gap:4px;">
-            <button class="btn btn-sm" onclick="window.previewMessage('${lead.id}')" title="Preview message">Preview</button>
-            ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-sm btn-primary" onclick="window.draftForLead('${lead.id}')">Draft</button>` : '<span class="text-muted" title="Cannot draft for CRM duplicates">—</span>'}
+            <button class="btn btn-sm" onclick="globalThis.previewMessage('${lead.id}')" title="Preview message">Preview</button>
+            ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-sm btn-primary" onclick="globalThis.draftForLead('${lead.id}')">Draft</button>` : '<span class="text-muted" title="Cannot draft for CRM duplicates">—</span>'}
           </div>
         </div>
       `;
@@ -804,14 +804,14 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           ${msg.subject ? `<div class="queue-subject"><strong>Subject:</strong> ${escapeHtml(msg.subject)}</div>` : ''}
           <div class="queue-body">${escapeHtml(msg.body)}</div>
           <div class="queue-actions">
-            <button class="btn btn-sm" onclick="window.toggleEditMessage('${msg.id}')"><span class="icon-inline" data-icon="edit"></span> Edit</button>
-            <button class="btn btn-sm btn-danger" onclick="window.skipMessage('${msg.id}')">Skip</button>
-            <button class="btn btn-sm btn-primary" onclick="window.approveAndSend('${msg.id}')"><span class="icon-inline" data-icon="send"></span> Approve & Send</button>
+            <button class="btn btn-sm" onclick="globalThis.toggleEditMessage('${msg.id}')"><span class="icon-inline" data-icon="edit"></span> Edit</button>
+            <button class="btn btn-sm btn-danger" onclick="globalThis.skipMessage('${msg.id}')">Skip</button>
+            <button class="btn btn-sm btn-primary" onclick="globalThis.approveAndSend('${msg.id}')"><span class="icon-inline" data-icon="send"></span> Approve & Send</button>
           </div>
           <div class="queue-edit-area" id="edit-area-${msg.id}" style="display:none;">
             ${msg.channel === 'email' ? `<input type="text" class="form-input" id="edit-subject-${msg.id}" value="${escapeHtml(msg.subject || '')}" placeholder="Subject" style="margin-bottom:8px;">` : ''}
             <textarea class="form-input" id="edit-body-${msg.id}" style="min-height:120px;">${escapeHtml(msg.body)}</textarea>
-            <button class="btn btn-sm btn-primary" onclick="window.saveEditedMessage('${msg.id}')" style="margin-top:8px;">Save Edit</button>
+            <button class="btn btn-sm btn-primary" onclick="globalThis.saveEditedMessage('${msg.id}')" style="margin-top:8px;">Save Edit</button>
           </div>
         </div>
       `;
@@ -949,8 +949,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
               ${lead.source === 'crm_reengagement' ? '<span class="crm-badge reengagement">Re-engage</span>' : ''}
             </div>
             <div class="leads-actions">
-              ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-xs btn-primary" onclick="window.draftForLead('${lead.id}')">Draft</button>` : ''}
-              <button class="btn btn-xs" onclick="window.editLead('${lead.id}')"><span class="icon-inline" data-icon="edit"></span></button>
+              ${!isDuplicate && lead.status !== 'unsubscribed' ? `<button class="btn btn-xs btn-primary" onclick="globalThis.draftForLead('${lead.id}')">Draft</button>` : ''}
+              <button class="btn btn-xs" onclick="globalThis.editLead('${lead.id}')"><span class="icon-inline" data-icon="edit"></span></button>
             </div>
           </div>
         `;
@@ -1002,7 +1002,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
               <option value="dead" ${lead.status === 'dead' ? 'selected' : ''}>Dead</option>
             </select>
           </div>
-          <button class="btn btn-primary" onclick="window.saveLead('${lead.id}')">Save</button>
+          <button class="btn btn-primary" onclick="globalThis.saveLead('${lead.id}')">Save</button>
         </div>
       </div>
     `;
@@ -1044,7 +1044,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           <div><label style="font-weight:500;display:block;margin-bottom:4px;">Company</label><input type="text" id="new-lead-company" class="form-input"></div>
           <div><label style="font-weight:500;display:block;margin-bottom:4px;">Location</label><input type="text" id="new-lead-location" class="form-input" placeholder="City, State"></div>
           <div><label style="font-weight:500;display:block;margin-bottom:4px;">Notes</label><textarea id="new-lead-notes" class="form-input" style="min-height:60px;"></textarea></div>
-          <button class="btn btn-primary" onclick="window.submitNewLead()">Add Lead</button>
+          <button class="btn btn-primary" onclick="globalThis.submitNewLead()">Add Lead</button>
         </div>
       </div>
     `;
@@ -1087,8 +1087,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         <div class="modal-header"><h3>Import Leads</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
         <div style="padding:20px;">
           <div style="display:flex;gap:8px;margin-bottom:16px;">
-            <button class="btn btn-sm active" id="import-tab-places" onclick="window.switchImportTab('places')">Google Places</button>
-            <button class="btn btn-sm" id="import-tab-csv" onclick="window.switchImportTab('csv')">CSV Upload</button>
+            <button class="btn btn-sm active" id="import-tab-places" onclick="globalThis.switchImportTab('places')">Google Places</button>
+            <button class="btn btn-sm" id="import-tab-csv" onclick="globalThis.switchImportTab('csv')">CSV Upload</button>
           </div>
           <div id="import-places-panel">
             <div style="display:flex;flex-direction:column;gap:12px;">
@@ -1100,16 +1100,16 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
                   <option value="40234">25 miles</option>
                 </select>
               </div>
-              <button class="btn btn-primary" onclick="window.importFromPlaces()">Search & Import</button>
+              <button class="btn btn-primary" onclick="globalThis.importFromPlaces()">Search & Import</button>
               <div id="import-places-result"></div>
             </div>
           </div>
           <div id="import-csv-panel" style="display:none;">
             <div style="display:flex;flex-direction:column;gap:12px;">
               <p style="color:var(--text-muted);font-size:0.9rem;">CSV columns: name, type (member/provider/investor), email, phone, company, location, notes</p>
-              <input type="file" id="import-csv-file" accept=".csv" class="form-input" onchange="window.previewCSV(this)">
+              <input type="file" id="import-csv-file" accept=".csv" class="form-input" onchange="globalThis.previewCSV(this)">
               <div id="import-csv-preview"></div>
-              <button class="btn btn-primary" id="import-csv-btn" onclick="window.importCSV()" style="display:none;">Import</button>
+              <button class="btn btn-primary" id="import-csv-btn" onclick="globalThis.importCSV()" style="display:none;">Import</button>
             </div>
           </div>
         </div>
@@ -1219,7 +1219,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           <span class="text-muted">${new Date(c.created_at).toLocaleDateString()}</span>
         </div>
         <div class="campaign-actions">
-          ${c.status === 'active' ? `<button class="btn btn-xs" onclick="window.pauseCampaign('${c.id}')">Pause</button>` : `<button class="btn btn-xs" onclick="window.resumeCampaign('${c.id}')">Resume</button>`}
+          ${c.status === 'active' ? `<button class="btn btn-xs" onclick="globalThis.pauseCampaign('${c.id}')">Pause</button>` : `<button class="btn btn-xs" onclick="globalThis.resumeCampaign('${c.id}')">Resume</button>`}
         </div>
       </div>
     `).join('');
@@ -1241,7 +1241,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
             <select id="camp-channel" class="form-input"><option value="email">Email</option><option value="sms">SMS</option><option value="both">Both</option></select>
           </div>
           <div><label style="font-weight:500;display:block;margin-bottom:4px;">Message Template (optional)</label><textarea id="camp-template" class="form-input" style="min-height:60px;" placeholder="Custom instructions for AI drafting..."></textarea></div>
-          <button class="btn btn-primary" onclick="window.submitCampaign()">Create Campaign</button>
+          <button class="btn btn-primary" onclick="globalThis.submitCampaign()">Create Campaign</button>
         </div>
       </div>
     `;
@@ -1346,18 +1346,18 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   }
 
   function setupOutreachRealtime() {
-    if (typeof window.supabaseClient === 'undefined') return;
+    if (typeof globalThis.supabaseClient === 'undefined') return;
     try {
-      if (realtimeChannel) window.supabaseClient.removeChannel(realtimeChannel);
-      realtimeChannel = window.supabaseClient
+      if (realtimeChannel) globalThis.supabaseClient.removeChannel(realtimeChannel);
+      realtimeChannel = globalThis.supabaseClient
         .channel('outreach-engine-state')
         .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'engine_state' }, () => {
           loadEngineState();
         })
         .subscribe();
 
-      if (pipelineChannel) window.supabaseClient.removeChannel(pipelineChannel);
-      pipelineChannel = window.supabaseClient
+      if (pipelineChannel) globalThis.supabaseClient.removeChannel(pipelineChannel);
+      pipelineChannel = globalThis.supabaseClient
         .channel('outreach-pipeline')
         .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'opportunity_pipeline' }, () => {
           if (currentOutreachTab === 'pipeline') loadPipeline();
@@ -1419,7 +1419,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
   function escapeHtml(str) {
     if (!str) return '';
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+    return str.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   }
 
   function timeAgo(date) {
@@ -1479,7 +1479,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     reader.readAsText(file);
   }
 
-  window.outreachFetch = outreachFetch;
+  globalThis.outreachFetch = outreachFetch;
   async function previewMessage(leadId) {
     const modal = document.createElement('div');
     modal.className = 'modal-overlay';
@@ -1534,8 +1534,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     }
   }
 
-  window.previewMessage = previewMessage;
-  window.initOutreachEngine = initOutreachEngine;
+  globalThis.previewMessage = previewMessage;
+  globalThis.initOutreachEngine = initOutreachEngine;
   async function clearAndRedraft() {
     if (!confirm('This will delete all unsent draft messages and re-draft them using the latest template. Already-sent messages are not affected. Continue?')) return;
     if (typeof showToast !== 'undefined') showToast('Clearing old drafts and re-drafting...');
@@ -1633,7 +1633,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         if (Array.isArray(analyticsArray)) {
           analyticsArray.forEach(a => { analyticsData[a.campaign_id || a.id] = a; });
         }
-      } catch (e) {}
+      } catch { /* Intentionally silent */ }
       let html = '<div style="display:flex;flex-direction:column;gap:12px;">';
       campaigns.forEach(c => {
         const stats = analyticsData[c.id] || {};
@@ -1685,7 +1685,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
         ['x', 'facebook', 'instagram', 'linkedin'].forEach(platform => {
           const post = day.posts?.[platform] || '';
-          const escapedPost = post.replace(/'/g, "\\'").replace(/\n/g, "\\n");
+          const escapedPost = post.replaceAll('\'', "\\'").replace(/\n/g, "\\n");
           html += `<div style="padding:12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <span style="font-weight:600;font-size:0.85rem;">${platformIcons[platform] || ''} ${platform.charAt(0).toUpperCase() + platform.slice(1)}</span>
@@ -1736,7 +1736,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           <h3 style="margin:0 0 12px 0;font-size:1rem;">${item.category}</h3>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">`;
         Object.entries(item.posts || {}).forEach(([platform, post]) => {
-          const escapedPost = (post || '').replace(/'/g, "\\'").replace(/\n/g, "\\n");
+          const escapedPost = (post || '').replaceAll('\'', "\\'").replace(/\n/g, "\\n");
           html += `<div style="padding:12px;background:var(--bg-elevated);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
             <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
               <span style="font-weight:600;font-size:0.85rem;">${platformIcons[platform] || ''} ${platform.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase())}</span>
@@ -1755,48 +1755,48 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     if (btn) { btn.disabled = false; btn.innerHTML = '<span class="icon-inline" data-icon="zap"></span> Generate from Real Stats'; }
   }
 
-  window.syncLeadsToInstantly = syncLeadsToInstantly;
-  window.createInstantlyCampaign = createInstantlyCampaign;
-  window.loadInstantlyCampaigns = loadInstantlyCampaigns;
-  window.generateWeeklyCalendar = generateWeeklyCalendar;
-  window.generateSocialProofContent = generateSocialProofContent;
-  window.clearAndRedraft = clearAndRedraft;
-  window.runCycleNow = runCycleNow;
-  window.toggleOutreachEngine = toggleOutreachEngine;
-  window.runManualCycle = runManualCycle;
-  window.showEngineSettings = showEngineSettings;
-  window.saveEngineSettings = saveEngineSettings;
-  window.enableApolloDiscovery = enableApolloDiscovery;
-  window.disableApolloDiscovery = disableApolloDiscovery;
-  window.runApolloNow = runApolloNow;
-  window.showApolloSettings = showApolloSettings;
-  window.saveApolloSettings = saveApolloSettings;
-  window.loadApolloConfig = loadApolloConfig;
-  window.switchOutreachTab = switchOutreachTab;
-  window.draftForLead = draftForLead;
-  window.editLead = editLead;
-  window.saveLead = saveLead;
-  window.showAddLeadModal = showAddLeadModal;
-  window.submitNewLead = submitNewLead;
-  window.showImportModal = showImportModal;
-  window.switchImportTab = switchImportTab;
-  window.importFromPlaces = importFromPlaces;
-  window.importFromPlacesInline = importFromPlacesInline;
-  window.previewCSV = previewCSV;
-  window.previewCSVInline = previewCSVInline;
-  window.importCSV = importCSV;
-  window.approveAndSend = approveAndSend;
-  window.skipMessage = skipMessage;
-  window.bulkApproveAll = bulkApproveAll;
-  window.toggleEditMessage = toggleEditMessage;
-  window.saveEditedMessage = saveEditedMessage;
-  window.showCreateCampaignModal = showCreateCampaignModal;
-  window.submitCampaign = submitCampaign;
-  window.pauseCampaign = pauseCampaign;
-  window.resumeCampaign = resumeCampaign;
-  window.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
-  window.loadConversionFunnel = loadConversionFunnel;
-  window.resetConversionFunnelDates = resetConversionFunnelDates;
+  globalThis.syncLeadsToInstantly = syncLeadsToInstantly;
+  globalThis.createInstantlyCampaign = createInstantlyCampaign;
+  globalThis.loadInstantlyCampaigns = loadInstantlyCampaigns;
+  globalThis.generateWeeklyCalendar = generateWeeklyCalendar;
+  globalThis.generateSocialProofContent = generateSocialProofContent;
+  globalThis.clearAndRedraft = clearAndRedraft;
+  globalThis.runCycleNow = runCycleNow;
+  globalThis.toggleOutreachEngine = toggleOutreachEngine;
+  globalThis.runManualCycle = runManualCycle;
+  globalThis.showEngineSettings = showEngineSettings;
+  globalThis.saveEngineSettings = saveEngineSettings;
+  globalThis.enableApolloDiscovery = enableApolloDiscovery;
+  globalThis.disableApolloDiscovery = disableApolloDiscovery;
+  globalThis.runApolloNow = runApolloNow;
+  globalThis.showApolloSettings = showApolloSettings;
+  globalThis.saveApolloSettings = saveApolloSettings;
+  globalThis.loadApolloConfig = loadApolloConfig;
+  globalThis.switchOutreachTab = switchOutreachTab;
+  globalThis.draftForLead = draftForLead;
+  globalThis.editLead = editLead;
+  globalThis.saveLead = saveLead;
+  globalThis.showAddLeadModal = showAddLeadModal;
+  globalThis.submitNewLead = submitNewLead;
+  globalThis.showImportModal = showImportModal;
+  globalThis.switchImportTab = switchImportTab;
+  globalThis.importFromPlaces = importFromPlaces;
+  globalThis.importFromPlacesInline = importFromPlacesInline;
+  globalThis.previewCSV = previewCSV;
+  globalThis.previewCSVInline = previewCSVInline;
+  globalThis.importCSV = importCSV;
+  globalThis.approveAndSend = approveAndSend;
+  globalThis.skipMessage = skipMessage;
+  globalThis.bulkApproveAll = bulkApproveAll;
+  globalThis.toggleEditMessage = toggleEditMessage;
+  globalThis.saveEditedMessage = saveEditedMessage;
+  globalThis.showCreateCampaignModal = showCreateCampaignModal;
+  globalThis.submitCampaign = submitCampaign;
+  globalThis.pauseCampaign = pauseCampaign;
+  globalThis.resumeCampaign = resumeCampaign;
+  globalThis.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
+  globalThis.loadConversionFunnel = loadConversionFunnel;
+  globalThis.resetConversionFunnelDates = resetConversionFunnelDates;
 
   // ===================================================================
   // Task #243 — Facebook Page admin OAuth picker
@@ -1824,7 +1824,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     if (body !== undefined) opts.body = JSON.stringify(body);
     const res = await fetch(`/api/admin/facebook${endpoint}`, opts);
     let json = null;
-    try { json = await res.json(); } catch (_) {}
+    try { json = await res.json(); } catch { /* Intentionally silent */ }
     return { ok: res.ok, status: res.status, json: json || {} };
   }
 
@@ -1877,7 +1877,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         window.history.replaceState({}, '', newUrl);
         return err;
       }
-    } catch (_) {}
+    } catch { /* Intentionally silent */ }
     return null;
   }
 
@@ -1895,7 +1895,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         const qs = params.toString();
         window.history.replaceState({}, '', window.location.pathname + (qs ? '?' + qs : ''));
       }
-    } catch (_) {}
+    } catch { /* Intentionally silent */ }
   }
 
   async function initFacebookPageConnection() {
@@ -1975,7 +1975,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           <p style="margin:0 0 6px;color:var(--text-default);">No Facebook Page is connected yet.</p>
           <p style="margin:0;color:var(--text-muted);font-size:13px;">Connect a Page to satisfy Meta App Review for the <code>pages_show_list</code> permission. You'll be sent to facebook.com to authorize, then returned here to pick which Page to use.</p>
         </div>
-        <button class="btn btn-primary" id="fb-connect-btn" onclick="window.startFacebookPageConnect()">
+        <button class="btn btn-primary" id="fb-connect-btn" onclick="globalThis.startFacebookPageConnect()">
           <span class="icon-inline" data-icon="link"></span> Connect Facebook Page
         </button>
       </div>
@@ -1993,10 +1993,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         </p>
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
           <select id="fb-page-select" class="form-input" style="flex:1;min-width:280px;">${opts}</select>
-          <button class="btn btn-primary" onclick="window.confirmFacebookPagePick()">
+          <button class="btn btn-primary" onclick="globalThis.confirmFacebookPagePick()">
             <span class="icon-inline" data-icon="check"></span> Use this Page
           </button>
-          <button class="btn" onclick="window.cancelFacebookPagePick()">Cancel</button>
+          <button class="btn" onclick="globalThis.cancelFacebookPagePick()">Cancel</button>
         </div>
       </div>
     `;
@@ -2021,10 +2021,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
           </div>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;">
-          <button class="btn" onclick="window.startFacebookPageConnect()">
+          <button class="btn" onclick="globalThis.startFacebookPageConnect()">
             <span class="icon-inline" data-icon="refresh-cw"></span> Change Page
           </button>
-          <button class="btn" onclick="window.disconnectFacebookPage()" style="color:var(--accent-red,#c0392b);">
+          <button class="btn" onclick="globalThis.disconnectFacebookPage()" style="color:var(--accent-red,#c0392b);">
             <span class="icon-inline" data-icon="x-circle"></span> Disconnect
           </button>
         </div>
@@ -2076,11 +2076,11 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     await renderFacebookPageCard();
   }
 
-  window.startFacebookPageConnect = startFacebookPageConnect;
-  window.confirmFacebookPagePick = confirmFacebookPagePick;
-  window.cancelFacebookPagePick = cancelFacebookPagePick;
-  window.disconnectFacebookPage = disconnectFacebookPage;
-  window.initFacebookPageConnection = initFacebookPageConnection;
+  globalThis.startFacebookPageConnect = startFacebookPageConnect;
+  globalThis.confirmFacebookPagePick = confirmFacebookPagePick;
+  globalThis.cancelFacebookPagePick = cancelFacebookPagePick;
+  globalThis.disconnectFacebookPage = disconnectFacebookPage;
+  globalThis.initFacebookPageConnection = initFacebookPageConnection;
 
   // Auto-switch to the marketing-outreach panel when returning from the
   // Facebook OAuth callback. The OAuth callback redirects to
@@ -2092,10 +2092,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     let attempts = 0;
     function tryActivate() {
       attempts++;
-      if (typeof window.showSection === 'function' &&
+      if (typeof globalThis.showSection === 'function' &&
           document.querySelector('.nav-item[data-section="marketing-outreach"]') &&
           document.getElementById('marketing-outreach')) {
-        try { window.showSection('marketing-outreach'); }
+        try { globalThis.showSection('marketing-outreach'); }
         catch (e) { console.warn('[FB Page] showSection failed:', e); }
         return;
       }

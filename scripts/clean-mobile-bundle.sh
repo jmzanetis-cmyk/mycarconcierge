@@ -44,7 +44,7 @@ source "$ROOT_DIR/scripts/lib/mobile-bundle-cruft.sh"
 clean_target() {
   local target="$1"
   local label="$2"
-  if [ ! -d "$target" ]; then
+  if [[ ! -d "$target" ]]; then
     echo "  (skip) $label public dir does not exist: $target"
     return
   fi
@@ -52,14 +52,14 @@ clean_target() {
   before_kb=$(du -sk "$target" 2>/dev/null | awk '{print $1}')
 
   for d in "${MOBILE_CRUFT_DIRS[@]}"; do
-    if [ -d "$target/$d" ]; then
+    if [[ -d "$target/$d" ]]; then
       echo "  rm -rf $label/$d"
       rm -rf "${target:?}/$d"
     fi
   done
 
   for f in "${MOBILE_CRUFT_FILES[@]}"; do
-    if [ -e "$target/$f" ]; then
+    if [[ -e "$target/$f" ]]; then
       echo "  rm    $label/$f"
       rm -f "$target/$f"
     fi

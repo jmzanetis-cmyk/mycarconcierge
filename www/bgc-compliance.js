@@ -25,16 +25,16 @@
   }
 
   // The provider portal exposes the authenticated Supabase client as
-  // `window.supabaseClient` (see www/supabaseclient.js). We accept a few
+  // `globalThis.supabaseClient` (see www/supabaseclient.js). We accept a few
   // alternate globals defensively so this script also works on other pages.
   function getSupabase() {
-    const c = window.supabaseClient
-      || (window.sb && window.sb.client)
+    const c = globalThis.supabaseClient
+      || (globalThis.sb && globalThis.sb.client)
       || null;
-    // `window.supabase` is the UMD SDK namespace (has createClient), not a
+    // `globalThis.supabase` is the UMD SDK namespace (has createClient), not a
     // client — only return it if it actually quacks like a client.
-    if (!c && window.supabase && typeof window.supabase.from === 'function') {
-      return window.supabase;
+    if (!c && globalThis.supabase && typeof globalThis.supabase.from === 'function') {
+      return globalThis.supabase;
     }
     return c;
   }
@@ -62,10 +62,10 @@
 
   function _stateLang() {
     try {
-      if (window.I18n && typeof window.I18n.getCurrentLanguage === 'function') {
-        return window.I18n.getCurrentLanguage();
+      if (globalThis.I18n && typeof globalThis.I18n.getCurrentLanguage === 'function') {
+        return globalThis.I18n.getCurrentLanguage();
       }
-      const stored = window.localStorage && window.localStorage.getItem('mcc_language');
+      const stored = globalThis.localStorage && globalThis.localStorage.getItem('mcc_language');
       if (stored) return stored;
       if (document.documentElement.lang) return document.documentElement.lang;
     } catch (e) { /* ignore */ }
@@ -178,7 +178,7 @@
           '<h3 style="margin:12px 0 6px;font-size:1.25rem;font-weight:600;color:var(--text-primary);">' + escapeHtml(state.title) + '</h3>' +
           '<p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">' + escapeHtml(state.body) + '</p>' +
           (state.key === 'not_enrolled'
-            ? '<button class="btn btn-primary" style="margin-top:14px;" onclick="window.bgcCompliance.startEnrollment()">' + escapeHtml(state.cta) + '</button>'
+            ? '<button class="btn btn-primary" style="margin-top:14px;" onclick="globalThis.bgcCompliance.startEnrollment()">' + escapeHtml(state.cta) + '</button>'
             : '<a href="#compliance" class="btn btn-secondary" style="margin-top:14px;display:inline-block;text-decoration:none;">' + escapeHtml(state.cta) + '</a>'
           ) +
         '</div>' +
@@ -264,8 +264,8 @@
   }
 
   function startEnrollment() {
-    if (window.MCC_BGC_Onboarding && typeof window.MCC_BGC_Onboarding.open === 'function') {
-      window.MCC_BGC_Onboarding.open();
+    if (globalThis.MCC_BGC_Onboarding && typeof globalThis.MCC_BGC_Onboarding.open === 'function') {
+      globalThis.MCC_BGC_Onboarding.open();
     } else {
       // Fallback: scroll to the compliance section so the provider can add
       // employees manually if the onboarding script failed to load.
@@ -305,7 +305,7 @@
           (a.body ? '<div style="margin-top:4px;color:var(--text-secondary);font-size:0.9rem;">' + escapeHtml(a.body) + '</div>' : '') +
           cta +
         '</div>' +
-        '<button onclick="window.bgcCompliance.dismissAlert(\'' + a.id + '\')" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;line-height:1;">×</button>' +
+        '<button onclick="globalThis.bgcCompliance.dismissAlert(\'' + a.id + '\')" title="Dismiss" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;line-height:1;">×</button>' +
       '</div>';
     }).join('');
   }
@@ -399,7 +399,7 @@
       const cfChecked = e.is_customer_facing ? 'checked' : '';
       const cfToggle =
         '<label title="Counts toward the 90% MCC Verified threshold when on" style="display:inline-flex;align-items:center;gap:6px;cursor:pointer;font-size:0.78rem;color:var(--text-muted);">' +
-          '<input type="checkbox" ' + cfChecked + ' onchange="window.bgcCompliance.toggleCustomerFacing(\'' + e.id + '\', this.checked)" style="cursor:pointer;" />' +
+          '<input type="checkbox" ' + cfChecked + ' onchange="globalThis.bgcCompliance.toggleCustomerFacing(\'' + e.id + '\', this.checked)" style="cursor:pointer;" />' +
           '<span>Customer-facing</span>' +
         '</label>';
 
@@ -409,7 +409,7 @@
         '<td style="padding:14px 16px;"><span style="padding:4px 10px;border-radius:999px;font-size:0.78rem;font-weight:600;background:' + palette.bg + ';color:' + palette.fg + ';">' + palette.label + '</span></td>' +
         '<td style="padding:14px 16px;color:var(--text-secondary);">' + expires + expiringPill + '</td>' +
         '<td style="padding:14px 16px;text-align:right;">' +
-          '<button class="btn btn-secondary" ' + disabled + ' onclick="window.bgcCompliance.initiate(\'' + e.id + '\')">' + actionLabel + '</button>' +
+          '<button class="btn btn-secondary" ' + disabled + ' onclick="globalThis.bgcCompliance.initiate(\'' + e.id + '\')">' + actionLabel + '</button>' +
         '</td>' +
       '</tr>';
     }).join('');
@@ -560,7 +560,7 @@
         (anySms && !phoneValue ? '<div style="margin-top:8px;font-size:0.82rem;color:#d4a855;">⚠ Texts are turned on but no phone number is on file — add one above so we can reach you.</div>' : '') +
       '</div>' +
       '<div style="display:flex;align-items:center;gap:12px;margin-top:16px;">' +
-        '<button class="btn btn-primary" id="bgc-prefs-save-btn" onclick="window.bgcCompliance.saveNotificationPrefs()">Save preferences</button>' +
+        '<button class="btn btn-primary" id="bgc-prefs-save-btn" onclick="globalThis.bgcCompliance.saveNotificationPrefs()">Save preferences</button>' +
         '<span id="bgc-prefs-status" style="font-size:0.85rem;color:var(--text-muted);"></span>' +
       '</div>';
   }
@@ -662,7 +662,7 @@
     }
   }
 
-  window.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs };
+  globalThis.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {

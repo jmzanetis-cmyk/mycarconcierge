@@ -249,7 +249,7 @@
 
   <script>
     document.getElementById('year').textContent = new Date().getFullYear();
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
     let providerSlug = '';
     let providerData = null;
 
@@ -293,11 +293,11 @@
 
     async function requestQuote() {
       try {
-        if (typeof window.supabase !== 'undefined') {
-          const sb = window.supabase.createClient(
+        if (typeof globalThis.supabase !== 'undefined') {
+          const sb = globalThis.supabase.createClient(
             'https://ifbyjxuaclwmadqbjcyp.supabase.co',
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnlqeHVhY2x3bWFkcWJqY3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI0OTUsImV4cCI6MjA4MDQ3ODQ5NX0.wts2W0ICqTSCUpF9ewvEk59P2A0stvqqmP0CNsPfIt8',
-            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: window.localStorage } }
+            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: globalThis.localStorage } }
           );
           const { data: { session } } = await sb.auth.getSession();
           if (session) {
@@ -416,8 +416,8 @@
 
     function _renderBadgesHtml(p, mccVerified) {
       const badges = [];
-      if (window.MCC_BGC) {
-        const __pill = window.MCC_BGC.renderBadge({
+      if (globalThis.MCC_BGC) {
+        const __pill = globalThis.MCC_BGC.renderBadge({
           verified: mccVerified,
           variant: 'full',
           compliantEmployees: p.bgc_compliant_employees,
@@ -523,7 +523,7 @@
               '</p>' +
             '</details>' +
             '<p style="margin-top:18px;font-size:0.78rem;color:var(--text-muted);line-height:1.55;">' +
-              (window.MCC_BGC ? window.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
+              (globalThis.MCC_BGC ? globalThis.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
             '</p>' +
           '</div>';
       } else {

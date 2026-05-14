@@ -974,7 +974,7 @@
               myClubsData = myData.clubs || [];
               joinedClubIds = new Set(myClubsData.map(c => c.club_id));
             }
-          } catch(e) {}
+          } catch { /* Intentionally silent */ }
         }
         const [browseResult, recResult] = await Promise.all([
           apiFetch('/api/car-club/browse'),
@@ -1200,7 +1200,7 @@
               try {
                 const d = typeof n.data === 'string' ? JSON.parse(n.data) : n.data;
                 if (d.provider_name) extraMsg = `<div style="font-size:0.82rem;color:var(--accent-green);margin-top:4px;">You helped ${escHtml(d.provider_name)} earn rewards by booking with them!</div>`;
-              } catch(e) {}
+              } catch { /* Intentionally silent */ }
             }
             return `<div class="notif-item unread">
               <div class="notif-icon">${isReward ? '🎁' : isBid ? '🎫' : '🔔'}</div>
@@ -1272,7 +1272,7 @@
           notifsData = notifData.notifications || [];
           updateNotifBadge();
         }
-      } catch(e) {}
+      } catch { /* Intentionally silent */ }
     }
 
     let selectedStoreClubId = null;

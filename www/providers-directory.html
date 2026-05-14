@@ -256,12 +256,12 @@
       </select>
       <label class="verified-toggle" for="filter-verified" title="Show only Verified Providers" style="display:inline-flex;align-items:center;gap:8px;padding:10px 14px;border-radius:14px;border:1px solid var(--border-subtle);background:var(--bg-elevated);cursor:pointer;font-size:0.9rem;color:var(--text-primary);">
         <input type="checkbox" id="filter-verified" onchange="loadProviders(1)" style="accent-color:#4CAF50;cursor:pointer;">
-        <!-- Filled in from window.MCC_BGC.getFilterLabel() (bilingual EN / ES). -->
+        <!-- Filled in from globalThis.MCC_BGC.getFilterLabel() (bilingual EN / ES). -->
         <span id="filter-verified-label">Show only Verified Providers</span>
       </label>
     </div>
     <p class="filter-help" id="filter-verified-help" style="text-align:center;color:var(--text-muted);font-size:0.82rem;margin:-8px 0 18px;max-width:640px;margin-left:auto;margin-right:auto;">
-      <!-- Filled in from window.MCC_BGC.getFilterDescription() (bilingual EN / ES). -->
+      <!-- Filled in from globalThis.MCC_BGC.getFilterDescription() (bilingual EN / ES). -->
       Verified Providers maintain current background checks on their employees, renewed every year.
     </p>
 
@@ -289,7 +289,7 @@
     let currentPage = 1;
     let totalProviders = 0;
     let filterTimer = null;
-    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+    const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
 
     function toggleTheme() {
       const current = document.documentElement.getAttribute('data-theme');
@@ -346,8 +346,8 @@
       let badgesHtml = '';
       const badges = [];
       const mccVerified = !!p.bgc_badge_verified;
-      if (window.MCC_BGC) {
-        const mccPill = window.MCC_BGC.renderBadge({
+      if (globalThis.MCC_BGC) {
+        const mccPill = globalThis.MCC_BGC.renderBadge({
           verified: mccVerified,
           variant: 'full',
           compliantEmployees: p.bgc_compliant_employees,
@@ -359,10 +359,10 @@
       }
       // Neutral subtitle for non-verified cards.
       let mccSubtitleHtml = '';
-      if (window.MCC_BGC && mccVerified) {
-        mccSubtitleHtml = window.MCC_BGC.renderListingSubtitle({ verified: true });
-      } else if (window.MCC_BGC && !mccVerified && window.MCC_BGC.COPY) {
-        const neutralCopy = window.MCC_BGC.COPY.notVerifiedNeutral || '';
+      if (globalThis.MCC_BGC && mccVerified) {
+        mccSubtitleHtml = globalThis.MCC_BGC.renderListingSubtitle({ verified: true });
+      } else if (globalThis.MCC_BGC && !mccVerified && globalThis.MCC_BGC.COPY) {
+        const neutralCopy = globalThis.MCC_BGC.COPY.notVerifiedNeutral || '';
         if (neutralCopy) {
           mccSubtitleHtml =
             '<div class="mcc-bgc-card-neutral" style="font-size:0.78rem;color:var(--text-muted);line-height:1.5;margin-top:8px;">' +
@@ -464,11 +464,11 @@
 
     async function requestQuote(slug) {
       try {
-        if (typeof window.supabase !== 'undefined') {
-          const sb = window.supabase.createClient(
+        if (typeof globalThis.supabase !== 'undefined') {
+          const sb = globalThis.supabase.createClient(
             'https://ifbyjxuaclwmadqbjcyp.supabase.co',
             'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImlmYnlqeHVhY2x3bWFkcWJqY3lwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5MDI0OTUsImV4cCI6MjA4MDQ3ODQ5NX0.wts2W0ICqTSCUpF9ewvEk59P2A0stvqqmP0CNsPfIt8',
-            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: window.localStorage } }
+            { auth: { persistSession: true, storageKey: 'sb-ifbyjxuaclwmadqbjcyp-auth-token', storage: globalThis.localStorage } }
           );
           const { data: { session } } = await sb.auth.getSession();
           if (session) {
@@ -480,7 +480,7 @@
             }
           }
         }
-      } catch (e) {}
+      } catch { /* Intentionally silent */ }
       localStorage.setItem('preferred_provider_slug', slug);
       window.location.href = '/onboarding-member.html?provider=' + encodeURIComponent(slug);
     }
@@ -494,25 +494,25 @@
       }
       const _qcity = _qs.get('city'); if (_qcity) document.getElementById('filter-city').value = _qcity;
       const _qcat  = _qs.get('category'); if (_qcat) document.getElementById('filter-category').value = _qcat;
-    } catch (e) {}
+    } catch { /* Intentionally silent */ }
 
     // Localize the Verified filter copy from MCC_BGC (bilingual EN / ES).
     try {
-      if (window.MCC_BGC) {
+      if (globalThis.MCC_BGC) {
         const _lbl = document.getElementById('filter-verified-label');
         const _hlp = document.getElementById('filter-verified-help');
         const _wrap = document.querySelector('label.verified-toggle');
-        if (_lbl && typeof window.MCC_BGC.getFilterLabel === 'function') {
-          _lbl.textContent = window.MCC_BGC.getFilterLabel();
+        if (_lbl && typeof globalThis.MCC_BGC.getFilterLabel === 'function') {
+          _lbl.textContent = globalThis.MCC_BGC.getFilterLabel();
         }
-        if (_hlp && typeof window.MCC_BGC.getFilterDescription === 'function') {
-          _hlp.textContent = window.MCC_BGC.getFilterDescription();
+        if (_hlp && typeof globalThis.MCC_BGC.getFilterDescription === 'function') {
+          _hlp.textContent = globalThis.MCC_BGC.getFilterDescription();
         }
         if (_wrap && _lbl) {
           _wrap.setAttribute('title', _lbl.textContent);
         }
       }
-    } catch (e) {}
+    } catch { /* Intentionally silent */ }
 
     loadProviders(1);
   </script>

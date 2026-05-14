@@ -16,15 +16,15 @@ class ProviderOnboarding {
   markCompleted() {
     try {
       localStorage.setItem(this.storageKey, Date.now().toString());
-    } catch (e) {}
+    } catch { /* Intentionally silent */ }
   }
 
   _lang() {
     try {
-      if (window.I18n && typeof window.I18n.getCurrentLanguage === 'function') {
-        return window.I18n.getCurrentLanguage();
+      if (globalThis.I18n && typeof globalThis.I18n.getCurrentLanguage === 'function') {
+        return globalThis.I18n.getCurrentLanguage();
       }
-      const stored = window.localStorage && window.localStorage.getItem('mcc_language');
+      const stored = globalThis.localStorage && globalThis.localStorage.getItem('mcc_language');
       if (stored) return stored;
       if (document.documentElement.lang) return document.documentElement.lang;
     } catch (e) { /* ignore */ }
@@ -35,8 +35,8 @@ class ProviderOnboarding {
     const isEs = this._lang() === 'es';
     // Per-employee price string. Sourced from bgc-pricing.js when loaded;
     // falls back to the current finalized value otherwise. To change the
-    // price everywhere, update window.MCC_BGC_PRICING.display in bgc-pricing.js.
-    const PRICE = (window.MCC_BGC_PRICING && window.MCC_BGC_PRICING.display) || '$70';
+    // price everywhere, update globalThis.MCC_BGC_PRICING.display in bgc-pricing.js.
+    const PRICE = (globalThis.MCC_BGC_PRICING && globalThis.MCC_BGC_PRICING.display) || '$70';
     const SHIELD = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>';
     const TEAM = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
     const DOC = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
@@ -331,18 +331,18 @@ class ProviderOnboarding {
         }
       </style>
       <div class="onboard-card">
-        <button class="onboard-skip" onclick="window._providerOnboarding.dismiss()">Skip tour</button>
+        <button class="onboard-skip" onclick="globalThis._providerOnboarding.dismiss()">Skip tour</button>
         <div class="onboard-icon">${step.icon}</div>
         <h2 class="onboard-title">${step.title}</h2>
         <p class="onboard-content">${step.content}</p>
         <p class="onboard-detail">${step.detail}</p>
-        ${step.action ? `<button class="onboard-action-link" onclick="window._providerOnboarding.goToSection('${step.action.section}')">${step.action.label}</button>` : ''}
+        ${step.action ? `<button class="onboard-action-link" onclick="globalThis._providerOnboarding.goToSection('${step.action.section}')">${step.action.label}</button>` : ''}
         <div class="onboard-progress">
           ${steps.map((_, i) => `<div class="onboard-dot ${i === this.currentStep ? 'active' : i < this.currentStep ? 'completed' : ''}"></div>`).join('')}
         </div>
         <div class="onboard-actions">
-          ${!isFirst ? '<button class="onboard-btn onboard-btn-secondary" onclick="window._providerOnboarding.prev()">Back</button>' : '<div></div>'}
-          <button class="onboard-btn onboard-btn-primary" onclick="window._providerOnboarding.${isLast ? 'complete' : 'next'}()">${isLast ? 'Get Started!' : 'Next'}</button>
+          ${!isFirst ? '<button class="onboard-btn onboard-btn-secondary" onclick="globalThis._providerOnboarding.prev()">Back</button>' : '<div></div>'}
+          <button class="onboard-btn onboard-btn-primary" onclick="globalThis._providerOnboarding.${isLast ? 'complete' : 'next'}()">${isLast ? 'Get Started!' : 'Next'}</button>
         </div>
       </div>
     `;
@@ -392,6 +392,6 @@ class ProviderOnboarding {
 }
 
 if (typeof window !== 'undefined') {
-  window.ProviderOnboarding = ProviderOnboarding;
-  window._providerOnboarding = new ProviderOnboarding();
+  globalThis.ProviderOnboarding = ProviderOnboarding;
+  globalThis._providerOnboarding = new ProviderOnboarding();
 }

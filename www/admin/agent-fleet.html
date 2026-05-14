@@ -255,47 +255,47 @@
         </div>
         <div class="grid grid-3" style="gap:14px;">
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours start (UTC)</label>
+            <label for="dirCfgQuietStart" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours start (UTC)</label>
             <input id="dirCfgQuietStart" type="number" min="0" max="23" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours end (UTC)</label>
+            <label for="dirCfgQuietEnd" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Quiet hours end (UTC)</label>
             <input id="dirCfgQuietEnd" type="number" min="0" max="23" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Daily digest hour (UTC)</label>
+            <label for="dirCfgDigestHour" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Daily digest hour (UTC)</label>
             <input id="dirCfgDigestHour" type="number" min="0" max="23" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Re-page critical every N hours</label>
+            <label for="dirCfgRepageH" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Re-page critical every N hours</label>
             <input id="dirCfgRepageH" type="number" min="0.25" max="168" step="0.25" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Gatekeeper errors / 6h to alert</label>
+            <label for="dirCfgGkErr" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Gatekeeper errors / 6h to alert</label>
             <input id="dirCfgGkErr" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter draft pile min</label>
+            <label for="dirCfgPromBacklog" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter draft pile min</label>
             <input id="dirCfgPromBacklog" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter idle days</label>
+            <label for="dirCfgPromIdle" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Promoter idle days</label>
             <input id="dirCfgPromIdle" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Hunter unscored / 2h to alert</label>
+            <label for="dirCfgHunter" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Hunter unscored / 2h to alert</label>
             <input id="dirCfgHunter" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Social-monitor dry window (h)</label>
+            <label for="dirCfgSocialH" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Social-monitor dry window (h)</label>
             <input id="dirCfgSocialH" type="number" min="0" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Matchmaker unranked min hours</label>
+            <label for="dirCfgMmH" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Matchmaker unranked min hours</label>
             <input id="dirCfgMmH" type="number" min="0" step="0.25" class="input" />
           </div>
           <div>
-            <label style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Signup drop % to alert</label>
+            <label for="dirCfgSignupPct" style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Signup drop % to alert</label>
             <input id="dirCfgSignupPct" type="number" min="0" max="100" class="input" />
           </div>
         </div>
@@ -313,7 +313,7 @@
           Events that failed dispatch 3 times. Replay re-emits with a fresh attempt counter.
         </div>
         <div class="row" style="margin-bottom:10px;">
-          <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
+          <label for="dlqOpenOnly" style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="dlqOpenOnly" checked /> Open only
           </label>
           <button class="btn btn-ghost" id="dlqReload" style="margin-left:auto;">Reload</button>

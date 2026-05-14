@@ -961,7 +961,7 @@
       const card = document.getElementById('ai-review-summary-card');
       if (!card || !data.summary_text) return;
 
-      const esc = (s) => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+      const esc = (s) => String(s).replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
       card.style.display = 'block';
       document.getElementById('ai-summary-text').textContent = data.summary_text;
@@ -1286,7 +1286,7 @@
               <button onclick="document.getElementById('earnings-debrief-panel-${packageId}').style.display='none'" style="background:none;border:none;cursor:pointer;color:var(--text-muted);">${mccIcon('x', 14)}</button>
             </div>
             <p style="font-size:0.78rem;color:var(--text-muted);margin:0 0 6px;">Review and edit before saving to service record.</p>
-            <textarea id="earnings-debrief-edit-${packageId}" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;resize:vertical;font-family:inherit;">${summaryText.replace(/</g,'&lt;').replace(/>/g,'&gt;')}</textarea>
+            <textarea id="earnings-debrief-edit-${packageId}" style="width:100%;min-height:100px;padding:8px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;resize:vertical;font-family:inherit;">${summaryText.replaceAll('<', '&lt;').replaceAll('>', '&gt;')}</textarea>
             <div style="display:flex;gap:8px;margin-top:8px;justify-content:flex-end;">
               <button onclick="saveEarningsDebrief('${packageId}')" class="btn btn-primary btn-sm" id="earnings-debrief-save-${packageId}">${mccIcon('save', 14)} Save to Service Record</button>
             </div>
@@ -1793,9 +1793,9 @@
               ${showBidButton && !biddingExpired ? `
                 ${alreadyBid ? `
                   <span style="color:var(--accent-green);font-size:0.85rem;margin-right:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
-                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
                 ` : `
-                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replace(/'/g, "\\'")}')">Submit Bid</button>
+                  <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}')">Submit Bid</button>
                 `}
               ` : ''}
               ${biddingExpired && !alreadyBid ? '<span style="color:var(--text-muted);font-size:0.85rem;">Bidding closed</span>' : ''}
@@ -2019,7 +2019,7 @@
       const desc = 'Service appointment booked via My Car Concierge';
 
       function toISODate(ds) {
-        try { const d = new Date(ds); return d.toISOString().split('T')[0].replace(/-/g, ''); } catch { return ''; }
+        try { const d = new Date(ds); return d.toISOString().split('T')[0].replaceAll('-', ''); } catch { return ''; }
       }
       function to24h(t) {
         const m = t.match(/(\d+):(\d+)\s*(AM|PM)?/i);
@@ -2041,7 +2041,7 @@
           <div class="modal-header"><h3 class="modal-title">Add to Calendar</h3><button class="modal-close" onclick="document.getElementById('provider-cal-modal').remove()">×</button></div>
           <div class="modal-body" style="display:flex;flex-direction:column;gap:10px;">
             <button class="btn btn-primary" onclick="(function(){
-              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replace(/'/g, '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
+              const ics=['BEGIN:VCALENDAR','VERSION:2.0','PRODID:-//MCC//EN','BEGIN:VEVENT','UID:mcc-'+Date.now()+'@mycarconcierge.com','DTSTART:${dtStart}','DTEND:${dtEnd}','SUMMARY:${title.replaceAll('\'', '')}','DESCRIPTION:${desc}','END:VEVENT','END:VCALENDAR'].join('\\r\\n');
               const blob=new Blob([ics],{type:'text/calendar'});
               const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='mcc-appointment.ics';a.click();
               document.getElementById('provider-cal-modal').remove();
@@ -2120,7 +2120,7 @@
               <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Proposed by: ${proposedBy}</div>
               ${appointment.provider_notes || appointment.member_notes ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;">${mccIcon('file-text', 14)} ${appointment.provider_notes || appointment.member_notes}</div>` : ''}
               <div style="margin-top:10px;">
-                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replace(/'/g, '')}', '${(timeRange || '').replace(/'/g, '')}')">
+                <button class="btn btn-sm btn-ghost" onclick="showProviderApptCalendarOptions('${appointment.id}', '${(proposedDate || '').replaceAll('\'', '')}', '${(timeRange || '').replaceAll('\'', '')}')">
                   ${mccIcon('calendar', 14)} Add to Calendar
                 </button>
               </div>
@@ -3423,7 +3423,7 @@
               ⚡ Accept Private Job
             </button>
           ` : `
-            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replace(/'/g, "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
+            ${!myBids.some(b => b.package_id === packageId) ? `<button class="btn btn-primary" onclick="closeModal('package-details-modal');openBidModal('${packageId}', '${pkg.title.replaceAll('\'', "\\'")}')">Submit Bid</button>` : '<span style="color:var(--accent-green);">✓ You\'ve already bid on this package</span>'}
           `}
         </div>
       `;
@@ -12206,7 +12206,7 @@
     
     function urlBase64ToUint8ArrayProvider(base64String) {
       const padding = '='.repeat((4 - base64String.length % 4) % 4);
-      const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+      const base64 = (base64String + padding).replaceAll('-', '+').replaceAll('_', '/');
       const rawData = window.atob(base64);
       const outputArray = new Uint8Array(rawData.length);
       for (let i = 0; i < rawData.length; ++i) {

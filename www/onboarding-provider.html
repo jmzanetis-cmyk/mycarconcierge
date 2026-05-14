@@ -1238,7 +1238,7 @@
       </div>
 
       <!-- ─── Task #115: MCC Verified background-check signup (4 panels) ───
-           Copy is sourced verbatim from window.MCC_BGC_Onboarding.COPY
+           Copy is sourced verbatim from globalThis.MCC_BGC_Onboarding.COPY
            (see www/bgc-onboarding.js); the inline labels on this page
            (skip buttons, "Add another employee", etc.) are localized via
            OBO_COPY_EN/OBO_COPY_ES below. -->
@@ -1303,7 +1303,7 @@
             <svg viewBox="0 0 24 24"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
           </div>
           <h2 class="step-question" id="bgc-s4-title"></h2>
-          <!-- Body text comes from window.MCC_BGC_Onboarding.COPY.s4.body(n)
+          <!-- Body text comes from globalThis.MCC_BGC_Onboarding.COPY.s4.body(n)
                and includes the count of checks initiated. -->
           <p class="step-subtitle" id="bgc-s4-body"></p>
           <div class="bgc-detail-label" id="bgc-s4-next-label"></div>
@@ -1364,13 +1364,13 @@
     // the language picker / I18n module). Defaults to English.
     function oboLang() {
       try {
-        if (window.I18n && typeof window.I18n.getCurrentLanguage === 'function') {
-          const l = (window.I18n.getCurrentLanguage() || '').toLowerCase();
+        if (globalThis.I18n && typeof globalThis.I18n.getCurrentLanguage === 'function') {
+          const l = (globalThis.I18n.getCurrentLanguage() || '').toLowerCase();
           if (l === 'es') return 'es';
         }
         const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
         if (stored === 'es') return 'es';
-      } catch (_) {}
+      } catch { /* Intentionally silent */ }
       return 'en';
     }
     const OBO_COPY_EN = {
@@ -1920,7 +1920,7 @@
 
     // ─── Task #115: BGC onboarding sub-flow ──────────────────────────────
     // Renders the four "MCC Verified" panels using verbatim copy from
-    // window.MCC_BGC_Onboarding.COPY (loaded by bgc-onboarding.js). On step 3
+    // globalThis.MCC_BGC_Onboarding.COPY (loaded by bgc-onboarding.js). On step 3
     // confirm we INSERT each row into provider_employees and POST one
     // /api/provider/initiate-background-check call per employee, batched with
     // Promise.allSettled so a single failure doesn't block the others.
@@ -1943,7 +1943,7 @@
     }
 
     function bgcPopulateCopy() {
-      const COPY = (window.MCC_BGC_Onboarding && window.MCC_BGC_Onboarding.COPY) || null;
+      const COPY = (globalThis.MCC_BGC_Onboarding && globalThis.MCC_BGC_Onboarding.COPY) || null;
       if (!COPY) {
         console.warn('[BGC onboarding] MCC_BGC_Onboarding.COPY not loaded; panels will be blank.');
         return;
@@ -2131,7 +2131,7 @@
     //                  only touch the failed subset.
     //   r.lastError  — last error message (for the retry toast).
     async function bgcInitiateForRows(rows) {
-      const sb = window.supabaseClient;
+      const sb = globalThis.supabaseClient;
       const session = sb ? (await sb.auth.getSession()).data.session : null;
       const token = session?.access_token;
       if (!token) {
@@ -2191,7 +2191,7 @@
     }
 
     function bgcShowStep4() {
-      const COPY = window.MCC_BGC_Onboarding && window.MCC_BGC_Onboarding.COPY;
+      const COPY = globalThis.MCC_BGC_Onboarding && globalThis.MCC_BGC_Onboarding.COPY;
       const initiatedCount = bgcEmployees.filter(r => r.initiated).length;
       const bodyEl = document.getElementById('bgc-s4-body');
       if (bodyEl && COPY && typeof COPY.s4.body === 'function') {
