@@ -30,6 +30,35 @@ const I18n = (function() {
     } catch (e) {
       console.warn('Could not save language preference');
     }
+    // Best-effort: persist to the signed-in user's profile so that
+    // server-side dispatchers (BGC launch broadcast, future transactional
+    // emails) can send the matching language template. Fire-and-forget —
+    // never blocks UI, never throws into setLanguage().
+    persistLanguageToProfile(lang);
+  }
+
+  function persistLanguageToProfile(lang) {
+    try {
+      const client = (typeof window !== 'undefined' && window.supabaseClient) || null;
+      if (!client || !client.auth || !client.from) return;
+      Promise.resolve(client.auth.getSession())
+        .then(({ data }) => {
+          const userId = data && data.session && data.session.user && data.session.user.id;
+          if (!userId) return null;
+          return client.from('profiles')
+            .update({ preferred_language: lang })
+            .eq('id', userId);
+        })
+        .then(res => {
+          if (res && res.error) {
+            // 42703 = column missing (migration not yet applied) — silent.
+            if (res.error.code !== '42703' && res.error.code !== 'PGRST204') {
+              console.debug('preferred_language sync failed:', res.error.message);
+            }
+          }
+        })
+        .catch(() => { /* silent — language persistence is best-effort */ });
+    } catch (_) { /* silent */ }
   }
 
   function detectBrowserLanguage() {

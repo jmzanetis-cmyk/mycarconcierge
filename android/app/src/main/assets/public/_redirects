@@ -16,6 +16,7 @@
 /api/stripe/connect/callback /.netlify/functions/stripe-connect-callback 200
 /api/stripe/connect/status/* /.netlify/functions/stripe-connect-status/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
+/api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
 /api/helpdesk /.netlify/functions/helpdesk 200
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
@@ -36,3 +37,11 @@
 /api/auth/facebook/data-deletion /.netlify/functions/facebook-data-deletion 200
 /api/auth/facebook/data-deletion/status /.netlify/functions/facebook-data-deletion 200
 /api/admin/facebook/* /.netlify/functions/admin-facebook 200
+/api/admin/concierge-jobs/* /.netlify/functions/concierge-jobs-admin/:splat 200
+/api/admin/concierge-jobs /.netlify/functions/concierge-jobs-admin 200
+/api/driver/v1/* /.netlify/functions/driver-api/:splat 200
+/api/survey/profile /.netlify/functions/survey-profile 200
+/api/survey/response /.netlify/functions/survey-response 200
+/api/survey/abandoned /.netlify/functions/survey-abandoned 200
+/api/survey/area-check /.netlify/functions/survey-area-check 200
+/api/survey/referral-link /.netlify/functions/survey-referral-link 200

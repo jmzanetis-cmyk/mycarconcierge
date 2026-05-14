@@ -2472,7 +2472,7 @@
             fetch('/api/notifications/bid-accepted-push', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_bidAcceptSession.access_token}` },
-              body: JSON.stringify({ provider_id: bid.provider_id, package_title: pkg?.title || 'Maintenance Package', bid_amount: amount })
+              body: JSON.stringify({ bid_id: bidId, provider_id: bid.provider_id, package_title: pkg?.title || 'Maintenance Package', bid_amount: amount })
             }).catch(() => {});
           }
         } catch (e) {

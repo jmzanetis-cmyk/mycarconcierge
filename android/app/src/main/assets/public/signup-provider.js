@@ -324,12 +324,22 @@
           }
           showMessage('Account updated! You can now apply as a provider.', 'success');
         } else {
-          // Create new profile
+          // Create new profile.
+          // Task #341: capture the active UI language at signup so
+          // welcome / verification emails go out in the language the
+          // user was browsing in. Reads the i18n.js storage key
+          // directly; null falls back to EN downstream.
+          let preferredLanguage = null;
+          try {
+            const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+            if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+          } catch (_e) { /* ignore */ }
           const { error: profileError } = await supabaseClient.from('profiles').insert({
             id: userId,
             role: 'pending_provider',
             phone: phone,
-            free_trial_bids: 3
+            free_trial_bids: 3,
+            preferred_language: preferredLanguage
           });
 
           if (profileError) {
