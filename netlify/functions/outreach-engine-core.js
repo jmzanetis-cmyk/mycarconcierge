@@ -2242,11 +2242,43 @@ async function runApolloDiscoveryCycle(supabase) {
     } else {
       console.log(`[Apollo] Concurrent cycle detected (reason=${lock.reason}, running since ${lock.running_since}) — skipping`);
     }
+
+    // Task #273 — if the lock has been held longer than the scheduled-cycle
+    // interval (~6 min), surface it as a high-priority outreach_activity_log
+    // row. This is what the daily digest's stall-detection consumes to flag
+    // a genuinely stuck cycle, while normal admin/scheduled overlap (lock
+    // held a few seconds) is intentionally not logged so it doesn't pollute
+    // the consecutive-failures streak.
+    let heldMinutes = 0;
+    if ((lock.reason === 'already_running' || lock.reason === 'race_lost') && lock.running_since) {
+      const heldMs = Date.now() - new Date(lock.running_since).getTime();
+      heldMinutes = Number.isFinite(heldMs) && heldMs > 0 ? Math.round(heldMs / 60000) : 0;
+      if (heldMinutes >= 6) {
+        try {
+          await supabase.from('outreach_activity_log').insert({
+            event_type: 'apollo_discovery_skipped',
+            metadata: {
+              severity: 'high',
+              error_kind: 'lock_stuck',
+              lock_reason: lock.reason,
+              running_since: lock.running_since,
+              running_nonce: lock.running_nonce || null,
+              held_minutes: heldMinutes,
+              message: `Apollo cycle lock has been held for ~${heldMinutes}m — likely a stuck or crashed prior cycle`
+            }
+          });
+        } catch (logErr) {
+          console.warn('[Apollo] Failed to log stuck-lock skip row:', logErr.message);
+        }
+      }
+    }
+
     return {
       skipped: true,
       reason: 'already_running',
       lock_reason: lock.reason || null,
       running_since: lock.running_since || null,
+      held_minutes: heldMinutes,
       lock_error: lock.error || null
     };
   }

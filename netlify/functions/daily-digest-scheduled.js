@@ -91,7 +91,12 @@ async function getApolloHealth(supabase) {
     recent_cycles: 0,
     last_error_kind: null,
     stalled: false,
-    status: 'disabled'
+    status: 'disabled',
+    // Task #273 — current cycle-lock state, surfaced so admins notice a
+    // stuck cycle without waiting on consecutive-failure heuristics.
+    lock_stuck: false,
+    lock_held_minutes: 0,
+    lock_running_since: null
   };
   try {
     const { data: state } = await supabase
@@ -105,6 +110,18 @@ async function getApolloHealth(supabase) {
     if (out.last_successful_run) {
       out.hours_since_success = (Date.now() - new Date(out.last_successful_run)) / 3600000;
     }
+    // Task #273 — flag a currently-held lock that's older than the
+    // scheduled-cycle interval (~6m). The lock TTL is 10m, so anything
+    // approaching that means a cycle is genuinely stuck rather than
+    // legitimately running. We surface running_since regardless so the
+    // digest shows "lock held 4m ago" even when not yet alerting.
+    if (cfg.running_since) {
+      const heldMs = Date.now() - new Date(cfg.running_since).getTime();
+      const heldMin = Number.isFinite(heldMs) && heldMs > 0 ? Math.round(heldMs / 60000) : 0;
+      out.lock_running_since = cfg.running_since;
+      out.lock_held_minutes = heldMin;
+      if (heldMin >= 6) out.lock_stuck = true;
+    }
   } catch (_) {}
 
   // Pull recent cycle log entries (most recent first) and tally error_kinds.
@@ -112,7 +129,7 @@ async function getApolloHealth(supabase) {
     const { data: rows } = await supabase
       .from('outreach_activity_log')
       .select('event_type, metadata, created_at')
-      .in('event_type', ['apollo_discovery_cycle', 'apollo_discovery_error'])
+      .in('event_type', ['apollo_discovery_cycle', 'apollo_discovery_error', 'apollo_discovery_skipped'])
       .order('created_at', { ascending: false })
       .limit(20);
     const list = rows || [];
@@ -123,6 +140,10 @@ async function getApolloHealth(supabase) {
     for (const r of list) {
       const meta = r.metadata || {};
       const isError = r.event_type === 'apollo_discovery_error';
+      // Task #273 — apollo_discovery_skipped rows are only written for
+      // *stuck* skips (held >= 6m), so every skip row is by construction
+      // a high-priority signal that should count toward the failure streak.
+      const isSkipped = r.event_type === 'apollo_discovery_skipped';
       // Discovery health is measured by Apollo's raw search output
       // (search_results = people returned by Apollo /people/search), NOT by
       // post-dedup `added` or by `enriched` — those measure downstream pipeline
@@ -130,11 +151,12 @@ async function getApolloHealth(supabase) {
       // Apollo returned 50 people but all were duplicates is still a healthy
       // discovery cycle. A cycle where Apollo returned 0 people is a stall.
       const searchResults = typeof meta.search_results === 'number' ? meta.search_results : null;
-      const errorKind = meta.error_kind || (isError ? 'unknown_error' : null);
-      // Treat error rows AND zero-discovery cycles as failures. Rows missing
-      // search_results (legacy entries written before this telemetry shipped)
-      // are treated as non-failures so old data doesn't poison the streak.
-      const isFailure = isError || searchResults === 0;
+      const errorKind = meta.error_kind || (isError ? 'unknown_error' : (isSkipped ? 'lock_stuck' : null));
+      // Treat error rows, zero-discovery cycles, and stuck-lock skips as
+      // failures. Rows missing search_results (legacy entries written
+      // before this telemetry shipped) are treated as non-failures so old
+      // data doesn't poison the streak.
+      const isFailure = isError || isSkipped || searchResults === 0;
 
       if (errorKind) {
         out.recent_error_kinds[errorKind] = (out.recent_error_kinds[errorKind] || 0) + 1;
@@ -174,6 +196,7 @@ function explainErrorKind(kind) {
     case 'network_error': return 'Network/fetch failure reaching Apollo';
     case 'no_results': return 'API responded OK but returned 0 results — usually credit exhaustion';
     case 'client_error': return 'Apollo rejected the request payload (4xx)';
+    case 'lock_stuck': return 'Cycle lock held longer than expected — a previous run likely crashed without releasing it';
     case 'unknown_error': return 'Unclassified error — check function logs';
     default: return null;
   }
@@ -208,6 +231,20 @@ function buildApolloHealthHtml(apollo) {
       </div>`;
     }).join('');
 
+  // Task #273 — stuck-lock banner sits above the stall banner so admins
+  // see "a cycle is wedged right now" before they see consecutive-failure
+  // history. We render it whenever the lock has been held >= 6m, even if
+  // the consecutive-failures streak hasn't crossed the stall threshold yet.
+  const stuckLockBanner = apollo.lock_stuck
+    ? `<div style="background:#431407;border:1px solid #f59e0b;border-radius:6px;padding:12px 16px;margin-bottom:12px;">
+        <div style="font-weight:600;color:#fcd34d;font-size:14px;margin-bottom:4px;">⚠️ Apollo cycle lock is wedged</div>
+        <div style="font-size:12px;color:#fde68a;line-height:1.5;">
+          The discovery lock has been held for <strong>~${apollo.lock_held_minutes}m</strong> (since ${escapeForHtml(apollo.lock_running_since || '')}).
+          The lock auto-expires at 10m; if it's still held, scheduled cycles are being skipped. Check the apollo-discovery-scheduled function logs for a crashed run.
+        </div>
+      </div>`
+    : '';
+
   const stallBanner = apollo.stalled
     ? `<div style="background:#431407;border:1px solid #f59e0b;border-radius:6px;padding:12px 16px;margin-bottom:12px;">
         <div style="font-weight:600;color:#fcd34d;font-size:14px;margin-bottom:4px;">⚠️ Discovery has stalled</div>
@@ -220,6 +257,7 @@ function buildApolloHealthHtml(apollo) {
 
   return `<div style="margin-bottom:24px;">
     <div style="font-size:13px;color:#94a3b8;font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px;">🔭 Apollo Discovery</div>
+    ${stuckLockBanner}
     ${stallBanner}
     <div style="background:#1e293b;border-radius:8px;padding:16px;">
       <div style="display:flex;justify-content:space-between;margin-bottom:10px;">
