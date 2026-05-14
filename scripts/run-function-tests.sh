@@ -14,7 +14,7 @@ shopt -s nullglob
 
 cd "$(dirname "$0")/.."
 
-files=(netlify/functions/*.test.js)
+files=(netlify/functions/tests/*.test.js)
 
 # Task #202 — Offline smokes for scripts that don't live under
 # netlify/functions/ but should still be guarded by `npm test`. Each entry

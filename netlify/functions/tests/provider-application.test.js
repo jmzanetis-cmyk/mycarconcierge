@@ -224,7 +224,7 @@ Module.prototype.require = function patchedRequire(id) {
   return origRequire.apply(this, arguments);
 };
 
-const { handler } = require('./provider-application');
+const { handler } = require('../provider-application');
 
 // ---------------------------------------------------------------------------
 // Helpers
