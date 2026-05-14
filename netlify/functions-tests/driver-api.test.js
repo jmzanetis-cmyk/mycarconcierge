@@ -24,7 +24,7 @@ const assert = require('assert');
 
 process.env.SUPABASE_URL = 'http://stub.local';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-role-key';
-process.env.DRIVER_JWT_SECRET = 'test-driver-jwt-secret-task-332';
+process.env.SUPABASE_ANON_KEY = 'stub-anon-key';
 // No Twilio creds — the send-code happy path is not exercised here; we only
 // test the pre-Twilio guards (unknown phone, bad format, rate limit).
 delete process.env.TWILIO_ACCOUNT_SID;
@@ -87,7 +87,28 @@ function makeChain(table) {
   return chain;
 }
 
-const supabaseStub = { from: (t) => makeChain(t) };
+// Per-test override: tests that exercise authenticated routes set
+// `currentAuthUserId` to the auth.users.id whose getUser() lookup should
+// succeed. Tests that exercise unauthenticated routes leave it null.
+let currentAuthUserId = null;
+const supabaseStub = {
+  from: (t) => makeChain(t),
+  auth: {
+    getUser: async (_token) => {
+      if (!currentAuthUserId) return { data: { user: null }, error: { message: 'no user' } };
+      return { data: { user: { id: currentAuthUserId } }, error: null };
+    },
+    admin: {
+      generateLink: async (_opts) => ({
+        data: { properties: { hashed_token: 'stub-hashed-token' } }, error: null
+      })
+    },
+    refreshSession: async (_opts) => ({
+      data: { session: { access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600, expires_at: 9999999999 } },
+      error: null
+    })
+  }
+};
 // Stub the supabase package at every path Node might resolve it to. The
 // netlify/functions tree has its own node_modules, so the top-level
 // require.resolve and the require.resolve from within netlify/functions/
@@ -106,7 +127,6 @@ for (const r of [require, fnRequire]) {
 
 // Now load the function under test (after stubbing).
 const driverApi = require('../functions/driver-api');
-const { signToken } = driverApi;
 
 const adminFn = require('../functions/concierge-jobs-admin');
 
@@ -124,12 +144,18 @@ function makeEvent({ path, method = 'GET', headers = {}, query = {}, body = null
 }
 function parse(res) { try { return JSON.parse(res.body); } catch { return null; } }
 function bearer(driverId) {
-  const tok = signToken({ driver_id: driverId, phone: '+12015550100', kind: 'access' }, 60);
-  return { authorization: 'Bearer ' + tok };
+  // Token contents don't matter — supabaseStub.auth.getUser() is what
+  // authorizes. We map driver -> profile_id via PROFILE_FOR. Tests set
+  // currentAuthUserId before calling the handler.
+  currentAuthUserId = PROFILE_FOR[driverId] || null;
+  return { authorization: 'Bearer stub-driver-token-for-' + driverId };
 }
 
 const DRIVER_A = '11111111-1111-1111-1111-111111111111';
 const DRIVER_B = '22222222-2222-2222-2222-222222222222';
+const PROFILE_A = '99999999-9999-9999-9999-9999999999aa';
+const PROFILE_B = '99999999-9999-9999-9999-9999999999bb';
+const PROFILE_FOR = { [DRIVER_A]: PROFILE_A, [DRIVER_B]: PROFILE_B };
 const JOB_X    = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
 const LEG_1    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb1';
 const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';

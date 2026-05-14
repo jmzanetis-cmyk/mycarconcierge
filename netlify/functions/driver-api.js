@@ -29,7 +29,6 @@
 //     send-code time so unknown phones can't enumerate the driver roster.
 // ============================================================================
 
-const crypto = require('node:crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 // ---------------------------------------------------------------------------
@@ -82,64 +81,65 @@ function normalizePhone(p) {
 }
 
 // ---------------------------------------------------------------------------
-// HMAC-signed driver session tokens. Compact JWT (HS256), signed by either
-// DRIVER_JWT_SECRET or a derived fallback.
+// Driver session tokens are NATIVE SUPABASE JWTs minted via the admin
+// generateLink + anon-client verifyOtp flow. The Driver app receives a
+// real Supabase access_token + refresh_token pair, so RLS policies on
+// drivers / concierge_jobs / etc that gate on `auth.uid() = drivers.profile_id`
+// work directly against the driver's session — the Driver Replit project
+// can talk to Supabase with the anon key, and the lifecycle (refresh /
+// expiry / revocation) is managed by Supabase, not by us.
+//
+// Requires drivers.profile_id linked to an auth.users row whose email
+// matches drivers.email.
 // ---------------------------------------------------------------------------
 
-function jwtSecret() {
-  const explicit = process.env.DRIVER_JWT_SECRET;
-  if (explicit && explicit.length >= 16) return explicit;
-  // Fallback: derive a stable per-deployment secret from the service-role
-  // key so dev works without an extra env var. Production should set
-  // DRIVER_JWT_SECRET explicitly so rotating the service-role key doesn't
-  // invalidate every active driver session.
-  const seed = process.env.SUPABASE_SERVICE_ROLE_KEY || 'driver-api-dev-fallback';
-  return crypto.createHash('sha256').update('driver-jwt:' + seed).digest('hex');
+let _anonClient = null;
+function getAnonClient() {
+  if (_anonClient) return _anonClient;
+  const url = process.env.SUPABASE_URL;
+  const anonKey = process.env.SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
+  const { createClient } = require('@supabase/supabase-js');
+  _anonClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false }
+  });
+  return _anonClient;
 }
 
-function b64url(buf) {
-  return Buffer.from(buf).toString('base64')
-    .replaceAll('+','-').replaceAll('/','_').replaceAll(/=+$/g,'');
-}
-function b64urlDecode(str) {
-  const pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
-  return Buffer.from(str.replaceAll('-','+').replaceAll('_','/') + pad, 'base64');
-}
-
-function signToken(payload, ttlSeconds) {
-  const header = { alg: 'HS256', typ: 'JWT' };
-  const now = Math.floor(Date.now() / 1000);
-  const body = { ...payload, iat: now, exp: now + ttlSeconds };
-  const h = b64url(JSON.stringify(header));
-  const p = b64url(JSON.stringify(body));
-  const sig = b64url(crypto.createHmac('sha256', jwtSecret()).update(h + '.' + p).digest());
-  return `${h}.${p}.${sig}`;
-}
-
-function verifyToken(token) {
-  if (typeof token !== 'string') return null;
-  const parts = token.split('.');
-  if (parts.length !== 3) return null;
-  const [h, p, sig] = parts;
-  const expected = b64url(crypto.createHmac('sha256', jwtSecret()).update(h + '.' + p).digest());
-  // Constant-time compare.
-  if (sig.length !== expected.length) return null;
-  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
-  let payload;
-  try { payload = JSON.parse(b64urlDecode(p).toString('utf8')); } catch { return null; }
-  if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null;
-  return payload;
-}
-
-function mintSession(driver) {
-  // Access token: 1h. Refresh token: 30d. Both bind driver_id + phone.
-  const base = { driver_id: driver.id, phone: driver.phone };
+async function mintSupabaseSession(supabase, driver) {
+  if (!driver.email) {
+    return { error: errorResponse(409, 'DRIVER_NO_EMAIL', 'Driver has no email on file — admin must link an auth user') };
+  }
+  const anon = getAnonClient();
+  if (!anon) {
+    return { error: errorResponse(503, 'AUTH_UNAVAILABLE', 'Supabase anon key not configured') };
+  }
+  // Step 1: admin generates a one-time hashed magiclink token for the
+  // driver's email (no email is actually sent — we exchange the token
+  // server-side immediately).
+  const { data: linkData, error: linkErr } = await supabase.auth.admin.generateLink({
+    type: 'magiclink', email: driver.email
+  });
+  if (linkErr || !linkData?.properties?.hashed_token) {
+    return { error: errorResponse(500, 'AUTH_LINK_FAILED', linkErr?.message || 'no token returned') };
+  }
+  // Step 2: anon client exchanges the hashed token for a real Supabase
+  // session (access_token + refresh_token).
+  const { data: sess, error: vErr } = await anon.auth.verifyOtp({
+    token_hash: linkData.properties.hashed_token, type: 'magiclink'
+  });
+  if (vErr || !sess?.session) {
+    return { error: errorResponse(500, 'AUTH_VERIFY_FAILED', vErr?.message || 'no session returned') };
+  }
   return {
-    access_token:  signToken({ ...base, kind: 'access'  }, 60 * 60),
-    refresh_token: signToken({ ...base, kind: 'refresh' }, 60 * 60 * 24 * 30),
-    token_type: 'Bearer',
-    expires_in: 60 * 60,
-    driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone }
+    response: jsonResponse(200, {
+      access_token: sess.session.access_token,
+      refresh_token: sess.session.refresh_token,
+      token_type: 'Bearer',
+      expires_in: sess.session.expires_in,
+      expires_at: sess.session.expires_at,
+      driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone }
+    })
   };
 }
 
@@ -190,21 +190,32 @@ async function twilioVerifyCheck(phone, code) {
 }
 
 // ---------------------------------------------------------------------------
-// Per-phone send-code rate limiter (3 per 15min). In-memory in dev/Netlify
-// per-instance; not perfect across cold starts but adequate as a first line.
+// Per-phone send-code rate limiter (3 per 15min). DB-backed via the
+// driver_otp_send_log table so the limit is shared across all Netlify
+// function instances and survives cold starts (in-memory counters are
+// trivially bypassable under load). Fail-open on transient DB errors so
+// drivers aren't permanently locked out by a database hiccup; Twilio
+// Verify's own per-number throttle is the secondary defense.
 // ---------------------------------------------------------------------------
-const _sendCodeCounts = new Map(); // phone -> [timestamps...]
-function checkSendCodeRate(phone) {
+async function checkSendCodeRateDB(supabase, phone) {
   const windowMs = 15 * 60 * 1000;
-  const now = Date.now();
-  const arr = (_sendCodeCounts.get(phone) || []).filter(t => now - t < windowMs);
-  if (arr.length >= 3) {
-    const retryAfter = Math.ceil((windowMs - (now - arr[0])) / 1000);
-    return { allowed: false, retry_after: retryAfter };
+  const since = new Date(Date.now() - windowMs).toISOString();
+  const { data, error } = await supabase
+    .from('driver_otp_send_log')
+    .select('sent_at')
+    .eq('phone', phone)
+    .gte('sent_at', since)
+    .order('sent_at', { ascending: true });
+  if (error) return { allowed: true }; // fail-open
+  const rows = data || [];
+  if (rows.length >= 3) {
+    const oldest = new Date(rows[0].sent_at).getTime();
+    return { allowed: false, retry_after: Math.ceil((windowMs - (Date.now() - oldest)) / 1000) };
   }
-  arr.push(now);
-  _sendCodeCounts.set(phone, arr);
   return { allowed: true };
+}
+async function logSendCode(supabase, phone) {
+  try { await supabase.from('driver_otp_send_log').insert({ phone, sent_at: new Date().toISOString() }); } catch { /* best-effort */ }
 }
 
 // ---------------------------------------------------------------------------
@@ -227,16 +238,19 @@ async function audit(supabase, row) {
 async function authenticateDriver(event, supabase) {
   const token = getBearerToken(event);
   if (!token) return { error: errorResponse(401, 'AUTH_REQUIRED', 'Bearer token required') };
-  const payload = verifyToken(token);
-  if (!payload || payload.kind !== 'access') {
+  // Verify the token via Supabase auth — drivers carry real Supabase
+  // access tokens minted during /verify-code, so getUser is the canonical
+  // validator and respects revocation/expiry without us reimplementing it.
+  const { data: userData, error: userErr } = await supabase.auth.getUser(token);
+  if (userErr || !userData?.user?.id) {
     return { error: errorResponse(401, 'AUTH_REQUIRED', 'Invalid or expired token') };
   }
   const { data: driver, error } = await supabase
     .from('drivers')
     .select('id, profile_id, full_name, phone, email, status, vehicle_class, hourly_rate_cents, per_job_rate_cents, onboarded_at')
-    .eq('id', payload.driver_id)
+    .eq('profile_id', userData.user.id)
     .maybeSingle();
-  if (error || !driver) return { error: errorResponse(401, 'AUTH_REQUIRED', 'Driver not found') };
+  if (error || !driver) return { error: errorResponse(401, 'AUTH_REQUIRED', 'No driver record linked to this user') };
   if (driver.status !== 'active') {
     return { error: errorResponse(403, 'DRIVER_NOT_ACTIVE', `Driver status is ${driver.status}`) };
   }
@@ -251,7 +265,7 @@ async function handleSendCode(event, supabase, body) {
   const phone = normalizePhone(body.phone);
   if (!phone) return errorResponse(400, 'BAD_REQUEST', 'phone must be in E.164 format');
 
-  const rate = checkSendCodeRate(phone);
+  const rate = await checkSendCodeRateDB(supabase, phone);
   if (!rate.allowed) return errorResponse(429, 'RATE_LIMITED', 'Too many code requests', { retry_after: rate.retry_after });
 
   // Reject phones not present in drivers as 'active'. Returning the same
@@ -267,6 +281,7 @@ async function handleSendCode(event, supabase, body) {
   if (!result.ok) {
     return errorResponse(result.status === 503 ? 503 : 502, 'OTP_SEND_FAILED', result.error);
   }
+  await logSendCode(supabase, phone);
   return jsonResponse(200, { sent: true, status: result.status });
 }
 
@@ -290,23 +305,29 @@ async function handleVerifyCode(event, supabase, body) {
   }
 
   await emitEvent(supabase, 'driver.signed_in', { driver_id: driver.id, phone: driver.phone });
-  return jsonResponse(200, mintSession(driver));
+  const session = await mintSupabaseSession(supabase, driver);
+  if (session.error) return session.error;
+  return session.response;
 }
 
 async function handleRefresh(event, supabase, body) {
   const token = typeof body.refresh_token === 'string' ? body.refresh_token : '';
-  const payload = verifyToken(token);
-  if (!payload || payload.kind !== 'refresh') {
+  if (!token) return errorResponse(400, 'BAD_REQUEST', 'refresh_token required');
+  const anon = getAnonClient();
+  if (!anon) return errorResponse(503, 'AUTH_UNAVAILABLE', 'Supabase anon key not configured');
+  // Native Supabase refresh — issues a new access_token + (rotated)
+  // refresh_token pair.
+  const { data, error } = await anon.auth.refreshSession({ refresh_token: token });
+  if (error || !data?.session) {
     return errorResponse(401, 'AUTH_REQUIRED', 'Invalid or expired refresh token');
   }
-  const { data: driver } = await supabase
-    .from('drivers')
-    .select('id, full_name, phone, status')
-    .eq('id', payload.driver_id).maybeSingle();
-  if (!driver || driver.status !== 'active') {
-    return errorResponse(401, 'DRIVER_NOT_ACTIVE', 'Driver no longer active');
-  }
-  return jsonResponse(200, mintSession(driver));
+  return jsonResponse(200, {
+    access_token: data.session.access_token,
+    refresh_token: data.session.refresh_token,
+    token_type: 'Bearer',
+    expires_in: data.session.expires_in,
+    expires_at: data.session.expires_at
+  });
 }
 
 async function handleMe(event, supabase, driver) {
@@ -643,7 +664,5 @@ exports.handler = async function(event) {
 };
 
 // Re-export internals for the smoke test.
-module.exports.signToken = signToken;
-module.exports.verifyToken = verifyToken;
-module.exports.mintSession = mintSession;
 module.exports._stripPrefix = stripPrefix;
+module.exports._mintSupabaseSession = mintSupabaseSession;

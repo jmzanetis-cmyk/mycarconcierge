@@ -11,7 +11,7 @@ privileged read/write goes through the endpoints below.
 - Base URL (production): `https://mycarconcierge.com/api/driver/v1`
 - Base URL (Replit dev): `http://<your-repl>.replit.dev/api/driver/v1`
 - Direct Netlify path:   `/.netlify/functions/driver-api/<route>`
-- Auth: `Authorization: Bearer <access_token>` (HS256-signed driver session token)
+- Auth: `Authorization: Bearer <access_token>` (native Supabase JWT)
 - All requests/responses are JSON. All timestamps are ISO 8601 UTC.
 
 ---
@@ -66,11 +66,28 @@ Driver login is phone-OTP only. The server uses **Twilio Verify** to send
 and check codes. The phone number must already exist in the `drivers`
 table with `status='active'` — unknown phones are rejected.
 
-On a successful `verify-code`, the server returns a **driver session
-token pair**: an `access_token` (1h) and a `refresh_token` (30d). Both
-are HS256-signed JWTs minted by the driver-api function. They are NOT
-Supabase JWTs. Send `Authorization: Bearer <access_token>` on every
-authenticated request.
+On a successful `verify-code`, the server returns a **native Supabase
+session**: an `access_token` (default 1h) and a `refresh_token`. The
+flow internally is:
+
+1. Driver POSTs phone + code → server calls Twilio Verify to confirm.
+2. Server calls `supabase.auth.admin.generateLink({type:'magiclink', email})`
+   for the matching driver row to mint a one-time `hashed_token`.
+3. Server immediately exchanges that token via the anon Supabase client's
+   `auth.verifyOtp({token_hash, type:'magiclink'})` and returns the real
+   Supabase `access_token` + `refresh_token` to the Driver app.
+
+Because the tokens are real Supabase JWTs, the Driver app can also use
+them directly with a Supabase client (anon key) and the RLS policies on
+`drivers`, `concierge_jobs`, `concierge_job_drivers`, etc. that gate on
+`auth.uid() = drivers.profile_id` will Just Work. Token expiry, refresh,
+and revocation are managed by Supabase Auth.
+
+**Prerequisite:** every driver row must have `email` set and
+`profile_id` linked to an `auth.users` row whose email matches.
+
+Send `Authorization: Bearer <access_token>` on every authenticated
+request.
 
 ### `POST /auth/send-code`
 
@@ -107,9 +124,10 @@ Exchange the OTP for a session token pair.
 ```json
 {
   "access_token":  "eyJhbGciOi...",
-  "refresh_token": "eyJhbGciOi...",
+  "refresh_token": "v1.MNJ...",
   "token_type":    "Bearer",
   "expires_in":    3600,
+  "expires_at":    1763000000,
   "driver": { "id": "uuid", "full_name": "Jane Doe", "phone": "+12015550100" }
 }
 ```
@@ -117,15 +135,21 @@ Exchange the OTP for a session token pair.
 **Errors**
 - `401 OTP_INVALID` — wrong code or expired pending verification.
 - `404 DRIVER_NOT_FOUND` / `403 DRIVER_NOT_ACTIVE`.
+- `409 DRIVER_NO_EMAIL` — driver row has no email; admin must link an auth user.
+- `500 AUTH_LINK_FAILED` / `AUTH_VERIFY_FAILED` — Supabase auth refused.
+- `503 AUTH_UNAVAILABLE` — server `SUPABASE_ANON_KEY` not configured.
 
 ### `POST /auth/refresh`
 
 ```json
-{ "refresh_token": "eyJhbGciOi..." }
+{ "refresh_token": "v1.MNJ..." }
 ```
 
-Returns the same shape as `/auth/verify-code`. Use this when an access
-token is about to expire (or you got a 401 with `AUTH_REQUIRED`).
+Returns `{ access_token, refresh_token, token_type, expires_in, expires_at }`.
+Server-side this calls `supabase.auth.refreshSession({refresh_token})`
+on the anon client, so refresh-token rotation behaves exactly like a
+direct Supabase client. Use this when an access token is about to expire
+(or you got a 401 with `AUTH_REQUIRED`).
 
 ---
 
@@ -284,6 +308,10 @@ Errors return:
 | `ALREADY_ACCEPTED`    | 409  | Cannot decline an already-accepted job — call dispatch.  |
 | `ALREADY_DECLINED`    | 409  | Cannot accept a job you already declined.                |
 | `STATE_CHANGED`       | 409  | Concurrent accept vs decline — re-fetch the job.         |
+| `DRIVER_NO_EMAIL`     | 409  | Driver row has no email — admin must link an auth user.  |
+| `AUTH_LINK_FAILED`    | 500  | Supabase admin generateLink failed.                      |
+| `AUTH_VERIFY_FAILED`  | 500  | Supabase verifyOtp exchange failed.                      |
+| `AUTH_UNAVAILABLE`    | 503  | `SUPABASE_ANON_KEY` not configured on the server.        |
 | `DB_ERROR`            | 500  | Database error. Server logs have details.                |
 | `INTERNAL`            | 500  | Unexpected error.                                        |
 

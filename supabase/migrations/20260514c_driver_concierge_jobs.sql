@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS public.drivers (
   profile_id         uuid UNIQUE REFERENCES public.profiles(id) ON DELETE SET NULL,
   full_name          text NOT NULL,
   phone              text NOT NULL UNIQUE,            -- E.164, used for OTP login
-  email              text,
+  email              text NOT NULL,                  -- required: backs Supabase auth user for token minting
   status             text NOT NULL DEFAULT 'active'
                      CHECK (status IN ('active','suspended','offboarded')),
   vehicle_class      text[] NOT NULL DEFAULT ARRAY['sedan']::text[],
@@ -78,6 +78,27 @@ CREATE TABLE IF NOT EXISTS public.drivers (
 
 CREATE INDEX IF NOT EXISTS drivers_phone_idx  ON public.drivers (phone);
 CREATE INDEX IF NOT EXISTS drivers_status_idx ON public.drivers (status);
+-- (driver_id, status) composite — supports the common authenticate-then-
+-- check-active path (drivers WHERE id = X AND status = 'active') without
+-- a heap visit for the status column.
+CREATE INDEX IF NOT EXISTS drivers_id_status_idx ON public.drivers (id, status);
+
+-- ---------------------------------------------------------------------------
+-- 1b. driver_otp_send_log — persistent rate-limit audit trail for the
+-- send-code endpoint. Survives function cold starts and is shared across
+-- horizontally-scaled Netlify instances (in-memory limiters are bypassable
+-- under load). Pruned by a daily cleanup or a TTL job; rows older than
+-- 1 day are not consulted.
+-- ---------------------------------------------------------------------------
+CREATE TABLE IF NOT EXISTS public.driver_otp_send_log (
+  id      bigserial PRIMARY KEY,
+  phone   text NOT NULL,
+  sent_at timestamptz NOT NULL DEFAULT now()
+);
+CREATE INDEX IF NOT EXISTS driver_otp_send_log_phone_sent_idx
+  ON public.driver_otp_send_log (phone, sent_at DESC);
+ALTER TABLE public.driver_otp_send_log ENABLE ROW LEVEL SECURITY;
+-- Service-role only. No driver/member ever reads this table.
 
 -- ---------------------------------------------------------------------------
 -- 2. concierge_jobs — top-level booking
