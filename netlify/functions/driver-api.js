@@ -22,9 +22,13 @@
 // SECURITY MODEL
 //   - The Driver app NEVER receives the Supabase service-role key.
 //   - All privileged writes happen here using the service-role client.
-//   - Auth uses HMAC-signed driver session tokens (HS256 JWT). The signing
-//     key is DRIVER_JWT_SECRET, with a fallback derivation from
-//     SUPABASE_SERVICE_ROLE_KEY so dev environments work out of the box.
+//   - Auth uses NATIVE Supabase JWTs. After Twilio Verify confirms the
+//     OTP, the server calls auth.admin.generateLink({type:'magiclink',email})
+//     and exchanges the resulting hashed_token via an anon-client
+//     verifyOtp() to mint a real Supabase session (access + refresh).
+//     Token validation on subsequent requests uses supabase.auth.getUser().
+//     Refresh uses supabase.auth.refreshSession(). Lifecycle / revocation
+//     is owned entirely by Supabase Auth.
 //   - Phones not present in `drivers` with status='active' are rejected at
 //     send-code time so unknown phones can't enumerate the driver roster.
 // ============================================================================
@@ -293,10 +297,11 @@ async function handleVerifyCode(event, supabase, body) {
 
   const { data: driver } = await supabase
     .from('drivers')
-    .select('id, profile_id, full_name, phone, status')
+    .select('id, profile_id, full_name, phone, email, status')
     .eq('phone', phone).maybeSingle();
   if (!driver)                    return errorResponse(404, 'DRIVER_NOT_FOUND', 'Phone not registered as a driver');
   if (driver.status !== 'active') return errorResponse(403, 'DRIVER_NOT_ACTIVE', `Driver status is ${driver.status}`);
+  if (!driver.profile_id)         return errorResponse(409, 'DRIVER_NOT_LINKED', 'Driver has no profile_id linked — admin must link an auth user');
 
   const check = await twilioVerifyCheck(phone, code);
   if (!check.ok) {

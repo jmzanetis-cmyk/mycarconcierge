@@ -103,6 +103,10 @@ const supabaseStub = {
         data: { properties: { hashed_token: 'stub-hashed-token' } }, error: null
       })
     },
+    verifyOtp: async (_opts) => ({
+      data: { session: { access_token: 'stub-access', refresh_token: 'stub-refresh', expires_in: 3600, expires_at: 9999999999 } },
+      error: null
+    }),
     refreshSession: async (_opts) => ({
       data: { session: { access_token: 'new-access', refresh_token: 'new-refresh', expires_in: 3600, expires_at: 9999999999 } },
       error: null
@@ -184,6 +188,31 @@ const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';
   assert.strictEqual(res.statusCode, 400, '2: malformed phone should be 400');
   assert.strictEqual(parse(res).error.code, 'BAD_REQUEST');
   console.log('  ✓ 2) send-code rejects malformed phones with 400 BAD_REQUEST');
+
+  // ---- 2b) verify-code happy path -> mints native Supabase session ----
+  process.env.TWILIO_ACCOUNT_SID = 'ACstub'; process.env.TWILIO_AUTH_TOKEN = 'stub';
+  process.env.TWILIO_VERIFY_SERVICE_SID = 'VAstub';
+  const _origFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, json: async () => ({ status: 'approved' }) });
+  dbState = {
+    'drivers.maybeSingle': () => ({
+      data: { id: DRIVER_A, profile_id: PROFILE_A, full_name: 'A', phone: '+12015550100', email: 'a@example.com', status: 'active' },
+      error: null
+    })
+  };
+  res = await driverApi.handler(makeEvent({
+    path: '/api/driver/v1/auth/verify-code', method: 'POST',
+    body: { phone: '+12015550100', code: '123456' }
+  }));
+  global.fetch = _origFetch;
+  delete process.env.TWILIO_ACCOUNT_SID; delete process.env.TWILIO_AUTH_TOKEN;
+  delete process.env.TWILIO_VERIFY_SERVICE_SID;
+  assert.strictEqual(res.statusCode, 200, '2b: verify-code happy path should be 200');
+  const sessBody = parse(res);
+  assert.ok(sessBody.access_token, '2b: response must include access_token');
+  assert.ok(sessBody.refresh_token, '2b: response must include refresh_token');
+  assert.strictEqual(sessBody.token_type, 'Bearer');
+  console.log('  ✓ 2b) verify-code happy path mints Supabase access+refresh tokens');
 
   // ---- 3) authenticated route without bearer -> 401 ----
   dbState = {};
