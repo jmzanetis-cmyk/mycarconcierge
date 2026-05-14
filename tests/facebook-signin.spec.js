@@ -47,23 +47,26 @@ const STUB_INIT = `
         }
         if (v && typeof v.from === 'function') {
           v.from = (table) => {
-            if (table !== 'profiles') {
-              return {
-                select: () => ({ eq: () => ({ single: async () => ({ data: null, error: null }), maybeSingle: async () => ({ data: null, error: null }) }) }),
-                insert: async () => ({ data: null, error: null }),
-                update: () => ({ eq: async () => ({ data: null, error: null }) })
-              };
-            }
+            const isProfiles = table === 'profiles';
             return {
               select: () => ({
                 eq: () => ({
-                  single: async () => window.__fbExistingProfile
+                  single: async () => isProfiles && window.__fbExistingProfile
                     ? { data: window.__fbExistingProfile, error: null }
-                    : { data: null, error: { code: 'PGRST116' } },
-                  maybeSingle: async () => ({ data: window.__fbExistingProfile || null, error: null })
+                    : isProfiles
+                      ? { data: null, error: { code: 'PGRST116' } }
+                      : { data: null, error: null },
+                  maybeSingle: async () => ({ data: isProfiles ? (window.__fbExistingProfile || null) : null, error: null })
                 })
               }),
-              insert: async (row) => { window.__fbCalls.inserts.push({ table, row }); return { data: null, error: null }; },
+              // login.js calls .insert(row).select(...).single(); onboarding-member.html
+              // calls .insert(row) directly (await). Return a thenable that supports both.
+              insert: (row) => {
+                window.__fbCalls.inserts.push({ table, row });
+                const p = Promise.resolve({ data: null, error: null });
+                p.select = () => ({ single: async () => ({ data: { ...row }, error: null }) });
+                return p;
+              },
               update: (row) => ({ eq: async (col, val) => { window.__fbCalls.updates.push({ table, row, eq: { col, val } }); return { data: null, error: null }; } })
             };
           };
@@ -123,6 +126,45 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
     await page.goto('/signup-member.html');
     await page.waitForURL(/\/onboarding-member\.html/, { timeout: 5000 });
     await expect(page.locator('#facebook-signup-btn')).toBeVisible();
+  });
+
+  test('login.html?oauth=facebook: brand-new FB user → INSERT profile + redirect to onboarding-member.html?source=facebook', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__fbStubUser = {
+        id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
+        email: 'newfb@example.com',
+        user_metadata: { full_name: 'New FB User' }
+      };
+      window.__fbExistingProfile = null; // PGRST116 → triggers profile insert + the FB-survey fork.
+    });
+    await page.goto('/login.html?oauth=facebook');
+    // handleUserRedirect must (a) insert a profiles row for the new OAuth
+    // user and (b) forward FB signups specifically to the onboarding survey.
+    await page.waitForURL(/\/onboarding-member\.html\?source=facebook/, { timeout: 10000 });
+    const inserted = await page.evaluate(() => window.__fbCalls.inserts.find(i => i.table === 'profiles'));
+    expect(inserted).toBeTruthy();
+    expect(inserted.row.id).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
+    expect(inserted.row.email).toBe('newfb@example.com');
+    expect(inserted.row.role).toBe('member');
+    expect(inserted.row.full_name).toBe('New FB User');
+  });
+
+  test('login.html?oauth=facebook: returning member → straight to members.html, no insert, no signUp', async ({ page }) => {
+    await page.addInitScript(() => {
+      window.__fbStubUser = {
+        id: 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff',
+        email: 'returning@example.com',
+        user_metadata: { full_name: 'Returning Member' }
+      };
+      // Existing profile → handleUserRedirect must skip the FB-survey fork.
+      window.__fbExistingProfile = { role: 'member', is_also_member: false, is_also_provider: false };
+    });
+    await page.goto('/login.html?oauth=facebook');
+    await page.waitForURL(/\/members\.html(\?|$)/, { timeout: 10000 });
+    const inserts = await page.evaluate(() => window.__fbCalls.inserts.filter(i => i.table === 'profiles').length);
+    const signUps = await page.evaluate(() => window.__fbCalls.signUp);
+    expect(inserts).toBe(0);
+    expect(signUps).toBe(0);
   });
 
   test('onboarding-member.html?source=facebook: pre-fills name from user_metadata and starts at the phone step', async ({ page }) => {
