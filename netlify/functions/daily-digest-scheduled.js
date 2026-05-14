@@ -246,9 +246,20 @@ function buildApolloHealthHtml(apollo) {
   </div>`;
 }
 
+function escapeForHtml(s) {
+  return String(s).replace(/[<>&"']/g, c => ({'<':'&lt;','>':'&gt;','&':'&amp;','"':'&quot;',"'":'&#39;'}[c]));
+}
+
 function buildEmailHtml(today, outreach, aiOps, narrative, apollo) {
   const pct = outreach.totalSent > 0 ? Math.round((outreach.sentToday / outreach.totalSent) * 100) : 0;
   const queueColor = outreach.approvedQueue > 50 ? '#f59e0b' : outreach.approvedQueue > 0 ? '#3b82f6' : '#22c55e';
+  const enginePaused = outreach.enginePaused || { paused: false };
+  // Task #306 — paused banner sits at the top of the body so the reason
+  // why the queue isn't draining is the first thing in the email.
+  const pausedBannerHtml = enginePaused.paused ? `<div data-section="engine-paused-banner" style="background:#431407;border-left:3px solid #f59e0b;border-radius:6px;padding:16px 20px;margin-bottom:20px;">
+    <div style="font-size:13px;color:#fbbf24;font-weight:700;margin-bottom:6px;text-transform:uppercase;letter-spacing:1px;">🛑 Engine Paused</div>
+    <div style="font-size:14px;line-height:1.5;color:#fde68a;">The outreach engine is currently <strong>paused</strong>${enginePaused.reason ? ` — reason: <em>${escapeForHtml(enginePaused.reason)}</em>` : ''}. No automatic cycles are running. Resume it from the admin Marketing → Outreach panel to drain the ${outreach.approvedQueue} queued message${outreach.approvedQueue === 1 ? '' : 's'}.</div>
+  </div>` : '';
 
   return `<!DOCTYPE html>
 <html>
@@ -262,6 +273,7 @@ function buildEmailHtml(today, outreach, aiOps, narrative, apollo) {
       <div style="margin-top:6px;font-size:14px;color:#64748b;">${today} &nbsp;·&nbsp; Generated at 8:00 PM ET</div>
     </div>
 
+    ${pausedBannerHtml}
     ${narrative ? `<div style="background:#1e293b;border-left:3px solid #c9a84c;border-radius:6px;padding:16px 20px;margin-bottom:24px;">
       <div style="font-size:13px;color:#c9a84c;font-weight:600;margin-bottom:8px;text-transform:uppercase;letter-spacing:1px;">AI Summary</div>
       <div style="font-size:15px;line-height:1.6;color:#cbd5e1;">${narrative}</div>
@@ -363,12 +375,21 @@ exports.handler = async function(event, context) {
     ] = await Promise.all([
       supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'sent').gte('updated_at', since24h),
       supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'approved'),
-      supabase.from('engine_state').select('total_leads_discovered,total_messages_sent,total_messages_drafted').eq('id', 1).single(),
+      supabase.from('engine_state').select('total_leads_discovered,total_messages_sent,total_messages_drafted,is_running,paused_at,pause_reason').eq('id', 1).single(),
       supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).gte('created_at', since24h),
       supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).in('status', ['approved', 'sent']).gte('created_at', since24h),
       supabase.from('outreach_leads').select('id', { count: 'exact', head: true }).eq('type', 'investor'),
       supabase.from('outreach_messages').select('id', { count: 'exact', head: true }).eq('status', 'draft').filter('metadata->>blast_type', 'eq', 'wefunder')
     ]);
+
+    // Task #306 — surface engine-paused state in the digest. Read from
+    // engine_state.is_running so the digest reports *why* the queue isn't
+    // draining (paused vs head-blocked vs healthy).
+    const enginePaused = engineState && engineState.is_running === false ? {
+      paused: true,
+      reason: engineState.pause_reason || null,
+      paused_at: engineState.paused_at || null
+    } : { paused: false };
 
     const outreach = {
       sentToday: sentToday || 0,
@@ -378,7 +399,8 @@ exports.handler = async function(event, context) {
       newLeadsToday: newLeadsToday || 0,
       draftedToday: draftedToday || 0,
       totalInvestors: totalInvestors || 0,
-      wefunderPending: wefunderPending || 0
+      wefunderPending: wefunderPending || 0,
+      enginePaused
     };
 
     // Task #306 — diagnose "queue stuck" (lots of approved, very few sent).
@@ -477,6 +499,10 @@ exports.handler = async function(event, context) {
       try {
         const html = buildEmailHtml(today, outreach, aiOps, narrative, apollo);
         const subjectParts = [];
+        // Task #306 — paused state goes first in subject for inbox-preview visibility.
+        if (outreach.enginePaused?.paused) {
+          subjectParts.push(`🛑 Engine paused${outreach.enginePaused.reason ? ': ' + outreach.enginePaused.reason : ''}`);
+        }
         if (apollo.stalled) {
           // Differentiate the two stall triggers so the subject doesn't read
           // as "0× zero" when staleness fires without a recent failure streak.
@@ -527,6 +553,9 @@ exports.handler = async function(event, context) {
         `💼 Investors: ${outreach.totalInvestors} leads, ${outreach.wefunderPending} Wefunder drafts pending`,
         `🤖 AI Ops: ${aiOps.totalActions} actions, ${aiOps.escalated} escalated`
       ];
+      if (outreach.enginePaused?.paused) {
+        smsLines.splice(1, 0, `🛑 Engine paused${outreach.enginePaused.reason ? ': ' + outreach.enginePaused.reason : ''}`);
+      }
       if (apollo.stalled) {
         smsLines.push(`⚠️ Apollo stalled: ${apollo.consecutive_failures} cycles w/o leads (${apollo.last_error_kind || 'unknown'})`);
       }

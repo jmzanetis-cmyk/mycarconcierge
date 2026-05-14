@@ -129,8 +129,10 @@ exports.handler = async function(event, context) {
           pause_reason: data.pause_reason || null,
           last_skip: lastSkip,
           last_send_error: lastResendError,
-          apollo_likely_credit_exhaustion_at: data.apollo_config?.likely_credit_exhaustion_at || null,
-          apollo_consecutive_zero_cycles: data.apollo_config?.consecutive_zero_cycles || 0
+          // apollo_config is persisted under engine_state.metadata.apollo_config
+          // by saveApolloConfig() in outreach-engine-core.js — read from there.
+          apollo_likely_credit_exhaustion_at: data.metadata?.apollo_config?.likely_credit_exhaustion_at || null,
+          apollo_consecutive_zero_cycles: data.metadata?.apollo_config?.consecutive_zero_cycles || 0
         }
       });
     }
