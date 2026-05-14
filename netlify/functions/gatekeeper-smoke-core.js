@@ -402,7 +402,12 @@ async function runAgentSmoke(opts) {
   // Setup-produced context (e.g. seeded care_plan/bid IDs). Passed to
   // payloadFn and validateAction; teardownFn always runs in finally with it,
   // even on uncaught exception, so synthetic rows get cleaned up.
-  let context = null;
+  //
+  // Initialized to an empty object (NOT null) before setupFn runs so that
+  // setupFn can mutate it progressively as each row is created. If setupFn
+  // throws partway through, the partial IDs are still on `context` for
+  // teardownFn to clean up. teardownFn must tolerate any field being absent.
+  const context = {};
 
   try {
     _validateRunAgentSmokeOpts(opts || {});
@@ -448,12 +453,16 @@ async function runAgentSmoke(opts) {
     if (typeof setupFn === 'function') {
       log.info('2b. Running agent-specific setup (seeding synthetic fixtures)');
       try {
-        context = await setupFn({ supabase, log });
-        summary.setup_context = context && context._summary ? context._summary : null;
+        // setupFn mutates `context` as it creates rows. Even if it throws
+        // partway through, `context` carries any IDs created so far so the
+        // finally{} teardown can clean them up.
+        await setupFn({ supabase, log, context });
+        summary.setup_context = context._summary || null;
       } catch (e) {
         failures.push(`setup_exception: ${e.message}`);
         log.fail(`setup failed: ${e.message}`);
-        // Still proceed to teardown via finally; skip the rest of the run.
+        summary.setup_context = context._summary || { partial: true };
+        // Skip the rest of the run; the finally{} block runs teardown.
         const finishedAt = new Date();
         return {
           ok: false,
@@ -487,9 +496,12 @@ async function runAgentSmoke(opts) {
     log.fail(`UNCAUGHT: ${e.message}`);
     summary.runner_exception = e.message;
   } finally {
-    // Cleanup ALWAYS runs, even on failure or exception, so smoke-tagged
-    // rows don't accumulate in production.
-    if (typeof teardownFn === 'function' && context) {
+    // Cleanup ALWAYS runs whenever a teardownFn was provided, even on
+    // failure, exception, or partial setup — `context` is a stable object
+    // reference that setupFn mutates progressively, so any IDs created
+    // before a mid-setup throw are still present here. teardownFn is
+    // expected to tolerate any field being absent.
+    if (typeof teardownFn === 'function') {
       try {
         const cleanupSummary = await teardownFn({ supabase, log, context });
         if (cleanupSummary) summary.teardown = cleanupSummary;

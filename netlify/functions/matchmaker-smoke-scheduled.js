@@ -88,13 +88,27 @@ async function _upsertSmokeProviderProfile(supabase, providerId, businessName, r
   }
 }
 
-async function seedMatchmakerAuction({ supabase, log }) {
+// Seed mutates `context` progressively after EACH successful mutation so
+// that, if any later step throws, the finally{} teardown in runAgentSmoke
+// can still clean up the partial state (auth users / care_plan already
+// created). Initialize the cleanup-relevant fields up-front to empty.
+async function seedMatchmakerAuction({ supabase, log, context }) {
   const ts = Date.now();
   log.info('Seeding synthetic auction (1 member + 2 providers + 1 care_plan + 2 bids)');
 
+  context.providerIds = [];
+  context.bidIds = [];
+  context.memberId = null;
+  context.carePlanId = null;
+
   const member = await _createSmokeAuthUser(supabase, 'member', ts);
+  context.memberId = member.id;
+
   const providerA = await _createSmokeAuthUser(supabase, 'providerA', ts);
+  context.providerIds.push(providerA.id);
+
   const providerB = await _createSmokeAuthUser(supabase, 'providerB', ts);
+  context.providerIds.push(providerB.id);
 
   // Differentiated provider signal — provider A is the obviously stronger pick
   // (higher rating, more completed jobs, BGC verified) at a slightly higher
@@ -102,6 +116,8 @@ async function seedMatchmakerAuction({ supabase, log }) {
   // outranks non-verified at the same price; rating below 3.5 with >=5
   // reviews is a yellow flag") makes either pick defensible — the smoke only
   // requires that the LLM picks ONE of the seeded bid_ids, not which one.
+  // _upsertSmokeProviderProfile is best-effort (logs on failure), so it
+  // doesn't risk leaving partial state.
   await _upsertSmokeProviderProfile(supabase, providerA.id, `${SMOKE_TAG_PREFIX} Garage A`, {
     rating: 4.8, reviewCount: 42, completedJobs: 31, bgcVerified: true
   });
@@ -132,14 +148,14 @@ async function seedMatchmakerAuction({ supabase, log }) {
   if (carePlanInsert.error) {
     throw new Error(`care_plans insert: ${carePlanInsert.error.message}`);
   }
-  const carePlanId = carePlanInsert.data.id;
+  context.carePlanId = carePlanInsert.data.id;
 
   // Two plan_bids — different amounts so the LLM has a meaningful ranking.
   const bidsInsert = await supabase
     .from('plan_bids')
     .insert([
       {
-        care_plan_id: carePlanId,
+        care_plan_id: context.carePlanId,
         provider_id: providerA.id,
         amount: 220.00,
         note: '__smoke=true | full inspection + premium oil',
@@ -147,7 +163,7 @@ async function seedMatchmakerAuction({ supabase, log }) {
         status: 'pending'
       },
       {
-        care_plan_id: carePlanId,
+        care_plan_id: context.carePlanId,
         provider_id: providerB.id,
         amount: 165.00,
         note: '__smoke=true | basic oil change + visual brake check',
@@ -159,16 +175,14 @@ async function seedMatchmakerAuction({ supabase, log }) {
   if (bidsInsert.error) {
     throw new Error(`plan_bids insert: ${bidsInsert.error.message}`);
   }
-  const bidIds = (bidsInsert.data || []).map(r => r.id);
+  context.bidIds = (bidsInsert.data || []).map(r => r.id);
 
-  log.info(`Seeded care_plan=${carePlanId} bids=[${bidIds.join(', ')}]`);
-  return {
-    carePlanId,
-    bidIds,
-    memberId: member.id,
-    providerIds: [providerA.id, providerB.id],
-    _summary: { care_plan_id: carePlanId, bid_count: bidIds.length, provider_count: 2 }
+  context._summary = {
+    care_plan_id: context.carePlanId,
+    bid_count: context.bidIds.length,
+    provider_count: context.providerIds.length
   };
+  log.info(`Seeded care_plan=${context.carePlanId} bids=[${context.bidIds.join(', ')}]`);
 }
 
 // Cleanup: best-effort, never throws to caller. Order matters because of
