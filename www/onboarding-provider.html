@@ -1759,6 +1759,20 @@
             free_trial_bids: 1
           };
 
+          // Task #341: capture the active UI language on insert so
+          // brand-new providers receive day-one transactional emails
+          // in the language they were browsing in. The OAuth update
+          // path doesn't touch this column — its row was already
+          // stamped by login.js or maybeStartFromOAuth's insert below.
+          if (!isOAuthFlow) {
+            let preferredLanguage = null;
+            try {
+              const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+              if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+            } catch (_e) { /* ignore */ }
+            profilePayload.preferred_language = preferredLanguage;
+          }
+
           const profileOp = isOAuthFlow
             ? supabaseClient.from('profiles').update(profilePayload).eq('id', userId)
             : supabaseClient.from('profiles').insert({ id: userId, ...profilePayload });
@@ -2460,12 +2474,21 @@
         .single();
 
       if (selErr && selErr.code === 'PGRST116') {
+        // Task #341: stamp the active UI language so OAuth provider
+        // signups receive their first transactional emails in the
+        // right language.
+        let preferredLanguage = null;
+        try {
+          const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+          if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+        } catch (_e) { /* ignore */ }
         const { error: insErr } = await supabaseClient.from('profiles').insert({
           id: user.id,
           email: user.email,
           role: 'pending_provider',
           is_also_member: true,
           full_name: fbName,
+          preferred_language: preferredLanguage,
           created_at: new Date().toISOString()
         });
         if (insErr) console.error('Failed to create provider profile for OAuth user:', insErr);

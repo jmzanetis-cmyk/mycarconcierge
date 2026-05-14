@@ -1150,13 +1150,27 @@
           if (data.user) {
             userId = data.user.id;
 
+            // Task #341: capture the active UI language at signup so the
+            // welcome email and other day-one transactional messages
+            // arrive in the same language the user was browsing in.
+            // Reads i18n.js's storage key directly to avoid coupling to
+            // the I18n module (this page doesn't load i18n.js as a
+            // <script src>). Empty / unrecognized → null, which keeps
+            // the EN fallback the rest of the system already uses.
+            let preferredLanguage = null;
+            try {
+              const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+              if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+            } catch (_e) { /* ignore */ }
+
             const { error: profileError } = await supabaseClient.from('profiles').insert({
               id: userId,
               email: formData.email,
               role: 'member',
               full_name: formData.name,
               phone: formData.phone || null,
-              sms_consent: formData.smsConsent || false
+              sms_consent: formData.smsConsent || false,
+              preferred_language: preferredLanguage
             });
 
             if (profileError) console.error('Profile insert error:', profileError);
@@ -1606,11 +1620,20 @@
         .single();
 
       if (selErr && selErr.code === 'PGRST116') {
+        // Task #341: stamp the active UI language so OAuth signups
+        // receive their first transactional emails in the right
+        // language. Same source as the email-signup path.
+        let preferredLanguage = null;
+        try {
+          const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+          if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+        } catch (_e) { /* ignore */ }
         const { error: insErr } = await supabaseClient.from('profiles').insert({
           id: user.id,
           email: user.email,
           role: 'member',
           full_name: fbName,
+          preferred_language: preferredLanguage,
           created_at: new Date().toISOString()
         });
         if (insErr) console.error('Failed to create profile for OAuth user:', insErr);

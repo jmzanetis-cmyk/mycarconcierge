@@ -747,6 +747,19 @@
         }
 
         if (data.user) {
+          // Task #341: capture the active UI language at signup so
+          // welcome / loyalty emails go out in the language the user
+          // was browsing in. Reads i18n.js's storage key; only writes
+          // values matching the DB CHECK constraint
+          // (profiles_preferred_language_check) — anything else falls
+          // back to null so the insert can't be rejected by a
+          // corrupted localStorage value.
+          let preferredLanguage = null;
+          try {
+            const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+            if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+          } catch (_e) { /* ignore */ }
+
           const { error: profileError } = await supabaseClient.from('profiles').insert({
             id: data.user.id,
             email: email,
@@ -758,7 +771,8 @@
             loyalty_status: 'vip',
             platform_fee_exempt: true,
             sms_consent: smsConsent,
-            sms_consent_date: smsConsent ? new Date().toISOString() : null
+            sms_consent_date: smsConsent ? new Date().toISOString() : null,
+            preferred_language: preferredLanguage
           });
           
           if (profileError) {
