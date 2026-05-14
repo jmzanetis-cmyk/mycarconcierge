@@ -26,11 +26,31 @@
 //     "concerns": ["short bullet", "..."]
 //   }
 //
-// Idempotency: each event is dispatched at most once by the orchestrator
-// (events are marked processed after dispatch). On the rare retry path a
-// duplicate review row is acceptable — the operator sees two proposals
-// for the same event_id and dismisses the duplicate. We log the event_id
-// in `agent_actions.event_id` so duplicates are obvious.
+// Idempotency (Task #320): two-layer dedupe mirrors what Matchmaker
+// shipped in Task #152 + Task #195.
+//
+//   1) Application-level guard (`findExistingTreasurerAction`): before
+//      calling Claude, look up an existing proposed/executed/approved
+//      review row for the same event_id, or — for the same event_type —
+//      the same payment_id / payout_id / care_plan_id keys in
+//      decision.payload. On a hit we short-circuit with a `skipped`
+//      audit row (cost_usd = 0, no LLM call) so a replayed
+//      `payment.captured` / `payment.refund_requested` / `payout.failed`
+//      can't write a second proposal or burn the spend cap twice.
+//
+//   2) DB-level backstop: a set of unique partial indexes
+//      (see supabase/migrations/20260514b_treasurer_review_unique.sql)
+//      scoped per event_type, on the relevant payload key. Two
+//      near-simultaneous invocations that both pass the application
+//      guard will hit a 23505 unique-violation on the second insert —
+//      this handler catches that and writes the same `skipped` audit
+//      row, charging the LLM cost we already incurred to the spend
+//      rollup so the duplicate dispatch stays auditable.
+//
+// The event_type scoping intentionally lets a refund proposal land
+// AFTER a capture proposal for the same payment_id — capture and
+// refund-requested are distinct lifecycle events and both should be
+// reviewable.
 //
 // Mirrors the structure of agent-gatekeeper.js / agent-matchmaker.js.
 // ============================================================================
@@ -185,6 +205,48 @@ const VALID_RECOMMENDATIONS = new Set([
   'retry_payout', 'escalate_payout', 'manual_review'
 ]);
 
+// Task #320 — Application-level dedupe.
+// Look for an existing live review row (proposed/executed/approved) tied
+// to the SAME event_type and ANY of the lifecycle keys we have for this
+// dispatch. Returns the most recent matching row or null.
+//
+// Why event_type matters: payment.captured and payment.refund_requested
+// share payment_id but are independent lifecycle events — a refund
+// proposal must be allowed AFTER a capture proposal landed for the same
+// PI. So we filter by event_type client-side after fetching candidates.
+async function findExistingTreasurerAction(supabase, eventType, eventId, payload) {
+  const orFilters = [];
+  if (eventId) orFilters.push(`event_id.eq.${eventId}`);
+  if (payload && payload.payment_id)   orFilters.push(`decision->payload->>payment_id.eq.${payload.payment_id}`);
+  if (payload && payload.payout_id)    orFilters.push(`decision->payload->>payout_id.eq.${payload.payout_id}`);
+  if (payload && payload.care_plan_id) orFilters.push(`decision->payload->>care_plan_id.eq.${payload.care_plan_id}`);
+  if (!orFilters.length) return null;
+
+  const { data, error } = await supabase
+    .from('agent_actions')
+    .select('id, status, review_status, decision, event_id, created_at')
+    .eq('agent_slug', SLUG)
+    .eq('action_type', 'review')
+    .or(orFilters.join(','))
+    .or('status.in.(proposed,executed,approved),review_status.eq.approved')
+    .order('created_at', { ascending: false })
+    .limit(20);
+  if (error) {
+    console.warn(`[${SLUG}] dedupe lookup failed: ${error.message}`);
+    return null;
+  }
+
+  for (const row of (data || [])) {
+    let dec = row.decision;
+    if (typeof dec === 'string') { try { dec = JSON.parse(dec); } catch { dec = {}; } }
+    // Same event_id always counts (a literal redelivery of the same event).
+    if (eventId && row.event_id === eventId) return row;
+    // Otherwise require event_type to match so capture/refund don't collide.
+    if (dec && dec.event_type === eventType) return row;
+  }
+  return null;
+}
+
 async function handleEvent(triggeredBy, eventEnvelope) {
   const t0 = Date.now();
   const supabase = getSupabase();
@@ -216,6 +278,41 @@ async function handleEvent(triggeredBy, eventEnvelope) {
     return { skipped: true, reason: 'unknown_event_type' };
   }
 
+  // Task #320: application-level dedupe before the LLM call. Replays of
+  // the same payment.captured / payment.refund_requested / payout.failed
+  // event must not write a second proposal or burn the spend cap twice.
+  // The DB unique partial indexes in 20260514b_treasurer_review_unique.sql
+  // backstop the race below.
+  const existing = await findExistingTreasurerAction(
+    supabase, eventEnvelope.event_type, eventEnvelope.event_id, eventEnvelope.payload || {}
+  );
+  if (existing) {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: eventEnvelope.event_id,
+      actionType: 'review', status: 'skipped',
+      autonomyUsed: agent.autonomy,
+      decision: {
+        event_type: eventEnvelope.event_type,
+        payload: eventEnvelope.payload || {},
+        triggered_by: triggeredBy,
+        dedupe_source: 'application_guard',
+        existing_action_id: existing.id,
+        existing_action_status: existing.status,
+        existing_review_status: existing.review_status || null
+      },
+      reasoning: `Treasurer already reviewed this ${eventEnvelope.event_type} (action #${existing.id}, status=${existing.status}). Short-circuiting to avoid duplicate proposal.`,
+      durationMs: Date.now() - t0
+    });
+    return {
+      success: true,
+      reason: 'already_reviewed',
+      event_type: eventEnvelope.event_type,
+      existing_action_id: existing.id,
+      cost_usd: 0,
+      ms: Date.now() - t0
+    };
+  }
+
   let llmResult;
   try {
     const activeSystem = await loadActivePrompt(supabase, SLUG, SYSTEM_PROMPT);
@@ -244,7 +341,7 @@ async function handleEvent(triggeredBy, eventEnvelope) {
   const reasoning = parsed?.reasoning || llmResult.text.trim().slice(0, 600);
   const concerns = Array.isArray(parsed?.concerns) ? parsed.concerns : [];
 
-  await logAction(supabase, {
+  const proposedInsert = await logAction(supabase, {
     agentSlug: SLUG, eventId: eventEnvelope.event_id,
     actionType: 'review',
     status: 'proposed',
@@ -262,6 +359,39 @@ async function handleEvent(triggeredBy, eventEnvelope) {
     tokensIn: llmResult.tokensIn, tokensOut: llmResult.tokensOut,
     costUsd: llmResult.costUsd, durationMs: Date.now() - t0
   });
+
+  // Task #320 — DB-level dedupe backstop. The unique partial indexes in
+  // 20260514b_treasurer_review_unique.sql guarantee at most one
+  // proposed/executed treasurer review row per (event_type, payment_id|
+  // payout_id). Two near-simultaneous invocations that both pass the
+  // application guard above will land here, and Postgres will reject the
+  // second insert with 23505. We turn that into the same `skipped` audit
+  // row the application guard would have written, but charge the LLM
+  // tokens we already burned to the daily spend rollup.
+  if (proposedInsert?.error?.code === '23505') {
+    await logAction(supabase, {
+      agentSlug: SLUG, eventId: eventEnvelope.event_id,
+      actionType: 'review', status: 'skipped',
+      autonomyUsed: agent.autonomy,
+      decision: {
+        event_type: eventEnvelope.event_type,
+        payload: eventEnvelope.payload || {},
+        triggered_by: triggeredBy,
+        dedupe_source: 'db_unique_index',
+        unique_violation: proposedInsert.error.message
+      },
+      reasoning: `Concurrent treasurer invocation already wrote a proposed row for this ${eventEnvelope.event_type}; DB unique index rejected the duplicate. Treating as already_reviewed.`,
+      tokensIn: llmResult.tokensIn, tokensOut: llmResult.tokensOut,
+      costUsd: llmResult.costUsd, durationMs: Date.now() - t0
+    });
+    return {
+      success: true,
+      reason: 'already_reviewed',
+      event_type: eventEnvelope.event_type,
+      cost_usd: 0,
+      ms: Date.now() - t0
+    };
+  }
 
   return {
     success: true,
