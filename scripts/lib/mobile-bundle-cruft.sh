@@ -14,6 +14,9 @@ MOBILE_CRUFT_DIRS=(
   "node_modules"
   ".netlify"
   ".netlify-deploy"
+  "tests"
+  "test-results"
+  "playwright-report"
 )
 
 # Specific files that must never ship in a mobile bundle
@@ -29,6 +32,7 @@ MOBILE_CRUFT_FILES=(
   "SERVICE_SCHEDULING_SETUP.sql"
   "commission-system-sql.sql"
   "leaderboard_migration.sql"
+  "seed-test-data.js"
 )
 
 # Glob patterns to sweep recursively (find -name)
@@ -37,6 +41,9 @@ MOBILE_CRUFT_GLOBS=(
   "*.backup"
   "*.sql"
   "*.pptx"
+  "stress-test-*.js"
+  "*.test.js"
+  "*.spec.js"
 )
 
 # Offline-shell essentials — every Capacitor mobile bundle MUST contain these
