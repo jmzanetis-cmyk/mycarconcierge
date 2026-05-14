@@ -36,3 +36,6 @@
 /api/auth/facebook/data-deletion /.netlify/functions/facebook-data-deletion 200
 /api/auth/facebook/data-deletion/status /.netlify/functions/facebook-data-deletion 200
 /api/admin/facebook/* /.netlify/functions/admin-facebook 200
+/api/admin/concierge-jobs/* /.netlify/functions/concierge-jobs-admin/:splat 200
+/api/admin/concierge-jobs /.netlify/functions/concierge-jobs-admin 200
+/api/driver/v1/* /.netlify/functions/driver-api/:splat 200

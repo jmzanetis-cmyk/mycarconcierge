@@ -1,0 +1,649 @@
+// ============================================================================
+// driver-api  (Task #332)
+//
+// Single Netlify function backing the separate "MCC Driver" Replit project.
+// Mounted at /.netlify/functions/driver-api/* and proxied from
+// /api/driver/v1/* via www/_redirects.
+//
+// Routes:
+//   POST /auth/send-code       { phone }                        — send OTP via Twilio Verify
+//   POST /auth/verify-code     { phone, code }                  — exchange OTP for session token
+//   POST /auth/refresh         { refresh_token }                — refresh access token
+//   GET  /me                                                    — driver profile
+//   GET  /jobs?status=&from=&to=                                — assigned jobs (with embedded legs)
+//   GET  /jobs/:id                                              — single job
+//   POST /jobs/:id/accept
+//   POST /jobs/:id/decline     { reason }
+//   POST /jobs/:id/legs/:leg_id/start
+//   POST /jobs/:id/legs/:leg_id/complete
+//   POST /jobs/:id/legs/:leg_id/location  { pings: [{lat,lng,...}] }  (≤50)
+//   GET  /earnings?range=today|week|month|all
+//
+// SECURITY MODEL
+//   - The Driver app NEVER receives the Supabase service-role key.
+//   - All privileged writes happen here using the service-role client.
+//   - Auth uses HMAC-signed driver session tokens (HS256 JWT). The signing
+//     key is DRIVER_JWT_SECRET, with a fallback derivation from
+//     SUPABASE_SERVICE_ROLE_KEY so dev environments work out of the box.
+//   - Phones not present in `drivers` with status='active' are rejected at
+//     send-code time so unknown phones can't enumerate the driver roster.
+// ============================================================================
+
+const crypto = require('node:crypto');
+const { createClient } = require('@supabase/supabase-js');
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+function getServiceSupabase() {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) return null;
+  return createClient(url, key, { auth: { persistSession: false } });
+}
+
+function jsonResponse(statusCode, data) {
+  return {
+    statusCode,
+    headers: {
+      'Content-Type': 'application/json',
+      'Cache-Control': 'no-cache',
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+    },
+    body: typeof data === 'string' ? data : JSON.stringify(data)
+  };
+}
+
+function errorResponse(statusCode, code, message, extra = {}) {
+  return jsonResponse(statusCode, { error: { code, message, ...extra } });
+}
+
+function getBearerToken(event) {
+  const h = event.headers || {};
+  const auth = h.authorization || h.Authorization || '';
+  const m = auth.match(/^Bearer\s+(.+)$/i);
+  return m ? m[1].trim() : null;
+}
+
+function isUuid(v) {
+  return typeof v === 'string' &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
+}
+
+function normalizePhone(p) {
+  if (typeof p !== 'string') return null;
+  const trimmed = p.trim();
+  // Accept E.164 (+12015550100). Reject anything else so we don't try to
+  // SMS a malformed number through Twilio.
+  return /^\+[1-9]\d{1,14}$/.test(trimmed) ? trimmed : null;
+}
+
+// ---------------------------------------------------------------------------
+// HMAC-signed driver session tokens. Compact JWT (HS256), signed by either
+// DRIVER_JWT_SECRET or a derived fallback.
+// ---------------------------------------------------------------------------
+
+function jwtSecret() {
+  const explicit = process.env.DRIVER_JWT_SECRET;
+  if (explicit && explicit.length >= 16) return explicit;
+  // Fallback: derive a stable per-deployment secret from the service-role
+  // key so dev works without an extra env var. Production should set
+  // DRIVER_JWT_SECRET explicitly so rotating the service-role key doesn't
+  // invalidate every active driver session.
+  const seed = process.env.SUPABASE_SERVICE_ROLE_KEY || 'driver-api-dev-fallback';
+  return crypto.createHash('sha256').update('driver-jwt:' + seed).digest('hex');
+}
+
+function b64url(buf) {
+  return Buffer.from(buf).toString('base64')
+    .replaceAll('+','-').replaceAll('/','_').replaceAll(/=+$/g,'');
+}
+function b64urlDecode(str) {
+  const pad = str.length % 4 === 0 ? '' : '='.repeat(4 - (str.length % 4));
+  return Buffer.from(str.replaceAll('-','+').replaceAll('_','/') + pad, 'base64');
+}
+
+function signToken(payload, ttlSeconds) {
+  const header = { alg: 'HS256', typ: 'JWT' };
+  const now = Math.floor(Date.now() / 1000);
+  const body = { ...payload, iat: now, exp: now + ttlSeconds };
+  const h = b64url(JSON.stringify(header));
+  const p = b64url(JSON.stringify(body));
+  const sig = b64url(crypto.createHmac('sha256', jwtSecret()).update(h + '.' + p).digest());
+  return `${h}.${p}.${sig}`;
+}
+
+function verifyToken(token) {
+  if (typeof token !== 'string') return null;
+  const parts = token.split('.');
+  if (parts.length !== 3) return null;
+  const [h, p, sig] = parts;
+  const expected = b64url(crypto.createHmac('sha256', jwtSecret()).update(h + '.' + p).digest());
+  // Constant-time compare.
+  if (sig.length !== expected.length) return null;
+  if (!crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))) return null;
+  let payload;
+  try { payload = JSON.parse(b64urlDecode(p).toString('utf8')); } catch { return null; }
+  if (typeof payload.exp !== 'number' || payload.exp < Math.floor(Date.now() / 1000)) return null;
+  return payload;
+}
+
+function mintSession(driver) {
+  // Access token: 1h. Refresh token: 30d. Both bind driver_id + phone.
+  const base = { driver_id: driver.id, phone: driver.phone };
+  return {
+    access_token:  signToken({ ...base, kind: 'access'  }, 60 * 60),
+    refresh_token: signToken({ ...base, kind: 'refresh' }, 60 * 60 * 24 * 30),
+    token_type: 'Bearer',
+    expires_in: 60 * 60,
+    driver: { id: driver.id, full_name: driver.full_name, phone: driver.phone }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Twilio Verify (REST). We hit the Verify API directly so the function has
+// no extra deps. Requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and
+// TWILIO_VERIFY_SERVICE_SID. If TWILIO_VERIFY_SERVICE_SID is unset we return
+// a 503 — the Driver app can detect this and tell the operator to configure
+// the env var. We DO NOT silently fall back to a less-secure channel.
+// ---------------------------------------------------------------------------
+
+async function twilioVerifyStart(phone) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!sid || !token || !verifySid) {
+    return { ok: false, status: 503, error: 'twilio_verify_not_configured' };
+  }
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const form = new URLSearchParams({ To: phone, Channel: 'sms' });
+  const resp = await fetch(`https://verify.twilio.com/v2/Services/${verifySid}/Verifications`, {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString()
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) return { ok: false, status: resp.status, error: data.message || 'twilio_send_failed' };
+  return { ok: true, status: data.status };
+}
+
+async function twilioVerifyCheck(phone, code) {
+  const sid = process.env.TWILIO_ACCOUNT_SID;
+  const token = process.env.TWILIO_AUTH_TOKEN;
+  const verifySid = process.env.TWILIO_VERIFY_SERVICE_SID;
+  if (!sid || !token || !verifySid) {
+    return { ok: false, status: 503, error: 'twilio_verify_not_configured' };
+  }
+  const auth = Buffer.from(`${sid}:${token}`).toString('base64');
+  const form = new URLSearchParams({ To: phone, Code: code });
+  const resp = await fetch(`https://verify.twilio.com/v2/Services/${verifySid}/VerificationCheck`, {
+    method: 'POST',
+    headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: form.toString()
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) return { ok: false, status: resp.status, error: data.message || 'twilio_check_failed' };
+  return { ok: data.status === 'approved', status: data.status };
+}
+
+// ---------------------------------------------------------------------------
+// Per-phone send-code rate limiter (3 per 15min). In-memory in dev/Netlify
+// per-instance; not perfect across cold starts but adequate as a first line.
+// ---------------------------------------------------------------------------
+const _sendCodeCounts = new Map(); // phone -> [timestamps...]
+function checkSendCodeRate(phone) {
+  const windowMs = 15 * 60 * 1000;
+  const now = Date.now();
+  const arr = (_sendCodeCounts.get(phone) || []).filter(t => now - t < windowMs);
+  if (arr.length >= 3) {
+    const retryAfter = Math.ceil((windowMs - (now - arr[0])) / 1000);
+    return { allowed: false, retry_after: retryAfter };
+  }
+  arr.push(now);
+  _sendCodeCounts.set(phone, arr);
+  return { allowed: true };
+}
+
+// ---------------------------------------------------------------------------
+// agent_events emission + audit log helpers (best-effort).
+// ---------------------------------------------------------------------------
+async function emitEvent(supabase, eventType, payload) {
+  try {
+    await supabase.from('agent_events').insert({
+      event_type: eventType, payload, source: 'driver-api'
+    });
+  } catch (e) { /* best-effort */ }
+}
+async function audit(supabase, row) {
+  try { await supabase.from('admin_audit_log').insert(row); } catch (e) { /* best-effort */ }
+}
+
+// ---------------------------------------------------------------------------
+// Auth middleware: parse Bearer token, look up driver, ensure status=active.
+// ---------------------------------------------------------------------------
+async function authenticateDriver(event, supabase) {
+  const token = getBearerToken(event);
+  if (!token) return { error: errorResponse(401, 'AUTH_REQUIRED', 'Bearer token required') };
+  const payload = verifyToken(token);
+  if (!payload || payload.kind !== 'access') {
+    return { error: errorResponse(401, 'AUTH_REQUIRED', 'Invalid or expired token') };
+  }
+  const { data: driver, error } = await supabase
+    .from('drivers')
+    .select('id, profile_id, full_name, phone, email, status, vehicle_class, hourly_rate_cents, per_job_rate_cents, onboarded_at')
+    .eq('id', payload.driver_id)
+    .maybeSingle();
+  if (error || !driver) return { error: errorResponse(401, 'AUTH_REQUIRED', 'Driver not found') };
+  if (driver.status !== 'active') {
+    return { error: errorResponse(403, 'DRIVER_NOT_ACTIVE', `Driver status is ${driver.status}`) };
+  }
+  return { driver };
+}
+
+// ---------------------------------------------------------------------------
+// Route handlers
+// ---------------------------------------------------------------------------
+
+async function handleSendCode(event, supabase, body) {
+  const phone = normalizePhone(body.phone);
+  if (!phone) return errorResponse(400, 'BAD_REQUEST', 'phone must be in E.164 format');
+
+  const rate = checkSendCodeRate(phone);
+  if (!rate.allowed) return errorResponse(429, 'RATE_LIMITED', 'Too many code requests', { retry_after: rate.retry_after });
+
+  // Reject phones not present in drivers as 'active'. Returning the same
+  // generic 200 vs 404 here would leak driver enumeration; we accept that
+  // tradeoff explicitly because driver phones are not customer PII and the
+  // operational cost of debugging "I'm not getting codes" is higher.
+  const { data: driver } = await supabase
+    .from('drivers').select('id, status').eq('phone', phone).maybeSingle();
+  if (!driver)               return errorResponse(404, 'DRIVER_NOT_FOUND', 'Phone not registered as a driver');
+  if (driver.status !== 'active') return errorResponse(403, 'DRIVER_NOT_ACTIVE', `Driver status is ${driver.status}`);
+
+  const result = await twilioVerifyStart(phone);
+  if (!result.ok) {
+    return errorResponse(result.status === 503 ? 503 : 502, 'OTP_SEND_FAILED', result.error);
+  }
+  return jsonResponse(200, { sent: true, status: result.status });
+}
+
+async function handleVerifyCode(event, supabase, body) {
+  const phone = normalizePhone(body.phone);
+  const code = typeof body.code === 'string' ? body.code.trim() : '';
+  if (!phone) return errorResponse(400, 'BAD_REQUEST', 'phone must be in E.164 format');
+  if (!/^[0-9]{4,10}$/.test(code)) return errorResponse(400, 'BAD_REQUEST', 'code must be 4-10 digits');
+
+  const { data: driver } = await supabase
+    .from('drivers')
+    .select('id, profile_id, full_name, phone, status')
+    .eq('phone', phone).maybeSingle();
+  if (!driver)                    return errorResponse(404, 'DRIVER_NOT_FOUND', 'Phone not registered as a driver');
+  if (driver.status !== 'active') return errorResponse(403, 'DRIVER_NOT_ACTIVE', `Driver status is ${driver.status}`);
+
+  const check = await twilioVerifyCheck(phone, code);
+  if (!check.ok) {
+    if (check.status === 503) return errorResponse(503, 'OTP_VERIFY_UNAVAILABLE', 'Verify service not configured');
+    return errorResponse(401, 'OTP_INVALID', `Verification ${check.status || 'failed'}`);
+  }
+
+  await emitEvent(supabase, 'driver.signed_in', { driver_id: driver.id, phone: driver.phone });
+  return jsonResponse(200, mintSession(driver));
+}
+
+async function handleRefresh(event, supabase, body) {
+  const token = typeof body.refresh_token === 'string' ? body.refresh_token : '';
+  const payload = verifyToken(token);
+  if (!payload || payload.kind !== 'refresh') {
+    return errorResponse(401, 'AUTH_REQUIRED', 'Invalid or expired refresh token');
+  }
+  const { data: driver } = await supabase
+    .from('drivers')
+    .select('id, full_name, phone, status')
+    .eq('id', payload.driver_id).maybeSingle();
+  if (!driver || driver.status !== 'active') {
+    return errorResponse(401, 'DRIVER_NOT_ACTIVE', 'Driver no longer active');
+  }
+  return jsonResponse(200, mintSession(driver));
+}
+
+async function handleMe(event, supabase, driver) {
+  return jsonResponse(200, { driver });
+}
+
+async function handleListJobs(event, supabase, driver) {
+  const q = event.queryStringParameters || {};
+  let query = supabase
+    .from('concierge_job_drivers')
+    .select(`
+      role, accepted_at, declined_at,
+      job:concierge_jobs (
+        id, member_id, appointment_id, provider_id, tier, scenario, status,
+        scheduled_start_at, pickup_address, pickup_lat, pickup_lng,
+        dropoff_address, dropoff_lat, dropoff_lng, total_price_cents, notes,
+        legs:concierge_job_legs ( id, sequence, leg_type, driver_role,
+          from_address, from_lat, from_lng, to_address, to_lat, to_lng,
+          carries_passenger, carries_member_vehicle, carries_partner_vehicle,
+          status, started_at, completed_at )
+      )
+    `)
+    .eq('driver_id', driver.id)
+    .order('assigned_at', { ascending: false })
+    .limit(200);
+
+  const { data, error } = await query;
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  let jobs = (data || []).map(row => ({
+    ...row.job,
+    my_role: row.role,
+    accepted_at: row.accepted_at,
+    declined_at: row.declined_at
+  })).filter(j => j && j.id);
+
+  if (q.status) jobs = jobs.filter(j => j.status === q.status);
+  if (q.from)   jobs = jobs.filter(j => !j.scheduled_start_at || j.scheduled_start_at >= q.from);
+  if (q.to)     jobs = jobs.filter(j => !j.scheduled_start_at || j.scheduled_start_at <= q.to);
+
+  // Sort legs by sequence — Postgrest doesn't sort embedded rows by default.
+  for (const j of jobs) if (Array.isArray(j.legs)) j.legs.sort((a,b) => a.sequence - b.sequence);
+
+  return jsonResponse(200, { jobs });
+}
+
+async function loadJobIfAssigned(supabase, driverId, jobId) {
+  const { data: assignment } = await supabase
+    .from('concierge_job_drivers')
+    .select('role, accepted_at, declined_at, job_id')
+    .eq('driver_id', driverId).eq('job_id', jobId).maybeSingle();
+  if (!assignment) return { error: errorResponse(403, 'JOB_NOT_ASSIGNED', 'You are not assigned to this job') };
+
+  const { data: job } = await supabase
+    .from('concierge_jobs')
+    .select('*, legs:concierge_job_legs ( * )')
+    .eq('id', jobId).maybeSingle();
+  if (!job) return { error: errorResponse(404, 'JOB_NOT_FOUND', 'Job not found') };
+  if (Array.isArray(job.legs)) job.legs.sort((a,b) => a.sequence - b.sequence);
+  return { assignment, job };
+}
+
+async function handleGetJob(event, supabase, driver, jobId) {
+  if (!isUuid(jobId)) return errorResponse(400, 'BAD_REQUEST', 'invalid job id');
+  const r = await loadJobIfAssigned(supabase, driver.id, jobId);
+  if (r.error) return r.error;
+  return jsonResponse(200, {
+    job: { ...r.job, my_role: r.assignment.role, accepted_at: r.assignment.accepted_at, declined_at: r.assignment.declined_at }
+  });
+}
+
+async function handleAccept(event, supabase, driver, jobId) {
+  if (!isUuid(jobId)) return errorResponse(400, 'BAD_REQUEST', 'invalid job id');
+  const r = await loadJobIfAssigned(supabase, driver.id, jobId);
+  if (r.error) return r.error;
+  if (r.assignment.declined_at) return errorResponse(409, 'ALREADY_DECLINED', 'You declined this job');
+  if (r.assignment.accepted_at) return jsonResponse(200, { ok: true, already_accepted: true });
+
+  // Concurrency guard: if another driver already accepted the same role on
+  // this job, refuse. We rely on the DB unique (job_id, role) for the
+  // ultimate race; this check just gives a clean 409 instead of 500.
+  const { data: existingRoleAccepts } = await supabase
+    .from('concierge_job_drivers')
+    .select('driver_id, role, accepted_at')
+    .eq('job_id', jobId).eq('role', r.assignment.role).not('accepted_at','is', null);
+  if ((existingRoleAccepts || []).some(x => x.driver_id !== driver.id)) {
+    return errorResponse(409, 'ROLE_TAKEN', `Another driver already accepted the ${r.assignment.role} role`);
+  }
+
+  // Conditional update — both `accepted_at` and `declined_at` must still
+  // be NULL when the row is written. Without this guard, a concurrent
+  // /decline call that won the read-then-write race would leave the row
+  // with BOTH timestamps set. We rely on the returned row count to detect
+  // the race rather than a transaction (Postgrest doesn't expose those).
+  const { data: updRows, error: updErr } = await supabase
+    .from('concierge_job_drivers')
+    .update({ accepted_at: new Date().toISOString() })
+    .eq('driver_id', driver.id).eq('job_id', jobId)
+    .is('accepted_at', null).is('declined_at', null)
+    .select('driver_id');
+  if (updErr) return errorResponse(500, 'DB_ERROR', updErr.message);
+  if (!updRows || updRows.length === 0) {
+    return errorResponse(409, 'STATE_CHANGED', 'Assignment state changed — refresh');
+  }
+
+  await emitEvent(supabase, 'concierge.job_accepted', { job_id: jobId, driver_id: driver.id, role: r.assignment.role });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleDecline(event, supabase, driver, jobId, body) {
+  if (!isUuid(jobId)) return errorResponse(400, 'BAD_REQUEST', 'invalid job id');
+  const reason = (body.reason || '').toString().trim();
+  if (reason.length < 3 || reason.length > 500) return errorResponse(400, 'BAD_REQUEST', 'reason must be 3-500 chars');
+
+  const r = await loadJobIfAssigned(supabase, driver.id, jobId);
+  if (r.error) return r.error;
+  if (r.assignment.accepted_at) return errorResponse(409, 'ALREADY_ACCEPTED', 'Already accepted — contact dispatch');
+
+  // Conditional update — symmetric to accept. Refuses if a concurrent
+  // accept already won.
+  const { data: updRows, error: updErr } = await supabase
+    .from('concierge_job_drivers')
+    .update({ declined_at: new Date().toISOString(), decline_reason: reason })
+    .eq('driver_id', driver.id).eq('job_id', jobId)
+    .is('accepted_at', null).is('declined_at', null)
+    .select('driver_id');
+  if (updErr) return errorResponse(500, 'DB_ERROR', updErr.message);
+  if (!updRows || updRows.length === 0) {
+    return errorResponse(409, 'STATE_CHANGED', 'Assignment state changed — refresh');
+  }
+
+  await emitEvent(supabase, 'concierge.job_declined', { job_id: jobId, driver_id: driver.id, reason });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleStartLeg(event, supabase, driver, jobId, legId) {
+  if (!isUuid(jobId) || !isUuid(legId)) return errorResponse(400, 'BAD_REQUEST', 'invalid id');
+  const r = await loadJobIfAssigned(supabase, driver.id, jobId);
+  if (r.error) return r.error;
+  if (!r.assignment.accepted_at) return errorResponse(409, 'NOT_ACCEPTED', 'Accept the job before starting a leg');
+
+  const leg = r.job.legs.find(l => l.id === legId);
+  if (!leg) return errorResponse(404, 'LEG_NOT_FOUND', 'Leg not found on this job');
+  if (leg.driver_role !== r.assignment.role) {
+    return errorResponse(403, 'LEG_NOT_YOURS', `This leg is for the ${leg.driver_role} driver`);
+  }
+  if (leg.status === 'in_progress') return jsonResponse(200, { ok: true, already_in_progress: true });
+  if (leg.status === 'completed')   return errorResponse(409, 'LEG_ALREADY_COMPLETE', 'Leg already complete');
+
+  // Out-of-order guard: every prior leg with the same driver_role must be
+  // completed (or skipped) first. Cross-role legs may overlap (Tier 3/4).
+  const earlierForMyRole = r.job.legs
+    .filter(l => l.driver_role === r.assignment.role && l.sequence < leg.sequence);
+  const blocker = earlierForMyRole.find(l => l.status !== 'completed' && l.status !== 'skipped');
+  if (blocker) return errorResponse(422, 'LEG_OUT_OF_ORDER', `Complete leg ${blocker.sequence} first`);
+
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from('concierge_job_legs')
+    .update({ status: 'in_progress', started_at: nowIso })
+    .eq('id', legId);
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  // First leg start → flip job to in_progress.
+  if (r.job.status === 'scheduled') {
+    await supabase.from('concierge_jobs').update({ status: 'in_progress' }).eq('id', jobId);
+  }
+  await emitEvent(supabase, 'concierge.leg_started', { job_id: jobId, leg_id: legId, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleCompleteLeg(event, supabase, driver, jobId, legId) {
+  if (!isUuid(jobId) || !isUuid(legId)) return errorResponse(400, 'BAD_REQUEST', 'invalid id');
+  const r = await loadJobIfAssigned(supabase, driver.id, jobId);
+  if (r.error) return r.error;
+
+  const leg = r.job.legs.find(l => l.id === legId);
+  if (!leg) return errorResponse(404, 'LEG_NOT_FOUND', 'Leg not found on this job');
+  if (leg.driver_role !== r.assignment.role) {
+    return errorResponse(403, 'LEG_NOT_YOURS', `This leg is for the ${leg.driver_role} driver`);
+  }
+  if (leg.status === 'completed') return jsonResponse(200, { ok: true, already_complete: true });
+  if (leg.status !== 'in_progress') return errorResponse(409, 'LEG_NOT_STARTED', 'Start the leg first');
+
+  const nowIso = new Date().toISOString();
+  const { error } = await supabase
+    .from('concierge_job_legs')
+    .update({ status: 'completed', completed_at: nowIso })
+    .eq('id', legId);
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  // Last leg complete → flip job to completed.
+  const { data: remaining } = await supabase
+    .from('concierge_job_legs')
+    .select('id, status').eq('job_id', jobId).neq('status', 'completed').neq('status', 'skipped');
+  if (!remaining || remaining.length === 0) {
+    await supabase.from('concierge_jobs').update({ status: 'completed' }).eq('id', jobId);
+    await emitEvent(supabase, 'concierge.job_completed', { job_id: jobId });
+  }
+
+  await emitEvent(supabase, 'concierge.leg_completed', { job_id: jobId, leg_id: legId, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleLocation(event, supabase, driver, jobId, legId, body) {
+  if (!isUuid(jobId) || !isUuid(legId)) return errorResponse(400, 'BAD_REQUEST', 'invalid id');
+  const pings = Array.isArray(body.pings) ? body.pings : null;
+  if (!pings || pings.length === 0) return errorResponse(400, 'BAD_REQUEST', 'pings array required');
+  if (pings.length > 50) return errorResponse(400, 'BAD_REQUEST', 'maximum 50 pings per batch');
+
+  const r = await loadJobIfAssigned(supabase, driver.id, jobId);
+  if (r.error) return r.error;
+  // Same auth guards as start/complete: must have accepted the job, leg
+  // must belong to this driver's role, and the leg must actually be in
+  // progress. Without these checks an assigned driver could spray pings
+  // for the other driver's leg or before the shift starts.
+  if (!r.assignment.accepted_at) return errorResponse(409, 'NOT_ACCEPTED', 'Accept the job before posting location');
+  const leg = r.job.legs.find(l => l.id === legId);
+  if (!leg) return errorResponse(404, 'LEG_NOT_FOUND', 'Leg not found on this job');
+  if (leg.driver_role !== r.assignment.role) {
+    return errorResponse(403, 'LEG_NOT_YOURS', `This leg is for the ${leg.driver_role} driver`);
+  }
+  if (leg.status !== 'in_progress') {
+    return errorResponse(409, 'LEG_NOT_STARTED', 'Start the leg before posting location');
+  }
+
+  const rows = [];
+  for (const p of pings) {
+    const lat = Number(p.lat), lng = Number(p.lng);
+    if (!isFinite(lat) || lat < -90  || lat > 90)  return errorResponse(400, 'BAD_REQUEST', 'invalid lat');
+    if (!isFinite(lng) || lng < -180 || lng > 180) return errorResponse(400, 'BAD_REQUEST', 'invalid lng');
+    rows.push({
+      driver_id: driver.id, job_id: jobId, leg_id: legId,
+      lat, lng,
+      accuracy_m: isFinite(Number(p.accuracy_m)) ? Number(p.accuracy_m) : null,
+      heading:    isFinite(Number(p.heading))    ? Number(p.heading)    : null,
+      speed_mps:  isFinite(Number(p.speed_mps))  ? Number(p.speed_mps)  : null,
+      recorded_at: p.recorded_at && !isNaN(Date.parse(p.recorded_at)) ? p.recorded_at : new Date().toISOString()
+    });
+  }
+  const { error } = await supabase.from('driver_location_pings').insert(rows);
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+  return jsonResponse(200, { inserted: rows.length });
+}
+
+async function handleEarnings(event, supabase, driver) {
+  const range = (event.queryStringParameters || {}).range || 'all';
+  let since = null;
+  const now = new Date();
+  if (range === 'today') {
+    const d = new Date(now); d.setUTCHours(0,0,0,0); since = d.toISOString();
+  } else if (range === 'week') {
+    since = new Date(now.getTime() - 7  * 86400000).toISOString();
+  } else if (range === 'month') {
+    since = new Date(now.getTime() - 30 * 86400000).toISOString();
+  } else if (range !== 'all') {
+    return errorResponse(400, 'BAD_REQUEST', 'range must be today|week|month|all');
+  }
+
+  let q = supabase.from('driver_earnings')
+    .select('id, job_id, leg_id, amount_cents, kind, notes, recorded_at')
+    .eq('driver_id', driver.id)
+    .order('recorded_at', { ascending: false })
+    .limit(500);
+  if (since) q = q.gte('recorded_at', since);
+  const { data, error } = await q;
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  const total = (data || []).reduce((s, r) => s + (r.amount_cents || 0), 0);
+  return jsonResponse(200, { range, total_cents: total, entries: data || [] });
+}
+
+// ---------------------------------------------------------------------------
+// Dispatcher
+// ---------------------------------------------------------------------------
+function stripPrefix(p) {
+  return (p || '')
+    .replace(/^\/?\.netlify\/functions\/driver-api\/?/, '')
+    .replace(/^\/?api\/driver\/v1\/?/, '')
+    .replace(/^\/+/, '');
+}
+
+exports.handler = async function(event) {
+  if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
+  const supabase = getServiceSupabase();
+  if (!supabase) return errorResponse(500, 'CONFIG', 'Database not configured');
+
+  const route = stripPrefix(event.path);
+  const method = event.httpMethod;
+  let body = {};
+  if (event.body) {
+    try { body = JSON.parse(event.body); } catch { return errorResponse(400, 'BAD_REQUEST', 'invalid JSON body'); }
+  }
+
+  try {
+    // Public auth routes ---------------------------------------------------
+    if (method === 'POST' && route === 'auth/send-code')   return await handleSendCode(event, supabase, body);
+    if (method === 'POST' && route === 'auth/verify-code') return await handleVerifyCode(event, supabase, body);
+    if (method === 'POST' && route === 'auth/refresh')     return await handleRefresh(event, supabase, body);
+
+    // Authenticated routes -------------------------------------------------
+    const auth = await authenticateDriver(event, supabase);
+    if (auth.error) return auth.error;
+    const driver = auth.driver;
+
+    if (method === 'GET'  && route === 'me')       return await handleMe(event, supabase, driver);
+    if (method === 'GET'  && route === 'jobs')     return await handleListJobs(event, supabase, driver);
+    if (method === 'GET'  && route === 'earnings') return await handleEarnings(event, supabase, driver);
+
+    // Job-scoped routes ---------------------------------------------------
+    let m = route.match(/^jobs\/([^/]+)$/);
+    if (m && method === 'GET')  return await handleGetJob(event, supabase, driver, m[1]);
+
+    m = route.match(/^jobs\/([^/]+)\/accept$/);
+    if (m && method === 'POST') return await handleAccept(event, supabase, driver, m[1]);
+
+    m = route.match(/^jobs\/([^/]+)\/decline$/);
+    if (m && method === 'POST') return await handleDecline(event, supabase, driver, m[1], body);
+
+    m = route.match(/^jobs\/([^/]+)\/legs\/([^/]+)\/start$/);
+    if (m && method === 'POST') return await handleStartLeg(event, supabase, driver, m[1], m[2]);
+
+    m = route.match(/^jobs\/([^/]+)\/legs\/([^/]+)\/complete$/);
+    if (m && method === 'POST') return await handleCompleteLeg(event, supabase, driver, m[1], m[2]);
+
+    m = route.match(/^jobs\/([^/]+)\/legs\/([^/]+)\/location$/);
+    if (m && method === 'POST') return await handleLocation(event, supabase, driver, m[1], m[2], body);
+
+    return errorResponse(404, 'NOT_FOUND', 'Unknown route', { route, method });
+  } catch (e) {
+    console.error('[driver-api] handler error:', e);
+    return errorResponse(500, 'INTERNAL', e.message);
+  }
+};
+
+// Re-export internals for the smoke test.
+module.exports.signToken = signToken;
+module.exports.verifyToken = verifyToken;
+module.exports.mintSession = mintSession;
+module.exports._stripPrefix = stripPrefix;

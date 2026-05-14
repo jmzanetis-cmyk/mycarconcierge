@@ -34,6 +34,13 @@
 --                              page, per_page }.
 --   'apollo_manual_enrich'   | admin triggered a manual enrichment pass.
 --                              metadata: { total, enriched, failed }.
+--   'create_concierge_job'   | admin created a concierge job via
+--                              POST /api/admin/concierge-jobs (Task #332).
+--                              metadata: { tier, scenario, member_id, leg_count }.
+--   'assign_concierge_driver'| admin assigned a driver to a concierge job.
+--                              metadata: { driver_id, role }.
+--   'cancel_concierge_job'   | admin cancelled a concierge job.
+--                              reason: free-text.
 -- The Apollo dashboard tab in admin.html (Task #275) renders these four
 -- actions with friendly labels via the "Recent Apollo Admin Actions" card,
 -- backed by GET /api/admin/apollo/audit-log.
