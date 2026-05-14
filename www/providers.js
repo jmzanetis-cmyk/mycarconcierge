@@ -1484,7 +1484,7 @@
         document.getElementById('filter-results-info').textContent = `${packagesToRender.length} open packages`;
       }
       
-      container.innerHTML = packagesToRender.map(p => renderPackageCard(p, true)).join('');
+      container.innerHTML = packagesToRender.map((p) => { return renderPackageCard(p, true); }).join('');
     }
 
     function applyFilters() {
@@ -1623,7 +1623,7 @@
         container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 48)}</div><p>No open packages.</p></div>`;
         return;
       }
-      container.innerHTML = recent.map(p => renderPackageCard(p, true)).join('');
+      container.innerHTML = recent.map((p) => { return renderPackageCard(p, true); }).join('');
     }
 
     function renderPackageCard(p, showBidButton = false) {

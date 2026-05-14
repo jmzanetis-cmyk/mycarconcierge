@@ -178,7 +178,7 @@ function renderOpenPackages(filtered = null) {
     }
   }
   
-  container.innerHTML = packagesToRender.map(p => renderPackageCard(p, true)).join('');
+  container.innerHTML = packagesToRender.map((p) => { return renderPackageCard(p, true); }).join('');
 }
 
 function renderRecentPackages() {
@@ -190,7 +190,7 @@ function renderRecentPackages() {
     container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">' + mccIcon('package', 40) + '</div><p>No open packages.</p></div>';
     return;
   }
-  container.innerHTML = recent.map(p => renderPackageCard(p, true)).join('');
+  container.innerHTML = recent.map((p) => { return renderPackageCard(p, true); }).join('');
 }
 
 function renderPackageCard(p, showBidButton = false) {
