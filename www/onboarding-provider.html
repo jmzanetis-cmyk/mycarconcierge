@@ -639,6 +639,35 @@
     .btn-facebook-signup:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
     .btn-facebook-signup .facebook-icon { flex-shrink: 0; }
 
+    /* Task #326 — Apple Sign In button. Matches Apple Human Interface
+       Guidelines: solid black, white logo + label. Sits directly above
+       the Facebook button in the same OAuth section. */
+    .btn-apple-signup {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: #000000;
+      border: none;
+      border-radius: 14px;
+      color: #ffffff;
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      margin-bottom: 10px;
+    }
+    .btn-apple-signup:hover {
+      background: #1a1a1a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    }
+    .btn-apple-signup:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-apple-signup .apple-icon { flex-shrink: 0; }
+
     .login-link {
       display: block;
       text-align: center;
@@ -1016,6 +1045,12 @@
           </div>
           <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <div class="oauth-divider">or</div>
+          <button type="button" class="btn-apple-signup" id="apple-signup-btn" onclick="signUpWithApple()">
+            <svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            <span>Sign in with Apple</span>
+          </button>
           <button type="button" class="btn-facebook-signup" id="facebook-signup-btn" onclick="signUpWithFacebook()">
             <svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
               <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
@@ -2354,10 +2389,47 @@
     }
     globalThis.signUpWithFacebook = signUpWithFacebook;
 
+    // Task #326 — Apple Sign In for the provider survey. Mirrors the
+    // Facebook flow exactly: stamp mcc_signup_intent='provider' so the
+    // /login.html?oauth=apple callback (used in the legacy form) keeps
+    // us on the provider track, and redirect back to this page with
+    // ?source=apple so maybeStartFromOAuth() finishes the survey.
+    async function signUpWithApple() {
+      const appleBtn = document.getElementById('apple-signup-btn');
+      if (appleBtn) {
+        appleBtn.disabled = true;
+        appleBtn.innerHTML = '<div class="loading-spinner"></div> Connecting...';
+      }
+      try {
+        try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* private mode */ }
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'apple',
+          options: {
+            redirectTo: window.location.origin + '/onboarding-provider.html?source=apple',
+            scopes: 'name email'
+          }
+        });
+        if (error) {
+          console.error('Apple signup error:', error);
+          alert('Failed to connect to Apple. Please try again.');
+          if (appleBtn) {
+            appleBtn.disabled = false;
+            appleBtn.innerHTML = '<svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg><span>Sign in with Apple</span>';
+          }
+        }
+      } catch (err) {
+        console.error('Apple signup exception:', err);
+        alert('Something went wrong. Please try again.');
+        if (appleBtn) appleBtn.disabled = false;
+      }
+    }
+    globalThis.signUpWithApple = signUpWithApple;
+
     async function maybeStartFromOAuth() {
       const params = new URLSearchParams(window.location.search);
       const source = params.get('source');
-      if (source !== 'facebook') return;
+      // Task #326: accept both Facebook and Apple OAuth callbacks.
+      if (source !== 'facebook' && source !== 'apple') return;
 
       let user = null;
       for (let i = 0; i < 20 && !user; i++) {
