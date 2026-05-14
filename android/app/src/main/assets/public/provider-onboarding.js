@@ -64,7 +64,7 @@ class ProviderOnboarding {
           detail: 'Al continuar, confirmas que tienes autorización para enviar verificaciones de antecedentes en nombre de los empleados listados.'
         },
         {
-          title: 'Estás en camino a obtener tu Verificación',
+          title: 'Estás a un paso de la Verificación',
           icon: CHECK,
           content: 'Cada empleado recibirá un formulario de consentimiento por correo electrónico. Una vez confirmado el consentimiento y completada la verificación, los resultados se actualizan automáticamente. Cuando el 90 % de tu equipo esté autorizado, tu insignia Verificado se activará.',
           detail: 'Recibirás un correo electrónico cuando tu insignia esté activa. La información de verificación de antecedentes es proporcionada por una agencia externa de informes al consumidor. My Car Concierge no realiza verificaciones de antecedentes directamente.',

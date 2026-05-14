@@ -114,7 +114,7 @@
       cta: 'Continuar \u2192'
     },
     s4: {
-      title: 'Estás en camino a obtener tu Verificación',
+      title: 'Estás a un paso de la Verificación',
       body: function (n) {
         n = (n | 0);
         if (n > 0) {
