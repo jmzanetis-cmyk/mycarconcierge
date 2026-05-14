@@ -984,13 +984,23 @@ async function loadSmokeStatusFor(slug) {
     failEl.textContent = r.last_fail ? `${relTime(r.last_fail.started_at)} · ${fmtTime(r.last_fail.started_at)}` : 'none on file';
     if (!passed) {
       const checks = Array.isArray(latest.failed_checks) ? latest.failed_checks : [];
-      const emailLine = latest.alert_email_sent
-        ? `Admin email sent.`
-        : (latest.alert_email_error ? `Admin email FAILED to send: ${escapeHtml(latest.alert_email_error)}` : 'Admin email not sent (Resend not configured?).');
+      // Task #161 — admin email pill
+      const emailPill = latest.alert_email_sent
+        ? `<span class="badge badge-on" title="Admin email delivered via Resend.">Email sent</span>`
+        : (latest.alert_email_error
+            ? `<span class="badge" style="background:rgba(239,68,68,0.15); color:var(--bad); border:1px solid rgba(239,68,68,0.35);" title="${escapeHtml(latest.alert_email_error)}">Email error</span>`
+            : `<span class="badge badge-off" title="No admin email sent (Resend not configured, or send not attempted).">Email not sent</span>`);
+      // Task #290 — admin SMS pill (Twilio pager). Mirrors the email pill so
+      // admins can see at a glance whether their phone actually rang.
+      const smsPill = latest.alert_sms_sent
+        ? `<span class="badge badge-on" title="Admin SMS delivered via Twilio.">SMS sent</span>`
+        : (latest.alert_sms_error
+            ? `<span class="badge" style="background:rgba(239,68,68,0.15); color:var(--bad); border:1px solid rgba(239,68,68,0.35);" title="${escapeHtml(latest.alert_sms_error)}">SMS error</span>`
+            : `<span class="badge badge-off" title="No admin SMS sent (Twilio / ADMIN_PHONE_NUMBER not configured, or send not attempted).">SMS not sent</span>`);
       detailEl.style.display = 'block';
       detailEl.innerHTML = `
         <div><strong>${latest.failure_count} failed check(s):</strong> ${checks.map(c => `<code class="kbd">${escapeHtml(c)}</code>`).join(' ')}</div>
-        <div style="margin-top:6px; color:var(--muted);">${emailLine}</div>
+        <div style="margin-top:8px; display:flex; gap:6px; flex-wrap:wrap;">${emailPill}${smsPill}</div>
       `;
     }
   } catch (e) {
@@ -1015,7 +1025,20 @@ async function runSmokeForAgent(slug, btn) {
     toast(`Running ${label} smoke (this can take up to 2 minutes)…`);
     const r = await api(`/run/${slug}-smoke`, { method: 'POST' });
     if (r.result?.ok) toast(`${label} smoke PASSED in ${(r.result.duration_ms / 1000).toFixed(1)}s`);
-    else toast(`${label} smoke FAILED: ${(r.result?.failed_checks || []).slice(0, 3).join(', ')}`, true);
+    else {
+      // Task #290 — echo email + sms send status so the admin can see at a
+      // glance whether their pager actually fired (the SMS path was added in
+      // Task #201's bgc-reminder-style helper and now lands on every smoke
+      // failure response). The handler shape is { email, sms } where each is
+      // { sent: bool, reason?: string, error?: string }.
+      const checksTxt = (r.result?.failed_checks || []).slice(0, 3).join(', ');
+      const pageBits = [];
+      const e = r.result?.email, s = r.result?.sms;
+      if (e) pageBits.push(e.sent ? 'email sent' : `email ${e.error ? 'error' : (e.reason || 'not sent')}`);
+      if (s) pageBits.push(s.sent ? 'SMS sent'   : `SMS ${s.error ? 'error' : (s.reason || 'not sent')}`);
+      const pageTxt = pageBits.length ? ` · ${pageBits.join(' · ')}` : '';
+      toast(`${label} smoke FAILED: ${checksTxt}${pageTxt}`, true);
+    }
     loadSmokeStatusFor(slug);
   } catch (e) { toast(e.message, true); }
   finally { btn.disabled = false; btn.textContent = orig; }
