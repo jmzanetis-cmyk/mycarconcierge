@@ -365,6 +365,51 @@ const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';
   assert.strictEqual(parse(res).error.code, 'BAD_REQUEST');
   console.log('  ✓ 7b) location ping batch >50 returns 400 BAD_REQUEST');
 
+  // ---- 7e) Admin reassignment resets prior accept/decline state ----
+  process.env.ADMIN_PASSWORD = 'stub-admin-pw';
+  let assignUpsertPayload = null;
+  dbState = {
+    'concierge_jobs.maybeSingle': () => ({
+      data: { id: JOB_X, tier: 4, status: 'scheduled' }, error: null
+    }),
+    'drivers.maybeSingle': () => ({
+      data: { id: DRIVER_B, status: 'active' }, error: null
+    }),
+    // Capture the upsert payload so we can assert resets are present.
+    'concierge_job_drivers.update': () => ({ data: null, error: null })
+  };
+  // Hook into the chain stub's upsert by overriding the supabaseStub.from
+  // for this single call: wrap to capture upsert input.
+  const _origFrom = supabaseStub.from;
+  supabaseStub.from = (t) => {
+    const c = _origFrom(t);
+    if (t === 'concierge_job_drivers') {
+      const _origUpsert = c.upsert;
+      c.upsert = (row, _opts) => {
+        assignUpsertPayload = row;
+        const chain = _origUpsert(row, _opts);
+        chain.single = () => Promise.resolve({ data: { ...row, id: 'assn-1' }, error: null });
+        return chain;
+      };
+    }
+    return c;
+  };
+  res = await adminFn.handler(makeEvent({
+    path: `/api/admin/concierge-jobs/${JOB_X}/assign-driver`,
+    method: 'POST',
+    headers: { 'x-admin-password': 'stub-admin-pw' },
+    body: { driver_id: DRIVER_B, role: 'primary' }
+  }));
+  supabaseStub.from = _origFrom;
+  delete process.env.ADMIN_PASSWORD;
+  assert.strictEqual(res.statusCode, 200, '7e: admin assign should be 200');
+  assert.ok(assignUpsertPayload, '7e: upsert payload must be captured');
+  assert.strictEqual(assignUpsertPayload.accepted_at, null, '7e: accepted_at must be reset to null on reassignment');
+  assert.strictEqual(assignUpsertPayload.declined_at, null, '7e: declined_at must be reset to null on reassignment');
+  assert.strictEqual(assignUpsertPayload.decline_reason, null, '7e: decline_reason must be reset to null on reassignment');
+  assert.ok(assignUpsertPayload.assigned_at, '7e: assigned_at must be refreshed on reassignment');
+  console.log('  ✓ 7e) admin reassignment resets accepted_at/declined_at/decline_reason');
+
   // ---- 8) EXPAND_SCENARIO covers all 11 scenarios ----
   for (let s = 1; s <= 11; s++) {
     const blueprint = adminFn.EXPAND_SCENARIO[s];

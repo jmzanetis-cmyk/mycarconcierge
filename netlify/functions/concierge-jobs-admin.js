@@ -264,7 +264,15 @@ async function handleAssignDriver(event, supabase, jobId, body) {
   if (!driver)                       return jsonResponse(404, { error: 'driver not found' });
   if (driver.status !== 'active')    return jsonResponse(409, { error: `driver status is ${driver.status}` });
 
-  const row = { job_id: jobId, driver_id: body.driver_id, role };
+  // Reassignment must reset prior accept/decline state — otherwise a new
+  // driver inherits the previous driver's accepted_at / declined_at /
+  // decline_reason and can't accept (or appears already accepted). We also
+  // refresh assigned_at so the timeline reflects the current assignment.
+  const row = {
+    job_id: jobId, driver_id: body.driver_id, role,
+    accepted_at: null, declined_at: null, decline_reason: null,
+    assigned_at: new Date().toISOString()
+  };
   const { data, error } = await supabase
     .from('concierge_job_drivers')
     .upsert(row, { onConflict: 'job_id,role' })
