@@ -67,7 +67,14 @@ const CONFIG = {
 };
 const BASE_URL = CONFIG.baseUrl;
 const SIM_DOMAIN = '@mcc-sim.test';
-const SIM_PASSWORD = 'SimPass123!';
+// Task #259: do not hard-code stress-test passwords. Operators must supply
+// STRESS_TEST_PASSWORD; we fail loudly so a misconfigured run can't silently
+// fall back to a known-weak credential.
+const SIM_PASSWORD = process.env.STRESS_TEST_PASSWORD;
+if (!SIM_PASSWORD) {
+  console.error('STRESS_TEST_PASSWORD environment variable is required');
+  process.exit(1);
+}
 const RESERVOIR_SIZE = 50000;
 const STRESS_TAG = `stress-shop-${Date.now()}`;
 

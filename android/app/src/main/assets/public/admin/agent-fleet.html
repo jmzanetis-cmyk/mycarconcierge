@@ -184,38 +184,22 @@
         <button class="btn btn-ghost" id="runAnalyst">Run analyst now</button>
       </div>
       <div style="margin-top:18px; font-size:12px; color:var(--muted);">
-        Scheduled cadence: orchestrator <code class="kbd">* * * * *</code> · analyst <code class="kbd">0 5 * * *</code> · gatekeeper-smoke <code class="kbd">0 9 * * *</code> (UTC).
+        Scheduled cadence: orchestrator <code class="kbd">* * * * *</code> · analyst <code class="kbd">0 5 * * *</code> · gatekeeper-smoke <code class="kbd">0 9 * * *</code> · matchmaker-smoke <code class="kbd">15 9 * * *</code> · treasurer-smoke <code class="kbd">30 9 * * *</code> (UTC).
       </div>
     </div>
 
     <div class="card" style="margin-bottom:20px;">
-      <div class="row" style="align-items:flex-start; gap:18px;">
-        <div style="flex:1;">
-          <h3 style="margin:0 0 4px;">Gatekeeper smoke</h3>
+      <div style="display:flex; align-items:flex-start; justify-content:space-between; gap:18px; flex-wrap:wrap;">
+        <div style="flex:1; min-width:280px;">
+          <h3 style="margin:0 0 4px;">Agent smokes</h3>
           <div style="font-size:13px; color:var(--muted); margin-bottom:12px;">
-            Daily synthetic provider events confirm the trigger → bus → orchestrator → handler → DB pipeline is healthy. A failure pages the admin via the same email path as the spend-cap alerts. Synthetic rows are tagged with a <span class="badge" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35);">Smoke</span> badge in each agent's activity feed so they're easy to dismiss.
+            Daily synthetic events confirm each agent's trigger → bus → orchestrator → handler → DB pipeline is healthy. A failure pages the admin via the same email path as the spend-cap alerts. Synthetic rows are tagged with a <span class="badge" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35);">Smoke</span> badge in each agent's activity feed so they're easy to dismiss.
           </div>
-          <div id="smokeStatus" class="row" style="gap:14px; align-items:center; flex-wrap:wrap;">
-            <div>
-              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last result</div>
-              <div id="smokeLastStatus" style="font-size:18px; font-weight:600; line-height:1.2;">—</div>
-              <div id="smokeLastWhen" style="font-size:12px; color:var(--muted);"></div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last passing run</div>
-              <div id="smokeLastPass" style="font-size:14px;">—</div>
-            </div>
-            <div>
-              <div style="font-size:11px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last failure</div>
-              <div id="smokeLastFail" style="font-size:14px;">—</div>
-            </div>
-          </div>
-          <div id="smokeFailDetails" style="margin-top:10px; font-size:12px; color:var(--bad); display:none;"></div>
         </div>
-        <div style="display:flex; flex-direction:column; gap:8px; min-width:170px;">
-          <button class="btn" id="runSmokeBtn">Run smoke now</button>
-          <button class="btn btn-ghost" id="reloadSmokeBtn">Reload</button>
-        </div>
+        <button class="btn btn-ghost" id="reloadSmokeBtn" style="min-width:120px;">Reload all</button>
+      </div>
+      <div id="smokeAgentList" style="display:flex; flex-direction:column; gap:14px; margin-top:8px;">
+        <!-- one block per agent injected by loadAllSmokeStatuses -->
       </div>
     </div>
 
@@ -919,21 +903,75 @@ async function saveDirectorConfig() {
   } catch (e) { toast(e.message, true); }
 }
 
-async function loadSmokeStatus() {
-  const statusEl = document.getElementById('smokeLastStatus');
-  const whenEl   = document.getElementById('smokeLastWhen');
-  const passEl   = document.getElementById('smokeLastPass');
-  const failEl   = document.getElementById('smokeLastFail');
-  const detailEl = document.getElementById('smokeFailDetails');
+// Task #206 — render one row per agent in the smoke status card. The
+// gatekeeper / matchmaker / treasurer triple all use the same /smoke-runs
+// endpoint and the same /run/<slug>-smoke admin route, so the markup is
+// generated from a single descriptor list.
+const SMOKE_AGENTS = [
+  { slug: 'gatekeeper', label: 'Gatekeeper', cron: '09:00 UTC',
+    blurb: 'Provider applications + BGC + flagged-provider events.' },
+  { slug: 'matchmaker', label: 'Matchmaker', cron: '09:15 UTC',
+    blurb: 'Care plan auction-closed → recommended winner bid.' },
+  { slug: 'treasurer',  label: 'Treasurer',  cron: '09:30 UTC',
+    blurb: 'Captured payments, refund requests, and failed payouts.' }
+];
+
+function renderSmokeAgentSkeleton() {
+  const wrap = document.getElementById('smokeAgentList');
+  if (!wrap || wrap.dataset.rendered === '1') return;
+  wrap.innerHTML = SMOKE_AGENTS.map(a => `
+    <div class="row" data-smoke-row="${a.slug}" style="align-items:flex-start; gap:14px; padding:12px; border:1px solid var(--slate-border); border-radius:8px; flex-wrap:wrap;">
+      <div style="flex:1; min-width:240px;">
+        <div style="display:flex; align-items:center; gap:8px; margin-bottom:6px;">
+          <div style="font-size:14px; font-weight:600;">${a.label}</div>
+          <div style="font-size:11px; color:var(--muted);">cron <code class="kbd">${a.cron}</code></div>
+        </div>
+        <div style="font-size:12px; color:var(--muted); margin-bottom:10px;">${a.blurb}</div>
+        <div class="row" style="gap:14px; align-items:center; flex-wrap:wrap;">
+          <div>
+            <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last result</div>
+            <div data-smoke-status="${a.slug}" style="font-size:16px; font-weight:600; line-height:1.2;">—</div>
+            <div data-smoke-when="${a.slug}" style="font-size:11px; color:var(--muted);"></div>
+          </div>
+          <div>
+            <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last passing run</div>
+            <div data-smoke-pass="${a.slug}" style="font-size:13px;">—</div>
+          </div>
+          <div>
+            <div style="font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:0.06em;">Last failure</div>
+            <div data-smoke-fail="${a.slug}" style="font-size:13px;">—</div>
+          </div>
+        </div>
+        <div data-smoke-detail="${a.slug}" style="margin-top:8px; font-size:12px; color:var(--bad); display:none;"></div>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:6px; min-width:160px;">
+        <button class="btn" data-run-smoke="${a.slug}" style="font-size:12px; padding:6px 10px;">Run ${a.label} smoke</button>
+      </div>
+    </div>
+  `).join('');
+  wrap.dataset.rendered = '1';
+
+  wrap.querySelectorAll('[data-run-smoke]').forEach(btn => {
+    btn.addEventListener('click', () => runSmokeForAgent(btn.dataset.runSmoke, btn));
+  });
+}
+
+async function loadSmokeStatusFor(slug) {
+  const statusEl = document.querySelector(`[data-smoke-status="${slug}"]`);
+  const whenEl   = document.querySelector(`[data-smoke-when="${slug}"]`);
+  const passEl   = document.querySelector(`[data-smoke-pass="${slug}"]`);
+  const failEl   = document.querySelector(`[data-smoke-fail="${slug}"]`);
+  const detailEl = document.querySelector(`[data-smoke-detail="${slug}"]`);
+  if (!statusEl) return;
   detailEl.style.display = 'none';
   detailEl.innerHTML = '';
   try {
-    const r = await api('/smoke-runs?limit=20&agent=gatekeeper');
+    const r = await api(`/smoke-runs?limit=20&agent=${encodeURIComponent(slug)}`);
     const latest = r.latest;
     if (!latest) {
       statusEl.textContent = 'never run';
       statusEl.style.color = 'var(--muted)';
-      whenEl.textContent = 'Cron fires daily at 09:00 UTC, or click Run smoke now.';
+      whenEl.textContent = 'Awaiting first scheduled run, or click the run button.';
       passEl.textContent = '—';
       failEl.textContent = '—';
       return;
@@ -961,6 +999,26 @@ async function loadSmokeStatus() {
       whenEl.textContent = e.message;
     }
   }
+}
+
+async function loadSmokeStatus() {
+  renderSmokeAgentSkeleton();
+  await Promise.all(SMOKE_AGENTS.map(a => loadSmokeStatusFor(a.slug)));
+}
+
+async function runSmokeForAgent(slug, btn) {
+  const meta = SMOKE_AGENTS.find(a => a.slug === slug);
+  const label = meta ? meta.label : slug;
+  const orig = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Running (≤2m)…';
+  try {
+    toast(`Running ${label} smoke (this can take up to 2 minutes)…`);
+    const r = await api(`/run/${slug}-smoke`, { method: 'POST' });
+    if (r.result?.ok) toast(`${label} smoke PASSED in ${(r.result.duration_ms / 1000).toFixed(1)}s`);
+    else toast(`${label} smoke FAILED: ${(r.result?.failed_checks || []).slice(0, 3).join(', ')}`, true);
+    loadSmokeStatusFor(slug);
+  } catch (e) { toast(e.message, true); }
+  finally { btn.disabled = false; btn.textContent = orig; }
 }
 
 // ---------- social acquisition
@@ -1374,19 +1432,6 @@ document.getElementById('runAnalyst').addEventListener('click', async () => {
 document.getElementById('runOrchestrator').addEventListener('click', async () => {
   try { toast('Running orchestrator tick…'); const r = await api('/run/orchestrator', { method: 'POST' }); toast(`Processed ${r.result?.processed || 0} event(s)`); refreshAll(); }
   catch (e) { toast(e.message, true); }
-});
-document.getElementById('runSmokeBtn').addEventListener('click', async () => {
-  const btn = document.getElementById('runSmokeBtn');
-  const orig = btn.textContent;
-  btn.disabled = true; btn.textContent = 'Running smoke (≤2m)…';
-  try {
-    toast('Running Gatekeeper smoke (this can take up to 2 minutes)…');
-    const r = await api('/run/gatekeeper-smoke', { method: 'POST' });
-    if (r.result?.ok) toast(`Smoke PASSED in ${(r.result.duration_ms / 1000).toFixed(1)}s`);
-    else toast(`Smoke FAILED: ${(r.result?.failed_checks || []).slice(0, 3).join(', ')}`, true);
-    loadSmokeStatus();
-  } catch (e) { toast(e.message, true); }
-  finally { btn.disabled = false; btn.textContent = orig; }
 });
 document.getElementById('reloadSmokeBtn').addEventListener('click', loadSmokeStatus);
 

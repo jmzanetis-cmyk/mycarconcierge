@@ -265,6 +265,51 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     }
   }
 
+  // Task #306 — surfaces ops-facing engine diagnostics inside the admin panel:
+  // is_running flag, last cycle skip reason (e.g. engine_paused), Apollo
+  // credit-exhaustion warning, and last Resend send error. Renders as a
+  // single low-profile diagnostics strip; degrades to nothing when the
+  // engine-state endpoint hasn't returned diagnostics yet (older deploy).
+  function renderEngineDiagnostics(d) {
+    if (!d) return '';
+    const fmtAgo = (iso) => {
+      if (!iso) return null;
+      const mins = Math.round((Date.now() - new Date(iso)) / 60000);
+      if (mins < 60) return `${mins}m ago`;
+      const hrs = mins / 60;
+      if (hrs < 48) return `${Math.round(hrs)}h ago`;
+      return `${Math.round(hrs / 24)}d ago`;
+    };
+    const chips = [];
+    chips.push(d.is_running
+      ? `<span title="Engine cycle is running every 15 min" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">● running</span>`
+      : `<span title="Engine paused — manual cycles only${d.pause_reason ? ': ' + escapeHtml(d.pause_reason) : ''}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;">● paused${d.pause_reason ? ' — ' + escapeHtml(d.pause_reason) : ''}</span>`);
+    if (d.last_skip) {
+      chips.push(`<span title="Most recent send_skipped reason from outreach_activity_log" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);">last skip: ${escapeHtml(d.last_skip.reason || 'unknown')}${d.last_skip.channel ? ' · ' + d.last_skip.channel : ''} (${fmtAgo(d.last_skip.at)})</span>`);
+    }
+    if (d.last_send_error) {
+      chips.push(`<span title="Most recent send_failed (Resend / Twilio error)" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;">last send error: ${escapeHtml(String(d.last_send_error.error || 'unknown').slice(0, 80))}${d.last_send_error.channel ? ' · ' + d.last_send_error.channel : ''} (${fmtAgo(d.last_send_error.at)})</span>`);
+    }
+    // Task #306 — AI circuit-breaker chip. Trips open after 3 consecutive
+    // Anthropic/OpenAI failures and pauses the draft pipeline for 5 min.
+    if (d.ai_circuit_breaker?.open) {
+      const fmt = d.ai_circuit_breaker.paused_until ? fmtAgo(d.ai_circuit_breaker.paused_until) : null;
+      chips.push(`<span title="AI draft pipeline tripped open after ${d.ai_circuit_breaker.failures} consecutive Anthropic/OpenAI failures. Will auto-resume when pause window expires." style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);color:#f87171;font-weight:600;">⛔ AI breaker open (${d.ai_circuit_breaker.failures} fails${fmt ? ', resumes by ' + fmt : ''})</span>`);
+    } else if ((d.ai_circuit_breaker?.failures || 0) > 0) {
+      chips.push(`<span title="Recent AI failures recorded; breaker still closed (trips at 3)" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);">AI fails: ${d.ai_circuit_breaker.failures}</span>`);
+    }
+    if (d.apollo_likely_credit_exhaustion_at) {
+      chips.push(`<span title="Set after 5+ consecutive Apollo cycles returned 0 results — almost always means Apollo credits are exhausted" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);color:#fbbf24;font-weight:600;">⚠ Apollo credit-exhaustion suspected (${d.apollo_consecutive_zero_cycles} zero cycles)</span>`);
+    } else if (d.apollo_consecutive_zero_cycles >= 2) {
+      chips.push(`<span style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);">${d.apollo_consecutive_zero_cycles} zero Apollo cycles in a row</span>`);
+    }
+    if (chips.length === 1) return ''; // only "running" — no real diagnostics worth showing
+    return `<div style="display:flex;align-items:center;gap:6px;padding:6px 12px;margin-top:4px;background:var(--bg-elevated,#1a1f2e);border-radius:8px;border:1px solid var(--border-subtle,#2a3040);flex-wrap:wrap;">
+      <span style="font-size:11px;color:var(--text-muted);font-weight:500;">Diagnostics:</span>
+      ${chips.join('')}
+    </div>`;
+  }
+
   function renderEngineControlPanel() {
     const panel = document.getElementById('outreach-control-panel');
     if (!panel) return;
@@ -368,6 +413,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         ${apolloHealthHtml}
         ${apolloConfigLoaded && !apolloEnabled ? `<span style="font-size:11px;color:var(--text-muted);margin-left:4px;">After enabling, also add <code style="background:rgba(255,255,255,0.08);padding:1px 5px;border-radius:3px;">&#123;&#123;ref_link&#125;&#125;</code> as a variable in your <a href="https://app.instantly.ai/app/campaigns" target="_blank" rel="noopener noreferrer" style="color:var(--accent-blue,#2563eb);text-decoration:underline;">Instantly.ai campaign template</a> to track provider signups.</span>` : ''}
       </div>
+      ${renderEngineDiagnostics(outreachState.diagnostics)}
     `;
     if (typeof initInlineIcons !== 'undefined') initInlineIcons(panel);
   }

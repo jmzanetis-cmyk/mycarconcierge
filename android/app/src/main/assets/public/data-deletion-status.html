@@ -17,6 +17,10 @@
   <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <!-- Task #259: Google Fonts CSS is intentionally served without SRI — Google
+       rotates the underlying CSS by user-agent (font subsetting, woff2 vs woff)
+       so a fixed integrity hash would break the page on different browsers.
+       NOSONAR (S5725) -->
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="/shared-styles.css">
   <style>

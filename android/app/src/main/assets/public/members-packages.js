@@ -2111,8 +2111,6 @@
             `}
           </div>
         ` : ''}
-          </div>
-        ` : ''}
 
         ${['payment_held', 'accepted', 'in_progress', 'completed'].includes(pkg.status) && (pkg.escrow_payment_intent_id || pkg.split_payment_id) ? `
           <div class="form-section" style="margin-top:24px;padding-top:20px;border-top:1px solid var(--border-subtle);">
@@ -7122,6 +7120,10 @@
     function updateSplitParticipantAmount(index, dollarValue, totalAmountCents) {
       if (splitParticipantRows[index]) {
         splitParticipantRows[index].amount_cents = Math.round(parseFloat(dollarValue) * 100) || 0;
+        renderSplitParticipantsList(totalAmountCents);
+      }
+    }
+
     function addSplitParticipantRow(totalAmountCents) {
       splitParticipantRows.push({ email: '', amount_cents: 0, display_name: '', is_guest: false });
       renderSplitParticipantsList(totalAmountCents);

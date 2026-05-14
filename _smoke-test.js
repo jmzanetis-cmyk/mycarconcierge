@@ -632,11 +632,11 @@ async function callPromoterDirect(eventRow) {
         });
         const r4Body = await r4.json().catch(() => ({}));
         if (r4.status === 429) {
-          console.log(`  ✓ in-process route honors 24h rate-limit (existing_id=${r4Body.existing_application_id || 'n/a'})`);
+          console.log(`  ✓ in-process route honors 24h rate-limit (existing_id=${String(r4Body.existing_application_id || 'n/a').slice(0, 64)})`);
         } else if (r4.status === 200 && r4Body.application_id) {
           // STEP 23 didn't create a row (e.g. it failed) — this is a fresh
           // happy-path success. Track for cleanup.
-          console.log(`  ✓ created application_id=${r4Body.application_id} (STEP 23 must not have inserted)`);
+          console.log(`  ✓ created application_id=${String(r4Body.application_id).slice(0, 64)} (STEP 23 must not have inserted)`);
           await adminSb.from('provider_applications').delete().eq('id', r4Body.application_id);
         } else {
           console.log(`  ✗ rate-limit/happy-path: expected 429 or 200, got ${r4.status} ${JSON.stringify(r4Body).slice(0, 200)}`);

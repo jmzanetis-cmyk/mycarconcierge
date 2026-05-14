@@ -69,10 +69,18 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
   auth: { persistSession: false }
 });
 
+// Task #259: truncate log messages so a server-supplied error string can't
+// flood the operator's terminal or smuggle ANSI escape sequences via the
+// shared smoke-core engine.
+const MAX_LOG_LEN = 1000;
+function safeLogStr(msg) {
+  // eslint-disable-next-line no-control-regex
+  return String(msg).replace(/[\u0000-\u001F\u007F]/g, ' ').slice(0, MAX_LOG_LEN);
+}
 const log = {
-  pass: msg => console.log('PASS:', msg),
-  fail: msg => console.error('FAIL:', msg),
-  info: msg => console.log('INFO:', msg)
+  pass: msg => console.log('PASS:', safeLogStr(msg)),
+  fail: msg => console.error('FAIL:', safeLogStr(msg)),
+  info: msg => console.log('INFO:', safeLogStr(msg))
 };
 
 async function main() {

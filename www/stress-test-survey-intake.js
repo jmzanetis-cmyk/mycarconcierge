@@ -57,6 +57,14 @@ const CONFIG = {
   baseUrl:            strParam('base-url', process.env.STRESS_TEST_BASE_URL || 'http://localhost:5000'),
 };
 const BASE_URL = CONFIG.baseUrl;
+// Task #259: do not hard-code stress-test passwords. Operators must supply
+// STRESS_TEST_PASSWORD; we fail loudly so a misconfigured run can't silently
+// fall back to a known-weak credential.
+const SIM_PASSWORD = process.env.STRESS_TEST_PASSWORD;
+if (!SIM_PASSWORD) {
+  console.error('STRESS_TEST_PASSWORD environment variable is required');
+  process.exit(1);
+}
 const RESERVOIR_SIZE = 50000;
 const STRESS_TAG = `stress-survey-${Date.now()}`;
 
@@ -182,7 +190,7 @@ async function loadAdminToken() {
     auth: { autoRefreshToken: false, persistSession: false }
   });
   const { data: sess } = await c.auth.signInWithPassword({
-    email: adminUser.email, password: 'SimPass123!'
+    email: adminUser.email, password: SIM_PASSWORD
   });
   return sess?.session?.access_token || null;
 }
