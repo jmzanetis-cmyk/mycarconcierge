@@ -644,7 +644,12 @@
       schemaReady = false;
     }
 
-    const container = document.getElementById('outreach-engine');
+    // Task #269 — the wrapper element in www/admin.html is `mo-outreach-engine`
+    // (matching the `mo-` prefix the .mo-tab click handler uses to find panels).
+    // The previous lookup of `outreach-engine` always returned null, so this
+    // initializer silently returned and the Outreach Engine panel rendered
+    // blank — no control card, no Facebook Page picker, no sub-tab content.
+    const container = document.getElementById('mo-outreach-engine');
     if (!container) return;
 
     if (!schemaReady) {

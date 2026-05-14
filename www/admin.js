@@ -9689,6 +9689,15 @@
         const panel = document.getElementById(panelId);
         if (panel) panel.style.display = 'block';
         if (tab.dataset.tab === 'growth-funnel') loadGrowthFunnel();
+        // Task #269 — re-run Outreach Engine init on every click of its
+        // mo-tab (even when already active). If a transient error caused
+        // the first init to fail and leave the panel blank, the user now
+        // has an obvious recovery path: click the tab again.
+        if (tab.dataset.tab === 'outreach-engine' && typeof globalThis.initOutreachEngine === 'function') {
+          Promise.resolve(globalThis.initOutreachEngine()).catch(err => {
+            console.warn('[OutreachEngine] re-init failed:', err);
+          });
+        }
       });
     });
 
