@@ -132,10 +132,17 @@
   }
 
   // -- list view ----------------------------------------------------------
+  // Task #284 — track the member's care plan IDs so the realtime channel
+  // can decide locally whether an incoming bid INSERT is one we care about
+  // (avoids re-fetching /mine on every unrelated bid in the system).
+  let myCarePlanIds = new Set();
+
   async function loadCarePlansSection() {
     const list = document.getElementById('care-plans-list');
     const detail = document.getElementById('care-plan-detail');
     if (detail) { detail.style.display = 'none'; detail.innerHTML = ''; }
+    // Set up the realtime channel on first call. Idempotent + non-fatal.
+    setupCarePlansRealtime();
     if (!list) return;
     list.innerHTML = '<div class="empty-state"><p>' + escapeHtml(t('member.carePlansLoading', 'Loading your care plans…')) + '</p></div>';
     try {
@@ -149,6 +156,10 @@
   function renderCarePlansList(plans) {
     const list = document.getElementById('care-plans-list');
     const badge = document.getElementById('care-plans-count');
+    // Refresh the realtime filter set every time the list re-renders so a
+    // newly-created plan starts receiving live bid notifications without a
+    // page reload.
+    myCarePlanIds = new Set((plans || []).map(p => p && p.id).filter(Boolean));
     if (badge) {
       const open = plans.filter(p => (p.status === 'open' || p.payment_status === 'requires_payment')).length;
       if (open > 0) { badge.textContent = String(open); badge.style.display = ''; }
@@ -731,6 +742,60 @@
       isSubmitting = false;
     }
   }
+
+  // -- realtime: live bid notifications (Task #284) -----------------------
+  // Members can now act on bids the moment they land instead of having to
+  // hit Refresh. We subscribe to INSERTs on the `plan_bids` table and, on
+  // each event, check the bid's care_plan_id against the local set built
+  // from the most recent /api/care-plans/mine response. When it matches,
+  // we surface a toast and re-load the section, which also refreshes the
+  // #care-plans-count nav badge.
+  //
+  // Why subscribe here AND insert a `notifications` row server-side
+  // (POST /api/plan-bids in www/server.js):
+  //   - The `plan_bids` channel is what makes the LIST view auto-refresh
+  //     even when the member already had it open.
+  //   - The `notifications` row is what feeds the global notifications
+  //     bell + the existing members-core.js notifications subscription
+  //     when the user is on a different section, and persists history
+  //     beyond the lifetime of the realtime socket.
+  let realtimeBidsChannel = null;
+  function setupCarePlansRealtime() {
+    if (realtimeBidsChannel) return; // idempotent
+    const sb = window.supabaseClient || window.supabase;
+    if (!sb || typeof sb.channel !== 'function') return;
+    try {
+      realtimeBidsChannel = sb.channel('member-care-plan-bids')
+        .on('postgres_changes', {
+          event: 'INSERT', schema: 'public', table: 'plan_bids'
+        }, async function (payload) {
+          const row = payload && payload.new;
+          if (!row || !row.care_plan_id) return;
+          if (!myCarePlanIds.has(row.care_plan_id)) return;
+          const amt = (row.amount != null && !isNaN(Number(row.amount)))
+            ? ' (' + fmtMoney(row.amount) + ')' : '';
+          showToast(t('member.cpRealtimeNewBid', 'New bid received{{amt}} on your care plan.', { amt: amt }), 'success');
+          try { await loadCarePlansSection(); } catch (_) {}
+        })
+        .subscribe(function (status) {
+          if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+            // Allow a future loadCarePlansSection() call to re-subscribe.
+            realtimeBidsChannel = null;
+          }
+        });
+    } catch (e) {
+      console.warn('[CarePlans] realtime subscribe failed:', e && e.message);
+      realtimeBidsChannel = null;
+    }
+  }
+
+  window.addEventListener('beforeunload', function () {
+    const sb = window.supabaseClient || window.supabase;
+    if (realtimeBidsChannel && sb && typeof sb.removeChannel === 'function') {
+      try { sb.removeChannel(realtimeBidsChannel); } catch (_) {}
+    }
+    realtimeBidsChannel = null;
+  });
 
   // -- public surface -----------------------------------------------------
   window.loadCarePlansSection = loadCarePlansSection;
