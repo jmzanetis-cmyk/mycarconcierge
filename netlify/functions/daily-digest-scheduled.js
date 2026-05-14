@@ -117,10 +117,12 @@ async function getApolloHealth(supabase) {
     // digest shows "lock held 4m ago" even when not yet alerting.
     if (cfg.running_since) {
       const heldMs = Date.now() - new Date(cfg.running_since).getTime();
-      const heldMin = Number.isFinite(heldMs) && heldMs > 0 ? Math.round(heldMs / 60000) : 0;
+      // Floor (not round) so 5m59s isn't reported as 6m and the
+      // lock_stuck threshold uses raw ms — strict "older than 6 minutes".
+      const heldMin = Number.isFinite(heldMs) && heldMs > 0 ? Math.floor(heldMs / 60000) : 0;
       out.lock_running_since = cfg.running_since;
       out.lock_held_minutes = heldMin;
-      if (heldMin >= 6) out.lock_stuck = true;
+      if (heldMs >= 6 * 60 * 1000) out.lock_stuck = true;
     }
   } catch (_) {}
 
@@ -133,6 +135,11 @@ async function getApolloHealth(supabase) {
       .order('created_at', { ascending: false })
       .limit(20);
     const list = rows || [];
+    // recent_cycles counts ALL discovery-related events in the window
+    // (executed cycles + errors + stuck-lock skips), not just successful
+    // runs. This matches the "Cycles logged" label in the digest, which
+    // is meant to show "how much discovery activity happened" — including
+    // events that signal a stuck cycle is the whole point of Task #273.
     out.recent_cycles = list.length;
 
     let consec = 0;

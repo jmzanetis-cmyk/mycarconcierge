@@ -2249,11 +2249,14 @@ async function runApolloDiscoveryCycle(supabase) {
     // a genuinely stuck cycle, while normal admin/scheduled overlap (lock
     // held a few seconds) is intentionally not logged so it doesn't pollute
     // the consecutive-failures streak.
+    const STUCK_LOCK_THRESHOLD_MS = 6 * 60 * 1000;
     let heldMinutes = 0;
     if ((lock.reason === 'already_running' || lock.reason === 'race_lost') && lock.running_since) {
       const heldMs = Date.now() - new Date(lock.running_since).getTime();
-      heldMinutes = Number.isFinite(heldMs) && heldMs > 0 ? Math.round(heldMs / 60000) : 0;
-      if (heldMinutes >= 6) {
+      // Floor (not round) so 5m59s never trips a "6m" alert — strict
+      // "older than 6 minutes" semantics.
+      heldMinutes = Number.isFinite(heldMs) && heldMs > 0 ? Math.floor(heldMs / 60000) : 0;
+      if (heldMs >= STUCK_LOCK_THRESHOLD_MS) {
         try {
           await supabase.from('outreach_activity_log').insert({
             event_type: 'apollo_discovery_skipped',
