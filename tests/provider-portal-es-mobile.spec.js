@@ -47,6 +47,7 @@ const SECTIONS = {
   jobs: {
     label: 'Trabajos Activos',
     primaryCtaText: 'Escanear Registro del Miembro',
+    bodyText: 'Cuando un miembro acepte tu propuesta',
     html: `
       <section id="sec-jobs" style="padding:12px;box-sizing:border-box;background:#0f1218;">
         <div class="page-header" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
@@ -69,6 +70,7 @@ const SECTIONS = {
   browse: {
     label: 'Buscar Paquetes',
     primaryCtaText: 'Comprar Más Créditos',
+    bodyText: 'Encuentra paquetes de mantenimiento',
     html: `
       <section id="sec-browse" style="padding:12px;box-sizing:border-box;background:#0f1218;">
         <div class="page-header" style="margin-bottom:16px;">
@@ -114,6 +116,7 @@ const SECTIONS = {
   earnings: {
     label: 'Ganancias',
     primaryCtaText: 'Encontrar Trabajos',
+    bodyText: 'Cómo funcionan los pagos',
     html: `
       <section id="sec-earnings" style="padding:12px;box-sizing:border-box;background:#0f1218;">
         <div class="page-header" style="margin-bottom:16px;">
@@ -151,6 +154,7 @@ const SECTIONS = {
   notifications: {
     label: 'Notificaciones y Recordatorios',
     primaryCtaText: 'Marcar Todas como Leídas',
+    bodyText: 'Elige cómo y cuándo quieres recibir recordatorios',
     html: `
       <section id="sec-notifications" style="padding:12px;box-sizing:border-box;background:#0f1218;">
         <div class="page-header" style="display:flex;flex-wrap:wrap;gap:12px;margin-bottom:16px;">
@@ -240,6 +244,14 @@ test.describe('Task #304 — ES mobile readability of provider-portal sections (
           const cta = root.locator('#cta-primary');
           await expect(cta).toBeVisible();
           await expect(cta).toHaveText(new RegExp(section.primaryCtaText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+
+          // Explicit body-text locator — proves the descriptive copy
+          // (subtitle / empty-state desc / explainer paragraph) renders
+          // and is reachable, separate from the title and CTA.
+          const body = root.locator(
+            'p, .empty-state-desc, .alert, .page-subtitle'
+          ).filter({ hasText: section.bodyText }).first();
+          await expect(body, `[${dev.label}/${key}] body copy "${section.bodyText}" not visible`).toBeVisible();
 
           // (b) Zero horizontal overflow inside the section.
           const overflow = await findOverflow(page, scopeSel);
