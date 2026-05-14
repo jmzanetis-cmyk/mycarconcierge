@@ -421,18 +421,24 @@ exports.handler = async function(event, context) {
       if (outreach.approvedQueue > 0) {
         const { data: headRows } = await supabase
           .from('outreach_messages')
-          .select('id, channel, lead_id, outreach_leads(status, email, phone, crm_sync_status)')
+          .select('id, channel, lead_id, sequence_step, outreach_leads(status, email, phone, crm_sync_status)')
           .eq('status', 'approved')
           .order('created_at', { ascending: true })
           .limit(200);
-        const dead = ['unsubscribed', 'bounced', 'contacted', 'responded', 'converted', 'dead'];
+        // Task #306 — must mirror sendMessage's dead-end gate exactly,
+        // otherwise the digest over-reports "queue stalled" for valid
+        // step-2/3 follow-ups (which sendMessage allows through for
+        // contacted/responded leads).
+        const alwaysDead = ['unsubscribed', 'bounced', 'converted', 'dead'];
         for (const m of (headRows || [])) {
           queueHealth.sampled++;
           const lead = m.outreach_leads;
+          const seqStep = Number(m.sequence_step) || 1;
           let reason = 'sendable';
           if (!lead) reason = 'lead_missing';
           else if (lead.crm_sync_status === 'duplicate') reason = 'lead_crm_duplicate';
-          else if (dead.includes(lead.status)) reason = `lead_${lead.status}`;
+          else if (alwaysDead.includes(lead.status)) reason = `lead_${lead.status}`;
+          else if ((lead.status === 'contacted' || lead.status === 'responded') && seqStep <= 1) reason = `lead_${lead.status}`;
           else if (m.channel === 'email' && !lead.email) reason = 'no_email';
           else if (m.channel === 'sms' && !lead.phone) reason = 'no_phone';
           if (reason === 'sendable') queueHealth.sendable++;
