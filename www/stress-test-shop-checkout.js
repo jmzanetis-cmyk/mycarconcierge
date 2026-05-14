@@ -299,6 +299,16 @@ async function restore2faOnSims(restored) {
   }
 }
 
+// Choose one of the three operations for a runPhase tick. Pure dispatch —
+// extracted from runPhase to keep the loop driver under the
+// cognitive-complexity budget (Task #262).
+function _pickShopOp(members, sample, slugs) {
+  const r = Math.random();
+  if (sample && r >= 0.66) return doCheckout(pick(members), sample);
+  if (slugs && slugs.length > 0 && r < 0.33) return doProfileRead(slugs);
+  return doProductsRead();
+}
+
 async function runPhase(name, concurrency, durationMs, members, sample, slugs) {
   const endTime = Date.now() + durationMs;
   let active = 0;
@@ -306,18 +316,7 @@ async function runPhase(name, concurrency, durationMs, members, sample, slugs) {
     const tick = () => {
       while (active < concurrency && Date.now() < endTime) {
         active++;
-        // 1/3 profile reads, 1/3 product reads, 1/3 checkouts. Falls back to
-        // pure reads if catalog/slugs unavailable.
-        const r = Math.random();
-        let op;
-        if (sample && r >= 0.66) {
-          op = doCheckout(pick(members), sample);
-        } else if (slugs && slugs.length > 0 && r < 0.33) {
-          op = doProfileRead(slugs);
-        } else {
-          op = doProductsRead();
-        }
-        op.then(() => {
+        _pickShopOp(members, sample, slugs).then(() => {
           active--;
           if (Date.now() < endTime) tick();
           else if (active === 0) resolve();

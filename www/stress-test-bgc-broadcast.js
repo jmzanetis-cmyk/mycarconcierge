@@ -298,6 +298,19 @@ function parseCounts(stdout) {
   return { eligible: +m[1], skipped: +m[2], totalProfiles: +m[3] };
 }
 
+// Pretty-print one phase's result line + any sub-detail rows. Extracted
+// from runPhase to keep the orchestrator under the cognitive-complexity
+// budget (Task #262).
+function _logPhaseSummary(name, r, expectedMinMs, throttleHeld, skipReasons, counts) {
+  console.log(`    Phase: ${name}, exit: ${r.exitCode}, runtime: ${(r.durationMs/1000).toFixed(1)}s, expected min: ${(expectedMinMs/1000).toFixed(1)}s, throttle: ${throttleHeld ? 'OK' : 'FAILED'}`);
+  if (counts) console.log(`    eligible=${counts.eligible} skipped=${counts.skipped} totalProfiles=${counts.totalProfiles}`);
+  if (Object.keys(skipReasons).length > 0) console.log(`    skip reasons: ${JSON.stringify(skipReasons)}`);
+  if (r.exitCode !== 0) {
+    const tail = (r.stderr || '').slice(-600);
+    if (tail) console.log(`    [WARN] stderr tail:\n${tail}`);
+  }
+}
+
 async function runPhase(name, limit, rate = CONFIG.rateRps, opts = {}) {
   console.log(`  Running broadcast --dry-run --limit=${limit} --rate=${rate}...`);
   const r = await runBroadcastDryRun(limit, rate);
@@ -307,13 +320,7 @@ async function runPhase(name, limit, rate = CONFIG.rateRps, opts = {}) {
   const throttleHeld = r.durationMs >= expectedMinMs;
   const skipReasons = parseSkipReasons(r.stdout);
   const counts = parseCounts(r.stdout);
-  console.log(`    Phase: ${name}, exit: ${r.exitCode}, runtime: ${(r.durationMs/1000).toFixed(1)}s, expected min: ${(expectedMinMs/1000).toFixed(1)}s, throttle: ${throttleHeld ? 'OK' : 'FAILED'}`);
-  if (counts) console.log(`    eligible=${counts.eligible} skipped=${counts.skipped} totalProfiles=${counts.totalProfiles}`);
-  if (Object.keys(skipReasons).length > 0) console.log(`    skip reasons: ${JSON.stringify(skipReasons)}`);
-  if (r.exitCode !== 0) {
-    const tail = (r.stderr || '').slice(-600);
-    if (tail) console.log(`    [WARN] stderr tail:\n${tail}`);
-  }
+  _logPhaseSummary(name, r, expectedMinMs, throttleHeld, skipReasons, counts);
   phaseResults.push({ name, ...r, throttleHeld, skipReasons, counts, ...opts });
   return r;
 }

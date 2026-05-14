@@ -2736,40 +2736,44 @@
       }
     }
 
-    function bulkExport() {
-      const data = [];
-      for (const providerId of selectedProviders) {
-        const p = providers.find(pr => pr.id === providerId);
-        if (p) {
-          const stats = p.provider_stats?.[0] || {};
-          data.push({
-            business_name: p.business_name || '',
-            full_name: p.full_name || '',
-            email: p.email || '',
-            phone: p.business_phone || '',
-            bid_credits: (p.bid_credits || 0) + (p.free_trial_bids || 0),
-            rating: stats.average_rating || 'N/A',
-            jobs_completed: stats.jobs_completed || 0,
-            total_earnings: stats.total_earnings || 0,
-            status: p.suspension_reason ? 'Suspended' : 'Active'
-          });
-        }
-      }
+    // Build a single CSV-export row from a provider profile + stats.
+    // Extracted from bulkExport to keep that function under the cognitive
+    // complexity budget (Task #262).
+    function _providerToCsvRow(p) {
+      const stats = p.provider_stats?.[0] || {};
+      return {
+        business_name: p.business_name || '',
+        full_name: p.full_name || '',
+        email: p.email || '',
+        phone: p.business_phone || '',
+        bid_credits: (p.bid_credits || 0) + (p.free_trial_bids || 0),
+        rating: stats.average_rating || 'N/A',
+        jobs_completed: stats.jobs_completed || 0,
+        total_earnings: stats.total_earnings || 0,
+        status: p.suspension_reason ? 'Suspended' : 'Active'
+      };
+    }
 
-      // Create CSV
+    function _downloadCsv(data, filenamePrefix) {
       const headers = Object.keys(data[0] || {}).join(',');
       const rows = data.map(row => Object.values(row).join(','));
       const csv = [headers, ...rows].join('\n');
-
-      // Download
       const blob = new Blob([csv], { type: 'text/csv' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `providers-export-${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `${filenamePrefix}-${new Date().toISOString().split('T')[0]}.csv`;
       a.click();
       URL.revokeObjectURL(url);
+    }
 
+    function bulkExport() {
+      const data = [];
+      for (const providerId of selectedProviders) {
+        const p = providers.find(pr => pr.id === providerId);
+        if (p) data.push(_providerToCsvRow(p));
+      }
+      _downloadCsv(data, 'providers-export');
       showToast(`Exported ${data.length} provider(s)`, 'success');
     }
 
@@ -10458,6 +10462,33 @@
     }
     window.switchOutreachTab = switchOutreachTab;
 
+    // Render one queued message card. Extracted from loadApprovalQueue so
+    // the loader stays under the cognitive-complexity budget (Task #262).
+    function _renderQueueMessageCard(m) {
+      const lead = m.outreach_leads || {};
+      const ch = m.channel === 'email' ? '✉️' : '💬';
+      const contact = m.channel === 'email' ? (lead.email || '') : (lead.phone || '');
+      const body = m.body || '';
+      const bodyPreview = escapeHtml(body.substring(0, 400)) + (body.length > 400 ? '…' : '');
+      const subjectLine = m.subject
+        ? `<div style="font-size:0.85rem;font-weight:500;margin-bottom:6px;">Subject: ${escapeHtml(m.subject)}</div>`
+        : '';
+      return `<div id="queue-msg-${m.id}" style="padding:16px;border-bottom:1px solid var(--border-subtle);">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:0;">
+            <div style="font-weight:600;margin-bottom:2px;">${ch} ${escapeHtml(lead.name || 'Unknown')} <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">${escapeHtml(lead.company || lead.type || '')}</span></div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(contact)}</div>
+            ${subjectLine}
+            <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:hidden;line-height:1.5;">${bodyPreview}</div>
+          </div>
+          <div style="display:flex;gap:8px;flex-shrink:0;">
+            <button class="btn btn-sm btn-primary" onclick="approveMessage('${m.id}')"><span class="icon-inline" data-icon="check"></span> Approve</button>
+            <button class="btn btn-sm" onclick="skipMessage('${m.id}')" style="border-color:var(--text-muted);color:var(--text-muted);"><span class="icon-inline" data-icon="x"></span> Skip</button>
+          </div>
+        </div>
+      </div>`;
+    }
+
     async function loadApprovalQueue() {
       const listEl = document.getElementById('outreach-queue-list');
       const bulkBar = document.getElementById('outreach-bulk-bar');
@@ -10474,24 +10505,7 @@
           listEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:40px;">No messages pending approval. Run a cycle to generate new drafts.</p>';
           return;
         }
-        listEl.innerHTML = messages.map(m => {
-          const lead = m.outreach_leads || {};
-          const ch = m.channel === 'email' ? '✉️' : '💬';
-          return `<div id="queue-msg-${m.id}" style="padding:16px;border-bottom:1px solid var(--border-subtle);">
-            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-weight:600;margin-bottom:2px;">${ch} ${escapeHtml(lead.name || 'Unknown')} <span style="font-size:0.8rem;color:var(--text-muted);font-weight:400;">${escapeHtml(lead.company || lead.type || '')}</span></div>
-                <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${escapeHtml(m.channel === 'email' ? (lead.email || '') : (lead.phone || ''))}</div>
-                ${m.subject ? `<div style="font-size:0.85rem;font-weight:500;margin-bottom:6px;">Subject: ${escapeHtml(m.subject)}</div>` : ''}
-                <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:120px;overflow:hidden;line-height:1.5;">${escapeHtml((m.body || '').substring(0, 400))}${(m.body || '').length > 400 ? '…' : ''}</div>
-              </div>
-              <div style="display:flex;gap:8px;flex-shrink:0;">
-                <button class="btn btn-sm btn-primary" onclick="approveMessage('${m.id}')"><span class="icon-inline" data-icon="check"></span> Approve</button>
-                <button class="btn btn-sm" onclick="skipMessage('${m.id}')" style="border-color:var(--text-muted);color:var(--text-muted);"><span class="icon-inline" data-icon="x"></span> Skip</button>
-              </div>
-            </div>
-          </div>`;
-        }).join('');
+        listEl.innerHTML = messages.map(_renderQueueMessageCard).join('');
         if (window.renderIcons) renderIcons(listEl);
       } catch (err) {
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
@@ -10683,6 +10697,31 @@
     }
     window.createInstantlyCampaign = createInstantlyCampaign;
 
+    // Pick the rate-cell color based on the rate value. Pure data — keeps
+    // the row template under the cognitive-complexity budget (Task #262).
+    function _instantlyRateColor(rate, hotThreshold) {
+      if (rate > hotThreshold) return 'var(--accent-green)';
+      if (rate > 0) return 'var(--text-primary)';
+      return 'var(--text-muted)';
+    }
+
+    function _renderInstantlyCampaignRow(c) {
+      const sent = c.emails_sent_count || 0;
+      const openRate = typeof c.open_rate === 'number' ? c.open_rate.toFixed(1) + '%' : '—';
+      const replyRate = typeof c.reply_rate === 'number' ? c.reply_rate.toFixed(1) + '%' : '—';
+      const statusBg = c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)';
+      const statusFg = c.status === 'active' ? '#fff' : 'var(--text-muted)';
+      const openColor  = _instantlyRateColor(c.open_rate || 0, 20);
+      const replyColor = _instantlyRateColor(c.reply_rate || 0, 5);
+      return `<tr style="border-bottom:1px solid var(--border-subtle);">
+        <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
+        <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${statusBg};color:${statusFg};">${escapeHtml(c.status || 'draft')}</span></td>
+        <td style="padding:10px 12px;text-align:right;">${sent.toLocaleString()}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:${c.open_rate > 0 ? '600' : '400'};color:${openColor};">${openRate}</td>
+        <td style="padding:10px 12px;text-align:right;font-weight:${c.reply_rate > 0 ? '600' : '400'};color:${replyColor};">${replyRate}</td>
+      </tr>`;
+    }
+
     async function loadInstantlyCampaigns() {
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
       const listEl = document.getElementById('instantly-campaigns-list');
@@ -10705,18 +10744,7 @@
             <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Open Rate</th>
             <th style="text-align:right;padding:8px 12px;color:var(--text-muted);font-weight:500;">Reply Rate</th>
           </tr></thead>
-          <tbody>${campaigns.map(c => {
-            const sent = c.emails_sent_count || 0;
-            const openRate = typeof c.open_rate === 'number' ? c.open_rate.toFixed(1) + '%' : '—';
-            const replyRate = typeof c.reply_rate === 'number' ? c.reply_rate.toFixed(1) + '%' : '—';
-            return `<tr style="border-bottom:1px solid var(--border-subtle);">
-              <td style="padding:10px 12px;font-weight:500;">${escapeHtml(c.name || 'Unnamed')}</td>
-              <td style="padding:10px 12px;"><span style="padding:2px 8px;border-radius:20px;font-size:0.8rem;background:${c.status === 'active' ? 'var(--accent-green)' : 'var(--bg-tertiary)'};color:${c.status === 'active' ? '#fff' : 'var(--text-muted)'};">${escapeHtml(c.status || 'draft')}</span></td>
-              <td style="padding:10px 12px;text-align:right;">${sent.toLocaleString()}</td>
-              <td style="padding:10px 12px;text-align:right;font-weight:${c.open_rate > 0 ? '600' : '400'};color:${c.open_rate > 20 ? 'var(--accent-green)' : c.open_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${openRate}</td>
-              <td style="padding:10px 12px;text-align:right;font-weight:${c.reply_rate > 0 ? '600' : '400'};color:${c.reply_rate > 5 ? 'var(--accent-green)' : c.reply_rate > 0 ? 'var(--text-primary)' : 'var(--text-muted)'};">${replyRate}</td>
-            </tr>`;
-          }).join('')}</tbody>
+          <tbody>${campaigns.map(_renderInstantlyCampaignRow).join('')}</tbody>
         </table>`;
       } catch (err) {
         listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
@@ -12239,24 +12267,34 @@
       }
     }
 
+    // Read the tenant-wizard form fields into the POST body. Extracted so
+    // _saveTenantFromWizard stays under the cognitive-complexity budget
+    // (Task #262).
+    function _collectTenantWizardBody() {
+      const trimVal = id => document.getElementById(id)?.value.trim();
+      const optTrimVal = id => trimVal(id) || null;
+      const valOr = (id, fallback) => document.getElementById(id)?.value || fallback;
+      return {
+        name:          trimVal('tenant-name'),
+        brand_name:    trimVal('tenant-brand-name'),
+        owner_email:   optTrimVal('tenant-owner-email'),
+        domain:        optTrimVal('tenant-domain'),
+        subdomain:     optTrimVal('tenant-subdomain'),
+        logo_url:      optTrimVal('tenant-logo-url'),
+        favicon_url:   optTrimVal('tenant-favicon-url'),
+        support_email: optTrimVal('tenant-support-email'),
+        primary_color: valOr('tenant-primary-color', '#C9A227'),
+        accent_color:  valOr('tenant-accent-color',  '#2CC4B4'),
+        bg_color:      valOr('tenant-bg-color',      '#12161c'),
+        plan:          valOr('tenant-plan',          'starter'),
+        status:        valOr('tenant-status',        'active')
+      };
+    }
+
     async function _saveTenantFromWizard() {
       const errEl = document.getElementById('tenant-modal-error');
       if (errEl) errEl.style.display = 'none';
-      const body = {
-        name: document.getElementById('tenant-name')?.value.trim(),
-        brand_name: document.getElementById('tenant-brand-name')?.value.trim(),
-        owner_email: document.getElementById('tenant-owner-email')?.value.trim() || null,
-        domain: document.getElementById('tenant-domain')?.value.trim() || null,
-        subdomain: document.getElementById('tenant-subdomain')?.value.trim() || null,
-        logo_url: document.getElementById('tenant-logo-url')?.value.trim() || null,
-        favicon_url: document.getElementById('tenant-favicon-url')?.value.trim() || null,
-        support_email: document.getElementById('tenant-support-email')?.value.trim() || null,
-        primary_color: document.getElementById('tenant-primary-color')?.value || '#C9A227',
-        accent_color: document.getElementById('tenant-accent-color')?.value || '#2CC4B4',
-        bg_color: document.getElementById('tenant-bg-color')?.value || '#12161c',
-        plan: document.getElementById('tenant-plan')?.value || 'starter',
-        status: document.getElementById('tenant-status')?.value || 'active'
-      };
+      const body = _collectTenantWizardBody();
       if (!body.name || !body.brand_name) {
         if (errEl) { errEl.textContent = 'Internal name and brand name are required.'; errEl.style.display = 'block'; }
         return;

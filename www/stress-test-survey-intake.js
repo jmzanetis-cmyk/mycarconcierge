@@ -204,6 +204,13 @@ async function doAnalyticsRead() {
   recordMetric(metrics.analytics, latency, status);
 }
 
+// True when the given runPhase tick should also fire an analytics read.
+// Extracted from runPhase so the loop driver stays under the
+// cognitive-complexity budget (Task #262).
+function _shouldFireAnalytics(withAnalytics) {
+  return withAnalytics && adminToken && Math.random() < 0.1;
+}
+
 async function runPhase(name, concurrency, durationMs, withAnalytics = false) {
   const endTime = Date.now() + durationMs;
   let active = 0;
@@ -213,9 +220,7 @@ async function runPhase(name, concurrency, durationMs, withAnalytics = false) {
     const tick = () => {
       while (active < concurrency && Date.now() < endTime) {
         active++;
-        // Mix in 1 analytics read per ~10 posts so the admin aggregation
-        // path is exercised concurrently with the public intake load.
-        if (withAnalytics && adminToken && Math.random() < 0.1) {
+        if (_shouldFireAnalytics(withAnalytics)) {
           analyticsActive++;
           doAnalyticsRead().then(() => {
             analyticsActive--;
