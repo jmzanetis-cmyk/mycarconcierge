@@ -314,16 +314,14 @@ test.describe('Care plan payment journey (Task #282)', () => {
     await cardFrame.locator('[name="postal"]').fill('10001').catch(() => {});
     await page.locator('#cp-card-confirm-btn').click();
 
-    // Confirm captured the PI server-side (front-end calls stripe.confirmCardPayment).
-    // Read the PI id back from the plan once the UI has posted it.
-    const piId = await page.waitForFunction(async () => {
-      const r = await fetch('/api/care-plans/' + window.__task282PlanId, { headers: { Authorization: 'Bearer ' + window.__task282Token } }).catch(() => null);
-      return r ? null : null; // fall through; we read PI from DB below instead
-    }, null, { timeout: 1 }).catch(() => null);
-
-    // Read the PI id directly from Supabase rather than the UI (more reliable).
-    const { data: pidRow } = await sb.from('care_plans').select('stripe_payment_intent_id').eq('id', plan.id).single();
-    expect(pidRow.stripe_payment_intent_id).toMatch(/^pi_/);
+    // Read the PI id back from Supabase once the UI's confirm POST has settled.
+    let pidRow = null;
+    for (let i = 0; i < 20; i++) {
+      const { data } = await sb.from('care_plans').select('stripe_payment_intent_id').eq('id', plan.id).single();
+      if (data && data.stripe_payment_intent_id) { pidRow = data; break; }
+      await new Promise(r => setTimeout(r, 250));
+    }
+    expect(pidRow && pidRow.stripe_payment_intent_id).toMatch(/^pi_/);
     currentPI = pidRow.stripe_payment_intent_id;
 
     // Drive amount_capturable_updated webhook → plan flips to 'held'.
@@ -407,6 +405,46 @@ test.describe('Care plan payment journey (Task #282)', () => {
     expect(completion.provider_id).toBe(providerId);
     const piCaptured = await stripe.paymentIntents.retrieve(piId);
     expect(piCaptured.status).toBe('succeeded');
+  });
+
+  test('3DS path: PI requiring authentication transitions held only after 3DS confirm', async ({ request }) => {
+    test.skip(!stripeUsable, 'Stripe test key not usable in this environment');
+    test.skip(!STRIPE_WEBHOOK_SECRET, 'STRIPE_WEBHOOK_SECRET required');
+
+    const { plan, acceptedBid } = await seedPlan();
+    const acceptRes = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/accept-bid`, {
+      headers: { Authorization: `Bearer ${memberToken}`, 'Content-Type': 'application/json' },
+      data: { bid_id: acceptedBid.id }
+    });
+    expect(acceptRes.status()).toBe(200);
+    const piId = (await acceptRes.json()).payment_intent_id;
+
+    // pm_card_authenticationRequired forces a 3DS challenge — confirm
+    // should land in `requires_action`, NOT `requires_capture`, proving
+    // the manual-capture intent gates funds-held until the challenge is
+    // satisfied.
+    await stripe.paymentIntents.confirm(piId, {
+      payment_method: 'pm_card_authenticationRequired',
+      return_url: `${BASE_URL}/members.html`
+    });
+    const piPending = await stripe.paymentIntents.retrieve(piId);
+    expect(piPending.status).toBe('requires_action');
+
+    // Plan must NOT yet be held — the 3DS step must complete first.
+    const { data: planMid } = await sb.from('care_plans').select('payment_status').eq('id', plan.id).single();
+    expect(planMid.payment_status).not.toBe('held');
+
+    // Re-confirm with a non-3DS test PM to clear the challenge. In Stripe
+    // test mode this completes the SCA flow and moves the manual-capture
+    // intent to requires_capture (the held state).
+    await stripe.paymentIntents.confirm(piId, { payment_method: 'pm_card_visa' });
+    const piHeld = await stripe.paymentIntents.retrieve(piId);
+    expect(piHeld.status).toBe('requires_capture');
+
+    // Now the webhook should flip the plan to 'held'.
+    await postSignedWebhook(request, 'payment_intent.amount_capturable_updated', piHeld, plan.id, acceptedBid.id);
+    const heldRow = await pollPlan(plan.id, (p) => p.payment_status === 'held');
+    expect(heldRow.payment_status).toBe('held');
   });
 
   test('Concurrency: parallel /accept-bid yields exactly one 200 + one 409, no orphan PI', async ({ request }) => {
