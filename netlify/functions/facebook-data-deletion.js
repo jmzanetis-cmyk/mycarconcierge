@@ -59,7 +59,7 @@ function parseBody(event) {
     body = Buffer.from(body, 'base64').toString('utf8');
   }
   let ct = ((event.headers && (event.headers['content-type'] || event.headers['Content-Type'])) || '').toLowerCase();
-  if (ct.indexOf('application/json') !== -1) {
+  if (ct.includes('application/json')) {
     try { return body ? JSON.parse(body) : {}; } catch (e) { throw new Error('Invalid JSON body'); }
   }
   let params = new URLSearchParams(body);
@@ -71,11 +71,9 @@ function parseBody(event) {
 // Returns the matching user from a single page of auth.admin.listUsers, or
 // null when no row in the page links the given facebook_user_id.
 function _findFacebookMatchInPage(users, facebookUserId) {
-  for (var i = 0; i < users.length; i++) {
-    let u = users[i];
+  for (const u of users) {
     let idents = Array.isArray(u.identities) ? u.identities : [];
-    for (var j = 0; j < idents.length; j++) {
-      let ident = idents[j];
+    for (const ident of idents) {
       if (ident.provider === 'facebook' && (ident.provider_id === facebookUserId || ident.id === facebookUserId)) {
         return u;
       }
@@ -192,7 +190,7 @@ async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirma
       .from('fb_data_deletion_requests')
       .update(update)
       .eq('id', requestRowId);
-  } catch (e2) {
+  } catch (error_) {
     console.error('[facebook-data-deletion] failed to record final status:', e2);
   }
 }

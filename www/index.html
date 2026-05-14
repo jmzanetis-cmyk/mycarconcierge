@@ -1894,7 +1894,7 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <div class="onboarding-banner" id="onboardingBanner" style="display:none;" role="status" aria-live="polite">
+  <output class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
     <span class="open-banner-dot" aria-hidden="true"></span>
     <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Open for Business</span>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
@@ -1904,7 +1904,7 @@
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
     <a href="/onboarding-provider.html" data-i18n="landing.openForBusinessProviderCta">Create a provider profile</a>
     <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
-  </div>
+  </output>
   <script>
     if (!localStorage.getItem('onboardingBannerDismissed')) {
       document.getElementById('onboardingBanner').style.display = '';

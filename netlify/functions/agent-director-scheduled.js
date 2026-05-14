@@ -561,10 +561,10 @@ async function loadConfig(supabase) {
     const { data } = await supabase.from('agents').select('config').eq('slug', SLUG).maybeSingle();
     const cfg = (data?.config) || {};
     return {
-      quietHours:    Object.assign({}, DEFAULTS.quiet_hours_utc,  cfg.quiet_hours_utc || {}),
+      quietHours:    { ...DEFAULTS.quiet_hours_utc, ...cfg.quiet_hours_utc || { } },
       digestHourUtc: cfg.digest_hour_utc != null ? cfg.digest_hour_utc : DEFAULTS.digest_hour_utc,
       dedupeHours:   cfg.dedupe_repage_hours || DEFAULTS.dedupe_repage_hours,
-      thresholds:    Object.assign({}, DEFAULTS.thresholds, cfg.thresholds || {})
+      thresholds:    { ...DEFAULTS.thresholds, ...cfg.thresholds || { } }
     };
   } catch {
     return {

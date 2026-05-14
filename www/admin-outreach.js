@@ -1810,17 +1810,8 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   // ?picking=facebook-page (the OAuth callback redirect).
   // ===================================================================
 
-  function fbHeaders() {
-    const headers = { 'Content-Type': 'application/json' };
-    const adminTeamToken = localStorage.getItem('mcc_admin_team_token');
-    const adminPass = localStorage.getItem('mcc_admin_pass');
-    if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-    else if (adminPass) headers['x-admin-password'] = adminPass;
-    return headers;
-  }
-
   async function fbApi(method, endpoint, body) {
-    const opts = { method, headers: fbHeaders() };
+    const opts = { method, headers: getOutreachHeaders() };
     if (body !== undefined) opts.body = JSON.stringify(body);
     const res = await fetch(`/api/admin/facebook${endpoint}`, opts);
     let json = null;

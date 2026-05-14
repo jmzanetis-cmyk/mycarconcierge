@@ -1183,7 +1183,7 @@ async function handleDirectorConfigGet(event, ctx) {
 
 // Validate & merge a single Director config field. Returns { ok, error?, next }.
 function _applyDirectorConfigFields(current, body) {
-  const next = JSON.parse(JSON.stringify(current));
+  const next = structuredClone(current);
 
   if (body.quiet_hours_utc && typeof body.quiet_hours_utc === 'object') {
     const s = Number.parseInt(body.quiet_hours_utc.start, 10);
@@ -1214,7 +1214,7 @@ function _applyDirectorConfigFields(current, body) {
       'hunter_unscored_min_2h','social_dry_window_h','matchmaker_unranked_min_h',
       'signup_drop_pct'
     ]);
-    const merged = Object.assign({}, current.thresholds || {});
+    const merged = { ...current.thresholds || {} };
     for (const [k, v] of Object.entries(body.thresholds)) {
       if (!allowed.has(k)) continue;
       const n = Number(v);

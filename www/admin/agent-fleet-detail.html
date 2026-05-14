@@ -920,7 +920,7 @@ async function loadPromptHistory() {
           await api(`/agents/${encodeURIComponent(agentSlug)}/prompt/${version}/activate`, { method: 'POST' });
           toast(`Activated v${version}`);
           loadPrompt();
-        } catch (e2) { toast(e2.message, true); }
+        } catch (error_) { toast(error_.message, true); }
       });
     });
     // Click a row to diff it against the active version (or, if it IS the

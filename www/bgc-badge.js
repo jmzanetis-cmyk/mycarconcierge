@@ -119,7 +119,7 @@
       if (root.I18n && typeof root.I18n.getCurrentLanguage === 'function') {
         return root.I18n.getCurrentLanguage();
       }
-      if (typeof root.localStorage !== 'undefined') {
+      if (root.localStorage !== undefined) {
         const stored = root.localStorage.getItem('mcc_language');
         if (stored) return stored;
       }

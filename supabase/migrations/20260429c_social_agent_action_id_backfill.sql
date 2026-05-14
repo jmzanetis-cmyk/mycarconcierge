@@ -27,7 +27,7 @@ WITH latest_hunter_action AS (
    WHERE agent_slug = 'hunter'
      AND action_type = 'score'
      AND decision ? 'social_lead_id'
-     AND decision->>'social_lead_id' ~ '^[0-9]+$'
+     AND decision->>'social_lead_id' ~ '^[0-9]+$'  -- NOSONAR S6353: digit-only regex repeated across CTEs; \set unsupported in Supabase SQL Editor
    ORDER BY (decision->>'social_lead_id')::bigint, created_at DESC
 )
 UPDATE public.social_leads sl
@@ -46,7 +46,7 @@ WITH latest_promoter_action AS (
    WHERE agent_slug = 'promoter'
      AND action_type = 'draft'
      AND decision ? 'social_post_id'
-     AND decision->>'social_post_id' ~ '^[0-9]+$'
+     AND decision->>'social_post_id' ~ '^[0-9]+$'  -- NOSONAR S6353
    ORDER BY (decision->>'social_post_id')::bigint, created_at DESC
 )
 UPDATE public.social_posts sp

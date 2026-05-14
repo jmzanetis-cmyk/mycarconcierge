@@ -373,7 +373,6 @@ function printResults(testDurationSec, integrity) {
   // At least 50% of seeded plans should reach a terminal payment_status by
   // run end. Below that, either the endpoint regressed or auth is broken.
   const MIN_TERMINAL_FRACTION = 0.5;
-  const terminalPaymentStates = new Set(['captured', 'disputed', 'refunded']);
   // We only have the integrity payload's `stuckCompletedPlans` and
   // `totalCompletions`; reuse `totalCompletions` as the terminal floor
   // (one row per plan that reached terminal state).

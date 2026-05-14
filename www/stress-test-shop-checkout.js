@@ -127,12 +127,10 @@ function recordCheckoutAuthOutcome(status, sessionIs2faDisabled) {
       // it does, our setup race-lost or the profile was re-locked mid-run.
       metrics.checkout.unexpectedGateBlocks = (metrics.checkout.unexpectedGateBlocks || 0) + 1;
     }
-  } else {
-    if (status === 401 || status === 403) {
-      metrics.checkout.gateBlocked = (metrics.checkout.gateBlocked || 0) + 1;
-    } else if (status === 200 || status === 201) {
-      metrics.checkout.gateBypassed = (metrics.checkout.gateBypassed || 0) + 1;
-    }
+  } else if (status === 401 || status === 403) {
+    metrics.checkout.gateBlocked = (metrics.checkout.gateBlocked || 0) + 1;
+  } else if (status === 200 || status === 201) {
+    metrics.checkout.gateBypassed = (metrics.checkout.gateBypassed || 0) + 1;
   }
 }
 function getLatencies(m) {
@@ -422,7 +420,6 @@ function printResults(durationSec, integrity) {
   // check is vacuous and we report it as N/A rather than letting it
   // silently auto-pass. This avoids a false-positive "no duplicates" PASS
   // that masks a regression in the order-write path.
-  const checkoutBypassed = integrity.stressOrders > 0;
   const checkoutAttempted = metrics.checkout.requests > 0;
   // Minimum checkout traffic to consider the checkout path "meaningfully
   // sampled." 20 attempts at 1/3 of the workload mix easily clears this in

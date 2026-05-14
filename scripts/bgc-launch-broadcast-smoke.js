@@ -106,6 +106,8 @@ function makeQuery(table) {
     update() {
       return { eq: () => Promise.resolve({ data: null, error: null }) };
     },
+    // Intentional thenable: lets `await builder` resolve to the query result.
+    // Renaming this would break the broadcast script's await contract. NOSONAR S4123
     then(resolve) {
       resolve({ data: applyOps(fixture[table] || [], ops, columns), error: null });
     }
@@ -156,8 +158,10 @@ const broadcaster = require(path.join(__dirname, 'send-bgc-launch-broadcast.js')
   const customerSends = sentByResend.filter(s => s.body.headers && s.body.headers['X-MCC-Broadcast'] === 'bgc-launch-customer');
   const providerSends = sentByResend.filter(s => s.body.headers && s.body.headers['X-MCC-Broadcast'] === 'bgc-launch-provider');
 
-  const customerEmails = customerSends.map(s => s.body.to).sort();
-  const providerEmails = providerSends.map(s => s.body.to).sort();
+  const customerEmails = customerSends.map(s => s.body.to).sort((a, b) => a.localeCompare(b));
+  const providerEmailsArr = providerSends.map(s => s.body.to).sort((a, b) => a.localeCompare(b));
+  const providerEmails = providerEmailsArr;
+  const providerEmailsSet = new Set(providerEmailsArr);
 
   expect(customerEmails.includes('amy@example.test'), 'customer audience: member sent');
   expect(customerEmails.includes('bob@example.test'), 'customer audience: member sent');
@@ -179,9 +183,9 @@ const broadcaster = require(path.join(__dirname, 'send-bgc-launch-broadcast.js')
   expect(/href="https:\/\/test\.example\/unsubscribe\?email=amy/.test(amyHtml),                     'customer template: unsubscribe_url merged');
   expect(!/\{\{[^}]+\}\}/.test(amyHtml),                                                            'customer template: no unrendered placeholders');
 
-  expect(providerEmails.includes('shop@example.test'), 'provider audience: provider sent');
-  expect(providerEmails.includes('pend@example.test'), 'provider audience: pending_provider sent');
-  expect(!providerEmails.includes('unsub@example.test'), 'provider audience: global suppression excluded');
+  expect(providerEmailsSet.has('shop@example.test'), 'provider audience: provider sent');
+  expect(providerEmailsSet.has('pend@example.test'), 'provider audience: pending_provider sent');
+  expect(!providerEmailsSet.has('unsub@example.test'), 'provider audience: global suppression excluded');
 
   const shopHtml = providerSends.find(s => s.body.to === 'shop@example.test').body.html;
   expect(/Hi Acme Garage,/.test(shopHtml),                                                              'provider template: business_name used as provider_name');
