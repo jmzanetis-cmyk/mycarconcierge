@@ -29,7 +29,7 @@
 //   line of the handler's race-handling branch without requiring a live
 //   Postgres or a deployed function.
 //
-// Run with:  node netlify/functions/provider-application.test.js
+// Run with:  node netlify/functions-tests/provider-application.test.js
 // Exits non-zero on the first assertion failure.
 // ============================================================================
 
@@ -224,7 +224,7 @@ Module.prototype.require = function patchedRequire(id) {
   return origRequire.apply(this, arguments);
 };
 
-const { handler } = require('./provider-application');
+const { handler } = require('../functions/provider-application');
 
 // ---------------------------------------------------------------------------
 // Helpers

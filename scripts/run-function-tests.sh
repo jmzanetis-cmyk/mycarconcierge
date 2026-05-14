@@ -1,20 +1,27 @@
 #!/usr/bin/env bash
 # Task #285 — Run every in-process Netlify function regression test.
 #
-# Discovers every `netlify/functions/*.test.js` file and runs it with
-# `node`. Each test file is self-contained (own `assert` calls, prints
-# its own pass/fail tally, exits non-zero on failure) — see the headers
-# of admin-routes-auth.test.js / provider-application.test.js for the
-# convention. Aggregates pass/fail across files and exits non-zero if
-# any single file fails so `npm test` can be wired into CI without
-# masking regressions.
+# Discovers every `netlify/functions-tests/*.test.js` file and runs it
+# with `node`. Each test file is self-contained (own `assert` calls,
+# prints its own pass/fail tally, exits non-zero on failure) — see the
+# headers of admin-routes-auth.test.js / provider-application.test.js
+# for the convention. Aggregates pass/fail across files and exits
+# non-zero if any single file fails so `npm test` can be wired into CI
+# without masking regressions.
+#
+# Task #309: tests live in netlify/functions-tests/ (NOT
+# netlify/functions/) because Netlify scans the functions directory and
+# tries to publish every .js file as a serverless function — and the
+# `.test.js` filename contains a dot, which is illegal as a function
+# name. Keeping the tests in a sibling directory keeps the regression
+# suite running while letting prod deploys succeed.
 
 set -u
 shopt -s nullglob
 
 cd "$(dirname "$0")/.."
 
-files=(netlify/functions/*.test.js)
+files=(netlify/functions-tests/*.test.js)
 
 # Task #202 — Offline smokes for scripts that don't live under
 # netlify/functions/ but should still be guarded by `npm test`. Each entry
@@ -31,7 +38,7 @@ files+=("${extra[@]}")
 total=${#files[@]}
 
 if [ "$total" -eq 0 ]; then
-  echo "No test files found at netlify/functions/*.test.js — nothing to run."
+  echo "No test files found at netlify/functions-tests/*.test.js — nothing to run."
   exit 0
 fi
 
