@@ -352,75 +352,56 @@ async function buildDailyDigest(supabase) {
 // ---------------------------------------------------------------------------
 // Dedupe + dispatch
 // ---------------------------------------------------------------------------
-async function recordAndPage(supabase, finding, ctx) {
-  const { alert_key, severity } = finding;
+// Update an existing alert row and decide whether the new fire warrants
+// re-paging (only critical alerts re-page, and only once per dedupe window).
+async function _updateExistingAlert(supabase, existing, finding, severity, dedupeHours) {
+  await supabase.from('agent_director_alerts')
+    .update({
+      last_fired_at: new Date().toISOString(),
+      fire_count: existing.fire_count + 1,
+      title: finding.title,
+      body: finding.body,
+      next_action: finding.next_action,
+      payload: finding.payload,
+      severity
+    })
+    .eq('id', existing.id);
 
-  const { data: existing } = await supabase
+  const lastPageStr = existing.sms_sent_at || existing.email_sent_at;
+  const hoursSinceLast = lastPageStr
+    ? (Date.now() - new Date(lastPageStr).getTime()) / 3600000
+    : Infinity;
+  const shouldPage = severity === 'critical' && hoursSinceLast >= dedupeHours;
+  return { alertId: existing.id, shouldPage };
+}
+
+// Insert a new alert row; falls back to the existing row on a unique-index
+// race (concurrent insert wins, this fire is treated as a re-fire).
+async function _insertAlert(supabase, alert_key, severity, finding) {
+  const ins = await supabase.from('agent_director_alerts')
+    .insert({
+      alert_key,
+      severity,
+      title: finding.title,
+      body: finding.body,
+      next_action: finding.next_action,
+      payload: finding.payload
+    })
+    .select('id')
+    .single();
+  if (!ins.error) return { alertId: ins.data.id, shouldPage: true };
+
+  const { data: re } = await supabase
     .from('agent_director_alerts')
-    .select('id, fire_count, sms_sent_at, email_sent_at')
+    .select('id')
     .eq('alert_key', alert_key)
     .is('resolved_at', null)
     .maybeSingle();
+  return { alertId: re && re.id, shouldPage: false };
+}
 
-  let alertId;
-  let shouldPage;
-
-  if (existing) {
-    await supabase.from('agent_director_alerts')
-      .update({
-        last_fired_at: new Date().toISOString(),
-        fire_count: existing.fire_count + 1,
-        title: finding.title,
-        body: finding.body,
-        next_action: finding.next_action,
-        payload: finding.payload,
-        severity
-      })
-      .eq('id', existing.id);
-    alertId = existing.id;
-
-    // Re-page only on critical alerts, capped to one re-page per
-    // dedupe_repage_hours window.
-    const lastPageStr = existing.sms_sent_at || existing.email_sent_at;
-    const hoursSinceLast = lastPageStr
-      ? (Date.now() - new Date(lastPageStr).getTime()) / 3600000
-      : Infinity;
-    shouldPage = severity === 'critical' && hoursSinceLast >= ctx.dedupeHours;
-  } else {
-    const ins = await supabase.from('agent_director_alerts')
-      .insert({
-        alert_key,
-        severity,
-        title: finding.title,
-        body: finding.body,
-        next_action: finding.next_action,
-        payload: finding.payload
-      })
-      .select('id')
-      .single();
-    if (ins.error) {
-      // Race with a concurrent insert (partial unique index) — re-fetch and treat as existing.
-      const { data: re } = await supabase
-        .from('agent_director_alerts')
-        .select('id')
-        .eq('alert_key', alert_key)
-        .is('resolved_at', null)
-        .maybeSingle();
-      alertId = re && re.id;
-      shouldPage = false;
-    } else {
-      alertId = ins.data.id;
-      shouldPage = true;  // first fire always pages
-    }
-  }
-
-  // Quiet hours suppress non-critical alerts. Critical alerts and the
-  // morning digest always page through.
-  if (ctx.isQuietHours && severity !== 'critical' && severity !== 'digest') {
-    return { alert_id: alertId, paged: false, reason: 'quiet_hours' };
-  }
-  if (!shouldPage) return { alert_id: alertId, paged: false, reason: 'deduped' };
-
+// Send SMS+email and persist their results onto the alert row.
+async function _dispatchAndRecord(supabase, alertId, finding) {
   const [smsResult, emailResult] = await Promise.all([sendSms(finding), sendEmail(finding)]);
 
   if (alertId) {
@@ -434,6 +415,30 @@ async function recordAndPage(supabase, finding, ctx) {
 
   return { alert_id: alertId, paged: smsResult.sent || emailResult.sent,
            sms: smsResult.sent, email: emailResult.sent };
+}
+
+async function recordAndPage(supabase, finding, ctx) {
+  const { alert_key, severity } = finding;
+
+  const { data: existing } = await supabase
+    .from('agent_director_alerts')
+    .select('id, fire_count, sms_sent_at, email_sent_at')
+    .eq('alert_key', alert_key)
+    .is('resolved_at', null)
+    .maybeSingle();
+
+  const { alertId, shouldPage } = existing
+    ? await _updateExistingAlert(supabase, existing, finding, severity, ctx.dedupeHours)
+    : await _insertAlert(supabase, alert_key, severity, finding);
+
+  // Quiet hours suppress non-critical alerts. Critical alerts and the
+  // morning digest always page through.
+  if (ctx.isQuietHours && severity !== 'critical' && severity !== 'digest') {
+    return { alert_id: alertId, paged: false, reason: 'quiet_hours' };
+  }
+  if (!shouldPage) return { alert_id: alertId, paged: false, reason: 'deduped' };
+
+  return await _dispatchAndRecord(supabase, alertId, finding);
 }
 
 async function sendSms(finding) {
@@ -565,6 +570,57 @@ async function loadConfig(supabase) {
 }
 
 // ---------------------------------------------------------------------------
+// Handler phases (extracted from the main handler so each phase has a single
+// responsibility — see Task #262).
+// ---------------------------------------------------------------------------
+async function _runChecks(supabase, cfg) {
+  const checks = [
+    checkGatekeeperFailing,
+    checkPromoterBacklog,
+    checkPromoterIdle,
+    checkHunterStalled,
+    checkSocialMonitorDry,
+    checkMatchmakerSilent,
+    checkFunnelDrop
+  ];
+  const findings = [];
+  const checkErrors = [];
+  for (const fn of checks) {
+    try {
+      const f = await fn(supabase, cfg.thresholds);
+      if (f) findings.push(f);
+    } catch (e) {
+      checkErrors.push({ check: fn.name, error: e.message });
+    }
+  }
+  return { findings, checkErrors };
+}
+
+async function _dispatchFindings(supabase, findings, ctx, checkErrors) {
+  const dispatched = [];
+  for (const f of findings) {
+    try {
+      const r = await recordAndPage(supabase, f, ctx);
+      dispatched.push({ alert_key: f.alert_key, severity: f.severity, paged: r.paged, reason: r.reason || null, sms: r.sms || false, email: r.email || false });
+    } catch (e) {
+      checkErrors.push({ alert_key: f.alert_key, error: e.message });
+    }
+  }
+  return dispatched;
+}
+
+async function _runDigestSlot(supabase, dedupeHours, checkErrors) {
+  try {
+    const digest = await buildDailyDigest(supabase);
+    const r = await recordAndPage(supabase, digest, { isQuietHours: false, dedupeHours });
+    return { alert_key: digest.alert_key, paged: r.paged, sms: r.sms || false, email: r.email || false };
+  } catch (e) {
+    checkErrors.push({ check: 'daily_digest', error: e.message });
+    return null;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Handler
 // ---------------------------------------------------------------------------
 exports.handler = async function(event) {
@@ -578,47 +634,11 @@ exports.handler = async function(event) {
   const isQuietHours  = isInQuietHours(now, cfg.quietHours);
   const isDigestSlot  = now.getUTCHours() === cfg.digestHourUtc && now.getUTCMinutes() < 15;
 
-  const checks = [
-    checkGatekeeperFailing,
-    checkPromoterBacklog,
-    checkPromoterIdle,
-    checkHunterStalled,
-    checkSocialMonitorDry,
-    checkMatchmakerSilent,
-    checkFunnelDrop
-  ];
-
-  const findings = [];
-  const checkErrors = [];
-  for (const fn of checks) {
-    try {
-      const f = await fn(supabase, cfg.thresholds);
-      if (f) findings.push(f);
-    } catch (e) {
-      checkErrors.push({ check: fn.name, error: e.message });
-    }
-  }
-
-  const dispatched = [];
-  for (const f of findings) {
-    try {
-      const r = await recordAndPage(supabase, f, { isQuietHours, dedupeHours: cfg.dedupeHours });
-      dispatched.push({ alert_key: f.alert_key, severity: f.severity, paged: r.paged, reason: r.reason || null, sms: r.sms || false, email: r.email || false });
-    } catch (e) {
-      checkErrors.push({ alert_key: f.alert_key, error: e.message });
-    }
-  }
-
-  let digestResult = null;
-  if (isDigestSlot) {
-    try {
-      const digest = await buildDailyDigest(supabase);
-      const r = await recordAndPage(supabase, digest, { isQuietHours: false, dedupeHours: cfg.dedupeHours });
-      digestResult = { alert_key: digest.alert_key, paged: r.paged, sms: r.sms || false, email: r.email || false };
-    } catch (e) {
-      checkErrors.push({ check: 'daily_digest', error: e.message });
-    }
-  }
+  const { findings, checkErrors } = await _runChecks(supabase, cfg);
+  const dispatched = await _dispatchFindings(supabase, findings, { isQuietHours, dedupeHours: cfg.dedupeHours }, checkErrors);
+  const digestResult = isDigestSlot
+    ? await _runDigestSlot(supabase, cfg.dedupeHours, checkErrors)
+    : null;
 
   const resolved = await sweepResolutions(supabase, findings).catch(e => {
     checkErrors.push({ check: 'sweepResolutions', error: e.message });

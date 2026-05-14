@@ -192,6 +192,44 @@
       '</div>';
   }
 
+  // Resolve the (label, background, color) tuple for the legacy inline badge
+  // pill. Pure data — kept separate from the DOM write so loadSummary stays
+  // under the cognitive-complexity budget (Task #262).
+  function _legacyBadgePalette(badge, total, pct, isEs) {
+    if (badge) return {
+      text: isEs ? '✓ MCC Verificado' : '✓ MCC Verified',
+      bg:   'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))',
+      fg:   '#2eb88a'
+    };
+    if (total === 0) return {
+      text: isEs ? 'No inscrito' : 'Not enrolled',
+      bg:   'rgba(255,255,255,0.05)',
+      fg:   'var(--text-muted)'
+    };
+    if (pct < 80) return {
+      text: isEs ? '✗ Inactivo' : '✗ Inactive',
+      bg:   'rgba(220, 80, 80, 0.15)',
+      fg:   '#dc5050'
+    };
+    if (pct < 90) return {
+      text: isEs ? '⚠ En riesgo' : '⚠ At Risk',
+      bg:   'rgba(212, 168, 85, 0.15)',
+      fg:   '#d4a855'
+    };
+    return {
+      text: isEs ? 'Menos del 90 % — aún no verificado' : 'Below 90% — not yet verified',
+      bg:   'rgba(255,255,255,0.05)',
+      fg:   'var(--text-muted)'
+    };
+  }
+
+  function _renderLegacyBadgeState(stateEl, badge, total, pct) {
+    const palette = _legacyBadgePalette(badge, total, pct, _stateLang() === 'es');
+    stateEl.textContent      = palette.text;
+    stateEl.style.background = palette.bg;
+    stateEl.style.color      = palette.fg;
+  }
+
   async function loadSummary(providerId) {
     const sb = getSupabase();
     const { data: prof } = await sb
@@ -217,30 +255,7 @@
     if (countsEl) countsEl.textContent = _clearedLine(compliant, total);
     if (barEl)    barEl.style.width    = Math.max(0, Math.min(100, pct)) + '%';
 
-    if (stateEl) {
-      const isEs = _stateLang() === 'es';
-      if (badge) {
-        stateEl.textContent      = isEs ? '✓ MCC Verificado' : '✓ MCC Verified';
-        stateEl.style.background = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
-        stateEl.style.color      = '#2eb88a';
-      } else if (total === 0) {
-        stateEl.textContent      = isEs ? 'No inscrito' : 'Not enrolled';
-        stateEl.style.background = 'rgba(255,255,255,0.05)';
-        stateEl.style.color      = 'var(--text-muted)';
-      } else if (pct < 80) {
-        stateEl.textContent      = isEs ? '✗ Inactivo' : '✗ Inactive';
-        stateEl.style.background = 'rgba(220, 80, 80, 0.15)';
-        stateEl.style.color      = '#dc5050';
-      } else if (pct < 90) {
-        stateEl.textContent      = isEs ? '⚠ En riesgo' : '⚠ At Risk';
-        stateEl.style.background = 'rgba(212, 168, 85, 0.15)';
-        stateEl.style.color      = '#d4a855';
-      } else {
-        stateEl.textContent      = isEs ? 'Menos del 90 % — aún no verificado' : 'Below 90% — not yet verified';
-        stateEl.style.background = 'rgba(255,255,255,0.05)';
-        stateEl.style.color      = 'var(--text-muted)';
-      }
-    }
+    if (stateEl) _renderLegacyBadgeState(stateEl, badge, total, pct);
     if (pillEl) pillEl.style.display = badge ? '' : 'none';
 
     // 4-state state card. Renders only if the slot exists.

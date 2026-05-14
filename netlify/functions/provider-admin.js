@@ -264,6 +264,108 @@ async function adjustCredits(supabase, providerIds, delta, reason) {
   return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr, results };
 }
 
+// Collect ids from both `provider_id` (singular) and `provider_ids` (array)
+// so callers can use either shape (kept for the proxied per-provider routes).
+function _collectProviderIds(body) {
+  const rawIds = [];
+  if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
+  if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
+  return Array.from(new Set(rawIds.filter(isUuid)));
+}
+
+async function _handleSuspend(supabase, body) {
+  const ids = _collectProviderIds(body);
+  const reason = (body.reason || '').toString().trim();
+  const setRoleSuspended = !!body.set_role_suspended;
+  if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
+  if (reason.length < 5 || reason.length > 500) return jsonResponse(400, { error: 'reason must be 5-500 characters' });
+  const result = await suspendProviders(supabase, ids, reason, 'manual', { setRoleSuspended });
+  return jsonResponse(200, result);
+}
+
+async function _handleActivate(supabase, body) {
+  const ids = _collectProviderIds(body);
+  if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
+  const result = await activateProviders(supabase, ids);
+  return jsonResponse(200, result);
+}
+
+async function _handleCheckLowRated(supabase, body) {
+  const threshold = Number.isFinite(body.rating_threshold) ? body.rating_threshold : 4;
+  const autosuspend = !!body.autosuspend;
+  const reason = (body.reason || `Rating below ${threshold} stars - automatic suspension`).toString().trim();
+
+  const { data: stats, error: statsErr } = await supabase
+    .from('provider_stats')
+    .select('provider_id, average_rating, suspended')
+    .lt('average_rating', threshold)
+    .not('average_rating', 'is', null);
+  if (statsErr) return jsonResponse(500, { error: statsErr.message });
+
+  const candidateIds = (stats || []).filter(s => !s.suspended).map(s => s.provider_id);
+  let profiles = [];
+  if (candidateIds.length > 0) {
+    const { data, error } = await supabase
+      .from('profiles')
+      .select('id, full_name, business_name, email, suspension_reason')
+      .in('id', candidateIds)
+      .is('suspension_reason', null);
+    if (error) return jsonResponse(500, { error: error.message });
+    profiles = data || [];
+  }
+  const ratingByProviderId = new Map((stats || []).map(s => [s.provider_id, s.average_rating]));
+  const lowRated = profiles.map(p => ({ ...p, avg_rating: ratingByProviderId.get(p.id) }));
+
+  await audit(supabase, {
+    action: 'check_low_rated',
+    target_type: 'profile',
+    metadata: { threshold, found: lowRated.length, autosuspend },
+    performed_by: 'admin'
+  });
+
+  const providerSummaries = lowRated.map(p => ({ id: p.id, name: p.business_name || p.full_name, avg_rating: p.avg_rating }));
+  if (autosuspend && lowRated.length > 0) {
+    const result = await suspendProviders(supabase, lowRated.map(p => p.id), reason, 'autosuspend');
+    return jsonResponse(200, {
+      found: lowRated.length, threshold,
+      providers: providerSummaries,
+      autosuspend: true,
+      suspended: result.updated, failed: result.failed
+    });
+  }
+  return jsonResponse(200, {
+    found: lowRated.length, threshold,
+    providers: providerSummaries,
+    autosuspend: false
+  });
+}
+
+async function _handleAdjustCredits(supabase, body) {
+  const ids = _collectProviderIds(body);
+  if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
+
+  // delta must be a finite, non-zero integer within sensible bounds.
+  const delta = Number(body.delta);
+  if (!Number.isInteger(delta) || delta === 0) return jsonResponse(400, { error: 'delta must be a non-zero integer' });
+  if (delta < -10000 || delta > 10000) return jsonResponse(400, { error: 'delta must be between -10000 and 10000' });
+
+  const reason = (body.reason || '').toString().trim();
+  if (reason.length > 500) return jsonResponse(400, { error: 'reason must be at most 500 characters' });
+
+  const result = await adjustCredits(supabase, ids, delta, reason);
+  return jsonResponse(200, result);
+}
+
+// Dispatch map: "METHOD route" → handler(supabase, body). Matches the
+// pattern used by agent-fleet-admin.js (Task #260) so future routes are
+// added by a single table entry instead of another `if` branch.
+const ROUTES = {
+  'POST suspend':         _handleSuspend,
+  'POST activate':        _handleActivate,
+  'POST check-low-rated': _handleCheckLowRated,
+  'POST adjust-credits':  _handleAdjustCredits
+};
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
 
@@ -274,8 +376,6 @@ exports.handler = async function(event) {
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
 
-  // Strip both the netlify-functions prefix and the /api/admin/provider-actions
-  // proxy prefix so the same handler works from either entry point.
   const route = (event.path || '')
     .replace(/^\/?\.netlify\/functions\/provider-admin\/?/, '')
     .replace(/^\/?api\/admin\/provider-actions\/?/, '')
@@ -286,111 +386,11 @@ exports.handler = async function(event) {
     try { body = JSON.parse(event.body); } catch { return jsonResponse(400, { error: 'invalid JSON body' }); }
   }
 
+  const handler = ROUTES[`${method} ${route}`];
+  if (!handler) return jsonResponse(404, { error: 'Not found', path: route, method });
+
   try {
-    if (route === 'suspend' && method === 'POST') {
-      // Task #127 — also accept singular `provider_id` so the new
-      // /api/admin/provider/suspend route (which proxies here) works without
-      // making the admin UI massage the body.
-      const rawIds = [];
-      if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
-      if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
-      const ids = Array.from(new Set(rawIds.filter(isUuid)));
-      const reason = (body.reason || '').toString().trim();
-      const setRoleSuspended = !!body.set_role_suspended;
-      if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
-      if (reason.length < 5 || reason.length > 500) return jsonResponse(400, { error: 'reason must be 5-500 characters' });
-      const result = await suspendProviders(supabase, ids, reason, 'manual', { setRoleSuspended });
-      return jsonResponse(200, result);
-    }
-
-    if (route === 'activate' && method === 'POST') {
-      // Task #127 — also accept singular `provider_id` for parity with the
-      // /api/admin/provider/activate route.
-      const rawIds = [];
-      if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
-      if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
-      const ids = Array.from(new Set(rawIds.filter(isUuid)));
-      if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
-      const result = await activateProviders(supabase, ids);
-      return jsonResponse(200, result);
-    }
-
-    if (route === 'check-low-rated' && method === 'POST') {
-      const threshold = Number.isFinite(body.rating_threshold) ? body.rating_threshold : 4;
-      const autosuspend = !!body.autosuspend;
-      const reason = (body.reason || `Rating below ${threshold} stars - automatic suspension`).toString().trim();
-
-      // Server-side query — fetch low-rated stats first, then join to profiles
-      // by id. Avoids a PostgREST embed ambiguity ("more than one relationship
-      // was found for 'profiles' and 'provider_stats'") on this schema.
-      const { data: stats, error: statsErr } = await supabase
-        .from('provider_stats')
-        .select('provider_id, average_rating, suspended')
-        .lt('average_rating', threshold)
-        .not('average_rating', 'is', null);
-      if (statsErr) return jsonResponse(500, { error: statsErr.message });
-
-      const candidateIds = (stats || []).filter(s => !s.suspended).map(s => s.provider_id);
-      let profiles = [];
-      if (candidateIds.length > 0) {
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('id, full_name, business_name, email, suspension_reason')
-          .in('id', candidateIds)
-          .is('suspension_reason', null);
-        if (error) return jsonResponse(500, { error: error.message });
-        profiles = data || [];
-      }
-      const ratingByProviderId = new Map((stats || []).map(s => [s.provider_id, s.average_rating]));
-      const lowRated = profiles.map(p => ({ ...p, avg_rating: ratingByProviderId.get(p.id) }));
-
-      await audit(supabase, {
-        action: 'check_low_rated',
-        target_type: 'profile',
-        metadata: { threshold, found: lowRated.length, autosuspend },
-        performed_by: 'admin'
-      });
-
-      if (autosuspend && lowRated.length > 0) {
-        const ids = lowRated.map(p => p.id);
-        const result = await suspendProviders(supabase, ids, reason, 'autosuspend');
-        return jsonResponse(200, {
-          found: lowRated.length, threshold,
-          providers: lowRated.map(p => ({ id: p.id, name: p.business_name || p.full_name, avg_rating: p.avg_rating })),
-          autosuspend: true,
-          suspended: result.updated, failed: result.failed
-        });
-      }
-
-      return jsonResponse(200, {
-        found: lowRated.length, threshold,
-        providers: lowRated.map(p => ({ id: p.id, name: p.business_name || p.full_name, avg_rating: p.avg_rating })),
-        autosuspend: false
-      });
-    }
-
-    if (route === 'adjust-credits' && method === 'POST') {
-      const rawIds = [];
-      if (typeof body.provider_id === 'string') rawIds.push(body.provider_id);
-      if (Array.isArray(body.provider_ids)) rawIds.push(...body.provider_ids);
-      const ids = Array.from(new Set(rawIds.filter(isUuid)));
-      if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
-
-      // delta must be a finite, non-zero integer within sensible bounds. Bounds
-      // exist so a fat-fingered prompt() can't silently issue a million-credit
-      // grant or a negative balance the size of the universe.
-      const delta = Number(body.delta);
-      if (!Number.isInteger(delta) || delta === 0) return jsonResponse(400, { error: 'delta must be a non-zero integer' });
-      if (delta < -10000 || delta > 10000) return jsonResponse(400, { error: 'delta must be between -10000 and 10000' });
-
-      const reason = (body.reason || '').toString().trim();
-      if (reason.length > 500) return jsonResponse(400, { error: 'reason must be at most 500 characters' });
-
-      const result = await adjustCredits(supabase, ids, delta, reason);
-      return jsonResponse(200, result);
-    }
-
-    return jsonResponse(404, { error: 'Not found', path: route, method });
+    return await handler(supabase, body);
   } catch (e) {
     console.error('[provider-admin] handler error:', e);
     return jsonResponse(500, { error: e.message });

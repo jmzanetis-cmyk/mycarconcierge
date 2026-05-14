@@ -14,6 +14,37 @@
 const { test, expect } = require('@playwright/test');
 const { BASE_URL, ADMIN_PASSWORD } = require('./helpers');
 
+// Shared route-fulfiller for the agent-fleet detail page. Returns either
+// the matched response or `null` so the caller can layer test-specific
+// branches (e.g. captured per-version requests) on top before falling
+// through to the empty `{}` default.
+function _fulfillStaticAgentFleetRoute({ method, pathPart, slug, versionsList, activeVersion, activeBody }) {
+  const json = (body) => ({ status: 200, contentType: 'application/json', body: JSON.stringify(body) });
+  if (method === 'GET' && pathPart.startsWith('/agents') && !pathPart.includes('/prompt')) {
+    return json({
+      agents: [{
+        slug, display_name: 'Analyst', enabled: true, autonomy: 'propose',
+        daily_spend_cap_usd: 5, model: 'claude-sonnet-4',
+        description: 'Test', triggers: ['nightly.tick'],
+        today_spend: { actual_usd: 0, reserved_usd: 0, call_count: 0 }
+      }]
+    });
+  }
+  if (method === 'GET' && /\/agents\/[^/]+\/prompt$/.test(pathPart)) {
+    return json({
+      active: { id: activeVersion, version: activeVersion, body: activeBody, is_active: true, created_at: '2026-04-29T10:00:00Z' }
+    });
+  }
+  if (method === 'GET' && /\/agents\/[^/]+\/prompt-history$/.test(pathPart)) {
+    return json({ versions: versionsList });
+  }
+  if (method === 'GET' && pathPart.startsWith('/actions'))  return json({ actions: [], total: 0, limit: 50, offset: 0 });
+  if (method === 'GET' && pathPart.startsWith('/spend'))    return json({ days: [] });
+  if (method === 'GET' && pathPart.startsWith('/memory'))   return json({ rows: [], total: 0 });
+  if (method === 'GET' && pathPart.startsWith('/briefing')) return json({ briefing: null });
+  return null;
+}
+
 test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () => {
   test.beforeEach(({ page }) => {
     test.skip(!ADMIN_PASSWORD, 'ADMIN_PASSWORD env required');
@@ -37,37 +68,13 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
 
     await page.route('**/api/admin/agent-fleet/**', async (route) => {
       const req = route.request();
-      const url = req.url();
       const method = req.method();
-      const headers = req.headers();
-      if (!headers['x-admin-password']) {
+      if (!req.headers()['x-admin-password']) {
         return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Unauthorized' }) });
       }
+      const pathPart = req.url().split('/api/admin/agent-fleet')[1] || '';
 
-      const pathPart = url.split('/api/admin/agent-fleet')[1] || '';
-
-      // GET /agents
-      if (method === 'GET' && pathPart.startsWith('/agents') && !pathPart.includes('/prompt')) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-          agents: [{
-            slug, display_name: 'Analyst', enabled: true, autonomy: 'propose',
-            daily_spend_cap_usd: 5, model: 'claude-sonnet-4',
-            description: 'Test', triggers: ['nightly.tick'],
-            today_spend: { actual_usd: 0, reserved_usd: 0, call_count: 0 }
-          }]
-        }) });
-      }
-      // GET /agents/:slug/prompt   → currently active
-      if (method === 'GET' && /\/agents\/[^/]+\/prompt$/.test(pathPart)) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-          active: { id: 3, version: 3, body: v3Body, notes: 'Add JSON note', is_active: true, created_at: '2026-04-29T10:00:00Z' }
-        }) });
-      }
-      // GET /agents/:slug/prompt-history
-      if (method === 'GET' && /\/agents\/[^/]+\/prompt-history$/.test(pathPart)) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ versions: versionsList }) });
-      }
-      // GET /agents/:slug/prompt/:version  ← the new endpoint
+      // Per-version endpoint with capture of which versions were fetched.
       const versionMatch = pathPart.match(/^\/agents\/[^/]+\/prompt\/(\d+)$/);
       if (method === 'GET' && versionMatch) {
         const v = Number.parseInt(versionMatch[1], 10);
@@ -78,13 +85,9 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
           version: { id: v, version: v, body, notes: versionsList.find(x => x.version === v)?.notes, is_active: v === 3, created_at: versionsList.find(x => x.version === v)?.created_at }
         }) });
       }
-      // The detail page also hits /actions, /spend, /memory, /briefing on load.
-      if (method === 'GET' && pathPart.startsWith('/actions'))  return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ actions: [], total: 0, limit: 50, offset: 0 }) });
-      if (method === 'GET' && pathPart.startsWith('/spend'))    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ days: [] }) });
-      if (method === 'GET' && pathPart.startsWith('/memory'))   return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [], total: 0 }) });
-      if (method === 'GET' && pathPart.startsWith('/briefing')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ briefing: null }) });
 
-      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+      const r = _fulfillStaticAgentFleetRoute({ method, pathPart, slug, versionsList, activeVersion: 3, activeBody: v3Body });
+      return route.fulfill(r || { status: 200, contentType: 'application/json', body: '{}' });
     });
 
     await page.goto(`${BASE_URL}/admin/agent-fleet-detail.html?slug=${slug}`);
@@ -158,27 +161,12 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
 
     await page.route('**/api/admin/agent-fleet/**', async (route) => {
       const req = route.request();
-      const url = req.url();
       const method = req.method();
       if (!req.headers()['x-admin-password']) {
         return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Unauthorized' }) });
       }
-      const pathPart = url.split('/api/admin/agent-fleet')[1] || '';
-      if (method === 'GET' && pathPart.startsWith('/agents') && !pathPart.includes('/prompt')) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-          agents: [{ slug, display_name: 'Analyst', enabled: true, autonomy: 'propose',
-            daily_spend_cap_usd: 5, model: 'claude-sonnet-4', description: 'T', triggers: [],
-            today_spend: { actual_usd: 0, reserved_usd: 0, call_count: 0 } }]
-        }) });
-      }
-      if (method === 'GET' && /\/agents\/[^/]+\/prompt$/.test(pathPart)) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
-          active: { id: 2, version: 2, body: v2Body, is_active: true, created_at: '2026-04-29T10:00:00Z' }
-        }) });
-      }
-      if (method === 'GET' && /\/agents\/[^/]+\/prompt-history$/.test(pathPart)) {
-        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ versions: versionsList }) });
-      }
+      const pathPart = req.url().split('/api/admin/agent-fleet')[1] || '';
+
       const m = pathPart.match(/^\/agents\/[^/]+\/prompt\/(\d+)$/);
       if (method === 'GET' && m) {
         const v = Number.parseInt(m[1], 10);
@@ -186,11 +174,9 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
           version: { id: v, version: v, body: bodyByVersion[v], is_active: v === 2, created_at: versionsList.find(x => x.version === v)?.created_at }
         }) });
       }
-      if (method === 'GET' && pathPart.startsWith('/actions'))  return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ actions: [], total: 0, limit: 50, offset: 0 }) });
-      if (method === 'GET' && pathPart.startsWith('/spend'))    return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ days: [] }) });
-      if (method === 'GET' && pathPart.startsWith('/memory'))   return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ rows: [], total: 0 }) });
-      if (method === 'GET' && pathPart.startsWith('/briefing')) return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ briefing: null }) });
-      return route.fulfill({ status: 200, contentType: 'application/json', body: '{}' });
+
+      const r = _fulfillStaticAgentFleetRoute({ method, pathPart, slug, versionsList, activeVersion: 2, activeBody: v2Body });
+      return route.fulfill(r || { status: 200, contentType: 'application/json', body: '{}' });
     });
 
     await page.goto(`${BASE_URL}/admin/agent-fleet-detail.html?slug=${slug}`);

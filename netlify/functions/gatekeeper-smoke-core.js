@@ -310,6 +310,67 @@ async function pollForProposal(supabase, agentSlug, eventId, eventType, log, fai
 //   opts.expectedMaxCapUsd   — number; registry-cap upper bound
 //   opts.log                 — { pass, fail, info } (optional)
 // ---------------------------------------------------------------------------
+// Validate the runAgentSmoke options bag. Throws on the first missing or
+// wrong-typed field so the caller's catch records the precise reason.
+function _validateRunAgentSmokeOpts(opts) {
+  if (!opts.supabase) throw new Error('runAgentSmoke: supabase client is required');
+  if (!opts.siteUrl) throw new Error('runAgentSmoke: siteUrl is required');
+  if (!opts.adminPassword) throw new Error('runAgentSmoke: adminPassword is required');
+  if (!opts.agentSlug) throw new Error('runAgentSmoke: agentSlug is required');
+  if (!Array.isArray(opts.eventTypes) || !opts.eventTypes.length) throw new Error('runAgentSmoke: eventTypes is required');
+  if (typeof opts.payloadFn !== 'function') throw new Error('runAgentSmoke: payloadFn is required');
+  if (typeof opts.validateAction !== 'function') throw new Error('runAgentSmoke: validateAction is required');
+}
+
+// Build the per-event summary entry from a polled action row and record
+// validation failures on the failures[] list. Returns the entry the caller
+// pushes onto summary.events.
+function _eventEntryForAction(t, eventId, row, validateAction, log, failures) {
+  const rec = (row.decision && (row.decision.recommendation || row.decision.recommended_winner_bid_id)) || null;
+  const conf = row.confidence != null ? Number(row.confidence) : null;
+  const entry = {
+    event_type: t,
+    event_id: eventId,
+    action_id: row.id,
+    status: row.status,
+    recommendation: rec,
+    confidence: conf,
+    cost_usd: Number(row.cost_usd || 0),
+    duration_ms: row.duration_ms || 0,
+    error_message: row.error_message || null
+  };
+  const validationFailure = validateAction(row);
+  if (validationFailure) {
+    failures.push(`action_${t}:${validationFailure}`);
+    log.fail(`${t} → action ${row.id} ${validationFailure}`);
+  } else {
+    log.pass(`${t} → action ${row.id} status=${row.status} rec=${rec || 'n/a'} cost=$${entry.cost_usd.toFixed(4)} ms=${entry.duration_ms}`);
+  }
+  return entry;
+}
+
+// Poll for a proposal for each emitted event and append a summary entry per
+// event. Returns nothing — mutates the summary.events list and failures[].
+async function _collectEventOutcomes({ supabase, agentSlug, eventTypes, emitted, validateAction, log, failures, summary, pollTimeoutMs, pollIntervalMs, effectiveTimeoutMs }) {
+  for (const t of eventTypes) {
+    const eventId = emitted[t];
+    if (!eventId) {
+      summary.events.push({ event_type: t, event_id: null, action_id: null, status: 'emit_failed' });
+      continue;
+    }
+    const row = await pollForProposal(supabase, agentSlug, eventId, t, log, failures, {
+      pollTimeoutMs, pollIntervalMs
+    });
+    if (!row) {
+      failures.push(`no_proposal_${t}`);
+      log.fail(`no agent_actions row for ${t} (event_id=${eventId}) within ${effectiveTimeoutMs / 1000}s — check logs for /agent-orchestrator and /agent-${agentSlug}`);
+      summary.events.push({ event_type: t, event_id: eventId, action_id: null, status: 'no_proposal' });
+      continue;
+    }
+    summary.events.push(_eventEntryForAction(t, eventId, row, validateAction, log, failures));
+  }
+}
+
 async function runAgentSmoke(opts) {
   const {
     supabase, siteUrl, adminPassword,
@@ -331,13 +392,7 @@ async function runAgentSmoke(opts) {
   };
 
   try {
-    if (!supabase) throw new Error('runAgentSmoke: supabase client is required');
-    if (!siteUrl) throw new Error('runAgentSmoke: siteUrl is required');
-    if (!adminPassword) throw new Error('runAgentSmoke: adminPassword is required');
-    if (!agentSlug) throw new Error('runAgentSmoke: agentSlug is required');
-    if (!Array.isArray(eventTypes) || !eventTypes.length) throw new Error('runAgentSmoke: eventTypes is required');
-    if (typeof payloadFn !== 'function') throw new Error('runAgentSmoke: payloadFn is required');
-    if (typeof validateAction !== 'function') throw new Error('runAgentSmoke: validateAction is required');
+    _validateRunAgentSmokeOpts(opts || {});
 
     const admin = makeAdminClient(siteUrl, adminPassword);
 
@@ -387,43 +442,10 @@ async function runAgentSmoke(opts) {
     await forceOrchestratorTick(admin, log, failures);
 
     log.info(`5. Polling agent_actions for proposed rows (timeout ${effectiveTimeoutMs / 1000}s per event)`);
-    for (const t of eventTypes) {
-      const eventId = emitted[t];
-      if (!eventId) {
-        summary.events.push({ event_type: t, event_id: null, action_id: null, status: 'emit_failed' });
-        continue;
-      }
-      const row = await pollForProposal(supabase, agentSlug, eventId, t, log, failures, {
-        pollTimeoutMs, pollIntervalMs
-      });
-      if (!row) {
-        failures.push(`no_proposal_${t}`);
-        log.fail(`no agent_actions row for ${t} (event_id=${eventId}) within ${effectiveTimeoutMs / 1000}s — check logs for /agent-orchestrator and /agent-${agentSlug}`);
-        summary.events.push({ event_type: t, event_id: eventId, action_id: null, status: 'no_proposal' });
-        continue;
-      }
-      const rec = (row.decision && (row.decision.recommendation || row.decision.recommended_winner_bid_id)) || null;
-      const conf = row.confidence != null ? Number(row.confidence) : null;
-      const entry = {
-        event_type: t,
-        event_id: eventId,
-        action_id: row.id,
-        status: row.status,
-        recommendation: rec,
-        confidence: conf,
-        cost_usd: Number(row.cost_usd || 0),
-        duration_ms: row.duration_ms || 0,
-        error_message: row.error_message || null
-      };
-      const validationFailure = validateAction(row);
-      if (validationFailure) {
-        failures.push(`action_${t}:${validationFailure}`);
-        log.fail(`${t} → action ${row.id} ${validationFailure}`);
-      } else {
-        log.pass(`${t} → action ${row.id} status=${row.status} rec=${rec || 'n/a'} cost=$${entry.cost_usd.toFixed(4)} ms=${entry.duration_ms}`);
-      }
-      summary.events.push(entry);
-    }
+    await _collectEventOutcomes({
+      supabase, agentSlug, eventTypes, emitted, validateAction, log, failures, summary,
+      pollTimeoutMs, pollIntervalMs, effectiveTimeoutMs
+    });
   } catch (e) {
     failures.push(`runner_exception: ${e.message}`);
     log.fail(`UNCAUGHT: ${e.message}`);

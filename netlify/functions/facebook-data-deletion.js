@@ -68,6 +68,43 @@ function parseBody(event) {
   return obj;
 }
 
+// Returns the matching user from a single page of auth.admin.listUsers, or
+// null when no row in the page links the given facebook_user_id.
+function _findFacebookMatchInPage(users, facebookUserId) {
+  for (var i = 0; i < users.length; i++) {
+    var u = users[i];
+    var idents = Array.isArray(u.identities) ? u.identities : [];
+    for (var j = 0; j < idents.length; j++) {
+      var ident = idents[j];
+      if (ident.provider === 'facebook' && (ident.provider_id === facebookUserId || ident.id === facebookUserId)) {
+        return u;
+      }
+    }
+  }
+  return null;
+}
+
+async function _scanIdentitiesForFacebookId(supabase, facebookUserId) {
+  var page = 1;
+  var perPage = 200;
+  while (page <= 50) {
+    var listed = await supabase.auth.admin.listUsers({ page: page, perPage: perPage });
+    if (listed.error) {
+      console.error('[facebook-data-deletion] listUsers error:', listed.error);
+      return null;
+    }
+    var users = (listed.data && listed.data.users) || [];
+    var matched = _findFacebookMatchInPage(users, facebookUserId);
+    if (matched) {
+      await supabase.from('profiles').update({ facebook_user_id: facebookUserId }).eq('id', matched.id);
+      return { id: matched.id, email: matched.email, facebook_user_id: facebookUserId };
+    }
+    if (users.length < perPage) return null;
+    page += 1;
+  }
+  return null;
+}
+
 async function lookupUserByFacebookId(supabase, facebookUserId) {
   var existing = await supabase
     .from('profiles')
@@ -76,35 +113,12 @@ async function lookupUserByFacebookId(supabase, facebookUserId) {
     .maybeSingle();
   if (existing && existing.data && existing.data.id) return existing.data;
 
-  // Fall back to scanning auth.identities via service role.
   try {
-    var page = 1;
-    var perPage = 200;
-    while (page <= 50) {
-      var listed = await supabase.auth.admin.listUsers({ page: page, perPage: perPage });
-      if (listed.error) {
-        console.error('[facebook-data-deletion] listUsers error:', listed.error);
-        return null;
-      }
-      var users = (listed.data && listed.data.users) || [];
-      for (var i = 0; i < users.length; i++) {
-        var u = users[i];
-        var idents = Array.isArray(u.identities) ? u.identities : [];
-        for (var j = 0; j < idents.length; j++) {
-          var ident = idents[j];
-          if (ident.provider === 'facebook' && (ident.provider_id === facebookUserId || ident.id === facebookUserId)) {
-            await supabase.from('profiles').update({ facebook_user_id: facebookUserId }).eq('id', u.id);
-            return { id: u.id, email: u.email, facebook_user_id: facebookUserId };
-          }
-        }
-      }
-      if (users.length < perPage) break;
-      page += 1;
-    }
+    return await _scanIdentitiesForFacebookId(supabase, facebookUserId);
   } catch (e) {
     console.error('[facebook-data-deletion] identity scan exception:', e);
+    return null;
   }
-  return null;
 }
 
 async function handleStatusLookup(supabase, code) {
@@ -134,34 +148,14 @@ async function handleStatusLookup(supabase, code) {
   });
 }
 
-exports.handler = async function (event) {
-  if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
-
-  var supabase = utils.createSupabaseClient();
-  if (!supabase) {
-    return utils.errorResponse(500, 'Database not configured');
-  }
-
-  if (event.httpMethod === 'GET') {
-    var qs = event.queryStringParameters || {};
-    return await handleStatusLookup(supabase, (qs.code || '').trim());
-  }
-
-  if (event.httpMethod !== 'POST') {
-    return utils.errorResponse(405, 'Method Not Allowed');
-  }
-
-  var appSecret = process.env.FACEBOOK_APP_SECRET;
-  if (!appSecret) {
-    console.error('[facebook-data-deletion] FACEBOOK_APP_SECRET is not configured');
-    return utils.errorResponse(500, 'Facebook integration not configured');
-  }
-
+// Parses + verifies the signed_request and returns either a structured error
+// response (statusCode/error) or { facebookUserId } on success.
+function _parseDeletionRequest(event, appSecret) {
   var body;
   try {
     body = parseBody(event);
   } catch (e) {
-    return utils.errorResponse(400, e.message);
+    return { error: utils.errorResponse(400, e.message) };
   }
 
   var payload;
@@ -169,13 +163,50 @@ exports.handler = async function (event) {
     payload = parseSignedRequest(body.signed_request, appSecret);
   } catch (e) {
     console.warn('[facebook-data-deletion] signed_request rejected:', e.message);
-    return utils.errorResponse(400, e.message);
+    return { error: utils.errorResponse(400, e.message) };
   }
 
   var facebookUserId = String(payload.user_id || '').trim();
   if (!facebookUserId) {
-    return utils.errorResponse(400, 'signed_request missing user_id');
+    return { error: utils.errorResponse(400, 'signed_request missing user_id') };
   }
+  return { facebookUserId: facebookUserId };
+}
+
+// Run the deletion cascade for a matched user and persist the final status.
+async function _runDeletionCascade(supabase, matchedUser, requestRowId, confirmationCode) {
+  var result = await core.performAccountDeletion({
+    supabase: supabase,
+    serviceSupabase: supabase,
+    userId: matchedUser.id,
+    userEmail: matchedUser.email,
+    requestId: 'fb-' + confirmationCode,
+    source: 'facebook_callback',
+    sendEmail: null
+  });
+  var update = result && result.success
+    ? { status: 'completed', completed_at: new Date().toISOString(), error_message: null }
+    : { status: 'error', completed_at: new Date().toISOString(), error_message: ((result && result.error) || 'Unknown error').slice(0, 500) };
+  try {
+    await supabase
+      .from('fb_data_deletion_requests')
+      .update(update)
+      .eq('id', requestRowId);
+  } catch (e2) {
+    console.error('[facebook-data-deletion] failed to record final status:', e2);
+  }
+}
+
+async function _handleDeletionPost(event, supabase) {
+  var appSecret = process.env.FACEBOOK_APP_SECRET;
+  if (!appSecret) {
+    console.error('[facebook-data-deletion] FACEBOOK_APP_SECRET is not configured');
+    return utils.errorResponse(500, 'Facebook integration not configured');
+  }
+
+  var parsed = _parseDeletionRequest(event, appSecret);
+  if (parsed.error) return parsed.error;
+  var facebookUserId = parsed.facebookUserId;
 
   var confirmationCode = crypto.randomBytes(8).toString('hex');
   var matchedUser = await lookupUserByFacebookId(supabase, facebookUserId);
@@ -195,40 +226,35 @@ exports.handler = async function (event) {
     console.error('[facebook-data-deletion] insert failed:', insertRes.error);
     return utils.errorResponse(500, 'Failed to record deletion request');
   }
-  var requestRowId = insertRes.data.id;
 
   var baseUrl = process.env.PUBLIC_BASE_URL || 'https://mycarconcierge.com';
-  // The user-facing URL/code is the short confirmation_code (per Facebook's
-  // spec), NOT the internal UUID row id. The UUID stays internal.
   var statusUrl = baseUrl.replace(/\/+$/, '') + '/data-deletion-status.html?code=' + confirmationCode;
 
-  // Run the deletion synchronously inside the function — Netlify functions
-  // get up to 10s by default, which is plenty for the cascade. If we ever
-  // outgrow that we can move to a background function.
   if (matchedUser) {
-    var result = await core.performAccountDeletion({
-      supabase: supabase,
-      serviceSupabase: supabase,
-      userId: matchedUser.id,
-      userEmail: matchedUser.email,
-      requestId: 'fb-' + confirmationCode,
-      source: 'facebook_callback',
-      sendEmail: null
-    });
-    var update = result && result.success
-      ? { status: 'completed', completed_at: new Date().toISOString(), error_message: null }
-      : { status: 'error', completed_at: new Date().toISOString(), error_message: ((result && result.error) || 'Unknown error').slice(0, 500) };
-    try {
-      await supabase
-        .from('fb_data_deletion_requests')
-        .update(update)
-        .eq('id', requestRowId);
-    } catch (e2) {
-      console.error('[facebook-data-deletion] failed to record final status:', e2);
-    }
+    await _runDeletionCascade(supabase, matchedUser, insertRes.data.id, confirmationCode);
   } else {
     console.log('[facebook-data-deletion] no matching MCC user for facebook_user_id=' + facebookUserId);
   }
 
   return utils.successResponse({ url: statusUrl, confirmation_code: confirmationCode });
+}
+
+exports.handler = async function (event) {
+  if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
+
+  var supabase = utils.createSupabaseClient();
+  if (!supabase) {
+    return utils.errorResponse(500, 'Database not configured');
+  }
+
+  if (event.httpMethod === 'GET') {
+    var qs = event.queryStringParameters || {};
+    return await handleStatusLookup(supabase, (qs.code || '').trim());
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return utils.errorResponse(405, 'Method Not Allowed');
+  }
+
+  return await _handleDeletionPost(event, supabase);
 };

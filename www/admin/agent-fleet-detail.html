@@ -735,45 +735,60 @@ async function fetchVersionBody(version) {
   return versionBodyCache[version];
 }
 
-function renderSideBySideDiff(oldText, newText) {
-  if (!window.Diff || typeof Diff.diffLines !== 'function') {
-    return '<div class="empty">Diff library still loading — try again in a moment.</div>';
+// Strip a trailing empty element that diffLines leaves when its `value`
+// ends in a newline.
+function _splitDiffLines(value) {
+  const lines = (value || '').split('\n');
+  if (lines.length && lines[lines.length - 1] === '') lines.pop();
+  return lines;
+}
+
+// Convert a removed→added pair into a side-by-side row list.
+function _pairRemovedAdded(removedLines, addedLines) {
+  const max = Math.max(removedLines.length, addedLines.length);
+  const out = [];
+  for (let k = 0; k < max; k++) {
+    out.push({
+      left:  k < removedLines.length ? removedLines[k] : '',
+      right: k < addedLines.length   ? addedLines[k]   : '',
+      leftKind:  k < removedLines.length ? 'rem' : 'pad',
+      rightKind: k < addedLines.length   ? 'add' : 'pad'
+    });
   }
-  const parts = Diff.diffLines(oldText || '', newText || '');
+  return out;
+}
+
+// Walk the diff parts list once and produce the flat row list the renderer
+// needs. Extracted from renderSideBySideDiff so the latter stays under the
+// cognitive-complexity budget (Task #262).
+function _diffPartsToRows(parts) {
   const rows = [];
   let i = 0;
   while (i < parts.length) {
     const p = parts[i];
-    const lines = (p.value || '').split('\n');
-    if (lines.length && lines[lines.length - 1] === '') lines.pop();
+    const lines = _splitDiffLines(p.value);
     if (!p.added && !p.removed) {
       for (const l of lines) rows.push({ left: l, right: l, leftKind: 'eq', rightKind: 'eq' });
       i++;
+    } else if (p.removed && parts[i + 1] && parts[i + 1].added) {
+      rows.push(..._pairRemovedAdded(lines, _splitDiffLines(parts[i + 1].value)));
+      i += 2;
     } else if (p.removed) {
-      const next = parts[i + 1];
-      if (next && next.added) {
-        const aLines = lines;
-        const bLines = (next.value || '').split('\n');
-        if (bLines.length && bLines[bLines.length - 1] === '') bLines.pop();
-        const max = Math.max(aLines.length, bLines.length);
-        for (let k = 0; k < max; k++) {
-          rows.push({
-            left:  k < aLines.length ? aLines[k] : '',
-            right: k < bLines.length ? bLines[k] : '',
-            leftKind:  k < aLines.length ? 'rem' : 'pad',
-            rightKind: k < bLines.length ? 'add' : 'pad'
-          });
-        }
-        i += 2;
-      } else {
-        for (const l of lines) rows.push({ left: l, right: '', leftKind: 'rem', rightKind: 'pad' });
-        i++;
-      }
+      for (const l of lines) rows.push({ left: l, right: '', leftKind: 'rem', rightKind: 'pad' });
+      i++;
     } else { // pure addition (no preceding removal)
       for (const l of lines) rows.push({ left: '', right: l, leftKind: 'pad', rightKind: 'add' });
       i++;
     }
   }
+  return rows;
+}
+
+function renderSideBySideDiff(oldText, newText) {
+  if (!window.Diff || typeof Diff.diffLines !== 'function') {
+    return '<div class="empty">Diff library still loading — try again in a moment.</div>';
+  }
+  const rows = _diffPartsToRows(Diff.diffLines(oldText || '', newText || ''));
   if (!rows.length) return '<div class="empty">Both versions are empty.</div>';
   const adds = rows.filter(r => r.rightKind === 'add').length;
   const dels = rows.filter(r => r.leftKind === 'rem').length;

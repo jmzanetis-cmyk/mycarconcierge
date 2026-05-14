@@ -11,9 +11,114 @@
 // implicit dependency on www/server.js — Netlify functions can require it
 // without dragging in the entire server bundle.
 
-async function performAccountDeletion(opts) {
+async function _deleteSharedTables(supabase, userId) {
+  await supabase.from('notifications').delete().eq('user_id', userId);
+  await supabase.from('push_subscriptions').delete().eq('user_id', userId);
+  await supabase.from('login_activity').delete().eq('user_id', userId);
+  await supabase.from('two_factor_tokens').delete().eq('user_id', userId);
+  await supabase.from('dream_car_matches').delete().eq('member_id', userId);
+  await supabase.from('dream_car_criteria').delete().eq('member_id', userId);
+  await supabase.from('fuel_logs').delete().eq('member_id', userId);
+  await supabase.from('insurance_cards').delete().eq('member_id', userId);
+  await supabase.from('prospective_vehicles').delete().eq('member_id', userId);
+}
+
+async function _deleteProviderTables(supabase, userId) {
+  await supabase.from('provider_team_members').delete().eq('provider_id', userId);
+  await supabase.from('provider_reviews').delete().eq('provider_id', userId);
+  await supabase.from('bids').delete().eq('provider_id', userId);
+  await supabase.from('provider_stats').delete().eq('provider_id', userId);
+  await supabase.from('provider_applications').delete().eq('user_id', userId);
+  await supabase.from('clover_connections').delete().eq('provider_id', userId);
+  await supabase.from('square_connections').delete().eq('provider_id', userId);
+  await supabase.from('provider_referral_codes').delete().eq('provider_id', userId);
+  await supabase.from('founder_commissions').delete().eq('founder_id', userId);
+  await supabase.from('founder_referrals').delete().eq('referring_provider_id', userId);
+  await supabase
+    .from('bid_pack_purchases')
+    .update({ provider_id: null, provider_email: 'deleted_account@deleted.com' })
+    .eq('provider_id', userId);
+  await supabase
+    .from('escrow_payments')
+    .update({ provider_id: null })
+    .eq('provider_id', userId);
+}
+
+async function _deleteMemberTables(supabase, userId) {
+  await supabase.from('member_founder_profiles').delete().eq('member_id', userId);
+
+  var vehiclesRes = await supabase
+    .from('vehicles')
+    .select('id')
+    .eq('owner_id', userId);
+  var vehicleIds = (vehiclesRes && vehiclesRes.data ? vehiclesRes.data : []).map(function (v) { return v.id; });
+  if (vehicleIds.length > 0) {
+    await supabase.from('service_history').delete().in('vehicle_id', vehicleIds);
+    await supabase.from('maintenance_reminders').delete().in('vehicle_id', vehicleIds);
+    await supabase.from('recall_alerts').delete().in('vehicle_id', vehicleIds);
+  }
+  await supabase.from('vehicles').delete().eq('owner_id', userId);
+
+  var packagesRes = await supabase
+    .from('maintenance_packages')
+    .select('id')
+    .eq('member_id', userId);
+  var packageIds = (packagesRes && packagesRes.data ? packagesRes.data : []).map(function (p) { return p.id; });
+  if (packageIds.length > 0) {
+    await supabase.from('bids').delete().in('package_id', packageIds);
+    await supabase.from('additional_work_requests').delete().in('package_id', packageIds);
+    await supabase.from('provider_discounts').delete().in('package_id', packageIds);
+  }
+  await supabase.from('maintenance_packages').delete().eq('member_id', userId);
+
+  await supabase
+    .from('escrow_payments')
+    .update({ member_id: null })
+    .eq('member_id', userId);
+  await supabase
+    .from('merch_orders')
+    .update({ member_id: null, shipping_address: 'DELETED' })
+    .eq('member_id', userId);
+}
+
+async function _deleteAuthAndNotify(opts, displayName) {
   var supabase = opts.supabase;
   var serviceSupabase = opts.serviceSupabase || opts.supabase;
+  var userId = opts.userId;
+  var userEmail = opts.userEmail;
+  var requestId = opts.requestId;
+  var source = opts.source;
+  var sendEmail = opts.sendEmail;
+
+  await supabase.from('referral_code_usages').delete().eq('referred_user_id', userId);
+  await supabase.from('messages').delete().eq('sender_id', userId);
+  await supabase.from('messages').delete().eq('receiver_id', userId);
+  await supabase.from('signed_agreements').delete().eq('user_id', userId);
+  await supabase.from('profiles').delete().eq('id', userId);
+
+  if (serviceSupabase && serviceSupabase.auth && serviceSupabase.auth.admin && typeof serviceSupabase.auth.admin.deleteUser === 'function') {
+    var authDelRes = await serviceSupabase.auth.admin.deleteUser(userId);
+    if (authDelRes && authDelRes.error) {
+      console.error('[' + requestId + '] auth.admin.deleteUser error:', authDelRes.error);
+    }
+  }
+
+  if (sendEmail && userEmail) {
+    try {
+      await sendEmail({
+        to: userEmail,
+        subject: 'Your My Car Concierge Account Has Been Deleted',
+        html: buildDeletionEmailHtml(displayName, source)
+      });
+      console.log('[' + requestId + '] Account deletion confirmation email sent to ' + userEmail);
+    } catch (emailError) {
+      console.error('[' + requestId + '] Failed to send deletion confirmation email:', emailError);
+    }
+  }
+}
+
+async function performAccountDeletion(opts) {
+  var supabase = opts.supabase;
   var userId = opts.userId;
   var userEmail = opts.userEmail;
   var requestId = opts.requestId || 'noreq';
@@ -39,107 +144,16 @@ async function performAccountDeletion(opts) {
     var isProvider = profile && (profile.role === 'provider' || profile.role === 'pending_provider');
     var displayName = (profile && (profile.business_name || profile.full_name)) || userEmail || 'there';
 
-    // Tables that exist for both members and providers.
-    await supabase.from('notifications').delete().eq('user_id', userId);
-    await supabase.from('push_subscriptions').delete().eq('user_id', userId);
-    await supabase.from('login_activity').delete().eq('user_id', userId);
-    await supabase.from('two_factor_tokens').delete().eq('user_id', userId);
-    await supabase.from('dream_car_matches').delete().eq('member_id', userId);
-    await supabase.from('dream_car_criteria').delete().eq('member_id', userId);
-    await supabase.from('fuel_logs').delete().eq('member_id', userId);
-    await supabase.from('insurance_cards').delete().eq('member_id', userId);
-    await supabase.from('prospective_vehicles').delete().eq('member_id', userId);
-
+    await _deleteSharedTables(supabase, userId);
     if (isProvider) {
-      await supabase.from('provider_team_members').delete().eq('provider_id', userId);
-      await supabase.from('provider_reviews').delete().eq('provider_id', userId);
-      await supabase.from('bids').delete().eq('provider_id', userId);
-      await supabase.from('provider_stats').delete().eq('provider_id', userId);
-      await supabase.from('provider_applications').delete().eq('user_id', userId);
-      await supabase.from('clover_connections').delete().eq('provider_id', userId);
-      await supabase.from('square_connections').delete().eq('provider_id', userId);
-      await supabase.from('provider_referral_codes').delete().eq('provider_id', userId);
-      await supabase.from('founder_commissions').delete().eq('founder_id', userId);
-      await supabase.from('founder_referrals').delete().eq('referring_provider_id', userId);
-      // Anonymize bid pack purchases (keep for audit/tax)
-      await supabase
-        .from('bid_pack_purchases')
-        .update({ provider_id: null, provider_email: 'deleted_account@deleted.com' })
-        .eq('provider_id', userId);
-      // Anonymize escrow payments where provider was the recipient (keep for audit/tax)
-      await supabase
-        .from('escrow_payments')
-        .update({ provider_id: null })
-        .eq('provider_id', userId);
+      await _deleteProviderTables(supabase, userId);
     } else {
-      await supabase.from('member_founder_profiles').delete().eq('member_id', userId);
-
-      var vehiclesRes = await supabase
-        .from('vehicles')
-        .select('id')
-        .eq('owner_id', userId);
-      var vehicleIds = (vehiclesRes && vehiclesRes.data ? vehiclesRes.data : []).map(function (v) { return v.id; });
-      if (vehicleIds.length > 0) {
-        await supabase.from('service_history').delete().in('vehicle_id', vehicleIds);
-        await supabase.from('maintenance_reminders').delete().in('vehicle_id', vehicleIds);
-        await supabase.from('recall_alerts').delete().in('vehicle_id', vehicleIds);
-      }
-      await supabase.from('vehicles').delete().eq('owner_id', userId);
-
-      var packagesRes = await supabase
-        .from('maintenance_packages')
-        .select('id')
-        .eq('member_id', userId);
-      var packageIds = (packagesRes && packagesRes.data ? packagesRes.data : []).map(function (p) { return p.id; });
-      if (packageIds.length > 0) {
-        await supabase.from('bids').delete().in('package_id', packageIds);
-        await supabase.from('additional_work_requests').delete().in('package_id', packageIds);
-        await supabase.from('provider_discounts').delete().in('package_id', packageIds);
-      }
-      await supabase.from('maintenance_packages').delete().eq('member_id', userId);
-
-      // Anonymize payment history (keep for audit/tax)
-      await supabase
-        .from('escrow_payments')
-        .update({ member_id: null })
-        .eq('member_id', userId);
-
-      // Anonymize merch orders
-      await supabase
-        .from('merch_orders')
-        .update({ member_id: null, shipping_address: 'DELETED' })
-        .eq('member_id', userId);
+      await _deleteMemberTables(supabase, userId);
     }
-
-    await supabase.from('referral_code_usages').delete().eq('referred_user_id', userId);
-    await supabase.from('messages').delete().eq('sender_id', userId);
-    await supabase.from('messages').delete().eq('receiver_id', userId);
-    await supabase.from('signed_agreements').delete().eq('user_id', userId);
-
-    // Finally remove the profile row and auth.users record.
-    await supabase.from('profiles').delete().eq('id', userId);
-
-    if (serviceSupabase && serviceSupabase.auth && serviceSupabase.auth.admin && typeof serviceSupabase.auth.admin.deleteUser === 'function') {
-      var authDelRes = await serviceSupabase.auth.admin.deleteUser(userId);
-      if (authDelRes && authDelRes.error) {
-        console.error('[' + requestId + '] auth.admin.deleteUser error:', authDelRes.error);
-        // Continue — profile data is already gone.
-      }
-    }
-
-    if (sendEmail && userEmail) {
-      try {
-        await sendEmail({
-          to: userEmail,
-          subject: 'Your My Car Concierge Account Has Been Deleted',
-          html: buildDeletionEmailHtml(displayName, source)
-        });
-        console.log('[' + requestId + '] Account deletion confirmation email sent to ' + userEmail);
-      } catch (emailError) {
-        console.error('[' + requestId + '] Failed to send deletion confirmation email:', emailError);
-        // Continue — deletion was successful even if email fails.
-      }
-    }
+    await _deleteAuthAndNotify(
+      Object.assign({}, opts, { requestId: requestId, source: source, sendEmail: sendEmail }),
+      displayName
+    );
 
     console.log('[' + requestId + '] Account deletion completed for user ' + userId);
     return { success: true };

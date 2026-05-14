@@ -311,16 +311,13 @@ async function loadMarketingOptOuts(supabase) {
 }
 
 // ----------------------------- Broadcast core ------------------------------
-async function broadcast({ supabase, args, audience, profiles, template, subject, mergeVarsFor, suppressedEmails, marketingOptOutMemberIds, alreadySent }) {
-  const apiKey = process.env.RESEND_API_KEY;
-  if (!args.dryRun && !apiKey) {
-    throw new Error('RESEND_API_KEY is required (or pass --dry-run).');
-  }
-
-  const intervalMs = Math.max(1, Math.floor(1000 / Math.max(1, args.rate)));
-  const counters = { eligible: 0, skipped: 0, sent: 0, failed: 0, dryRun: 0 };
+// Walk the audience profiles once and bucket each into either an eligible
+// send target or a skip-reason counter. Pure function — returns the
+// eligible[] list and the recorded skip stats.
+function _filterEligibleRecipients({ profiles, audience, suppressedEmails, marketingOptOutMemberIds, alreadySent }) {
   const skipReasons = {};
-  const recordSkip = reason => { skipReasons[reason] = (skipReasons[reason] || 0) + 1; counters.skipped++; };
+  let skipped = 0;
+  const recordSkip = reason => { skipReasons[reason] = (skipReasons[reason] || 0) + 1; skipped++; };
 
   const seenEmails = new Set();
   const eligible = [];
@@ -336,9 +333,69 @@ async function broadcast({ supabase, args, audience, profiles, template, subject
     if (audience === 'customer' && marketingOptOutMemberIds.has(profile.id)) { recordSkip('marketing_opt_out'); continue; }
     eligible.push({ profile, email });
   }
-  counters.eligible = eligible.length;
+  return { eligible, skipped, skipReasons };
+}
 
-  console.log(`[${audience}] eligible=${eligible.length} skipped=${counters.skipped} totalProfiles=${profiles.length}`);
+// Send one rendered message and persist the per-message audit row. Updates
+// the shared counters in place.
+async function _sendAndLogOne({ supabase, audience, apiKey, subject, profile, email, mergeVars, html, counters, args }) {
+  const result = await resendSend({
+    apiKey,
+    from: FROM_ADDRESS,
+    to: email,
+    subject,
+    html,
+    headers: {
+      'List-Unsubscribe': `<${mergeVars.unsubscribe_url}>, <mailto:unsubscribe@mycarconcierge.com?subject=unsubscribe>`,
+      'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+      'X-MCC-Broadcast': `bgc-launch-${audience}`
+    }
+  });
+
+  if (result.ok) {
+    counters.sent++;
+    if (args.verbose) console.log(`[${audience}] sent → ${email} (id=${result.id})`);
+    const { error: insErr } = await supabase.from('bgc_launch_email_sends').insert({
+      audience,
+      recipient_id: profile.id || null,
+      email,
+      resend_message_id: result.id,
+      merge_vars: mergeVars,
+      status: 'sent'
+    });
+    if (insErr && insErr.code !== '23505') {
+      console.warn(`[${audience}] send-log insert failed for ${email}: ${insErr.message}`);
+    }
+    return;
+  }
+  counters.failed++;
+  console.error(`[${audience}] FAILED → ${email}: ${JSON.stringify(result.error)}`);
+  const { error: insErr } = await supabase.from('bgc_launch_email_sends').insert({
+    audience,
+    recipient_id: profile.id || null,
+    email,
+    merge_vars: mergeVars,
+    status: 'failed',
+    error_message: typeof result.error === 'string' ? result.error : JSON.stringify(result.error).slice(0, 800)
+  });
+  if (insErr && insErr.code !== '23505') {
+    console.warn(`[${audience}] failure-log insert failed for ${email}: ${insErr.message}`);
+  }
+}
+
+async function broadcast({ supabase, args, audience, profiles, template, subject, mergeVarsFor, suppressedEmails, marketingOptOutMemberIds, alreadySent }) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!args.dryRun && !apiKey) {
+    throw new Error('RESEND_API_KEY is required (or pass --dry-run).');
+  }
+
+  const intervalMs = Math.max(1, Math.floor(1000 / Math.max(1, args.rate)));
+  const { eligible, skipped, skipReasons } = _filterEligibleRecipients({
+    profiles, audience, suppressedEmails, marketingOptOutMemberIds, alreadySent
+  });
+  const counters = { eligible: eligible.length, skipped, sent: 0, failed: 0, dryRun: 0 };
+
+  console.log(`[${audience}] eligible=${eligible.length} skipped=${skipped} totalProfiles=${profiles.length}`);
   if (Object.keys(skipReasons).length) {
     console.log(`[${audience}] skip reasons: ${JSON.stringify(skipReasons)}`);
   }
@@ -358,49 +415,7 @@ async function broadcast({ supabase, args, audience, profiles, template, subject
       continue;
     }
 
-    const result = await resendSend({
-      apiKey,
-      from: FROM_ADDRESS,
-      to: email,
-      subject,
-      html,
-      headers: {
-        'List-Unsubscribe': `<${mergeVars.unsubscribe_url}>, <mailto:unsubscribe@mycarconcierge.com?subject=unsubscribe>`,
-        'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
-        'X-MCC-Broadcast': `bgc-launch-${audience}`
-      }
-    });
-
-    if (result.ok) {
-      counters.sent++;
-      if (args.verbose) console.log(`[${audience}] sent → ${email} (id=${result.id})`);
-      const { error: insErr } = await supabase.from('bgc_launch_email_sends').insert({
-        audience,
-        recipient_id: profile.id || null,
-        email,
-        resend_message_id: result.id,
-        merge_vars: mergeVars,
-        status: 'sent'
-      });
-      if (insErr && insErr.code !== '23505') {
-        console.warn(`[${audience}] send-log insert failed for ${email}: ${insErr.message}`);
-      }
-    } else {
-      counters.failed++;
-      console.error(`[${audience}] FAILED → ${email}: ${JSON.stringify(result.error)}`);
-      const { error: insErr } = await supabase.from('bgc_launch_email_sends').insert({
-        audience,
-        recipient_id: profile.id || null,
-        email,
-        merge_vars: mergeVars,
-        status: 'failed',
-        error_message: typeof result.error === 'string' ? result.error : JSON.stringify(result.error).slice(0, 800)
-      });
-      if (insErr && insErr.code !== '23505') {
-        console.warn(`[${audience}] failure-log insert failed for ${email}: ${insErr.message}`);
-      }
-    }
-
+    await _sendAndLogOne({ supabase, audience, apiKey, subject, profile, email, mergeVars, html, counters, args });
     await sleep(intervalMs);
   }
 
