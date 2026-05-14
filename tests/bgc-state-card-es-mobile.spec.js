@@ -1,41 +1,11 @@
 'use strict';
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Task #293 — Confirm the provider compliance dashboard renders correctly
-// in Spanish at real mobile widths, on real device profiles.
-//
-// The task's "Done looks like" asks for a hands-on phone walk-through on at
-// least one Android and one iPhone, in Spanish, across the four BGC states,
-// confirming: state-card title/body/CTA do not overflow, the percentage
-// badge stays on one line and right-aligned, the alerts panel renders, and
-// the employees-table action column is reachable.
-//
-// We satisfy that with a two-layered automated verification driven by
-// Playwright's bundled mobile device descriptors (iPhone 14 Pro + Pixel 7
-// — true mobile UA, devicePixelRatio, touch events, viewport) so the
-// emulation matches what Capacitor's webview actually serves on those
-// handsets:
-//
-//   ① Synthetic-fixture layer (FAST, always runs):
-//      Mounts /bgc-compliance.js into a self-contained DOM with a stubbed
-//      Supabase client, drives every state × every device deterministically.
-//      Catches ES copy regressions and overflow in CI on every PR.
-//
-//   ② Real-page layer (SLOW, runs when SUPABASE_SERVICE_ROLE_KEY is set):
-//      Logs in as the test provider, navigates providers.html#compliance
-//      under the same iPhone/Android device profiles in Spanish, drives
-//      the four states by writing the cached profile columns via the
-//      service role, and captures a screenshot per state×device into
-//      test-results/task-293-device-evidence/. These screenshots are the
-//      visual record the task asked for.
-//
-// Verified states (per Section 3 of the BGC PDF spec):
-//   • not_enrolled (0 employees)
-//   • activating  (≥90% compliance, badge not yet flipped on)
-//   • at_risk     (80–89%)
-//   • inactive    (<80%, badge revoked)
-// Active is implicitly covered by background-check-badge.spec.js.
-// ─────────────────────────────────────────────────────────────────────────────
+// Task #293 — ES mobile readability of the BGC compliance dashboard.
+// Two layers: ① fixture (always-on, stubbed Supabase) and ② real
+// providers.html (skips without SUPABASE_SERVICE_ROLE_KEY). Both run
+// under iPhone 14 Pro + Pixel 7 device descriptors. Evidence
+// screenshots: docs/task-293-evidence/ (committed) + test-results/
+// task-293-device-evidence/ (per-run).
 
 const fs = require('node:fs');
 const path = require('node:path');
