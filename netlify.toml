@@ -1,20 +1,32 @@
 [build]
   base       = "/"
-  # Task #279: run the in-process function regression tests (lockdown
-  # tests for admin-routes-auth, provider-application, etc.) BEFORE we
-  # install function deps. Any auth-guard regression on the agent-fleet
-  # or ai-ops admin handlers fails the build with a clear message
-  # instead of shipping silently. Netlify runs `npm install` at the
-  # repo root automatically before this command, so the root
-  # node_modules (where @supabase/supabase-js lives) is already
-  # populated by the time `npm test` runs.
+  # Build order:
+  #   1. `cd netlify/functions && npm install` — installs function-only
+  #      deps (resend, pdfkit, the nested @supabase/supabase-js, etc.)
+  #      into `netlify/functions/node_modules/`.
+  #   2. `npm test` — runs the in-process function regression tests
+  #      (lockdown tests for admin-routes-auth, provider-application,
+  #      driver-api, etc.). Any auth-guard regression on the agent-fleet
+  #      or ai-ops admin handlers fails the build with a clear message
+  #      instead of shipping silently.
   #
-  # Task #309: those test files now live in `netlify/functions-tests/`
-  # (NOT `netlify/functions/`) so Netlify's function bundler doesn't
-  # try to publish `admin-routes-auth.test` / `provider-application.test`
-  # as serverless functions — the dot in `.test.js` is illegal in a
-  # Netlify function name and was failing prod deploys.
-  command    = "npm test && cd netlify/functions && npm install"
+  # Why install MUST run before test (Task #343): the lockdown tests
+  # `require()` real handler files like `agent-fleet-admin.js`,
+  # `bgc-send-reminders.js`, `outreach-engine-core.js`, and
+  # `daily-digest-scheduled.js`, which all `require('resend')`. `resend`
+  # is declared in `netlify/functions/package.json` (NOT the root
+  # package.json), so without installing function deps first, every
+  # such test exits with `MODULE_NOT_FOUND: resend` and the deploy
+  # fails. Netlify still runs root `npm install` automatically before
+  # this command, so root deps (`@supabase/supabase-js` at the root
+  # level, etc.) are already populated.
+  #
+  # Task #309 history: lockdown test files live in
+  # `netlify/functions-tests/` (NOT `netlify/functions/`) so Netlify's
+  # function bundler doesn't try to publish `*.test.js` as serverless
+  # functions — the dot in `.test.js` is illegal in a function name
+  # and was failing prod deploys.
+  command    = "cd netlify/functions && npm install && cd ../.. && npm test"
   publish    = "www"
   functions  = "netlify/functions"
 
