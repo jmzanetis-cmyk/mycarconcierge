@@ -165,9 +165,42 @@ function validateMatchmakerAction(row, context) {
   return null;
 }
 
-function validateTreasurerAction(row) {
+// Per-event allowed Treasurer recommendations. `manual_review` is intentionally
+// excluded — it is the handler's fallback when JSON parse fails or the LLM
+// returns an unknown value, so a seeded scenario landing on it is the exact
+// regression Task #321 wants to catch. Each event-type bucket lists the
+// concrete decisions the LLM should pick for the seeded fixtures:
+//
+//   payment.captured          → captured amount within range AND completion
+//                               status='completed' → approve_capture
+//   payment.refund_requested  → completion status='disputed' with a
+//                               legitimate dispute_reason → either
+//                               approve_refund OR deny_refund (the LLM's
+//                               judgment call; manual_review = fallback)
+//   payout.failed             → seeded with a transient/onboarding-gap
+//                               failure_code → retry_payout OR escalate_payout
+const TREASURER_ALLOWED_RECOMMENDATIONS_BY_EVENT = {
+  'payment.captured':         ['approve_capture'],
+  'payment.refund_requested': ['approve_refund', 'deny_refund'],
+  'payout.failed':            ['retry_payout', 'escalate_payout']
+};
+
+function validateTreasurerAction(row, context) {
   if (row.status === 'error') return `action_error: ${row.error_message || 'unknown'}`;
   if (row.status !== 'proposed') return `bad_status:${row.status}`;
+  // Task #321: when seeded scenarios are in play, hold the recommendation
+  // to the per-event allowed set above. Without seeded context (legacy
+  // random-UUID payload path) keep the looser wiring-only check.
+  if (context && context.scenarios) {
+    const evtType = row.decision && row.decision.event_type;
+    const rec     = row.decision && row.decision.recommendation;
+    if (!rec) return 'missing_recommendation';
+    if (rec === 'manual_review') return `recommendation_manual_review_fallback:${evtType}`;
+    const allowed = TREASURER_ALLOWED_RECOMMENDATIONS_BY_EVENT[evtType];
+    if (allowed && !allowed.includes(rec)) {
+      return `recommendation_not_allowed:${evtType}=${rec}`;
+    }
+  }
   return null;
 }
 
