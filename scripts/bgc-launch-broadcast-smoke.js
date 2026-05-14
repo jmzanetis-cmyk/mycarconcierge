@@ -174,7 +174,6 @@ const broadcaster = require(path.join(__dirname, 'send-bgc-launch-broadcast.js')
 
   const customerEmails = customerSends.map(s => s.body.to).sort((a, b) => a.localeCompare(b));
   const providerEmailsArr = providerSends.map(s => s.body.to).sort((a, b) => a.localeCompare(b));
-  const providerEmails = providerEmailsArr;
   const providerEmailsSet = new Set(providerEmailsArr);
 
   expect(customerEmails.includes('amy@example.test'), 'customer audience: member sent');

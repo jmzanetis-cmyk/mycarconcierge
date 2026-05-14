@@ -453,7 +453,8 @@ async function sendPreviews({ args, customerTemplate, customerSubject, providerT
       html: customerHtml,
       headers: { 'X-MCC-Broadcast': 'bgc-launch-preview-customer' }
     });
-    console.log(`[preview] customer → ${to}: ${r1.ok ? `sent id=${r1.id}` : `FAILED ${JSON.stringify(r1.error)}`}`);
+    const r1Status = r1.ok ? `sent id=${r1.id}` : `FAILED ${JSON.stringify(r1.error)}`;
+    console.log(`[preview] customer → ${to}: ${r1Status}`);
 
     const r2 = await resendSend({
       apiKey,
@@ -463,7 +464,8 @@ async function sendPreviews({ args, customerTemplate, customerSubject, providerT
       html: providerHtml,
       headers: { 'X-MCC-Broadcast': 'bgc-launch-preview-provider' }
     });
-    console.log(`[preview] provider → ${to}: ${r2.ok ? `sent id=${r2.id}` : `FAILED ${JSON.stringify(r2.error)}`}`);
+    const r2Status = r2.ok ? `sent id=${r2.id}` : `FAILED ${JSON.stringify(r2.error)}`;
+    console.log(`[preview] provider → ${to}: ${r2Status}`);
   }
 }
 
