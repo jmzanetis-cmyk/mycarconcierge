@@ -18,6 +18,25 @@
 --   'adjust_bid_credits'  | admin granted/deducted bid credits via the
 --                          /api/admin/provider-actions/adjust-credits endpoint
 --                          (metadata: { before, after, delta })
+--   'update_apollo_config'   | admin saved Apollo discovery settings via
+--                              PUT /api/admin/apollo/config (Task #143/#274).
+--                              metadata.updates: object of changed keys (e.g.
+--                              { enabled: true, interval_hours: 6 }). Toggling
+--                              `enabled` true/false is the canonical "Apollo
+--                              turned on/off" event.
+--   'apollo_run_now'         | admin clicked "Run now" on the Apollo
+--                              dashboard tab — POST /api/admin/apollo/run-now
+--                              (Task #143/#274). Logged BEFORE the cycle so
+--                              even crashes leave a breadcrumb. metadata:
+--                              { triggered_at }.
+--   'apollo_manual_search'   | admin executed a manual Apollo search from
+--                              the dashboard. metadata: { found, with_email,
+--                              page, per_page }.
+--   'apollo_manual_enrich'   | admin triggered a manual enrichment pass.
+--                              metadata: { total, enriched, failed }.
+-- The Apollo dashboard tab in admin.html (Task #275) renders these four
+-- actions with friendly labels via the "Recent Apollo Admin Actions" card,
+-- backed by GET /api/admin/apollo/audit-log.
 -- ============================================================================
 
 CREATE TABLE IF NOT EXISTS public.admin_audit_log (

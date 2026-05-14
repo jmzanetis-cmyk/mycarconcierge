@@ -347,6 +347,128 @@
     }
   }
 
+  // ------------------------------------------------------------------
+  // Task #275 — Apollo admin audit log viewer.
+  // Renders rows from admin_audit_log (action IN apollo_*) into the
+  // "Recent Apollo Admin Actions" card on the Apollo dashboard tab so
+  // operators can see who flipped automation on/off and when manual
+  // runs/searches/enrichments were triggered. Friendly labels + a
+  // summary of changed config keys (from metadata.updates) make
+  // update_apollo_config and apollo_run_now rows readable instead of
+  // raw JSON. Filterable via #apollo-audit-filter.
+  // ------------------------------------------------------------------
+  // apolloEscapeHtml is defined later in this IIFE (was the legacy `escapeHtml`,
+  // renamed during this task to avoid declaration shadowing). Reused here.
+
+  function formatAuditTimestamp(iso) {
+    if (!iso) return '';
+    try {
+      const d = new Date(iso);
+      const diffMs = Date.now() - d.getTime();
+      const diffMin = Math.round(diffMs / 60000);
+      let rel;
+      if (diffMin < 1) rel = 'just now';
+      else if (diffMin < 60) rel = diffMin + 'm ago';
+      else if (diffMin < 1440) rel = Math.round(diffMin / 60) + 'h ago';
+      else rel = Math.round(diffMin / 1440) + 'd ago';
+      return `${d.toLocaleString()} <span style="color:var(--text-muted);">(${rel})</span>`;
+    } catch (_e) { return apolloEscapeHtml(iso); }
+  }
+
+  function describeApolloAuditRow(row) {
+    const meta = row.metadata || {};
+    switch (row.action) {
+      case 'update_apollo_config': {
+        const updates = meta.updates || {};
+        const keys = Object.keys(updates);
+        // If admin toggled `enabled`, lead with "enabled" / "disabled"
+        // since it's the most operationally significant change.
+        let headline = 'Apollo settings updated';
+        if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
+          headline = updates.enabled === true
+            ? 'Apollo discovery <strong style="color:var(--success);">ENABLED</strong>'
+            : 'Apollo discovery <strong style="color:var(--danger,#dc2626);">DISABLED</strong>';
+        }
+        const parts = keys.map(k => {
+          const v = updates[k];
+          let display;
+          if (Array.isArray(v)) display = v.length ? v.join(', ') : '(empty)';
+          else if (v === null || v === '') display = '(cleared)';
+          else if (typeof v === 'boolean') display = v ? 'on' : 'off';
+          else display = String(v);
+          if (display.length > 60) display = display.slice(0, 57) + '...';
+          return `<code style="font-size:0.78rem;">${apolloEscapeHtml(k)}</code>=<span style="color:var(--text-secondary);">${apolloEscapeHtml(display)}</span>`;
+        });
+        const summary = parts.length ? `<div style="margin-top:4px;font-size:0.82rem;line-height:1.6;">${parts.join('  &middot;  ')}</div>` : '';
+        return { label: headline, summary };
+      }
+      case 'apollo_run_now':
+        return { label: 'Manual Apollo discovery run triggered', summary: '' };
+      case 'apollo_manual_search': {
+        const found = meta.found != null ? meta.found : '?';
+        const withEmail = meta.with_email != null ? meta.with_email : '?';
+        const page = meta.page != null ? meta.page : '?';
+        return {
+          label: 'Manual Apollo search executed',
+          summary: `<div style="margin-top:4px;font-size:0.82rem;color:var(--text-secondary);">Page ${apolloEscapeHtml(page)} &middot; <strong>${apolloEscapeHtml(found)}</strong> people found, <strong>${apolloEscapeHtml(withEmail)}</strong> with email</div>`
+        };
+      }
+      case 'apollo_manual_enrich': {
+        const total = meta.total != null ? meta.total : '?';
+        const enriched = meta.enriched != null ? meta.enriched : '?';
+        const failed = meta.failed != null ? meta.failed : '?';
+        return {
+          label: 'Manual Apollo enrichment run',
+          summary: `<div style="margin-top:4px;font-size:0.82rem;color:var(--text-secondary);">Processed <strong>${apolloEscapeHtml(total)}</strong> leads &middot; <strong style="color:var(--success);">${apolloEscapeHtml(enriched)}</strong> enriched &middot; <strong style="color:var(--danger,#dc2626);">${apolloEscapeHtml(failed)}</strong> failed</div>`
+        };
+      }
+      default:
+        return { label: apolloEscapeHtml(row.action), summary: `<div style="margin-top:4px;font-size:0.78rem;color:var(--text-muted);"><code>${apolloEscapeHtml(JSON.stringify(meta))}</code></div>` };
+    }
+  }
+
+  async function loadApolloAuditLog() {
+    const list = document.getElementById('apollo-audit-list');
+    if (!list) return;
+    const filter = (document.getElementById('apollo-audit-filter') || {}).value || '';
+    list.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;font-size:0.88rem;">Loading recent actions...</p>';
+    try {
+      const qs = filter ? `?action=${encodeURIComponent(filter)}&limit=25` : '?limit=25';
+      const res = await apolloFetch('/audit-log' + qs);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        list.innerHTML = `<p style="color:var(--danger,#dc2626);text-align:center;padding:24px;font-size:0.88rem;">Failed to load audit log: ${apolloEscapeHtml(data.error || ('HTTP ' + res.status))}</p>`;
+        return;
+      }
+      const rows = data.rows || [];
+      if (rows.length === 0) {
+        list.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;font-size:0.88rem;">No Apollo admin actions recorded yet.</p>';
+        return;
+      }
+      list.innerHTML = rows.map(row => {
+        const { label, summary } = describeApolloAuditRow(row);
+        const who = apolloEscapeHtml(row.performed_by || 'admin');
+        const reason = row.reason ? `<div style="margin-top:4px;font-size:0.8rem;color:var(--text-muted);font-style:italic;">Reason: ${apolloEscapeHtml(row.reason)}</div>` : '';
+        return `
+          <div style="padding:12px 14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);margin-bottom:8px;background:var(--bg-elevated);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+              <div style="flex:1;min-width:240px;">
+                <div style="font-size:0.92rem;color:var(--text-primary);">${label}</div>
+                ${summary}
+                ${reason}
+              </div>
+              <div style="text-align:right;font-size:0.78rem;color:var(--text-muted);white-space:nowrap;">
+                <div>${formatAuditTimestamp(row.performed_at)}</div>
+                <div>by <strong>${who}</strong></div>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    } catch (e) {
+      list.innerHTML = `<p style="color:var(--danger,#dc2626);text-align:center;padding:24px;font-size:0.88rem;">Audit log error: ${apolloEscapeHtml(e.message)}</p>`;
+    }
+  }
+
   async function apolloEnrich() {
     const btn = document.getElementById('apollo-enrich-btn');
     const result = document.getElementById('apollo-enrich-result');
@@ -593,12 +715,12 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const chips = [];
     chips.push(d.is_running
       ? `<span title="Engine cycle is running every 15 min" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(34,197,94,0.12);border:1px solid rgba(34,197,94,0.3);color:#4ade80;">● running</span>`
-      : `<span title="Engine paused — manual cycles only${d.pause_reason ? ': ' + escapeHtml(d.pause_reason) : ''}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;">● paused${d.pause_reason ? ' — ' + escapeHtml(d.pause_reason) : ''}</span>`);
+      : `<span title="Engine paused — manual cycles only${d.pause_reason ? ': ' + apolloEscapeHtml(d.pause_reason) : ''}" style="display:inline-flex;align-items:center;gap:4px;font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.12);border:1px solid rgba(239,68,68,0.35);color:#f87171;">● paused${d.pause_reason ? ' — ' + apolloEscapeHtml(d.pause_reason) : ''}</span>`);
     if (d.last_skip) {
-      chips.push(`<span title="Most recent send_skipped reason from outreach_activity_log" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);">last skip: ${escapeHtml(d.last_skip.reason || 'unknown')}${d.last_skip.channel ? ' · ' + d.last_skip.channel : ''} (${fmtAgo(d.last_skip.at)})</span>`);
+      chips.push(`<span title="Most recent send_skipped reason from outreach_activity_log" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(148,163,184,0.1);border:1px solid rgba(148,163,184,0.25);color:var(--text-muted);">last skip: ${apolloEscapeHtml(d.last_skip.reason || 'unknown')}${d.last_skip.channel ? ' · ' + d.last_skip.channel : ''} (${fmtAgo(d.last_skip.at)})</span>`);
     }
     if (d.last_send_error) {
-      chips.push(`<span title="Most recent send_failed (Resend / Twilio error)" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;">last send error: ${escapeHtml(String(d.last_send_error.error || 'unknown').slice(0, 80))}${d.last_send_error.channel ? ' · ' + d.last_send_error.channel : ''} (${fmtAgo(d.last_send_error.at)})</span>`);
+      chips.push(`<span title="Most recent send_failed (Resend / Twilio error)" style="font-size:11px;padding:2px 8px;border-radius:10px;background:rgba(239,68,68,0.1);border:1px solid rgba(239,68,68,0.3);color:#f87171;">last send error: ${apolloEscapeHtml(String(d.last_send_error.error || 'unknown').slice(0, 80))}${d.last_send_error.channel ? ' · ' + d.last_send_error.channel : ''} (${fmtAgo(d.last_send_error.at)})</span>`);
     }
     // Task #306 — AI circuit-breaker chip. Trips open after 3 consecutive
     // Anthropic/OpenAI failures and pauses the draft pipeline for 5 min.
@@ -686,7 +808,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const apolloHealthHtml = apolloConfigLoaded && apolloEnabled
       ? `<span style="font-size:11px;color:${apolloStalled ? '#fbbf24' : 'var(--text-muted)'};margin-left:4px;">
            ${apolloLastSuccess
-             ? `Last successful pull: ${apolloLastSuccess}${apolloConfig?.last_successful_added ? ` (+${apolloConfig.last_successful_added} leads` + (apolloConfig.last_successful_profile ? ` · ${escapeHtml(apolloConfig.last_successful_profile)}` : '') + ')' : ''}`
+             ? `Last successful pull: ${apolloLastSuccess}${apolloConfig?.last_successful_added ? ` (+${apolloConfig.last_successful_added} leads` + (apolloConfig.last_successful_profile ? ` · ${apolloEscapeHtml(apolloConfig.last_successful_profile)}` : '') + ')' : ''}`
              : 'No successful pulls recorded yet'}
          </span>`
       : '';
@@ -855,7 +977,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       case 'funnel': await loadConversionFunnel(); break;
       case 'instantly': await loadInstantlyCampaigns(); break;
       case 'apollo':
-        await Promise.all([loadApolloConfig(), loadApolloStatus(), checkApolloEnrichQueue()]);
+        await Promise.all([loadApolloConfig(), loadApolloStatus(), checkApolloEnrichQueue(), loadApolloAuditLog()]);
         break;
     }
   }
@@ -1060,7 +1182,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
             <span class="priority-badge ${opp.priority}">${opp.priority}</span>
           </div>
           <div class="pipeline-cell">
-            <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
+            <strong>${apolloEscapeHtml(lead.name || 'Unknown')}</strong>
             <span class="type-badge ${lead.type}">${lead.type || '?'}</span>
             ${isDuplicate ? '<span class="crm-badge duplicate">CRM User</span>' : ''}
             ${isReengagement ? '<span class="crm-badge reengagement">Re-engagement</span>' : ''}
@@ -1070,7 +1192,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
             <div class="score-bar"><div class="score-fill" style="width:${opp.opportunity_score}%"></div></div>
             <span class="score-text">${opp.opportunity_score}</span>
           </div>
-          <div class="pipeline-cell pipeline-notes">${escapeHtml(opp.ai_notes || '-')}</div>
+          <div class="pipeline-cell pipeline-notes">${apolloEscapeHtml(opp.ai_notes || '-')}</div>
           <div class="pipeline-cell"><span class="channel-badge">${opp.recommended_channel}</span></div>
           <div class="pipeline-cell"><span class="stage-badge ${opp.stage}">${opp.stage.replaceAll('_', ' ')}</span></div>
           <div class="pipeline-cell">${timeAgo(new Date(opp.added_at))}</div>
@@ -1108,22 +1230,22 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         <div class="queue-card" id="queue-card-${msg.id}">
           <div class="queue-card-header">
             <div>
-              <strong>${escapeHtml(lead.name || 'Unknown')}</strong>
+              <strong>${apolloEscapeHtml(lead.name || 'Unknown')}</strong>
               <span class="type-badge ${lead.type}">${lead.type}</span>
               <span class="channel-badge">${msg.channel}</span>
             </div>
             <span class="text-muted">${timeAgo(new Date(msg.created_at))}</span>
           </div>
-          ${msg.subject ? `<div class="queue-subject"><strong>Subject:</strong> ${escapeHtml(msg.subject)}</div>` : ''}
-          <div class="queue-body">${escapeHtml(msg.body)}</div>
+          ${msg.subject ? `<div class="queue-subject"><strong>Subject:</strong> ${apolloEscapeHtml(msg.subject)}</div>` : ''}
+          <div class="queue-body">${apolloEscapeHtml(msg.body)}</div>
           <div class="queue-actions">
             <button class="btn btn-sm" onclick="globalThis.toggleEditMessage('${msg.id}')"><span class="icon-inline" data-icon="edit"></span> Edit</button>
             <button class="btn btn-sm btn-danger" onclick="globalThis.skipMessage('${msg.id}')">Skip</button>
             <button class="btn btn-sm btn-primary" onclick="globalThis.approveAndSend('${msg.id}')"><span class="icon-inline" data-icon="send"></span> Approve & Send</button>
           </div>
           <div class="queue-edit-area" id="edit-area-${msg.id}" style="display:none;">
-            ${msg.channel === 'email' ? `<input type="text" class="form-input" id="edit-subject-${msg.id}" value="${escapeHtml(msg.subject || '')}" placeholder="Subject" style="margin-bottom:8px;">` : ''}
-            <textarea class="form-input" id="edit-body-${msg.id}" style="min-height:120px;">${escapeHtml(msg.body)}</textarea>
+            ${msg.channel === 'email' ? `<input type="text" class="form-input" id="edit-subject-${msg.id}" value="${apolloEscapeHtml(msg.subject || '')}" placeholder="Subject" style="margin-bottom:8px;">` : ''}
+            <textarea class="form-input" id="edit-body-${msg.id}" style="min-height:120px;">${apolloEscapeHtml(msg.body)}</textarea>
             <button class="btn btn-sm btn-primary" onclick="globalThis.saveEditedMessage('${msg.id}')" style="margin-top:8px;">Save Edit</button>
           </div>
         </div>
@@ -1249,10 +1371,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         const isDuplicate = lead.crm_sync_status === 'duplicate';
         return `
           <div class="leads-table-row">
-            <div><strong>${escapeHtml(lead.name)}</strong></div>
+            <div><strong>${apolloEscapeHtml(lead.name)}</strong></div>
             <div><span class="type-badge ${lead.type}">${lead.type}</span></div>
-            <div class="text-truncate">${escapeHtml(lead.email || '-')}</div>
-            <div class="text-truncate">${escapeHtml(lead.location || '-')}</div>
+            <div class="text-truncate">${apolloEscapeHtml(lead.email || '-')}</div>
+            <div class="text-truncate">${apolloEscapeHtml(lead.location || '-')}</div>
             <div><span class="source-badge">${lead.source || '-'}</span></div>
             <div><span class="status-badge ${lead.status}">${lead.status}</span></div>
             <div>
@@ -1300,10 +1422,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       <div class="modal-content" style="max-width:500px;">
         <div class="modal-header"><h3>Edit Lead</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
         <div style="display:flex;flex-direction:column;gap:12px;padding:20px;">
-          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Name</label><input type="text" id="edit-lead-name" class="form-input" value="${escapeHtml(lead.name)}"></div>
-          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Email</label><input type="text" id="edit-lead-email" class="form-input" value="${escapeHtml(lead.email || '')}"></div>
-          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Phone</label><input type="text" id="edit-lead-phone" class="form-input" value="${escapeHtml(lead.phone || '')}"></div>
-          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Notes</label><textarea id="edit-lead-notes" class="form-input" style="min-height:80px;">${escapeHtml(lead.notes || '')}</textarea></div>
+          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Name</label><input type="text" id="edit-lead-name" class="form-input" value="${apolloEscapeHtml(lead.name)}"></div>
+          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Email</label><input type="text" id="edit-lead-email" class="form-input" value="${apolloEscapeHtml(lead.email || '')}"></div>
+          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Phone</label><input type="text" id="edit-lead-phone" class="form-input" value="${apolloEscapeHtml(lead.phone || '')}"></div>
+          <div><label style="font-weight:500;display:block;margin-bottom:4px;">Notes</label><textarea id="edit-lead-notes" class="form-input" style="min-height:80px;">${apolloEscapeHtml(lead.notes || '')}</textarea></div>
           <div><label style="font-weight:500;display:block;margin-bottom:4px;">Status</label>
             <select id="edit-lead-status" class="form-input">
               <option value="new" ${lead.status === 'new' ? 'selected' : ''}>New</option>
@@ -1451,10 +1573,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     });
     const data = await res.json();
     if (res.ok) {
-      resultDiv.innerHTML = `<p style="color:var(--accent-green);">Imported ${data.imported} new leads from ${escapeHtml(location)}</p>`;
+      resultDiv.innerHTML = `<p style="color:var(--accent-green);">Imported ${data.imported} new leads from ${apolloEscapeHtml(location)}</p>`;
       if (typeof showToast !== 'undefined') showToast(`${data.imported} leads imported`);
     } else {
-      resultDiv.innerHTML = `<p style="color:var(--accent-red);">${escapeHtml(data.error || 'Import failed')}</p>`;
+      resultDiv.innerHTML = `<p style="color:var(--accent-red);">${apolloEscapeHtml(data.error || 'Import failed')}</p>`;
     }
   }
 
@@ -1476,7 +1598,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       }
       const preview = document.getElementById('import-csv-preview');
       preview.innerHTML = `<p>${csvData.length} leads found. Preview:</p><div style="max-height:200px;overflow-y:auto;font-size:0.85rem;">` +
-        csvData.slice(0, 5).map(r => `<div style="padding:4px 0;border-bottom:1px solid var(--border-subtle);">${escapeHtml(r.name)} — ${r.type || 'provider'} — ${r.email || 'no email'}</div>`).join('') +
+        csvData.slice(0, 5).map(r => `<div style="padding:4px 0;border-bottom:1px solid var(--border-subtle);">${apolloEscapeHtml(r.name)} — ${r.type || 'provider'} — ${r.email || 'no email'}</div>`).join('') +
         (csvData.length > 5 ? `<div style="padding:4px 0;color:var(--text-muted);">...and ${csvData.length - 5} more</div>` : '') +
         '</div>';
       document.getElementById('import-csv-btn').style.display = 'block';
@@ -1523,7 +1645,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     container.innerHTML = outreachCampaigns.map(c => `
       <div class="campaign-card">
         <div class="campaign-header">
-          <strong>${escapeHtml(c.name)}</strong>
+          <strong>${apolloEscapeHtml(c.name)}</strong>
           <span class="status-badge ${c.status}">${c.status}</span>
         </div>
         <div class="campaign-meta">
@@ -1717,7 +1839,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
               messages.map(msg => `
                 <div style="padding:8px;margin-bottom:8px;background:var(--bg-elevated);border-radius:6px;font-size:0.9rem;">
                   <div style="display:flex;justify-content:space-between;">
-                    <span><strong>${msg.channel.toUpperCase()}</strong> ${msg.subject ? '— ' + escapeHtml(msg.subject) : ''}</span>
+                    <span><strong>${msg.channel.toUpperCase()}</strong> ${msg.subject ? '— ' + apolloEscapeHtml(msg.subject) : ''}</span>
                     <span class="status-badge ${msg.status}">${msg.status}</span>
                   </div>
                   <div style="color:var(--text-muted);font-size:0.85rem;margin-top:4px;">${new Date(msg.created_at).toLocaleDateString()}</div>
@@ -1730,7 +1852,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     });
   }
 
-  function escapeHtml(str) {
+  function apolloEscapeHtml(str) {
     if (!str) return '';
     return str.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
   }
@@ -1757,10 +1879,10 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const data = await res.json();
     if (resultDiv) {
       if (res.ok) {
-        resultDiv.innerHTML = `<p style="color:var(--accent-green);">Imported ${data.imported} new leads from ${escapeHtml(location)}</p>`;
+        resultDiv.innerHTML = `<p style="color:var(--accent-green);">Imported ${data.imported} new leads from ${apolloEscapeHtml(location)}</p>`;
         if (typeof showToast !== 'undefined') showToast(`${data.imported} leads imported`);
       } else {
-        resultDiv.innerHTML = `<p style="color:var(--accent-red);">${escapeHtml(data.error || 'Import failed')}</p>`;
+        resultDiv.innerHTML = `<p style="color:var(--accent-red);">${apolloEscapeHtml(data.error || 'Import failed')}</p>`;
       }
     }
   }
@@ -1782,7 +1904,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       const preview = document.getElementById('import-csv-preview-inline');
       if (preview) {
         preview.innerHTML = `<p>${csvData.length} leads found. Preview:</p><div style="max-height:200px;overflow-y:auto;font-size:0.85rem;">` +
-          csvData.slice(0, 5).map(r => `<div style="padding:4px 0;border-bottom:1px solid var(--border-subtle);">${escapeHtml(r.name)} — ${r.type || 'provider'} — ${r.email || 'no email'}</div>`).join('') +
+          csvData.slice(0, 5).map(r => `<div style="padding:4px 0;border-bottom:1px solid var(--border-subtle);">${apolloEscapeHtml(r.name)} — ${r.type || 'provider'} — ${r.email || 'no email'}</div>`).join('') +
           (csvData.length > 5 ? `<div style="padding:4px 0;color:var(--text-muted);">...and ${csvData.length - 5} more</div>` : '') +
           '</div>';
       }
@@ -1816,15 +1938,15 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       const content = modal.querySelector('.modal-content');
       const lead = data.lead || {};
       content.innerHTML = `
-        <div class="modal-header"><h3>Message Preview — ${escapeHtml(lead.name || 'Unknown')}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
+        <div class="modal-header"><h3>Message Preview — ${apolloEscapeHtml(lead.name || 'Unknown')}</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
         <div style="padding:20px;">
-          <div style="margin-bottom:8px;color:var(--text-muted);font-size:13px;">${escapeHtml(lead.type || '')} · ${escapeHtml(lead.location || '')}${lead.email ? ' · ' + escapeHtml(lead.email) : ''}${lead.phone ? ' · ' + escapeHtml(lead.phone) : ''}</div>
+          <div style="margin-bottom:8px;color:var(--text-muted);font-size:13px;">${apolloEscapeHtml(lead.type || '')} · ${apolloEscapeHtml(lead.location || '')}${lead.email ? ' · ' + apolloEscapeHtml(lead.email) : ''}${lead.phone ? ' · ' + apolloEscapeHtml(lead.phone) : ''}</div>
           ${data.email ? `
             <div style="margin-bottom:24px;">
               <h4 style="color:var(--accent-gold);margin-bottom:8px;">Email Preview</h4>
               <div style="background:var(--bg-tertiary,#1a1f2e);border-radius:8px;padding:16px;">
-                <div style="font-weight:600;margin-bottom:8px;color:var(--text-primary);">Subject: ${escapeHtml(data.email.subject || '')}</div>
-                <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--text-secondary);">${escapeHtml(data.email.body)}</div>
+                <div style="font-weight:600;margin-bottom:8px;color:var(--text-primary);">Subject: ${apolloEscapeHtml(data.email.subject || '')}</div>
+                <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--text-secondary);">${apolloEscapeHtml(data.email.body)}</div>
               </div>
             </div>
           ` : '<p style="color:var(--text-muted);">No email preview (no email address)</p>'}
@@ -1832,7 +1954,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
             <div>
               <h4 style="color:var(--accent-gold);margin-bottom:8px;">SMS Preview</h4>
               <div style="background:var(--bg-tertiary,#1a1f2e);border-radius:8px;padding:16px;">
-                <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--text-secondary);">${escapeHtml(data.sms.body)}</div>
+                <div style="white-space:pre-wrap;font-size:14px;line-height:1.6;color:var(--text-secondary);">${apolloEscapeHtml(data.sms.body)}</div>
               </div>
             </div>
           ` : '<p style="color:var(--text-muted);">No SMS preview (no phone number)</p>'}
@@ -1842,7 +1964,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
       const content = modal.querySelector('.modal-content');
       content.innerHTML = `
         <div class="modal-header"><h3>Preview Error</h3><button class="modal-close" onclick="this.closest('.modal-overlay').remove()">&times;</button></div>
-        <div style="padding:20px;color:var(--text-muted);">${escapeHtml(e.message)}</div>
+        <div style="padding:20px;color:var(--text-muted);">${apolloEscapeHtml(e.message)}</div>
       `;
     }
   }
@@ -2092,6 +2214,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.apolloEnrich = apolloEnrich;
   globalThis.checkApolloEnrichQueue = checkApolloEnrichQueue;
   globalThis.saveNotificationConfig = saveNotificationConfig;
+  globalThis.loadApolloAuditLog = loadApolloAuditLog;
   globalThis.switchOutreachTab = switchOutreachTab;
   globalThis.draftForLead = draftForLead;
   globalThis.editLead = editLead;

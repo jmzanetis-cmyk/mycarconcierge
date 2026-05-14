@@ -605,6 +605,33 @@ exports.handler = async function(event) {
       return jsonResponse(200, { result });
     }
 
+    if (route === 'audit-log' && method === 'GET') {
+      // Recent admin_audit_log rows for Apollo-related actions. Powers the
+      // "Recent Apollo Admin Actions" card on the Apollo dashboard tab so
+      // operators can see who flipped automation on/off and when manual
+      // runs/searches/enrichments were triggered. Filter by ?action= to
+      // narrow to a single action type; ?limit= caps rows (max 100).
+      const params = event.queryStringParameters || {};
+      const APOLLO_ACTIONS = ['update_apollo_config', 'apollo_run_now', 'apollo_manual_search', 'apollo_manual_enrich'];
+      let actionFilter = APOLLO_ACTIONS;
+      if (params.action && APOLLO_ACTIONS.includes(params.action)) {
+        actionFilter = [params.action];
+      }
+      const limit = Math.min(Math.max(parseInt(params.limit, 10) || 25, 1), 100);
+      try {
+        const { data, error } = await supabase
+          .from('admin_audit_log')
+          .select('id,action,target_type,reason,metadata,performed_by,performed_at')
+          .in('action', actionFilter)
+          .order('performed_at', { ascending: false })
+          .limit(limit);
+        if (error) throw new Error(error.message);
+        return jsonResponse(200, { success: true, rows: data || [], available_actions: APOLLO_ACTIONS });
+      } catch (err) {
+        return jsonResponse(500, { error: err.message });
+      }
+    }
+
     return jsonResponse(404, { error: 'Not found', path: route, method });
   } catch (e) {
     console.error('[apollo-admin] handler error:', e);

@@ -1545,6 +1545,27 @@
                 <p style="color:var(--text-muted);text-align:center;padding:30px;font-size:0.9rem;">Run a search above to see results here. Contacts with emails are automatically added to your outreach leads.</p>
               </div>
             </div>
+
+            <!-- Recent Apollo Admin Actions (admin_audit_log viewer) -->
+            <div class="card" style="margin-top:20px;">
+              <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+                <h2 class="card-title"><span class="icon-inline" data-icon="shield"></span> Recent Apollo Admin Actions</h2>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <select id="apollo-audit-filter" onchange="loadApolloAuditLog()" style="padding:6px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;">
+                    <option value="">All Apollo actions</option>
+                    <option value="update_apollo_config">Config saves (enable/disable + settings)</option>
+                    <option value="apollo_run_now">Manual runs</option>
+                    <option value="apollo_manual_search">Manual searches</option>
+                    <option value="apollo_manual_enrich">Manual enrichment</option>
+                  </select>
+                  <button class="btn btn-sm" onclick="loadApolloAuditLog()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+                </div>
+              </div>
+              <p style="color:var(--text-muted);font-size:0.82rem;margin:0 0 12px 0;">Tamper-evident log of who flipped Apollo discovery on/off, saved settings, or triggered manual searches/enrichment. Sourced from <code>admin_audit_log</code>.</p>
+              <div id="apollo-audit-list" style="min-height:80px;">
+                <p style="color:var(--text-muted);text-align:center;padding:24px;font-size:0.88rem;">Loading recent actions...</p>
+              </div>
+            </div>
           </div>
 
           <div id="outreach-conversions" class="outreach-panel" style="display:none;">
