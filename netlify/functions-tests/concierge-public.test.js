@@ -327,6 +327,9 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   console.log('  ✓ 13) attaching another member\'s vehicle returns 403');
 
   // ---- 14) provider edit shop address (no driver accepted) ----
+  // Track every leg update so we can assert BOTH from_ and to_ sides run
+  // (round-trip scenarios reuse the shop address as both origin and dest).
+  const legUpdates = [];
   lastInserted = {};
   dbState = {
     'profiles.maybeSingle': () => ({ data: { id: PROVIDER_X, role: 'provider' }, error: null }),
@@ -335,7 +338,11 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
               pickup_address: '1 Main', dropoff_address: '2 Shop' },
       error: null
     }),
-    'concierge_job_drivers.then': () => ({ data: [], error: null })
+    'concierge_job_drivers.then': () => ({ data: [], error: null }),
+    'concierge_job_legs.update': (row, filters) => {
+      legUpdates.push({ row: { ...row }, filters: { ...filters } });
+      return { data: row, error: null };
+    }
   };
   res = await fn.handler(makeEvent({
     path: `/api/concierge/${JOB_1}/update-address`, method: 'POST',
@@ -344,13 +351,20 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   }));
   assert.strictEqual(res.statusCode, 200, '14a: provider edit allowed when no driver accepted, got ' + res.statusCode + ' ' + res.body);
   assert.strictEqual(lastInserted['concierge_jobs.update'].row.dropoff_address, '3 New Shop Rd');
-  // Leg mirror must write to the real schema column to_address (NOT
-  // destination_address). This guards the bug from code-review round 4
-  // where the function was using non-existent column names.
-  const legUpd = lastInserted['concierge_job_legs.update'];
-  assert.ok(legUpd, '14a: leg mirror update must run');
-  assert.strictEqual(legUpd.row.to_address, '3 New Shop Rd', '14a: leg row must update to_address');
-  assert.ok(!('destination_address' in legUpd.row), '14a: must not write to nonexistent destination_address');
+  // Round-trip safety: BOTH from_ and to_ leg sides must be mirrored, since
+  // the same shop/home address can appear on either side of a pending leg.
+  assert.strictEqual(legUpdates.length, 2, '14a: both leg sides must be mirrored, got ' + legUpdates.length);
+  const fromUpd = legUpdates.find(u => 'from_address' in u.row);
+  const toUpd   = legUpdates.find(u => 'to_address'   in u.row);
+  assert.ok(fromUpd, '14a: from_address mirror must run');
+  assert.ok(toUpd,   '14a: to_address mirror must run');
+  assert.strictEqual(fromUpd.row.from_address, '3 New Shop Rd');
+  assert.strictEqual(toUpd.row.to_address,     '3 New Shop Rd');
+  // And must NOT use the legacy/nonexistent column names from round 4.
+  for (const u of legUpdates) {
+    assert.ok(!('destination_address' in u.row), '14a: no nonexistent destination_address');
+    assert.ok(!('origin_address'      in u.row), '14a: no nonexistent origin_address');
+  }
 
   // ---- 14b) blocked once a driver has accepted ----
   dbState['concierge_job_drivers.then'] = () => ({ data: [{ id: 'asn1', role: 'primary', accepted_at: '2026-01-01T00:00:00Z' }], error: null });

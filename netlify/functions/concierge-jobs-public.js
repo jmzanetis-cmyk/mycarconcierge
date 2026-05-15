@@ -382,28 +382,36 @@ async function handleUpdateAddress(event, supabase, user, profile, jobId, body) 
   // old address so distance/route stays consistent. Schema columns are
   // from_address / from_lat / from_lng and to_address / to_lat / to_lng
   // (see supabase/migrations/20260514c_driver_concierge_jobs.sql).
+  //
+  // Round-trip scenarios reuse the same shop/home address as both the
+  // origin (`from_address`) of one leg and the destination (`to_address`)
+  // of another, so we mirror across BOTH sides — any pending leg whose
+  // from_ OR to_ field still matches the old address gets updated.
   const oldAddress = field === 'pickup' ? job.pickup_address : job.dropoff_address;
+  const sides = [
+    { addr: 'from_address', lat: 'from_lat', lng: 'from_lng' },
+    { addr: 'to_address',   lat: 'to_lat',   lng: 'to_lng'   }
+  ];
   if (oldAddress) {
-    const cols = field === 'pickup'
-      ? { addr: 'from_address', lat: 'from_lat', lng: 'from_lng' }
-      : { addr: 'to_address',   lat: 'to_lat',   lng: 'to_lng' };
-    const legUpdate = { [cols.addr]: address };
-    if (lat !== null) legUpdate[cols.lat] = lat;
-    if (lng !== null) legUpdate[cols.lng] = lng;
-    const { error: legErr } = await supabase.from('concierge_job_legs')
-      .update(legUpdate)
-      .eq('job_id', jobId)
-      .eq(cols.addr, oldAddress)
-      .eq('status', 'pending');
-    if (legErr) {
-      // Hard fail: drivers must never see a job address that disagrees
-      // with their leg routing data. Roll the job row back to the old
-      // address before returning so on-disk state stays consistent.
-      const rollback = field === 'pickup'
-        ? { pickup_address: job.pickup_address, pickup_lat: job.pickup_lat, pickup_lng: job.pickup_lng }
-        : { dropoff_address: job.dropoff_address, dropoff_lat: job.dropoff_lat, dropoff_lng: job.dropoff_lng };
-      await supabase.from('concierge_jobs').update(rollback).eq('id', jobId);
-      return jsonResponse(500, { error: 'leg mirror failed: ' + legErr.message });
+    for (const side of sides) {
+      const legUpdate = { [side.addr]: address };
+      if (lat !== null) legUpdate[side.lat] = lat;
+      if (lng !== null) legUpdate[side.lng] = lng;
+      const { error: legErr } = await supabase.from('concierge_job_legs')
+        .update(legUpdate)
+        .eq('job_id', jobId)
+        .eq(side.addr, oldAddress)
+        .eq('status', 'pending');
+      if (legErr) {
+        // Hard fail: drivers must never see a job address that disagrees
+        // with their leg routing data. Roll the job row back to the old
+        // address before returning so on-disk state stays consistent.
+        const rollback = field === 'pickup'
+          ? { pickup_address: job.pickup_address, pickup_lat: job.pickup_lat, pickup_lng: job.pickup_lng }
+          : { dropoff_address: job.dropoff_address, dropoff_lat: job.dropoff_lat, dropoff_lng: job.dropoff_lng };
+        await supabase.from('concierge_jobs').update(rollback).eq('id', jobId);
+        return jsonResponse(500, { error: 'leg mirror failed: ' + legErr.message });
+      }
     }
   }
 
