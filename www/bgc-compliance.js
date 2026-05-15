@@ -177,30 +177,51 @@
   async function _renderConnectionPill() {
     const slot = document.getElementById('bgc-connection-pill');
     if (!slot) return;
-    let label = 'Mock mode'; let bg = 'rgba(255,255,255,0.06)'; let fg = 'var(--text-muted)'; let title = 'BGC live mode is off — orders are simulated.';
+    let label = 'Mock mode'; let bg = 'rgba(255,255,255,0.06)'; let fg = 'var(--text-muted)'; let title = 'BGC live mode is off platform-wide — orders are simulated until ops flips BGC_LIVE_MODE on.';
     try {
+      // Step 1: ask the platform whether live mode is on globally. Only when
+      // BGC_LIVE_MODE is true does the per-provider sub-account state matter
+      // for the user-facing label. /api/provider/bgc/config exposes this
+      // safely without leaking secrets.
+      let liveModeGlobal = false;
+      try {
+        const cfg = await fetch('/api/provider/bgc/config').then(r => r.ok ? r.json() : null).catch(() => null);
+        liveModeGlobal = !!(cfg && cfg.live_mode);
+      } catch { liveModeGlobal = false; }
+
+      // Step 2: read the per-provider linked-account row via the RLS-scoped
+      // public view (no api_key column).
       const sb = getSupabase();
+      let row = null;
       if (sb && sb.auth) {
         const { data: sessionWrap } = await sb.auth.getSession();
         const uid = sessionWrap && sessionWrap.session && sessionWrap.session.user && sessionWrap.session.user.id;
         if (uid) {
-          const { data: row } = await sb
+          const r = await sb
             .from('provider_background_check_accounts_public')
             .select('live_mode, bgchecks_account_id')
             .eq('provider_id', uid)
             .maybeSingle();
-          if (row && row.live_mode) {
-            label = 'Live · Sub-account linked';
-            bg = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
-            fg = '#2eb88a';
-            title = 'Background checks run under your own BackgroundChecks.com sub-account' + (row.bgchecks_account_id ? ' (#' + row.bgchecks_account_id + ').' : '.');
-          } else {
-            label = 'Setup pending';
-            bg = 'rgba(212, 168, 85, 0.15)';
-            fg = '#d4a855';
-            title = 'No BGC sub-account linked yet — orders fall back to MCC\u2019s platform account. Click Enroll BGC sub-account to link your own.';
-          }
+          row = r && r.data ? r.data : null;
         }
+      }
+
+      // Step 3: combine global flag + provider row to pick the label. Only
+      // claim "Live · Sub-account linked" when BOTH are true; "Live · Platform
+      // fallback" when global is on but the provider hasn't linked their own
+      // account; "Setup pending" only when global is on but nothing is wired.
+      if (!liveModeGlobal) {
+        // default mock mode pill stays
+      } else if (row && row.live_mode) {
+        label = 'Live · Sub-account linked';
+        bg = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
+        fg = '#2eb88a';
+        title = 'Background checks run under your own BackgroundChecks.com sub-account' + (row.bgchecks_account_id ? ' (#' + row.bgchecks_account_id + ').' : '.');
+      } else {
+        label = 'Live · Platform fallback';
+        bg = 'rgba(212, 168, 85, 0.15)';
+        fg = '#d4a855';
+        title = 'BGC live mode is on, but you haven\u2019t linked your own sub-account. Orders run under MCC\u2019s platform account. Click Enroll BGC sub-account to get your own console.';
       }
     } catch { /* non-fatal — keep default mock pill */ }
     slot.innerHTML =
