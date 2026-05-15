@@ -1035,6 +1035,29 @@
         <div id="mo-agent-activity"></div>
       </div>
 
+      <!-- Task #222: Launch broadcast send progress + bounce stats -->
+      <div class="card" id="launch-broadcast-card" style="margin-bottom:20px;">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+          <div>
+            <h2 class="card-title" style="margin:0;"><span class="icon-inline" data-icon="send"></span> Launch Broadcast</h2>
+            <p style="margin:4px 0 0 0;font-size:0.85rem;color:var(--text-muted);">Live counts from <code>bgc_launch_email_sends</code> + suppression list.</p>
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <span id="launch-broadcast-last-send" style="font-size:0.8rem;color:var(--text-muted);"></span>
+            <button class="btn btn-sm btn-secondary" onclick="loadLaunchBroadcastStats()">Refresh</button>
+          </div>
+        </div>
+        <div id="launch-broadcast-summary" style="padding:8px 0;color:var(--text-muted);font-size:0.9rem;">Loading…</div>
+        <div id="launch-broadcast-grid" class="stats-grid" style="margin-top:8px;"></div>
+        <div style="margin-top:16px;">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+            <h3 style="margin:0;font-size:0.95rem;">Recent Bounces & Complaints</h3>
+            <span id="launch-broadcast-bounces-count" style="font-size:0.8rem;color:var(--text-muted);"></span>
+          </div>
+          <div id="launch-broadcast-bounces" style="max-height:320px;overflow:auto;border:1px solid var(--border-subtle);border-radius:6px;"></div>
+        </div>
+      </div>
+
       <div class="card" style="margin-bottom:24px;">
         <div style="display:flex;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-sm mo-tab active" data-tab="outreach-engine">Outreach Engine</button>

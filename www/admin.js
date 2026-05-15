@@ -10143,7 +10143,118 @@
           title: 'Recent Hunter & Promoter Activity', showEmpty: true
         }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
       }
+      // Task #222 — Launch broadcast send progress + bounces.
+      try { await loadLaunchBroadcastStats(); }
+      catch (e) { console.warn('[admin] loadLaunchBroadcastStats failed:', e); }
     }
+
+    // Task #222 — Launch broadcast dashboard card.
+    // (escapeHtml is already defined at the top of this IIFE.)
+    async function loadLaunchBroadcastStats() {
+      const summary = document.getElementById('launch-broadcast-summary');
+      const grid    = document.getElementById('launch-broadcast-grid');
+      const lastEl  = document.getElementById('launch-broadcast-last-send');
+      const list    = document.getElementById('launch-broadcast-bounces');
+      const countEl = document.getElementById('launch-broadcast-bounces-count');
+      if (!summary || !grid || !list) return;
+      summary.textContent = 'Loading…';
+      grid.innerHTML = '';
+      list.innerHTML = '';
+      if (lastEl) lastEl.textContent = '';
+      if (countEl) countEl.textContent = '';
+
+      try {
+        const [statsRes, bouncesRes] = await Promise.all([
+          fetch('/api/admin/launch-broadcast/stats',         { headers: getAdminHeaders() }),
+          fetch('/api/admin/launch-broadcast/bounces?limit=50', { headers: getAdminHeaders() })
+        ]);
+
+        if (!statsRes.ok) {
+          summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          return;
+        }
+        const stats = await statsRes.json();
+        if (stats.table_missing) {
+          summary.textContent = stats.error || 'No launch broadcast data yet.';
+          return;
+        }
+
+        const t = stats.totals || { sent:0, bounced:0, complained:0, failed:0, total:0 };
+        const unsubs = stats.unsubscribes_total || 0;
+        const bounceRate = t.sent > 0 ? ((t.bounced / t.sent) * 100).toFixed(2) : '0.00';
+        summary.innerHTML =
+          `<strong>${t.total.toLocaleString()}</strong> rows logged · ` +
+          `<strong style="color:var(--accent-green,#4ade80);">${t.sent.toLocaleString()}</strong> sent · ` +
+          `<strong style="color:var(--accent-red,#ef4444);">${t.bounced.toLocaleString()}</strong> bounced (${bounceRate}%) · ` +
+          `<strong style="color:var(--accent-orange,#f59e0b);">${t.complained.toLocaleString()}</strong> complained · ` +
+          `<strong>${t.failed.toLocaleString()}</strong> failed · ` +
+          `<strong>${unsubs.toLocaleString()}</strong> on suppression list`;
+
+        if (lastEl && stats.last_send_at) {
+          const d = new Date(stats.last_send_at);
+          lastEl.textContent = `Last send: ${d.toLocaleString()}`;
+        }
+
+        const audiences = stats.audiences || {};
+        const audKeys = Object.keys(audiences);
+        const cells = [];
+        for (const aud of audKeys) {
+          const a = audiences[aud];
+          cells.push(
+            `<div class="stat-card">
+              <div class="stat-label" style="text-transform:capitalize;">${escapeHtml(aud)}</div>
+              <div class="stat-value">${(a.sent || 0).toLocaleString()}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">
+                bounced ${a.bounced || 0} · complained ${a.complained || 0} · failed ${a.failed || 0}
+              </div>
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">total logged ${a.total || 0}</div>
+            </div>`
+          );
+        }
+        grid.innerHTML = cells.join('') || '<div style="padding:8px;color:var(--text-muted);">No audience data.</div>';
+
+        if (!bouncesRes.ok) {
+          list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          return;
+        }
+        const bounces = await bouncesRes.json();
+        const rows = bounces.rows || [];
+        if (countEl) countEl.textContent = `${rows.length} shown`;
+        if (rows.length === 0) {
+          list.innerHTML = '<div style="padding:12px;color:var(--text-muted);">No bounces or complaints yet.</div>';
+          return;
+        }
+        const statusColor = (s) => s === 'bounced' ? 'var(--accent-red,#ef4444)'
+          : s === 'complained' ? 'var(--accent-orange,#f59e0b)'
+          : 'var(--text-muted)';
+        list.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <thead style="position:sticky;top:0;background:var(--bg-elevated,#1e2530);">
+              <tr>
+                <th style="text-align:left;padding:8px;">Email</th>
+                <th style="text-align:left;padding:8px;">Audience</th>
+                <th style="text-align:left;padding:8px;">Status</th>
+                <th style="text-align:left;padding:8px;">Reason</th>
+                <th style="text-align:left;padding:8px;">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr style="border-top:1px solid var(--border-subtle);">
+                  <td style="padding:8px;font-family:monospace;">${escapeHtml(r.email)}</td>
+                  <td style="padding:8px;text-transform:capitalize;">${escapeHtml(r.audience || '')}</td>
+                  <td style="padding:8px;color:${statusColor(r.status)};text-transform:capitalize;">${escapeHtml(r.status || '')}</td>
+                  <td style="padding:8px;color:var(--text-muted);">${escapeHtml(r.error_message || '—')}</td>
+                  <td style="padding:8px;color:var(--text-muted);white-space:nowrap;">${r.created_at ? new Date(r.created_at).toLocaleString() : ''}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      } catch (err) {
+        console.error('loadLaunchBroadcastStats error:', err);
+        summary.textContent = `Error: ${err.message || err}`;
+      }
+    }
+    globalThis.loadLaunchBroadcastStats = loadLaunchBroadcastStats;
 
     function getMarketingHeaders() {
       const headers = { 'Content-Type': 'application/json' };
