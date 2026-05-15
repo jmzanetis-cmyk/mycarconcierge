@@ -124,6 +124,13 @@
 [functions."agent-director-scheduled"]
   schedule = "*/15 * * * *"
 
+# Task #246 — daily Stripe secret key expiry check at 12:00 UTC. Reads the
+# configured expiry date from ai_ops_settings, sends 3-day / 1-day / 0-day
+# email reminders to the admin (idempotent via ai_action_log so re-runs in
+# the same day don't double-send).
+[functions."stripe-key-expiry-scheduled"]
+  schedule = "0 12 * * *"
+
 
 [[headers]]
   for = "/sw.js"
