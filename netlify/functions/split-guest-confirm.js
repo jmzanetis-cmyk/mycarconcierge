@@ -53,7 +53,8 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'Payment intent mismatch');
     }
 
-    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    let { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
     let paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
 
     if (paymentIntent.status !== 'succeeded') {

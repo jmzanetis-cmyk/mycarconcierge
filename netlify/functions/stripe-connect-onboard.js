@@ -51,7 +51,8 @@ exports.handler = async function(event) {
       return utils.errorResponse(403, 'Not authorized to access this founder profile');
     }
 
-    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    let { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
     let accountId = founder.stripe_connect_account_id;
 
     if (!accountId) {

@@ -696,7 +696,8 @@ function _getStripe() {
     // Match the apiVersion used by other Netlify functions (split-pay,
     // stripe-connect-status, etc.) so behavior is consistent across the
     // admin / pay paths.
-    return require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+    return require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
   } catch (e) {
     console.error('[agent-fleet-admin] stripe init failed:', e.message);
     return null;

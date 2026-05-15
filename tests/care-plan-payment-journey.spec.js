@@ -73,7 +73,8 @@ test.describe('Care plan payment journey (Task #282)', () => {
     // so this skip-gate is the only way to keep these tests non-flaky.
     if (STRIPE_SECRET_KEY) {
       try {
-        stripe = new Stripe(STRIPE_SECRET_KEY);
+        const { STRIPE_API_VERSION } = require('../lib/stripe-api-version');
+        stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
         const acct = await stripe.accounts.create({
           type: 'express', country: 'US',
           email: `mcc-task282-${Date.now()}@example.com`,
