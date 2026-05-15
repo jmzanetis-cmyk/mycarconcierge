@@ -414,5 +414,30 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   assert.ok(/appointment_id/i.test(res.body), '15: error must mention appointment_id');
   console.log('  ✓ 15) provider-mode create without appointment_id is rejected (400)');
 
+  // ---- 16) provider caller WITHOUT created_by_kind and WITHOUT appointment_id
+  // is treated as a member-kind self-request. Locks the round-11 reviewer's
+  // ambiguity: provider-role users can still file personal driver requests
+  // for themselves (e.g. their own car) without an appointment.
+  lastInserted = {};
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: PROVIDER_X, role: 'provider' }, error: null }),
+    'concierge_jobs.single': () => ({
+      data: { id: JOB_1, member_id: PROVIDER_X, scenario: 1, tier: 1,
+              pickup_address: '1 Main', dropoff_address: '2 Shop',
+              pickup_lat: 40, pickup_lng: -74, dropoff_lat: 41, dropoff_lng: -75 },
+      error: null
+    }),
+    'concierge_job_legs.then': () => ({ data: [{ id: 'leg-1' }], error: null })
+  };
+  res = await fn.handler(makeEvent({
+    path: '/api/concierge', method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { tier: 1, scenario: 1, pickup_address: '1 Main', dropoff_address: '2 Shop' }
+  }));
+  assert.strictEqual(res.statusCode, 200, '16: provider self-request without created_by_kind should succeed, got ' + res.statusCode + ' ' + res.body);
+  assert.strictEqual(lastInserted['concierge_jobs'].created_by_kind, 'member', '16: must be recorded as member-kind');
+  assert.strictEqual(lastInserted['concierge_jobs'].member_id, PROVIDER_X, '16: caller becomes the member');
+  console.log('  ✓ 16) provider w/o created_by_kind + no appointment files a member-kind self-request');
+
   console.log('\nAll concierge-jobs-public smoke tests passed.');
 })().catch(e => { console.error('TEST FAILURE:', e); process.exit(1); });
