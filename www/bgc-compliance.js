@@ -184,10 +184,12 @@
       // for the user-facing label. /api/provider/bgc/config exposes this
       // safely without leaking secrets.
       let liveModeGlobal = false;
+      let platformFallback = false;
       try {
         const cfg = await fetch('/api/provider/bgc/config').then(r => r.ok ? r.json() : null).catch(() => null);
         liveModeGlobal = !!(cfg && cfg.live_mode);
-      } catch { liveModeGlobal = false; }
+        platformFallback = !!(cfg && cfg.platform_fallback);
+      } catch { liveModeGlobal = false; platformFallback = false; }
 
       // Step 2: read the per-provider linked-account row via the RLS-scoped
       // public view (no api_key column).
@@ -217,11 +219,16 @@
         bg = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
         fg = '#2eb88a';
         title = 'Background checks run under your own BackgroundChecks.com sub-account' + (row.bgchecks_account_id ? ' (#' + row.bgchecks_account_id + ').' : '.');
-      } else {
+      } else if (platformFallback) {
         label = 'Live · Platform fallback';
         bg = 'rgba(212, 168, 85, 0.15)';
         fg = '#d4a855';
         title = 'BGC live mode is on, but you haven\u2019t linked your own sub-account. Orders run under MCC\u2019s platform account. Click Enroll BGC sub-account to get your own console.';
+      } else {
+        label = 'Setup pending';
+        bg = 'rgba(220, 80, 80, 0.15)';
+        fg = '#dc5050';
+        title = 'BGC live mode is on platform-wide but no API credential is configured \u2014 neither your sub-account nor the platform fallback token is available. New orders will fail until ops configures BGC_API_TOKEN or you link your sub-account.';
       }
     } catch { /* non-fatal — keep default mock pill */ }
     slot.innerHTML =

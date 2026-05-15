@@ -44,7 +44,14 @@ exports.handler = async function(event) {
     body: JSON.stringify({
       widget_base: deriveWidgetBase(),
       source_token: process.env.BGC_SOURCE_TOKEN || '',
-      live_mode: String(process.env.BGC_LIVE_MODE || '').toLowerCase() === 'true'
+      live_mode: String(process.env.BGC_LIVE_MODE || '').toLowerCase() === 'true',
+      // Whether the platform-wide BGC API token is available as a fallback
+      // when a provider has not yet linked their own sub-account. The
+      // provider compliance card uses this to distinguish "Live · Platform
+      // fallback" (token present) from "Setup pending" (live mode is on
+      // but neither a sub-account key nor a platform token is configured —
+      // orders would fail at order-time).
+      platform_fallback: !!process.env.BGC_API_TOKEN
     })
   };
 };

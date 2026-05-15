@@ -242,6 +242,25 @@ test('initiate live mode posts to /orders/new and stores invite URL', async () =
 });
 
 // ── Test 3: bgc-config ──────────────────────────────────────────────────────
+test('bgc-config exposes platform_fallback flag for "Setup pending" UX', async () => {
+  // Live mode on, no platform token → platform_fallback:false. This is what
+  // the compliance card uses to render the "Setup pending" pill so providers
+  // know orders will fail until ops wires a credential.
+  process.env.BGC_LIVE_MODE = 'true';
+  delete process.env.BGC_API_TOKEN;
+  const mod = fresh('../functions/bgc-config.js');
+  const resp = await mod.handler({ httpMethod: 'GET' });
+  const parsed = JSON.parse(resp.body);
+  assert.strictEqual(parsed.live_mode, true);
+  assert.strictEqual(parsed.platform_fallback, false,
+    'Setup pending: live on, no platform token → platform_fallback must be false');
+  // And the inverse: token present → fallback true.
+  process.env.BGC_API_TOKEN = 'platform-token';
+  const mod2 = fresh('../functions/bgc-config.js');
+  const resp2 = await mod2.handler({ httpMethod: 'GET' });
+  assert.strictEqual(JSON.parse(resp2.body).platform_fallback, true);
+});
+
 test('bgc-config returns widget base + source token (no secrets)', async () => {
   process.env.BGC_SOURCE_TOKEN = 'src_test';
   process.env.BGC_API_BASE = 'https://sandbox.backgroundchecks.com/api';
