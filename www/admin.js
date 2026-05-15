@@ -414,7 +414,12 @@
         modalTitle.innerHTML = mccIcon('lock', 16) + ' Admin Access';
         passwordForm.style.display = 'block';
         modalBtn.textContent = 'Verify';
+        modalBtn.disabled = false;
         modalBtn.style.display = 'block';
+        // Task #233 — clear any leftover error from a previous attempt so
+        // re-opening the modal via "Sign in again" starts clean.
+        const pwErr = document.getElementById('admin-password-error');
+        if (pwErr) { pwErr.style.display = 'none'; pwErr.textContent = ''; }
         document.getElementById('admin-password-input').focus();
       } else if (state === 'team-login') {
         modalTitle.innerHTML = mccIcon('users', 16) + ' Team Login';
@@ -644,6 +649,10 @@
           adminPasswordVerified = password;
           localStorage.setItem('mcc_admin_pass', password);
           adminPermissions = null;
+          // Task #233 — restore the button so the modal is usable next time
+          // it's opened (e.g. via the AI Ops "Sign in again" prompt).
+          btn.textContent = 'Verify';
+          btn.disabled = false;
           document.getElementById('admin-password-modal').style.display = 'none';
           applyRolePermissions(null);
           // Task #233 — when this modal was opened via the AI Ops "Sign in
