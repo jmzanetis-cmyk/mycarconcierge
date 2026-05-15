@@ -2043,28 +2043,57 @@ async function handleSocialLeads(event, ctx) {
 // returned "No Hunter reasoning yet" for older leads. This route does a
 // direct indexed query on agent_actions and returns the latest scoring
 // row for that lead.
+//
+// Task #237: prefer the direct FK (`social_leads.agent_action_id`) which
+// task #178 made authoritative for new rows + backfilled for old ones —
+// that's a single indexed PK lookup instead of a JSONB-extraction filter
+// over agent_actions. The JSONB-filter path is kept as a defensive
+// fallback for any leftover NULL FK rows (and is what the smoke test at
+// step 14b exercises by seeding an action row without setting the FK).
+const REASONING_ACTION_COLUMNS =
+  'id, agent_slug, action_type, status, autonomy_used, decision, ' +
+  'reasoning, confidence, tokens_in, tokens_out, cost_usd, ' +
+  'duration_ms, needs_review, reviewed_at, review_status, ' +
+  'review_notes, error_message, event_id, created_at';
+
 async function handleSocialLeadReasoning(event, ctx) {
   const { supabase, params } = ctx;
   const leadId = params[1];
-  const [actionRes, agentRes] = await Promise.all([
-    supabase.from('agent_actions')
-      .select('id, agent_slug, action_type, status, autonomy_used, decision, ' +
-              'reasoning, confidence, tokens_in, tokens_out, cost_usd, ' +
-              'duration_ms, needs_review, reviewed_at, review_status, ' +
-              'review_notes, error_message, event_id, created_at')
-      .eq('agent_slug', 'hunter')
-      .filter('decision->>social_lead_id', 'eq', leadId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+  const [leadRes, agentRes] = await Promise.all([
+    supabase.from('social_leads').select('agent_action_id').eq('id', leadId).maybeSingle(),
     supabase.from('agents').select('model').eq('slug', 'hunter').maybeSingle()
   ]);
-  if (actionRes.error) return jsonResponse(500, { error: actionRes.error.message });
-  if (!actionRes.data) return jsonResponse(404, { error: 'no hunter reasoning found for this lead', social_lead_id: leadId });
+  if (leadRes.error) return jsonResponse(500, { error: leadRes.error.message });
+
+  let action = null;
+  const fkId = leadRes.data?.agent_action_id;
+  if (fkId) {
+    const { data, error } = await supabase.from('agent_actions')
+      .select(REASONING_ACTION_COLUMNS).eq('id', fkId).maybeSingle();
+    if (error) return jsonResponse(500, { error: error.message });
+    action = data || null;
+  }
+
+  if (!action) {
+    // Fallback path: pre-T#178 rows where social_leads.agent_action_id
+    // is still NULL. Scan agent_actions by JSONB-extracted social_lead_id.
+    console.log(`[social-lead-reasoning] FK miss for lead=${leadId} — falling back to JSONB scan`);
+    const { data, error } = await supabase.from('agent_actions')
+      .select(REASONING_ACTION_COLUMNS)
+      .eq('agent_slug', 'hunter')
+      .filter('decision->>social_lead_id', 'eq', String(leadId))
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return jsonResponse(500, { error: error.message });
+    action = data || null;
+  }
+
+  if (!action) return jsonResponse(404, { error: 'no hunter reasoning found for this lead', social_lead_id: leadId });
   return jsonResponse(200, {
-    action: actionRes.data,
-    reasoning: actionRes.data.reasoning || null,
-    cost_usd: actionRes.data.cost_usd,
+    action,
+    reasoning: action.reasoning || null,
+    cost_usd: action.cost_usd,
     model: agentRes.data?.model || null,
     social_lead_id: leadId
   });
