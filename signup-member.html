@@ -362,6 +362,7 @@
     }
   </style>
   <script src="/i18n.js"></script>
+  <meta name="mcc-fb-event" content="Lead|signup_member_view|signup_member">
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -704,6 +705,15 @@
           });
         }
 
+        // Task #184 — Facebook Pixel CompleteRegistration: signup auth + profile
+        // are now in place, so the member-signup funnel milestone is complete.
+        if (typeof mccTrackFbOnce === 'function') {
+          mccTrackFbOnce('CompleteRegistration', 'member_signup_' + (data.user && data.user.id ? data.user.id : 'anon'), {
+            content_name: 'member',
+            status: 'email_password'
+          });
+        }
+
         showMessage('Account created! Check your email to confirm, then log in.', 'success');
         
         setTimeout(() => {
@@ -723,5 +733,6 @@
       I18n.createLanguageSwitcher('language-switcher');
     });
   </script>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

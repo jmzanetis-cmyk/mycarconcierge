@@ -58,3 +58,4 @@
 /api/survey/abandoned /.netlify/functions/survey-abandoned 200
 /api/survey/area-check /.netlify/functions/survey-area-check 200
 /api/survey/referral-link /.netlify/functions/survey-referral-link 200
+/api/fb/conversions /.netlify/functions/facebook-conversions-api 200
