@@ -102,6 +102,8 @@ Send the MCC Verified launch announcement.
 }
 
 // ----------------------------- Constants -----------------------------------
+const { BGC_PRICE_DISPLAY } = require('../lib/bgc-pricing');
+
 const PUBLIC_BASE_URL = (process.env.PUBLIC_BASE_URL || 'https://www.mycarconcierge.com').replace(/\/$/, '');
 const FROM_ADDRESS = process.env.LAUNCH_FROM_ADDRESS || 'My Car Concierge <noreply@mycarconcierge.com>';
 const BROWSE_URL = `${PUBLIC_BASE_URL}/providers-directory.html?verified=true`;
@@ -455,7 +457,8 @@ async function sendPreviews({ args, customerTemplates, customerSubjects, provide
     const providerVars = {
       provider_name: fakeProviderName,
       get_verified_url: GET_VERIFIED_URL,
-      unsubscribe_url: unsubscribeUrlFor(to, 'provider')
+      unsubscribe_url: unsubscribeUrlFor(to, 'provider'),
+      bgc_price: BGC_PRICE_DISPLAY
     };
 
     for (const lang of ['en', 'es']) {
@@ -585,7 +588,8 @@ async function main() {
       mergeVarsFor: (profile, email) => ({
         provider_name: pickProviderName(profile),
         get_verified_url: GET_VERIFIED_URL,
-        unsubscribe_url: unsubscribeUrlFor(email, 'provider')
+        unsubscribe_url: unsubscribeUrlFor(email, 'provider'),
+        bgc_price: BGC_PRICE_DISPLAY
       })
     });
   }

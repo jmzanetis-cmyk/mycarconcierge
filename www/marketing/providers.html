@@ -849,9 +849,11 @@
 
     <!-- "Earn the badge customers trust" provider-signup section.
          Verbatim PDF copy (Section 3 — Provider Signup / Marketing Page).
-         Bilingual EN / ES via [data-mcc-lang]. The per-employee price ($70)
-         in the EN and ES "Affordable" cards below must stay in sync with
-         www/bgc-pricing.js (single source of truth) and the email templates. -->
+         Bilingual EN / ES via [data-mcc-lang]. The per-employee price is rendered
+         via `<span data-bgc-price>$70</span>` — the literal is a no-JS fallback;
+         /bgc-pricing.js (loaded at the bottom of this page) overwrites it on load
+         from MCC_BGC_PRICING.display, so updating www/bgc-pricing.js is the only
+         edit needed to change the price in the EN and ES "Affordable" cards. -->
     <section class="section" id="mcc-verified-pitch" data-mcc-lang="en" style="background:rgba(0,0,0,0.04);">
       <div class="container">
         <div class="section-header">
@@ -883,7 +885,7 @@
           <div>
             <h3 style="margin:0 0 6px;font-size:1.1rem;">Affordable</h3>
             <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
-              Background checks start at $70 per employee, per year. A small investment that pays for itself with your first extra booking.
+              Background checks start at <span data-bgc-price>$70</span> per employee, per year. A small investment that pays for itself with your first extra booking.
             </p>
           </div>
         </div>
@@ -921,7 +923,7 @@
           <div>
             <h3 style="margin:0 0 6px;font-size:1.1rem;">Accesible</h3>
             <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
-              Las verificaciones de antecedentes empiezan en $70 por empleado al año. Una pequeña inversión que se paga sola con tu primera reserva adicional.
+              Las verificaciones de antecedentes empiezan en <span data-bgc-price>$70</span> por empleado al año. Una pequeña inversión que se paga sola con tu primera reserva adicional.
             </p>
           </div>
         </div>
@@ -972,6 +974,8 @@
       } catch (_) { /* localStorage unavailable */ }
     })();
   </script>
+  <!-- Auto-fills any [data-bgc-price] span with the canonical BGC price. -->
+  <script src="/bgc-pricing.js?v=20260515"></script>
   <script src="/fb-pixel.js" defer></script>
 </body>
 </html>
