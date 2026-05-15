@@ -13321,10 +13321,22 @@
       const banner = el('ms-error-banner');
       // Reset banner on every load
       if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
+      // Read date-range selector (default all-time preserves prior behavior)
+      const rangeSel = el('ms-range-select');
+      const range = (rangeSel && rangeSel.value) || 'all';
+      const RANGE_LABELS = { '7d': 'Last 7 days', '30d': 'Last 30 days', '90d': 'Last 90 days', 'all': 'All time' };
+      // Update headline-card labels so admins can see which window the numbers reflect
+      const totalLabelEl = el('ms-total') && el('ms-total').parentElement && el('ms-total').parentElement.querySelector('.stat-label');
+      if (totalLabelEl) totalLabelEl.textContent = range === 'all' ? 'Total Responses' : `Responses (${RANGE_LABELS[range]})`;
+      // "This Week" is still last 7 days within the active window — clarify when window < 7d or > 7d
+      const weekLabelEl = el('ms-week') && el('ms-week').parentElement && el('ms-week').parentElement.querySelector('.stat-label');
+      if (weekLabelEl) weekLabelEl.textContent = range === '7d' ? 'This Week (full window)' : 'This Week';
       try {
         const headers = getAdminHeaders();
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
+        // Always include ?range for explicitness and server-side telemetry
+        const url = apiBase + '/api/admin/survey-analytics?range=' + encodeURIComponent(range);
+        const res = await fetch(url, { headers });
         if (!res.ok) {
           let serverMsg = '';
           try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch { /* Intentionally silent */ }

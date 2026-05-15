@@ -1346,76 +1346,90 @@
       renderUserRoles();
     }
 
-    function renderUserRoles() {
-      const tbody = document.getElementById('user-roles-table');
-      const searchTerm = document.getElementById('user-roles-search')?.value?.toLowerCase() || '';
-      const roleFilter = document.getElementById('user-roles-filter')?.value || 'all';
-      
-      let filtered = allUsersForRoles;
-      
-      // Apply search filter
-      if (searchTerm) {
-        filtered = filtered.filter(u => 
-          (u.full_name || '').toLowerCase().includes(searchTerm) ||
-          (u.business_name || '').toLowerCase().includes(searchTerm) ||
-          (u.email || '').toLowerCase().includes(searchTerm)
-        );
-      }
-      
-      // Apply role filter
-      if (roleFilter === 'member') {
-        filtered = filtered.filter(u => u.role === 'member');
-      } else if (roleFilter === 'provider') {
-        filtered = filtered.filter(u => u.role === 'provider');
-      } else if (roleFilter === 'dual') {
-        filtered = filtered.filter(u => u.is_also_member || u.is_also_provider);
-      }
-      
-      if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
-        return;
-      }
+    function _filterUserRolesBySearch(list, term) {
+      if (!term) return list;
+      return list.filter(u =>
+        (u.full_name || '').toLowerCase().includes(term) ||
+        (u.business_name || '').toLowerCase().includes(term) ||
+        (u.email || '').toLowerCase().includes(term)
+      );
+    }
 
-      tbody.innerHTML = filtered.map(u => {
-        const displayName = u.business_name || u.full_name || 'Unnamed';
-        const roleLabel = u.role === 'member' ? 'Member' : u.role === 'provider' ? 'Provider' : 'Admin';
-        const roleColor = u.role === 'member' ? 'var(--accent-blue)' : u.role === 'provider' ? 'var(--accent-gold)' : 'var(--accent-green)';
-        
-        // For members, show "Also Provider" toggle
-        // For providers, show "Also Member" toggle
-        const showAlsoMember = u.role === 'provider';
-        const showAlsoProvider = u.role === 'member';
-        
-        return `
+    function _filterUserRolesByRole(list, roleFilter) {
+      if (roleFilter === 'member') return list.filter(u => u.role === 'member');
+      if (roleFilter === 'provider') return list.filter(u => u.role === 'provider');
+      if (roleFilter === 'dual') return list.filter(u => u.is_also_member || u.is_also_provider);
+      return list;
+    }
+
+    function _userRoleLabel(role) {
+      if (role === 'member') return 'Member';
+      if (role === 'provider') return 'Provider';
+      return 'Admin';
+    }
+
+    function _userRoleColor(role) {
+      if (role === 'member') return 'var(--accent-blue)';
+      if (role === 'provider') return 'var(--accent-gold)';
+      return 'var(--accent-green)';
+    }
+
+    function _dualRoleCellHtml(u, field, accentVar) {
+      if (!field) return '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>';
+      const on = !!u[field];
+      const color = on ? accentVar : 'var(--text-muted)';
+      return `
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" ${on ? 'checked' : ''} onchange="toggleDualRole('${u.id}', '${field}', this.checked)" style="width:18px;height:18px;accent-color:${accentVar};">
+                  <span style="font-size:0.85rem;color:${color};">${on ? 'Yes' : 'No'}</span>
+                </label>
+              `;
+    }
+
+    function _renderUserRoleRow(u) {
+      const displayName = u.business_name || u.full_name || 'Unnamed';
+      const roleLabel = _userRoleLabel(u.role);
+      const roleColor = _userRoleColor(u.role);
+      const subName = (u.business_name && u.full_name)
+        ? `<div style="font-size:0.8rem;color:var(--text-muted);">${u.full_name}</div>`
+        : '';
+      const alsoMemberCell = u.role === 'provider'
+        ? _dualRoleCellHtml(u, 'is_also_member', 'var(--accent-blue)')
+        : '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>';
+      const alsoProviderCell = u.role === 'member'
+        ? _dualRoleCellHtml(u, 'is_also_provider', 'var(--accent-gold)')
+        : '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>';
+      return `
           <tr>
             <td>
               <div><strong>${displayName}</strong></div>
-              ${u.business_name && u.full_name ? `<div style="font-size:0.8rem;color:var(--text-muted);">${u.full_name}</div>` : ''}
+              ${subName}
             </td>
             <td style="font-size:0.9rem;">${u.email || 'N/A'}</td>
             <td>
               <span style="padding:4px 10px;border-radius:100px;font-size:0.8rem;background:${roleColor}22;color:${roleColor};">${roleLabel}</span>
             </td>
-            <td>
-              ${showAlsoMember ? `
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                  <input type="checkbox" ${u.is_also_member ? 'checked' : ''} onchange="toggleDualRole('${u.id}', 'is_also_member', this.checked)" style="width:18px;height:18px;accent-color:var(--accent-blue);">
-                  <span style="font-size:0.85rem;color:${u.is_also_member ? 'var(--accent-blue)' : 'var(--text-muted)'};">${u.is_also_member ? 'Yes' : 'No'}</span>
-                </label>
-              ` : '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>'}
-            </td>
-            <td>
-              ${showAlsoProvider ? `
-                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
-                  <input type="checkbox" ${u.is_also_provider ? 'checked' : ''} onchange="toggleDualRole('${u.id}', 'is_also_provider', this.checked)" style="width:18px;height:18px;accent-color:var(--accent-gold);">
-                  <span style="font-size:0.85rem;color:${u.is_also_provider ? 'var(--accent-gold)' : 'var(--text-muted)'};">${u.is_also_provider ? 'Yes' : 'No'}</span>
-                </label>
-              ` : '<span style="color:var(--text-muted);font-size:0.85rem;">N/A</span>'}
-            </td>
+            <td>${alsoMemberCell}</td>
+            <td>${alsoProviderCell}</td>
             <td style="font-size:0.85rem;color:var(--text-muted);">${new Date(u.created_at).toLocaleDateString()}</td>
           </tr>
         `;
-      }).join('');
+    }
+
+    function renderUserRoles() {
+      const tbody = document.getElementById('user-roles-table');
+      const searchTerm = document.getElementById('user-roles-search')?.value?.toLowerCase() || '';
+      const roleFilter = document.getElementById('user-roles-filter')?.value || 'all';
+
+      let filtered = _filterUserRolesBySearch(allUsersForRoles, searchTerm);
+      filtered = _filterUserRolesByRole(filtered, roleFilter);
+
+      if (!filtered.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No users found</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = filtered.map(_renderUserRoleRow).join('');
     }
 
     async function toggleDualRole(userId, field, value) {
@@ -1719,38 +1733,43 @@
     let selectedProviders = new Set();
     let filteredProviders = [];
 
-    function renderProviders() {
-      const tbody = document.getElementById('providers-table');
-      filteredProviders = filterProvidersData();
-      
-      if (!filteredProviders.length) {
-        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No providers match filters</td></tr>';
-        updateBulkBar();
-        return;
-      }
+    function _providerCreditsTier(totalCredits) {
+      if (totalCredits === 0) return { bg: 'var(--accent-red-soft)', fg: 'var(--accent-red)' };
+      if (totalCredits < 10) return { bg: 'var(--accent-orange-soft)', fg: 'var(--accent-orange)' };
+      return { bg: 'var(--accent-green-soft)', fg: 'var(--accent-green)' };
+    }
 
-      tbody.innerHTML = filteredProviders.map(p => {
-        const stats = p.provider_stats?.[0] || {};
-        const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
-        const isSuspended = p.suspension_reason || stats.suspended;
-        const isSelected = selectedProviders.has(p.id);
-        
-        return `
-          <tr style="${isSelected ? 'background:var(--accent-blue-soft);' : ''}">
+    function _providerRatingCellHtml(avg) {
+      const display = avg?.toFixed(1) || 'New';
+      const warn = (avg && avg < 4) ? ' <span style="color:var(--accent-red);">⚠️</span>' : '';
+      return `⭐ ${display}${warn}`;
+    }
+
+    function _renderProviderRow(p) {
+      const stats = p.provider_stats?.[0] || {};
+      const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
+      const isSuspended = p.suspension_reason || stats.suspended;
+      const isSelected = selectedProviders.has(p.id);
+      const tier = _providerCreditsTier(totalCredits);
+      const rowStyle = isSelected ? 'background:var(--accent-blue-soft);' : '';
+      const statusClass = isSuspended ? 'rejected' : 'approved';
+      const statusLabel = isSuspended ? 'Suspended' : 'Active';
+      return `
+          <tr style="${rowStyle}">
             <td><input type="checkbox" class="provider-checkbox" data-id="${p.id}" ${isSelected ? 'checked' : ''} onchange="toggleProviderSelection('${p.id}')"></td>
             <td>
               <div><strong>${p.business_name || p.full_name || 'Unnamed'}</strong></div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${p.email || ''}</div>
             </td>
             <td>
-              <span style="padding:4px 8px;border-radius:4px;font-size:0.85rem;background:${totalCredits === 0 ? 'var(--accent-red-soft)' : totalCredits < 10 ? 'var(--accent-orange-soft)' : 'var(--accent-green-soft)'};color:${totalCredits === 0 ? 'var(--accent-red)' : totalCredits < 10 ? 'var(--accent-orange)' : 'var(--accent-green)'};">
+              <span style="padding:4px 8px;border-radius:4px;font-size:0.85rem;background:${tier.bg};color:${tier.fg};">
                 🎟️ ${totalCredits}
               </span>
             </td>
-            <td>⭐ ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">⚠️</span>' : ''}</td>
+            <td>${_providerRatingCellHtml(stats.average_rating)}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
-            <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
+            <td><span class="status-badge ${statusClass}">${statusLabel}</span></td>
             <td>
               <div style="display:flex;gap:4px;">
                 <button class="btn btn-secondary btn-sm" onclick="viewProvider('${p.id}')">View</button>
@@ -1759,8 +1778,19 @@
             </td>
           </tr>
         `;
-      }).join('');
-      
+    }
+
+    function renderProviders() {
+      const tbody = document.getElementById('providers-table');
+      filteredProviders = filterProvidersData();
+
+      if (!filteredProviders.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No providers match filters</td></tr>';
+        updateBulkBar();
+        return;
+      }
+
+      tbody.innerHTML = filteredProviders.map(_renderProviderRow).join('');
       updateBulkBar();
     }
 
@@ -2069,11 +2099,33 @@
       `).join('');
     }
 
+    function _disputeStatusClass(status) {
+      if (status === 'open') return 'open';
+      if (status.includes('resolved')) return 'resolved';
+      return 'pending';
+    }
+
+    function _disputeMatchesFilter(d, filter) {
+      if (filter === 'inspection') return d.requires_inspection && d.status !== 'resolved';
+      return d.status === filter || filter === 'all';
+    }
+
+    function _renderDisputeRow(d) {
+      return `
+        <tr>
+          <td>${d.maintenance_packages?.title || 'Package'}</td>
+          <td>${d.filed_by_profile?.full_name || 'User'} (${d.filed_by_role})</td>
+          <td>${d.reason}</td>
+          <td>$${(d.payments?.amount_total || 0).toFixed(2)}</td>
+          <td>${new Date(d.created_at).toLocaleDateString()}</td>
+          <td><span class="status-badge ${_disputeStatusClass(d.status)}">${d.status}</span></td>
+          <td><button class="btn btn-secondary btn-sm" onclick="viewDispute('${d.id}')">Review</button></td>
+        </tr>
+      `;
+    }
+
     function renderDisputes() {
-      const filtered = disputes.filter(d => {
-        if (currentFilters.disputes === 'inspection') return d.requires_inspection && d.status !== 'resolved';
-        return d.status === currentFilters.disputes || currentFilters.disputes === 'all';
-      });
+      const filtered = disputes.filter(d => _disputeMatchesFilter(d, currentFilters.disputes));
       const tbody = document.getElementById('disputes-table');
 
       const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
@@ -2084,17 +2136,7 @@
         return;
       }
 
-      tbody.innerHTML = filtered.map(d => `
-        <tr>
-          <td>${d.maintenance_packages?.title || 'Package'}</td>
-          <td>${d.filed_by_profile?.full_name || 'User'} (${d.filed_by_role})</td>
-          <td>${d.reason}</td>
-          <td>$${(d.payments?.amount_total || 0).toFixed(2)}</td>
-          <td>${new Date(d.created_at).toLocaleDateString()}</td>
-          <td><span class="status-badge ${d.status === 'open' ? 'open' : d.status.includes('resolved') ? 'resolved' : 'pending'}">${d.status}</span></td>
-          <td><button class="btn btn-secondary btn-sm" onclick="viewDispute('${d.id}')">Review</button></td>
-        </tr>
-      `).join('');
+      tbody.innerHTML = filtered.map(_renderDisputeRow).join('');
     }
 
     function renderTickets() {
@@ -2464,14 +2506,37 @@
     }
 
     // ========== TICKETS ==========
-    async function viewTicket(ticketId) {
-      currentTicket = tickets.find(t => t.id === ticketId);
-      if (!currentTicket) return;
+    function _renderTicketMessage(m) {
+      const isAdmin = m.sender_role === 'admin';
+      const bg = isAdmin ? 'var(--accent-blue-soft)' : 'var(--bg-input)';
+      const who = isAdmin ? 'Admin' : 'User';
+      return `
+              <div style="margin-bottom:12px;padding:12px;background:${bg};border-radius:var(--radius-md);">
+                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">${who} - ${new Date(m.created_at).toLocaleString()}</div>
+                <p>${m.content}</p>
+              </div>
+            `;
+    }
 
-      const { data: messages } = await supabaseClient.from('ticket_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
-      const t = currentTicket;
+    function _renderTicketConversation(messages) {
+      if (!messages?.length) return '';
+      return messages.map(_renderTicketMessage).join('');
+    }
 
-      document.getElementById('ticket-modal-body').innerHTML = `
+    function _ticketStatusOptionsHtml(currentStatus) {
+      const opts = [
+        ['open', 'Open'],
+        ['in_progress', 'In Progress'],
+        ['resolved', 'Resolved'],
+        ['closed', 'Closed']
+      ];
+      return opts.map(([v, label]) =>
+        `<option value="${v}" ${currentStatus === v ? 'selected' : ''}>${label}</option>`
+      ).join('');
+    }
+
+    function _renderTicketModalBody(t, messages) {
+      return `
         <div class="form-section">
           <div class="form-section-title">${t.subject}</div>
           <div class="detail-grid">
@@ -2486,12 +2551,7 @@
         <div class="form-section">
           <div class="form-section-title">Conversation</div>
           <div style="max-height:200px;overflow-y:auto;">
-            ${messages?.length ? messages.map(m => `
-              <div style="margin-bottom:12px;padding:12px;background:${m.sender_role === 'admin' ? 'var(--accent-blue-soft)' : 'var(--bg-input)'};border-radius:var(--radius-md);">
-                <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">${m.sender_role === 'admin' ? 'Admin' : 'User'} - ${new Date(m.created_at).toLocaleString()}</div>
-                <p>${m.content}</p>
-              </div>
-            `).join('') : ''}
+            ${_renderTicketConversation(messages)}
           </div>
         </div>
 
@@ -2503,14 +2563,18 @@
         <div class="form-group">
           <label class="form-label">Status</label>
           <select class="form-select" id="ticket-status">
-            <option value="open" ${t.status === 'open' ? 'selected' : ''}>Open</option>
-            <option value="in_progress" ${t.status === 'in_progress' ? 'selected' : ''}>In Progress</option>
-            <option value="resolved" ${t.status === 'resolved' ? 'selected' : ''}>Resolved</option>
-            <option value="closed" ${t.status === 'closed' ? 'selected' : ''}>Closed</option>
+            ${_ticketStatusOptionsHtml(t.status)}
           </select>
         </div>
       `;
+    }
 
+    async function viewTicket(ticketId) {
+      currentTicket = tickets.find(t => t.id === ticketId);
+      if (!currentTicket) return;
+
+      const { data: messages } = await supabaseClient.from('ticket_messages').select('*').eq('ticket_id', ticketId).order('created_at', { ascending: true });
+      document.getElementById('ticket-modal-body').innerHTML = _renderTicketModalBody(currentTicket, messages);
       document.getElementById('ticket-modal').classList.add('active');
     }
 

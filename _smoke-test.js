@@ -109,6 +109,15 @@ async function callPromoterDirect(eventRow) {
 // the original IIFE so SonarCloud cognitive complexity stays ≤ 15 per fn.
 // `ctx` carries shared state across steps (channel + event ids, draft posts,
 // the temp user + JWT, the admin/anon Supabase clients, etc).
+//
+// NOTE (Task #256): SonarCloud may still flag a "Cognitive Complexity 205"
+// finding pointing at this region from a stale scan of the original IIFE.
+// The decomposition below has already addressed it — every step* helper
+// reports CC well under 15. The next SonarCloud scan will clear the stale
+// issue. Do not re-introduce a single mega-function; if a step grows large,
+// extract _step<N><detail>(ctx, …) helpers (see _step24bJwtChecks,
+// _step27FollowUpRpcs, _step14cAssertHunterFkLink, _verifyPromoterPostFkLink
+// for the established pattern).
 
 async function step0AgentRegistry(ctx) {
   console.log('\n━━━ STEP 0: agent registry ━━━');

@@ -108,6 +108,11 @@
     .version-row { cursor:pointer; }
     .version-row:hover { background:var(--slate-surface-2); }
     .version-row.selected { background:rgba(201,168,76,0.08); }
+    /* Task #236 — pill states for the prompt editor header. */
+    .prompt-pill { display:inline-block; padding:2px 8px; border-radius:10px; font-size:11px; font-weight:500; margin-left:6px; vertical-align:middle; }
+    .prompt-pill-active { background:rgba(34,197,94,0.14); color:#bbf7d0; border:1px solid rgba(34,197,94,0.35); }
+    .prompt-pill-loaded { background:rgba(201,168,76,0.16); color:var(--gold); border:1px solid rgba(201,168,76,0.45); }
+    .prompt-pill-default { background:transparent; color:var(--muted); border:1px dashed var(--slate-border); }
     .diff-grid { display:grid; grid-template-columns: 1fr 1fr; gap:0; border:1px solid var(--slate-border); border-radius:8px; overflow:auto; max-height:520px; font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:12px; background:var(--slate-surface-2); }
     .diff-cell { padding:2px 8px 2px 4px; white-space:pre-wrap; word-break:break-word; border-bottom:1px solid rgba(45,52,63,0.4); min-height:18px; line-height:1.45; }
     .diff-cell.diff-eq { color:var(--text); background:transparent; }
@@ -193,8 +198,9 @@
     <div class="card" style="margin-bottom:20px;">
       <h3>System prompt <span id="promptVersionPill" style="font-size:11px; color:var(--muted); font-weight:400;"></span></h3>
       <div style="font-size:13px; color:var(--muted); margin-bottom:10px;">
-        Override the file-based default prompt. Saving creates a new version and immediately activates it.
-        Leaving it empty and saving keeps the default. Use the version list below to roll back.
+        Override the file-based default prompt. Saving creates a new version and immediately activates it on top of whatever is currently live —
+        loading an older version into the editor never changes what's running in production until you click Save.
+        Leaving it empty and saving keeps the default. Use the version list below to roll back or load an older version into the editor.
       </div>
       <textarea id="promptBody" class="input" rows="10" style="font-family:ui-monospace,SFMono-Regular,Menlo,monospace; font-size:13px; min-height:200px; resize:vertical;" placeholder="Loading…"></textarea>
       <div class="row" style="margin-top:10px;">
@@ -782,23 +788,72 @@ async function loadReviewQueue() {
   }
 }
 
+// Task #236 — track which version is live in production vs which version's
+// body is currently sitting in the textarea, so admins can preview/edit older
+// versions without flipping the active one.
+let activeVersionInfo = null;   // { version, created_at } from the server
+let loadedVersion = null;        // version number whose body is in the textarea
+let editorPristineBody = '';     // textarea value at the moment we last (re)loaded a version
+
+function renderPromptPill() {
+  const pill = document.getElementById('promptVersionPill');
+  if (!activeVersionInfo) {
+    pill.innerHTML = '<span class="prompt-pill prompt-pill-default">using file-based default</span>'
+      + (loadedVersion ? ` <span class="prompt-pill prompt-pill-loaded">loaded for editing: v${loadedVersion}</span>` : '');
+    return;
+  }
+  const activeBadge = `<span class="prompt-pill prompt-pill-active" title="Currently running in production">active in production: v${activeVersionInfo.version} (saved ${fmtTime(activeVersionInfo.created_at)})</span>`;
+  const loadedBadge = (loadedVersion != null && loadedVersion !== activeVersionInfo.version)
+    ? ` <span class="prompt-pill prompt-pill-loaded" title="Sitting in the editor — not yet saved or activated">loaded for editing: v${loadedVersion}</span>`
+    : '';
+  pill.innerHTML = activeBadge + loadedBadge;
+}
+
 async function loadPrompt() {
   try {
     const { active } = await api(`/agents/${encodeURIComponent(agentSlug)}/prompt`);
     const ta = document.getElementById('promptBody');
-    const pill = document.getElementById('promptVersionPill');
     if (active) {
       ta.value = active.body || '';
-      pill.textContent = `· active: v${active.version} (saved ${fmtTime(active.created_at)})`;
+      activeVersionInfo = { version: active.version, created_at: active.created_at };
+      loadedVersion = active.version;
+      editorPristineBody = ta.value;
     } else {
       ta.value = '';
       ta.placeholder = 'No override — running with the file-based default. Type here and save to override.';
-      pill.textContent = '· using file-based default';
+      activeVersionInfo = null;
+      loadedVersion = null;
+      editorPristineBody = '';
     }
+    renderPromptPill();
   } catch (e) {
     if (e.message !== 'Unauthorized') toast(e.message, true);
   }
   loadPromptHistory();
+}
+
+// Task #236 — pull an older version's body into the textarea without
+// activating it. Confirms first if there are unsaved local edits.
+async function loadVersionIntoEditor(version) {
+  const ta = document.getElementById('promptBody');
+  const hasUnsavedEdits = ta.value !== editorPristineBody;
+  if (hasUnsavedEdits) {
+    const proceed = confirm(`The editor has unsaved changes. Replace them with the body of v${version}? Your edits will be lost.`);
+    if (!proceed) return;
+  }
+  try {
+    const body = await fetchVersionBody(version);
+    ta.value = body || '';
+    loadedVersion = Number(version);
+    editorPristineBody = ta.value;
+    renderPromptPill();
+    toast(`Loaded v${version} into editor — not yet saved or activated`);
+    // Scroll the textarea into view so the admin sees the change took effect.
+    ta.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    ta.focus();
+  } catch (e) {
+    toast(e.message, true);
+  }
 }
 
 // Task #176 — prompt-version diff state. Bodies are loaded on-demand and
@@ -976,12 +1031,14 @@ async function loadPromptHistory() {
       div.dataset.version = String(v.version);
       div.title = 'Click to diff against the currently active version';
       const activeBadge = v.is_active ? '<span class="badge badge-on">active</span>' : '';
+      const loadBtn = `<button class="btn btn-ghost" data-load="${v.version}" style="padding:3px 9px; font-size:12px;" title="Pull this version's body into the editor textarea — does not change what's running in production">Load into editor</button>`;
       const rollbackBtn = v.is_active ? '' : `<button class="btn btn-ghost" data-activate="${v.version}" style="padding:3px 9px; font-size:12px;">Roll back</button>`;
       div.innerHTML = `
         <div class="memory-head">
           <div><span class="memory-kind">v${v.version}</span> ${activeBadge} ${v.notes ? `· <span style="color:var(--text); font-size:13px;">${escapeHtml(v.notes)}</span>` : ''}</div>
           <div class="row">
             <span style="color:var(--muted); font-size:12px;">${fmtTime(v.created_at)}${v.created_by ? ' · ' + escapeHtml(v.created_by) : ''}</span>
+            ${loadBtn}
             ${rollbackBtn}
           </div>
         </div>
@@ -998,6 +1055,12 @@ async function loadPromptHistory() {
           toast(`Activated v${version}`);
           loadPrompt();
         } catch (error_) { toast(error_.message, true); }
+      });
+    });
+    list.querySelectorAll('[data-load]').forEach(btn => {
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        loadVersionIntoEditor(btn.dataset.load);
       });
     });
     // Click a row to diff it against the active version (or, if it IS the

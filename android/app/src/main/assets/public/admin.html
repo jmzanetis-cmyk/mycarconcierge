@@ -1279,6 +1279,7 @@
                 <span style="color:var(--text-muted);">to</span>
                 <input type="date" id="funnel-date-to" class="form-input" style="max-width:160px;font-size:0.88rem;">
                 <button class="btn btn-sm btn-primary" onclick="loadConversionFunnel()"><span class="icon-inline" data-icon="refresh-cw"></span> Apply</button>
+                <button class="btn btn-sm" id="funnel-download-csv" onclick="downloadConversionFunnelCsv()" disabled><span class="icon-inline" data-icon="download"></span> Download CSV</button>
                 <button class="btn btn-sm" onclick="resetConversionFunnelDates(30)">Last 30d</button>
                 <button class="btn btn-sm" onclick="resetConversionFunnelDates(90)">Last 90d</button>
                 <button class="btn btn-sm" onclick="resetConversionFunnelDates(0)">All time</button>
@@ -4992,9 +4993,18 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
           <h1 style="margin:0;font-size:1.6rem;color:var(--text-primary);">Member Survey Analytics</h1>
           <p style="margin:4px 0 0;color:var(--text-muted);font-size:0.9rem;">Aggregate insights from the post-signup member survey.</p>
         </div>
-        <button class="btn btn-secondary btn-sm" onclick="loadMemberSurveyAnalytics()" style="display:flex;align-items:center;gap:6px;">
-          <span class="icon-inline" data-icon="refresh-cw"></span> Refresh
-        </button>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <label for="ms-range-select" style="font-size:0.85rem;color:var(--text-muted);">Date range:</label>
+          <select id="ms-range-select" onchange="loadMemberSurveyAnalytics()" class="form-control" style="width:auto;padding:6px 10px;font-size:0.9rem;">
+            <option value="all" selected>All time</option>
+            <option value="7d">Last 7 days</option>
+            <option value="30d">Last 30 days</option>
+            <option value="90d">Last 90 days</option>
+          </select>
+          <button class="btn btn-secondary btn-sm" onclick="loadMemberSurveyAnalytics()" style="display:flex;align-items:center;gap:6px;">
+            <span class="icon-inline" data-icon="refresh-cw"></span> Refresh
+          </button>
+        </div>
       </div>
 
       <!-- Inline error banner — populated by loadMemberSurveyAnalytics on failure -->
