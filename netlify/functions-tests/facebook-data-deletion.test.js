@@ -223,12 +223,10 @@ async function test(name, fn) {
     }));
     const res = await handler(postEvent({ signed_request: '!!!!.' + payload }));
     assert.strictEqual(res.statusCode, 400);
-    const body = parseBody(res);
-    assert.ok(
-      body.error === 'Invalid signed_request signature' ||
-      body.error === 'Malformed signed_request signature',
-      'expected signature-rejection error, got: ' + body.error
-    );
+    // Buffer.from is lenient with non-base64 input — '!!!!' decodes to an
+    // empty buffer rather than throwing, so it deterministically lands on
+    // the length-mismatch branch ("Invalid signed_request signature").
+    assert.deepStrictEqual(parseBody(res), { error: 'Invalid signed_request signature' });
     assert.strictEqual(captured.inserts.length, 0);
   });
 
