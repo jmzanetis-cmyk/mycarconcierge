@@ -1931,6 +1931,19 @@
         <div class="tab" data-filter="rejected">Rejected</div>
       </div>
 
+      <!-- Task #248 — lead-source filter alongside status tabs. Options are
+           populated from distinct outreach_leads.source values present in the
+           loaded applications (plus a 'direct' pseudo-source for apps that
+           were never linked to an outreach lead). Persisted in the URL via
+           ?app_source= so reviewers can share filtered links. -->
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:16px 0 12px;">
+        <label for="application-source-filter" style="font-size:0.85rem;color:var(--text-muted);font-weight:600;">Source:</label>
+        <select id="application-source-filter" onchange="filterApplicationsBySource(this.value)" style="padding:6px 12px;border-radius:var(--radius-md);background:var(--bg-elevated);color:var(--text-primary);border:1px solid var(--border-subtle);font-size:0.85rem;min-width:180px;">
+          <option value="all">All sources</option>
+        </select>
+        <div id="application-source-breakdown" style="display:flex;gap:8px;flex-wrap:wrap;font-size:0.75rem;color:var(--text-muted);"></div>
+      </div>
+
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
           <thead>

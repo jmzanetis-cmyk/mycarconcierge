@@ -200,11 +200,32 @@
     let currentVerification = null;
     let currentFilters = {
       applications: 'pending',
+      // Task #248 — lead-source filter for the applications queue. 'all'
+      // means "no source filter applied"; otherwise it matches a value from
+      // outreach_leads.source (e.g. 'hunter', 'apollo', 'manual') or the
+      // pseudo-source 'direct' for applications that were never linked to an
+      // outreach lead (no outreach_lead_id).
+      applicationsSource: 'all',
       payments: 'held',
       disputes: 'open',
       tickets: 'open',
       registrations: 'all'
     };
+
+    // Task #248 — hydrate application status + source filters from the URL on
+    // first script load so a shared link like
+    //   /admin.html?app_status=approved&app_source=hunter
+    // lands the reviewer in the right slice. Runs before any tab/render call
+    // so the initial paint already reflects the filter.
+    try {
+      const __initialParams = new URLSearchParams(globalThis.location.search);
+      const __qsStatus = __initialParams.get('app_status');
+      const __qsSource = __initialParams.get('app_source');
+      if (__qsStatus && ['pending', 'under_review', 'approved', 'rejected', 'all'].includes(__qsStatus)) {
+        currentFilters.applications = __qsStatus;
+      }
+      if (__qsSource) currentFilters.applicationsSource = __qsSource;
+    } catch { /* Intentionally silent — URL parse errors must not break admin boot. */ }
 
     // ========== PAGINATION STATE ==========
     const paginationState = {
@@ -1288,6 +1309,15 @@
         return;
       }
       applications = data || [];
+      // Task #248 — if a deep-link URL set a non-default status filter,
+      // sync the visual ".active" tab class to match (the HTML hardcodes
+      // "Pending" as the initial active tab).
+      try {
+        const tabs = document.querySelectorAll('#applications .tabs .tab');
+        if (tabs.length) {
+          tabs.forEach(t => t.classList.toggle('active', t.dataset.filter === currentFilters.applications));
+        }
+      } catch { /* Intentionally silent */ }
       // Task #189 — surface the originating cold-outreach lead on each
       // application. The browser admin client uses the anon JWT and so can
       // not SELECT from outreach_leads (RLS only grants service_role), so we
@@ -2387,8 +2417,116 @@
     }
 
     // ========== RENDER TABLES ==========
+    // Task #248 — derive the filter "source key" for an application. Apps
+    // that were never linked to an outreach lead get the pseudo-source
+    // 'direct' so they're filterable as a group ("Direct signup"). Apps
+    // linked to a lead but with a missing/loaded-as-null source string
+    // collapse to 'outreach' (matches the badge fallback in
+    // renderApplicationLeadBadge).
+    function getApplicationSourceKey(app) {
+      if (!app || !app.outreach_lead_id) return 'direct';
+      const lead = app._outreach_lead;
+      const raw = (lead && lead.source) ? String(lead.source).trim().toLowerCase() : '';
+      return raw || 'outreach';
+    }
+    globalThis.getApplicationSourceKey = getApplicationSourceKey;
+
+    // Title-case a source key for display ("hunter" → "Hunter",
+    // "direct" → "Direct signup"). Mirrors renderApplicationLeadBadge.
+    function formatApplicationSourceLabel(key) {
+      if (key === 'direct') return 'Direct signup';
+      const s = String(key || '').replaceAll('_', ' ');
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    // Task #248 — populate the <select> with the distinct source keys
+    // present in the loaded applications, plus render a tiny breakdown
+    // widget showing the count per source. Called from renderApplications
+    // so every refresh keeps both UI bits in sync with the data.
+    function refreshApplicationSourceUI() {
+      const select = document.getElementById('application-source-filter');
+      const breakdown = document.getElementById('application-source-breakdown');
+      if (!select && !breakdown) return;
+
+      // Group counts by source key across the FULL application set (not
+      // the status-filtered subset) so the dropdown options never
+      // disappear when the reviewer flips between status tabs.
+      const counts = new Map();
+      applications.forEach(a => {
+        const key = getApplicationSourceKey(a);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+
+      // Stable ordering: known sources first in a friendly order, then any
+      // unknown ones alphabetically. Keeps the dropdown predictable.
+      const knownOrder = ['hunter', 'apollo', 'manual', 'outreach', 'direct'];
+      const allKeys = Array.from(counts.keys());
+      const ordered = [
+        ...knownOrder.filter(k => counts.has(k)),
+        ...allKeys.filter(k => !knownOrder.includes(k)).sort()
+      ];
+
+      if (select) {
+        const current = currentFilters.applicationsSource || 'all';
+        const totalCount = applications.length;
+        const opts = [`<option value="all">All sources (${totalCount})</option>`];
+        ordered.forEach(k => {
+          opts.push(`<option value="${escapeHtml(k)}">${escapeHtml(formatApplicationSourceLabel(k))} (${counts.get(k)})</option>`);
+        });
+        // If the current filter refers to a source no longer present in
+        // the data, still render it so the user sees what they picked
+        // (with a 0 count) and can clear it.
+        if (current !== 'all' && !counts.has(current)) {
+          opts.push(`<option value="${escapeHtml(current)}">${escapeHtml(formatApplicationSourceLabel(current))} (0)</option>`);
+        }
+        select.innerHTML = opts.join('');
+        select.value = current;
+      }
+
+      if (breakdown) {
+        if (!ordered.length) {
+          breakdown.innerHTML = '';
+        } else {
+          breakdown.innerHTML = ordered.map(k => {
+            const isActive = currentFilters.applicationsSource === k;
+            const style = `padding:3px 8px;border-radius:100px;border:1px solid ${isActive ? 'var(--accent-gold)' : 'var(--border-subtle)'};background:${isActive ? 'rgba(201,162,39,0.12)' : 'transparent'};color:${isActive ? 'var(--accent-gold)' : 'var(--text-muted)'};`;
+            return `<span style="${style}">${escapeHtml(formatApplicationSourceLabel(k))}: <strong>${counts.get(k)}</strong></span>`;
+          }).join('');
+        }
+      }
+    }
+
+    // Task #248 — write the current applications filters back to the URL
+    // so deep links (e.g. shared in Slack) restore the same view.
+    function syncApplicationsUrl() {
+      try {
+        const params = new URLSearchParams(globalThis.location.search);
+        if (currentFilters.applications && currentFilters.applications !== 'pending') {
+          params.set('app_status', currentFilters.applications);
+        } else {
+          params.delete('app_status');
+        }
+        if (currentFilters.applicationsSource && currentFilters.applicationsSource !== 'all') {
+          params.set('app_source', currentFilters.applicationsSource);
+        } else {
+          params.delete('app_source');
+        }
+        const qs = params.toString();
+        const url = globalThis.location.pathname + (qs ? `?${qs}` : '') + globalThis.location.hash;
+        globalThis.history.replaceState(null, '', url);
+      } catch { /* Intentionally silent — URL update must never break the admin UI. */ }
+    }
+
+    // Task #248 — change handler bound to the source <select>. Updates
+    // state, refreshes the URL, and re-renders the table.
+    function filterApplicationsBySource(value) {
+      currentFilters.applicationsSource = value || 'all';
+      syncApplicationsUrl();
+      renderApplications();
+    }
+    globalThis.filterApplicationsBySource = filterApplicationsBySource;
+
     function renderApplications() {
-      const filtered = applications.filter(a => a.status === currentFilters.applications || currentFilters.applications === 'all');
       const tbody = document.getElementById('applications-table');
 
       // Task #281 — show load error before falling through to "No applications".
@@ -2397,8 +2535,23 @@
         return;
       }
 
+      // Task #248 — keep the source dropdown + breakdown widget in sync
+      // with the currently-loaded applications on every render.
+      refreshApplicationSourceUI();
+
+      const sourceFilter = currentFilters.applicationsSource || 'all';
+      const filtered = applications.filter(a => {
+        const statusOk = currentFilters.applications === 'all' || a.status === currentFilters.applications;
+        if (!statusOk) return false;
+        if (sourceFilter === 'all') return true;
+        return getApplicationSourceKey(a) === sourceFilter;
+      });
+
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No applications</td></tr>';
+        const reason = sourceFilter === 'all'
+          ? 'No applications'
+          : `No applications match source "${escapeHtml(formatApplicationSourceLabel(sourceFilter))}"`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${reason}</td></tr>`;
         return;
       }
 
@@ -3881,7 +4034,8 @@
             tab.classList.add('active');
             const section = tabContainer.closest('.section').id;
             currentFilters[section] = tab.dataset.filter;
-            if (section === 'applications') renderApplications();
+            // Task #248 — keep ?app_status=... in the URL so links survive a refresh.
+            if (section === 'applications') { syncApplicationsUrl(); renderApplications(); }
             if (section === 'payments') renderPayments();
             if (section === 'disputes') renderDisputes();
             if (section === 'tickets') renderTickets();
