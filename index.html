@@ -1722,6 +1722,7 @@
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
 
     .onboarding-banner {
+      display: block;
       position: relative;
       z-index: 101;
       background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
@@ -1855,7 +1856,7 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <output class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
     <span class="open-banner-dot" aria-hidden="true"></span>
     <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Now Live</span>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
@@ -1865,7 +1866,7 @@
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
     <a href="/onboarding-provider.html" data-i18n="landing.openForBusinessProviderCta">Create a provider profile</a>
     <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
-  </output>
+  </div>
   <script>
     if (!localStorage.getItem('onboardingBannerDismissed')) {
       document.getElementById('onboardingBanner').style.display = '';

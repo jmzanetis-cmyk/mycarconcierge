@@ -1,10 +1,11 @@
 const Stripe = require('stripe');
+const { STRIPE_API_VERSION } = require('../lib/stripe-api-version');
 
 let stripe = null;
 
 function getStripeClient() {
   if (!stripe && process.env.STRIPE_SECRET_KEY) {
-    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+    stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
   }
   return stripe;
 }

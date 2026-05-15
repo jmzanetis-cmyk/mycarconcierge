@@ -994,7 +994,8 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         const providerProfile = await db.query('SELECT stripe_account_id FROM profiles WHERE id = $1', [providerId]);
         if (!providerProfile.rows[0] || !providerProfile.rows[0].stripe_account_id) { json(res, 400, { error: 'Provider not set up for payments' }); return; }
         const providerStripeAccountId = providerProfile.rows[0].stripe_account_id;
-        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: '2023-10-16' });
+        const { STRIPE_API_VERSION } = require('../lib/stripe-api-version');
+        const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
         const platformFee = Math.round(subtotal * 0.02);
         const total = subtotal + platformFee;
         const baseUrl = process.env.APP_URL || 'https://mycarconcierge.com';
