@@ -20,6 +20,7 @@
 
     const banner = document.createElement('div');
     banner.id = 'mcc-cookie-banner';
+    banner.className = 'mcc-cb-collapsed';
     banner.setAttribute('role', 'dialog');
     banner.setAttribute('aria-label', 'Cookie consent');
     banner.innerHTML = `
@@ -113,15 +114,13 @@
       removeBanner();
     });
 
-    // Auto-collapse to a small pill after 7s of no interaction so the hero
-    // trust-badge row is fully visible. Click the pill to re-expand.
-    const collapseTimer = setTimeout(function () {
-      if (!getConsent()) banner.classList.add('mcc-cb-collapsed');
-    }, 7000);
+    // Banner starts as a small bottom-right pill so the hero trust-badge
+    // row is fully visible on first paint (1024x600 and mobile). Click
+    // the pill to expand the full consent banner. Consent storage logic
+    // is unchanged — the user must still actively choose Accept/Essential.
     banner.addEventListener('click', function () {
       if (banner.classList.contains('mcc-cb-collapsed')) {
         banner.classList.remove('mcc-cb-collapsed');
-        clearTimeout(collapseTimer);
       }
     });
   }
