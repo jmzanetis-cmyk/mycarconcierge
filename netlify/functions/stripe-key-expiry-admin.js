@@ -94,7 +94,10 @@ exports.handler = async function(event) {
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
 
   const rawPath = event.path || '';
-  const subPath = rawPath.replace(/^.*\/stripe-key-expiry/, '').replace(/^\//, '');
+  const subPath = rawPath
+    .replace(/^\/?\.netlify\/functions\/stripe-key-expiry-admin\/?/, '')
+    .replace(/^\/api\/admin\/stripe-key-expiry\/?/, '')
+    .replace(/^\/+/, '');
   const method = event.httpMethod;
 
   try {

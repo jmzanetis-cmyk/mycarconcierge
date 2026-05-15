@@ -22,7 +22,10 @@
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 
-const ADMIN_EMAIL = 'jm.zanetis@gmail.com';
+const ADMIN_EMAIL = process.env.STRIPE_KEY_EXPIRY_ADMIN_EMAIL
+  || process.env.ADMIN_NOTIFICATION_EMAIL
+  || process.env.ADMIN_EMAIL
+  || 'jm.zanetis@gmail.com';
 const SETTINGS_KEY = 'stripe_key_expiry_date';
 const MODULE = 'stripe_key_expiry';
 
