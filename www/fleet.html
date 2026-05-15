@@ -76,9 +76,7 @@
     .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
 
     .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; }
-    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;
-      padding-top: env(safe-area-inset-top);
-    }
+    .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
     .card-title { font-size: 1.1rem; font-weight: 600; }
 
     /* Stats Grid */
@@ -133,7 +131,7 @@
     .modal-backdrop.active { display: flex; }
     .modal { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-subtle);
-      padding-top: env(safe-area-inset-top);
+      padding-top: calc(20px + env(safe-area-inset-top));
     }
     .modal-title { font-size: 1.1rem; font-weight: 600; }
     .modal-close { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; }
@@ -180,9 +178,7 @@
       .mobile-menu-btn { display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); cursor: pointer; }
       .form-row { grid-template-columns: 1fr; }
     }
-    @media (min-width: 901px) { .mobile-header { display: none;
-      padding-top: env(safe-area-inset-top);
-    } }
+    @media (min-width: 901px) { .mobile-header { display: none; } }
   </style>
   <script src="/i18n.js"></script>
 </head>
@@ -833,12 +829,12 @@
         return `
           <tr>
             <td>
-              <strong>${v?.year || ''} ${v?.make || ''} ${v?.model || ''}</strong>
-              <div style="font-size:0.82rem;color:var(--text-muted);">${v?.license_plate || 'No plate'}</div>
+              <strong>${esc(v?.year || '')} ${esc(v?.make || '')} ${esc(v?.model || '')}</strong>
+              <div style="font-size:0.82rem;color:var(--text-muted);">${esc(v?.license_plate || 'No plate')}</div>
             </td>
-            <td>${fv.fleet_number || '-'}</td>
-            <td>${fv.profiles?.full_name || 'Unassigned'}</td>
-            <td><span class="status ${statusClass}">${fv.status || 'Active'}</span></td>
+            <td>${esc(fv.fleet_number || '-')}</td>
+            <td>${esc(fv.profiles?.full_name || 'Unassigned')}</td>
+            <td><span class="status ${statusClass}">${esc(fv.status || 'Active')}</span></td>
             <td>${fv.next_service_due ? new Date(fv.next_service_due).toLocaleDateString() : '-'}</td>
             <td>
               <button class="btn btn-sm btn-secondary" onclick="viewVehicle('${fv.id}')">View</button>
@@ -861,10 +857,10 @@
         const v = assignedVehicle?.vehicles;
         return `
           <tr>
-            <td><strong>${d.full_name || 'Unknown'}</strong></td>
-            <td>${d.email || '-'}</td>
-            <td>${v ? `${v.year} ${v.make} ${v.model}` : 'None'}</td>
-            <td>${assignedVehicle?.department || '-'}</td>
+            <td><strong>${esc(d.full_name || 'Unknown')}</strong></td>
+            <td>${esc(d.email || '-')}</td>
+            <td>${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : 'None'}</td>
+            <td>${esc(assignedVehicle?.department || '-')}</td>
             <td>
               <button class="btn btn-sm btn-secondary">Edit</button>
             </td>
@@ -886,8 +882,8 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
             <div>
-              <strong>${pkg?.title || 'Service'}</strong>
-              <div style="font-size:0.85rem;color:var(--text-muted);">${v ? `${v.year} ${v.make} ${v.model}` : 'Vehicle'}</div>
+              <strong>${esc(pkg?.title || 'Service')}</strong>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : 'Vehicle'}</div>
             </div>
             <div style="text-align:right;">
               <div style="font-weight:600;">$${(a.amount || 0).toFixed(2)}</div>
@@ -912,9 +908,9 @@
           <div class="card" style="margin-bottom:16px;">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;">
               <div>
-                <h3 style="margin-bottom:4px;">${pkg?.title || 'Service Request'}</h3>
-                <div style="color:var(--text-muted);font-size:0.88rem;">${v ? `${v.year} ${v.make} ${v.model}` : 'Vehicle'}</div>
-                <p style="margin-top:12px;color:var(--text-secondary);">${pkg?.description || 'No description provided.'}</p>
+                <h3 style="margin-bottom:4px;">${esc(pkg?.title || 'Service Request')}</h3>
+                <div style="color:var(--text-muted);font-size:0.88rem;">${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : 'Vehicle'}</div>
+                <p style="margin-top:12px;color:var(--text-secondary);">${esc(pkg?.description || 'No description provided.')}</p>
               </div>
               <div style="text-align:right;">
                 <div style="font-size:1.3rem;font-weight:600;">$${(a.amount || 0).toFixed(2)}</div>
@@ -943,9 +939,9 @@
         return `
           <tr>
             <td>${new Date(h.service_date).toLocaleDateString()}</td>
-            <td>${v ? `${v.year} ${v.make} ${v.model}` : '-'}</td>
-            <td>${h.description || h.service_type || '-'}</td>
-            <td>${h.provider_business || h.provider_name || '-'}</td>
+            <td>${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : '-'}</td>
+            <td>${esc(h.description || h.service_type || '-')}</td>
+            <td>${esc(h.provider_business || h.provider_name || '-')}</td>
             <td>$${(h.total_cost || 0).toFixed(2)}</td>
             <td>${h.receipt_url ? '<button class="btn btn-sm btn-ghost">📄</button>' : '-'}</td>
           </tr>
@@ -969,8 +965,8 @@
         return `
           <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
             <div>
-              <strong>${v?.year || ''} ${v?.make || ''} ${v?.model || ''}</strong>
-              <div style="font-size:0.85rem;color:var(--text-muted);">Fleet #${fv.fleet_number || '-'}</div>
+              <strong>${esc(v?.year || '')} ${esc(v?.make || '')} ${esc(v?.model || '')}</strong>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Fleet #${esc(fv.fleet_number || '-')}</div>
             </div>
             <div style="text-align:right;">
               <div style="color:${isOverdue ? 'var(--accent-red)' : 'var(--text-secondary)'};">${isOverdue ? 'Overdue' : dueDate.toLocaleDateString()}</div>
@@ -982,6 +978,48 @@
     }
 
     // ========== ACTIONS ==========
+
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+      );
+    }
+
+    let currentApprovalId = null;
+
+    function openApprovalModal(approvalId) {
+      currentApprovalId = approvalId;
+      const a = approvals.find(x => x.id === approvalId);
+      if (!a) return;
+      const pkg = a.maintenance_packages;
+      const v = pkg?.vehicles;
+      document.getElementById('approve-modal-content').innerHTML = `
+        <p><strong>${esc(pkg?.title || 'Service Request')}</strong></p>
+        <p style="color:var(--text-muted);">${esc(v ? `${v.year} ${v.make} ${v.model}` : 'Vehicle')}</p>
+        <p style="font-size:1.2rem;font-weight:600;">$${(a.amount || 0).toFixed(2)}</p>
+        <p style="color:var(--text-secondary);margin-top:8px;">${esc(pkg?.description || 'No description provided.')}</p>
+      `;
+      document.getElementById('approve-modal').classList.add('active');
+    }
+
+    async function confirmApproval() {
+      closeModal('approve-modal');
+      if (currentApprovalId) await approveRequest(currentApprovalId);
+    }
+
+    async function rejectApproval() {
+      closeModal('approve-modal');
+      if (currentApprovalId) await rejectRequest(currentApprovalId);
+    }
+
+    function viewVehicle(id) {
+      showSection('vehicles');
+    }
+
+    function viewPackageDetails(id) {
+      showSection('approvals');
+    }
+
     async function addFleetVehicle() {
       const make = document.getElementById('av-make').value.trim();
       const model = document.getElementById('av-model').value.trim();
@@ -1001,7 +1039,7 @@
       if (!vehicle) return showToast('Failed to create vehicle.', 'error');
 
       // Create fleet vehicle record
-      await supabaseClient.from('fleet_vehicles').insert({
+      const { error: fleetError } = await supabaseClient.from('fleet_vehicles').insert({
         fleet_id: fleet.id,
         vehicle_id: vehicle.id,
         fleet_number: document.getElementById('av-fleet-num').value.trim() || null,
@@ -1010,6 +1048,11 @@
         maintenance_schedule: document.getElementById('av-schedule').value,
         status: 'active'
       });
+
+      if (fleetError) {
+        console.error('Failed to add vehicle to fleet:', fleetError);
+        return showToast('Failed to add vehicle to fleet. Please try again.', 'error');
+      }
 
       closeModal('add-vehicle-modal');
       showToast('Vehicle added to fleet!', 'success');
@@ -1031,12 +1074,16 @@
     async function approveRequest(approvalId) {
       if (!confirm('Approve this service request?')) return;
 
-      await supabaseClient.from('fleet_approvals').update({
+      const { error } = await supabaseClient.from('fleet_approvals').update({
         status: 'approved',
         approved_by: currentUser.id,
         approved_at: new Date().toISOString()
       }).eq('id', approvalId);
 
+      if (error) {
+        console.error('Failed to approve request:', error);
+        return showToast('Failed to approve. Please try again.', 'error');
+      }
       showToast('Service request approved!', 'success');
       await loadFleetData();
       updateUI();
@@ -1046,13 +1093,17 @@
       const reason = prompt('Please provide a reason for rejection:');
       if (reason === null) return;
 
-      await supabaseClient.from('fleet_approvals').update({
+      const { error } = await supabaseClient.from('fleet_approvals').update({
         status: 'rejected',
         approved_by: currentUser.id,
         approved_at: new Date().toISOString(),
         rejection_reason: reason
       }).eq('id', approvalId);
 
+      if (error) {
+        console.error('Failed to reject request:', error);
+        return showToast('Failed to reject. Please try again.', 'error');
+      }
       showToast('Service request rejected.', 'success');
       await loadFleetData();
       updateUI();
@@ -1122,7 +1173,7 @@
     }
 
     async function logout() {
-      await signOut();
+      await supabaseClient.auth.signOut();
       globalThis.location.href = 'login.html';
     }
   </script>

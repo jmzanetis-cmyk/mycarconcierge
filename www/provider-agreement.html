@@ -91,7 +91,7 @@
       z-index: 100;
       background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
       backdrop-filter: blur(12px);
-      padding-top: env(safe-area-inset-top);
+      padding-top: calc(24px + env(safe-area-inset-top));
     }
 
     header .container {
@@ -149,7 +149,6 @@
     .agreement-header {
       text-align: center;
       margin-bottom: 48px;
-      padding-top: env(safe-area-inset-top);
     }
 
     .agreement-header h1 {

@@ -91,7 +91,7 @@
       z-index: 100;
       background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
       backdrop-filter: blur(12px);
-      padding-top: env(safe-area-inset-top);
+      padding-top: calc(24px + env(safe-area-inset-top));
     }
 
     header .container {
@@ -149,7 +149,6 @@
     .privacy-header {
       text-align: center;
       margin-bottom: 48px;
-      padding-top: env(safe-area-inset-top);
     }
 
     .privacy-header h1 {
@@ -579,7 +578,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">6</span>Cookies and Tracking</h2>
+          <h2 id="cookies"><span class="section-number">6</span>Cookies and Tracking</h2>
           <p>We use cookies and similar tracking technologies to enhance your experience:</p>
           
           <h3>Types of Cookies We Use</h3>
@@ -701,7 +700,7 @@
         <a href="index.html">Home</a>
       </div>
       <div class="footer-copy">
-        © 2026 My Car Concierge. All rights reserved.
+        © 2025 My Car Concierge. All rights reserved.
       </div>
     </div>
   </footer>

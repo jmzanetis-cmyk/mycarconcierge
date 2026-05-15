@@ -188,7 +188,6 @@
     }
     .btn-apple-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
     .btn-apple-signin .apple-icon { flex-shrink: 0; }
-    [data-theme="light"] .btn-apple-signin { background: #000000; color: #ffffff; }
 
     .signup-links { display: flex; gap: 12px; }
     .signup-link {
@@ -545,7 +544,8 @@
     function resetAppleButton(btn) {
       if (!btn) return;
       btn.disabled = false;
-      btn.innerHTML = APPLE_BTN_ICON_SVG + '<span>Sign in with Apple</span>';
+      btn.innerHTML = APPLE_BTN_ICON_SVG + '<span data-i18n="auth.signInWithApple">Sign in with Apple</span>';
+      if (typeof I18n !== 'undefined' && I18n.applyToElement) I18n.applyToElement(btn);
     }
 
     async function signInWithApple() {
@@ -583,7 +583,8 @@
     function resetFacebookButton(btn) {
       if (!btn) return;
       btn.disabled = false;
-      btn.innerHTML = FACEBOOK_BTN_ICON_SVG + '<span>' + FACEBOOK_BTN_LABEL + '</span>';
+      btn.innerHTML = FACEBOOK_BTN_ICON_SVG + '<span data-i18n="auth.signInWithFacebook">' + FACEBOOK_BTN_LABEL + '</span>';
+      if (typeof I18n !== 'undefined' && I18n.applyToElement) I18n.applyToElement(btn);
     }
 
     async function signInWithFacebook() {
