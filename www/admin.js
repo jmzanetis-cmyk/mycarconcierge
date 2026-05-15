@@ -646,8 +646,18 @@
           adminPermissions = null;
           document.getElementById('admin-password-modal').style.display = 'none';
           applyRolePermissions(null);
-          await loadAllData();
-          setupEventListeners();
+          // Task #233 — when this modal was opened via the AI Ops "Sign in
+          // again" button, run that loader's retry callback instead of doing
+          // a heavy full-dashboard refresh, so the admin lands back on the
+          // exact card they were on.
+          if (typeof _aiOpsReauthRetry === 'function') {
+            const fn = _aiOpsReauthRetry;
+            _aiOpsReauthRetry = null;
+            try { await fn(); } catch (retryErr) { console.error('[Admin] AI Ops reauth retry failed:', retryErr); }
+          } else {
+            await loadAllData();
+            setupEventListeners();
+          }
         } else {
           errorEl.textContent = 'Invalid password. Please try again.';
           errorEl.style.display = 'block';
@@ -11283,6 +11293,52 @@
     }
     globalThis.aiOpsFetch = aiOpsFetch;
 
+    // Task #233 — shared helpers that turn the text-only "Not signed in as
+    // admin" error from aiOpsFetch into an actionable inline prompt with a
+    // "Sign in again" button. Used by every AI Ops loader (Activity,
+    // Escalations, Digest, Settings) so the four cards behave consistently.
+    let _aiOpsReauthRetry = null;
+
+    function openAiOpsReauth(retryFn) {
+      _aiOpsReauthRetry = (typeof retryFn === 'function') ? retryFn : null;
+      const modal = document.getElementById('admin-password-modal');
+      if (!modal) {
+        // Last-resort fallback: send the admin to the login page if the
+        // re-login modal isn't on this page for some reason.
+        window.location.href = 'admin.html';
+        return;
+      }
+      try { showModalState('password'); } catch { /* showModalState may not be in scope here, ignore */ }
+      modal.style.display = 'flex';
+      const input = document.getElementById('admin-password-input');
+      if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
+    }
+    globalThis.openAiOpsReauth = openAiOpsReauth;
+
+    function renderAiOpsAuthError(containerEl, err, retryFn) {
+      if (!containerEl) return;
+      const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+      if (!isAuthErr) {
+        containerEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+        return;
+      }
+      // Stash the retry callback under a one-shot global key so the inline
+      // onclick handler can find it without requiring a re-render binding.
+      const key = '_aiOpsRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[key] = function () {
+        const fn = globalThis[key];
+        try { delete globalThis[key]; } catch { globalThis[key] = null; }
+        openAiOpsReauth(typeof retryFn === 'function' ? retryFn : null);
+        return fn;
+      };
+      containerEl.innerHTML = `<div style="padding:28px 24px;text-align:center;max-width:560px;margin:0 auto;border:1px solid var(--border-subtle);border-radius:12px;background:var(--bg-secondary);">
+        <div style="font-size:1.05rem;font-weight:600;color:var(--accent-gold);margin-bottom:8px;">⚠ Your admin session expired</div>
+        <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:18px;line-height:1.5;">${escapeHtml(err.message)}</div>
+        <button class="btn btn-primary" onclick="globalThis['${key}']()">Sign in again</button>
+      </div>`;
+    }
+    globalThis.renderAiOpsAuthError = renderAiOpsAuthError;
+
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
     // portal. Polls badge-summary every 60s, renders the inline section, and
@@ -11506,20 +11562,28 @@
           // filters." empty state, hiding real outages. Now we surface the
           // diagnostic message from aiOpsFetch when both sides fail and
           // show a partial-fail banner when only one side fails.
-          const fleetErr = { msg: null };
-          const legacyErr = { msg: null };
+          const fleetErr = { msg: null, code: null };
+          const legacyErr = { msg: null, code: null };
           const [fleetRes, legacyRes] = await Promise.all([
             // Skip the fleet round-trip entirely when a legacy-only module filter is set.
             mod
               ? Promise.resolve({ actions: [] })
               : aiOpsFetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
-                  .catch(e => { fleetErr.msg = e.message; return { actions: [] }; }),
+                  .catch(e => { fleetErr.msg = e.message; fleetErr.code = e.code; return { actions: [] }; }),
             aiOpsFetch(`${apiBase}/api/admin/ai-ops/actions?${legacyParams}`, { headers: getAiOpsHeaders() })
-              .catch(e => { legacyErr.msg = e.message; return { actions: [] }; })
+              .catch(e => { legacyErr.msg = e.message; legacyErr.code = e.code; return { actions: [] }; })
           ]);
           // Both sides failed → render the real error so the admin can act
           // instead of seeing a misleading empty state.
           if (fleetErr.msg && legacyErr.msg) {
+            // Task #233 — when both sides failed for the same auth reason,
+            // collapse the noise into a single "Sign in again" prompt.
+            const isAuth = (c) => c === 'NO_ADMIN_AUTH' || c === 'ADMIN_AUTH_REJECTED';
+            if (isAuth(fleetErr.code) && isAuth(legacyErr.code)) {
+              renderAiOpsAuthError(listEl, { code: fleetErr.code, message: fleetErr.msg }, loadAiOpsActivity);
+              if (pagEl) pagEl.innerHTML = '';
+              return;
+            }
             listEl.innerHTML = `<div style="padding:32px;text-align:left;color:var(--accent-red);max-width:760px;margin:0 auto;">
               <div style="font-weight:600;margin-bottom:8px;">Could not load AI activity.</div>
               <div style="font-size:0.85rem;margin-bottom:6px;"><strong>Agent Fleet:</strong> ${escapeHtml(fleetErr.msg)}</div>
@@ -11600,7 +11664,9 @@
           pagEl.innerHTML = total > 25 ? renderPaginationControls({ page: aiOpsActivityPage, limit: 25, total, totalPages }, 'changeAiOpsActivityPage') : '';
         }
       } catch (err) {
-        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button instead of
+        // a dead-end text message.
+        renderAiOpsAuthError(listEl, err, loadAiOpsActivity);
       }
     }
     globalThis.loadAiOpsActivity = loadAiOpsActivity;
@@ -11660,7 +11726,8 @@
           </div>`;
         }).join('');
       } catch (err) {
-        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button.
+        renderAiOpsAuthError(listEl, err, loadAiOpsEscalations);
       }
     }
     globalThis.loadAiOpsEscalations = loadAiOpsEscalations;
@@ -11712,7 +11779,8 @@
         if (selectorEl) selectorEl.style.display = '';
         renderSelectedDigest();
       } catch (err) {
-        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button.
+        renderAiOpsAuthError(contentEl, err, loadAiOpsDigests);
       }
     }
     globalThis.loadAiOpsDigests = loadAiOpsDigests;
@@ -11993,7 +12061,8 @@
           </div>
         `;
       } catch (err) {
-        if (contentEl) contentEl.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Settings unavailable: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button.
+        renderAiOpsAuthError(contentEl, err, loadAiOpsSettings);
       }
     }
     globalThis.loadAiOpsSettings = loadAiOpsSettings;
