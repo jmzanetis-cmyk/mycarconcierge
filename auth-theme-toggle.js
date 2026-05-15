@@ -42,7 +42,7 @@
     html.setAttribute('data-theme', next);
     try { localStorage.setItem('theme', next); } catch (e) {}
     var meta = document.querySelector('meta[name="theme-color"]');
-    if (meta) meta.content = next === 'dark' ? '#12161c' : '#f5f2ed';
+    if (meta) meta.content = next === 'dark' ? '#12161c' : '#fefdfb';
     setTimeout(function () { html.classList.remove('theme-transition'); }, 300);
   }
   globalThis.toggleTheme = globalThis.toggleTheme || toggleTheme;
