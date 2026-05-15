@@ -717,6 +717,46 @@ async function step24bInProcessRoute(ctx) {
   }
 }
 
+// ============================================================================
+// Task #235 — provider-onboarding endpoints (document / external-review /
+// reference / finalize). Confirms unauth + bogus-token rejection over real
+// HTTP, mirroring STEP 24b's pattern. Skips cleanly if no local server is
+// reachable at SMOKE_LOCAL_BASE.
+// ============================================================================
+async function step24cProviderOnboardingAuth(ctx) {
+  console.log('\n━━━ STEP 24c: /api/provider/{document,external-review,reference,finalize} auth gates ━━━');
+  const baseUrl = process.env.SMOKE_LOCAL_BASE || 'http://127.0.0.1:5000';
+  const ping = await fetch(baseUrl + '/api/provider/document', { method: 'POST' }).catch(() => null);
+  if (!ping) {
+    console.log(`  ⚠ no local server reachable at ${baseUrl} — skipping`);
+    return;
+  }
+  const subPaths = ['/api/provider/document', '/api/provider/external-review', '/api/provider/reference', '/api/provider/finalize'];
+  for (const p of subPaths) {
+    // No Authorization header → 401
+    const r1 = await fetch(baseUrl + p, {
+      method: 'POST', headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({})
+    });
+    if (r1.status === 401) console.log(`  ✓ ${p} no-auth blocked (401)`);
+    else console.log(`  ✗ ${p} no-auth: expected 401, got ${r1.status}`);
+
+    // Bogus JWT → 401
+    const r2 = await fetch(baseUrl + p, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer eyJ.bogus.token' },
+      body: JSON.stringify({})
+    });
+    if (r2.status === 401) console.log(`  ✓ ${p} bogus-token blocked (401)`);
+    else console.log(`  ✗ ${p} bogus-token: expected 401, got ${r2.status}`);
+  }
+  // Wrong-method (GET) → 405 on the document subroute as a spot check.
+  const r3 = await fetch(baseUrl + '/api/provider/document').catch(() => null);
+  if (r3 && (r3.status === 405 || r3.status === 404)) {
+    console.log(`  ✓ /api/provider/document GET rejected (${r3.status})`);
+  }
+}
+
 async function step2526SuspendActivateAndAudit(ctx) {
   if (!ctx.testUserId) return;
   console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
@@ -936,6 +976,7 @@ const STEPS = [
   step22ProvisionTempUser,
   step2324HappyPathAndRateLimit,
   step24bInProcessRoute,
+  step24cProviderOnboardingAuth,
   step2526SuspendActivateAndAudit,
   step27CheckCrmDuplicate,
   step27bAnonRpcLockdown,

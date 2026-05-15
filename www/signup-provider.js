@@ -615,26 +615,46 @@
         const app = { id: appJson.application_id };
         const appId = app.id;
 
-        // Upload documents
+        // Task #235 — All post-application DB writes now go through Bearer-gated
+        // server endpoints (provider-onboarding.js). The browser still uploads
+        // files to Supabase Storage (storage RLS policies, separate concern),
+        // but the resulting provider_documents / provider_external_reviews /
+        // provider_references / profiles rows are written server-side so the
+        // server controls validation, application ownership, and role
+        // elevation — never the client.
+        const onboardingHeaders = { 'Authorization': `Bearer ${accessToken}`, 'Content-Type': 'application/json' };
+        async function postOnboarding(path, payload) {
+          const r = await fetch(path, { method: 'POST', headers: onboardingHeaders, body: JSON.stringify(payload) });
+          const j = await r.json().catch(() => ({}));
+          if (!r.ok) {
+            const details = Array.isArray(j?.details) ? `\n• ${j.details.join('\n• ')}` : '';
+            throw new Error(`${j?.error || 'Request failed'} (${r.status}) at ${path}${details}`);
+          }
+          return j;
+        }
+
+        // Upload documents (storage stays client-side; DB row is server-side)
         for (const type of ['license', 'certs', 'portfolio']) {
           for (const file of uploadedFiles[type]) {
             const ext = file.name.split('.').pop();
             const filename = `${userId}/${type}_${Date.now()}.${ext}`;
-            
+
             const { error: uploadError } = await supabaseClient.storage
               .from('provider-documents')
               .upload(filename, file);
-            
+
             if (!uploadError) {
               const { data: urlData } = supabaseClient.storage.from('provider-documents').getPublicUrl(filename);
-              
-              await supabaseClient.from('provider_documents').insert({
-                application_id: appId,
-                provider_id: userId,
-                document_type: type === 'license' ? 'business_license' : type === 'certs' ? 'certification' : 'portfolio',
-                document_name: file.name,
-                file_url: urlData.publicUrl
-              });
+              try {
+                await postOnboarding('/api/provider/document', {
+                  application_id: appId,
+                  document_type: type === 'license' ? 'business_license' : type === 'certs' ? 'certification' : 'portfolio',
+                  document_name: file.name,
+                  file_url: urlData.publicUrl
+                });
+              } catch (docErr) {
+                console.error('[signup-provider] document save failed:', docErr.message);
+              }
             }
           }
         }
@@ -644,12 +664,15 @@
         for (const platform of reviewPlatforms) {
           const url = document.getElementById(`review-${platform}`).value.trim();
           if (url) {
-            await supabaseClient.from('provider_external_reviews').insert({
-              application_id: appId,
-              provider_id: userId,
-              platform: platform,
-              profile_url: url
-            });
+            try {
+              await postOnboarding('/api/provider/external-review', {
+                application_id: appId,
+                platform: platform,
+                profile_url: url
+              });
+            } catch (revErr) {
+              console.error('[signup-provider] external review save failed:', revErr.message);
+            }
           }
         }
 
@@ -658,37 +681,36 @@
         for (const card of refCards) {
           const name = card.querySelector('.ref-name').value.trim();
           if (name) {
-            await supabaseClient.from('provider_references').insert({
-              application_id: appId,
-              reference_name: name,
-              reference_company: card.querySelector('.ref-company').value.trim() || null,
-              reference_phone: card.querySelector('.ref-phone').value.trim() || null,
-              relationship: card.querySelector('.ref-relationship').value
-            });
+            try {
+              await postOnboarding('/api/provider/reference', {
+                application_id: appId,
+                reference_name: name,
+                reference_company: card.querySelector('.ref-company').value.trim() || null,
+                reference_phone: card.querySelector('.ref-phone').value.trim() || null,
+                relationship: card.querySelector('.ref-relationship').value
+              });
+            } catch (refErr) {
+              console.error('[signup-provider] reference save failed:', refErr.message);
+            }
           }
         }
 
         // Get SMS consent value
         const smsConsentEl = document.getElementById('sms-consent');
         const smsConsent = smsConsentEl ? smsConsentEl.checked : false;
-        
-        // Update profile - approve as provider with free trial bids
-        await supabaseClient.from('profiles').update({
+
+        // Finalize profile — promote to provider role + seed bid trial counters.
+        // The server re-reads the application to derive is_founding_provider
+        // authoritatively; the client cannot self-declare founding status here.
+        await postOnboarding('/api/provider/finalize', {
           full_name: document.getElementById('contact-name').value.trim(),
-          role: 'provider', // Auto-approve
           business_name: document.getElementById('business-name').value.trim(),
           city: document.getElementById('city').value.trim(),
           state: document.getElementById('state').value.trim(),
           service_area: document.getElementById('service-area').value.trim(),
           services_offered: services,
-          free_trial_bids: isFoundingProvider ? 999999 : 3,
-          bid_credits: 0,
-          total_bids_purchased: 0,
-          total_bids_used: 0,
-          is_founding_provider: isFoundingProvider || false,
-          sms_consent: smsConsent,
-          sms_consent_date: smsConsent ? new Date().toISOString() : null
-        }).eq('id', userId);
+          sms_consent: smsConsent
+        });
 
         if (providerReferralData && providerReferralData.referral_code) {
           try {

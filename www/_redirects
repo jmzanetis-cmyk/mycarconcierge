@@ -29,6 +29,10 @@
 /api/admin/provider-application/* /.netlify/functions/provider-application-review/:splat 200
 /api/provider-application /.netlify/functions/provider-application 200
 /api/provider/apply /.netlify/functions/provider-application 200
+/api/provider/document /.netlify/functions/provider-onboarding/document 200
+/api/provider/external-review /.netlify/functions/provider-onboarding/external-review 200
+/api/provider/reference /.netlify/functions/provider-onboarding/reference 200
+/api/provider/finalize /.netlify/functions/provider-onboarding/finalize 200
 /api/admin/outreach/* /.netlify/functions/outreach-admin/:splat 200
 /api/admin/apollo/* /.netlify/functions/apollo-admin/:splat 200
 /api/outreach/ref /.netlify/functions/outreach-ref 200
