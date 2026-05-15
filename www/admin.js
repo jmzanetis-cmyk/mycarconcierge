@@ -10178,6 +10178,10 @@
           summary.textContent = stats.error || 'No launch broadcast data yet.';
           return;
         }
+        if (stats.error) {
+          summary.textContent = `Error loading stats: ${stats.error}`;
+          return;
+        }
 
         const t = Object.assign({ queued:0, sent:0, bounced:0, complained:0, failed:0, total:0 }, stats.totals || {});
         const unsubs = stats.unsubscribes_total || 0;
