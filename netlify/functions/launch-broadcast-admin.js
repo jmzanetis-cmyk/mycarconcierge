@@ -49,21 +49,26 @@ function authenticateAdmin(event) {
 }
 
 const AUDIENCES = ['customer', 'provider'];
-const STATUSES  = ['sent', 'bounced', 'complained', 'failed'];
+// Note: the launch broadcast script (scripts/send-bgc-launch-broadcast.js)
+// currently only writes 'sent' / 'failed' on send and the webhook flips rows
+// to 'bounced' / 'complained'. 'queued' is included for forward compatibility
+// (and so the dashboard schema matches the task spec) — it will read 0 until
+// a queued-row writer ships.
+const STATUSES  = ['queued', 'sent', 'bounced', 'complained', 'failed'];
 
 // Page through rows in chunks to count by (audience, status). We use head
 // count queries — no row data is fetched.
 async function fetchStats(supabase) {
   const out = {
     audiences: {},
-    totals:    { sent: 0, bounced: 0, complained: 0, failed: 0, total: 0 },
+    totals:    { queued: 0, sent: 0, bounced: 0, complained: 0, failed: 0, total: 0 },
     unsubscribes_total: 0,
     table_missing: false,
     last_send_at: null,
     error: null
   };
   for (const audience of AUDIENCES) {
-    out.audiences[audience] = { sent: 0, bounced: 0, complained: 0, failed: 0, total: 0 };
+    out.audiences[audience] = { queued: 0, sent: 0, bounced: 0, complained: 0, failed: 0, total: 0 };
   }
 
   // Per-(audience,status) counts via head:true (cheap; returns count only).

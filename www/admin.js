@@ -10179,13 +10179,14 @@
           return;
         }
 
-        const t = stats.totals || { sent:0, bounced:0, complained:0, failed:0, total:0 };
+        const t = Object.assign({ queued:0, sent:0, bounced:0, complained:0, failed:0, total:0 }, stats.totals || {});
         const unsubs = stats.unsubscribes_total || 0;
         const bounceRate = t.sent > 0 ? ((t.bounced / t.sent) * 100).toFixed(2) : '0.00';
         summary.innerHTML =
           `<strong>${t.total.toLocaleString()}</strong> rows logged · ` +
+          `<strong>${t.queued.toLocaleString()}</strong> queued · ` +
           `<strong style="color:var(--accent-green,#4ade80);">${t.sent.toLocaleString()}</strong> sent · ` +
-          `<strong style="color:var(--accent-red,#ef4444);">${t.bounced.toLocaleString()}</strong> bounced (${bounceRate}%) · ` +
+          `<strong style="color:var(--accent-red,#ef4444);">${t.bounced.toLocaleString()}</strong> bounced (${bounceRate}% of sent) · ` +
           `<strong style="color:var(--accent-orange,#f59e0b);">${t.complained.toLocaleString()}</strong> complained · ` +
           `<strong>${t.failed.toLocaleString()}</strong> failed · ` +
           `<strong>${unsubs.toLocaleString()}</strong> on suppression list`;
@@ -10199,15 +10200,15 @@
         const audKeys = Object.keys(audiences);
         const cells = [];
         for (const aud of audKeys) {
-          const a = audiences[aud];
+          const a = Object.assign({ queued:0, sent:0, bounced:0, complained:0, failed:0, total:0 }, audiences[aud] || {});
           cells.push(
             `<div class="stat-card">
               <div class="stat-label" style="text-transform:capitalize;">${escapeHtml(aud)}</div>
-              <div class="stat-value">${(a.sent || 0).toLocaleString()}</div>
+              <div class="stat-value">${a.sent.toLocaleString()}</div>
               <div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">
-                bounced ${a.bounced || 0} · complained ${a.complained || 0} · failed ${a.failed || 0}
+                queued ${a.queued} · bounced ${a.bounced} · complained ${a.complained} · failed ${a.failed}
               </div>
-              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">total logged ${a.total || 0}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">total logged ${a.total}</div>
             </div>`
           );
         }
