@@ -345,7 +345,10 @@ test('live sandbox happy path (skipped when creds missing)', async () => {
   }
   // Restore real fetch (earlier tests stubbed it).
   delete global.fetch;
-  const fetchFn = (await import('node:https')).default ? globalThis.fetch : globalThis.fetch;
+  const fetchFn = globalThis.fetch;
+  if (typeof fetchFn !== 'function') {
+    throw new Error('global fetch not available — Node 18+ required for live test');
+  }
   const base = process.env.BGC_API_BASE || 'https://sandbox.backgroundchecks.com/api';
   const url = `${base}/orders/new?api_token=${encodeURIComponent(process.env.BGC_API_TOKEN)}`;
   const sentBody = {

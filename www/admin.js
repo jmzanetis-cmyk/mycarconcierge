@@ -1542,7 +1542,9 @@
               (bgcJson.providers || []).forEach(b => { liveMap[b.provider_id] = b; });
               providers = providers.map(p => liveMap[p.id] ? Object.assign({}, p, {
                 bgc_live_mode: liveMap[p.id].live_mode,
-                bgc_mode_reason: liveMap[p.id].mode_reason
+                bgc_mode_reason: liveMap[p.id].mode_reason,
+                bgc_pending_count: liveMap[p.id].pending_count,
+                bgc_completed_count: liveMap[p.id].completed_count
               }) : p);
             }
           } catch { /* non-fatal */ }
@@ -2773,6 +2775,12 @@
                 : (p.bgc_live_mode === false
                   ? ' <span title="' + (p.bgc_mode_reason || 'mock mode') + '" style="display:inline-flex;align-items:center;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:700;background:rgba(100,100,120,0.15);color:var(--text-muted);border:1px solid var(--border-subtle);margin-left:4px;">MOCK</span>'
                   : '')
+            }${
+              (typeof p.bgc_pending_count === 'number' || typeof p.bgc_completed_count === 'number')
+                ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;" title="Real (non-mock) BGC checks">' +
+                  (p.bgc_completed_count || 0) + ' done · ' + (p.bgc_pending_count || 0) + ' pending' +
+                  '</div>'
+                : ''
             }</td>
             <td>${renderApplicationLeadBadge(p)}</td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>

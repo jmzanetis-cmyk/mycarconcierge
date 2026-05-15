@@ -74,10 +74,13 @@ exports.handler = async function(event) {
     .eq('role', 'provider')
     .gt('bgc_total_employees', 0);
 
+  // Only count REAL checks (exclude mock-mode rows whose bgc_report_id
+  // starts with 'mock_'). Admin needs a true picture of live activity.
   const { data: checks } = await supabase
     .from('employee_background_checks')
-    .select('provider_id, status')
-    .eq('is_current', true);
+    .select('provider_id, status, bgc_report_id')
+    .eq('is_current', true)
+    .not('bgc_report_id', 'like', 'mock_%');
 
   const acctById = {};
   (accounts || []).forEach(a => { acctById[a.provider_id] = a; });
