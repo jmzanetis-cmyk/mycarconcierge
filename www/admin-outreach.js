@@ -1126,9 +1126,73 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     loadConversionFunnel();
   }
 
+  let lastConversionFunnelData = null;
+
+  function csvEscape(v) {
+    if (v === null || v === undefined) return '';
+    const s = String(v);
+    if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+    return s;
+  }
+
+  function downloadConversionFunnelCsv() {
+    const data = lastConversionFunnelData;
+    if (!data) return;
+    const rows = data.by_source || [];
+    const totals = data.totals || {};
+    const headers = [
+      'source',
+      'leads_contacted',
+      'profiles_created',
+      'provider_applications_submitted',
+      'lead_to_profile_pct',
+      'profile_to_application_pct',
+      'lead_to_application_pct'
+    ];
+    const lines = [headers.join(',')];
+    rows.forEach(r => {
+      lines.push([
+        fmtSourceLabel(r.source),
+        r.leads_contacted || 0,
+        r.profiles_created || 0,
+        r.provider_applications_submitted || 0,
+        Number(r.lead_to_profile_pct || 0).toFixed(1),
+        Number(r.profile_to_application_pct || 0).toFixed(1),
+        Number(r.lead_to_application_pct || 0).toFixed(1)
+      ].map(csvEscape).join(','));
+    });
+    lines.push([
+      'All sources',
+      totals.leads_contacted || 0,
+      totals.profiles_created || 0,
+      totals.provider_applications_submitted || 0,
+      Number(totals.lead_to_profile_pct || 0).toFixed(1),
+      Number(totals.profile_to_application_pct || 0).toFixed(1),
+      Number(totals.lead_to_application_pct || 0).toFixed(1)
+    ].map(csvEscape).join(','));
+
+    const today = new Date().toISOString().slice(0, 10);
+    const from = data.filter?.date_from || 'all';
+    const to = data.filter?.date_to || today;
+    const filename = `outreach-funnel_${from}_${to}.csv`;
+
+    const blob = new Blob([lines.join('\n') + '\n'], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
   async function loadConversionFunnel() {
     const container = document.getElementById('outreach-funnel-content');
     if (!container) return;
+    const dlBtn = document.getElementById('funnel-download-csv');
+    if (dlBtn) dlBtn.disabled = true;
+    lastConversionFunnelData = null;
     container.innerHTML = '<div class="loading-spinner" style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
 
     const dateFrom = document.getElementById('funnel-date-from')?.value || '';
@@ -1153,6 +1217,9 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
     const rows = data.by_source || [];
     const totals = data.totals || {};
+
+    lastConversionFunnelData = data;
+    if (dlBtn) dlBtn.disabled = false;
 
     const labelEl = document.getElementById('funnel-date-label');
     if (labelEl) {
@@ -2335,6 +2402,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.renderOutreachHistoryPanel = renderOutreachHistoryPanel;
   globalThis.loadConversionFunnel = loadConversionFunnel;
   globalThis.resetConversionFunnelDates = resetConversionFunnelDates;
+  globalThis.downloadConversionFunnelCsv = downloadConversionFunnelCsv;
 
   // ===================================================================
   // Task #243 — Facebook Page admin OAuth picker

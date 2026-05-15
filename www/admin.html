@@ -1279,6 +1279,7 @@
                 <span style="color:var(--text-muted);">to</span>
                 <input type="date" id="funnel-date-to" class="form-input" style="max-width:160px;font-size:0.88rem;">
                 <button class="btn btn-sm btn-primary" onclick="loadConversionFunnel()"><span class="icon-inline" data-icon="refresh-cw"></span> Apply</button>
+                <button class="btn btn-sm" id="funnel-download-csv" onclick="downloadConversionFunnelCsv()" disabled><span class="icon-inline" data-icon="download"></span> Download CSV</button>
                 <button class="btn btn-sm" onclick="resetConversionFunnelDates(30)">Last 30d</button>
                 <button class="btn btn-sm" onclick="resetConversionFunnelDates(90)">Last 90d</button>
                 <button class="btn btn-sm" onclick="resetConversionFunnelDates(0)">All time</button>
