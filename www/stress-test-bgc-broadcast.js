@@ -88,6 +88,9 @@ const CONFIG = FULL_MODE ? {
 const STRESS_TAG = 'stress-bgc-broadcast-' + Date.now();
 const SCRIPT_PATH = path.join(__dirname, '..', 'scripts', 'send-bgc-launch-broadcast.js');
 const STRESS_DOMAIN = 'mcc-stress-broadcast.test';
+// Captured at module load so the agent_memory cleanup sweep can scope to
+// rows written during this run (Task #230).
+const testStartIso = new Date().toISOString();
 
 const phaseResults = [];
 
@@ -238,6 +241,19 @@ async function cleanup() {
   // Cleanup any rows tagged with our STRESS_TAG across all suppression sources.
   try { await supabaseAdmin.from('email_unsubscribes').delete().eq('source', STRESS_TAG); } catch {}
   try { await supabaseAdmin.from('outreach_leads').delete().eq('source', STRESS_TAG); } catch {}
+  // Audit-row cleanup (Task #230). The broadcast script may seed
+  // agent_memory rows when priming its dedupe cache for the stress
+  // recipient set. Sweep any row written since test start whose
+  // value/key references our STRESS_TAG so repeated runs don't
+  // accumulate stale dedupe entries. Best-effort — table may not exist
+  // and the script may not currently write here, but defensive cleanup
+  // protects against future regressions.
+  try {
+    await supabaseAdmin.from('agent_memory')
+      .delete()
+      .gte('created_at', testStartIso)
+      .like('key', `%${STRESS_TAG}%`);
+  } catch {}
 }
 
 function runBroadcastDryRun(limit, rate) {

@@ -334,9 +334,12 @@ async function cleanup() {
   // We filter by event_type + payload report_id so we only touch our rows.
   const { data: seededReports } = await supabaseAdmin
     .from('employee_background_checks')
-    .select('bgc_report_id')
+    .select('id, provider_id, employee_id, bgc_report_id')
     .like('bgc_report_id', `${STRESS_TAG}-%`);
   const reportIds = (seededReports || []).map(r => r.bgc_report_id);
+  const checkIds = (seededReports || []).map(r => r.id);
+  const providerIds = Array.from(new Set((seededReports || []).map(r => r.provider_id).filter(Boolean)));
+  const employeeIds = Array.from(new Set((seededReports || []).map(r => r.employee_id).filter(Boolean)));
   if (reportIds.length > 0) {
     try {
       await supabaseAdmin.from('agent_events')
@@ -345,6 +348,28 @@ async function cleanup() {
         .in('payload->>bgc_report_id', reportIds);
     } catch { /* table may not exist; ignore */ }
   }
+  // Audit-row cleanup (Task #230). The webhook calls
+  // calculate_provider_compliance and updates/inserts provider_alerts for
+  // each delivery; without scoping by employee_id/bgc_check_id and
+  // testStartIso, repeated runs leave behind hundreds of alert rows that
+  // bloat the providers dashboard. The ON DELETE CASCADE from
+  // employee_background_checks handles bgc_check_id references, but rows
+  // referencing only provider_id (e.g. compliance_lost) survive — sweep
+  // those explicitly.
+  try {
+    if (checkIds.length > 0) {
+      await supabaseAdmin.from('provider_alerts').delete().in('bgc_check_id', checkIds);
+    }
+    if (employeeIds.length > 0) {
+      await supabaseAdmin.from('provider_alerts').delete().in('employee_id', employeeIds);
+    }
+    if (providerIds.length > 0) {
+      await supabaseAdmin.from('provider_alerts')
+        .delete()
+        .in('provider_id', providerIds)
+        .gte('created_at', testStartIso);
+    }
+  } catch { /* table may not exist; ignore */ }
   await supabaseAdmin.from('employee_background_checks')
     .delete()
     .like('bgc_report_id', `${STRESS_TAG}-%`);

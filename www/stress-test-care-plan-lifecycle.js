@@ -60,6 +60,11 @@ if (!SIM_PASSWORD) {
 }
 const RESERVOIR_SIZE = 50000;
 const STRESS_TAG = 'stress-care-plan-' + Date.now();
+// Captured at module load so audit-row cleanup can scope to writes that
+// happened during this test run (provider_alerts / agent_events for the
+// seeded providers).
+const testStartIso = new Date().toISOString();
+const seededProviderIds = new Set();
 
 function createMetric(name) {
   return {
@@ -194,6 +199,7 @@ async function seedPlans(memberSessions, providerIds) {
       .update({ accepted_bid_id: bid.id, provider_id: providerId, status: 'in_progress' })
       .eq('id', plan.id);
     seeded.push({ planId: plan.id, bidId: bid.id, member });
+    seededProviderIds.add(providerId);
   }
   return seeded;
 }
@@ -311,6 +317,30 @@ async function checkIntegrity(planIds) {
 
 async function cleanup(planIds) {
   if (planIds.length === 0) return;
+  // Audit-row cleanup (Task #230). The /complete and /dispute endpoints can
+  // emit downstream `agent_events` and `provider_alerts` rows for every
+  // transition. Without this sweep, repeated stress runs accumulate
+  // hundreds-to-thousands of rows that drag on dashboard queries.
+  //
+  // agent_events: scope by `payload->>care_plan_id` matching our seeded
+  // plan IDs so we never touch unrelated events. Best-effort — the table
+  // may not exist in every fixture.
+  try {
+    const planIdStrings = planIds.map(String);
+    await supabaseAdmin.from('agent_events')
+      .delete()
+      .in('payload->>care_plan_id', planIdStrings);
+  } catch { /* table absent — ignore */ }
+  // provider_alerts: scope by seeded providerIds AND created_at >= test
+  // start so we never delete a real provider's pre-existing alerts.
+  if (seededProviderIds.size > 0) {
+    try {
+      await supabaseAdmin.from('provider_alerts')
+        .delete()
+        .in('provider_id', Array.from(seededProviderIds))
+        .gte('created_at', testStartIso);
+    } catch { /* table absent — ignore */ }
+  }
   await supabaseAdmin.from('care_plan_completions').delete().in('care_plan_id', planIds);
   await supabaseAdmin.from('plan_bids').delete().in('care_plan_id', planIds);
   await supabaseAdmin.from('care_plans').delete().in('id', planIds);
