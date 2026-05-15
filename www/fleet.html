@@ -211,7 +211,7 @@
           <div class="user-email" id="fleet-name">Company Fleet</div>
         </div>
       </div>
-      <div class="nav-item" onclick="logout()">🚪 Log Out</div>
+      <button class="nav-item" onclick="logout()" style="background:none;border:none;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;">🚪 Log Out</button>
     </div>
   </aside>
 
@@ -324,7 +324,7 @@
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
         <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary">📥 Import CSV</button>
+        <button class="btn btn-secondary" onclick="showToast('CSV import coming soon.', 'info')">📥 Import CSV</button>
       </div>
 
       <div class="card">
@@ -978,14 +978,11 @@
     }
 
     // ========== ACTIONS ==========
-
     function esc(s) {
       return String(s ?? '').replace(/[&<>"']/g, c =>
         ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
       );
     }
-
-    let currentApprovalId = null;
 
     function openApprovalModal(approvalId) {
       currentApprovalId = approvalId;
@@ -1026,7 +1023,7 @@
       if (!make || !model) return showToast('Please enter make and model.', 'error');
 
       // Create vehicle
-      const { data: vehicle } = await supabaseClient.from('vehicles').insert({
+      const { data: vehicle, error: vehicleError } = await supabaseClient.from('vehicles').insert({
         owner_id: currentUser.id,
         year: Number.parseInt(document.getElementById('av-year').value) || null,
         make,
@@ -1036,7 +1033,10 @@
         mileage: Number.parseInt(document.getElementById('av-mileage').value) || null
       }).select().single();
 
-      if (!vehicle) return showToast('Failed to create vehicle.', 'error');
+      if (vehicleError || !vehicle) {
+        console.error('Failed to create vehicle:', vehicleError);
+        return showToast('Failed to create vehicle. Please try again.', 'error');
+      }
 
       // Create fleet vehicle record
       const { error: fleetError } = await supabaseClient.from('fleet_vehicles').insert({
@@ -1119,8 +1119,8 @@
       document.getElementById('add-vehicle-modal').classList.add('active');
       // Populate driver dropdown
       const select = document.getElementById('av-driver');
-      select.innerHTML = '<option value="">Unassigned</option>' + 
-        drivers.map(d => `<option value="${d.id}">${d.full_name}</option>`).join('');
+      select.innerHTML = '<option value="">Unassigned</option>' +
+        drivers.map(d => `<option value="${esc(d.id)}">${esc(d.full_name)}</option>`).join('');
     }
 
     function openAddDriverModal() {
@@ -1131,7 +1131,7 @@
       select.innerHTML = '<option value="">No vehicle assigned</option>' + 
         unassigned.map(fv => {
           const v = fv.vehicles;
-          return `<option value="${fv.id}">${v?.year} ${v?.make} ${v?.model} (${fv.fleet_number || 'No #'})</option>`;
+          return `<option value="${esc(fv.id)}">${esc(v?.year)} ${esc(v?.make)} ${esc(v?.model)} (${esc(fv.fleet_number) || 'No #'})</option>`;
         }).join('');
     }
 

@@ -483,9 +483,6 @@
       if (isProvider) {
         localStorage.setItem('mcc_portal', 'provider');
         globalThis.location.href = 'providers.html';
-      } else if (profile.role === 'admin') {
-        localStorage.setItem('mcc_portal', 'member');
-        globalThis.location.href = 'members.html';
       } else {
         localStorage.setItem('mcc_portal', 'member');
         globalThis.location.href = 'members.html';
