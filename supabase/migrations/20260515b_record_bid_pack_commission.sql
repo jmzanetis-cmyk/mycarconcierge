@@ -141,12 +141,16 @@ END;
 $$;
 
 -- The webhook calls this from the Node server using the service-role key.
--- Grant execute to service_role explicitly; revoke from anon/public so the
--- function can never be invoked from a browser session.
+-- Grant execute to service_role ONLY — because the function is SECURITY
+-- DEFINER and writes payout-bearing rows, granting it to `authenticated`
+-- would let any logged-in user fabricate founder_commissions rows for
+-- arbitrary providers/amounts. Lock it down to service_role and revoke
+-- from anon, authenticated, and public so it can never be invoked from a
+-- browser session.
 REVOKE ALL ON FUNCTION public.record_bid_pack_commission(uuid, numeric, text) FROM PUBLIC;
 REVOKE ALL ON FUNCTION public.record_bid_pack_commission(uuid, numeric, text) FROM anon;
+REVOKE ALL ON FUNCTION public.record_bid_pack_commission(uuid, numeric, text) FROM authenticated;
 GRANT  EXECUTE ON FUNCTION public.record_bid_pack_commission(uuid, numeric, text) TO service_role;
-GRANT  EXECUTE ON FUNCTION public.record_bid_pack_commission(uuid, numeric, text) TO authenticated;
 
 COMMENT ON FUNCTION public.record_bid_pack_commission(uuid, numeric, text) IS
   'Task #366: Inserts a pending founder_commissions row for a bid-pack '
