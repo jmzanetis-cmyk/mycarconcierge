@@ -17,12 +17,17 @@
 --
 --   2. profiles: install a BEFORE UPDATE trigger that, for any non-service-role
 --      caller, raises an exception when the request tries to change
---      suspension_reason or suspended_at. We use a column-scoped trigger
---      instead of dropping "Admins can update any profile" wholesale because
---      admin.js still does legitimate browser-side profile updates for
---      bid_credits and approval role flips that are out of scope for this
---      hardening pass. A trigger is the cleanest way to enforce column-level
---      "service-role only" semantics in Postgres.
+--      suspension_reason or suspended_at.
+--
+--      HISTORICAL NOTE (Task #240): originally we used a column-scoped trigger
+--      instead of dropping the broad "Admins can update any profile" policy
+--      because admin.js still did legitimate browser-side profile updates for
+--      bid_credits and approval role flips. Those last two writes have since
+--      moved to audited Netlify endpoints (POST /api/admin/provider-actions/
+--      approve-application and /update-user-role), and the policy is dropped
+--      in 20260515c_drop_admin_update_profile_policy.sql. The trigger below
+--      is now belt-and-braces — it still guards the suspension columns in
+--      case some future migration re-grants UPDATE to authenticated users.
 --
 -- Pattern for the trigger function mirrors restrict_provider_alerts_dismiss_only
 -- shipped in 20260422_bgc_notifications_alerts.sql.

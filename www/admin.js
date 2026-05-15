@@ -2138,16 +2138,16 @@
 
     async function toggleDualRole(userId, field, value) {
       try {
-        const updateData = {};
-        updateData[field] = value;
-        
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update(updateData)
-          .eq('id', userId);
-        
-        if (error) {
-          console.error('Error updating dual role:', error);
+        // Task #240: routed through audited server endpoint so the broad
+        // "Admins can update any profile" RLS policy can be dropped.
+        const res = await fetch('/api/admin/provider-actions/update-user-role', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, [field]: value, actor_id: currentUser?.id || null })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error('Error updating dual role:', json);
           showToast('Failed to update user role', 'error');
           await loadUserRoles(); // Reload to reset checkbox
           return;
@@ -4791,51 +4791,37 @@
       if (!confirm(`Approve ${app.business_name} as a Founding Provider?\n\nThis will create their provider profile with Founding Provider status.`)) return;
 
       try {
-        // Update pilot application status
-        const { error: updateError } = await supabaseClient
-          .from('pilot_applications')
-          .update({ 
-            status: 'approved',
-            approved_at: new Date().toISOString(),
-            approved_by: currentUser.id
-          })
-          .eq('id', id);
-
-        if (updateError) {
-          showToast('Failed to approve application', 'error');
-          console.error('Approval error:', updateError);
-          return;
-        }
-
-        // Check if a profile already exists for this email
+        // Task #240: pilot application approval is now an audited server
+        // endpoint. The browser previously updated pilot_applications and
+        // profiles directly via supabaseClient — that relied on the
+        // "Admins can update any profile" RLS policy which is being dropped.
+        // Look up the matching profile (read is fine under RLS) and pass its
+        // id to the server, which performs both writes under the
+        // service-role client and writes an admin_audit_log row.
         const { data: existingProfile } = await supabaseClient
           .from('profiles')
           .select('id')
           .eq('email', app.email)
-          .single();
+          .maybeSingle();
 
-        if (existingProfile) {
-          // Update existing profile to be a founding provider
-          const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .update({
-              role: 'provider',
-              is_founding_provider: true,
-              business_name: app.business_name,
-              business_phone: app.phone,
-              city: app.city,
-              state: app.state
-            })
-            .eq('id', existingProfile.id);
-
-          if (profileError) {
-            console.error('Profile update error:', profileError);
-          }
-
-          // Ensure provider_stats exists
-          await supabaseClient.from('provider_stats').upsert({ 
-            provider_id: existingProfile.id 
-          }, { onConflict: 'provider_id' });
+        const res = await fetch('/api/admin/provider-actions/approve-application', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            application_id: id,
+            profile_id: existingProfile?.id || null,
+            business_name: app.business_name,
+            business_phone: app.phone,
+            city: app.city,
+            state: app.state,
+            approved_by: currentUser.id
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(json.error || `Approval failed (${res.status})`, 'error');
+          console.error('Approval error:', json);
+          return;
         }
 
         showToast(`${app.business_name} approved as Founding Provider!`, 'success');
@@ -7134,13 +7120,27 @@
           break;
       }
 
-      const { error } = await supabaseClient
-        .from('profiles')
-        .update(updateData)
-        .eq('id', userId);
-
-      if (error) {
-        showToast('Failed to update role: ' + error.message, 'error');
+      // Task #240: role flips now route through an audited Netlify endpoint.
+      // The browser used to call supabaseClient.from('profiles').update(...)
+      // directly, which relied on the "Admins can update any profile" RLS
+      // policy that is being removed.
+      try {
+        const res = await fetch('/api/admin/provider-actions/update-user-role', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            ...updateData,
+            actor_id: currentUser?.id || null
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast('Failed to update role: ' + (json.error || res.status), 'error');
+          return;
+        }
+      } catch (e) {
+        showToast('Failed to update role: ' + e.message, 'error');
         return;
       }
 
@@ -7210,14 +7210,22 @@
         }
       } else if (founderType === 'provider') {
         const newStatus = !user.isFoundingProvider;
-        
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update({ is_founding_provider: newStatus })
-          .eq('id', userId);
 
-        if (error) {
-          showToast('Failed to update founding provider status: ' + error.message, 'error');
+        // Task #240: routed through audited server endpoint so the broad
+        // "Admins can update any profile" RLS policy can be dropped.
+        try {
+          const res = await fetch('/api/admin/provider-actions/update-user-role', {
+            method: 'POST',
+            headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, is_founding_provider: newStatus, actor_id: currentUser?.id || null })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showToast('Failed to update founding provider status: ' + (json.error || res.status), 'error');
+            return;
+          }
+        } catch (e) {
+          showToast('Failed to update founding provider status: ' + e.message, 'error');
           return;
         }
         showToast(newStatus ? 'User is now a Founding Provider!' : 'Founding provider status removed', 'success');
