@@ -646,6 +646,9 @@ function freshSupabase() {
     '[opt-out per-category] winner who only muted opportunities still gets bid_accepted push');
   const send5b = fcmCalls.filter(c => c.url.includes('fcm.googleapis.com'));
   assertEq(send5b.length, 1, '[opt-out per-category] exactly 1 FCM send (winner)');
+  const sentTokens5b = send5b.map(c => { try { return JSON.parse(c.body).message.token; } catch { return null; } });
+  assertEq(sentTokens5b, ['tok-win-only'],
+    '[opt-out per-category] FCM send targets the winner token specifically');
 
   // restore for any downstream tests
   process.env.RESEND_API_KEY = 'test-key';
