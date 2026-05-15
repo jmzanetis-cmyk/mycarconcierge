@@ -29,6 +29,7 @@ test.describe('Admin Outreach Engine API Tests', () => {
       { method: 'POST', path: '/convert-lead' },
       { method: 'POST', path: '/sync-reengagement' },
       { method: 'GET', path: '/analytics' },
+      { method: 'GET', path: '/conversion-report' },
     ];
 
     for (const ep of endpoints) {
@@ -340,6 +341,45 @@ test.describe('Admin Outreach Engine API Tests', () => {
       });
       const status = response.status();
       expect([200, 500]).toContain(status);
+    });
+  });
+
+  test.describe('9b – Conversion Report (Task #190)', () => {
+    test('GET /conversion-report with admin auth returns funnel shape', async ({ request }) => {
+      const response = await request.get(`${BASE}/api/admin/outreach/conversion-report`, {
+        headers: AUTH_HEADERS
+      });
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data).toHaveProperty('by_source');
+      expect(data).toHaveProperty('totals');
+      expect(data).toHaveProperty('filter');
+      expect(Array.isArray(data.by_source)).toBe(true);
+      expect(typeof data.totals.leads_contacted).toBe('number');
+      expect(typeof data.totals.profiles_created).toBe('number');
+      expect(typeof data.totals.provider_applications_submitted).toBe('number');
+
+      // Per-source leads_contacted must sum to totals.leads_contacted —
+      // catches the "totals computed from a different query" class of bug.
+      const sumLeads = data.by_source.reduce(
+        (acc, r) => acc + Number(r.leads_contacted || 0),
+        0
+      );
+      expect(sumLeads).toBe(Number(data.totals.leads_contacted));
+    });
+
+    test('GET /conversion-report echoes date_from/date_to in filter', async ({ request }) => {
+      const response = await request.get(
+        `${BASE}/api/admin/outreach/conversion-report?date_from=2026-01-01&date_to=2026-01-31`,
+        { headers: AUTH_HEADERS }
+      );
+      expect(response.status()).toBe(200);
+      const data = await response.json();
+      expect(data).toHaveProperty('filter');
+      expect(data.filter).toEqual({
+        date_from: '2026-01-01',
+        date_to: '2026-01-31'
+      });
     });
   });
 
