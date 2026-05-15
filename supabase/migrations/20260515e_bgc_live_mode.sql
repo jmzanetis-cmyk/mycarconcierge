@@ -64,21 +64,25 @@ REVOKE SELECT (bgchecks_api_key) ON provider_background_check_accounts FROM auth
 -- A safe read-only view for the provider dashboard / client code that wants
 -- to know whether a sub-account is linked without ever seeing the secret.
 DROP VIEW IF EXISTS provider_background_check_accounts_public;
--- security_invoker = false (the default, "definer" semantics) so the view
--- runs as its owner. This is required because we REVOKEd column-level
--- SELECT on `bgchecks_api_key` from authenticated/anon above; with
--- security_invoker the `bgchecks_api_key IS NOT NULL` expression below
--- would fail with a column-permission error for normal callers. The view
--- only exposes a boolean derived from that column, never the secret itself.
-CREATE VIEW provider_background_check_accounts_public AS
+-- security_invoker = true so the view runs as the calling user and the
+-- existing RLS policies on provider_background_check_accounts (which
+-- restrict each provider to their own row) flow through. We deliberately
+-- omit the `bgchecks_api_key` column entirely (we revoked SELECT on it
+-- above) and use the `live_mode` column as the canonical "is your account
+-- linked?" signal so the view's columns require no special permissions.
+-- The WHERE clause is a defense-in-depth scope: even if RLS were to be
+-- relaxed in the future, the view itself never returns another provider's
+-- row to a logged-in user.
+CREATE VIEW provider_background_check_accounts_public
+WITH (security_invoker = true) AS
 SELECT
   provider_id,
   bgchecks_account_id,
   live_mode,
   source_token,
-  (bgchecks_api_key IS NOT NULL) AS has_api_key,
   created_at,
   updated_at
-FROM provider_background_check_accounts;
+FROM provider_background_check_accounts
+WHERE provider_id = auth.uid();
 
-GRANT SELECT ON provider_background_check_accounts_public TO authenticated, anon;
+GRANT SELECT ON provider_background_check_accounts_public TO authenticated;
