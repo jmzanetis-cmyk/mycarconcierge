@@ -488,6 +488,28 @@
       `;
     };
 
+    // Task #369: render status for vehicle-originated concierge jobs (no
+    // appointment_id). Looks up the most recent live job for the member
+    // and renders the shared status card into the vehicle-detail panel.
+    window.loadConciergeStatusForVehicle = async function(vehicleId) {
+      const container = document.getElementById('concierge-status-vehicle-' + vehicleId);
+      if (!container) return;
+      const headers = await getConciergeAuthHeader();
+      if (!headers) return;
+      try {
+        const resp = await fetch('/api/concierge?role=member', { headers });
+        if (!resp.ok) return;
+        const { jobs = [] } = await resp.json();
+        const mine = jobs.filter(j =>
+          j.member_vehicle_id === vehicleId && j.status !== 'cancelled' && j.status !== 'completed'
+        );
+        if (!mine.length) { container.innerHTML = ''; return; }
+        const det = await fetch('/api/concierge/' + mine[0].id, { headers });
+        const job = det.ok ? (await det.json()).job : mine[0];
+        container.innerHTML = window.renderConciergeStatusCard(job, { packageId: 'vehicle-' + vehicleId });
+      } catch (e) { console.warn('[concierge] vehicle status load failed', e); }
+    };
+
     window.loadConciergeStatusForAppointment = async function(packageId, appointmentId) {
       const container = document.getElementById('concierge-status-' + packageId);
       if (!container) return;
@@ -652,7 +674,11 @@
             pickup_address: pickup,
             dropoff_address: dropoff,
             scheduled_start_at: time ? new Date(time).toISOString() : null,
-            notes: notes || null
+            notes: notes || null,
+            // Vehicle-context flow (packageId starts with 'vehicle-') passes
+            // the vehicle id so the status loader can find the job back.
+            member_vehicle_id: (typeof packageId === 'string' && packageId.indexOf('vehicle-') === 0)
+              ? packageId.slice('vehicle-'.length) : null
           })
         });
         const body = await resp.json().catch(() => ({}));
@@ -673,7 +699,15 @@
             </div>
           `;
         }
-        window.loadConciergeStatusForAppointment(packageId, appointmentId);
+        // Vehicle-context flow: refresh the vehicle status panel; otherwise
+        // refresh the appointment status panel.
+        if (typeof packageId === 'string' && packageId.indexOf('vehicle-') === 0) {
+          if (typeof window.loadConciergeStatusForVehicle === 'function') {
+            window.loadConciergeStatusForVehicle(packageId.slice('vehicle-'.length));
+          }
+        } else {
+          window.loadConciergeStatusForAppointment(packageId, appointmentId);
+        }
       } catch (e) {
         errEl.textContent = 'Network error: ' + e.message;
       } finally {

@@ -1,19 +1,70 @@
 // ========== PROVIDERS JOBS MODULE ==========
 // Active jobs, GPS tracking, evidence, inspections, emergency, fleet
 
+// ---- Task #369: Concierge driver coordination (provider side) ----
+// Shared with member side via members-extras.js window.renderConciergeStatusCard.
+async function providerConciergeAuthHeaderJobs() {
+  try {
+    const { data: { session } = {} } = await supabaseClient.auth.getSession();
+    const token = session && session.access_token;
+    return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+  } catch { return null; }
+}
+
+window.refreshProviderVehicleTransfers = async function() {
+  const host = document.getElementById('provider-vehicle-transfers');
+  if (!host) return;
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { host.innerHTML = ''; return; }
+  try {
+    const resp = await fetch('/api/concierge?role=provider', { headers });
+    if (!resp.ok) { host.innerHTML = ''; return; }
+    const { jobs = [] } = await resp.json();
+    const live = jobs.filter(j => j.status !== 'cancelled' && j.status !== 'completed');
+    if (!live.length) { host.innerHTML = ''; return; }
+    const enriched = await Promise.all(live.slice(0, 6).map(async j => {
+      try {
+        const det = await fetch('/api/concierge/' + j.id, { headers });
+        if (det.ok) return (await det.json()).job;
+      } catch {}
+      return j;
+    }));
+    const cards = enriched.map(j => (window.renderConciergeStatusCard
+      ? window.renderConciergeStatusCard(j, { packageId: '' })
+      : '')).join('');
+    host.innerHTML = `
+      <div style="margin-bottom:18px;padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-elevated);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-weight:700;">${mccIcon('truck', 16)} Vehicle Transfers (${enriched.length})</div>
+          <button class="btn btn-ghost btn-sm" onclick="window.refreshProviderVehicleTransfers()">${mccIcon('refresh-cw', 12)} Refresh</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>
+      </div>
+    `;
+  } catch (e) {
+    host.innerHTML = '';
+    console.warn('[concierge] vehicle transfers refresh failed', e);
+  }
+};
+
 // ========== ACTIVE JOBS ==========
 function renderActiveJobs() {
   const container = document.getElementById('active-jobs');
   if (!container) return;
-  
+
   const activeJobs = myBids.filter(b => b.status === 'accepted');
-  
+  // Cross-appointment Vehicle Transfers panel — always rendered above the
+  // job list (or above the empty state) so providers can see all inbound /
+  // outbound concierge jobs in one place.
+  const transfersHtml = '<div id="provider-vehicle-transfers"></div>';
+
   if (!activeJobs.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('wrench', 40)}</div><p>No active jobs. Win bids to see your jobs here!</p></div>`;
+    container.innerHTML = transfersHtml + `<div class="empty-state"><div class="empty-state-icon">${mccIcon('wrench', 40)}</div><p>No active jobs. Win bids to see your jobs here!</p></div>`;
+    setTimeout(() => window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers(), 200);
     return;
   }
   
-  container.innerHTML = activeJobs.map(job => {
+  container.innerHTML = transfersHtml + activeJobs.map(job => {
     const pkg = job.maintenance_packages;
     const vehicle = pkg?.vehicles;
     const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'Vehicle';
@@ -91,6 +142,7 @@ function renderActiveJobs() {
   }).join('');
 
   setTimeout(() => loadProviderMediations(), 300);
+  setTimeout(() => window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers(), 200);
 }
 
 // ========== GPS TRACKING ==========
