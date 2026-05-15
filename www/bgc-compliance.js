@@ -653,8 +653,17 @@
         alert('Could not initiate check: ' + (body.error || resp.status));
         return;
       }
-      if (body.mocked) {
-        alert('Background check started in test mode (BGC_API_TOKEN not configured).');
+      if (body.applicantInviteUrl) {
+        // Live mode — surface the BGC-hosted PII intake link so the
+        // provider can hand it to the employee. SSN/DOB are entered on
+        // BGC, never on MCC.
+        const msg = 'Background check ordered.\n\nSend this secure link to the employee so they can complete their consent and PII intake on BackgroundChecks.com:\n\n' + body.applicantInviteUrl;
+        try { await navigator.clipboard.writeText(body.applicantInviteUrl); } catch { /* clipboard may be unavailable */ }
+        alert(msg + '\n\n(Link copied to your clipboard.)');
+      } else if (body.mocked) {
+        alert('Background check started in test mode (BGC_LIVE_MODE not enabled).');
+      } else {
+        alert('Background check started. The employee will receive an email from BackgroundChecks.com to complete their secure intake.');
       }
       await refresh();
     } catch (e) {

@@ -1,9 +1,17 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Task #112 — BackgroundChecks.com inbound webhook (employee-level checks)
+// Task #112 + Task #372 — BackgroundChecks.com inbound webhook
 //
 // Validates HMAC-SHA256 signature against BGC_WEBHOOK_SECRET, normalises the
-// status, sets expires_at = completed_at + 12 months, updates the matching
-// employee_background_checks row, and recomputes provider compliance.
+// status (handling both BGC's letter codes A/P/C and our legacy
+// long-form values), sets expires_at = completed_at + 12 months, updates
+// the matching employee_background_checks row, and recomputes provider
+// compliance.
+//
+// BGC report status enum (per developer docs):
+//   A = Awaiting Applicant   → 'pending'
+//   P = Pending (in progress) → 'pending'
+//   C = Complete              → 'clear' (or 'consider' when
+//                                flagged_for_end_user_review === true)
 // ─────────────────────────────────────────────────────────────────────────────
 
 const crypto = require('node:crypto');
@@ -28,14 +36,28 @@ function verifySignature(rawBody, signatureHeader) {
   if (!signatureHeader) return false;
   const computed = crypto.createHmac('sha256', secret).update(rawBody).digest('hex');
   // Allow either raw hex or "sha256=<hex>" formats.
-  const provided = signatureHeader.replace(/^sha256=/i, '').trim();
+  const provided = String(signatureHeader).replace(/^sha256=/i, '').trim();
   return timingSafeHexEqual(computed, provided);
 }
 
-function normaliseStatus(raw) {
-  const s = String(raw || '').toLowerCase().trim();
-  if (['clear', 'clean', 'passed', 'complete', 'completed'].includes(s)) return 'clear';
-  if (['consider', 'review', 'pending_review'].includes(s)) return 'consider';
+// Map BGC's letter codes + our legacy long-form values to our canonical enum
+// (`pending|clear|consider|failed|expired`). The BGC `flagged_for_end_user_review`
+// flag escalates a Complete (C) to `consider` so the badge math doesn't count
+// it as a clean check.
+function normaliseStatus(rawStatus, flagged) {
+  const s = String(rawStatus || '').trim();
+  // BGC letter codes
+  if (s === 'A' || s === 'P') return 'pending';
+  if (s === 'C') return flagged ? 'consider' : 'clear';
+  // Legacy long-form values (kept for the existing mock-webhook tests and for
+  // any non-BGC sources that still post into this endpoint).
+  const lower = s.toLowerCase();
+  if (['clear', 'clean', 'passed', 'complete', 'completed'].includes(lower)) {
+    return flagged ? 'consider' : 'clear';
+  }
+  if (['consider', 'review', 'pending_review'].includes(lower)) return 'consider';
+  if (['pending', 'awaiting', 'in_progress', 'processing'].includes(lower)) return 'pending';
+  if (['expired'].includes(lower)) return 'expired';
   return 'failed';
 }
 
@@ -58,7 +80,8 @@ exports.handler = async function(event) {
   const rawBody = event.body || '';
   const headers = event.headers || {};
   const sig = headers['x-signature'] || headers['X-Signature']
-           || headers['x-hook-signature'] || headers['X-Hook-Signature'];
+           || headers['x-hook-signature'] || headers['X-Hook-Signature']
+           || headers['x-clearchecks-signature'] || headers['X-ClearChecks-Signature'];
 
   if (!verifySignature(rawBody, sig)) {
     console.warn('[BGC webhook] Invalid signature');
@@ -72,31 +95,38 @@ exports.handler = async function(event) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Invalid JSON' }) };
   }
 
-  const reportId = payload.report_id || payload.id || payload.reportId;
+  // BGC sends `report_key`; legacy mocks may send `report_id` / `id`.
+  const reportId = payload.report_key || payload.report_id || payload.id || payload.reportId;
   if (!reportId) {
     return { statusCode: 400, body: JSON.stringify({ error: 'Missing report ID' }) };
   }
 
   const supabase = createSupabaseClient();
   if (!supabase) {
-    // Return 5xx so BGC keeps retrying — DO NOT swallow webhooks during
-    // transient infra/config issues.
+    // 5xx so BGC keeps retrying — don't swallow webhooks during transient
+    // infra/config issues.
     console.error('[BGC webhook] Supabase client unavailable; asking sender to retry');
     return { statusCode: 503, body: JSON.stringify({ error: 'db_unavailable' }) };
   }
 
-  const status = normaliseStatus(payload.status || payload.result);
+  const flagged = payload.flagged_for_end_user_review === true
+               || payload.flagged === true;
+  const status = normaliseStatus(payload.status || payload.result, flagged);
   const completedAt = payload.completed_at || new Date().toISOString();
   const expires = new Date(completedAt);
   expires.setFullYear(expires.getFullYear() + 1);
 
+  // Only set completed_at / expires_at when the check is actually complete —
+  // a transient A→P transition shouldn't move the expiry clock.
+  const updateRow = { status };
+  if (status !== 'pending') {
+    updateRow.completed_at = completedAt;
+    updateRow.expires_at = expires.toISOString();
+  }
+
   const { data: rec, error: updErr } = await supabase
     .from('employee_background_checks')
-    .update({
-      status,
-      completed_at: completedAt,
-      expires_at: expires.toISOString()
-    })
+    .update(updateRow)
     .eq('bgc_report_id', reportId)
     .select('provider_id, employee_id')
     .maybeSingle();
@@ -120,7 +150,6 @@ exports.handler = async function(event) {
 
   // ── Task #113 — auto-resolve alerts when a new clear arrives ───────────
   if (status === 'clear') {
-    // Resolve any open expiring/expired alerts for this employee.
     await supabase
       .from('provider_alerts')
       .update({ resolved_at: new Date().toISOString() })
@@ -128,9 +157,6 @@ exports.handler = async function(event) {
       .in('alert_type', ['bgc_expiring', 'bgc_expired'])
       .is('resolved_at', null);
 
-    // If the compliance recompute succeeded AND the badge came back, resolve
-    // the compliance_lost alert. Skip when rpcErr — we'd be acting on stale
-    // badge state.
     if (!rpcErr) {
       const { data: prof } = await supabase
         .from('profiles')
@@ -149,8 +175,6 @@ exports.handler = async function(event) {
   }
 
   // ── Task #123 — emit Gatekeeper input event ────────────────────────────
-  // Best-effort. Failure here must NEVER block the webhook response —
-  // BackgroundChecks.com would then retry and we'd corrupt our update.
   try {
     const { error: emitDbErr } = await supabase.from('agent_events').insert({
       event_type: 'provider.bgc_completed',
@@ -159,14 +183,12 @@ exports.handler = async function(event) {
         employee_id: rec.employee_id,
         bgc_report_id: reportId,
         status,
-        completed_at: completedAt,
-        expires_at: expires.toISOString()
+        flagged,
+        completed_at: status === 'pending' ? null : completedAt,
+        expires_at: status === 'pending' ? null : expires.toISOString()
       },
       source: 'webhook:background-check'
     });
-    // supabase-js returns { error } instead of throwing on DB failures, so we
-    // must surface that path explicitly — otherwise a silent insert failure
-    // (RLS, missing column, FK) would never be logged.
     if (emitDbErr) {
       console.error('[BGC webhook] agent_events emit failed (non-fatal):', emitDbErr.message);
     }
@@ -180,8 +202,13 @@ exports.handler = async function(event) {
     body: JSON.stringify({
       received: true,
       status,
+      flagged,
       provider_id: rec.provider_id,
       employee_id: rec.employee_id
     })
   };
 };
+
+// Exported for unit tests (Task #372 smoke suite).
+exports._normaliseStatus = normaliseStatus;
+exports._verifySignature = verifySignature;

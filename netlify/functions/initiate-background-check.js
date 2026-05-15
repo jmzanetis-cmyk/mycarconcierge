@@ -1,18 +1,30 @@
 // ─────────────────────────────────────────────────────────────────────────────
-// Task #112 — Initiate a background check for one employee
+// Task #112 + Task #372 — Initiate a background check for one employee
 //
 // Auth: caller must send a Supabase user JWT in Authorization: Bearer <token>.
 // We resolve the calling user, confirm they own (or are admin of) the employee
 // row's provider_id, then call BackgroundChecks.com.
 //
-// In dev / before BGC_API_TOKEN is set, runs in MOCK mode: creates a pending
-// employee_background_checks row with a synthetic report id and returns it
-// so the dashboard flow can be tested end-to-end without hitting BGC.
+// Two paths:
+//   1) MOCK (default) — used when BGC_LIVE_MODE !== 'true'. Inserts a
+//      pending row with a synthetic report id. Lets the dashboard flow be
+//      tested end-to-end without hitting BGC.
+//   2) LIVE (BGC_LIVE_MODE === 'true') — calls
+//      `POST {BGC_API_BASE}/orders/new?api_token=...` with the provider's
+//      sub-account API key (from provider_background_check_accounts.bgchecks_api_key,
+//      falling back to the platform-wide BGC_API_TOKEN). Sends NO SSN/DOB —
+//      BGC collects PII directly from the applicant via either the
+//      hosted invite URL or the embedded JS widget (see bgc-compliance.js).
+//      Stores the returned report_key + applicant_invite_url on the
+//      employee_background_checks row.
+//
+// SSN/DOB are NEVER sent to or stored by MCC.
 // ─────────────────────────────────────────────────────────────────────────────
 
 const { createSupabaseClient } = require('./utils');
 
-const BGC_API_BASE = process.env.BGC_API_BASE || 'https://api.backgroundchecks.com/v1';
+const BGC_API_BASE = process.env.BGC_API_BASE || 'https://app.backgroundchecks.com/api';
+const BGC_DEFAULT_SKU = process.env.BGC_DEFAULT_REPORT_SKU || 'HIRE1';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -20,6 +32,10 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
   'Content-Type': 'application/json'
 };
+
+function isLiveMode() {
+  return String(process.env.BGC_LIVE_MODE || '').toLowerCase() === 'true';
+}
 
 async function resolveCaller(supabase, authHeader) {
   if (!authHeader) return null;
@@ -33,13 +49,70 @@ async function resolveCaller(supabase, authHeader) {
 async function callerCanAdminEmployee(supabase, callerId, employee) {
   if (!callerId || !employee) return false;
   if (employee.provider_id === callerId) return true;
-  // Admin override
   const { data: prof } = await supabase
     .from('profiles')
     .select('role')
     .eq('id', callerId)
     .maybeSingle();
   return prof && prof.role === 'admin';
+}
+
+// Resolves which BGC API token to use for ordering reports for this provider.
+// Preference: provider's own sub-account API key (set via the registration
+// widget → /token/decrypt path). Fallback: platform-wide BGC_API_TOKEN
+// (used when a provider hasn't enrolled a sub-account yet — orders show up
+// on the platform's account in the BGC console). Returns { apiKey, scope }.
+async function resolveBgcApiKey(supabase, providerId) {
+  const { data: acct } = await supabase
+    .from('provider_background_check_accounts')
+    .select('bgchecks_api_key')
+    .eq('provider_id', providerId)
+    .maybeSingle();
+  if (acct && acct.bgchecks_api_key) {
+    return { apiKey: acct.bgchecks_api_key, scope: 'sub_account' };
+  }
+  if (process.env.BGC_API_TOKEN) {
+    return { apiKey: process.env.BGC_API_TOKEN, scope: 'platform' };
+  }
+  return { apiKey: null, scope: null };
+}
+
+// Calls BGC's POST /orders/new. Returns { reportKey, inviteUrl } on success
+// or throws an Error with .upstreamStatus + .upstreamBody on failure.
+async function orderBgcReport(apiKey, employee) {
+  const url = `${BGC_API_BASE}/orders/new?api_token=${encodeURIComponent(apiKey)}`;
+  const resp = await fetch(url, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accepts': 'application/json'
+    },
+    body: JSON.stringify({
+      report_sku: BGC_DEFAULT_SKU,
+      order_quantity: 1,
+      applicant_emails: [employee.email],
+      terms_agree: 'Y'
+    })
+  });
+  const text = await resp.text();
+  let parsed;
+  try { parsed = text ? JSON.parse(text) : {}; } catch { parsed = { raw: text }; }
+  if (!resp.ok) {
+    const err = new Error('bgc_order_failed');
+    err.upstreamStatus = resp.status;
+    err.upstreamBody = parsed;
+    throw err;
+  }
+  const applicant = parsed && Array.isArray(parsed.applicants) ? parsed.applicants[0] : null;
+  const reportKey = applicant && applicant.report_key;
+  const inviteUrl = applicant && applicant.applicant_invite_url;
+  if (!reportKey) {
+    const err = new Error('bgc_no_report_key');
+    err.upstreamStatus = resp.status;
+    err.upstreamBody = parsed;
+    throw err;
+  }
+  return { reportKey, inviteUrl: inviteUrl || null };
 }
 
 exports.handler = async function(event) {
@@ -57,7 +130,7 @@ exports.handler = async function(event) {
     return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'Invalid JSON' }) };
   }
 
-  const { employeeId, dob, ssn, address } = body;
+  const { employeeId } = body;
   if (!employeeId) {
     return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'employeeId required' }) };
   }
@@ -86,53 +159,50 @@ exports.handler = async function(event) {
     return { statusCode: 403, headers: corsHeaders, body: JSON.stringify({ error: 'forbidden' }) };
   }
 
-  // ── Call BGC, or mock when no token configured ───────────────────────────
-  // We deliberately call BGC and INSERT the new row BEFORE superseding the old
-  // current row, so that any failure leaves the prior check intact and the
-  // provider's compliance does not silently drop.
-  const apiToken = process.env.BGC_API_TOKEN;
+  // ── Order the report (live or mock). We INSERT the new row BEFORE
+  // superseding the prior current row so any failure leaves the existing
+  // check intact and the provider's compliance does not silently drop.
   let reportId;
+  let inviteUrl = null;
   let mocked = false;
+  let mode;
 
-  if (!apiToken) {
+  if (!isLiveMode()) {
     mocked = true;
+    mode = 'mock';
     reportId = 'mock_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-    console.warn('[BGC initiate] BGC_API_TOKEN not set — using mock report id', reportId);
+    console.warn('[BGC initiate] BGC_LIVE_MODE not enabled — using mock report id', reportId);
   } else {
+    // Live mode: employee email is required because BGC sends the applicant
+    // invite to that address (and the widget resolves SSN/DOB intake against
+    // the report_key). Refuse to silently swap to mock.
+    if (!employee.email) {
+      return { statusCode: 400, headers: corsHeaders, body: JSON.stringify({ error: 'employee_email_required_for_live' }) };
+    }
+    const { apiKey, scope } = await resolveBgcApiKey(supabase, employee.provider_id);
+    if (!apiKey) {
+      return {
+        statusCode: 400,
+        headers: corsHeaders,
+        body: JSON.stringify({ error: 'bgc_not_configured', message: 'No BGC sub-account API key for this provider, and BGC_API_TOKEN is not set platform-wide.' })
+      };
+    }
     try {
-      const resp = await fetch(`${BGC_API_BASE}/reports`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${apiToken}`
-        },
-        body: JSON.stringify({
-          first_name: employee.first_name,
-          last_name: employee.last_name,
-          email: employee.email,
-          date_of_birth: dob,
-          ssn,
-          address
-        })
-      });
-      if (!resp.ok) {
-        const errBody = await resp.text();
-        console.error('[BGC initiate] BGC API error', resp.status, errBody);
-        return {
-          statusCode: 502,
-          headers: corsHeaders,
-          body: JSON.stringify({ error: 'bgc_initiation_failed', upstream_status: resp.status })
-        };
-      }
-      const data = await resp.json();
-      reportId = data.id || data.report_id;
-      if (!reportId) {
-        console.error('[BGC initiate] BGC response missing report id', data);
-        return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: 'bgc_no_report_id' }) };
-      }
+      const result = await orderBgcReport(apiKey, employee);
+      reportId = result.reportKey;
+      inviteUrl = result.inviteUrl;
+      mode = scope === 'sub_account' ? 'live' : 'live_platform';
     } catch (e) {
-      console.error('[BGC initiate] BGC API call threw', e.message);
-      return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: 'bgc_unreachable' }) };
+      console.error('[BGC initiate] BGC API error', e.upstreamStatus || '-', JSON.stringify(e.upstreamBody || e.message));
+      return {
+        statusCode: 502,
+        headers: corsHeaders,
+        body: JSON.stringify({
+          error: 'bgc_initiation_failed',
+          upstream_status: e.upstreamStatus || null,
+          upstream_body: e.upstreamBody || null
+        })
+      };
     }
   }
 
@@ -142,6 +212,7 @@ exports.handler = async function(event) {
       employee_id: employeeId,
       provider_id: employee.provider_id,
       bgc_report_id: reportId,
+      applicant_invite_url: inviteUrl,
       status: 'pending',
       is_current: true
     })
@@ -153,7 +224,6 @@ exports.handler = async function(event) {
   }
 
   // Now (and only now) supersede any prior current rows for this employee.
-  // Excluding the just-inserted id makes this safe even if it briefly raced.
   const { error: supErr } = await supabase
     .from('employee_background_checks')
     .update({ is_current: false })
@@ -169,6 +239,13 @@ exports.handler = async function(event) {
   return {
     statusCode: 200,
     headers: corsHeaders,
-    body: JSON.stringify({ success: true, reportId, status: 'pending', mocked })
+    body: JSON.stringify({
+      success: true,
+      reportId,
+      applicantInviteUrl: inviteUrl,
+      status: 'pending',
+      mocked,
+      mode
+    })
   };
 };
