@@ -152,6 +152,40 @@ async function handleGet(event, supabase, user, profile, jobId) {
   const isProvider = data.provider_id === user.id && callerActsAsProvider(profile, user.id);
   if (!isMember && !isProvider) return jsonResponse(403, { error: 'forbidden' });
   if (Array.isArray(data.legs)) data.legs.sort((a,b) => a.sequence - b.sequence);
+  // Enrich assignments with driver display name + photo so the shared
+  // status screen can show "who is driving". Done with manual joins to
+  // avoid relying on PostgREST FK relationships that may not be wired
+  // up in older environments.
+  const assignments = Array.isArray(data.assignments) ? data.assignments : [];
+  const driverIds = [...new Set(assignments.map(a => a.driver_id).filter(Boolean))];
+  if (driverIds.length) {
+    const { data: drvs } = await supabase.from('drivers')
+      .select('id, profile_id, display_name').in('id', driverIds);
+    const profileIds = (drvs || []).map(d => d.profile_id).filter(Boolean);
+    let profMap = {};
+    if (profileIds.length) {
+      const { data: profs } = await supabase.from('profiles')
+        .select('id, full_name, avatar_url').in('id', profileIds);
+      profMap = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    }
+    const drvMap = Object.fromEntries((drvs || []).map(d => {
+      const p = d.profile_id ? profMap[d.profile_id] : null;
+      return [d.id, {
+        driver_id:  d.id,
+        name:       (p && p.full_name) || d.display_name || 'Driver',
+        avatar_url: (p && p.avatar_url) || null
+      }];
+    }));
+    for (const a of assignments) {
+      a.driver = drvMap[a.driver_id] || null;
+    }
+  }
+  // Compute current leg = first leg whose completed_at is null (or last
+  // leg if all complete). Lets the status screen render a stable "now".
+  if (Array.isArray(data.legs) && data.legs.length) {
+    const pending = data.legs.find(l => !l.completed_at);
+    data.current_leg = pending || data.legs[data.legs.length - 1];
+  }
   return jsonResponse(200, { job: data });
 }
 

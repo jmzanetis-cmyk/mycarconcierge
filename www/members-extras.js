@@ -439,6 +439,55 @@
       } catch { return null; }
     }
 
+    // Shared status renderer used by member appointment status, member
+    // vehicle-detail page, and provider Vehicle Transfers panel. Renders
+    // current leg + assigned driver name/photo + an ETA placeholder so the
+    // experience is consistent across surfaces. Returns HTML string.
+    window.renderConciergeStatusCard = function(j, opts = {}) {
+      const escHtml = (s) => String(s == null ? '' : s)
+        .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+        .replaceAll('"','&quot;').replaceAll("'",'&#39;');
+      if (!j) return '';
+      const statusLabel = escHtml((j.status || 'requested').replaceAll('_',' ').toUpperCase());
+      const tier      = Number.isInteger(j.tier)     ? j.tier     : '?';
+      const scenario  = Number.isInteger(j.scenario) ? j.scenario : '?';
+      const accepted  = (j.assignments || []).filter(a => a.accepted_at);
+      // Drivers (joined name + photo) — server enriches assignments[].driver
+      const driversHtml = accepted.map(a => {
+        const d = a.driver || {};
+        const initials = (d.name || '?').split(/\s+/).map(p => p[0]).join('').slice(0,2).toUpperCase();
+        const avatar = d.avatar_url
+          ? `<img src="${escHtml(d.avatar_url)}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" />`
+          : `<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-gold);color:#000;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;">${escHtml(initials)}</div>`;
+        return `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;">${avatar}<span style="font-size:0.85rem;">${escHtml(d.name || 'Driver')}</span></span>`;
+      }).join('');
+      const leg = j.current_leg || (Array.isArray(j.legs) && j.legs[0]) || null;
+      const legHtml = leg ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">
+        <strong>Leg ${escHtml(leg.sequence)}:</strong> ${escHtml(leg.from_address || '—')} → ${escHtml(leg.to_address || '—')}
+      </div>` : '';
+      // ETA placeholder — real ETA arrives once the Driver app posts
+      // location pings. Until then we surface scheduled_start_at if known.
+      const eta = j.scheduled_start_at
+        ? new Date(j.scheduled_start_at).toLocaleString()
+        : 'Awaiting driver dispatch';
+      const cancelBtn = (j.status === 'requested' || j.status === 'scheduled')
+        ? `<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="window.cancelConciergeJob('${escHtml(j.id)}','${escHtml(opts.packageId || '')}','${escHtml(j.appointment_id || '')}')">Cancel</button>`
+        : '';
+      return `
+        <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+            <div><strong>${mccIcon('car', 14)} Driver request</strong> · <span style="text-transform:uppercase;font-size:0.8rem;color:var(--accent-gold);">${statusLabel}</span></div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
+          </div>
+          ${legHtml}
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: ${escHtml(eta)}</div>
+          ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
+            : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
+          <div style="margin-top:6px;">${cancelBtn}</div>
+        </div>
+      `;
+    };
+
     window.loadConciergeStatusForAppointment = async function(packageId, appointmentId) {
       const container = document.getElementById('concierge-status-' + packageId);
       if (!container) return;
@@ -450,23 +499,10 @@
         const { jobs = [] } = await resp.json();
         const mine = jobs.filter(j => j.appointment_id === appointmentId && j.status !== 'cancelled');
         if (!mine.length) { container.innerHTML = ''; return; }
-        const j = mine[0];
-        const escHtml = (s) => String(s == null ? '' : s)
-          .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
-          .replaceAll('"','&quot;').replaceAll("'",'&#39;');
-        const statusLabel = escHtml((j.status || 'requested').replaceAll('_',' ').toUpperCase());
-        const tier        = Number.isInteger(j.tier)     ? j.tier     : '?';
-        const scenario    = Number.isInteger(j.scenario) ? j.scenario : '?';
-        const drivers     = (j.assignments || []).filter(a => a.accepted_at).length;
-        container.innerHTML = `
-          <div style="font-size:0.85rem;padding:10px;background:var(--bg-input);border-radius:var(--radius-sm);">
-            <strong>${mccIcon('car', 14)} Driver request:</strong> ${statusLabel} — Tier ${tier} (Scenario ${scenario})
-            ${drivers ? ` · ${drivers} driver(s) accepted` : ''}
-            ${j.status === 'requested' || j.status === 'scheduled' ? `
-              <button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="window.cancelConciergeJob('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId)}')">Cancel</button>
-            ` : ''}
-          </div>
-        `;
+        // Fetch the enriched single-job payload so we get driver name/photo.
+        const det = await fetch('/api/concierge/' + mine[0].id, { headers });
+        const job = det.ok ? (await det.json()).job : mine[0];
+        container.innerHTML = window.renderConciergeStatusCard(job, { packageId });
       } catch (e) { console.warn('[concierge] status load failed', e); }
     };
 
@@ -612,7 +648,7 @@
           method: 'POST', headers,
           body: JSON.stringify({
             tier, scenario,
-            appointment_id: appointmentId,
+            appointment_id: appointmentId || null,
             pickup_address: pickup,
             dropoff_address: dropoff,
             scheduled_start_at: time ? new Date(time).toISOString() : null,

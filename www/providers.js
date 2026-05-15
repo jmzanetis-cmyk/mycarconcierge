@@ -1895,8 +1895,16 @@
     async function renderActiveJobs() {
       const container = document.getElementById('active-jobs');
       const active = myBids.filter(b => b.status === 'accepted');
+      // Render the cross-appointment "Vehicle Transfers" panel above the
+      // job cards so providers see ALL inbound/outbound concierge jobs in
+      // one place, not just the per-job dropdown. Auto-refresh is wired
+      // through window.refreshProviderVehicleTransfers below.
+      const transfersHtml = '<div id="provider-vehicle-transfers" style="margin-bottom:18px;"></div>';
       if (!active.length) {
-        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No active jobs yet. Keep bidding!</p></div>';
+        container.innerHTML = transfersHtml + '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No active jobs yet. Keep bidding!</p></div>';
+        if (typeof window.refreshProviderVehicleTransfers === 'function') {
+          setTimeout(() => window.refreshProviderVehicleTransfers(), 200);
+        }
         return;
       }
       
@@ -1927,9 +1935,57 @@
         return renderJobDashboard(b, pkg, pkgStatus, vehicleName, appointment, transfer, memberLocation);
       }));
       
-      container.innerHTML = jobCards.join('');
+      container.innerHTML = transfersHtml + jobCards.join('');
+      if (typeof window.refreshProviderVehicleTransfers === 'function') {
+        setTimeout(() => window.refreshProviderVehicleTransfers(), 200);
+      }
     }
-    
+
+    // Cross-appointment "Vehicle Transfers" panel — every concierge job
+    // visible to this provider, regardless of which appointment card it
+    // belongs to. Uses the shared status renderer (members-extras.js
+    // window.renderConciergeStatusCard) so member + provider surfaces look
+    // identical.
+    window.refreshProviderVehicleTransfers = async function() {
+      const host = document.getElementById('provider-vehicle-transfers');
+      if (!host) return;
+      const headers = await providerConciergeAuthHeader();
+      if (!headers) { host.innerHTML = ''; return; }
+      try {
+        const resp = await fetch('/api/concierge?role=provider', { headers });
+        if (!resp.ok) { host.innerHTML = ''; return; }
+        const { jobs = [] } = await resp.json();
+        const live = jobs.filter(j => j.status !== 'cancelled' && j.status !== 'completed');
+        if (!live.length) { host.innerHTML = ''; return; }
+        // Hydrate each job with the enriched single-job payload (driver
+        // name/photo + current_leg). Capped at 6 to keep this cheap.
+        const enriched = await Promise.all(live.slice(0, 6).map(async j => {
+          try {
+            const det = await fetch('/api/concierge/' + j.id, { headers });
+            if (det.ok) return (await det.json()).job;
+          } catch {}
+          return j;
+        }));
+        const cards = enriched.map(j => (window.renderConciergeStatusCard
+          ? window.renderConciergeStatusCard(j, { packageId: '' })
+          : '')).join('');
+        host.innerHTML = `
+          <div class="logistics-section">
+            <div class="logistics-section-header">
+              <div class="logistics-section-title">${mccIcon('truck', 16)} Vehicle Transfers</div>
+              <button class="btn btn-ghost btn-sm" onclick="window.refreshProviderVehicleTransfers()">${mccIcon('refresh-cw', 12)} Refresh</button>
+            </div>
+            <div class="logistics-section-content" style="display:flex;flex-direction:column;gap:8px;">
+              ${cards}
+            </div>
+          </div>
+        `;
+      } catch (e) {
+        host.innerHTML = '';
+        console.warn('[concierge] vehicle transfers refresh failed', e);
+      }
+    };
+
     async function renderJobDashboard(bid, pkg, pkgStatus, vehicleName, appointment, transfer, memberLocation) {
       const packageId = bid.package_id;
       const memberId = pkg?.member_id;
