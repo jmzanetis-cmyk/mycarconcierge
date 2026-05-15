@@ -50,10 +50,17 @@ async function sendEmail(to, subject, html) {
 async function notify(supabase, userId, type, title, message) {
   if (!userId) return false;
   try {
-    await supabase.from('notifications').insert({ user_id: userId, type, title, message });
+    // Supabase reports insert failures via the returned { error } object
+    // rather than by throwing, so we have to inspect both the response and
+    // any thrown exception to avoid silently swallowing failures.
+    const { error } = await supabase.from('notifications').insert({ user_id: userId, type, title, message });
+    if (error) {
+      console.error('[provider-application-review] notification insert failed:', error.message);
+      return false;
+    }
     return true;
   } catch (e) {
-    console.error('[provider-application-review] notification insert failed:', e.message);
+    console.error('[provider-application-review] notification insert threw:', e.message);
     return false;
   }
 }
