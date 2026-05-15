@@ -414,3 +414,41 @@ Documented here so the Driver app team plans for the gaps:
 - Driver onboarding/background-check workflow — drivers are seeded as
   pre-vetted MCC employees/contractors for v1.
 - Member-facing live tracking — pings are not exposed to members.
+
+---
+
+## Member & provider concierge endpoints (Task #369)
+
+Members and providers can now create concierge jobs themselves. These hit a
+separate Netlify function (`netlify/functions/concierge-jobs-public.js`,
+proxied at `/api/concierge/*`) that uses **Supabase JWT bearer tokens** —
+the same `auth.users` session the user already has — and authoritatively
+re-reads `appointments.member_id` / `appointments.provider_id` to gate
+ownership. Leg expansion is delegated to the shared
+`netlify/functions/_concierge-scenarios.js` so members and providers
+**cannot** invent leg sequences.
+
+| Method & Path                       | Caller     | Body / Query                                         | Notes |
+|-------------------------------------|------------|------------------------------------------------------|-------|
+| `GET  /api/concierge?role=member`   | member     | —                                                    | Lists jobs where `member_id = auth.uid()`. |
+| `GET  /api/concierge?role=provider` | provider   | —                                                    | Caller must have `profiles.role='provider'` (or secondary). Lists `provider_id = auth.uid()`. |
+| `GET  /api/concierge/:job_id`       | either     | —                                                    | 403 unless caller is the named member or provider. |
+| `POST /api/concierge`               | member     | `{tier,scenario,appointment_id?,pickup_address,dropoff_address,notes?}` | `member_id` is forced to `auth.uid()`. If `appointment_id` is supplied, `appointments.member_id` must equal the caller. |
+| `POST /api/concierge`               | provider   | `{tier,scenario,appointment_id,...,created_by_kind:"provider"}` | `appointment_id` is REQUIRED. `appointments.provider_id` must equal caller. `member_id` is read from the appointment, never the body. |
+| `POST /api/concierge/:job_id/cancel`| either     | `{reason}` (3–500 chars)                             | Allowed for the named member, the named provider, or the original creator. Sets `status='cancelled'`. |
+
+Source-tracking columns added by `supabase/migrations/20260515d_concierge_created_by_kind.sql`:
+
+- `created_by_kind` — `'admin' | 'member' | 'provider' | 'system'` (default `'admin'`)
+- `created_by_id`   — `auth.users.id` of the requesting user (NULL for admin / system)
+
+Audit / events:
+- `admin_audit_log` writes `create_concierge_job` / `cancel_concierge_job`
+  with `metadata.source` and `performed_by = auth.uid()`.
+- `agent_events` emits `concierge.job_requested` and
+  `concierge.job_cancelled` (`source='concierge-jobs-public'`) so the
+  Concierge / Director agents can fan out notifications.
+
+Smoke tests: `node netlify/functions-tests/concierge-public.test.js`
+(8 tests covering auth, member ownership, provider role gating, scenario
+parity with the admin function, and cancel ownership rules).
