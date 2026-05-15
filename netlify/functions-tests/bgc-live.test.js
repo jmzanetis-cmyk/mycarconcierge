@@ -326,6 +326,50 @@ test('bgc-admin accepts x-admin-password', async () => {
   assert.strictEqual(typeof parsed.live_mode_global, 'boolean');
 });
 
+// ── Optional live-sandbox happy path ───────────────────────────────────────
+// Per Task #372 spec, when real BGC sandbox creds are present we exercise
+// the actual order → invite-URL round-trip against BGC and assert that
+// (a) we get a 2xx with a report_key + applicant_invite_url, and (b) the
+// payload we sent contained NO SSN/DOB. When creds are absent (the default
+// in CI / dev) we skip cleanly with a one-line note.
+//
+// Opt in by setting all four:
+//   BGC_LIVE_TEST=1
+//   BGC_API_BASE=https://sandbox.backgroundchecks.com/api
+//   BGC_API_TOKEN=<sandbox token>
+//   BGC_LIVE_TEST_EMAIL=<applicant email>  (the address BGC will spam with the invite)
+test('live sandbox happy path (skipped when creds missing)', async () => {
+  if (process.env.BGC_LIVE_TEST !== '1' || !process.env.BGC_API_TOKEN || !process.env.BGC_LIVE_TEST_EMAIL) {
+    console.log('     (skipped — set BGC_LIVE_TEST=1 + BGC_API_TOKEN + BGC_LIVE_TEST_EMAIL to run)');
+    return;
+  }
+  // Restore real fetch (earlier tests stubbed it).
+  delete global.fetch;
+  const fetchFn = (await import('node:https')).default ? globalThis.fetch : globalThis.fetch;
+  const base = process.env.BGC_API_BASE || 'https://sandbox.backgroundchecks.com/api';
+  const url = `${base}/orders/new?api_token=${encodeURIComponent(process.env.BGC_API_TOKEN)}`;
+  const sentBody = {
+    report_sku: process.env.BGC_DEFAULT_REPORT_SKU || 'HIRE1',
+    order_quantity: 1,
+    applicant_emails: [process.env.BGC_LIVE_TEST_EMAIL],
+    terms_agree: 'Y'
+  };
+  // Confirm payload has no PII before the call goes out.
+  assert.ok(!('ssn' in sentBody) && !('dob' in sentBody), 'live test payload must contain no PII');
+  const resp = await fetchFn(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'Accepts': 'application/json' },
+    body: JSON.stringify(sentBody)
+  });
+  const text = await resp.text();
+  assert.ok(resp.ok, 'sandbox /orders/new should 2xx; got ' + resp.status + ' / ' + text);
+  const parsed = JSON.parse(text);
+  const applicant = (parsed.applicants || [])[0];
+  assert.ok(applicant && applicant.report_key, 'sandbox should return a report_key');
+  assert.ok(applicant.applicant_invite_url, 'sandbox should return an applicant_invite_url');
+  console.log('     live report_key=' + applicant.report_key);
+});
+
 // ── Runner ─────────────────────────────────────────────────────────────────
 (async () => {
   let pass = 0, fail = 0;

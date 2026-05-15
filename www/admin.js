@@ -1529,6 +1529,23 @@
           // does. Failures here never block the table render — the badge
           // gracefully falls back to "Direct signup" / "Lead linked".
           await hydrateApplicationOutreachLeads(providers);
+          // Task #372 — hydrate the BGC Live/Mock pill from the dedicated
+          // admin endpoint. Failures are swallowed so the providers table
+          // still renders if the BGC endpoint is unreachable.
+          try {
+            const bgcResp = await fetch(`${apiBase}/api/admin/bgc/providers`, {
+              headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+            if (bgcResp.ok) {
+              const bgcJson = await bgcResp.json();
+              const liveMap = {};
+              (bgcJson.providers || []).forEach(b => { liveMap[b.provider_id] = b; });
+              providers = providers.map(p => liveMap[p.id] ? Object.assign({}, p, {
+                bgc_live_mode: liveMap[p.id].live_mode,
+                bgc_mode_reason: liveMap[p.id].mode_reason
+              }) : p);
+            }
+          } catch { /* non-fatal */ }
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
@@ -2750,7 +2767,13 @@
             <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">' + mccIcon('alert-triangle', 16) + '</span>' : ''}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
-            <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}</td>
+            <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}${
+              p.bgc_live_mode === true
+                ? ' <span title="' + (p.bgc_mode_reason || 'live BGC API') + '" style="display:inline-flex;align-items:center;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:700;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);margin-left:4px;">LIVE</span>'
+                : (p.bgc_live_mode === false
+                  ? ' <span title="' + (p.bgc_mode_reason || 'mock mode') + '" style="display:inline-flex;align-items:center;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:700;background:rgba(100,100,120,0.15);color:var(--text-muted);border:1px solid var(--border-subtle);margin-left:4px;">MOCK</span>'
+                  : '')
+            }</td>
             <td>${renderApplicationLeadBadge(p)}</td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
             <td>

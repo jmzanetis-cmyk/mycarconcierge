@@ -251,6 +251,15 @@
         '<p>' + escapeHtml(c.body(0)) + '</p>' +
         '<span class="mcc-bgc-label">' + escapeHtml(c.whatNextLabel) + '</span>' +
         '<ul style="margin:8px 0 0;padding-left:20px;color:#e8eaed;line-height:1.7;">' + bullets + '</ul>' +
+        // Task #372 — optional sub-account enrollment CTA. Providers can
+        // either let MCC order checks via the platform's BGC account
+        // (default) or enroll their own BGC sub-account so reports show
+        // up in their own console.
+        '<div style="margin-top:16px;padding:12px 14px;border:1px dashed rgba(212,168,85,0.4);border-radius:8px;background:rgba(212,168,85,0.05);">' +
+          '<div style="font-size:0.85rem;color:#d4a855;font-weight:600;margin-bottom:4px;">Optional: Run checks under your own BGC account</div>' +
+          '<div style="font-size:0.82rem;color:#c8ccd6;line-height:1.5;margin-bottom:8px;">Link a free BackgroundChecks.com sub-account so reports show up in your own console. Skip this if you\u2019re happy letting MCC handle the orders.</div>' +
+          '<button type="button" class="mcc-bgc-btn mcc-bgc-btn-secondary" style="font-size:0.82rem;padding:6px 12px;" onclick="window.MCC_BGC_Onboarding.openSubAccountEnroll()">Enroll BGC sub-account \u2192</button>' +
+        '</div>' +
       '</div>'
     );
   }
@@ -313,12 +322,26 @@
       return;
     }
     // Step 4 — close. Defer all employee creation + background-check
-    // initiation to the existing vetted flow in bgc-compliance.js.
+    // initiation to the existing vetted flow in bgc-compliance.js. Task #372
+    // also offers an inline link to the BGC sub-account enrollment page so
+    // providers who want their own BGC console can opt in immediately.
     close();
     if (window.bgcCompliance && typeof window.bgcCompliance.openAddEmployee === 'function') {
       window.bgcCompliance.openAddEmployee();
     } else if (window.bgcCompliance && typeof window.bgcCompliance.refresh === 'function') {
       window.bgcCompliance.refresh();
+    }
+  }
+
+  // Task #372 — public helper used by step 4 / dashboard CTAs to send the
+  // provider over to the BGC ClearChecksWidget enrollment page so we can
+  // create their sub-account and decrypt their api_key. Opening in a new
+  // tab keeps their MCC session intact.
+  function openSubAccountEnroll() {
+    try {
+      window.open('/bgc-enroll-account.html', '_blank', 'noopener');
+    } catch {
+      window.location.assign('/bgc-enroll-account.html');
     }
   }
 
@@ -337,7 +360,7 @@
   // `COPY` is exposed as a getter so external callers (e.g. the inline
   // signup-flow code in www/onboarding-provider.html) read the strings in
   // the currently active language.
-  const api = { open: open, close: close };
+  const api = { open: open, close: close, openSubAccountEnroll: openSubAccountEnroll };
   Object.defineProperty(api, 'COPY', {
     enumerable: true,
     get: function () { return _copy(); }
