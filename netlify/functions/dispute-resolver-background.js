@@ -1,5 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
 const crypto = require('node:crypto');
+// Task #254: shared AI Ops helpers (logAiAction, aiOpsSendSMS, callAI,
+// getAiOpsSettings) live in `_shared/ai-ops.js`. esbuild inlines this require
+// into the function bundle.
+const { getAiOpsSettings, callAI, logAiAction, aiOpsSendSMS } = require('./_shared/ai-ops');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -26,81 +30,6 @@ function verifySupabaseWebhookSignature(rawBody, signatureHeader) {
       Buffer.from(providedSig, 'hex')
     );
   } catch { return false; }
-}
-
-async function aiOpsSendSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return { sent: false };
-  try {
-    const clean = toPhone.replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    return r.ok ? { sent: true } : { sent: false };
-  } catch { return { sent: false }; }
-}
-
-async function callAI(prompt, maxTokens = 512) {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
-      });
-      const data = await r.json();
-      return { text: data.content?.[0]?.text || '' };
-    } catch {}
-  }
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-      const data = await r.json();
-      return { text: data.candidates?.[0]?.content?.parts?.[0]?.text || '' };
-    } catch {}
-  }
-  throw new Error('No AI provider available');
-}
-
-async function logAiAction(supabase, { module, actionType, targetId, decision, confidence = 0, autoExecuted = false, escalated = false, outcome = 'pending', errorDetails = null, executionTimeMs = 0 }) {
-  try {
-    await supabase.from('ai_action_log').insert({
-      module, action_type: actionType, target_id: targetId, decision,
-      confidence, auto_executed: autoExecuted, escalated, outcome,
-      error_details: errorDetails, execution_time_ms: executionTimeMs,
-      created_at: new Date().toISOString()
-    });
-  } catch {}
-}
-
-async function getAiOpsSettings(supabase) {
-  const threshold = Number.parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefund = Number.parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
-  try {
-    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
-    if (rows) {
-      const s = {};
-      for (const r of rows) {
-        if (r.key === 'confidence_threshold') s.threshold = Number.parseFloat(r.value);
-        if (r.key === 'max_auto_refund') s.maxRefund = Number.parseFloat(r.value);
-      }
-      return { threshold: s.threshold ?? threshold, maxRefundCents: (s.maxRefund ?? maxRefund) * 100 };
-    }
-  } catch {}
-  return { threshold, maxRefundCents: maxRefund * 100 };
 }
 
 async function runDisputeResolverImpl(supabase, completionId) {

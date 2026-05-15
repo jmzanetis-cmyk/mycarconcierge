@@ -1,21 +1,12 @@
 const { createClient } = require('@supabase/supabase-js');
+// Task #254: shared AI Ops helper. esbuild inlines this into the function bundle.
+const { logAiAction } = require('./_shared/ai-ops');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key);
-}
-
-async function logAiAction(supabase, { module, actionType, targetId, decision, confidence = 0, autoExecuted = false, escalated = false, outcome = 'pending', errorDetails = null, executionTimeMs = 0 }) {
-  try {
-    await supabase.from('ai_action_log').insert({
-      module, action_type: actionType, target_id: targetId, decision,
-      confidence, auto_executed: autoExecuted, escalated, outcome,
-      error_details: errorDetails, execution_time_ms: executionTimeMs,
-      created_at: new Date().toISOString()
-    });
-  } catch {}
 }
 
 async function runPaymentTrackerImpl(supabase) {
