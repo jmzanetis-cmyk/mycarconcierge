@@ -241,5 +241,75 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   assert.strictEqual(res.statusCode, 400, '8: bad scenario should be 400');
   console.log('  ✓ 8) bad scenario returns 400 validation error');
 
+  // ---- 9) provider transition: scheduled -> vehicle_received ----
+  lastInserted = {};
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: PROVIDER_X, role: 'provider' }, error: null }),
+    'concierge_jobs.maybeSingle': () => ({
+      data: { id: JOB_1, status: 'scheduled', member_id: MEMBER_A, provider_id: PROVIDER_X, notes: null },
+      error: null
+    })
+  };
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/transition`, method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { to_status: 'vehicle_received', note: 'received at bay 3' }
+  }));
+  assert.strictEqual(res.statusCode, 200, '9a: provider scheduled→vehicle_received should be 200, got ' + res.statusCode + ' ' + res.body);
+  assert.strictEqual(lastInserted['concierge_jobs.update'].row.status, 'vehicle_received');
+  console.log('  ✓ 9) provider can transition scheduled → vehicle_received');
+
+  // ---- 10) provider transition: forbidden hop -> 409 ----
+  dbState['concierge_jobs.maybeSingle'] = () => ({
+    data: { id: JOB_1, status: 'requested', member_id: MEMBER_A, provider_id: PROVIDER_X, notes: null },
+    error: null
+  });
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/transition`, method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { to_status: 'completed' }
+  }));
+  assert.strictEqual(res.statusCode, 409, '10: provider requested→completed should be 409');
+  console.log('  ✓ 10) provider cannot make a disallowed transition (409)');
+
+  // ---- 11) member transition: only problem_flagged is allowed ----
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: MEMBER_A, role: 'member' }, error: null }),
+    'concierge_jobs.maybeSingle': () => ({
+      data: { id: JOB_1, status: 'scheduled', member_id: MEMBER_A, provider_id: PROVIDER_X, notes: null },
+      error: null
+    })
+  };
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/transition`, method: 'POST',
+    headers: bearerFor(MEMBER_A),
+    body: { to_status: 'vehicle_received' }
+  }));
+  assert.strictEqual(res.statusCode, 409, '11a: member cannot mark vehicle_received');
+
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/transition`, method: 'POST',
+    headers: bearerFor(MEMBER_A),
+    body: { to_status: 'problem_flagged', note: 'driver was late' }
+  }));
+  assert.strictEqual(res.statusCode, 200, '11b: member can flag problem');
+  console.log('  ✓ 11) member transitions are limited to problem_flagged');
+
+  // ---- 12) transition forbidden for non-party caller -> 403 ----
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: MEMBER_B, role: 'member' }, error: null }),
+    'concierge_jobs.maybeSingle': () => ({
+      data: { id: JOB_1, status: 'scheduled', member_id: MEMBER_A, provider_id: PROVIDER_X, notes: null },
+      error: null
+    })
+  };
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/transition`, method: 'POST',
+    headers: bearerFor(MEMBER_B),
+    body: { to_status: 'problem_flagged' }
+  }));
+  assert.strictEqual(res.statusCode, 403, '12: non-party cannot transition');
+  console.log('  ✓ 12) non-party caller cannot transition (403)');
+
   console.log('\nAll concierge-jobs-public smoke tests passed.');
 })().catch(e => { console.error('TEST FAILURE:', e); process.exit(1); });

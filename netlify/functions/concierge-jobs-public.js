@@ -17,6 +17,10 @@
 //                                      provider_id must match the caller; the
 //                                      member_id is read from the appointment
 //   POST   /:job_id/cancel       — cancel a job (caller must be the creator)
+//   POST   /:job_id/transition   — provider/member-side status transition
+//                                    body { to_status, note? }
+//                                    allowed transitions are scoped per role
+//                                    (see TRANSITIONS below).
 //
 // SECURITY MODEL
 //   - Authentication is a bearer Supabase JWT (the SAME session cookie/token
@@ -233,6 +237,67 @@ async function handleCreate(event, supabase, user, profile, body) {
   return jsonResponse(200, { job: { ...jobRow, legs: legRows } });
 }
 
+// Allowed status transitions per caller role. Keeps the lifecycle tightly
+// gated so members and providers can only push the job through the states
+// they are actually responsible for.
+const TRANSITIONS = {
+  provider: {
+    scheduled:        ['vehicle_received','problem_flagged'],
+    in_progress:      ['vehicle_received','problem_flagged'],
+    vehicle_received: ['vehicle_released','problem_flagged'],
+    vehicle_released: ['completed','problem_flagged'],
+    requested:        ['problem_flagged']
+  },
+  member: {
+    requested:        ['problem_flagged'],
+    scheduled:        ['problem_flagged'],
+    in_progress:      ['problem_flagged'],
+    vehicle_received: ['problem_flagged'],
+    vehicle_released: ['problem_flagged']
+  }
+};
+
+async function handleTransition(event, supabase, user, profile, jobId, body) {
+  if (!isUuid(jobId)) return jsonResponse(400, { error: 'invalid job id' });
+  const toStatus = String(body.to_status || '').trim();
+  if (!toStatus) return jsonResponse(400, { error: 'to_status required' });
+  const note = body.note ? String(body.note).slice(0, 1000) : null;
+
+  const { data: job } = await supabase.from('concierge_jobs')
+    .select('id, status, member_id, provider_id, notes').eq('id', jobId).maybeSingle();
+  if (!job) return jsonResponse(404, { error: 'job not found' });
+
+  const isMember   = job.member_id   === user.id;
+  const isProvider = job.provider_id === user.id && callerActsAsProvider(profile, user.id);
+  if (!isMember && !isProvider) return jsonResponse(403, { error: 'forbidden' });
+  const role = isProvider ? 'provider' : 'member';
+
+  const allowed = (TRANSITIONS[role] && TRANSITIONS[role][job.status]) || [];
+  if (!allowed.includes(toStatus)) {
+    return jsonResponse(409, {
+      error: `${role} cannot move job from ${job.status} to ${toStatus}`,
+      allowed
+    });
+  }
+
+  const update = { status: toStatus };
+  if (note) update.notes = (job.notes ? job.notes + '\n---\n' : '') + `[${role} ${new Date().toISOString()}] ${note}`;
+
+  const { error } = await supabase.from('concierge_jobs').update(update).eq('id', jobId);
+  if (error) return jsonResponse(500, { error: error.message });
+
+  await audit(supabase, {
+    action: 'transition_concierge_job',
+    target_id: jobId, target_type: 'concierge_job',
+    metadata: { from: job.status, to: toStatus, source: role, note },
+    performed_by: user.id
+  });
+  await emitEvent(supabase, 'concierge.status_changed', {
+    job_id: jobId, from: job.status, to: toStatus, by: user.id, role
+  });
+  return jsonResponse(200, { ok: true, status: toStatus });
+}
+
 async function handleCancel(event, supabase, user, profile, jobId, body) {
   if (!isUuid(jobId)) return jsonResponse(400, { error: 'invalid job id' });
   const reason = (body.reason || '').toString().trim();
@@ -299,6 +364,8 @@ exports.handler = async function(event) {
     if (m && method === 'GET')  return await handleGet(event, supabase, user, profile, m[1]);
     m = route.match(/^([^/]+)\/cancel$/);
     if (m && method === 'POST') return await handleCancel(event, supabase, user, profile, m[1], body);
+    m = route.match(/^([^/]+)\/transition$/);
+    if (m && method === 'POST') return await handleTransition(event, supabase, user, profile, m[1], body);
     return jsonResponse(404, { error: 'Not found', path: route, method });
   } catch (e) {
     console.error('[concierge-jobs-public] handler error:', e);
@@ -310,3 +377,4 @@ exports.handler = async function(event) {
 module.exports.EXPAND_SCENARIO = EXPAND_SCENARIO;
 module.exports.SCENARIO_TIER   = SCENARIO_TIER;
 module.exports.expandLegs      = expandLegs;
+module.exports.TRANSITIONS     = TRANSITIONS;

@@ -475,6 +475,39 @@
       window.loadConciergeStatusForAppointment(packageId, appointmentId);
     };
 
+    // Best-effort defaults: pull saved member address (for pickup) and the
+    // appointment / provider shop address (for dropoff) so the member doesn't
+    // have to retype them.
+    async function loadConciergeDefaults(appointmentId) {
+      const out = { pickup: '', dropoff: '' };
+      try {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+          const { data: ses } = await supabaseClient.auth.getUser();
+          const uid = ses?.user?.id;
+          if (uid) {
+            const { data: prof } = await supabaseClient.from('profiles')
+              .select('address, city, state, zip').eq('id', uid).maybeSingle();
+            if (prof?.address) {
+              out.pickup = [prof.address, prof.city, prof.state, prof.zip].filter(Boolean).join(', ');
+            }
+          }
+          if (appointmentId) {
+            const { data: appt } = await supabaseClient.from('appointments')
+              .select('provider_id').eq('id', appointmentId).maybeSingle();
+            if (appt?.provider_id) {
+              const { data: prov } = await supabaseClient.from('profiles')
+                .select('business_name, address, city, state, zip')
+                .eq('id', appt.provider_id).maybeSingle();
+              if (prov?.address) {
+                out.dropoff = [prov.business_name, prov.address, prov.city, prov.state, prov.zip].filter(Boolean).join(', ');
+              }
+            }
+          }
+        }
+      } catch (e) { /* best-effort */ }
+      return out;
+    }
+
     window.openConciergeRequestModal = function(packageId, appointmentId) {
       const existing = document.getElementById('concierge-request-modal');
       if (existing) existing.remove();
@@ -528,6 +561,10 @@
               <input id="concierge-dropoff" class="input" type="text" placeholder="Shop address" />
             </label>
             <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:0.85rem;color:var(--text-muted);">Preferred pickup time (optional)</span>
+              <input id="concierge-time" class="input" type="datetime-local" />
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
               <span style="font-size:0.85rem;color:var(--text-muted);">Notes for the driver (optional)</span>
               <textarea id="concierge-notes" class="input" rows="3" placeholder="Gate code, key location, special instructions…"></textarea>
             </label>
@@ -540,6 +577,13 @@
         </div>
       `;
       document.body.appendChild(modal);
+      // Best-effort auto-fill once the modal is mounted.
+      loadConciergeDefaults(appointmentId).then(d => {
+        const p = document.getElementById('concierge-pickup');
+        const dr = document.getElementById('concierge-dropoff');
+        if (p && !p.value && d.pickup) p.value = d.pickup;
+        if (dr && !dr.value && d.dropoff) dr.value = d.dropoff;
+      });
     };
 
     window.submitConciergeRequest = async function(packageId, appointmentId) {
@@ -550,6 +594,7 @@
       const tier = Number(sel[0]); const scenario = Number(sel[1]);
       const pickup  = document.getElementById('concierge-pickup').value.trim();
       const dropoff = document.getElementById('concierge-dropoff').value.trim();
+      const time    = document.getElementById('concierge-time').value;
       const notes   = document.getElementById('concierge-notes').value.trim();
       if (!pickup || !dropoff) { errEl.textContent = 'Pickup and dropoff are required.'; return; }
       const headers = getConciergeAuthHeader();
@@ -563,12 +608,28 @@
             appointment_id: appointmentId,
             pickup_address: pickup,
             dropoff_address: dropoff,
+            scheduled_start_at: time ? new Date(time).toISOString() : null,
             notes: notes || null
           })
         });
         const body = await resp.json().catch(() => ({}));
         if (!resp.ok) { errEl.textContent = body.error || ('Request failed (' + resp.status + ')'); return; }
-        document.getElementById('concierge-request-modal').remove();
+        // Success state: replace modal body with confirmation + status link.
+        const jobId = body.job?.id || '';
+        const modal = document.getElementById('concierge-request-modal');
+        if (modal) {
+          modal.querySelector('.modal-body').innerHTML = `
+            <div style="text-align:center;padding:12px;">
+              <div style="font-size:2rem;color:var(--accent-green);">${mccIcon('check', 32)}</div>
+              <h4 style="margin:8px 0;">Driver request submitted!</h4>
+              <p style="font-size:0.9rem;color:var(--text-secondary);">Reference: <code>${jobId.slice(0, 8)}…</code></p>
+              <p style="font-size:0.85rem;color:var(--text-muted);">We'll notify you as soon as a driver accepts. You can track status on this appointment card.</p>
+              <div style="margin-top:12px;">
+                <button class="btn btn-primary" onclick="document.getElementById('concierge-request-modal').remove()">Done</button>
+              </div>
+            </div>
+          `;
+        }
         window.loadConciergeStatusForAppointment(packageId, appointmentId);
       } catch (e) {
         errEl.textContent = 'Network error: ' + e.message;

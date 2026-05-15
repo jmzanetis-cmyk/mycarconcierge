@@ -452,3 +452,33 @@ Audit / events:
 Smoke tests: `node netlify/functions-tests/concierge-public.test.js`
 (8 tests covering auth, member ownership, provider role gating, scenario
 parity with the admin function, and cancel ownership rules).
+
+### Status transitions
+
+`POST /api/concierge/:job_id/transition` body `{to_status, note?}` lets the
+named member or provider push the job through its lifecycle. The server
+enforces a per-role allow-list (mirrored in
+`netlify/functions/concierge-jobs-public.js` `TRANSITIONS`):
+
+| Caller role | From status         | Allowed `to_status`                 |
+|-------------|---------------------|-------------------------------------|
+| provider    | `scheduled`         | `vehicle_received`, `problem_flagged` |
+| provider    | `in_progress`       | `vehicle_received`, `problem_flagged` |
+| provider    | `vehicle_received`  | `vehicle_released`, `problem_flagged` |
+| provider    | `vehicle_released`  | `completed`, `problem_flagged`      |
+| provider    | `requested`         | `problem_flagged`                   |
+| member      | any active          | `problem_flagged` only              |
+
+Disallowed hops return `409` with the `allowed` list. Each successful
+transition writes an `admin_audit_log` row (`transition_concierge_job`)
+and emits an `agent_events` row (`concierge.status_changed`) so the
+notification fan-out can pick it up.
+
+### New job lifecycle states (migration 20260515d)
+
+The `concierge_jobs.status` CHECK constraint has been widened to include:
+
+- `requested` — member or provider initiated, no driver assigned yet
+- `vehicle_received` — provider confirmed the vehicle is at the shop
+- `vehicle_released` — provider released it for return
+- `problem_flagged` — needs admin attention

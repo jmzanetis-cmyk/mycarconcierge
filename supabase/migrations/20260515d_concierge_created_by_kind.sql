@@ -29,3 +29,26 @@ CREATE INDEX IF NOT EXISTS concierge_jobs_appointment_idx
 CREATE INDEX IF NOT EXISTS concierge_jobs_provider_idx
   ON public.concierge_jobs (provider_id, scheduled_start_at DESC)
   WHERE provider_id IS NOT NULL;
+
+-- ============================================================================
+-- Status lifecycle extensions for member/provider-driven coordination.
+--   'requested'        — member or provider has asked for a driver, but no
+--                        driver is yet assigned (replaces 'draft' for the
+--                        member/provider entry point).
+--   'vehicle_received' — provider has confirmed the vehicle arrived at the
+--                        shop (set via POST /api/concierge/:id/transition).
+--   'vehicle_released' — provider has released the vehicle for pickup /
+--                        return.
+--   'problem_flagged'  — member or provider raised an issue that needs
+--                        admin attention.
+-- ============================================================================
+
+ALTER TABLE public.concierge_jobs
+  DROP CONSTRAINT IF EXISTS concierge_jobs_status_check;
+ALTER TABLE public.concierge_jobs
+  ADD  CONSTRAINT concierge_jobs_status_check
+  CHECK (status IN (
+    'draft','requested','scheduled','in_progress',
+    'vehicle_received','vehicle_released',
+    'problem_flagged','completed','cancelled'
+  ));

@@ -2208,8 +2208,15 @@
     }
     
     // ---- Task #369: Concierge driver coordination (provider view) ----
+    // Track each rendered job dashboard so the auto-refresh interval can call
+    // refreshProviderConciergeJobs with the correct appointmentId per card.
+    window.__conciergeJobMap = window.__conciergeJobMap || new Map();
+
     function renderConciergeSection(packageId, appointment) {
       const apptId = appointment?.id || '';
+      window.__conciergeJobMap.set(packageId, apptId);
+      // Schedule a load after the HTML is inserted into the DOM.
+      setTimeout(() => window.refreshProviderConciergeJobs(packageId, apptId), 200);
       return `
         <div class="logistics-section">
           <div class="logistics-section-header">
@@ -2225,6 +2232,22 @@
         </div>
       `;
     }
+
+    window.transitionConciergeJob = async function(jobId, packageId, appointmentId, toStatus, promptLabel) {
+      const note = window.prompt(promptLabel || `Add a note for "${toStatus}" (optional):`, '') || '';
+      const headers = providerConciergeAuthHeader();
+      if (!headers) { alert('Please sign in again.'); return; }
+      const resp = await fetch('/api/concierge/' + jobId + '/transition', {
+        method: 'POST', headers,
+        body: JSON.stringify({ to_status: toStatus, note: note.trim() || null })
+      });
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => ({}));
+        alert('Transition failed: ' + (err.error || resp.status));
+        return;
+      }
+      window.refreshProviderConciergeJobs(packageId, appointmentId);
+    };
 
     function providerConciergeAuthHeader() {
       const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token');
@@ -2261,12 +2284,30 @@
             : '';
           const requester = j.created_by_kind === 'member' ? 'Member-requested'
                           : j.created_by_kind === 'provider' ? 'You requested' : 'Admin-created';
+          // Provider-allowed transitions, kept in sync with TRANSITIONS in
+          // netlify/functions/concierge-jobs-public.js. Driver acceptance is
+          // implied once any assignment has accepted_at — at that point the
+          // transition buttons are still allowed but the request modal is
+          // hidden upstream.
+          const transitions = [];
+          if (j.status === 'scheduled' || j.status === 'in_progress') {
+            transitions.push(`<button class="btn btn-secondary btn-sm" onclick="window.transitionConciergeJob('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId || '')}','vehicle_received','Confirm vehicle received at shop:')">${mccIcon('check', 12)} Mark Received</button>`);
+          }
+          if (j.status === 'vehicle_received') {
+            transitions.push(`<button class="btn btn-secondary btn-sm" onclick="window.transitionConciergeJob('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId || '')}','vehicle_released','Confirm vehicle released for return:')">${mccIcon('package', 12)} Mark Released</button>`);
+          }
+          if (j.status === 'vehicle_released') {
+            transitions.push(`<button class="btn btn-success btn-sm" onclick="window.transitionConciergeJob('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId || '')}','completed','Confirm job completed:')">${mccIcon('check', 12)} Mark Completed</button>`);
+          }
+          if (['requested','scheduled','in_progress','vehicle_received','vehicle_released'].includes(j.status)) {
+            transitions.push(`<button class="btn btn-warning btn-sm" onclick="window.transitionConciergeJob('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId || '')}','problem_flagged','Describe the problem:')">⚠ Flag Problem</button>`);
+          }
           return `
             <div style="padding:10px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:6px;">
               <div><strong>Tier ${tier} · Scenario ${scenario}</strong> — <span style="text-transform:uppercase;">${status}</span></div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${requester} · drivers ${accepted}/${total} accepted</div>
               ${j.notes ? `<div style="font-size:0.85rem;margin-top:4px;white-space:pre-wrap;">${escHtml(j.notes)}</div>` : ''}
-              <div style="margin-top:6px;">${cancelBtn}</div>
+              <div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${transitions.join('')} ${cancelBtn}</div>
             </div>
           `;
         }).join('');
@@ -2389,23 +2430,20 @@
       }
     };
 
-    // Auto-load concierge status whenever a job dashboard renders.
-    if (typeof window !== 'undefined') {
-      const _origRenderJobDashboard = typeof renderJobDashboard === 'function' ? renderJobDashboard : null;
-      if (_origRenderJobDashboard && !window.__conciergeAutoload) {
-        window.__conciergeAutoload = true;
-        document.addEventListener('click', () => { /* lazy hook — no-op */ });
-        // After each refresh of the job list, re-fetch concierge state.
-        const _kick = () => {
-          document.querySelectorAll('[id^="concierge-provider-"]').forEach(el => {
-            const pkgId = el.id.replace('concierge-provider-','');
-            window.refreshProviderConciergeJobs(pkgId, '');
-          });
-        };
-        setInterval(_kick, 30000);
-        // Initial nudge after first render tick.
-        setTimeout(_kick, 1500);
-      }
+    // Auto-refresh concierge sections every 30s using the per-card
+    // packageId→appointmentId map populated by renderConciergeSection.
+    if (typeof window !== 'undefined' && !window.__conciergeAutoRefreshStarted) {
+      window.__conciergeAutoRefreshStarted = true;
+      setInterval(() => {
+        if (!window.__conciergeJobMap) return;
+        for (const [pkgId, apptId] of window.__conciergeJobMap) {
+          if (document.getElementById('concierge-provider-' + pkgId)) {
+            window.refreshProviderConciergeJobs(pkgId, apptId);
+          } else {
+            window.__conciergeJobMap.delete(pkgId);
+          }
+        }
+      }, 30000);
     }
 
     function getNextTransferAction(currentStatus, transferId, packageId) {
