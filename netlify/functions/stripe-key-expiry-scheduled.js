@@ -25,7 +25,7 @@ const { Resend } = require('resend');
 const ADMIN_EMAIL = process.env.STRIPE_KEY_EXPIRY_ADMIN_EMAIL
   || process.env.ADMIN_NOTIFICATION_EMAIL
   || process.env.ADMIN_EMAIL
-  || 'jm.zanetis@gmail.com';
+  || '';
 const SETTINGS_KEY = 'stripe_key_expiry_date';
 const MODULE = 'stripe_key_expiry';
 
@@ -144,6 +144,10 @@ function buildEmailHtml({ daysUntil, expiryDateStr, threshold }) {
 async function sendAlertEmail({ daysUntil, expiryDateStr, threshold }) {
   const resend = getResend();
   if (!resend) return { sent: false, reason: 'no_resend' };
+  if (!ADMIN_EMAIL) {
+    console.error('[StripeKeyExpiry] No admin recipient configured. Set STRIPE_KEY_EXPIRY_ADMIN_EMAIL, ADMIN_NOTIFICATION_EMAIL, or ADMIN_EMAIL.');
+    return { sent: false, reason: 'no_admin_email' };
+  }
   const subject = threshold === 'alert_expired'
     ? `🚨 Stripe key EXPIRED (${expiryDateStr}) — rotate now`
     : threshold === 'alert_1d'
