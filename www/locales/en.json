@@ -57,11 +57,11 @@
   },
   "landing": {
     "heroBadge": "Your complete auto ownership platform",
-    "heroHeadline1": "One app.",
-    "heroHeadline2": "Every auto need.",
-    "heroHeadline3": "Zero hassle.",
-    "heroSubtitle": "Get quotes. Track maintenance. Keep your ride running. Shop for your next one—all in one place.",
-    "heroNudge": "That noise. That light. That thing you've been putting off. We make it easy to finally get it done.",
+    "heroHeadline1": "Everything your car needs.",
+    "heroHeadline2": "One free app.",
+    "heroHeadline3": "Save time and money.",
+    "heroSubtitle": "Compare bids from vetted local shops. Track service, recalls, registration, and insurance. Shop for your next ride. Everything you need to own a car — in one place, on your terms.",
+    "heroNudge": "That noise. That light. That thing you've been putting off. Create a free profile in under a minute and we'll line up trusted pros who compete for your job.",
     "openForBusinessLabel": "Now Live",
     "openForBusinessBody": "Now accepting members and providers nationwide — both profiles are free to create.",
     "openForBusinessMemberCta": "Create a member profile",
@@ -75,7 +75,7 @@
     "heroFreeMembersBody": "to create a member profile",
     "heroFreeProviders": "Free",
     "heroFreeProvidersBody": "to create a provider profile (bid credits sold separately)",
-    "joinAsProviderFree": "Create Your Provider Profile",
+    "joinAsProviderFree": "I'm a Shop or Pro",
     "createMemberAccount": "Create Member Account",
     "applyAsProvider": "Apply as Provider",
     "joinAsProvider": "Join as a Provider",
@@ -131,7 +131,7 @@
     "step4Desc": "Select the best fit and pay securely through escrow protection.",
     "ctaTitle": "Ready to take control of your auto care?",
     "ctaSubtitle": "Join vehicle owners who manage everything—service, maintenance, learning, and shopping—in one place.",
-    "getStartedFree": "Get Started Free"
+    "getStartedFree": "Create Your Free Profile"
   },
   "auth": {
     "welcomeBack": "Welcome Back",
