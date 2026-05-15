@@ -635,7 +635,8 @@
       }
       if (!user) return;
 
-      showMessage('Connecting your Facebook account...', 'info');
+      const providerLabel = oauthProvider === 'apple' ? 'Apple' : 'Facebook';
+      showMessage('Connecting your ' + providerLabel + ' account...', 'info');
 
       const { data: existing } = await supabaseClient
         .from('profiles')
