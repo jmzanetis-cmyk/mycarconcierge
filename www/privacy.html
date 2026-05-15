@@ -1,21 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="dark">
+<html lang="en">
 <head>
   <meta charset="UTF-8" />
   <title>Privacy Policy – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Privacy Policy for My Car Concierge marketplace platform." />
-  <meta name="theme-color" content="#12161c" />
+  <meta name="theme-color" content="#0a0a0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <script>
-    (function() {
-      const theme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', theme);
-    })();
-  </script>
   <link rel="manifest" href="/manifest.json" />
   <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
@@ -23,47 +16,24 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
-      --bg-deep: #12161c;
-      --bg-card: rgba(26, 32, 42, 0.9);
-      --bg-elevated: rgba(36, 44, 56, 0.95);
-      --text-primary: #f5f5f7;
-      --text-secondary: #a0a8b8;
-      --text-muted: #6b7280;
-      --accent-gold: #c9a227;
-      --accent-gold-soft: rgba(201, 162, 39, 0.18);
-      --accent-blue: #38bdf8;
-      --accent-blue-soft: rgba(56, 189, 248, 0.12);
-      --border-subtle: rgba(160, 168, 184, 0.15);
-      --border-medium: rgba(160, 168, 184, 0.25);
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.85);
+      --bg-elevated: rgba(28, 28, 42, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.15);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
       --radius-sm: 8px;
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
-    }
-
-    [data-theme="light"] {
-      --bg-deep: #f8fafc;
-      --bg-card: #ffffff;
-      --bg-elevated: #ffffff;
-      --text-primary: #1e293b;
-      --text-secondary: #475569;
-      --text-muted: #64748b;
-      --accent-gold: #b8942d;
-      --accent-gold-soft: rgba(184, 148, 45, 0.12);
-      --accent-blue: #1e3a5f;
-      --accent-blue-soft: rgba(30, 58, 95, 0.1);
-      --border-subtle: rgba(30, 58, 95, 0.12);
-      --border-medium: rgba(30, 58, 95, 0.2);
-    }
-
-    html.theme-transition,
-    html.theme-transition *,
-    html.theme-transition *::before,
-    html.theme-transition *::after {
-      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
     }
 
     * {
@@ -83,6 +53,7 @@
       color: var(--text-primary);
       line-height: 1.6;
       overflow-x: hidden;
+      padding-top: env(safe-area-inset-top);
     }
 
     .ambient-bg {
@@ -120,6 +91,7 @@
       z-index: 100;
       background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
       backdrop-filter: blur(12px);
+      padding-top: env(safe-area-inset-top);
     }
 
     header .container {
@@ -177,6 +149,7 @@
     .privacy-header {
       text-align: center;
       margin-bottom: 48px;
+      padding-top: env(safe-area-inset-top);
     }
 
     .privacy-header h1 {
@@ -333,12 +306,8 @@
     }
 
     .rights-box li::before {
-      content: '';
-      display: inline-block;
-      width: 14px;
-      height: 14px;
-      background: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 24 24' fill='none' stroke='%2338bdf8' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20 6 9 17l-5-5'/%3E%3C/svg%3E") no-repeat center;
-      vertical-align: middle;
+      content: '✓';
+      color: var(--accent-blue);
     }
 
     .highlight-box {
@@ -472,26 +441,6 @@
       }
     }
   </style>
-<!-- SEO-INJECT:START -->
-  <link rel="canonical" href="https://www.mycarconcierge.com/privacy.html" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
-  <meta name="description" content="Privacy Policy for My Car Concierge marketplace platform." />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="My Car Concierge" />
-  <meta property="og:url" content="https://www.mycarconcierge.com/privacy.html" />
-  <meta property="og:title" content="Privacy Policy – My Car Concierge" />
-  <meta property="og:description" content="Privacy Policy for My Car Concierge marketplace platform." />
-  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
-  <meta property="og:locale" content="en_US" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@mycarconcierge" />
-  <meta name="twitter:title" content="Privacy Policy – My Car Concierge" />
-  <meta name="twitter:description" content="Privacy Policy for My Car Concierge marketplace platform." />
-  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
-<!-- SEO-INJECT:END -->
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -513,7 +462,7 @@
     <div class="container">
       <div class="privacy-header">
         <h1>Privacy <span class="highlight">Policy</span></h1>
-        <div class="last-updated">Last Updated: March 22, 2026</div>
+        <div class="last-updated">Last Updated: December 7, 2025</div>
       </div>
 
       <div class="privacy-body">
@@ -570,7 +519,6 @@
           <ul>
             <li><strong>Provide Services:</strong> To facilitate connections between Members and Providers, process transactions, and deliver our core platform functionality</li>
             <li><strong>Account Management:</strong> To create and maintain your account, verify your identity, and authenticate your access</li>
-            <li><strong>Two-Factor Authentication:</strong> To send SMS verification codes to your phone number when 2FA is enabled, enhancing your account security</li>
             <li><strong>Communication:</strong> To send service updates, respond to inquiries, and facilitate communication between users</li>
             <li><strong>Payment Processing:</strong> To process payments, manage billing, and handle refunds or disputes</li>
             <li><strong>Platform Improvement:</strong> To analyze usage patterns, troubleshoot issues, and enhance our Service</li>
@@ -599,15 +547,10 @@
 
           <h3>With Third-Party Service Providers</h3>
           <ul>
-            <li><strong>Supabase:</strong> Our primary database and authentication infrastructure. Your account data, vehicle records, service history, and messages are stored in Supabase-hosted PostgreSQL databases. Supabase processes data in accordance with their privacy policy at supabase.com/privacy.</li>
-            <li><strong>SMS Communications (Twilio):</strong> We use Twilio to send SMS verification codes for two-factor authentication (2FA) and appointment reminders. When you enable SMS features, your phone number is shared with Twilio solely for the purpose of delivering messages. Twilio processes this data in accordance with their privacy policy at twilio.com/legal/privacy.</li>
-            <li><strong>Push Notifications (Firebase Cloud Messaging / FCM):</strong> We use Google Firebase Cloud Messaging to send push notifications to your mobile device. Your device push token is stored in our system and shared with FCM to deliver notifications about bids, appointments, and account activity. FCM is subject to Google's Privacy Policy at policies.google.com/privacy.</li>
-            <li><strong>Email Delivery (Resend):</strong> Transactional emails (account confirmations, password resets, service notifications) are sent via Resend. Your email address is shared with Resend solely to deliver these messages. Resend's privacy policy is available at resend.com/legal/privacy-policy.</li>
-            <li><strong>Document Scanning (Google Cloud Vision):</strong> When you use the registration document scan or insurance card OCR feature, images you upload are processed by Google Cloud Vision API for text extraction. Images are transmitted to Google's servers for OCR processing and are not stored by Google beyond the processing request. See Google's Cloud Privacy Notice at cloud.google.com/terms/cloud-privacy-notice.</li>
-            <li><strong>AI Features (Anthropic / Google Gemini):</strong> Our AI-powered features — including the helpdesk chat, Dream Car Finder, OBD diagnostic explanations, and content generation — use Anthropic's Claude and Google's Gemini APIs. Text you submit through these features may be processed by these providers. We do not send personally identifiable information to AI providers beyond what is necessary for the specific feature. Anthropic's privacy policy is at anthropic.com/privacy; Google's AI privacy information is at policies.google.com/privacy.</li>
-            <li><strong>Analytics:</strong> Anonymized platform usage data (pages viewed, feature interactions) is used internally to understand how users interact with the Service and improve functionality.</li>
-            <li><strong>Background Screening (BackgroundChecks.com):</strong> Providers who opt in to background screening share identity information with BackgroundChecks.com for criminal record and motor vehicle record (MVR) checks. This data is handled exclusively by BackgroundChecks.com under their own privacy policy and is not stored on MCC servers beyond a reference check ID.</li>
-            <li><strong>Cold Email Outreach (Instantly.ai):</strong> Our business development and outreach activities use Instantly.ai for email campaign delivery, warmup, and deliverability monitoring. Business contact information sourced through our provider and investor outreach programs may be transmitted to Instantly.ai solely for the purpose of sending outreach emails. Instantly.ai's privacy policy is available at instantly.ai/privacy. This processing applies only to business outreach contacts and is not related to member or consumer account data.</li>
+            <li><strong>Cloud Hosting:</strong> Data storage and processing services</li>
+            <li><strong>Analytics:</strong> Services that help us understand platform usage</li>
+            <li><strong>Customer Support:</strong> Tools that help us respond to user inquiries</li>
+            <li><strong>Email Services:</strong> Platforms used to send transactional and promotional emails</li>
           </ul>
 
           <h3>Legal and Safety</h3>
@@ -623,29 +566,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">5</span>SMS Communications</h2>
-          
-          <h3>Consent</h3>
-          <p>By providing your mobile phone number and checking the SMS consent box during registration, you consent to receive text messages from My Car Concierge. This consent is not a condition of purchase.</p>
-          
-          <h3>Message Types</h3>
-          <ul>
-            <li>Service updates and notifications</li>
-            <li>Bid alerts from service providers</li>
-            <li>Appointment reminders</li>
-            <li>Account security alerts</li>
-            <li>Promotional messages (you can opt out separately)</li>
-          </ul>
-          
-          <h3>Opt-Out</h3>
-          <p>Text <strong>STOP</strong> to any message to unsubscribe. Text <strong>HELP</strong> for assistance.</p>
-          
-          <h3>Data Usage</h3>
-          <p>Your phone number is used solely for sending you requested notifications and will not be shared with third parties for their marketing purposes. See our <a href="/sms-consent.html">SMS Policy</a> for full details.</p>
-        </div>
-
-        <div class="privacy-section">
-          <h2><span class="section-number">6</span>Data Security</h2>
+          <h2><span class="section-number">5</span>Data Security</h2>
           <p>We implement robust security measures to protect your information:</p>
           <ul>
             <li><strong>Encryption:</strong> Data is encrypted in transit using TLS/SSL and at rest using industry-standard encryption</li>
@@ -658,7 +579,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2 id="cookies"><span class="section-number">7</span>Cookies and Tracking</h2>
+          <h2><span class="section-number">6</span>Cookies and Tracking</h2>
           <p>We use cookies and similar tracking technologies to enhance your experience:</p>
           
           <h3>Types of Cookies We Use</h3>
@@ -680,7 +601,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">8</span>Your Rights</h2>
+          <h2><span class="section-number">7</span>Your Rights</h2>
           <p>We respect your rights regarding your personal data. Depending on your location, you may have the following rights:</p>
 
           <div class="rights-box">
@@ -717,89 +638,23 @@
 
           <h3>Exercising Your Rights</h3>
           <p>To exercise any of these rights, please contact us at <a href="mailto:privacy@mycarconcierge.com" style="color:var(--accent-blue);">privacy@mycarconcierge.com</a>. We will respond to your request within 30 days (or as required by applicable law). We may need to verify your identity before processing your request.</p>
-          
-          <h3>Account Deletion</h3>
-          <p>You can delete your account at any time directly from within the app. To delete your account:</p>
-          <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
-            <li>Log in to your account</li>
-            <li>Navigate to <strong>Settings</strong></li>
-            <li>Scroll to the <strong>Danger Zone</strong> section</li>
-            <li>Click <strong>Delete Account</strong> and confirm by typing "DELETE"</li>
-          </ol>
-          <p style="margin-top: 1rem;">When you delete your account, we permanently remove your personal data including profile information, vehicles, service history, and preferences. Some information (such as anonymized payment records) may be retained for legal, tax, and audit purposes as required by law. After deletion, you will receive a confirmation email.</p>
-        </div>
-
-        <div class="privacy-section" id="data-retention">
-          <h2><span class="section-number">9</span>Data Retention</h2>
-          <p>We retain your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy. The table below provides specific retention periods for each category of data:</p>
-          <div style="overflow-x:auto;margin:20px 0;">
-            <table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
-              <thead>
-                <tr style="background:rgba(201,168,76,0.1);border-bottom:2px solid rgba(201,168,76,0.25);">
-                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Data Category</th>
-                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Retention Period</th>
-                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Reason</th>
-                </tr>
-              </thead>
-              <tbody style="color:var(--text-secondary);">
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Account Profile &amp; Settings</strong></td>
-                  <td style="padding:10px 14px;">While account is active + 30 days after deletion</td>
-                  <td style="padding:10px 14px;">Account recovery period; then permanently deleted</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Payment &amp; Transaction Records</strong></td>
-                  <td style="padding:10px 14px;">7 years</td>
-                  <td style="padding:10px 14px;">IRS requirements, tax obligations, and financial regulations</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Service Job History</strong></td>
-                  <td style="padding:10px 14px;">5 years after account closure</td>
-                  <td style="padding:10px 14px;">Dispute resolution and warranty reference</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Vehicle Records</strong></td>
-                  <td style="padding:10px 14px;">Duration of account + 30-day grace period</td>
-                  <td style="padding:10px 14px;">Deleted with account unless part of service history</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Communication &amp; Message Logs</strong></td>
-                  <td style="padding:10px 14px;">3 years</td>
-                  <td style="padding:10px 14px;">Dispute resolution, safety investigations, and fraud prevention</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">SMS &amp; Email Consent Records</strong></td>
-                  <td style="padding:10px 14px;">5 years</td>
-                  <td style="padding:10px 14px;">TCPA compliance and regulatory audit trail</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Background Check Records</strong></td>
-                  <td style="padding:10px 14px;">7 years from screening date</td>
-                  <td style="padding:10px 14px;">FCRA compliance and provider verification audit</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Security &amp; Login Logs</strong></td>
-                  <td style="padding:10px 14px;">90 days</td>
-                  <td style="padding:10px 14px;">Fraud detection and account security</td>
-                </tr>
-                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Cookie &amp; Analytics Data</strong></td>
-                  <td style="padding:10px 14px;">13 months from collection</td>
-                  <td style="padding:10px 14px;">Platform analytics and performance improvement</td>
-                </tr>
-                <tr style="background:rgba(255,255,255,0.02);">
-                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Anonymized / Aggregated Data</strong></td>
-                  <td style="padding:10px 14px;">Indefinite</td>
-                  <td style="padding:10px 14px;">No personal identifiers; used only for aggregate analytics</td>
-                </tr>
-              </tbody>
-            </table>
-          </div>
-          <p>Upon a verified request for deletion, we will remove or anonymize your personal information within 45 days, unless retention is required by law, ongoing legal proceeding, or legitimate business purpose. You will receive a confirmation when deletion is complete.</p>
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">10</span>Children's Privacy</h2>
+          <h2><span class="section-number">8</span>Data Retention</h2>
+          <p>We retain your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy:</p>
+          <ul>
+            <li><strong>Active Accounts:</strong> Data is retained while your account remains active</li>
+            <li><strong>Closed Accounts:</strong> We retain certain information for up to 7 years after account closure for legal, tax, and audit purposes</li>
+            <li><strong>Transaction Records:</strong> Payment and transaction records are retained as required by financial regulations</li>
+            <li><strong>Communication Logs:</strong> Retained for dispute resolution and safety purposes</li>
+            <li><strong>Anonymized Data:</strong> Aggregated, anonymized data may be retained indefinitely for analytics</li>
+          </ul>
+          <p>Upon request for deletion, we will remove or anonymize your personal information, unless retention is required by law or for legitimate business purposes.</p>
+        </div>
+
+        <div class="privacy-section">
+          <h2><span class="section-number">9</span>Children's Privacy</h2>
           <div class="warning-box">
             <p>Our Service is intended for users who are 18 years of age or older. We do not knowingly collect personal information from children under 18.</p>
           </div>
@@ -808,7 +663,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">11</span>Changes to This Policy</h2>
+          <h2><span class="section-number">10</span>Changes to This Policy</h2>
           <p>We may update this Privacy Policy from time to time to reflect changes in our practices, technology, legal requirements, or other factors. When we make changes:</p>
           <ul>
             <li>We will update the "Last Updated" date at the top of this policy</li>
@@ -819,7 +674,7 @@
         </div>
 
         <div class="privacy-section">
-          <h2><span class="section-number">12</span>Contact Information</h2>
+          <h2><span class="section-number">11</span>Contact Information</h2>
           <p>If you have questions, concerns, or requests regarding this Privacy Policy or our data practices, please contact us:</p>
           <div class="contact-info">
             <p><strong>My Car Concierge - Privacy Team</strong></p>
@@ -832,6 +687,23 @@
       </div>
     </div>
   </main>
-  <script src="/footer.js"></script>
+
+  <footer>
+    <div class="container">
+      <div class="footer-brand">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
+        <span>My Car Concierge</span>
+      </div>
+      <div class="footer-links">
+        <a href="terms.html">Terms of Service</a>
+        <a href="privacy.html">Privacy Policy</a>
+        <a href="data-deletion.html">Data Deletion</a>
+        <a href="index.html">Home</a>
+      </div>
+      <div class="footer-copy">
+        © 2026 My Car Concierge. All rights reserved.
+      </div>
+    </div>
+  </footer>
 </body>
 </html>

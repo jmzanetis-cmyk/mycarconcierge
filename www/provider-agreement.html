@@ -2,12 +2,11 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8" />
-  <title>Provider Partnership Agreement – My Car Concierge</title>
+  <title>Provider Agreement – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="description" content="Provider Agreement for My Car Concierge marketplace platform." />
   <meta name="theme-color" content="#0a0a0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -17,13 +16,11 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
       --bg-deep: #0a0a0f;
       --bg-card: rgba(18, 18, 28, 0.85);
       --bg-elevated: rgba(28, 28, 42, 0.9);
-      --bg-input: rgba(30, 38, 48, 0.9);
       --text-primary: #f4f4f6;
       --text-secondary: #9898a8;
       --text-muted: #6b6b7a;
@@ -37,37 +34,6 @@
       --radius-md: 14px;
       --radius-lg: 22px;
       --radius-xl: 32px;
-    }
-
-    [data-theme="light"] {
-      --bg-deep: #f3f4f6;
-      --bg-card: #ffffff;
-      --bg-elevated: #ffffff;
-      --bg-input: #f9f7f4;
-      --text-primary: #1a1a2e;
-      --text-secondary: #3d3d5c;
-      --text-muted: #5c5c7a;
-      --accent-gold: #b8942d;
-      --accent-gold-soft: rgba(184, 148, 45, 0.12);
-      --accent-blue: #1e3a5f;
-      --accent-blue-soft: rgba(30, 58, 95, 0.1);
-      --border-subtle: rgba(30, 58, 95, 0.10);
-      --border-medium: rgba(30, 58, 95, 0.18);
-    }
-
-    [data-theme="light"] .ambient-bg {
-      background:
-        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(184, 148, 45, 0.08), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(30, 58, 95, 0.06), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(30, 58, 95, 0.04), transparent 60%);
-    }
-
-    [data-theme="light"] .noise {
-      opacity: 0.015;
-    }
-
-    [data-theme="light"] header {
-      background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
     }
 
     * {
@@ -87,6 +53,7 @@
       color: var(--text-primary);
       line-height: 1.6;
       overflow-x: hidden;
+      padding-top: env(safe-area-inset-top);
     }
 
     .ambient-bg {
@@ -124,6 +91,7 @@
       z-index: 100;
       background: linear-gradient(to bottom, var(--bg-deep) 60%, transparent);
       backdrop-filter: blur(12px);
+      padding-top: env(safe-area-inset-top);
     }
 
     header .container {
@@ -181,6 +149,7 @@
     .agreement-header {
       text-align: center;
       margin-bottom: 48px;
+      padding-top: env(safe-area-inset-top);
     }
 
     .agreement-header h1 {
@@ -443,99 +412,6 @@
       color: var(--text-muted);
     }
 
-    .nav-actions {
-      display: flex;
-      align-items: center;
-      gap: 12px;
-    }
-
-    .back-link {
-      display: inline-flex;
-      align-items: center;
-      gap: 8px;
-      color: var(--accent-gold);
-      text-decoration: none;
-      font-weight: 500;
-      padding: 10px 16px;
-      background: var(--bg-card);
-      border-radius: var(--radius-md);
-      border: 1px solid var(--border-subtle);
-      transition: all 0.2s ease;
-    }
-
-    .back-link:hover {
-      background: var(--bg-elevated);
-      border-color: var(--accent-gold);
-    }
-
-    .theme-toggle {
-      background: var(--bg-card);
-      border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md);
-      padding: 10px;
-      cursor: pointer;
-      color: var(--text-primary);
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s ease;
-    }
-
-    .theme-toggle:hover {
-      background: var(--bg-elevated);
-      border-color: var(--accent-gold);
-    }
-
-    .print-btn {
-      padding: 10px 20px;
-      background: linear-gradient(135deg, var(--accent-blue), #5eb8f7);
-      color: #fff;
-      border: none;
-      font-weight: 600;
-      cursor: pointer;
-      border-radius: var(--radius-md);
-      font-family: 'Outfit', sans-serif;
-      transition: all 0.2s ease;
-    }
-
-    .print-btn:hover {
-      transform: translateY(-1px);
-      box-shadow: 0 4px 16px rgba(74, 124, 255, 0.4);
-    }
-
-    .agreement-form-section {
-      margin-top: 60px;
-      padding-top: 40px;
-      border-top: 2px solid var(--border-subtle);
-    }
-
-    .agreement-form-section h2 {
-      text-align: center;
-      margin-bottom: 30px;
-      font-family: 'Playfair Display', serif;
-      font-size: 1.6rem;
-      font-weight: 500;
-    }
-
-    #agreement-form-container {
-      max-width: 600px;
-      margin: 0 auto;
-    }
-
-    @media print {
-      .no-print { display: none !important; }
-      #agreement-form-container { display: none !important; }
-      .ambient-bg, .noise { display: none !important; }
-      body { background: #fff; color: #222; }
-      .agreement-body { background: #fff; border: 1px solid #ccc; }
-      .agreement-section p, .agreement-section li { color: #333; }
-      .agreement-section h2 { color: #222; }
-      .disclaimer-box, .highlight-box, .info-box, .warning-box { 
-        -webkit-print-color-adjust: exact; 
-        print-color-adjust: exact; 
-      }
-    }
-
     @media (max-width: 768px) {
       header .container {
         flex-direction: column;
@@ -566,29 +442,7 @@
         gap: 16px;
       }
     }
-  
-    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
-<!-- SEO-INJECT:START -->
-  <link rel="canonical" href="https://www.mycarconcierge.com/provider-agreement.html" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
-  <meta name="description" content="Provider Agreement for My Car Concierge marketplace platform." />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="My Car Concierge" />
-  <meta property="og:url" content="https://www.mycarconcierge.com/provider-agreement.html" />
-  <meta property="og:title" content="Provider Partnership Agreement – My Car Concierge" />
-  <meta property="og:description" content="Provider Agreement for My Car Concierge marketplace platform." />
-  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
-  <meta property="og:locale" content="en_US" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@mycarconcierge" />
-  <meta name="twitter:title" content="Provider Partnership Agreement – My Car Concierge" />
-  <meta name="twitter:description" content="Provider Agreement for My Car Concierge marketplace platform." />
-  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
-<!-- SEO-INJECT:END -->
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -600,31 +454,8 @@
         <img src="logo.png" alt="My Car Concierge" class="brand-icon">
       </a>
       <nav>
-        <a href="providers.html" class="back-link no-print">
-          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="15 18 9 12 15 6"></polyline>
-          </svg>
-          Back to Portal
-        </a>
-        <div class="nav-actions no-print">
-          <button class="theme-toggle" id="themeToggle" title="Toggle theme">
-            <svg class="sun-icon" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="12" cy="12" r="5"></circle>
-              <line x1="12" y1="1" x2="12" y2="3"></line>
-              <line x1="12" y1="21" x2="12" y2="23"></line>
-              <line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line>
-              <line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line>
-              <line x1="1" y1="12" x2="3" y2="12"></line>
-              <line x1="21" y1="12" x2="23" y2="12"></line>
-              <line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line>
-              <line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>
-            </svg>
-            <svg class="moon-icon" style="display:none;" xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
-            </svg>
-          </button>
-          <button class="print-btn" onclick="window.print()">Print / Save PDF</button>
-        </div>
+        <a href="index.html">Home</a>
+        <a href="login.html" class="btn-login">Log In</a>
       </nav>
     </div>
   </header>
@@ -632,29 +463,28 @@
   <main class="agreement-content">
     <div class="container">
       <div class="agreement-header">
-        <h1>Provider <span class="highlight">Partnership Agreement</span></h1>
-        <div class="last-updated">Last Updated: February 18, 2026</div>
+        <h1>Provider <span class="highlight">Agreement</span></h1>
+        <div class="last-updated">Last Updated: December 7, 2025</div>
       </div>
 
       <div class="agreement-body">
         <div class="disclaimer-box">
-          <h3><span class="icon-inline" data-icon="alert-triangle"></span> Key Points for Providers</h3>
+          <h3>⚠️ Key Points for Providers</h3>
           <ul>
-            <li>You are an INDEPENDENT CONTRACTOR — you set your own schedule, pricing, and service area</li>
-            <li>You are responsible for the quality of your work, which builds your reputation and earns repeat business</li>
-            <li>MCC is a customer acquisition platform — we connect you with customers, you deliver the expertise</li>
-            <li>Bid credits are NON-REFUNDABLE once purchased and are your investment in acquiring new customers</li>
-            <li>Maintaining proper licensing and insurance protects you and your customers</li>
-            <li>Strong ratings help you win more bids — providers below 4 stars (with 3+ reviews) may be subject to account review</li>
+            <li>You are an INDEPENDENT CONTRACTOR, not an employee of My Car Concierge</li>
+            <li>You are solely responsible for the quality of your work and services</li>
+            <li>MCC does NOT guarantee work outcomes or mediate service disputes</li>
+            <li>Bid credits are NON-REFUNDABLE once purchased</li>
+            <li>You must maintain proper licensing and insurance at all times</li>
+            <li>Low ratings (below 4 stars with 3+ reviews) may result in account suspension</li>
           </ul>
         </div>
 
         <div class="agreement-section">
           <h2><span class="section-number">1</span>Introduction</h2>
-          <p><strong>MCC connects you with quality customers who need your expertise. We handle the marketing, booking, and payment processing so you can focus on delivering great automotive service.</strong></p>
-          <p>This Provider Partnership Agreement ("Agreement") is a contract between you ("Provider", "you", or "your") and My Car Concierge, LLC ("MCC", "we", "us", or "our"). By registering as a Provider on the MCC platform, you acknowledge that you have read, understood, and agree to be bound by this Agreement.</p>
-          <p>MCC operates a customer acquisition platform that connects vehicle owners ("Members") with independent automotive service providers like you. As a Provider, you will have the opportunity to bid on service requests posted by Members and, if selected, perform automotive services directly for those Members.</p>
-          <p><strong>This Agreement governs our partnership — you bring the skills, we bring the customers.</strong> Your relationship with Members is separate and governed by the terms you agree upon with each Member for specific services.</p>
+          <p>This Provider Agreement ("Agreement") is a legally binding contract between you ("Provider", "you", or "your") and My Car Concierge, LLC ("MCC", "we", "us", or "our"). By registering as a Provider on the MCC platform, you acknowledge that you have read, understood, and agree to be bound by this Agreement.</p>
+          <p>MCC operates a marketplace platform that connects vehicle owners ("Members") with independent automotive service providers. As a Provider, you will have the opportunity to bid on service requests posted by Members and, if selected, perform automotive services directly for those Members.</p>
+          <p><strong>This Agreement governs your relationship with MCC as an independent contractor using our platform.</strong> Your relationship with Members is separate and governed by the terms you agree upon with each Member for specific services.</p>
         </div>
 
         <div class="agreement-section">
@@ -683,7 +513,7 @@
           <ul>
             <li>You have complete control over when, where, and how you perform services</li>
             <li>You are free to accept or reject any bid opportunity on the platform</li>
-            <li>You are free to work for competing platforms and maintain other business relationships — MCC believes in earning your loyalty, not locking you in</li>
+            <li>You may work for competing platforms and maintain other business relationships</li>
             <li>You are solely responsible for paying all applicable taxes, including self-employment tax, income tax, and any other taxes required by law</li>
             <li>You are responsible for providing your own tools, equipment, and supplies</li>
             <li>You are not entitled to any employee benefits from MCC, including health insurance, retirement plans, workers' compensation, or paid time off</li>
@@ -735,18 +565,7 @@
           <p>All payments on the MCC platform are processed through Stripe, our third-party payment processor. By using the platform, you agree to Stripe's terms of service.</p>
           <ul>
             <li><strong>Job Pricing:</strong> You set your own prices when submitting bids. MCC does not set or control your pricing.</li>
-            <li><strong>All-Inclusive Pricing:</strong> All bids must be <strong>all-inclusive</strong>, representing the total amount the Member will pay. Your bid must include:
-              <ul style="margin-top:8px;margin-bottom:8px;">
-                <li>Parts and materials</li>
-                <li>Labor charges</li>
-                <li>Applicable taxes</li>
-                <li>Shop and service fees</li>
-                <li>Disposal fees (if any)</li>
-                <li>Any other charges</li>
-              </ul>
-              <strong>No hidden fees or surprise charges are permitted.</strong> Members must know exactly what they will pay when accepting a bid.
-            </li>
-            <li><strong>Price Adjustments:</strong> If you discover additional work is needed during service, you may request a price adjustment. The new amount must also be all-inclusive. Members have <strong>4 hours</strong> to approve or decline the adjustment. If no response is received within 4 hours, you may suspend work until the Member responds.</li>
+            <li><strong>Platform Fee:</strong> MCC charges a platform fee on completed jobs, which is deducted from your payment. The current platform fee is disclosed in your Provider dashboard and during the bidding process.</li>
             <li><strong>Payment Hold:</strong> When a Member accepts your bid, the payment is held in escrow until the job is completed.</li>
             <li><strong>Payment Release:</strong> Funds are released to your connected Stripe account after the Member confirms job completion or after the applicable review period (typically 48 hours after marking the job complete).</li>
             <li><strong>Payout Timing:</strong> Once released, funds are transferred to your bank account according to Stripe's standard payout schedule (typically 2-3 business days).</li>
@@ -778,14 +597,14 @@
             <li>Treat all Members, MCC staff, and other Providers with respect and courtesy</li>
             <li>Communicate professionally through the platform and in person</li>
             <li>Never use threatening, harassing, discriminatory, or abusive language or behavior</li>
-            <li>Complete jobs booked through MCC on the platform — this ensures payment protection for both parties</li>
-            <li>Process payments for MCC-booked jobs through the platform's secure payment system</li>
+            <li>Not solicit Members to conduct transactions outside of the MCC platform</li>
+            <li>Not offer or accept cash payments or other off-platform payments for jobs initiated on MCC</li>
             <li>Maintain appropriate professional appearance when meeting with Members</li>
             <li>Never misrepresent your identity, qualifications, or the nature of services provided</li>
             <li>Protect Member privacy and not share their personal information with third parties</li>
             <li>Report any safety concerns or suspicious activity to MCC immediately</li>
           </ul>
-          <p>Repeated conduct issues may result in account review, and in serious cases, suspension.</p>
+          <p>Violations of this conduct policy may result in warnings, suspension, or permanent termination of your account at MCC's sole discretion.</p>
         </div>
 
         <div class="agreement-section">
@@ -822,17 +641,17 @@
 
         <div class="agreement-section">
           <h2><span class="section-number">11</span>Termination</h2>
-          <p>You can leave anytime — there are no long-term commitments or exit penalties. This Agreement may be terminated as follows:</p>
+          <p>This Agreement may be terminated as follows:</p>
           <ul>
             <li><strong>By You:</strong> You may terminate this Agreement at any time by deactivating your Provider account through the platform</li>
-            <li><strong>By MCC:</strong> MCC may terminate this Agreement with 30 days written notice</li>
+            <li><strong>By MCC Without Cause:</strong> MCC may terminate this Agreement at any time, with or without cause, with or without notice</li>
             <li><strong>By MCC For Cause:</strong> MCC may immediately terminate this Agreement for cause, including but not limited to: violation of this Agreement, fraudulent activity, illegal conduct, low ratings, failure to maintain eligibility requirements, or any conduct that damages MCC's reputation or platform</li>
           </ul>
           <p>Upon termination:</p>
           <ul>
-            <li>Your access to the Provider platform will be revoked</li>
-            <li>Unused Bid Credits may be forfeited upon termination for cause. Credits are not refundable but remain available as long as your account is active.</li>
-            <li>Pending payments for completed jobs will be paid out as normal. We don't hold your earned money.</li>
+            <li>Your access to the Provider platform will be immediately revoked</li>
+            <li>All unused Bid Credits will be forfeited</li>
+            <li>Pending payments for completed jobs will be processed according to standard timelines</li>
             <li>You must complete any in-progress jobs or make arrangements acceptable to the affected Members</li>
             <li>Your obligations under the indemnification and confidentiality sections survive termination</li>
           </ul>
@@ -883,11 +702,6 @@
           </div>
           <p style="margin-top: 20px;">By registering as a Provider on the MCC platform, you acknowledge that you have read this Agreement in its entirety, understand its terms, and agree to be bound by it.</p>
         </div>
-
-        <div class="agreement-form-section no-print">
-          <h2>Sign This Agreement</h2>
-          <div id="agreement-form-container"></div>
-        </div>
       </div>
     </div>
   </main>
@@ -904,70 +718,9 @@
         <a href="provider-agreement.html">Provider Agreement</a>
       </div>
       <div class="footer-copy">
-        © 2026 My Car Concierge. All rights reserved.
+        © 2025 My Car Concierge. All rights reserved.
       </div>
     </div>
   </footer>
-
-  <script src="/agreement-form.js"></script>
-  <script>
-    document.addEventListener('DOMContentLoaded', function() {
-      const savedTheme = localStorage.getItem('theme') || 'dark';
-      document.documentElement.setAttribute('data-theme', savedTheme);
-      updateThemeIcons(savedTheme);
-
-      const themeToggle = document.getElementById('themeToggle');
-      if (themeToggle) {
-        themeToggle.addEventListener('click', function() {
-          const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
-          const newTheme = currentTheme === 'light' ? 'dark' : 'light';
-          document.documentElement.setAttribute('data-theme', newTheme);
-          localStorage.setItem('theme', newTheme);
-          updateThemeIcons(newTheme);
-        });
-      }
-
-      function updateThemeIcons(theme) {
-        const sunIcon = document.querySelector('.sun-icon');
-        const moonIcon = document.querySelector('.moon-icon');
-        if (sunIcon && moonIcon) {
-          if (theme === 'light') {
-            sunIcon.style.display = 'none';
-            moonIcon.style.display = 'block';
-          } else {
-            sunIcon.style.display = 'block';
-            moonIcon.style.display = 'none';
-          }
-        }
-      }
-
-      if (typeof AgreementForm !== 'undefined') {
-        AgreementForm.createAgreementForm({
-          containerId: 'agreement-form-container',
-          agreementType: 'provider',
-          fields: ['full_name', 'business_name', 'ein_last4'],
-          acknowledgments: [
-            'I have read and understood all terms of this Partnership Agreement',
-            'I agree to maintain appropriate licenses and insurance',
-            'I am an independent contractor and not an employee',
-            'I understand MCC is a customer acquisition tool designed to help grow my business',
-            'I agree to complete platform-booked jobs through the MCC platform'
-          ],
-          onSubmit: function(formData) {
-            console.log('Provider Agreement submitted:', formData);
-            alert('Thank you for signing the Provider Agreement. Your agreement has been recorded.');
-          }
-        });
-      }
-    });
-  </script>
-  <script src="/mcc-icons.js?v=20260211"></script>
-  <script>
-    document.querySelectorAll('[data-icon]').forEach(function(el) {
-      var name = el.getAttribute('data-icon');
-      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
-      if (svg) el.innerHTML = svg;
-    });
-  </script>
 </body>
 </html>
