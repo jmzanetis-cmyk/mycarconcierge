@@ -376,6 +376,17 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   assert.strictEqual(res.statusCode, 409, '14b: edit blocked after driver acceptance');
   console.log('  ✓ 14) provider can edit shop address only before driver acceptance');
 
+  // ---- 14d) provider cannot edit pickup address (shop-side only) ----
+  dbState['concierge_job_drivers.then'] = () => ({ data: [], error: null });
+  dbState['profiles.maybeSingle'] = () => ({ data: { id: PROVIDER_X, role: 'provider' }, error: null });
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/update-address`, method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { field: 'pickup', address: '99 Member Origin' }
+  }));
+  assert.strictEqual(res.statusCode, 400, '14d: provider must not be able to edit pickup');
+  console.log('  ✓ 14d) provider cannot edit member pickup address (400)');
+
   // ---- 14c) member cannot edit address ----
   dbState['profiles.maybeSingle'] = () => ({ data: { id: MEMBER_A, role: 'member' }, error: null });
   dbState['concierge_job_drivers.then'] = () => ({ data: [], error: null });

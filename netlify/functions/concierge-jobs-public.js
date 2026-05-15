@@ -330,8 +330,10 @@ async function handleTransition(event, supabase, user, profile, jobId, body) {
 async function handleUpdateAddress(event, supabase, user, profile, jobId, body) {
   if (!isUuid(jobId)) return jsonResponse(400, { error: 'invalid job id' });
   const field = String(body.field || '').toLowerCase();
-  if (field !== 'pickup' && field !== 'dropoff') {
-    return jsonResponse(400, { error: 'field must be "pickup" or "dropoff"' });
+  // Providers may only adjust the shop side (dropoff). The member's pickup
+  // address is theirs to edit via the member surfaces, never the provider's.
+  if (field !== 'dropoff') {
+    return jsonResponse(400, { error: 'providers can only adjust the shop (dropoff) address; pickup is the member\'s to set' });
   }
   const address = String(body.address || '').trim();
   if (address.length < 3 || address.length > 500) {
