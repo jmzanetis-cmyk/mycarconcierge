@@ -2235,7 +2235,7 @@
 
     window.transitionConciergeJob = async function(jobId, packageId, appointmentId, toStatus, promptLabel) {
       const note = window.prompt(promptLabel || `Add a note for "${toStatus}" (optional):`, '') || '';
-      const headers = providerConciergeAuthHeader();
+      const headers = await providerConciergeAuthHeader();
       if (!headers) { alert('Please sign in again.'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/transition', {
         method: 'POST', headers,
@@ -2249,15 +2249,23 @@
       window.refreshProviderConciergeJobs(packageId, appointmentId);
     };
 
-    function providerConciergeAuthHeader() {
-      const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token');
-      return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+    async function providerConciergeAuthHeader() {
+      // Pull the token from Supabase's own session — its persisted
+      // localStorage key is project-specific (sb-<ref>-auth-token) and
+      // there's no writer for 'authToken'/'sb-token', so reading those
+      // keys directly always returned null and made every concierge
+      // request 401.
+      try {
+        const { data: { session } = {} } = await supabaseClient.auth.getSession();
+        const token = session && session.access_token;
+        return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+      } catch { return null; }
     }
 
     window.refreshProviderConciergeJobs = async function(packageId, appointmentId) {
       const container = document.getElementById('concierge-provider-' + packageId);
       if (!container) return;
-      const headers = providerConciergeAuthHeader();
+      const headers = await providerConciergeAuthHeader();
       if (!headers) { container.textContent = 'Sign in to view driver requests.'; return; }
       try {
         const resp = await fetch('/api/concierge?role=provider', { headers });
@@ -2324,7 +2332,7 @@
     window.cancelProviderConciergeJob = async function(jobId, packageId, appointmentId) {
       const reason = window.prompt('Why are you cancelling this driver request?', 'Coordination changed');
       if (!reason || reason.trim().length < 3) return;
-      const headers = providerConciergeAuthHeader();
+      const headers = await providerConciergeAuthHeader();
       if (!headers) { alert('Please sign in again to cancel.'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
@@ -2337,7 +2345,7 @@
       const label = field === 'pickup' ? 'pickup' : 'shop drop-off';
       const next = window.prompt(`Update ${label} address (drivers haven't accepted yet):`, currentAddress || '');
       if (!next || next.trim().length < 3) return;
-      const headers = providerConciergeAuthHeader();
+      const headers = await providerConciergeAuthHeader();
       if (!headers) { alert('Please sign in again to edit address.'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/update-address', {
         method: 'POST', headers,
@@ -2428,7 +2436,7 @@
       const dropoff = document.getElementById('prov-concierge-dropoff').value.trim();
       const notes   = document.getElementById('prov-concierge-notes').value.trim();
       if (!pickup || !dropoff) { errEl.textContent = 'Pickup and dropoff are required.'; return; }
-      const headers = providerConciergeAuthHeader();
+      const headers = await providerConciergeAuthHeader();
       if (!headers) { errEl.textContent = 'Please sign in again.'; return; }
       btn.disabled = true; btn.textContent = 'Submitting…';
       try {

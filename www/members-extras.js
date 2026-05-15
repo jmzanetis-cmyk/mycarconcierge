@@ -427,15 +427,22 @@
     }
 
     // ---- Task #369: Concierge driver request flow (member-initiated) ----
-    function getConciergeAuthHeader() {
-      const token = localStorage.getItem('authToken') || localStorage.getItem('sb-token');
-      return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+    async function getConciergeAuthHeader() {
+      // Use Supabase's own session — its persisted localStorage key is
+      // project-specific (sb-<ref>-auth-token) so we cannot read it directly
+      // by name. supabaseClient.auth.getSession() returns the active session
+      // regardless of storage key.
+      try {
+        const { data: { session } = {} } = await supabaseClient.auth.getSession();
+        const token = session && session.access_token;
+        return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+      } catch { return null; }
     }
 
     window.loadConciergeStatusForAppointment = async function(packageId, appointmentId) {
       const container = document.getElementById('concierge-status-' + packageId);
       if (!container) return;
-      const headers = getConciergeAuthHeader();
+      const headers = await getConciergeAuthHeader();
       if (!headers) return;
       try {
         const resp = await fetch('/api/concierge?role=member', { headers });
@@ -466,7 +473,7 @@
     window.cancelConciergeJob = async function(jobId, packageId, appointmentId) {
       const reason = window.prompt('Why are you cancelling this driver request?', 'Plans changed');
       if (!reason || reason.trim().length < 3) return;
-      const headers = getConciergeAuthHeader();
+      const headers = await getConciergeAuthHeader();
       if (!headers) { alert('Please sign in again to cancel.'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
@@ -597,7 +604,7 @@
       const time    = document.getElementById('concierge-time').value;
       const notes   = document.getElementById('concierge-notes').value.trim();
       if (!pickup || !dropoff) { errEl.textContent = 'Pickup and dropoff are required.'; return; }
-      const headers = getConciergeAuthHeader();
+      const headers = await getConciergeAuthHeader();
       if (!headers) { errEl.textContent = 'Please sign in again.'; return; }
       btn.disabled = true; btn.textContent = 'Submitting…';
       try {
