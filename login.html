@@ -448,7 +448,7 @@
         // Send brand-new OAuth signups (Facebook from #183, Apple from #287)
         // through the onboarding survey first so they land in the same
         // conversational flow as email signups.
-        const params = new URLSearchParams(window.location.search);
+        const params = new URLSearchParams(globalThis.location.search);
         const oauthProvider = params.get('oauth');
         if (oauthProvider === 'facebook' || oauthProvider === 'apple') {
           localStorage.setItem('mcc_portal', 'member');

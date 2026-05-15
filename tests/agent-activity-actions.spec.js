@@ -37,7 +37,7 @@ async function mountFixture(page, { containerId = 'aap-test-container' } = {}) {
     localStorage.setItem('mcc_admin_pass', 'test-password');
   }, containerId);
   await page.addScriptTag({ url: '/admin-agent-activity.js' });
-  await page.waitForFunction(() => typeof window.renderAgentActivityPanel === 'function');
+  await page.waitForFunction(() => typeof globalThis.renderAgentActivityPanel === 'function');
 }
 
 // Build a Matchmaker rank row that fleetApplyability() flags applyable=true
@@ -114,7 +114,7 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
 
     await mountFixture(page);
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         targetId: 'plan-1', targetKind: 'care_plan', limit: 10, showEmpty: true
       });
     });
@@ -183,7 +183,7 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
 
     await mountFixture(page);
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         targetId: 'plan-2', targetKind: 'care_plan', limit: 10, showEmpty: true
       });
     });
@@ -259,7 +259,7 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
 
     await mountFixture(page);
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         targetId: 'plan-3', targetKind: 'care_plan', limit: 10, showEmpty: true
       });
     });
@@ -329,7 +329,7 @@ test.describe('Agent Activity action buttons — Approve / Reject / Replay (T#28
 
     await mountFixture(page);
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         targetId: 'plan-4', targetKind: 'care_plan', limit: 10, showEmpty: true
       });
     });

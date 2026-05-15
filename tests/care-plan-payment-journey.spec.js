@@ -266,11 +266,11 @@ test.describe('Care plan payment journey (Task #282)', () => {
     await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
     await navigateToSection(page, 'care-plans');
     await dismissOverlays(page);
-    await page.waitForFunction(() => typeof window.loadCarePlansSection === 'function', null, { timeout: 10000 });
-    await page.evaluate(() => window.loadCarePlansSection());
+    await page.waitForFunction(() => typeof globalThis.loadCarePlansSection === 'function', null, { timeout: 10000 });
+    await page.evaluate(() => globalThis.loadCarePlansSection());
 
     await expect(page.locator('#care-plans-list')).toContainText(plan.title, { timeout: 10000 });
-    await page.evaluate((id) => window.viewCarePlan(id), plan.id);
+    await page.evaluate((id) => globalThis.viewCarePlan(id), plan.id);
     const detail = page.locator('#care-plan-detail');
     await expect(detail).toBeVisible({ timeout: 10000 });
     await expect(detail).toContainText('$175.00', { timeout: 10000 });
@@ -290,12 +290,12 @@ test.describe('Care plan payment journey (Task #282)', () => {
     await loginViaUI(page, TEST_MEMBER_EMAIL, TEST_MEMBER_PASS, 'member');
     await navigateToSection(page, 'care-plans');
     await dismissOverlays(page);
-    await page.waitForFunction(() => typeof window.loadCarePlansSection === 'function', null, { timeout: 10000 });
-    await page.evaluate(() => window.loadCarePlansSection());
+    await page.waitForFunction(() => typeof globalThis.loadCarePlansSection === 'function', null, { timeout: 10000 });
+    await page.evaluate(() => globalThis.loadCarePlansSection());
 
     // List + detail render (exercises real renderCarePlansList + renderCarePlanDetail).
     await expect(page.locator('#care-plans-list')).toContainText(plan.title, { timeout: 10000 });
-    await page.evaluate((id) => window.viewCarePlan(id), plan.id);
+    await page.evaluate((id) => globalThis.viewCarePlan(id), plan.id);
     const detail = page.locator('#care-plan-detail');
     await expect(detail).toBeVisible({ timeout: 10000 });
     await expect(detail).toContainText('$175.00', { timeout: 10000 });
@@ -334,7 +334,7 @@ test.describe('Care plan payment journey (Task #282)', () => {
 
     // Member-visible "funds held" UI: re-render detail and assert the
     // Mark Complete button (only rendered when payment_status === 'held').
-    await page.evaluate((id) => window.viewCarePlan(id), plan.id);
+    await page.evaluate((id) => globalThis.viewCarePlan(id), plan.id);
     await expect(page.locator('#cp-mark-complete-btn')).toBeVisible({ timeout: 10000 });
 
     // Mark complete → real /complete endpoint captures the PI.

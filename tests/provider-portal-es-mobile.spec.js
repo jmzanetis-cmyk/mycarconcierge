@@ -243,7 +243,7 @@ test.describe('Task #304 — ES mobile readability of provider-portal sections (
             .toMatch(/[ñáéíóúÁÉÍÓÚ¿¡]/);
           const cta = root.locator('#cta-primary');
           await expect(cta).toBeVisible();
-          await expect(cta).toHaveText(new RegExp(section.primaryCtaText.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+          await expect(cta).toHaveText(new RegExp(section.primaryCtaText.replaceAll(/[.*+?^${}()|[\]\\]/g, '\\$&')));
 
           // Explicit body-text locator — proves the descriptive copy
           // (subtitle / empty-state desc / explainer paragraph) renders

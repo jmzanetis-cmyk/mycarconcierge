@@ -86,7 +86,7 @@ const STUB_INIT = `
 `;
 
 async function waitForSupabase(page) {
-  await page.waitForFunction(() => !!(window.supabaseClient && window.supabaseClient.auth), null, { timeout: 10000 });
+  await page.waitForFunction(() => !!(globalThis.supabaseClient && globalThis.supabaseClient.auth), null, { timeout: 10000 });
 }
 
 test.describe('Apple Sign In — provider track (Task #326)', () => {
@@ -102,7 +102,7 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     await expect(btn).toContainText(/sign in with apple/i);
     await waitForSupabase(page);
     await btn.click();
-    const call = await page.waitForFunction(() => window.__appleCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
+    const call = await page.waitForFunction(() => globalThis.__appleCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
     const opts = await call.jsonValue();
     expect(opts.provider).toBe('apple');
     // The legacy form delegates the callback to login.html, which then
@@ -122,7 +122,7 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     await expect(btn).toContainText(/sign in with apple/i);
     await waitForSupabase(page);
     await btn.click();
-    const call = await page.waitForFunction(() => window.__appleCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
+    const call = await page.waitForFunction(() => globalThis.__appleCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
     const opts = await call.jsonValue();
     expect(opts.provider).toBe('apple');
     expect(opts.options.redirectTo).toMatch(/\/onboarding-provider\.html\?source=apple$/);
@@ -137,12 +137,12 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     // too), but the intent must NOT be re-seeded after consumption so
     // we can assert login.js cleared it.
     await page.addInitScript(() => {
-      window.__appleStubUser = {
+      globalThis.__appleStubUser = {
         id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
         email: 'newprovider.apple@example.com',
         user_metadata: { full_name: 'New Apple Provider' }
       };
-      window.__appleExistingProfile = null;
+      globalThis.__appleExistingProfile = null;
       try {
         if (!localStorage.getItem('mcc_intent_seeded_p326')) {
           localStorage.setItem('mcc_signup_intent', 'provider');
@@ -152,7 +152,7 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     });
     await page.goto('/login.html?oauth=apple');
     await page.waitForURL(/\/onboarding-provider\.html\?source=apple/, { timeout: 10000 });
-    const inserted = await page.evaluate(() => window.__appleCalls.inserts.find(i => i.table === 'profiles'));
+    const inserted = await page.evaluate(() => globalThis.__appleCalls.inserts.find(i => i.table === 'profiles'));
     expect(inserted).toBeTruthy();
     expect(inserted.row.id).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
     expect(inserted.row.email).toBe('newprovider.apple@example.com');
@@ -170,12 +170,12 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
 
   test('onboarding-provider.html?source=apple: brand-new user → INSERT pending_provider profile + jump past name/email/password to phone step', async ({ page }) => {
     await page.addInitScript(() => {
-      window.__appleStubUser = {
+      globalThis.__appleStubUser = {
         id: '44444444-5555-6666-7777-888888888888',
         email: 'pat.apple@example.com',
         user_metadata: { full_name: 'Pat Apple Provider' }
       };
-      window.__appleExistingProfile = null;
+      globalThis.__appleExistingProfile = null;
     });
     await page.goto('/onboarding-provider.html?source=apple');
     // maybeStartFromOAuth polls getUser up to 20×150ms; give it room.
@@ -188,9 +188,9 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     // future regression that swaps the role back to 'member' would go
     // unnoticed because the survey would still appear to work.
     await expect.poll(async () =>
-      page.evaluate(() => window.__appleCalls.inserts.find(i => i.table === 'profiles') || null)
+      page.evaluate(() => globalThis.__appleCalls.inserts.find(i => i.table === 'profiles') || null)
     ).not.toBeNull();
-    const inserted = await page.evaluate(() => window.__appleCalls.inserts.find(i => i.table === 'profiles').row);
+    const inserted = await page.evaluate(() => globalThis.__appleCalls.inserts.find(i => i.table === 'profiles').row);
     expect(inserted.id).toBe('44444444-5555-6666-7777-888888888888');
     expect(inserted.email).toBe('pat.apple@example.com');
     expect(inserted.role).toBe('pending_provider');
@@ -198,18 +198,18 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     expect(inserted.full_name).toBe('Pat Apple Provider');
     // auth.signUp must NEVER fire in the OAuth flow — that would try
     // to re-create the already-existing user and fail.
-    const signUpCount = await page.evaluate(() => window.__appleCalls.signUp);
+    const signUpCount = await page.evaluate(() => globalThis.__appleCalls.signUp);
     expect(signUpCount).toBe(0);
   });
 
   test('onboarding-provider.html?source=apple: returning provider with phone set → straight to providers.html', async ({ page }) => {
     await page.addInitScript(() => {
-      window.__appleStubUser = {
+      globalThis.__appleStubUser = {
         id: '55555555-6666-7777-8888-999999999999',
         email: 'returning.apple@example.com',
         user_metadata: { full_name: 'Returning Apple Provider' }
       };
-      window.__appleExistingProfile = {
+      globalThis.__appleExistingProfile = {
         id: '55555555-6666-7777-8888-999999999999',
         role: 'provider',
         phone: '5125550101'
@@ -217,7 +217,7 @@ test.describe('Apple Sign In — provider track (Task #326)', () => {
     });
     await page.goto('/onboarding-provider.html?source=apple');
     await page.waitForURL(/\/providers\.html(\?|$)/, { timeout: 10000 });
-    const inserts = await page.evaluate(() => window.__appleCalls.inserts.filter(i => i.table === 'profiles').length);
+    const inserts = await page.evaluate(() => globalThis.__appleCalls.inserts.filter(i => i.table === 'profiles').length);
     expect(inserts).toBe(0);
   });
 });

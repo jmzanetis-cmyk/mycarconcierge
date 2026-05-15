@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Enroll your BackgroundChecks.com sub-account | My Car Concierge</title>
+  <meta name="robots" content="noindex" />
+  <link rel="icon" type="image/png" href="/logo.png" />
+  <style>
+    * { box-sizing: border-box; }
+    body { background:#0d1117; color:#f0f4fa; font-family: 'Outfit', system-ui, sans-serif; line-height:1.6; margin:0; padding:32px 16px; }
+    .wrap { max-width: 720px; margin: 0 auto; }
+    h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 16px; }
+    p { color: #c8ccd6; }
+    .card { background:#161c26; border:1px solid rgba(148,148,168,0.12); border-radius: 14px; padding: 24px 28px; margin-top: 18px; }
+    .btn { padding:12px 22px; border-radius:10px; border:none; cursor:pointer; font-weight:600; font-size:0.95rem; }
+    .btn-primary { background: linear-gradient(135deg,#d4a855,#b88c2c); color:#1a1f29; }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+    #bgc-status { margin-top: 14px; font-size: 0.92rem; min-height: 1.4em; }
+    .ok { color:#2eb88a; } .err { color:#dc5050; }
+    code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; }
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <h1>Enroll your BackgroundChecks.com sub-account</h1>
+  <p>
+    Click <strong>Open enrollment form</strong> below to register a free sub-account with
+    BackgroundChecks.com. You'll fill in your business name and contact details directly
+    on their secure form &mdash; My Car Concierge never sees the password you set there.
+    When you finish, your account is automatically linked to MCC and you can begin ordering
+    employee checks from your provider dashboard.
+  </p>
+
+  <div class="card">
+    <button id="bgc-open-btn" class="btn btn-primary" disabled>Loading registration form&hellip;</button>
+    <div id="bgc-status">Initialising&hellip;</div>
+  </div>
+
+  <p style="margin-top:22px;font-size:0.85rem;color:#8b95a5;">
+    Need help? Email <a style="color:#d4a855;" href="mailto:providers@mycarconcierge.com">providers@mycarconcierge.com</a>.
+  </p>
+</div>
+
+<!-- Supabase JS for caller authentication -->
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="/supabase-config.js"></script>
+
+<script>
+(function () {
+  'use strict';
+
+  var statusEl = document.getElementById('bgc-status');
+  var openBtn  = document.getElementById('bgc-open-btn');
+
+  function setStatus(text, cls) {
+    statusEl.textContent = text;
+    statusEl.className = cls || '';
+  }
+
+  // Resolve the BGC widget host from a server-injected meta or fall back to
+  // production. The bgc-config endpoint returns { widget_base, source_token,
+  // live_mode }. We deliberately fetch it instead of hardcoding so prod and
+  // sandbox can be swapped via env vars.
+  var WIDGET_BASE = 'https://app.backgroundchecks.com';
+  var SOURCE_TOKEN = '';
+
+  fetch('/api/provider/bgc/config')
+    .then(function (r) { return r.ok ? r.json() : null; })
+    .then(function (cfg) {
+      if (cfg && cfg.widget_base)  WIDGET_BASE = cfg.widget_base;
+      if (cfg && cfg.source_token) SOURCE_TOKEN = cfg.source_token;
+      if (!SOURCE_TOKEN) {
+        setStatus('BGC source token not configured on server. Contact support.', 'err');
+        return;
+      }
+      loadWidgetScript();
+    })
+    .catch(function () {
+      setStatus('Could not load BGC configuration. Try again later.', 'err');
+    });
+
+  function loadWidgetScript() {
+    var s = document.createElement('script');
+    s.src = WIDGET_BASE + '/js/widgets/registration-widget.js';
+    s.onload = onWidgetReady;
+    s.onerror = function () { setStatus('Failed to load BackgroundChecks.com widget.', 'err'); };
+    document.head.appendChild(s);
+  }
+
+  function onWidgetReady() {
+    if (!window.ClearChecksWidget || typeof window.ClearChecksWidget.init !== 'function') {
+      setStatus('Widget loaded but init() unavailable. Reload the page.', 'err');
+      return;
+    }
+    setStatus('Ready. Click the button to open the form.');
+    openBtn.disabled = false;
+    openBtn.textContent = 'Open enrollment form';
+    openBtn.addEventListener('click', launch);
+  }
+
+  async function launch() {
+    openBtn.disabled = true;
+    setStatus('Opening enrollment form…');
+    try {
+      window.ClearChecksWidget.init({
+        sourceToken: SOURCE_TOKEN,
+        onSuccess: handleSuccess,
+        onClose: function () {
+          if (openBtn.disabled) {
+            setStatus('Form closed.');
+            openBtn.disabled = false;
+          }
+        },
+        onError: function (err) {
+          console.error('[BGC widget] error', err);
+          setStatus('Error from BGC widget: ' + (err && err.message ? err.message : 'unknown'), 'err');
+          openBtn.disabled = false;
+        }
+      });
+    } catch (e) {
+      setStatus('Could not open form: ' + e.message, 'err');
+      openBtn.disabled = false;
+    }
+  }
+
+  async function handleSuccess(data) {
+    var encryptedToken = (data && (data.token || data)) || null;
+    if (typeof encryptedToken === 'object') {
+      encryptedToken = encryptedToken.token || encryptedToken.encrypted_token || null;
+    }
+    if (!encryptedToken) {
+      setStatus('BGC returned no token to link. Please retry.', 'err');
+      openBtn.disabled = false;
+      return;
+    }
+    setStatus('Linking your account to MCC…');
+
+    // The provider must be signed in to MCC. We pull the access token from
+    // the same supabase client the rest of the dashboard uses.
+    var sb = window.supabaseClient;
+    if (!sb && window.SUPABASE_CONFIG && window.supabase && window.supabase.createClient) {
+      sb = window.supabase.createClient(window.SUPABASE_CONFIG.url, window.SUPABASE_CONFIG.anonKey);
+    }
+    if (!sb) { setStatus('Supabase not initialised. Reload and sign in.', 'err'); return; }
+    var sess = (await sb.auth.getSession()).data.session;
+    var accessToken = sess && sess.access_token;
+    if (!accessToken) { setStatus('Please sign in to MCC first.', 'err'); openBtn.disabled = false; return; }
+
+    try {
+      var resp = await fetch('/api/provider/bgc/decrypt-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + accessToken },
+        body: JSON.stringify({ token: encryptedToken })
+      });
+      var body = await resp.json().catch(function () { return {}; });
+      if (!resp.ok) {
+        setStatus('Linking failed: ' + (body.error || resp.status), 'err');
+        openBtn.disabled = false;
+        return;
+      }
+      setStatus('✓ Sub-account linked. You can close this tab and start ordering checks from your dashboard.', 'ok');
+    } catch (e) {
+      setStatus('Network error: ' + e.message, 'err');
+      openBtn.disabled = false;
+    }
+  }
+})();
+</script>
+</body>
+</html>

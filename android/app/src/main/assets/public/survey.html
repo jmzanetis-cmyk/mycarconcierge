@@ -897,6 +897,12 @@
       return;
     }
 
+    // Task #184 — Facebook Pixel Lead conversion: a survey profile is the
+    // earliest "captured prospect" milestone in the public funnel.
+    if (typeof mccTrackFbOnce === 'function') {
+      mccTrackFbOnce('Lead', 'survey_profile', { content_name: 'survey_profile', content_category: 'survey' });
+    }
+
     const name = capturedFirstName || 'You';
     document.getElementById('confirm-name-msg').textContent = name + ', you\'re in!';
 
@@ -1034,5 +1040,6 @@
     }
   });
 </script>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

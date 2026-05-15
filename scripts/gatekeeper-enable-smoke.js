@@ -74,8 +74,8 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_KEY, {
 // shared smoke-core engine.
 const MAX_LOG_LEN = 1000;
 function safeLogStr(msg) {
-  // eslint-disable-next-line no-control-regex
-  return String(msg).replace(/[\u0000-\u001F\u007F]/g, ' ').slice(0, MAX_LOG_LEN);
+   
+  return String(msg).replaceAll(/[\u0000-\u001F\u007F]/g, ' ').slice(0, MAX_LOG_LEN);
 }
 const log = {
   pass: msg => console.log('PASS:', safeLogStr(msg)),

@@ -42,7 +42,7 @@ async function setStateAndRefresh(page, sb, providerId, fields) {
   // Trigger a re-render of the compliance section. The compliance section
   // must already be visible (its DOM nodes need to exist) for this to do
   // any work — callers navigate there first.
-  await page.evaluate(() => window.bgcCompliance && window.bgcCompliance.refresh());
+  await page.evaluate(() => globalThis.bgcCompliance && globalThis.bgcCompliance.refresh());
 }
 
 async function openComplianceSection(page) {
@@ -57,7 +57,7 @@ async function openComplianceSection(page) {
   await expect(page.locator('#bgc-state-card')).toBeAttached({ timeout: 15000 });
   // Wait for bgcCompliance to be wired up so setStateAndRefresh can call it.
   await page.waitForFunction(
-    () => !!(window.bgcCompliance && typeof window.bgcCompliance.refresh === 'function'),
+    () => !!(globalThis.bgcCompliance && typeof globalThis.bgcCompliance.refresh === 'function'),
     { timeout: 15000 }
   );
 }

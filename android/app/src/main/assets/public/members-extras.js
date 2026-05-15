@@ -412,9 +412,308 @@
               <div style="font-size:0.85rem;color:var(--accent-green);">${mccIcon('check', 16)} Appointment confirmed! See you on ${date}.</div>
             ` : ''}
           </div>
+          <div style="margin-top:12px;padding-top:12px;border-top:1px dashed ${status.color}40;">
+            <button class="btn btn-secondary btn-sm" onclick="window.openConciergeRequestModal('${packageId}','${appointment.id}')">
+              ${mccIcon('car', 14)} Request a Driver
+            </button>
+            <div id="concierge-status-${packageId}" style="margin-top:8px;"></div>
+          </div>
         </div>
       `;
+      // Refresh any existing concierge job status badge for this appointment.
+      if (typeof window.loadConciergeStatusForAppointment === 'function') {
+        window.loadConciergeStatusForAppointment(packageId, appointment.id);
+      }
     }
+
+    // ---- Task #369: Concierge driver request flow (member-initiated) ----
+    async function getConciergeAuthHeader() {
+      // Use Supabase's own session — its persisted localStorage key is
+      // project-specific (sb-<ref>-auth-token) so we cannot read it directly
+      // by name. supabaseClient.auth.getSession() returns the active session
+      // regardless of storage key.
+      try {
+        const { data: { session } = {} } = await supabaseClient.auth.getSession();
+        const token = session && session.access_token;
+        return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+      } catch { return null; }
+    }
+
+    // Shared status renderer used by member appointment status, member
+    // vehicle-detail page, and provider Vehicle Transfers panel. Renders
+    // current leg + assigned driver name/photo + an ETA placeholder so the
+    // experience is consistent across surfaces. Returns HTML string.
+    window.renderConciergeStatusCard = function(j, opts = {}) {
+      const escHtml = (s) => String(s == null ? '' : s)
+        .replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;')
+        .replaceAll('"','&quot;').replaceAll("'",'&#39;');
+      if (!j) return '';
+      const statusLabel = escHtml((j.status || 'requested').replaceAll('_',' ').toUpperCase());
+      const tier      = Number.isInteger(j.tier)     ? j.tier     : '?';
+      const scenario  = Number.isInteger(j.scenario) ? j.scenario : '?';
+      const accepted  = (j.assignments || []).filter(a => a.accepted_at);
+      // Drivers (joined name + photo) — server enriches assignments[].driver
+      const driversHtml = accepted.map(a => {
+        const d = a.driver || {};
+        const initials = (d.name || '?').split(/\s+/).map(p => p[0]).join('').slice(0,2).toUpperCase();
+        const avatar = d.avatar_url
+          ? `<img src="${escHtml(d.avatar_url)}" alt="" style="width:28px;height:28px;border-radius:50%;object-fit:cover;" />`
+          : `<div style="width:28px;height:28px;border-radius:50%;background:var(--accent-gold);color:#000;display:flex;align-items:center;justify-content:center;font-size:0.7rem;font-weight:700;">${escHtml(initials)}</div>`;
+        return `<span style="display:inline-flex;align-items:center;gap:6px;margin-right:8px;">${avatar}<span style="font-size:0.85rem;">${escHtml(d.name || 'Driver')}</span></span>`;
+      }).join('');
+      const leg = j.current_leg || (Array.isArray(j.legs) && j.legs[0]) || null;
+      const legHtml = leg ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">
+        <strong>Leg ${escHtml(leg.sequence)}:</strong> ${escHtml(leg.from_address || '—')} → ${escHtml(leg.to_address || '—')}
+      </div>` : '';
+      // ETA placeholder — real ETA arrives once the Driver app posts
+      // location pings. Until then we surface scheduled_start_at if known.
+      const eta = j.scheduled_start_at
+        ? new Date(j.scheduled_start_at).toLocaleString()
+        : 'Awaiting driver dispatch';
+      const cancelBtn = (j.status === 'requested' || j.status === 'scheduled')
+        ? `<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="window.cancelConciergeJob('${escHtml(j.id)}','${escHtml(opts.packageId || '')}','${escHtml(j.appointment_id || '')}')">Cancel</button>`
+        : '';
+      return `
+        <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
+          <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
+            <div><strong>${mccIcon('car', 14)} Driver request</strong> · <span style="text-transform:uppercase;font-size:0.8rem;color:var(--accent-gold);">${statusLabel}</span></div>
+            <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
+          </div>
+          ${legHtml}
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: ${escHtml(eta)}</div>
+          ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
+            : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
+          <div style="margin-top:6px;">${cancelBtn}</div>
+        </div>
+      `;
+    };
+
+    // Task #369: render status for vehicle-originated concierge jobs (no
+    // appointment_id). Looks up the most recent live job for the member
+    // and renders the shared status card into the vehicle-detail panel.
+    window.loadConciergeStatusForVehicle = async function(vehicleId) {
+      const container = document.getElementById('concierge-status-vehicle-' + vehicleId);
+      if (!container) return;
+      const headers = await getConciergeAuthHeader();
+      if (!headers) return;
+      try {
+        const resp = await fetch('/api/concierge?role=member', { headers });
+        if (!resp.ok) return;
+        const { jobs = [] } = await resp.json();
+        const mine = jobs.filter(j =>
+          j.member_vehicle_id === vehicleId && j.status !== 'cancelled' && j.status !== 'completed'
+        );
+        if (!mine.length) { container.innerHTML = ''; return; }
+        const det = await fetch('/api/concierge/' + mine[0].id, { headers });
+        const job = det.ok ? (await det.json()).job : mine[0];
+        container.innerHTML = window.renderConciergeStatusCard(job, { packageId: 'vehicle-' + vehicleId });
+      } catch (e) { console.warn('[concierge] vehicle status load failed', e); }
+    };
+
+    window.loadConciergeStatusForAppointment = async function(packageId, appointmentId) {
+      const container = document.getElementById('concierge-status-' + packageId);
+      if (!container) return;
+      const headers = await getConciergeAuthHeader();
+      if (!headers) return;
+      try {
+        const resp = await fetch('/api/concierge?role=member', { headers });
+        if (!resp.ok) return;
+        const { jobs = [] } = await resp.json();
+        const mine = jobs.filter(j => j.appointment_id === appointmentId && j.status !== 'cancelled');
+        if (!mine.length) { container.innerHTML = ''; return; }
+        // Fetch the enriched single-job payload so we get driver name/photo.
+        const det = await fetch('/api/concierge/' + mine[0].id, { headers });
+        const job = det.ok ? (await det.json()).job : mine[0];
+        container.innerHTML = window.renderConciergeStatusCard(job, { packageId });
+      } catch (e) { console.warn('[concierge] status load failed', e); }
+    };
+
+    window.cancelConciergeJob = async function(jobId, packageId, appointmentId) {
+      const reason = window.prompt('Why are you cancelling this driver request?', 'Plans changed');
+      if (!reason || reason.trim().length < 3) return;
+      const headers = await getConciergeAuthHeader();
+      if (!headers) { alert('Please sign in again to cancel.'); return; }
+      const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
+        method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
+      });
+      if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      window.loadConciergeStatusForAppointment(packageId, appointmentId);
+    };
+
+    // Best-effort defaults: pull saved member address (for pickup) and the
+    // appointment / provider shop address (for dropoff) so the member doesn't
+    // have to retype them.
+    async function loadConciergeDefaults(appointmentId) {
+      const out = { pickup: '', dropoff: '' };
+      try {
+        if (typeof supabaseClient !== 'undefined' && supabaseClient?.auth) {
+          const { data: ses } = await supabaseClient.auth.getUser();
+          const uid = ses?.user?.id;
+          if (uid) {
+            const { data: prof } = await supabaseClient.from('profiles')
+              .select('address, city, state, zip').eq('id', uid).maybeSingle();
+            if (prof?.address) {
+              out.pickup = [prof.address, prof.city, prof.state, prof.zip].filter(Boolean).join(', ');
+            }
+          }
+          if (appointmentId) {
+            const { data: appt } = await supabaseClient.from('appointments')
+              .select('provider_id').eq('id', appointmentId).maybeSingle();
+            if (appt?.provider_id) {
+              const { data: prov } = await supabaseClient.from('profiles')
+                .select('business_name, address, city, state, zip')
+                .eq('id', appt.provider_id).maybeSingle();
+              if (prov?.address) {
+                out.dropoff = [prov.business_name, prov.address, prov.city, prov.state, prov.zip].filter(Boolean).join(', ');
+              }
+            }
+          }
+        }
+      } catch (e) { /* best-effort */ }
+      return out;
+    }
+
+    window.openConciergeRequestModal = function(packageId, appointmentId) {
+      const existing = document.getElementById('concierge-request-modal');
+      if (existing) existing.remove();
+      const tiers = [
+        { tier: 1, label: 'Tier 1 — Passenger ride', scenarios: [
+          { v: 1, label: 'Drop me off at the shop' },
+          { v: 2, label: 'Pick me up from the shop' },
+          { v: 3, label: 'Round trip (drop off + pick up)' }
+        ]},
+        { tier: 2, label: 'Tier 2 — Drive my vehicle (solo shuttle)', scenarios: [
+          { v: 4, label: 'Drive my car TO the shop' },
+          { v: 5, label: 'Drive my car FROM the shop' },
+          { v: 6, label: 'Round-trip vehicle shuttle' }
+        ]},
+        { tier: 3, label: 'Tier 3 — Paired shuttle (driver + chase car)', scenarios: [
+          { v: 7, label: 'Take my car in (chase follow)' },
+          { v: 8, label: 'Bring my car back (chase follow)' }
+        ]},
+        { tier: 4, label: 'Tier 4 — Full concierge (driver A + driver B)', scenarios: [
+          { v: 9,  label: 'Drop-off concierge (drive my car + drive me)' },
+          { v: 10, label: 'Pick-up concierge (drive my car + drive me)' },
+          { v: 11, label: 'Round-trip concierge' }
+        ]}
+      ];
+      const optionsHtml = tiers.map(t => `
+        <optgroup label="${t.label}">
+          ${t.scenarios.map(s => `<option value="${t.tier}|${s.v}">${s.label}</option>`).join('')}
+        </optgroup>
+      `).join('');
+      const modal = document.createElement('div');
+      modal.className = 'modal-backdrop active';
+      modal.id = 'concierge-request-modal';
+      modal.innerHTML = `
+        <div class="modal" style="max-width:520px;">
+          <div class="modal-header">
+            <h3 class="modal-title">${mccIcon('car', 18)} Request a Driver</h3>
+            <button class="modal-close" onclick="document.getElementById('concierge-request-modal').remove()">×</button>
+          </div>
+          <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+            <p style="font-size:0.9rem;color:var(--text-secondary);margin:0;">Pick a service tier and we'll dispatch one or two MCC drivers to handle the trip.</p>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:0.85rem;color:var(--text-muted);">Service</span>
+              <select id="concierge-scenario" class="input">${optionsHtml}</select>
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:0.85rem;color:var(--text-muted);">Pickup address (your home / origin)</span>
+              <input id="concierge-pickup" class="input" type="text" placeholder="123 Home St" />
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:0.85rem;color:var(--text-muted);">Dropoff address (the shop)</span>
+              <input id="concierge-dropoff" class="input" type="text" placeholder="Shop address" />
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:0.85rem;color:var(--text-muted);">Preferred pickup time (optional)</span>
+              <input id="concierge-time" class="input" type="datetime-local" />
+            </label>
+            <label style="display:flex;flex-direction:column;gap:4px;">
+              <span style="font-size:0.85rem;color:var(--text-muted);">Notes for the driver (optional)</span>
+              <textarea id="concierge-notes" class="input" rows="3" placeholder="Gate code, key location, special instructions…"></textarea>
+            </label>
+            <div id="concierge-request-error" style="color:var(--accent-red);font-size:0.85rem;"></div>
+            <div style="display:flex;gap:8px;justify-content:flex-end;">
+              <button class="btn btn-ghost" onclick="document.getElementById('concierge-request-modal').remove()">Cancel</button>
+              <button id="concierge-submit-btn" class="btn btn-primary" onclick="window.submitConciergeRequest('${packageId}','${appointmentId}')">${mccIcon('send', 14)} Submit Request</button>
+            </div>
+          </div>
+        </div>
+      `;
+      document.body.appendChild(modal);
+      // Best-effort auto-fill once the modal is mounted.
+      loadConciergeDefaults(appointmentId).then(d => {
+        const p = document.getElementById('concierge-pickup');
+        const dr = document.getElementById('concierge-dropoff');
+        if (p && !p.value && d.pickup) p.value = d.pickup;
+        if (dr && !dr.value && d.dropoff) dr.value = d.dropoff;
+      });
+    };
+
+    window.submitConciergeRequest = async function(packageId, appointmentId) {
+      const errEl = document.getElementById('concierge-request-error');
+      const btn   = document.getElementById('concierge-submit-btn');
+      errEl.textContent = '';
+      const sel  = document.getElementById('concierge-scenario').value.split('|');
+      const tier = Number(sel[0]); const scenario = Number(sel[1]);
+      const pickup  = document.getElementById('concierge-pickup').value.trim();
+      const dropoff = document.getElementById('concierge-dropoff').value.trim();
+      const time    = document.getElementById('concierge-time').value;
+      const notes   = document.getElementById('concierge-notes').value.trim();
+      if (!pickup || !dropoff) { errEl.textContent = 'Pickup and dropoff are required.'; return; }
+      const headers = await getConciergeAuthHeader();
+      if (!headers) { errEl.textContent = 'Please sign in again.'; return; }
+      btn.disabled = true; btn.textContent = 'Submitting…';
+      try {
+        const resp = await fetch('/api/concierge', {
+          method: 'POST', headers,
+          body: JSON.stringify({
+            tier, scenario,
+            appointment_id: appointmentId || null,
+            pickup_address: pickup,
+            dropoff_address: dropoff,
+            scheduled_start_at: time ? new Date(time).toISOString() : null,
+            notes: notes || null,
+            // Vehicle-context flow (packageId starts with 'vehicle-') passes
+            // the vehicle id so the status loader can find the job back.
+            member_vehicle_id: (typeof packageId === 'string' && packageId.indexOf('vehicle-') === 0)
+              ? packageId.slice('vehicle-'.length) : null
+          })
+        });
+        const body = await resp.json().catch(() => ({}));
+        if (!resp.ok) { errEl.textContent = body.error || ('Request failed (' + resp.status + ')'); return; }
+        // Success state: replace modal body with confirmation + status link.
+        const jobId = body.job?.id || '';
+        const modal = document.getElementById('concierge-request-modal');
+        if (modal) {
+          modal.querySelector('.modal-body').innerHTML = `
+            <div style="text-align:center;padding:12px;">
+              <div style="font-size:2rem;color:var(--accent-green);">${mccIcon('check', 32)}</div>
+              <h4 style="margin:8px 0;">Driver request submitted!</h4>
+              <p style="font-size:0.9rem;color:var(--text-secondary);">Reference: <code>${jobId.slice(0, 8)}…</code></p>
+              <p style="font-size:0.85rem;color:var(--text-muted);">We'll notify you as soon as a driver accepts. You can track status on this appointment card.</p>
+              <div style="margin-top:12px;">
+                <button class="btn btn-primary" onclick="document.getElementById('concierge-request-modal').remove()">Done</button>
+              </div>
+            </div>
+          `;
+        }
+        // Vehicle-context flow: refresh the vehicle status panel; otherwise
+        // refresh the appointment status panel.
+        if (typeof packageId === 'string' && packageId.indexOf('vehicle-') === 0) {
+          if (typeof window.loadConciergeStatusForVehicle === 'function') {
+            window.loadConciergeStatusForVehicle(packageId.slice('vehicle-'.length));
+          }
+        } else {
+          window.loadConciergeStatusForAppointment(packageId, appointmentId);
+        }
+      } catch (e) {
+        errEl.textContent = 'Network error: ' + e.message;
+      } finally {
+        btn.disabled = false; btn.textContent = '✈ Submit Request';
+      }
+    };
 
     async function loadSlotBookingStatus(packageId) {
       const container = document.getElementById(`slot-booking-status-${packageId}`);

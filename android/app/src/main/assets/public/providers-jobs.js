@@ -1,19 +1,262 @@
 // ========== PROVIDERS JOBS MODULE ==========
 // Active jobs, GPS tracking, evidence, inspections, emergency, fleet
 
+// ---- Task #369: Concierge driver coordination (provider side) ----
+// Shared with member side via members-extras.js window.renderConciergeStatusCard.
+async function providerConciergeAuthHeaderJobs() {
+  try {
+    const { data: { session } = {} } = await supabaseClient.auth.getSession();
+    const token = session && session.access_token;
+    return token ? { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json' } : null;
+  } catch { return null; }
+}
+
+// Provider concierge action handlers — wired into the per-job concierge
+// section rendered inside renderActiveJobs cards. Mirrors the API contract
+// in netlify/functions/concierge-jobs-public.js.
+window.providerConciergeTransition = async function(jobId, packageId, toStatus, promptLabel) {
+  const note = window.prompt(promptLabel || `Add a note for "${toStatus}" (optional):`, '') || '';
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { alert('Please sign in again.'); return; }
+  const resp = await fetch('/api/concierge/' + jobId + '/transition', {
+    method: 'POST', headers,
+    body: JSON.stringify({ to_status: toStatus, note: note.trim() || null })
+  });
+  if (!resp.ok) {
+    const err = await resp.json().catch(() => ({}));
+    alert('Transition failed: ' + (err.error || resp.status));
+    return;
+  }
+  window.refreshProviderJobConcierge(packageId);
+  window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers();
+};
+
+window.providerConciergeCancel = async function(jobId, packageId) {
+  const reason = window.prompt('Why are you cancelling this driver request?', 'Coordination changed');
+  if (!reason || reason.trim().length < 3) return;
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { alert('Please sign in again.'); return; }
+  const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
+    method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
+  });
+  if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+  window.refreshProviderJobConcierge(packageId);
+  window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers();
+};
+
+window.providerConciergeEditAddress = async function(jobId, packageId, currentAddress) {
+  const next = window.prompt(`Update shop drop-off address (drivers haven't accepted yet):`, currentAddress || '');
+  if (!next || next.trim().length < 3) return;
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { alert('Please sign in again to edit address.'); return; }
+  const resp = await fetch('/api/concierge/' + jobId + '/update-address', {
+    method: 'POST', headers,
+    body: JSON.stringify({ field: 'dropoff', address: next.trim() })
+  });
+  if (!resp.ok) { alert('Address update failed: ' + (await resp.text())); return; }
+  window.refreshProviderJobConcierge(packageId);
+};
+
+// If appointmentId is omitted, the modal opener resolves it from the
+// package on demand (same lookup the per-job refresh uses).
+window.openProviderConciergeRequestModal = async function(packageId, appointmentId) {
+  if (!appointmentId) {
+    try {
+      const { data: appt } = await supabaseClient.from('appointments')
+        .select('id').eq('package_id', packageId).maybeSingle();
+      if (appt && appt.id) appointmentId = appt.id;
+    } catch {}
+  }
+  return openProviderConciergeRequestModalImpl(packageId, appointmentId || '');
+};
+function openProviderConciergeRequestModalImpl(packageId, appointmentId) {
+  const existing = document.getElementById('prov-concierge-modal-jobs');
+  if (existing) existing.remove();
+  const tiers = [
+    ['Tier 1 — Passenger ride', [[1,'Drop member off at shop'],[2,'Pick member up'],[3,'Round trip']]],
+    ['Tier 2 — Drive vehicle', [[4,'Bring vehicle TO shop'],[5,'Return vehicle FROM shop'],[6,'Round-trip shuttle']]],
+    ['Tier 3 — Paired shuttle', [[7,'Bring vehicle in (chase)'],[8,'Return vehicle (chase)']]],
+    ['Tier 4 — Full concierge', [[9,'Drop-off concierge'],[10,'Pick-up concierge'],[11,'Round-trip concierge']]]
+  ];
+  const opts = tiers.map(([label, scen], i) =>
+    `<optgroup label="${label}">${scen.map(([v, l]) => `<option value="${i+1}|${v}">${l}</option>`).join('')}</optgroup>`
+  ).join('');
+  const m = document.createElement('div');
+  m.className = 'modal-backdrop active'; m.id = 'prov-concierge-modal-jobs';
+  m.innerHTML = `
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header"><h3 class="modal-title">${mccIcon('car', 18)} Request a Driver</h3>
+        <button class="modal-close" onclick="document.getElementById('prov-concierge-modal-jobs').remove()">×</button></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
+        <label><span style="font-size:0.85rem;color:var(--text-muted);">Service</span>
+          <select id="pcjm-scenario" class="input">${opts}</select></label>
+        <label><span style="font-size:0.85rem;color:var(--text-muted);">Pickup (member origin)</span>
+          <input id="pcjm-pickup" class="input" type="text" /></label>
+        <label><span style="font-size:0.85rem;color:var(--text-muted);">Dropoff (your shop)</span>
+          <input id="pcjm-dropoff" class="input" type="text" /></label>
+        <label><span style="font-size:0.85rem;color:var(--text-muted);">Notes (optional)</span>
+          <textarea id="pcjm-notes" class="input" rows="3"></textarea></label>
+        <div id="pcjm-error" style="color:var(--accent-red);font-size:0.85rem;"></div>
+        <div style="display:flex;gap:8px;justify-content:flex-end;">
+          <button class="btn btn-ghost" onclick="document.getElementById('prov-concierge-modal-jobs').remove()">Cancel</button>
+          <button id="pcjm-submit" class="btn btn-primary" onclick="window.submitProviderConciergeJobRequest('${packageId}','${appointmentId}')">${mccIcon('send', 14)} Submit</button>
+        </div>
+      </div>
+    </div>`;
+  document.body.appendChild(m);
+};
+
+window.submitProviderConciergeJobRequest = async function(packageId, appointmentId) {
+  const errEl = document.getElementById('pcjm-error');
+  const btn   = document.getElementById('pcjm-submit');
+  errEl.textContent = '';
+  const sel = document.getElementById('pcjm-scenario').value.split('|');
+  const tier = Number(sel[0]); const scenario = Number(sel[1]);
+  const pickup  = document.getElementById('pcjm-pickup').value.trim();
+  const dropoff = document.getElementById('pcjm-dropoff').value.trim();
+  const notes   = document.getElementById('pcjm-notes').value.trim();
+  if (!pickup || !dropoff) { errEl.textContent = 'Pickup and dropoff are required.'; return; }
+  if (!appointmentId)      { errEl.textContent = 'Provider requests need an appointment.'; return; }
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { errEl.textContent = 'Please sign in again.'; return; }
+  btn.disabled = true; btn.textContent = 'Submitting…';
+  try {
+    const resp = await fetch('/api/concierge', {
+      method: 'POST', headers,
+      body: JSON.stringify({
+        tier, scenario, appointment_id: appointmentId,
+        pickup_address: pickup, dropoff_address: dropoff,
+        notes: notes || null, created_by_kind: 'provider'
+      })
+    });
+    const body = await resp.json().catch(() => ({}));
+    if (!resp.ok) { errEl.textContent = body.error || ('Request failed (' + resp.status + ')'); return; }
+    document.getElementById('prov-concierge-modal-jobs').remove();
+    window.refreshProviderJobConcierge(packageId);
+    window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers();
+  } catch (e) {
+    errEl.textContent = 'Network error: ' + e.message;
+  } finally {
+    btn.disabled = false; btn.textContent = 'Submit';
+  }
+};
+
+// Per-job concierge section refresh — finds jobs tied to the package's
+// appointment and renders cards with per-status action buttons. Status
+// shown via the shared renderConciergeStatusCard for the body, with
+// action buttons appended below.
+window.refreshProviderJobConcierge = async function(packageId) {
+  const host = document.getElementById('concierge-job-' + packageId);
+  if (!host) return;
+  // Look up the appointment for this package on demand. Cached on the
+  // host element so we don't re-query on every refresh tick.
+  let apptId = host.getAttribute('data-appt') || '';
+  if (!apptId) {
+    try {
+      const { data: appt } = await supabaseClient.from('appointments')
+        .select('id').eq('package_id', packageId).maybeSingle();
+      if (appt && appt.id) { apptId = appt.id; host.setAttribute('data-appt', apptId); }
+    } catch {}
+  }
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { host.textContent = 'Sign in to view driver requests.'; return; }
+  try {
+    const resp = await fetch('/api/concierge?role=provider', { headers });
+    if (!resp.ok) { host.textContent = 'Driver requests unavailable.'; return; }
+    const { jobs = [] } = await resp.json();
+    const mine = apptId ? jobs.filter(j => j.appointment_id === apptId) : [];
+    if (!mine.length) {
+      host.innerHTML = '<em style="color:var(--text-muted);font-size:0.85rem;">No driver requests for this job yet.</em>';
+      return;
+    }
+    const enriched = await Promise.all(mine.map(async j => {
+      try { const det = await fetch('/api/concierge/' + j.id, { headers }); if (det.ok) return (await det.json()).job; } catch {}
+      return j;
+    }));
+    host.innerHTML = enriched.map(j => {
+      const accepted = (j.assignments || []).filter(a => a.accepted_at).length;
+      const card = (window.renderConciergeStatusCard || (() => ''))(j, { packageId });
+      const acts = [];
+      if (j.status === 'scheduled' || j.status === 'in_progress') {
+        acts.push(`<button class="btn btn-secondary btn-sm" onclick="window.providerConciergeTransition('${j.id}','${packageId}','vehicle_received','Confirm vehicle received:')">${mccIcon('check', 12)} Mark Received</button>`);
+      }
+      if (j.status === 'vehicle_received') {
+        acts.push(`<button class="btn btn-secondary btn-sm" onclick="window.providerConciergeTransition('${j.id}','${packageId}','vehicle_released','Confirm vehicle released:')">${mccIcon('package', 12)} Mark Released</button>`);
+      }
+      if (j.status === 'vehicle_released') {
+        acts.push(`<button class="btn btn-success btn-sm" onclick="window.providerConciergeTransition('${j.id}','${packageId}','completed','Confirm completed:')">${mccIcon('check', 12)} Mark Completed</button>`);
+      }
+      if (['requested','scheduled','in_progress','vehicle_received','vehicle_released'].includes(j.status)) {
+        acts.push(`<button class="btn btn-warning btn-sm" onclick="window.providerConciergeTransition('${j.id}','${packageId}','problem_flagged','Describe the problem:')">${mccIcon('alert-triangle', 12)} Flag Problem</button>`);
+      }
+      if (accepted === 0 && (j.status === 'requested' || j.status === 'scheduled')) {
+        const safeAddr = JSON.stringify(j.dropoff_address || '').replaceAll('"','&quot;');
+        acts.push(`<button class="btn btn-ghost btn-sm" onclick="window.providerConciergeEditAddress('${j.id}','${packageId}',${safeAddr})">${mccIcon('edit', 12)} Edit Shop Address</button>`);
+      }
+      if (j.status === 'requested' || j.status === 'scheduled') {
+        acts.push(`<button class="btn btn-ghost btn-sm" onclick="window.providerConciergeCancel('${j.id}','${packageId}')">Cancel</button>`);
+      }
+      return `<div style="margin-bottom:8px;">${card}<div style="margin-top:6px;display:flex;gap:6px;flex-wrap:wrap;">${acts.join('')}</div></div>`;
+    }).join('');
+  } catch (e) {
+    host.textContent = 'Error loading driver requests: ' + e.message;
+  }
+};
+
+window.refreshProviderVehicleTransfers = async function() {
+  const host = document.getElementById('provider-vehicle-transfers');
+  if (!host) return;
+  const headers = await providerConciergeAuthHeaderJobs();
+  if (!headers) { host.innerHTML = ''; return; }
+  try {
+    const resp = await fetch('/api/concierge?role=provider', { headers });
+    if (!resp.ok) { host.innerHTML = ''; return; }
+    const { jobs = [] } = await resp.json();
+    const live = jobs.filter(j => j.status !== 'cancelled' && j.status !== 'completed');
+    if (!live.length) { host.innerHTML = ''; return; }
+    const enriched = await Promise.all(live.slice(0, 6).map(async j => {
+      try {
+        const det = await fetch('/api/concierge/' + j.id, { headers });
+        if (det.ok) return (await det.json()).job;
+      } catch {}
+      return j;
+    }));
+    const cards = enriched.map(j => (window.renderConciergeStatusCard
+      ? window.renderConciergeStatusCard(j, { packageId: '' })
+      : '')).join('');
+    host.innerHTML = `
+      <div style="margin-bottom:18px;padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-elevated);">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-weight:700;">${mccIcon('truck', 16)} Vehicle Transfers (${enriched.length})</div>
+          <button class="btn btn-ghost btn-sm" onclick="window.refreshProviderVehicleTransfers()">${mccIcon('refresh-cw', 12)} Refresh</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>
+      </div>
+    `;
+  } catch (e) {
+    host.innerHTML = '';
+    console.warn('[concierge] vehicle transfers refresh failed', e);
+  }
+};
+
 // ========== ACTIVE JOBS ==========
 function renderActiveJobs() {
   const container = document.getElementById('active-jobs');
   if (!container) return;
-  
+
   const activeJobs = myBids.filter(b => b.status === 'accepted');
-  
+  // Cross-appointment Vehicle Transfers panel — always rendered above the
+  // job list (or above the empty state) so providers can see all inbound /
+  // outbound concierge jobs in one place.
+  const transfersHtml = '<div id="provider-vehicle-transfers"></div>';
+
   if (!activeJobs.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('wrench', 40)}</div><p>No active jobs. Win bids to see your jobs here!</p></div>`;
+    container.innerHTML = transfersHtml + `<div class="empty-state"><div class="empty-state-icon">${mccIcon('wrench', 40)}</div><p>No active jobs. Win bids to see your jobs here!</p></div>`;
+    setTimeout(() => window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers(), 200);
     return;
   }
   
-  container.innerHTML = activeJobs.map(job => {
+  container.innerHTML = transfersHtml + activeJobs.map(job => {
     const pkg = job.maintenance_packages;
     const vehicle = pkg?.vehicles;
     const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'Vehicle';
@@ -86,11 +329,27 @@ function renderActiveJobs() {
           </div>
         </div>
         <div id="provider-debrief-panel-${job.package_id}" style="display:none;margin-top:12px;"></div>
+        <!-- Task #369: per-job concierge coordination panel -->
+        <div style="margin-top:12px;padding:12px;border-top:1px dashed var(--border-subtle);">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+            <div style="font-weight:600;">${mccIcon('car', 14)} MCC Driver Concierge</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-secondary btn-sm" onclick="window.openProviderConciergeRequestModal('${job.package_id}','')">${mccIcon('plus', 12)} Request Driver</button>
+              <button class="btn btn-ghost btn-sm" onclick="window.refreshProviderJobConcierge('${job.package_id}')">${mccIcon('refresh-cw', 12)}</button>
+            </div>
+          </div>
+          <div id="concierge-job-${job.package_id}" style="font-size:0.9rem;color:var(--text-secondary);">Checking…</div>
+        </div>
       </div>
     `;
   }).join('');
 
   setTimeout(() => loadProviderMediations(), 300);
+  setTimeout(() => window.refreshProviderVehicleTransfers && window.refreshProviderVehicleTransfers(), 200);
+  // Hydrate per-job concierge sections after cards mount.
+  setTimeout(() => {
+    activeJobs.forEach(j => window.refreshProviderJobConcierge && window.refreshProviderJobConcierge(j.package_id));
+  }, 250);
 }
 
 // ========== GPS TRACKING ==========

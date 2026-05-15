@@ -417,10 +417,59 @@
       max-width: 520px;
       margin: 0 auto 40px;
       font-size: 0.95rem;
-      color: var(--text-muted, #888);
-      font-style: italic;
+      color: var(--text-secondary);
       line-height: 1.6;
       animation: fadeInUp 0.6s ease 0.3s both;
+    }
+    [data-theme="light"] .hero-nudge { color: #4a5568; }
+
+    /* Tertiary text link beneath the primary/secondary CTA pair. */
+    .hero-tertiary {
+      margin-top: 18px;
+      animation: fadeInUp 0.6s ease 0.4s both;
+    }
+    .hero-tertiary a {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: rgba(201, 162, 39, 0.4);
+    }
+    .hero-tertiary a:hover { color: var(--accent-gold); }
+
+    /* Capability strip — what we can actually back today, sits between the
+       CTAs and the trust badges. No invented metrics. */
+    .capability-strip {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 22px;
+      flex-wrap: wrap;
+      margin: 28px auto 0;
+      max-width: 760px;
+      animation: fadeInUp 0.6s ease 0.45s both;
+    }
+    .capability-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+    }
+    .capability-item .capability-icon {
+      color: var(--accent-gold);
+      display: inline-flex;
+    }
+    .capability-item a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: rgba(201, 162, 39, 0.45);
+    }
+    .capability-item a:hover { color: var(--accent-gold); }
+    [data-theme="light"] .capability-item { color: #4a5568; }
+    @media (max-width: 600px) {
+      .capability-strip { gap: 12px 18px; font-size: 0.8rem; }
     }
 
     .hero-actions {
@@ -1896,9 +1945,9 @@
 
   <output class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
     <span class="open-banner-dot" aria-hidden="true"></span>
-    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Open for Business</span>
+    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Now Live</span>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <span data-i18n="landing.openForBusinessBody">Member &amp; provider profiles are free to create.</span>
+    <span data-i18n="landing.openForBusinessBody">Now accepting members and providers nationwide — both profiles are free to create.</span>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
     <a href="/onboarding-member.html" data-i18n="landing.openForBusinessMemberCta">Create a member profile</a>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
@@ -1974,13 +2023,33 @@
             </svg>
             Get Started Free
           </a>
-          <a href="#" onclick="openFounderModal(); return false;" class="btn btn-outline-gold" data-i18n="nav.ourStory">
-            About
-          </a>
           <a href="onboarding-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProviderFree">
             Create Your Provider Profile
           </a>
         </div>
+        <p class="hero-tertiary">
+          <a href="#" onclick="openFounderModal(); return false;" data-i18n="landing.heroTertiaryAbout">Read our story</a>
+        </p>
+
+        <div class="capability-strip" aria-label="Platform capabilities">
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="lock"></span></span>
+            <span data-i18n="landing.capStripeSecured">Stripe-secured payments</span>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="shield-check"></span></span>
+            <a href="/background-check-disclosure.html" data-i18n="landing.capBackgroundChecked">Background-checked providers</a>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="shield"></span></span>
+            <span data-i18n="landing.capEscrowProtected">Escrow-protected care plans</span>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="globe"></span></span>
+            <span data-i18n="landing.capMultilang">7-language support</span>
+          </div>
+        </div>
+
         <div class="hero-free-strip" role="note">
           <span><strong data-i18n="landing.heroFreeMembers">Free</strong> <span data-i18n="landing.heroFreeMembersBody">to create a member profile</span></span>
           <span class="hero-free-strip-sep" aria-hidden="true"></span>

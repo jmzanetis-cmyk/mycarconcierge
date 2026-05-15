@@ -22,8 +22,9 @@
       whatItCosts: PRICE + ' per employee \u00B7 Results in 1\u20133 business days',
       whatYouNeedLabel: 'What you need:',
       whatYouNeed:
-        'Each employee\u2019s full name, date of birth, email, and current address. You\u2019ll ' +
-        'also need their consent (we provide the form).',
+        'Each employee\u2019s full name and email address. BackgroundChecks.com ' +
+        'collects date of birth, address, and consent directly from each employee ' +
+        'through a secure invitation link \u2014 sensitive personal data never touches MCC.',
       cta: 'Continue \u2192'
     },
     s2: {
@@ -32,15 +33,18 @@
         'Add each customer-facing employee who will be working directly with MCC ' +
         'customers. Back-office staff who don\u2019t interact with customers can be excluded.',
       helper:
-        'You\u2019ll add employees from your provider dashboard. We\u2019ll collect each person\u2019s ' +
-        'full name, date of birth, email, and current address.',
+        'You\u2019ll add employees from your provider dashboard. You only enter each ' +
+        'person\u2019s name and email \u2014 BackgroundChecks.com collects date of birth, ' +
+        'address, and FCRA consent from the employee directly via a secure invitation link.',
       cta: 'Continue \u2192'
     },
     s3: {
       title: 'Employee consent',
       body:
         'Background checks require each employee\u2019s written consent under the Fair ' +
-        'Credit Reporting Act (FCRA). We\u2019ll send each employee a secure consent form via email.',
+        'Credit Reporting Act (FCRA). BackgroundChecks.com emails each employee a ' +
+        'secure invitation link where they personally provide consent and the ' +
+        'sensitive details required for the screening.',
       authorize:
         'By proceeding, you confirm that you have authorization to submit background ' +
         'checks on behalf of the listed employees.',
@@ -60,7 +64,7 @@
       },
       whatNextLabel: 'What happens next:',
       bullets: [
-        'Each employee will receive a consent form via email',
+        'Each employee receives a BackgroundChecks.com invitation link by email and provides their own consent + identity details there',
         'Once consent is confirmed and the check completes, results update automatically',
         'When 90% of your team is cleared, your Verified badge goes live',
         'You\u2019ll get an email when your badge is active'
@@ -251,6 +255,15 @@
         '<p>' + escapeHtml(c.body(0)) + '</p>' +
         '<span class="mcc-bgc-label">' + escapeHtml(c.whatNextLabel) + '</span>' +
         '<ul style="margin:8px 0 0;padding-left:20px;color:#e8eaed;line-height:1.7;">' + bullets + '</ul>' +
+        // Task #372 — optional sub-account enrollment CTA. Providers can
+        // either let MCC order checks via the platform's BGC account
+        // (default) or enroll their own BGC sub-account so reports show
+        // up in their own console.
+        '<div style="margin-top:16px;padding:12px 14px;border:1px dashed rgba(212,168,85,0.4);border-radius:8px;background:rgba(212,168,85,0.05);">' +
+          '<div style="font-size:0.85rem;color:#d4a855;font-weight:600;margin-bottom:4px;">Optional: Run checks under your own BGC account</div>' +
+          '<div style="font-size:0.82rem;color:#c8ccd6;line-height:1.5;margin-bottom:8px;">Link a free BackgroundChecks.com sub-account so reports show up in your own console. Skip this if you\u2019re happy letting MCC handle the orders.</div>' +
+          '<button type="button" class="mcc-bgc-btn mcc-bgc-btn-secondary" style="font-size:0.82rem;padding:6px 12px;" onclick="window.MCC_BGC_Onboarding.openSubAccountEnroll()">Enroll BGC sub-account \u2192</button>' +
+        '</div>' +
       '</div>'
     );
   }
@@ -313,12 +326,26 @@
       return;
     }
     // Step 4 — close. Defer all employee creation + background-check
-    // initiation to the existing vetted flow in bgc-compliance.js.
+    // initiation to the existing vetted flow in bgc-compliance.js. Task #372
+    // also offers an inline link to the BGC sub-account enrollment page so
+    // providers who want their own BGC console can opt in immediately.
     close();
     if (window.bgcCompliance && typeof window.bgcCompliance.openAddEmployee === 'function') {
       window.bgcCompliance.openAddEmployee();
     } else if (window.bgcCompliance && typeof window.bgcCompliance.refresh === 'function') {
       window.bgcCompliance.refresh();
+    }
+  }
+
+  // Task #372 — public helper used by step 4 / dashboard CTAs to send the
+  // provider over to the BGC ClearChecksWidget enrollment page so we can
+  // create their sub-account and decrypt their api_key. Opening in a new
+  // tab keeps their MCC session intact.
+  function openSubAccountEnroll() {
+    try {
+      window.open('/bgc-enroll-account.html', '_blank', 'noopener');
+    } catch {
+      window.location.assign('/bgc-enroll-account.html');
     }
   }
 
@@ -337,7 +364,7 @@
   // `COPY` is exposed as a getter so external callers (e.g. the inline
   // signup-flow code in www/onboarding-provider.html) read the strings in
   // the currently active language.
-  const api = { open: open, close: close };
+  const api = { open: open, close: close, openSubAccountEnroll: openSubAccountEnroll };
   Object.defineProperty(api, 'COPY', {
     enumerable: true,
     get: function () { return _copy(); }
