@@ -199,6 +199,14 @@ async function handleCreate(event, supabase, user, profile, body) {
   if (body.created_by_kind === 'provider' && !callerIsProvider) {
     return jsonResponse(403, { error: 'caller is not a provider' });
   }
+  // Round-11 contract hardening: if the caller explicitly opts into the
+  // provider path (`created_by_kind:'provider'`), they MUST supply an
+  // appointment_id they own. We won't silently fall back to a member-kind
+  // job for provider-mode requests — that would mask a UX bug and let a
+  // provider create unscoped member jobs by accident.
+  if (body.created_by_kind === 'provider' && !body.appointment_id) {
+    return jsonResponse(400, { error: 'provider requests require appointment_id' });
+  }
   // If an appointment_id is given AND the caller owns it as the provider,
   // they're acting as the provider. Otherwise default to member.
   let kind = 'member';

@@ -398,5 +398,21 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   assert.strictEqual(res.statusCode, 403, '14c: member cannot edit address');
   console.log('  ✓ 14c) member cannot edit shop address (403)');
 
+  // ---- 15) provider-mode requests must include appointment_id ----
+  // Round-11 contract hardening: a provider caller that opts into the
+  // provider path with `created_by_kind:'provider'` cannot silently fall
+  // back to a member-kind job by omitting appointment_id.
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: PROVIDER_X, role: 'provider' }, error: null })
+  };
+  res = await fn.handler(makeEvent({
+    path: '/api/concierge', method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { tier: 1, scenario: 1, pickup_address: '1 Main', dropoff_address: '2 Shop', created_by_kind: 'provider' }
+  }));
+  assert.strictEqual(res.statusCode, 400, '15: provider-mode without appointment_id must be 400, got ' + res.statusCode + ' ' + res.body);
+  assert.ok(/appointment_id/i.test(res.body), '15: error must mention appointment_id');
+  console.log('  ✓ 15) provider-mode create without appointment_id is rejected (400)');
+
   console.log('\nAll concierge-jobs-public smoke tests passed.');
 })().catch(e => { console.error('TEST FAILURE:', e); process.exit(1); });
