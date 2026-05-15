@@ -17,6 +17,17 @@ MOBILE_CRUFT_DIRS=(
   "tests"
   "test-results"
   "playwright-report"
+  # Marketing / dev-only asset trees — referenced by public website pages,
+  # but the mobile app loads from server.url at runtime so these are dead
+  # weight in the offline fallback bundle.
+  "social-media"
+  "docs"
+  "screenshots"
+  # SQL migrations — applied via Supabase tooling, never read by the app.
+  "migrations"
+  "supabase-migrations"
+  # One-off internal reference page.
+  "ref"
 )
 
 # Specific files that must never ship in a mobile bundle
@@ -33,6 +44,11 @@ MOBILE_CRUFT_FILES=(
   "commission-system-sql.sql"
   "leaderboard_migration.sql"
   "seed-test-data.js"
+  # Replit-dev configs — capacitor.config.json at the repo root drives the
+  # native build; the copy that lands inside public/ is never read at runtime.
+  "capacitor.config.json"
+  "playwright.config.js"
+  ".eslintrc.json"
 )
 
 # Glob patterns to sweep recursively (find -name)
@@ -41,6 +57,11 @@ MOBILE_CRUFT_GLOBS=(
   "*.backup"
   "*.sql"
   "*.pptx"
+  # Marketing PDFs (brand assets, brochures, investor deck, founder program,
+  # bid packs). These are linked from the public website and downloaded
+  # on-demand from the live origin; they do not need to ship in the
+  # offline fallback bundle.
+  "*.pdf"
   "stress-test-*.js"
   "*.test.js"
   "*.spec.js"
