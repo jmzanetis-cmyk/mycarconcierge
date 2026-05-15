@@ -7,7 +7,19 @@
     }
 
     // ========== FETCH HELPER ==========
+    // Task #234 — `safeFetch` is kept as a thin compatibility wrapper. It now
+    // delegates to `aiOpsFetch` (declared further below as `adminFetch` too)
+    // when that helper is available, so every admin loader gets the same
+    // diagnostic messages added in Task #174 (HTTP status, relative path,
+    // plain-language reason) instead of the bare "Server error (NNN)" text
+    // that production triage could not act on. We fall back to the legacy
+    // path only on the very first call ordering, before adminFetch has been
+    // defined; in practice every loader is invoked long after parse-time so
+    // the wrapper always finds adminFetch.
     async function safeFetch(url, options) {
+      if (typeof globalThis.adminFetch === 'function') {
+        return globalThis.adminFetch(url, options);
+      }
       const res = await fetch(url, options);
       if (!res.ok) {
         let errMsg = `Server error (${res.status})`;
@@ -11301,6 +11313,11 @@
       }
     }
     globalThis.aiOpsFetch = aiOpsFetch;
+    // Task #234 — expose the same diagnostic helper under a generic name so
+    // non-AI-Ops loaders (SMS log, SaaS subscriptions, dispute resolver,
+    // payment tracker, etc.) can call it without reading as if they're part
+    // of the AI Ops module. `safeFetch` (top of file) delegates here too.
+    globalThis.adminFetch = aiOpsFetch;
 
     // Task #233 — shared helpers that turn the text-only "Not signed in as
     // admin" error from aiOpsFetch into an actionable inline prompt with a
