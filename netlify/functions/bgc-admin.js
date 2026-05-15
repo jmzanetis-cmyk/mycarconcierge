@@ -115,6 +115,13 @@ exports.handler = async function(event) {
     const c = counts[id] || { pending: 0, clear: 0, consider: 0, failed: 0, expired: 0 };
     // A provider is "live" only if global BGC_LIVE_MODE is on AND they have
     // either their own decrypted API key or fall back to the platform token.
+    // We deliberately ignore the `live_mode` column on
+    // provider_background_check_accounts here: that column is set by the
+    // decrypt-token flow as a hint, but the AUTHORITATIVE definition of
+    // "this provider is hitting real BGC" is the global env flag plus the
+    // presence of an actual credential (sub-account or platform fallback).
+    // Computing it server-side avoids the row-flag and operator-config
+    // drifting apart in admin.
     const hasApiKey = !!(a && a.bgchecks_api_key);
     const hasPlatformFallback = !!process.env.BGC_API_TOKEN;
     const live = liveModeFlag && (hasApiKey || hasPlatformFallback);

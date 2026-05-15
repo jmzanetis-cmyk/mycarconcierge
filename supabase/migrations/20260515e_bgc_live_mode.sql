@@ -64,8 +64,13 @@ REVOKE SELECT (bgchecks_api_key) ON provider_background_check_accounts FROM auth
 -- A safe read-only view for the provider dashboard / client code that wants
 -- to know whether a sub-account is linked without ever seeing the secret.
 DROP VIEW IF EXISTS provider_background_check_accounts_public;
-CREATE VIEW provider_background_check_accounts_public
-WITH (security_invoker = true) AS
+-- security_invoker = false (the default, "definer" semantics) so the view
+-- runs as its owner. This is required because we REVOKEd column-level
+-- SELECT on `bgchecks_api_key` from authenticated/anon above; with
+-- security_invoker the `bgchecks_api_key IS NOT NULL` expression below
+-- would fail with a column-permission error for normal callers. The view
+-- only exposes a boolean derived from that column, never the secret itself.
+CREATE VIEW provider_background_check_accounts_public AS
 SELECT
   provider_id,
   bgchecks_account_id,
