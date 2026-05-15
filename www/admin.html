@@ -5227,6 +5227,15 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
           <label style="display:block;font-weight:600;margin-bottom:4px;">Admin Note (optional)</label>
           <textarea id="edit-payment-admin-note" rows="3" class="form-control" style="width:100%;padding:8px;border-radius:6px;resize:vertical;" placeholder="Internal bookkeeping note. Not shown to members or providers."></textarea>
         </div>
+
+        <!-- Task #247 — Outreach History panel for the payment review modal.
+             Mirrors the dispute / refund / ticket / application modals (Task
+             #188). Hidden by editPayment() when the payment has no
+             member_id; otherwise populated by renderOutreachHistoryPanel(). -->
+        <div id="edit-payment-outreach-history-section" class="form-section" style="margin-top:18px;display:none;">
+          <div class="form-section-title"><span class="icon-inline" data-icon="mail"></span> Outreach History</div>
+          <div id="edit-payment-outreach-history-body" style="font-size:0.9rem;color:var(--text-muted);">Loading…</div>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('edit-payment-modal')">Cancel</button>

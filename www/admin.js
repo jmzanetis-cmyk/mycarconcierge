@@ -3894,6 +3894,31 @@
       document.getElementById('edit-payment-mcc-fee').value = p.amount_mcc_fee ?? '';
       document.getElementById('edit-payment-refund-amount').value = p.refund_amount ?? '';
       document.getElementById('edit-payment-admin-note').value = p.admin_note || '';
+
+      // Task #247 — render the Outreach History panel for the paying member
+      // so admins triaging a payment issue can see whether the user
+      // originally came from cold outreach without leaving the modal.
+      // Mirrors the dispute / refund / ticket / application modal pattern
+      // from Task #188. Section is hidden when the payment has no
+      // member_id (or the renderer isn't loaded yet) to match the existing
+      // "omit when no user id" behavior elsewhere.
+      const paymentSection = document.getElementById('edit-payment-outreach-history-section');
+      const paymentBody = document.getElementById('edit-payment-outreach-history-body');
+      if (paymentSection && paymentBody) {
+        if (p.member_id && typeof globalThis.renderOutreachHistoryPanel === 'function') {
+          paymentSection.style.display = '';
+          paymentBody.textContent = 'Loading…';
+          try {
+            globalThis.renderOutreachHistoryPanel('edit-payment-outreach-history-body', p.member_id);
+          } catch (e) {
+            console.warn('[admin] payment outreach history panel failed:', e);
+            paymentSection.style.display = 'none';
+          }
+        } else {
+          paymentSection.style.display = 'none';
+        }
+      }
+
       const modal = document.getElementById('edit-payment-modal');
       modal.style.display = 'flex';
       modal.classList.add('active');
