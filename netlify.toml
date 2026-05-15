@@ -1,3 +1,12 @@
+# =============================================================================
+# Where Netlify config actually lives:
+#   - Build / function settings / function schedules → THIS file (root netlify.toml)
+#   - Production redirects                          → www/_redirects
+# Do NOT recreate www/netlify.toml — Netlify only reads the root config, so a
+# second toml under www/ is silently ignored and has bitten us before
+# (see Task #213). Add new redirects to www/_redirects, not here.
+# =============================================================================
+
 [build]
   base       = "/"
   # Build order:
