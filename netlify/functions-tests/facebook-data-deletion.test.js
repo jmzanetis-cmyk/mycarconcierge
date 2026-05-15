@@ -213,6 +213,25 @@ async function test(name, fn) {
     assert.strictEqual(captured.inserts.length, 0);
   });
 
+  await test('rejects malformed signed_request (signature contains non-base64 chars)', async () => {
+    // '!!!!' is outside the base64url alphabet. Buffer.from is lenient and
+    // returns an empty buffer, so this hits the length-mismatch branch and
+    // surfaces as 'Invalid signed_request signature'. Locks down the
+    // "garbage signature" attack vector explicitly.
+    const payload = base64UrlEncode(JSON.stringify({
+      user_id: '1', algorithm: 'HMAC-SHA256', issued_at: 1
+    }));
+    const res = await handler(postEvent({ signed_request: '!!!!.' + payload }));
+    assert.strictEqual(res.statusCode, 400);
+    const body = parseBody(res);
+    assert.ok(
+      body.error === 'Invalid signed_request signature' ||
+      body.error === 'Malformed signed_request signature',
+      'expected signature-rejection error, got: ' + body.error
+    );
+    assert.strictEqual(captured.inserts.length, 0);
+  });
+
   await test('rejects malformed signed_request (signature passes base64 but length wrong)', async () => {
     // 'AAAA' decodes to 3 bytes — the HMAC-SHA256 expected length is 32, so
     // the timing-safe compare path rejects it as an invalid signature
