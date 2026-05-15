@@ -601,6 +601,52 @@ function freshSupabase() {
   assertEq(sb5.state.notifications.length, 4, '[opt-out] 4 in-app notification rows still inserted');
   assertEq(resendCalls.length, 4, '[opt-out] 4 emails still sent (push opt-out does not silence email/in-app)');
 
+  // Audit trail must explain WHY push was skipped for the opted-out recipients
+  // so an admin debugging "why didn't the push fire?" sees push_disabled_by_user
+  // instead of a misleading null. Both the winner branch and the member branch
+  // were 100% opted out, so at least one of them populates the field (notifyMatchmakerAward
+  // records the FIRST non-null reason across the three push fan-outs).
+  assertEq(sum5.push_skipped_reason, 'push_disabled_by_user',
+    '[opt-out] audit summary push_skipped_reason=push_disabled_by_user');
+
+  // ── Case 5b: opt-out filter is per-category (regression guard for the
+  // category=null bypass mentioned in Task #265) ──────────────────────────
+  // If a future refactor forgets to pass `category` to sendMatchmakerFCMPush,
+  // the opt-out check is bypassed and every recipient gets pushed. This case
+  // proves the category argument is actually wired through: a winner who
+  // ONLY opted out of bid_opportunities (a different category) still receives
+  // their bid_accepted award push.
+  resendCalls = [];
+  fcmCalls = [];
+  const sb5b = makeSupabaseMock({
+    agent_actions: [{
+      id: ACTION_ID, agent_slug: 'matchmaker', action_type: 'rank',
+      review_status: null,
+      decision: { recommended_winner_bid_id: WIN_BID, payload: { care_plan_id: PLAN_ID } }
+    }],
+    plan_bids: [
+      { id: WIN_BID, care_plan_id: PLAN_ID, provider_id: WIN_PID, status: 'pending', amount: 250 }
+    ],
+    care_plans: [{ id: PLAN_ID, member_id: MEMBER_ID, status: 'open', title: 'Brake Job' }],
+    profiles: [
+      { id: MEMBER_ID, email: 'm@x.com', full_name: 'Mia',   business_name: null  },
+      { id: WIN_PID,   email: 'w@x.com', full_name: 'Wendy', business_name: 'WG'  }
+    ],
+    device_push_tokens: [
+      { token: 'tok-win-only', member_id: WIN_PID, platform: 'ios', active: true }
+    ],
+    // Winner opted out of OPPORTUNITIES, not ACCEPTED — bid_accepted push must still fire.
+    provider_notification_preferences: [
+      { provider_id: WIN_PID, push_bid_accepted: true, push_bid_opportunities: false }
+    ]
+  });
+  await applyMatchmakerRank(sb5b, ACTION_ID, sb5b.state.agent_actions[0]);
+  const sum5b = sb5b.state.agent_actions.find(r => r.action_type === 'apply').decision.notifications;
+  assertEq(sum5b.winner_pushed, true,
+    '[opt-out per-category] winner who only muted opportunities still gets bid_accepted push');
+  const send5b = fcmCalls.filter(c => c.url.includes('fcm.googleapis.com'));
+  assertEq(send5b.length, 1, '[opt-out per-category] exactly 1 FCM send (winner)');
+
   // restore for any downstream tests
   process.env.RESEND_API_KEY = 'test-key';
   delete process.env.FCM_SERVICE_ACCOUNT_JSON;
