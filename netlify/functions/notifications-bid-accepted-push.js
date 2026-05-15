@@ -16,7 +16,12 @@
 // down to a single recipient + the `bid_accepted` opt-out check.
 //
 // Auth: Supabase JWT (member's bearer token from the browser session).
-// Body: { provider_id, package_title?, bid_amount? }
+// Body: { provider_id, bid_id }
+//   (Task #351: package_title / bid_amount in the body are now ignored —
+//    the handler reads them authoritatively from bids.price and
+//    maintenance_packages.title using the same lookup it already does for
+//    authz, so the member can no longer inject misleading wording into
+//    the provider's push payload.)
 // Response: { ok: true, sent, success, failure, reason? }
 //
 // Always returns 200 on a valid request even if FCM is not configured /
@@ -223,7 +228,7 @@ exports.handler = async function(event) {
   try {
     const { data, error } = await supabase
       .from('bids')
-      .select('id, provider_id, status, package_id, maintenance_packages!inner(member_id)')
+      .select('id, provider_id, status, package_id, price, maintenance_packages!inner(member_id, title)')
       .eq('id', bidId)
       .maybeSingle();
     if (error) return utils.errorResponse(500, 'Bid lookup failed');
@@ -243,11 +248,17 @@ exports.handler = async function(event) {
     return utils.errorResponse(403, 'Only the package owner can trigger this push');
   }
 
+  // Task #351: wording comes from the DB row we already fetched for authz,
+  // never from the request body. The client may still send package_title /
+  // bid_amount for back-compat, but they are now advisory and ignored.
+  const dbPackageTitle = bidRow.maintenance_packages?.title || null;
+  const dbBidAmount    = bidRow.price;
+
   const result = await dispatchBidAcceptedPush(
     supabase,
     providerId,
-    parsed.package_title || null,
-    parsed.bid_amount
+    dbPackageTitle,
+    dbBidAmount
   );
 
   return utils.successResponse({ ok: true, ...result });
