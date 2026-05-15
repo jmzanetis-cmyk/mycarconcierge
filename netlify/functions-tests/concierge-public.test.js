@@ -158,7 +158,7 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   res = await fn.handler(makeEvent({
     path: '/api/concierge', method: 'POST',
     headers: bearerFor(MEMBER_A),
-    body: { tier: 1, scenario: 1, appointment_id: APPT_1 }
+    body: { tier: 1, scenario: 1, appointment_id: APPT_1, pickup_address: '1 Main', dropoff_address: '2 Shop' }
   }));
   assert.strictEqual(res.statusCode, 403, '3: cross-member appointment should be 403');
   console.log('  ✓ 3) member cannot create job on someone else\'s appointment (403)');
@@ -170,7 +170,7 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   res = await fn.handler(makeEvent({
     path: '/api/concierge', method: 'POST',
     headers: bearerFor(MEMBER_A),
-    body: { tier: 1, scenario: 1, appointment_id: APPT_1, created_by_kind: 'provider' }
+    body: { tier: 1, scenario: 1, appointment_id: APPT_1, created_by_kind: 'provider', pickup_address: '1 Main', dropoff_address: '2 Shop' }
   }));
   assert.strictEqual(res.statusCode, 403, '4: non-provider acting as provider should be 403');
   console.log('  ✓ 4) non-provider creating as provider returns 403');
@@ -192,9 +192,9 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   res = await fn.handler(makeEvent({
     path: '/api/concierge', method: 'POST',
     headers: bearerFor(PROVIDER_X),
-    body: { tier: 2, scenario: 4, appointment_id: APPT_1, created_by_kind: 'provider' }
+    body: { tier: 2, scenario: 4, appointment_id: APPT_1, created_by_kind: 'provider', pickup_address: 'a-street', dropoff_address: 'b-street' }
   }));
-  assert.strictEqual(res.statusCode, 200, '5: provider create should be 200');
+  assert.strictEqual(res.statusCode, 200, '5: provider create should be 200, got ' + res.statusCode + ' ' + res.body);
   const provJob = lastInserted['concierge_jobs'];
   assert.strictEqual(provJob.member_id, MEMBER_A, '5: member_id read from appointment');
   assert.strictEqual(provJob.provider_id, PROVIDER_X);
@@ -321,7 +321,7 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   res = await fn.handler(makeEvent({
     path: '/api/concierge', method: 'POST',
     headers: bearerFor(MEMBER_A),
-    body: { tier: 1, scenario: 1, pickup_address: 'a', dropoff_address: 'b', member_vehicle_id: VEH_A }
+    body: { tier: 1, scenario: 1, pickup_address: '1 Main', dropoff_address: '2 Shop', member_vehicle_id: VEH_A }
   }));
   assert.strictEqual(res.statusCode, 403, '13: foreign vehicle should be 403, got ' + res.statusCode + ' ' + res.body);
   console.log('  ✓ 13) attaching another member\'s vehicle returns 403');

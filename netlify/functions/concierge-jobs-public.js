@@ -156,14 +156,25 @@ async function handleGet(event, supabase, user, profile, jobId) {
 }
 
 async function handleCreate(event, supabase, user, profile, body) {
-  // Determine the caller's "kind" for this request. Provider creation is
-  // only allowed when the caller has a provider role AND is named on the
-  // referenced appointment.
-  const wantsProvider = body.created_by_kind === 'provider';
-  if (wantsProvider && !callerActsAsProvider(profile, user.id)) {
+  // Caller "kind" is derived AUTHORITATIVELY from the caller's profile
+  // role + the appointment relationship below — body.created_by_kind is a
+  // hint only, never trusted to grant the provider path. A caller without
+  // the provider role always falls into member-creation, regardless of
+  // what the body says.
+  const callerIsProvider = callerActsAsProvider(profile, user.id);
+  if (body.created_by_kind === 'provider' && !callerIsProvider) {
     return jsonResponse(403, { error: 'caller is not a provider' });
   }
-  const kind = wantsProvider ? 'provider' : 'member';
+  // If an appointment_id is given AND the caller owns it as the provider,
+  // they're acting as the provider. Otherwise default to member.
+  let kind = 'member';
+  if (callerIsProvider && body.appointment_id && isUuid(body.appointment_id)) {
+    const { data: apptRole } = await supabase.from('appointments')
+      .select('provider_id').eq('id', body.appointment_id).maybeSingle();
+    if (apptRole && apptRole.provider_id === user.id) kind = 'provider';
+  }
+  // Explicit kind=member from a provider caller is honored.
+  if (body.created_by_kind === 'member') kind = 'member';
 
   const tier     = Number(body.tier);
   const scenario = Number(body.scenario);
@@ -174,6 +185,12 @@ async function handleCreate(event, supabase, user, profile, body) {
     errors.push(`scenario ${scenario} requires tier ${SCENARIO_TIER[scenario]}`);
   }
   if (body.appointment_id && !isUuid(body.appointment_id)) errors.push('appointment_id must be uuid');
+  // Pickup + dropoff addresses are required so legs always have routable
+  // endpoints. UI sends them, but the API must enforce it for direct calls.
+  const pickupOk  = typeof body.pickup_address  === 'string' && body.pickup_address.trim().length  >= 3;
+  const dropoffOk = typeof body.dropoff_address === 'string' && body.dropoff_address.trim().length >= 3;
+  if (!pickupOk)  errors.push('pickup_address is required (min 3 chars)');
+  if (!dropoffOk) errors.push('dropoff_address is required (min 3 chars)');
   if (errors.length) return jsonResponse(400, { error: 'validation failed', details: errors });
 
   // Vehicle ownership check: if the caller supplies member_vehicle_id we
