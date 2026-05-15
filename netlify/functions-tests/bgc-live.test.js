@@ -292,7 +292,8 @@ test('decrypt-token: success path stores api_key + flips live_mode', async () =>
   dbState['profiles.maybeSingle'] = () => ({ data: { role: 'provider' }, error: null });
   global.fetch = async () => ({
     ok: true, status: 200,
-    text: async () => JSON.stringify({ api_key: 'newly_decrypted_key' })
+    // BGC returns api_key + bgchecks_account_id; both must persist.
+    text: async () => JSON.stringify({ api_key: 'newly_decrypted_key', bgchecks_account_id: 'BGC-ACCT-42' })
   });
   lastUpsert = null;
   const mod = fresh('../functions/bgc-decrypt-token.js');
@@ -307,6 +308,70 @@ test('decrypt-token: success path stores api_key + flips live_mode', async () =>
   assert.strictEqual(lastUpsert.row.bgchecks_api_key, 'newly_decrypted_key');
   assert.strictEqual(lastUpsert.row.live_mode, true);
   assert.strictEqual(lastUpsert.row.source_token, 'src1');
+  assert.strictEqual(lastUpsert.row.bgchecks_account_id, 'BGC-ACCT-42',
+    'Step 5 — must persist bgchecks_account_id when BGC returns one');
+});
+
+// ── Test 6: end-to-end live initiate → webhook → clear round-trip ──────────
+// Fully exercises the live happy path with stubbed BGC HTTP. Asserts that:
+//   1. initiate posts to /orders/new and stores invite URL + report_key.
+//   2. webhook with status='C' (no flag) normalises to 'clear'.
+//   3. webhook with flagged_for_end_user_review:true normalises to 'consider'.
+// This is the contract the production pipeline depends on, regardless of
+// whether sandbox creds are available.
+test('end-to-end: initiate → webhook(C) → clear; webhook(C+flag) → consider', async () => {
+  process.env.BGC_LIVE_MODE = 'true';
+  process.env.BGC_API_TOKEN = 'platform-token';
+  currentAuthUserId = 'provider-uid';
+  dbState['provider_employees.maybeSingle'] = () => ({
+    data: { id: 'emp-e2e', provider_id: 'provider-uid', email: 'roundtrip@e.com' }, error: null
+  });
+  dbState['profiles.maybeSingle'] = () => ({ data: { role: 'provider' }, error: null });
+  dbState['provider_background_check_accounts.maybeSingle'] = () => ({ data: null, error: null });
+  dbState['employee_background_checks.insertSingle'] = () => ({ data: { id: 'bgc-e2e' }, error: null });
+
+  // Stub BGC /orders/new
+  global.fetch = async () => ({
+    ok: true, status: 200,
+    text: async () => JSON.stringify({
+      applicants: [{ report_key: 'rk_e2e', applicant_invite_url: 'https://bgc/invite/e2e' }]
+    })
+  });
+  const initiate = fresh('../functions/initiate-background-check.js');
+  const initResp = await initiate.handler({
+    httpMethod: 'POST',
+    body: JSON.stringify({ employeeId: 'emp-e2e' }),
+    headers: { authorization: 'Bearer good' }
+  });
+  assert.strictEqual(initResp.statusCode, 200, 'initiate body: ' + initResp.body);
+  const initBody = JSON.parse(initResp.body);
+  assert.strictEqual(initBody.reportId, 'rk_e2e');
+  assert.strictEqual(initBody.mode, 'live_platform');
+
+  // Now drive the webhook in for the same report_key. Stub the lookup so
+  // the webhook finds our row and runs the full normalise path.
+  dbState['employee_background_checks.maybeSingle'] = () => ({
+    data: { id: 'bgc-e2e', employee_id: 'emp-e2e', provider_id: 'provider-uid', is_current: true },
+    error: null
+  });
+  const webhook = fresh('../functions/background-check-webhook.js');
+  // 1) Plain C → clear
+  const bodyClear = JSON.stringify({ report_key: 'rk_e2e', status: 'C' });
+  const sigClear = crypto.createHmac('sha256', 'test-webhook-secret').update(bodyClear).digest('hex');
+  const respClear = await webhook.handler({
+    httpMethod: 'POST', body: bodyClear, headers: { 'x-signature': sigClear }
+  });
+  assert.strictEqual(respClear.statusCode, 200, 'webhook clear body: ' + respClear.body);
+  assert.strictEqual(webhook._normaliseStatus('C', false), 'clear');
+
+  // 2) C + flag → consider (the human-review path)
+  const bodyFlag = JSON.stringify({ report_key: 'rk_e2e', status: 'C', flagged_for_end_user_review: true });
+  const sigFlag = crypto.createHmac('sha256', 'test-webhook-secret').update(bodyFlag).digest('hex');
+  const respFlag = await webhook.handler({
+    httpMethod: 'POST', body: bodyFlag, headers: { 'x-signature': sigFlag }
+  });
+  assert.strictEqual(respFlag.statusCode, 200);
+  assert.strictEqual(webhook._normaliseStatus('C', true), 'consider');
 });
 
 // ── Test 5: bgc-admin auth ──────────────────────────────────────────────────

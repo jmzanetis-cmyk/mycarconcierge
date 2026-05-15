@@ -88,6 +88,7 @@ exports.handler = async function(event) {
   }
 
   let apiKey;
+  let bgcAccountId = null;
   try {
     const resp = await fetch(`${BGC_API_BASE}/token/decrypt?api_token=${encodeURIComponent(platformToken)}`, {
       method: 'POST',
@@ -106,6 +107,17 @@ exports.handler = async function(event) {
       console.error('[BGC decrypt] response missing api_key');
       return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: 'bgc_decrypt_no_api_key' }) };
     }
+    // BGC's /token/decrypt response also surfaces the human-readable
+    // account number (sometimes `account_id`, sometimes `bgchecks_account_id`,
+    // sometimes nested under `account.id`). Persist whichever shape we get
+    // so the existing `bgchecks_account_id` invariant on
+    // provider_background_check_accounts stays satisfied without forcing
+    // ops to look it up manually.
+    var accountId = (parsed && (parsed.bgchecks_account_id || parsed.account_id))
+      || (parsed && parsed.account && parsed.account.id)
+      || null;
+    // Stash on outer scope for the upsert below.
+    bgcAccountId = accountId;
   } catch (e) {
     console.error('[BGC decrypt] fetch threw', e.message);
     return { statusCode: 502, headers: corsHeaders, body: JSON.stringify({ error: 'bgc_unreachable' }) };
@@ -113,17 +125,22 @@ exports.handler = async function(event) {
 
   // Upsert into provider_background_check_accounts. We persist the
   // source_token used so ops can audit which platform credential the
-  // sub-account is linked to (rotation).
+  // sub-account is linked to (rotation), and the human-readable
+  // bgchecks_account_id when BGC returned one (Step 5 requirement —
+  // existing rows already created during the legacy mock-mode opt-in
+  // already carry this column, so we only update when we have a value).
   const sourceToken = process.env.BGC_SOURCE_TOKEN || null;
+  const upsertRow = {
+    provider_id: caller.id,
+    bgchecks_api_key: apiKey,
+    live_mode: true,
+    source_token: sourceToken,
+    updated_at: new Date().toISOString()
+  };
+  if (bgcAccountId) upsertRow.bgchecks_account_id = String(bgcAccountId);
   const { error: upErr } = await supabase
     .from('provider_background_check_accounts')
-    .upsert({
-      provider_id: caller.id,
-      bgchecks_api_key: apiKey,
-      live_mode: true,
-      source_token: sourceToken,
-      updated_at: new Date().toISOString()
-    }, { onConflict: 'provider_id' });
+    .upsert(upsertRow, { onConflict: 'provider_id' });
 
   if (upErr) {
     console.error('[BGC decrypt] DB upsert failed', upErr.message);
