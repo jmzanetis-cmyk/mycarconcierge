@@ -344,6 +344,13 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   }));
   assert.strictEqual(res.statusCode, 200, '14a: provider edit allowed when no driver accepted, got ' + res.statusCode + ' ' + res.body);
   assert.strictEqual(lastInserted['concierge_jobs.update'].row.dropoff_address, '3 New Shop Rd');
+  // Leg mirror must write to the real schema column to_address (NOT
+  // destination_address). This guards the bug from code-review round 4
+  // where the function was using non-existent column names.
+  const legUpd = lastInserted['concierge_job_legs.update'];
+  assert.ok(legUpd, '14a: leg mirror update must run');
+  assert.strictEqual(legUpd.row.to_address, '3 New Shop Rd', '14a: leg row must update to_address');
+  assert.ok(!('destination_address' in legUpd.row), '14a: must not write to nonexistent destination_address');
 
   // ---- 14b) blocked once a driver has accepted ----
   dbState['concierge_job_drivers.then'] = () => ({ data: [{ id: 'asn1', role: 'primary', accepted_at: '2026-01-01T00:00:00Z' }], error: null });

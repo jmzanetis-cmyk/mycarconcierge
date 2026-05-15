@@ -493,7 +493,7 @@ correct the shop address for their concierge job. Server-side guards:
 - Job must not be `completed` or `cancelled`.
 - **Refused with 409 once any `concierge_job_drivers.accepted_at` is set**,
   so a driver never sees a different address than the one they accepted.
-- Mirrors the change onto unstarted (`pending`) legs whose origin /
+- Mirrors the change onto unstarted (`pending`) legs whose `from_address`/`to_address` still matches the old job address. If the leg mirror fails the job-row update is rolled back so on-disk state never disagrees.
   destination still matches the old job address.
 
 Audit: `admin_audit_log` action `update_concierge_job_address`. Event:
