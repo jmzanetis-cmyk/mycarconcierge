@@ -31,6 +31,10 @@ externalPort = 80
 localPort = 5904
 externalPort = 3002
 
+[[ports]]
+localPort = 23636
+externalPort = 3000
+
 [agent]
 expertMode = true
 integrations = ["stripe:2.0.0", "hubspot:1.0.0", "github:1.0.0"]
