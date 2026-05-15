@@ -1589,6 +1589,13 @@
           return;
         }
         const days = data.days_until;
+        if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
+          pill.className = 'status-badge red';
+          pill.textContent = 'Invalid configuration';
+          dateEl.textContent = `Stored value "${data.expiry_date ?? ''}" is not a valid YYYY-MM-DD date. Re-enter below.`;
+          if (input && !input.value && data.expiry_date) input.value = data.expiry_date;
+          return;
+        }
         let cls = 'status-badge approved'; // green
         let label = `Healthy · expires in ${days} days`;
         if (data.level === 'expired' || days <= 0) {
