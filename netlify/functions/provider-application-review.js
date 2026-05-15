@@ -25,6 +25,48 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+const { Resend } = require('resend');
+
+const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
+
+// Best-effort email send. Returns boolean. Never throws — Task #238 requires
+// that notification failures do not roll back the underlying status change.
+async function sendEmail(to, subject, html) {
+  const apiKey = process.env.RESEND_API_KEY;
+  if (!apiKey || !to) return false;
+  try {
+    const resend = new Resend(apiKey);
+    await resend.emails.send({ from: FROM_EMAIL, to, subject, html });
+    return true;
+  } catch (e) {
+    console.error('[provider-application-review] email send failed:', e.message);
+    return false;
+  }
+}
+
+// Best-effort in-app notification insert. Mirrors the suspend/activate pattern
+// in provider-admin.js so applicants see the status change next time they log
+// in even if email delivery fails.
+async function notify(supabase, userId, type, title, message) {
+  if (!userId) return false;
+  try {
+    await supabase.from('notifications').insert({ user_id: userId, type, title, message });
+    return true;
+  } catch (e) {
+    console.error('[provider-application-review] notification insert failed:', e.message);
+    return false;
+  }
+}
+
+function escapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function greetingName(app) {
+  return app.contact_name || app.business_name || 'there';
+}
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -180,6 +222,21 @@ async function approveApplication(supabase, body) {
     performed_by: 'admin'
   });
 
+  // Task #238 — best-effort applicant notification (email + in-app row).
+  // Failures must not roll back the approval; we already have the status
+  // change committed and audited above.
+  const approveSubject = 'Welcome to My Car Concierge — your provider application is approved';
+  const approveHtml =
+    `<p>Hi ${escapeHtml(greetingName(app))},</p>
+     <p>Great news — your provider application${app.business_name ? ` for <strong>${escapeHtml(app.business_name)}</strong>` : ''} has been approved on My Car Concierge.</p>
+     <p>You can now sign in and head to your provider dashboard to start receiving booking opportunities, set up your service offerings, and complete any optional onboarding steps.</p>
+     <p><a href="https://mycarconcierge.com/providers.html" style="display:inline-block;padding:10px 18px;background:#b8942d;color:#fff;text-decoration:none;border-radius:6px;font-weight:600;">Open your provider dashboard</a></p>
+     <p>Welcome aboard,<br/>— My Car Concierge</p>`;
+  await sendEmail(app.email, approveSubject, approveHtml);
+  await notify(supabase, app.user_id, 'provider_application_approved',
+    'Provider application approved',
+    'Your provider application has been approved. Visit your provider dashboard to get started.');
+
   return jsonResponse(200, {
     application_id: applicationId,
     status: 'approved',
@@ -231,6 +288,19 @@ async function rejectApplicationFn(supabase, body) {
     performed_by: 'admin'
   });
 
+  // Task #238 — best-effort applicant notification (email + in-app row).
+  const rejectSubject = 'Update on your My Car Concierge provider application';
+  const rejectHtml =
+    `<p>Hi ${escapeHtml(greetingName(app))},</p>
+     <p>Thank you for applying to become a provider on My Car Concierge${app.business_name ? ` with <strong>${escapeHtml(app.business_name)}</strong>` : ''}. After review, we are unable to approve your application at this time for the following reason:</p>
+     <blockquote style="border-left:3px solid #b8942d;padding-left:12px;color:#555;">${escapeHtml(reason)}</blockquote>
+     <p>If you believe this was in error or you'd like to address the issue and reapply, please reply to this email and our team will be glad to help.</p>
+     <p>— My Car Concierge</p>`;
+  await sendEmail(app.email, rejectSubject, rejectHtml);
+  await notify(supabase, app.user_id, 'provider_application_rejected',
+    'Provider application not approved',
+    `Your provider application was not approved. Reason: ${reason}`);
+
   return jsonResponse(200, { application_id: applicationId, status: 'rejected' });
 }
 
@@ -278,6 +348,19 @@ async function requestApplicationInfo(supabase, body) {
     },
     performed_by: 'admin'
   });
+
+  // Task #238 — best-effort applicant notification (email + in-app row).
+  const infoSubject = 'We need a bit more information on your My Car Concierge application';
+  const infoHtml =
+    `<p>Hi ${escapeHtml(greetingName(app))},</p>
+     <p>Thanks for applying to become a provider on My Car Concierge${app.business_name ? ` with <strong>${escapeHtml(app.business_name)}</strong>` : ''}. Before we can finish reviewing your application, our team needs the following:</p>
+     <blockquote style="border-left:3px solid #b8942d;padding-left:12px;color:#555;white-space:pre-wrap;">${escapeHtml(infoRequested)}</blockquote>
+     <p>Please reply to this email with the requested details and we'll pick the review back up as soon as we receive them.</p>
+     <p>— My Car Concierge</p>`;
+  await sendEmail(app.email, infoSubject, infoHtml);
+  await notify(supabase, app.user_id, 'provider_application_info_requested',
+    'More information requested on your application',
+    `Our team needs more information on your provider application: ${infoRequested}`);
 
   return jsonResponse(200, { application_id: applicationId, status: 'more_info_needed' });
 }
