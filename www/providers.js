@@ -2302,6 +2302,11 @@
           if (['requested','scheduled','in_progress','vehicle_received','vehicle_released'].includes(j.status)) {
             transitions.push(`<button class="btn btn-warning btn-sm" onclick="window.transitionConciergeJob('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId || '')}','problem_flagged','Describe the problem:')">⚠ Flag Problem</button>`);
           }
+          // Shop-address adjustment: only available before any driver has
+          // accepted (server enforces the same guard via accepted_at check).
+          if (accepted === 0 && (j.status === 'requested' || j.status === 'scheduled')) {
+            transitions.push(`<button class="btn btn-ghost btn-sm" onclick="window.editConciergeShopAddress('${escHtml(j.id)}','${escHtml(packageId)}','${escHtml(appointmentId || '')}','dropoff', ${JSON.stringify(j.dropoff_address || '').replaceAll('"','&quot;')})">${mccIcon('edit', 12)} Edit Shop Address</button>`);
+          }
           return `
             <div style="padding:10px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:6px;">
               <div><strong>Tier ${tier} · Scenario ${scenario}</strong> — <span style="text-transform:uppercase;">${status}</span></div>
@@ -2325,6 +2330,24 @@
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
       });
       if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      window.refreshProviderConciergeJobs(packageId, appointmentId);
+    };
+
+    window.editConciergeShopAddress = async function(jobId, packageId, appointmentId, field, currentAddress) {
+      const label = field === 'pickup' ? 'pickup' : 'shop drop-off';
+      const next = window.prompt(`Update ${label} address (drivers haven't accepted yet):`, currentAddress || '');
+      if (!next || next.trim().length < 3) return;
+      const headers = providerConciergeAuthHeader();
+      if (!headers) { alert('Please sign in again to edit address.'); return; }
+      const resp = await fetch('/api/concierge/' + jobId + '/update-address', {
+        method: 'POST', headers,
+        body: JSON.stringify({ field, address: next.trim() })
+      });
+      if (!resp.ok) {
+        const txt = await resp.text();
+        alert('Address update failed: ' + txt);
+        return;
+      }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
     };
 

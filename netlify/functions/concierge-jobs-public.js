@@ -21,6 +21,14 @@
 //                                    body { to_status, note? }
 //                                    allowed transitions are scoped per role
 //                                    (see TRANSITIONS below).
+//   POST   /:job_id/update-address — provider-only address adjustment
+//                                    body { field: 'pickup'|'dropoff',
+//                                           address, lat?, lng? }
+//                                    Refused once any driver assignment has
+//                                    accepted (concierge_job_drivers.accepted_at
+//                                    is NOT NULL) so a driver never sees
+//                                    a different address than the one they
+//                                    accepted.
 //
 // SECURITY MODEL
 //   - Authentication is a bearer Supabase JWT (the SAME session cookie/token
@@ -168,6 +176,27 @@ async function handleCreate(event, supabase, user, profile, body) {
   if (body.appointment_id && !isUuid(body.appointment_id)) errors.push('appointment_id must be uuid');
   if (errors.length) return jsonResponse(400, { error: 'validation failed', details: errors });
 
+  // Vehicle ownership check: if the caller supplies member_vehicle_id we
+  // verify that vehicle belongs to the member who will end up owning the job
+  // (the caller for member-created jobs, or the appointment's member for
+  // provider-created jobs). Without this a malicious caller could attach
+  // someone else's vehicle id to a job they own.
+  let resolvedMemberId = user.id;
+  if (body.appointment_id) {
+    const { data: apptOwner } = await supabase.from('appointments')
+      .select('member_id').eq('id', body.appointment_id).maybeSingle();
+    if (apptOwner) resolvedMemberId = apptOwner.member_id;
+  }
+  if (body.member_vehicle_id) {
+    if (!isUuid(body.member_vehicle_id)) return jsonResponse(400, { error: 'member_vehicle_id must be uuid' });
+    const { data: veh } = await supabase.from('vehicles')
+      .select('id, owner_id').eq('id', body.member_vehicle_id).maybeSingle();
+    if (!veh) return jsonResponse(404, { error: 'vehicle not found' });
+    if (veh.owner_id !== resolvedMemberId) {
+      return jsonResponse(403, { error: 'vehicle does not belong to the named member' });
+    }
+  }
+
   // Resolve member_id + provider_id authoritatively. NEVER trust body.
   let memberId, providerId;
   if (body.appointment_id) {
@@ -298,6 +327,87 @@ async function handleTransition(event, supabase, user, profile, jobId, body) {
   return jsonResponse(200, { ok: true, status: toStatus });
 }
 
+async function handleUpdateAddress(event, supabase, user, profile, jobId, body) {
+  if (!isUuid(jobId)) return jsonResponse(400, { error: 'invalid job id' });
+  const field = String(body.field || '').toLowerCase();
+  if (field !== 'pickup' && field !== 'dropoff') {
+    return jsonResponse(400, { error: 'field must be "pickup" or "dropoff"' });
+  }
+  const address = String(body.address || '').trim();
+  if (address.length < 3 || address.length > 500) {
+    return jsonResponse(400, { error: 'address must be 3-500 chars' });
+  }
+  const lat = isFinite(Number(body.lat)) ? Number(body.lat) : null;
+  const lng = isFinite(Number(body.lng)) ? Number(body.lng) : null;
+
+  const { data: job } = await supabase.from('concierge_jobs')
+    .select('id, status, member_id, provider_id, pickup_address, dropoff_address')
+    .eq('id', jobId).maybeSingle();
+  if (!job) return jsonResponse(404, { error: 'job not found' });
+
+  // Provider-only adjustment.
+  const isProvider = job.provider_id === user.id && callerActsAsProvider(profile, user.id);
+  if (!isProvider) return jsonResponse(403, { error: 'only the named provider may adjust shop address' });
+  if (job.status === 'completed' || job.status === 'cancelled') {
+    return jsonResponse(409, { error: `cannot edit address on ${job.status} job` });
+  }
+
+  // Guard: refuse once any assignment has accepted_at populated, so the
+  // driver never sees a different address than the one they accepted.
+  const { data: accepted } = await supabase.from('concierge_job_drivers')
+    .select('id, role, accepted_at').eq('job_id', jobId).not('accepted_at', 'is', null);
+  if (Array.isArray(accepted) && accepted.length > 0) {
+    return jsonResponse(409, {
+      error: 'a driver has already accepted; address can no longer be edited',
+      accepted_roles: accepted.map(a => a.role)
+    });
+  }
+
+  const updates = {};
+  if (field === 'pickup') {
+    updates.pickup_address = address;
+    if (lat !== null) updates.pickup_lat = lat;
+    if (lng !== null) updates.pickup_lng = lng;
+  } else {
+    updates.dropoff_address = address;
+    if (lat !== null) updates.dropoff_lat = lat;
+    if (lng !== null) updates.dropoff_lng = lng;
+  }
+
+  const { error: jobErr } = await supabase.from('concierge_jobs')
+    .update(updates).eq('id', jobId);
+  if (jobErr) return jsonResponse(500, { error: jobErr.message });
+
+  // Mirror onto unstarted legs whose origin/destination matches the job's
+  // old address so distance/route stays consistent.
+  const oldAddress = field === 'pickup' ? job.pickup_address : job.dropoff_address;
+  if (oldAddress) {
+    const cols = field === 'pickup'
+      ? { addr: 'origin_address',      lat: 'origin_lat',      lng: 'origin_lng' }
+      : { addr: 'destination_address', lat: 'destination_lat', lng: 'destination_lng' };
+    const legUpdate = { [cols.addr]: address };
+    if (lat !== null) legUpdate[cols.lat] = lat;
+    if (lng !== null) legUpdate[cols.lng] = lng;
+    await supabase.from('concierge_job_legs')
+      .update(legUpdate)
+      .eq('job_id', jobId)
+      .eq(cols.addr, oldAddress)
+      .eq('status', 'pending');
+  }
+
+  await audit(supabase, {
+    action: 'update_concierge_job_address',
+    target_id: jobId, target_type: 'concierge_job',
+    metadata: { field, old: oldAddress, new: address, source: 'provider' },
+    performed_by: user.id
+  });
+  await emitEvent(supabase, 'concierge.address_updated', {
+    job_id: jobId, field, address, by: user.id
+  });
+
+  return jsonResponse(200, { ok: true, [field + '_address']: address });
+}
+
 async function handleCancel(event, supabase, user, profile, jobId, body) {
   if (!isUuid(jobId)) return jsonResponse(400, { error: 'invalid job id' });
   const reason = (body.reason || '').toString().trim();
@@ -366,6 +476,8 @@ exports.handler = async function(event) {
     if (m && method === 'POST') return await handleCancel(event, supabase, user, profile, m[1], body);
     m = route.match(/^([^/]+)\/transition$/);
     if (m && method === 'POST') return await handleTransition(event, supabase, user, profile, m[1], body);
+    m = route.match(/^([^/]+)\/update-address$/);
+    if (m && method === 'POST') return await handleUpdateAddress(event, supabase, user, profile, m[1], body);
     return jsonResponse(404, { error: 'Not found', path: route, method });
   } catch (e) {
     console.error('[concierge-jobs-public] handler error:', e);

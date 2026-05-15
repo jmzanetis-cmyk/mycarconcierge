@@ -311,5 +311,60 @@ const JOB_1      = 'eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee';
   assert.strictEqual(res.statusCode, 403, '12: non-party cannot transition');
   console.log('  ✓ 12) non-party caller cannot transition (403)');
 
+  // ---- 13) vehicle ownership check on create ----
+  const VEH_A = 'ffffffff-ffff-ffff-ffff-ffffffffffff';
+  lastInserted = {};
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: MEMBER_A, role: 'member' }, error: null }),
+    'vehicles.maybeSingle': () => ({ data: { id: VEH_A, owner_id: MEMBER_B }, error: null })
+  };
+  res = await fn.handler(makeEvent({
+    path: '/api/concierge', method: 'POST',
+    headers: bearerFor(MEMBER_A),
+    body: { tier: 1, scenario: 1, pickup_address: 'a', dropoff_address: 'b', member_vehicle_id: VEH_A }
+  }));
+  assert.strictEqual(res.statusCode, 403, '13: foreign vehicle should be 403, got ' + res.statusCode + ' ' + res.body);
+  console.log('  ✓ 13) attaching another member\'s vehicle returns 403');
+
+  // ---- 14) provider edit shop address (no driver accepted) ----
+  lastInserted = {};
+  dbState = {
+    'profiles.maybeSingle': () => ({ data: { id: PROVIDER_X, role: 'provider' }, error: null }),
+    'concierge_jobs.maybeSingle': () => ({
+      data: { id: JOB_1, status: 'requested', member_id: MEMBER_A, provider_id: PROVIDER_X,
+              pickup_address: '1 Main', dropoff_address: '2 Shop' },
+      error: null
+    }),
+    'concierge_job_drivers.then': () => ({ data: [], error: null })
+  };
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/update-address`, method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { field: 'dropoff', address: '3 New Shop Rd' }
+  }));
+  assert.strictEqual(res.statusCode, 200, '14a: provider edit allowed when no driver accepted, got ' + res.statusCode + ' ' + res.body);
+  assert.strictEqual(lastInserted['concierge_jobs.update'].row.dropoff_address, '3 New Shop Rd');
+
+  // ---- 14b) blocked once a driver has accepted ----
+  dbState['concierge_job_drivers.then'] = () => ({ data: [{ id: 'asn1', role: 'primary', accepted_at: '2026-01-01T00:00:00Z' }], error: null });
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/update-address`, method: 'POST',
+    headers: bearerFor(PROVIDER_X),
+    body: { field: 'dropoff', address: '4 Blocked Rd' }
+  }));
+  assert.strictEqual(res.statusCode, 409, '14b: edit blocked after driver acceptance');
+  console.log('  ✓ 14) provider can edit shop address only before driver acceptance');
+
+  // ---- 14c) member cannot edit address ----
+  dbState['profiles.maybeSingle'] = () => ({ data: { id: MEMBER_A, role: 'member' }, error: null });
+  dbState['concierge_job_drivers.then'] = () => ({ data: [], error: null });
+  res = await fn.handler(makeEvent({
+    path: `/api/concierge/${JOB_1}/update-address`, method: 'POST',
+    headers: bearerFor(MEMBER_A),
+    body: { field: 'dropoff', address: '5 Main' }
+  }));
+  assert.strictEqual(res.statusCode, 403, '14c: member cannot edit address');
+  console.log('  ✓ 14c) member cannot edit shop address (403)');
+
   console.log('\nAll concierge-jobs-public smoke tests passed.');
 })().catch(e => { console.error('TEST FAILURE:', e); process.exit(1); });

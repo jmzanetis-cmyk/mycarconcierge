@@ -203,6 +203,24 @@ async function handleAssignDriver(event, supabase, jobId, body) {
     .select('*').single();
   if (error) return jsonResponse(500, { error: error.message });
 
+  // Lifecycle hop: 'requested' -> 'scheduled' on first driver assignment so
+  // the existing driver-api flow (which expects 'scheduled' before flipping
+  // to 'in_progress' on first leg start) keeps working for jobs created by
+  // members or providers via /api/concierge.
+  if (job && (job.status === 'requested' || job.status === 'draft')) {
+    await supabase.from('concierge_jobs')
+      .update({ status: 'scheduled' })
+      .eq('id', jobId)
+      .in('status', ['requested','draft']);
+    try {
+      await supabase.from('agent_events').insert({
+        event_type: 'concierge.status_changed',
+        payload: { job_id: jobId, from: job.status, to: 'scheduled', by: 'admin', role: 'admin' },
+        source: 'concierge-jobs-admin'
+      });
+    } catch (e) { /* best-effort */ }
+  }
+
   await audit(supabase, {
     action: 'assign_concierge_driver',
     target_id: jobId, target_type: 'concierge_job',

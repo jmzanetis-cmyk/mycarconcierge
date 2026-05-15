@@ -482,3 +482,34 @@ The `concierge_jobs.status` CHECK constraint has been widened to include:
 - `vehicle_received` — provider confirmed the vehicle is at the shop
 - `vehicle_released` — provider released it for return
 - `problem_flagged` — needs admin attention
+
+### Provider shop-address adjustment
+
+`POST /api/concierge/:job_id/update-address` body
+`{field: "pickup"|"dropoff", address, lat?, lng?}` lets the named provider
+correct the shop address for their concierge job. Server-side guards:
+
+- Caller must be the job's `provider_id` AND have provider role.
+- Job must not be `completed` or `cancelled`.
+- **Refused with 409 once any `concierge_job_drivers.accepted_at` is set**,
+  so a driver never sees a different address than the one they accepted.
+- Mirrors the change onto unstarted (`pending`) legs whose origin /
+  destination still matches the old job address.
+
+Audit: `admin_audit_log` action `update_concierge_job_address`. Event:
+`concierge.address_updated`.
+
+### Vehicle ownership enforcement on create
+
+When `POST /api/concierge` includes a `member_vehicle_id`, the server
+verifies that `vehicles.owner_id === resolvedMemberId` (the caller for
+member-created jobs, the appointment's `member_id` for provider-created
+jobs). Cross-member attachment is rejected with 403.
+
+### Auto status hop on first driver assignment
+
+Admin `POST /api/admin/concierge-jobs/:id/assign-driver` automatically
+flips the job's status from `requested` (or legacy `draft`) to
+`scheduled` so the existing driver-api lifecycle (`scheduled →
+in_progress` on first leg start) keeps working for jobs created by
+members or providers via the public API.
