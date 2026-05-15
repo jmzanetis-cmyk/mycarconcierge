@@ -1491,6 +1491,13 @@
           providers = result.data || [];
           state.total = result.total;
           state.totalPages = result.totalPages;
+          // Task #249 — surface outreach attribution on the approved-providers
+          // list. profiles.outreach_lead_id is set by the same conversion path
+          // that populates provider_applications.outreach_lead_id (Task #137),
+          // so we hydrate _outreach_lead the same way the Applications tab
+          // does. Failures here never block the table render — the badge
+          // gracefully falls back to "Direct signup" / "Lead linked".
+          await hydrateApplicationOutreachLeads(providers);
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
@@ -2596,14 +2603,15 @@
       // Task #281 — show load error before falling through to "No providers match filters",
       // which previously masked a failed fetch as an empty result set.
       if (loadErrors.providers) {
-        renderTableLoadErrorRow('providers-table', 9, 'providers', 'loadProviders()');
+        // Task #249 — column count bumped from 9 → 10 (added Source column).
+        renderTableLoadErrorRow('providers-table', 10, 'providers', 'loadProviders()');
         updateBulkBar();
         return;
       }
       filteredProviders = filterProvidersData();
 
       if (!filteredProviders.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No providers match filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No providers match filters</td></tr>';
         updateBulkBar();
         return;
       }
@@ -2631,6 +2639,7 @@
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
             <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}</td>
+            <td>${renderApplicationLeadBadge(p)}</td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
             <td>
               <div style="display:flex;gap:4px;">
