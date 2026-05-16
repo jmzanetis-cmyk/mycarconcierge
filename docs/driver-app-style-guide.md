@@ -1,288 +1,282 @@
-# MCC Driver App — Style Guide
+# MCC Driver App — Style Match Guide
 
-Visual + brand spec to keep the standalone "MCC Driver" Replit project visually consistent with the main My Car Concierge web/PWA app. Pull tokens from this doc; do not invent new colors or radii.
+The "MCC Driver" app is a separate Replit project (see Task #332 and
+[`docs/driver-app-api.md`](./driver-app-api.md)). This guide describes the
+look, feel, and copy rules the Driver app should follow so it visually
+reads as part of the My Car Concierge platform.
 
-Source of truth for the main app is `www/shared-styles.css` (sections "CSS Variables", "Light Theme Override", "Buttons", "Cards", "Form Elements", "Modals"). When in doubt, mirror that file.
+The companion file [`driver-app-assets/driver-tokens.css`](./driver-app-assets/driver-tokens.css)
+is a drop-in stylesheet — copy it into the Driver app, link the fonts,
+and you are 90% of the way there.
 
 ---
 
-## 1. Brand voice
+## 1. Typography
 
-- **Tagline**: "Your complete auto ownership platform"
-- **Driver-app framing**: positioning is *concierge driver*, not gig courier. Tone is professional, calm, premium — never gamified.
-- **Word choice**:
-  - "auto" for general references
-  - "ride" for casual/friendly tone
-  - "vehicle" for formal contexts (legal, receipts, releases)
-- **Buttons & CTAs**: action verbs, no exclamation marks. ("Mark Vehicle Received", not "Got it!")
-- **Languages to support eventually**: English, Spanish, French, Greek, Chinese, Hindi, Arabic (RTL).
+Both fonts are loaded from Google Fonts. Drop these exactly as written
+into the `<head>` of every page in the Driver app, **above** the
+`driver-tokens.css` link:
+
+```html
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+```
+
+| Family               | Weights         | Used for                                          |
+|----------------------|-----------------|---------------------------------------------------|
+| **Outfit**           | 300/400/500/600/700 | All body text, buttons, inputs, nav, labels.   |
+| **Playfair Display** | 500/600         | Optional editorial headlines (marketing hero only). The Driver app likely won't need this — include only if a future marketing/info screen calls for it. |
+
+Body font stack (set by `driver-tokens.css` on `body`):
+
+```css
+font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+```
+
+Base line-height is `1.6`. Default text color is `var(--text-primary)`.
 
 ---
 
 ## 2. Color tokens
 
-Mirror the main app exactly. Drop these into a `theme.ts` / `colors.ts` / CSS variables file and reference everywhere.
+All colors are CSS custom properties on `:root` so the theme can flip by
+adding `data-theme="light"` to `<html>`. Use the token names — never
+hard-code hex.
 
 ### Dark theme (default)
 
-| Token | Value | Usage |
+| Token | Hex / rgba | Intended use |
 |---|---|---|
-| `--bg-deep` | `#12161c` | App background (warm slate, garage-inspired) |
-| `--bg-card` | `rgba(26, 32, 42, 0.9)` | Card surfaces |
-| `--bg-elevated` | `rgba(36, 44, 56, 0.95)` | Modals, sheets, raised tiles |
-| `--bg-input` | `rgba(30, 38, 48, 0.9)` | Inputs, segmented controls |
-| `--text-primary` | `#f5f5f7` | Headings, body |
-| `--text-secondary` | `#a0a8b8` | Labels, helper |
-| `--text-muted` | `#6b7280` | Captions, timestamps |
-| `--accent-gold` | `#c9a227` | Primary brand (bronze/copper) |
-| `--accent-gold-soft` | `rgba(201, 162, 39, 0.18)` | Gold tints, selected chips |
-| `--accent-bronze` | `#cd7f32` | Secondary brand metal |
-| `--accent-teal` | `#22d3ee` | Coolant teal — info, links |
-| `--accent-blue` | `#38bdf8` | Interactive accent |
-| `--accent-green` | `#34d399` | Success, completed |
-| `--accent-orange` | `#fb923c` | Warning, in-progress |
-| `--accent-red` | `#f87171` | Error, problem flagged |
-| `--border-subtle` | `rgba(160, 168, 184, 0.15)` | Hairlines |
-| `--border-medium` | `rgba(160, 168, 184, 0.25)` | Dividers, input borders |
-| `--border-focus` | `rgba(56, 189, 248, 0.5)` | Focus ring |
+| `--bg-deep`        | `#12161c`              | App background (slate, garage-floor vibe) |
+| `--bg-card`        | `rgba(26,32,42,0.9)`   | Standard card surface |
+| `--bg-elevated`    | `rgba(36,44,56,0.95)`  | Modals, header pills, popovers |
+| `--bg-input`       | `rgba(30,38,48,0.9)`   | Form inputs, ghost-button hover |
+| `--text-primary`   | `#f5f5f7`              | Headings, body copy |
+| `--text-secondary` | `#a0a8b8`              | Labels, muted copy |
+| `--text-muted`     | `#6b7280`              | Hints, placeholders |
+| `--accent-gold`    | `#c9a227`              | Primary brand accent (bronze/copper) — CTAs, focus states |
+| `--accent-bronze`  | `#cd7f32`              | Secondary engine-metal accent |
+| `--accent-teal`    | `#22d3ee`              | Coolant accent — informational highlights |
+| `--accent-blue`    | `#38bdf8`              | Primary action gradient base |
+| `--accent-green`   | `#34d399`              | Success states (job accepted, leg completed) |
+| `--accent-red`     | `#f87171`              | Danger / decline / problem flagged |
+| `--accent-orange`  | `#fb923c`              | Warning (vehicle awaiting release) |
+| `--border-subtle`  | `rgba(160,168,184,.15)`| Default card / input borders |
+| `--border-medium`  | `rgba(160,168,184,.25)`| Hover / focus borders |
+| `--border-focus`   | `rgba(56,189,248,.5)`  | Input focus ring |
 
-### Light theme
+### Light theme (`<html data-theme="light">`)
 
-| Token | Value | Usage |
+The light theme is **not just inverted dark** — it shifts the accent
+language to navy + deeper gold for WCAG-compliant contrast (research:
+~23% higher CTA CTR on the deeper gold).
+
+| Token | Light value | Notes |
 |---|---|---|
-| `--bg-deep` | `#fefdfb` | App background (warm off-white) |
-| `--bg-card` | `#ffffff` | Card surfaces |
-| `--bg-elevated` | `#ffffff` | Modals, sheets |
-| `--bg-input` | `#f0f1f3` | Inputs |
-| `--text-primary` | `#1a1a2e` | Headings, body |
-| `--text-secondary` | `#3d3d5c` | Labels |
-| `--text-muted` | `#5c5c7a` | Captions |
-| `--accent-gold` | `#b8942d` | **Deeper gold** for CTA contrast (research: +23% CTR vs lighter gold) |
-| `--accent-gold-soft` | `rgba(184, 148, 45, 0.12)` | Tints |
-| `--accent-bronze` | `#1e3a5f` | **Navy** for trust on light |
-| `--accent-teal` | `#0d7377` | Deep teal — info, links |
-| `--accent-blue` | `#1e3a5f` | Navy as interactive accent |
-| `--accent-green` | `#059669` | Success |
-| `--border-subtle` | `rgba(30, 58, 95, 0.10)` | Navy-tinted hairlines |
-| `--border-medium` | `rgba(30, 58, 95, 0.18)` | Dividers |
-| `--border-focus` | `rgba(30, 58, 95, 0.4)` | Focus ring |
+| `--bg-deep`        | `#f3f4f6` | Warmer than pure white |
+| `--bg-card`        | `#ffffff` | |
+| `--text-primary`   | `#1a1a2e` | Strong, near-black for readability |
+| `--accent-gold`    | `#b8942d` | Deeper gold — button text is white over this |
+| `--accent-bronze`  | `#1e3a5f` | Navy blue for trust signals |
+| `--accent-teal`    | `#0d7377` | Deep teal, AA on white |
+| `--accent-blue`    | `#1e3a5f` | Navy primary in light mode |
+| `--accent-green`   | `#059669` | AA on white |
 
-### What NOT to use
+### Contrast / accessibility rules
 
-These appear in older auth pages and were retired in Task #390 — do **not** carry them into Driver:
-
-- `#0a0a0f` (too cold/black; use `#12161c`)
-- `#d4a855` (off-brand gold; use `#c9a227` dark / `#b8942d` light)
-- `#f8fafc` (too cool for light bg; use `#fefdfb`)
-- `#c9a962` (washed-out light gold; use `#b8942d`)
+- Gold buttons (`.btn-gold`, and `.btn-primary` in light mode) follow a
+  theme-specific text-color rule baked into `driver-tokens.css`:
+  - **Dark mode** — dark text (`#12161c`) on the brighter `#c9a227`
+    gold passes AA.
+  - **Light mode** — **white** text at `font-weight: 600` on the deeper
+    `#b8942d` gold passes AA. Never use dark text on light-mode gold —
+    contrast fails AA.
+- `--text-primary` on `--bg-deep` is AA-large in both themes.
+- Use `--text-secondary` for descriptive subtitles, not body copy at
+  small sizes.
+- Focus states should always be visible — the default
+  `.form-input:focus` ring is a 3px halo around `--border-focus`.
 
 ---
 
-## 3. Typography
+## 3. Button variants
 
-Two families, both Google Fonts, already used everywhere in the main app:
+All buttons share the `.btn` base class (rounded `--radius-md`, font
+weight 500, gap 8 between icon + label). Add a variant class.
+
+| Class | Look | When to use |
+|---|---|---|
+| `.btn-primary` | Blue→light-blue gradient (navy in light mode), glowing shadow | The dominant action on a screen (e.g. "Accept Job", "Start Leg") |
+| `.btn-gold`    | Gold→amber gradient, dark text in dark mode / white text in light mode | High-emphasis money / urgency actions (e.g. "Cash Out", "Tip Driver"). Use sparingly — only one per screen |
+| `.btn-success` | Green gradient | Confirmation moments (e.g. "Mark Leg Complete") |
+| `.btn-secondary` | Elevated background, subtle border | Secondary actions that pair with a primary (e.g. "View Details" next to "Accept") |
+| `.btn-danger`  | Red translucent | Destructive / decline (e.g. "Decline Job", "Cancel Shift") |
+| `.btn-ghost`   | Transparent until hover | Tertiary actions in toolbars (e.g. "Filter", "Sort") |
+
+Size modifiers: `.btn-sm` for inline / dense lists, `.btn-lg` for hero
+CTAs.
+
+All buttons have a `:disabled` style at `opacity: 0.6` with
+`cursor: not-allowed`. **Gate submit/destructive buttons until the form
+is valid** — start them with the `disabled` attribute and enable them
+in the relevant change handler (this matches Task #425's Stripe
+gating discipline).
+
+---
+
+## 4. Cards
+
+`.card` is the workhorse container.
 
 ```html
-<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+<section class="card">
+  <header class="card-header">
+    <h2 class="card-title">Tonight's Shift</h2>
+    <button class="btn btn-ghost btn-sm">Refresh</button>
+  </header>
+  <!-- card body -->
+</section>
 ```
 
-- **Body / UI**: `Outfit`, weights 400 / 500 / 600. Fallback `-apple-system, BlinkMacSystemFont, sans-serif`.
-- **Display headings**: `Playfair Display`, weights 500 / 600. Use sparingly — screen titles, brand wordmark, hero copy. Not for buttons or labels.
-
-Sizes (mobile-first; the Driver app is mobile-only):
-
-| Role | Size | Weight | Family |
-|---|---|---|---|
-| Screen title | 1.4–1.6rem | 500 | Playfair Display |
-| Section header | 1.05rem | 600 | Outfit |
-| Body | 0.92–0.95rem | 400 | Outfit |
-| Label | 0.85rem | 500 | Outfit |
-| Caption | 0.78rem | 400 | Outfit |
-| Button | 0.95rem | 600 | Outfit |
-
-Line height: `1.6` for body, `1.2` for headings.
+- Default padding `24px`, bottom margin `20px`.
+- Dark mode: subtle gradient + inset highlight on top edge.
+- Light mode: flat white with a navy-tinted soft shadow.
+- Border radius is `--radius-lg` (`16px`).
 
 ---
 
-## 4. Spacing, radius, shadow
+## 5. Radii & shadows
 
-### Radius
-- `--radius-sm: 8px` — chips, badges
-- `--radius-md: 12px` — inputs, small buttons
-- `--radius-lg: 16px` — primary buttons, cards
-- `--radius-xl: 24px` — modals, full-screen sheets
+| Token | Value | Use |
+|---|---|---|
+| `--radius-sm` | `8px`  | Pills, small chips |
+| `--radius-md` | `12px` | Buttons, inputs |
+| `--radius-lg` | `16px` | Cards, panels |
+| `--radius-xl` | `24px` | Modals, sheets |
 
-### Spacing scale (use multiples)
-`4 · 8 · 12 · 16 · 20 · 24 · 28 · 32 · 40` — same scale used in `shared-styles.css`. Avoid arbitrary values.
-
-### Shadows (dark)
-- `--shadow-sm: 0 2px 8px rgba(0,0,0,0.2)` — subtle lift
-- `--shadow-md: 0 4px 20px rgba(0,0,0,0.2)` — cards
-- `--shadow-lg: 0 12px 40px rgba(0,0,0,0.3)` — modals
-- `--shadow-glow-gold: 0 0 60px rgba(201, 162, 39, 0.1)` — hero/accent moments
-
-### Shadows (light) — softer with navy tint
-- `--shadow-sm: 0 2px 8px rgba(30, 58, 95, 0.08)`
-- `--shadow-md: 0 4px 16px rgba(30, 58, 95, 0.10)`
-- `--shadow-lg: 0 12px 32px rgba(30, 58, 95, 0.12)`
+| Token | Effect |
+|---|---|
+| `--shadow-sm` | Subtle resting elevation (default buttons) |
+| `--shadow-md` | Card resting elevation |
+| `--shadow-lg` | Floating sheets, drawers |
+| `--shadow-glow-gold` | Brand accent halo (use sparingly) |
+| `--shadow-glow-blue` | Primary-button glow |
 
 ---
 
-## 5. Components
+## 6. Theme toggle
 
-### Primary button (gold gradient)
-```css
-.btn-primary {
-  background: linear-gradient(135deg, var(--accent-gold), #c49a45);
-  color: #ffffff;            /* dark mode */
-  padding: 14px 24px;
-  border-radius: var(--radius-lg);
-  font-weight: 600;
-  box-shadow: var(--shadow-glow-gold);
-}
-[data-theme="light"] .btn-primary {
-  background: linear-gradient(135deg, #b8942d, #d4a63a);
-  color: #ffffff;
-  box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
-}
-```
-Hover/press: `transform: translateY(-1px)` + larger shadow. Disabled: `opacity: 0.6; cursor: not-allowed`.
+The platform uses a **pill-shaped header toggle** with both an icon
+(sun ↔ moon) and a "Day"/"Night" word label so the action is
+unambiguous. The label is critical for accessibility — icon-only
+toggles fail usability testing.
 
-### Secondary button
-Light-gray outline on dark; navy outline on light. Used for "Decline", "Skip", "Back".
+Recommended markup (works with `.header-theme-toggle` from
+`driver-tokens.css`):
 
-### Destructive
-Red text on translucent red background. Used for "Cancel Job", "Flag Problem".
-
-### Input
-14px vertical padding, `--bg-input` background, `--border-subtle` border, `--border-focus` ring on focus (3px outer ring at 10% opacity of accent).
-
-### Card
-Slight gradient on dark (`linear-gradient(145deg, #1a202a, #141a24)`); plain `#ffffff` on light. Always rounded with `--radius-lg`. Inner shadow on dark: `inset 0 1px 0 rgba(255,255,255,0.03)` for a subtle metallic edge.
-
-### Status pill
-Use the soft accent variants: `--accent-green-soft` for "Completed", `--accent-orange-soft` for "In progress", `--accent-red-soft` for "Problem flagged", `--accent-gold-soft` for "Awaiting".
-
-### Bottom sheet / modal
-`--bg-elevated`, `--radius-xl` on top corners only when slide-up sheet. Backdrop `rgba(0,0,0,0.7)` with `backdrop-filter: blur(4px)`.
-
----
-
-## 6. Day / Night toggle
-
-The main app ships an auto-injected pill toggle (`auth-theme-toggle.js`). For the Driver app, mirror the behavior natively (React Native `Appearance` API or settings screen toggle), but keep the same contract:
-
-- Persist choice in local storage (`theme: 'dark' | 'light'`).
-- Default to `'dark'` if no preference saved.
-- Update OS status-bar color: `#12161c` (dark) / `#fefdfb` (light).
-- Add a 300ms `background-color/color/border-color` transition class so the swap doesn't flash.
-
-UX: small pill with sun/moon icon and the label "Day" / "Night" — top-right of the screen on auth/settings, hidden in the active job view to reduce clutter.
-
----
-
-## 7. Iconography
-
-- Line icons, 1.5px stroke, rounded caps. Lucide / Feather are good matches.
-- Icon size scales: 16px (inline), 20px (button), 24px (nav), 32–48px (hero/empty state).
-- Color: inherit `currentColor`. Tint with the accent variables, not raw hex.
-
----
-
-## 8. Motion
-
-- Default ease: `cubic-bezier(0.4, 0, 0.2, 1)` (standard "ease-out").
-- Durations: 150ms (hover/focus), 200ms (small UI), 300ms (theme swap, sheet), 400ms max.
-- No bounce, no overshoot. The brand reads as premium/calm.
-- Map updates (driver location ping) animate the pin smoothly between samples — no teleporting.
-
----
-
-## 9. Mobile-specific guidance
-
-The Driver app is mobile-only (Twilio OTP login on a phone), so:
-
-- **Safe areas**: respect `env(safe-area-inset-top/bottom)` on every screen — both notch and home-indicator.
-- **Tap targets**: minimum 44 × 44pt.
-- **Bottom CTA**: the primary action (e.g. "Mark Vehicle Received") sits in a sticky footer bar with safe-area padding so it's always thumb-reachable.
-- **Job-in-progress lock**: when a leg is active, the screen should resist accidental theme/setting changes — hide the toggle, dim non-essential UI.
-- **Offline grace**: show a teal "Reconnecting…" pill at the top instead of an error modal when the network drops mid-shift.
-- **Dark first**: drivers work day and night; assume dark mode by default and validate every screen there before tweaking light.
-
----
-
-## 10. Quick-start: minimal `theme.css`
-
-Drop this at the root of the Driver app and you're 90% there:
-
-```css
-:root {
-  --bg-deep: #12161c;
-  --bg-card: rgba(26, 32, 42, 0.9);
-  --bg-elevated: rgba(36, 44, 56, 0.95);
-  --bg-input: rgba(30, 38, 48, 0.9);
-  --text-primary: #f5f5f7;
-  --text-secondary: #a0a8b8;
-  --text-muted: #6b7280;
-  --accent-gold: #c9a227;
-  --accent-gold-soft: rgba(201, 162, 39, 0.18);
-  --accent-teal: #22d3ee;
-  --accent-blue: #38bdf8;
-  --accent-green: #34d399;
-  --accent-orange: #fb923c;
-  --accent-red: #f87171;
-  --border-subtle: rgba(160, 168, 184, 0.15);
-  --border-medium: rgba(160, 168, 184, 0.25);
-  --border-focus: rgba(56, 189, 248, 0.5);
-  --radius-sm: 8px;
-  --radius-md: 12px;
-  --radius-lg: 16px;
-  --radius-xl: 24px;
-  --shadow-sm: 0 2px 8px rgba(0,0,0,0.2);
-  --shadow-md: 0 4px 20px rgba(0,0,0,0.2);
-  --shadow-lg: 0 12px 40px rgba(0,0,0,0.3);
-}
-
-[data-theme="light"] {
-  --bg-deep: #fefdfb;
-  --bg-card: #ffffff;
-  --bg-elevated: #ffffff;
-  --bg-input: #f0f1f3;
-  --text-primary: #1a1a2e;
-  --text-secondary: #3d3d5c;
-  --text-muted: #5c5c7a;
-  --accent-gold: #b8942d;
-  --accent-gold-soft: rgba(184, 148, 45, 0.12);
-  --accent-teal: #0d7377;
-  --accent-blue: #1e3a5f;
-  --accent-green: #059669;
-  --border-subtle: rgba(30, 58, 95, 0.10);
-  --border-medium: rgba(30, 58, 95, 0.18);
-  --border-focus: rgba(30, 58, 95, 0.4);
-  --shadow-sm: 0 2px 8px rgba(30, 58, 95, 0.08);
-  --shadow-md: 0 4px 16px rgba(30, 58, 95, 0.10);
-  --shadow-lg: 0 12px 32px rgba(30, 58, 95, 0.12);
-}
-
-body {
-  background: var(--bg-deep);
-  color: var(--text-primary);
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
-  line-height: 1.6;
-}
+```html
+<button class="header-theme-toggle" id="theme-toggle" aria-label="Switch theme">
+  <span class="theme-icon-sun"  aria-hidden="true">☀️</span>
+  <span class="theme-icon-moon" aria-hidden="true">🌙</span>
+  <span class="theme-label-dark">Night</span>
+  <span class="theme-label-light">Day</span>
+</button>
 ```
 
+The sun shows in dark mode (click to go to day); the moon shows in
+light mode (click to go to night). `driver-tokens.css` handles the
+sun/moon `display` swap via `[data-theme="..."]` selectors — you only
+need to wire the click handler:
+
+```js
+const html = document.documentElement;
+function setTheme(next) {
+  html.classList.add('theme-transition');
+  html.setAttribute('data-theme', next);
+  localStorage.setItem('mcc-theme', next);
+  setTimeout(() => html.classList.remove('theme-transition'), 350);
+}
+const saved = localStorage.getItem('mcc-theme') || 'dark';
+setTheme(saved);
+document.getElementById('theme-toggle').addEventListener('click', () => {
+  setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
+});
+```
+
+The `theme-transition` class on `<html>` enables a 0.3s ease on every
+themed property so the swap doesn't snap.
+
 ---
 
-## 11. Acceptance checklist
+## 7. Brand voice & copy rules
 
-Before shipping a Driver app screen, verify:
+Pulled from `replit.md`'s "User Preferences" section so the Driver app
+sounds like the platform:
 
-- [ ] Background uses `--bg-deep`, never raw `#000` or `#fff`.
-- [ ] All text colors come from `--text-*` tokens.
-- [ ] Primary CTA is the gold gradient with white text in **both** themes.
-- [ ] Day/Night toggle flips the screen with a smooth 300ms transition.
-- [ ] No `#0a0a0f`, `#d4a855`, `#f8fafc`, or `#c9a962` literals anywhere.
-- [ ] Status-bar color matches the active theme bg.
-- [ ] Tap targets ≥ 44pt; safe-area padding on top + bottom.
-- [ ] Tested in dark mode first; light mode passes WCAG AA contrast.
+- **Brand line:** *Your complete auto ownership platform.*
+- **Tone:** Professional, informative, memorable, and witty without
+  being gimmicky. Never bro-y or overly casual.
+- **Key headline pattern:** *"One app. Every auto need. Zero hassle."*
+- **Four pillars** (referenced in marketing copy): Get Quotes, Manage
+  Vehicles, Maintaining Your Ride, Shop Smarter.
+
+### Terminology
+
+| Word | Use when… | Example |
+|---|---|---|
+| **auto** | Talking about the category generically | "auto care", "auto ownership" |
+| **ride** | Casual / friendly tone | "your ride", "your next ride" |
+| **vehicle** | Formal contexts — legal, forms, status messages | "vehicle owner", "vehicle received" |
+| **My Car Concierge** | Brand name — never abbreviated or translated | |
+
+For the Driver app specifically: use **"vehicle"** for status copy
+("Vehicle received", "Vehicle released") to match what the member /
+provider already see in the main app. Use **"ride"** sparingly in
+empty-state friendly copy. Avoid "car" except in the brand name.
+
+---
+
+## 8. How to apply this in the Driver app (quick start)
+
+A checklist for the Driver-app maintainer — one sitting, no surprises:
+
+1. **Add the fonts.** Paste the three `<link>` tags from §1 into
+   every page's `<head>` (or your shared layout component).
+2. **Copy `driver-tokens.css`.** Drop
+   [`docs/driver-app-assets/driver-tokens.css`](./driver-app-assets/driver-tokens.css)
+   into the Driver project (e.g. `public/css/driver-tokens.css`) and
+   link it after the Google Fonts tag.
+3. **Set the body font.** Either remove any conflicting `font-family`
+   rules in your existing stylesheets, or scope them inside specific
+   components. The token file already sets
+   `body { font-family: 'Outfit', … }`.
+4. **Use the documented class names.** Replace ad-hoc buttons with
+   `.btn .btn-primary` / `.btn-gold` / `.btn-secondary` / `.btn-success`
+   / `.btn-danger` / `.btn-ghost`. Replace ad-hoc containers with
+   `.card` + `.card-header` + `.card-title`. Use `.form-input` /
+   `.form-label` for forms.
+5. **Wire the theme toggle.** Add the markup from §6 to your top nav,
+   wire the click handler, and persist the choice to `localStorage`
+   under the key `mcc-theme` so it matches the main app's behavior.
+6. **Audit contrast.** Spot-check every gold button has white text in
+   light mode, and that focus rings are visible on inputs.
+7. **Match copy to §7.** Run a global find for "car" outside the brand
+   name and replace with "vehicle" or "ride" depending on context.
+
+---
+
+## 9. What this guide does NOT cover
+
+- Specific Driver-app screens (job card, shift map, earnings) — those
+  are the Driver-app team's design surface.
+- Push notification copy or icon assets.
+- Native iOS/Android navigation chrome (status bar, tab bar) —
+  follow each platform's HIG / Material guidelines, but use the same
+  color tokens for backgrounds and accents.
+- Marketing site styling — the Driver app is a working tool, not a
+  marketing surface.
+
+If any of those need treatment later, extend this guide rather than
+creating a separate one — the goal is a single source-of-truth document
+that both projects can reference.

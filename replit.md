@@ -78,3 +78,6 @@ Key architectural patterns and features include:
 - **Google Places API**: Used by AI Outreach Engine.
 - **Instantly.ai**: Cold email outreach platform.
 - **BackgroundChecks.com**: Background screening integration.
+
+## Companion Projects
+- **MCC Driver app**: Separate Replit project. Server-side contract in `docs/driver-app-api.md`. Visual / brand consistency guide in `docs/driver-app-style-guide.md` (+ drop-in `docs/driver-app-assets/driver-tokens.css`).
