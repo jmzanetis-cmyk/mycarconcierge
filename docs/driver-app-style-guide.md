@@ -23,6 +23,18 @@ into the `<head>` of every page in the Driver app, **above** the
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
 ```
 
+For full parity with the main platform's `<head>`, also add these
+hints **only if the Driver app talks to those origins** (most are
+optional for the Driver app — keep just the Supabase one if the app
+hits Supabase directly):
+
+```html
+<link rel="preconnect" href="https://cdn.jsdelivr.net" crossorigin>
+<link rel="preconnect" href="https://js.stripe.com" crossorigin>
+<link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
+<link rel="dns-prefetch" href="https://supabase.co">
+```
+
 | Family               | Weights         | Used for                                          |
 |----------------------|-----------------|---------------------------------------------------|
 | **Outfit**           | 300/400/500/600/700 | All body text, buttons, inputs, nav, labels.   |
@@ -188,6 +200,11 @@ The sun shows in dark mode (click to go to day); the moon shows in
 light mode (click to go to night). `driver-tokens.css` handles the
 sun/moon `display` swap via `[data-theme="..."]` selectors — you only
 need to wire the click handler:
+
+Always set `data-theme` explicitly on `<html>` at startup (before
+first paint, ideally from an inline script) so the toggle's
+sun/moon + Day/Night selectors render predictably and there is no
+unstyled-flash.
 
 ```js
 const html = document.documentElement;

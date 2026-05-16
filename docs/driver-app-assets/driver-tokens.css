@@ -14,6 +14,13 @@
    between the two files is what this asset exists to prevent. See
    follow-up Task #433 for a CI guard.
 
+   Intentional additions (not in www/shared-styles.css):
+     - `.theme-label-light` / `.theme-label-dark` visibility selectors
+       on `.header-theme-toggle`. The main platform's header pill
+       hard-codes the "Day"/"Night" word into the button JS; the
+       Driver app gets a small markup-only enhancement so the label
+       flips together with the icon.
+
    Theme: dark by default. Set `<html data-theme="light">` to flip to
    light mode (no JS required for the tokens themselves).
    ========================================================================== */
