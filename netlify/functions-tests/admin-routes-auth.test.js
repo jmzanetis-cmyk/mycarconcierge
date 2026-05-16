@@ -132,6 +132,12 @@ const AGENT_FLEET_ROUTES = [
       assert.strictEqual(body.target_kind, 'provider');
     }
   },
+  { method: 'GET',    subPath: 'actions/audit-mismatches',
+    shape(body) {
+      assert.ok(Array.isArray(body.mismatches), 'audit-mismatches.mismatches must be an array');
+      assert.strictEqual(typeof body.scanned, 'number', 'audit-mismatches.scanned must be a number');
+    }
+  },
   { method: 'GET',    subPath: `actions/${SAMPLE_NUM_ID}` },
   { method: 'POST',   subPath: `actions/${SAMPLE_NUM_ID}/review` },
   { method: 'POST',   subPath: `actions/${SAMPLE_NUM_ID}/apply` },
@@ -300,7 +306,7 @@ function assertCompleteness() {
   // Counted from the current source. Bump these when you add or remove a
   // public route on either handler — and add/remove the matching entry in
   // AGENT_FLEET_ROUTES / AI_OPS_ROUTES at the top of this file.
-  const EXPECTED_FLEET_ROUTES = 47;
+  const EXPECTED_FLEET_ROUTES = 48;
   // ai-ops-admin.js: the GET /escalations branch uses a compound condition
   // (`path === 'escalations' || path.startsWith(...)`) that the simple regex
   // above doesn't catch, so the count is 12 even though there are 13 routes.

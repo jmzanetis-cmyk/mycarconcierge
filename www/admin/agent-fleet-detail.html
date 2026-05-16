@@ -91,6 +91,14 @@
     .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
     .toast { position:fixed; right:24px; bottom:24px; background:var(--slate-surface); border:1px solid var(--gold); color:var(--text); padding:12px 16px; border-radius:10px; z-index:50; max-width:340px; box-shadow:0 8px 30px rgba(0,0,0,0.4); }
     .toast.error { border-color:var(--bad); }
+    /* Task #323 — persistent recovery banner shown when an Apply succeeds
+       on Stripe but the agent_actions audit write fails. Stays visible
+       until manually dismissed so the operator can act. */
+    .audit-banner { position:fixed; left:24px; right:24px; bottom:24px; background:#3a1f0f; border:1.5px solid var(--bad); color:#ffe1c2; padding:14px 18px; border-radius:10px; z-index:60; box-shadow:0 8px 30px rgba(0,0,0,0.5); display:none; }
+    .audit-banner h4 { margin:0 0 6px 0; color:#ffb27a; font-size:14px; text-transform:uppercase; letter-spacing:0.6px; }
+    .audit-banner .msg { font-size:13px; line-height:1.5; white-space:pre-wrap; }
+    .audit-banner .row { margin-top:10px; gap:10px; }
+    .audit-banner button { font-size:12px; padding:4px 10px; }
     code.kbd { background:var(--slate-surface-2); border:1px solid var(--slate-border); padding:1px 6px; border-radius:4px; font-size:12px; }
     .num { font-variant-numeric:tabular-nums; }
     .empty { color:var(--muted); padding:18px 0; font-size:14px; }
@@ -245,10 +253,14 @@
 
     <!-- Review-queue card (Gatekeeper + Matchmaker) -->
     <div class="card" id="reviewQueueCard" style="margin-bottom:20px; display:none;">
-      <h3>Review queue (proposals from this agent)</h3>
-      <div style="font-size:13px; color:var(--muted); margin-bottom:10px;" id="reviewQueueHelp">
+      <div class="row" style="justify-content:space-between; align-items:flex-start;">
+        <h3 style="margin:0;">Review queue (proposals from this agent)</h3>
+        <button class="btn btn-ghost" id="auditMismatchCheckBtn" style="font-size:12px; padding:4px 10px;" title="Scan for Treasurer apply rows where Stripe shows the money moved but the action is still pending in the queue (audit-write failed)">Find stuck audit rows</button>
+      </div>
+      <div style="font-size:13px; color:var(--muted); margin:8px 0 10px 0;" id="reviewQueueHelp">
         Items the agent flagged for human review. Approve or reject inline; full proposal context is in the action row below.
       </div>
+      <div id="auditMismatchInline" style="margin-bottom:10px;"></div>
       <div id="reviewQueueBody"><div class="empty">Loading…</div></div>
     </div>
 
@@ -290,6 +302,15 @@
 </div>
 
 <div id="toast" class="toast" style="display:none;"></div>
+<div id="auditBanner" class="audit-banner">
+  <h4>⚠ Audit-trail write failed</h4>
+  <div class="msg" id="auditBannerMsg"></div>
+  <div class="row">
+    <button class="btn" id="auditBannerCheck">Find stuck rows</button>
+    <button class="btn btn-ghost" id="auditBannerDismiss">Dismiss</button>
+  </div>
+  <div id="auditBannerResults" style="margin-top:10px; font-size:12px;"></div>
+</div>
 
 <script>
 const STORAGE_KEY = 'mcc_admin_pw';
@@ -310,6 +331,49 @@ function toast(msg, isError = false) {
   clearTimeout(toast._t);
   toast._t = setTimeout(() => el.style.display = 'none', 3500);
 }
+
+// Task #323 — surface "Stripe succeeded but audit logging failed"
+// outcomes in a persistent banner. The toast vanishes after 3.5s; this
+// stays put until the operator dismisses it so the recovery hint can't
+// be missed during a busy review session.
+function showAuditBanner(msg) {
+  const el = document.getElementById('auditBanner');
+  document.getElementById('auditBannerMsg').textContent = msg;
+  document.getElementById('auditBannerResults').innerHTML = '';
+  el.style.display = 'block';
+}
+function hideAuditBanner() {
+  const el = document.getElementById('auditBanner');
+  if (el) el.style.display = 'none';
+}
+async function runAuditMismatchCheck(targetEl) {
+  const out = targetEl || document.getElementById('auditBannerResults');
+  out.innerHTML = '<span style="color:var(--muted);">Scanning…</span>';
+  try {
+    const r = await api('/actions/audit-mismatches');
+    const rows = r.mismatches || [];
+    if (rows.length === 0) {
+      out.innerHTML = `<span style="color:var(--good);">No stuck audit rows found (scanned ${r.scanned || 0}).</span>`;
+      return;
+    }
+    const lines = rows.map(m => `#${m.action_id} (${m.recommendation}) → CPC ${m.completion_id}, PI ${(m.payment_intent_id || '').slice(0, 14)}…, status=${m.capture_status}`);
+    out.innerHTML = `<strong>${rows.length} stuck row(s):</strong><br>` +
+      lines.map(l => `<div style="margin-top:4px;">${l.replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]))}</div>`).join('') +
+      `<div style="margin-top:6px; color:var(--muted);">Re-click Apply on each action above — Stripe idempotency keys make it safe.</div>`;
+  } catch (e) {
+    out.innerHTML = `<span style="color:var(--bad);">Check failed: ${e.message}</span>`;
+  }
+}
+document.addEventListener('DOMContentLoaded', () => {
+  const dismiss = document.getElementById('auditBannerDismiss');
+  const check = document.getElementById('auditBannerCheck');
+  const inlineBtn = document.getElementById('auditMismatchCheckBtn');
+  if (dismiss) dismiss.addEventListener('click', hideAuditBanner);
+  if (check) check.addEventListener('click', () => runAuditMismatchCheck());
+  if (inlineBtn) inlineBtn.addEventListener('click', () => {
+    runAuditMismatchCheck(document.getElementById('auditMismatchInline'));
+  });
+});
 
 async function api(path, opts = {}) {
   const headers = Object.assign({ 'Content-Type': 'application/json', 'x-admin-password': getPw() }, opts.headers || {});
@@ -762,6 +826,12 @@ async function loadReviewQueue() {
             else                   toast('Treasurer recommendation applied');
           } else {
             toast(`Applied: ${r.prior_role} \u2192 ${r.new_role}`);
+          }
+          // Task #323 — Stripe (or the underlying mutation) succeeded but
+          // the audit log write failed. Show a persistent banner so the
+          // operator knows the row may still look pending in the queue.
+          if (r && r.audit_warning) {
+            showAuditBanner(`Action #${id}: ${r.audit_warning}`);
           }
           loadReviewQueue();
           loadActions();

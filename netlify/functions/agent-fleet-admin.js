@@ -704,14 +704,29 @@ function _getStripe() {
   }
 }
 
+// Task #323 — fail-loudly audit writes. The Stripe call has already
+// succeeded by the time this helper runs, so we MUST surface DB errors
+// to the caller instead of swallowing them. Returns `{audit_warning:
+// string|null}`; the caller forwards the warning into its HTTP response
+// so the admin UI can show a recovery banner ("money moved but the
+// review queue still looks open — re-run /actions/audit-mismatches to
+// reconcile"). The Stripe-side idempotency keys mean a follow-up Apply
+// click will not double-charge — it will short-circuit on the
+// `already_captured` / `already_refunded` branches and re-attempt the
+// audit write.
 async function _markTreasurerExecuted(supabase, id, action, summary) {
-  await supabase.from('agent_actions').update({
+  const { error: upErr } = await supabase.from('agent_actions').update({
     review_status: 'executed',
     reviewed_at: new Date().toISOString(),
     reviewed_by: 'admin',
     needs_review: false
   }).eq('id', id);
-  await supabase.from('agent_actions').insert({
+  if (upErr) {
+    const msg = `Audit update failed for action ${id} (review queue still shows it as pending): ${upErr.message}`;
+    console.error('[treasurer apply]', msg);
+    return { audit_warning: msg };
+  }
+  const { error: insErr } = await supabase.from('agent_actions').insert({
     agent_slug: 'treasurer',
     action_type: 'apply',
     status: 'executed',
@@ -719,6 +734,12 @@ async function _markTreasurerExecuted(supabase, id, action, summary) {
     decision: { applied_action_id: id, ...summary },
     reasoning: summary._reasoning || `Admin applied Treasurer recommendation "${summary.recommendation}".`
   });
+  if (insErr) {
+    const msg = `Audit-trail insert failed for action ${id} (action is marked executed but the apply row is missing): ${insErr.message}`;
+    console.error('[treasurer apply]', msg);
+    return { audit_warning: msg };
+  }
+  return { audit_warning: null };
 }
 
 async function applyTreasurerReview(supabase, id, action) {
@@ -773,11 +794,11 @@ async function _treasurerCapture(supabase, stripe, id, action, payload) {
   if (!cpc) return { error: 'No care_plan_completion for this care_plan_id', status: 404 };
   if (!cpc.stripe_payment_intent_id) return { error: 'Completion missing stripe_payment_intent_id — cannot capture', status: 400 };
   if (cpc.payment_capture_status === 'captured') {
-    await _markTreasurerExecuted(supabase, id, action, {
+    const auditA = await _markTreasurerExecuted(supabase, id, action, {
       recommendation: 'approve_capture', completion_id: cpc.id, already_captured: true,
       _reasoning: 'Treasurer apply: already captured (no-op).'
     });
-    return { ok: true, already_captured: true, completion_id: cpc.id };
+    return { ok: true, already_captured: true, completion_id: cpc.id, audit_warning: auditA.audit_warning };
   }
 
   let captureResult;
@@ -830,7 +851,7 @@ async function _treasurerCapture(supabase, stripe, id, action, payload) {
     }
   }
 
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditCap = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'approve_capture',
     completion_id: cpc.id,
     payment_intent_id: cpc.stripe_payment_intent_id,
@@ -838,7 +859,7 @@ async function _treasurerCapture(supabase, stripe, id, action, payload) {
     commission: commissionResult,
     _reasoning: `Treasurer apply: captured PI ${cpc.stripe_payment_intent_id} for $${capturedAmount}${commissionResult && commissionResult.transferId ? ` · founder commission ${commissionResult.transferId}` : ''}.`
   });
-  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult };
+  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult, audit_warning: auditCap.audit_warning };
 }
 
 async function _treasurerRefund(supabase, stripe, id, action, payload) {
@@ -854,11 +875,11 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
   if (!cpc) return { error: 'No care_plan_completion for this care_plan_id', status: 404 };
   if (!cpc.stripe_payment_intent_id) return { error: 'Completion missing stripe_payment_intent_id — cannot refund', status: 400 };
   if (cpc.payment_capture_status === 'refunded') {
-    await _markTreasurerExecuted(supabase, id, action, {
+    const auditR0 = await _markTreasurerExecuted(supabase, id, action, {
       recommendation: 'approve_refund', completion_id: cpc.id, already_refunded: true,
       _reasoning: 'Treasurer apply: already refunded (no-op).'
     });
-    return { ok: true, already_refunded: true, completion_id: cpc.id };
+    return { ok: true, already_refunded: true, completion_id: cpc.id, audit_warning: auditR0.audit_warning };
   }
 
   // Mirror the cpc admin refund endpoint in www/server.js: branch on the
@@ -896,7 +917,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
     if (planUpErr) {
       return { error: `Stripe cancel + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
     }
-    await _markTreasurerExecuted(supabase, id, action, {
+    const auditCxl = await _markTreasurerExecuted(supabase, id, action, {
       recommendation: 'approve_refund',
       completion_id: cpc.id,
       payment_intent_id: cpc.stripe_payment_intent_id,
@@ -904,7 +925,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
       refund_amount: 0,
       _reasoning: `Treasurer apply: cancelled uncaptured hold on PI ${cpc.stripe_payment_intent_id}.`
     });
-    return { ok: true, cancelled: true, refunded: true, refund_amount: 0, is_full: true };
+    return { ok: true, cancelled: true, refunded: true, refund_amount: 0, is_full: true, audit_warning: auditCxl.audit_warning };
   }
 
   if (pi.status !== 'succeeded') {
@@ -959,7 +980,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
     return { error: `Stripe refund + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
   }
 
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditRef = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'approve_refund',
     completion_id: cpc.id,
     payment_intent_id: cpc.stripe_payment_intent_id,
@@ -968,7 +989,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
     is_full: isFull,
     _reasoning: `Treasurer apply: refunded $${refundAmount} (${isFull ? 'full' : 'partial'}) on PI ${cpc.stripe_payment_intent_id}.`
   });
-  return { ok: true, refunded: true, refund_id: refund.id, refund_amount: refundAmount, is_full: isFull };
+  return { ok: true, refunded: true, refund_id: refund.id, refund_amount: refundAmount, is_full: isFull, audit_warning: auditRef.audit_warning };
 }
 
 // Inlined port of processCarePlanFounderCommission from www/server.js so
@@ -1098,25 +1119,25 @@ async function _treasurerDenyRefund(supabase, id, action, payload) {
       .update({ status: 'resolved', resolved_at: nowIso, admin_notes: 'Refund denied by admin via Treasurer recommendation.' })
       .eq('care_plan_id', carePlanId);
   }
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditDeny = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'deny_refund', care_plan_id: carePlanId || null,
     _reasoning: 'Treasurer apply: refund denied; completion marked resolved without payout.'
   });
-  return { ok: true, denied: true, care_plan_id: carePlanId || null };
+  return { ok: true, denied: true, care_plan_id: carePlanId || null, audit_warning: auditDeny.audit_warning };
 }
 
 async function _treasurerEscalatePayout(supabase, id, action, payload) {
   // No Stripe op — escalation just records the agent's intent and closes
   // the row. The audit trail (and the operator's followup queue) carries
   // it forward; the actual nudge to the provider happens out-of-band.
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditEsc = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'escalate_payout',
     payout_id: payload.payout_id || null,
     provider_id: payload.provider_id || null,
     failure_code: payload.failure_code || null,
     _reasoning: 'Treasurer apply: payout escalated to admin for hands-on follow-up (provider onboarding gap suspected).'
   });
-  return { ok: true, escalated: true, payout_id: payload.payout_id || null };
+  return { ok: true, escalated: true, payout_id: payload.payout_id || null, audit_warning: auditEsc.audit_warning };
 }
 
 async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
@@ -1145,7 +1166,7 @@ async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
     return { error: `Stripe payout retry failed: ${e.message}`, status: 502 };
   }
 
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditRetry = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'retry_payout',
     provider_id: providerId,
     stripe_account_id: prof.stripe_account_id,
@@ -1155,7 +1176,7 @@ async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
     original_payout_id: payload.payout_id || null,
     _reasoning: `Treasurer apply: retried payout ($${amount} ${currency}) to ${prof.stripe_account_id} → ${payout.id}.`
   });
-  return { ok: true, retried: true, new_payout_id: payout.id, amount, currency };
+  return { ok: true, retried: true, new_payout_id: payout.id, amount, currency, audit_warning: auditRetry.audit_warning };
 }
 
 async function applyGatekeeperReview(supabase, id, action) {
@@ -1178,23 +1199,37 @@ async function applyGatekeeperReview(supabase, id, action) {
     .from('profiles').update({ role: newRole }).eq('id', providerId);
   if (upErr) return { error: upErr.message, status: 500 };
 
-  await supabase.from('agent_actions').update({
+  // Task #323 — fail-loudly audit writes. The role mutation above has
+  // already committed; if either audit write fails we surface the error
+  // in `audit_warning` so the admin UI can show a recovery banner instead
+  // of falsely toasting "applied" while the review queue still shows the
+  // row as pending.
+  let auditWarning = null;
+  const { error: stampErr } = await supabase.from('agent_actions').update({
     review_status: 'executed',
     reviewed_at: new Date().toISOString(),
     reviewed_by: 'admin',
     needs_review: false
   }).eq('id', id);
+  if (stampErr) {
+    auditWarning = `Provider role updated to ${newRole} but audit update failed for action ${id} (review queue still shows it as pending): ${stampErr.message}`;
+    console.error('[gatekeeper apply]', auditWarning);
+  } else {
+    const { error: insErr } = await supabase.from('agent_actions').insert({
+      agent_slug: 'gatekeeper',
+      action_type: 'apply',
+      status: 'executed',
+      autonomy_used: 'admin',
+      decision: { applied_action_id: id, provider_id: providerId, prior_role: prof.role, new_role: newRole, recommendation: rec },
+      reasoning: `Admin applied Gatekeeper recommendation "${rec}" — role ${prof.role} -> ${newRole}.`
+    });
+    if (insErr) {
+      auditWarning = `Provider role updated to ${newRole} and action ${id} marked executed, but audit-trail insert failed: ${insErr.message}`;
+      console.error('[gatekeeper apply]', auditWarning);
+    }
+  }
 
-  await supabase.from('agent_actions').insert({
-    agent_slug: 'gatekeeper',
-    action_type: 'apply',
-    status: 'executed',
-    autonomy_used: 'admin',
-    decision: { applied_action_id: id, provider_id: providerId, prior_role: prof.role, new_role: newRole, recommendation: rec },
-    reasoning: `Admin applied Gatekeeper recommendation "${rec}" — role ${prof.role} -> ${newRole}.`
-  });
-
-  return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: newRole };
+  return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: newRole, audit_warning: auditWarning };
 }
 
 // Mirrors the existing accept-bid path used by members on the legacy
@@ -1269,12 +1304,23 @@ async function applyMatchmakerRank(supabase, id, action) {
     console.warn(`[matchmaker apply] care_plan ${carePlanId} status update failed: ${planErr.message}`);
   }
 
-  await supabase.from('agent_actions').update({
+  // Task #323 — capture audit-stamp errors so we can return them in
+  // `audit_warning` instead of swallowing. The bid acceptance + losers
+  // sweep above are already committed; failing the stamp here means the
+  // row stays in the review queue and admin will re-click — Matchmaker
+  // re-apply is guarded by the `winner.status !== 'pending'` check at
+  // the top, so the second click 409s instead of double-applying.
+  let auditWarning = null;
+  const { error: stampErr } = await supabase.from('agent_actions').update({
     review_status: 'executed',
     reviewed_at: new Date().toISOString(),
     reviewed_by: 'admin',
     needs_review: false
   }).eq('id', id);
+  if (stampErr) {
+    auditWarning = `Bid ${winnerBidId} accepted but audit update failed for action ${id} (review queue still shows it as pending): ${stampErr.message}`;
+    console.error('[matchmaker apply]', auditWarning);
+  }
 
   // Task #153 — fan out award notifications + emails before we write the
   // audit row so the audit decision can record what was actually delivered.
@@ -1294,7 +1340,7 @@ async function applyMatchmakerRank(supabase, id, action) {
     notifySummary = { error: e.message };
   }
 
-  await supabase.from('agent_actions').insert({
+  const { error: applyInsErr } = await supabase.from('agent_actions').insert({
     agent_slug: 'matchmaker',
     action_type: 'apply',
     status: 'executed',
@@ -1312,6 +1358,10 @@ async function applyMatchmakerRank(supabase, id, action) {
     },
     reasoning: `Admin accepted Matchmaker-recommended bid ${winnerBidId} for care plan ${carePlanId}. ${(losers || []).length} other pending bid(s) rejected.`
   });
+  if (applyInsErr && !auditWarning) {
+    auditWarning = `Bid ${winnerBidId} accepted and action ${id} marked executed, but audit-trail insert failed: ${applyInsErr.message}`;
+    console.error('[matchmaker apply]', auditWarning);
+  }
 
   return {
     ok: true,
@@ -1323,7 +1373,8 @@ async function applyMatchmakerRank(supabase, id, action) {
     prior_plan_status: plan.status,
     new_plan_status: planErr ? plan.status : 'awarded',
     plan_status_warning: planErr ? planErr.message : null,
-    notifications: notifySummary
+    notifications: notifySummary,
+    audit_warning: auditWarning
   };
 }
 
@@ -2009,6 +2060,75 @@ async function handleApplyAction(event, ctx) {
   return jsonResponse(200, r);
 }
 
+// Task #323 — list Treasurer review actions where Stripe-side state shows
+// the money has already moved (capture/refund recorded on the
+// care_plan_completion) but the agent_actions row is still flagged as
+// pending. These are the rows that fell through an audit-write failure
+// and need operator reconciliation. Currently scans `approve_capture`
+// and `approve_refund` recommendations — `retry_payout` has no DB-side
+// handle to join against, so detection there would require a Stripe
+// API scan and is left for hands-on triage via the audit-trail.
+async function listAuditMismatches(supabase) {
+  const { data: actions, error } = await supabase
+    .from('agent_actions')
+    .select('id, decision, review_status, created_at, reviewed_at')
+    .eq('agent_slug', 'treasurer')
+    .eq('action_type', 'review')
+    .neq('review_status', 'executed')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) throw new Error(error.message);
+
+  const mismatches = [];
+  for (const a of actions || []) {
+    let dec = a.decision;
+    if (typeof dec === 'string') { try { dec = JSON.parse(dec); } catch { dec = {}; } }
+    const rec = dec && dec.recommendation;
+    const carePlanId = dec && dec.payload && dec.payload.care_plan_id;
+    if (!carePlanId) continue;
+    if (!['approve_capture', 'approve_refund'].includes(rec)) continue;
+
+    const { data: cpc, error: cpcErr } = await supabase
+      .from('care_plan_completions')
+      .select('id, payment_capture_status, captured_at, refunded_at, captured_amount, refund_amount, stripe_payment_intent_id')
+      .eq('care_plan_id', carePlanId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    if (cpcErr) {
+      // Fail loud — silently skipping a row would risk false-negative
+      // "no stuck rows", which defeats the whole point of this scanner.
+      throw new Error(`audit-mismatch scan failed at action ${a.id} / care_plan ${carePlanId}: ${cpcErr.message}`);
+    }
+    if (!cpc) continue;
+
+    const stripeMoved =
+      (rec === 'approve_capture' && cpc.payment_capture_status === 'captured') ||
+      (rec === 'approve_refund' && (cpc.payment_capture_status === 'refunded' || cpc.payment_capture_status === 'partially_refunded'));
+    if (!stripeMoved) continue;
+
+    mismatches.push({
+      action_id: a.id,
+      recommendation: rec,
+      review_status: a.review_status,
+      care_plan_id: carePlanId,
+      completion_id: cpc.id,
+      payment_intent_id: cpc.stripe_payment_intent_id,
+      capture_status: cpc.payment_capture_status,
+      captured_amount: cpc.captured_amount,
+      refund_amount: cpc.refund_amount,
+      captured_at: cpc.captured_at,
+      refunded_at: cpc.refunded_at,
+      action_created_at: a.created_at,
+      hint: 'Stripe shows the money moved but the review queue row is still pending. Re-click Apply on the action — the Stripe idempotency key will short-circuit and the audit row will be re-stamped.'
+    });
+  }
+  return { mismatches, scanned: (actions || []).length };
+}
+
+async function handleAuditMismatches(event, ctx) {
+  const r = await listAuditMismatches(ctx.supabase);
+  return jsonResponse(200, r);
+}
+
 async function handleSuspendProvider(event, ctx) {
   const r = await suspendProvider(ctx.supabase, ctx.params[1], ctx.body);
   if (r.error) return jsonResponse(r.status || 500, { error: r.error });
@@ -2561,6 +2681,7 @@ const ROUTES = [
   // actions  (more-specific subroutes first)
   { method: 'GET',    pattern: 'actions',                                               handler: handleListActions },
   { method: 'GET',    pattern: 'actions/by-target',                                     handler: handleActionsByTarget },
+  { method: 'GET',    pattern: 'actions/audit-mismatches',                              handler: handleAuditMismatches },
   { method: 'POST',   pattern: /^actions\/(\d+)\/review$/,                              handler: handleReviewAction },
   { method: 'POST',   pattern: /^actions\/(\d+)\/apply$/,                               handler: handleApplyAction },
   { method: 'GET',    pattern: /^actions\/(\d+)$/,                                      handler: handleActionDetail },
