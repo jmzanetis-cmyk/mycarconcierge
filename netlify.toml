@@ -140,6 +140,15 @@
 [functions."stripe-key-expiry-scheduled"]
   schedule = "0 12 * * *"
 
+# Task #333 — Concierge push notifier. Every minute, drains new concierge.*
+# rows from agent_events and dispatches FCM pushes to the right driver(s)
+# and member for assignments / accept-decline / job start / job complete.
+# Cursor lives in ai_ops_settings (key=concierge_push_last_event_id) so this
+# can't race the orchestrator's processed_at column. Anonymous HTTP is 401;
+# POST with x-admin-password runs it on demand.
+[functions."concierge-push-notifier-scheduled"]
+  schedule = "* * * * *"
+
 
 [[headers]]
   for = "/sw.js"
