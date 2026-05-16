@@ -52,6 +52,7 @@
 /api/admin/concierge-jobs/* /.netlify/functions/concierge-jobs-admin/:splat 200
 /api/admin/concierge-jobs /.netlify/functions/concierge-jobs-admin 200
 /api/driver/v1/* /.netlify/functions/driver-api/:splat 200
+/api/concierge/active-job-tracking /.netlify/functions/member-job-tracking 200
 /api/concierge /.netlify/functions/concierge-jobs-public 200
 /api/concierge/* /.netlify/functions/concierge-jobs-public/:splat 200
 /api/survey/profile /.netlify/functions/survey-profile 200

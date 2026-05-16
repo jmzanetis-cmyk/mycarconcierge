@@ -473,6 +473,17 @@
       const cancelBtn = (j.status === 'requested' || j.status === 'scheduled')
         ? `<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="window.cancelConciergeJob('${escHtml(j.id)}','${escHtml(opts.packageId || '')}','${escHtml(j.appointment_id || '')}')">Cancel</button>`
         : '';
+      // Task #335 — render a live driver map slot only when the job is
+      // in a trackable state and at least one driver has accepted.
+      const trackable = (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0;
+      const mapHtml = trackable
+        ? `<div id="concierge-map-${escHtml(j.id)}" data-job-id="${escHtml(j.id)}" data-mcc-map="1"
+              style="margin-top:10px;height:200px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-input);position:relative;">
+              <div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
+                ${mccIcon('map-pin', 14)} Locating driver…
+              </div>
+            </div>`
+        : '';
       return `
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
@@ -480,12 +491,145 @@
             <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
           </div>
           ${legHtml}
-          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: ${escHtml(eta)}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: <span data-mcc-eta-for="${escHtml(j.id)}">${escHtml(eta)}</span></div>
           ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
             : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
+          ${mapHtml}
           <div style="margin-top:6px;">${cancelBtn}</div>
         </div>
       `;
+    };
+
+    // ---- Task #335: Live driver map (Leaflet + OpenStreetMap, no API key) ----
+    // Lazy-load Leaflet from CDN the first time a map is rendered. Cached
+    // promise so we never download it twice.
+    let _mccLeafletPromise = null;
+    function loadLeafletOnce() {
+      if (_mccLeafletPromise) return _mccLeafletPromise;
+      _mccLeafletPromise = new Promise((resolve, reject) => {
+        if (window.L) return resolve(window.L);
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        css.integrity = 'sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==';
+        css.crossOrigin = '';
+        document.head.appendChild(css);
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        s.integrity = 'sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==';
+        s.crossOrigin = '';
+        s.onload  = () => resolve(window.L);
+        s.onerror = () => reject(new Error('Leaflet failed to load'));
+        document.head.appendChild(s);
+      });
+      return _mccLeafletPromise;
+    }
+
+    // Tracks active map instances + polling timers keyed by jobId so we
+    // can clean them up when the card is re-rendered or the job ends.
+    const _mccConciergeMaps = new Map(); // jobId → { map, driverMarker, targetMarker, timer }
+
+    function _mccDisposeMap(jobId) {
+      const m = _mccConciergeMaps.get(jobId);
+      if (!m) return;
+      try { if (m.timer) clearInterval(m.timer); } catch {}
+      try { if (m.map) m.map.remove(); } catch {}
+      _mccConciergeMaps.delete(jobId);
+    }
+
+    function _mccFormatEta(seconds) {
+      if (seconds == null || !Number.isFinite(seconds)) return 'Awaiting driver';
+      if (seconds < 60)   return 'Arriving now';
+      if (seconds < 3600) return `${Math.round(seconds / 60)} min away`;
+      return `${(seconds / 3600).toFixed(1)} h away`;
+    }
+
+    async function _mccUpdateConciergeMap(jobId) {
+      const slot = document.getElementById('concierge-map-' + jobId);
+      if (!slot) { _mccDisposeMap(jobId); return; }
+      const headers = await getConciergeAuthHeader();
+      if (!headers) return;
+      let data;
+      try {
+        const r = await fetch('/api/concierge/active-job-tracking?job_id=' + encodeURIComponent(jobId), { headers });
+        if (r.status === 429) return; // rate-limited; try again next tick
+        if (!r.ok) return;
+        data = await r.json();
+      } catch (e) { return; }
+      const tr = data && data.tracking;
+      const ping = tr && tr.pings && tr.pings[0];
+      const target = tr && tr.target;
+
+      // ETA text — update even if Leaflet hasn't loaded yet so the user
+      // sees something useful immediately.
+      const etaEl = document.querySelector(`[data-mcc-eta-for="${jobId}"]`);
+      if (etaEl) {
+        if (ping && ping.eta_seconds != null) etaEl.textContent = _mccFormatEta(ping.eta_seconds);
+        else if (!ping) etaEl.textContent = 'Awaiting driver location';
+      }
+      if (!ping) {
+        slot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
+          ${mccIcon('map-pin', 14)} Waiting for driver location…
+        </div>`;
+        return;
+      }
+
+      // Lazy-init the Leaflet map exactly once per job.
+      let entry = _mccConciergeMaps.get(jobId);
+      if (!entry) {
+        try {
+          const L = await loadLeafletOnce();
+          if (!document.getElementById('concierge-map-' + jobId)) return; // gone while loading
+          slot.innerHTML = ''; // clear placeholder
+          const map = L.map(slot, { zoomControl: true, attributionControl: true })
+            .setView([ping.lat, ping.lng], 14);
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          }).addTo(map);
+          const driverMarker = L.marker([ping.lat, ping.lng], { title: 'Driver' }).addTo(map);
+          let targetMarker = null;
+          if (target && target.lat != null) {
+            targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(map);
+            map.fitBounds([[ping.lat, ping.lng], [target.lat, target.lng]], { padding: [24, 24], maxZoom: 15 });
+          }
+          entry = { map, driverMarker, targetMarker };
+          _mccConciergeMaps.set(jobId, entry);
+        } catch (e) {
+          slot.innerHTML = `<div style="padding:12px;font-size:0.82rem;color:var(--text-muted);">Map unavailable. Driver is moving — refresh to retry.</div>`;
+          return;
+        }
+      } else {
+        try {
+          entry.driverMarker.setLatLng([ping.lat, ping.lng]);
+          if (target && target.lat != null && !entry.targetMarker) {
+            const L = window.L;
+            entry.targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(entry.map);
+          }
+        } catch {}
+      }
+    }
+
+    // Public entry point — call after rendering a concierge status card.
+    // Sets up an 18-second poller that mirrors the existing logistics
+    // refresh cadence. Auto-tears down when the slot is removed.
+    window.startConciergeTracking = function(jobId) {
+      if (!jobId) return;
+      _mccDisposeMap(jobId);                  // reset any prior session
+      _mccUpdateConciergeMap(jobId);          // first paint immediately
+      const timer = setInterval(() => {
+        if (!document.getElementById('concierge-map-' + jobId)) {
+          _mccDisposeMap(jobId);
+          return;
+        }
+        _mccUpdateConciergeMap(jobId);
+      }, 18000);
+      // Stash the timer on the entry once the map exists.
+      setTimeout(() => {
+        const e = _mccConciergeMaps.get(jobId);
+        if (e) e.timer = timer;
+        else _mccConciergeMaps.set(jobId, { timer });
+      }, 0);
     };
 
     // Task #369: render status for vehicle-originated concierge jobs (no
@@ -507,6 +651,9 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId: 'vehicle-' + vehicleId });
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+          window.startConciergeTracking(job.id);
+        }
       } catch (e) { console.warn('[concierge] vehicle status load failed', e); }
     };
 
@@ -525,6 +672,10 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId });
+        // Task #335 — kick off live tracking poller if the card includes a map.
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+          window.startConciergeTracking(job.id);
+        }
       } catch (e) { console.warn('[concierge] status load failed', e); }
     };
 
