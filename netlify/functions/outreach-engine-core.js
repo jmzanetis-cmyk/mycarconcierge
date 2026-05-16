@@ -2194,6 +2194,106 @@ function classifyApolloError({ status, body, networkError } = {}) {
   return 'unknown_error';
 }
 
+// Task #336 — real-time admin alert for stuck Apollo cycles. Rate-limited
+// to one email per 30 minutes via ai_action_log (module='apollo_stuck_alert',
+// outcome='sent') so a wedged lock doesn't spam admins on every scheduled
+// run. The daily digest still includes the stuck-lock banner as a backup;
+// this just surfaces the signal within minutes instead of up to 24h later.
+const APOLLO_STUCK_ALERT_COOLDOWN_MS = 30 * 60 * 1000;
+
+async function maybeSendApolloStuckAlert(supabase, ctx) {
+  // Rate-limit query: Supabase returns { data, error } without throwing on
+  // most DB errors, so we must check `error` explicitly (try/catch alone
+  // would silently disable the cooldown if Postgres rejected the query).
+  try {
+    const sinceIso = new Date(Date.now() - APOLLO_STUCK_ALERT_COOLDOWN_MS).toISOString();
+    const { data: recent, error: rlErr } = await supabase
+      .from('ai_action_log')
+      .select('id')
+      .eq('module', 'apollo_stuck_alert')
+      .eq('action_type', 'stuck_lock')
+      .eq('outcome', 'sent')
+      .gte('created_at', sinceIso)
+      .limit(1);
+    if (rlErr) {
+      console.warn('[Apollo] Stuck-alert rate-limit query returned error (continuing to send):', rlErr.message);
+    } else if (recent && recent.length > 0) {
+      return { sent: false, reason: 'rate_limited' };
+    }
+  } catch (qErr) {
+    console.warn('[Apollo] Stuck-alert rate-limit check threw (continuing to send):', qErr.message);
+  }
+
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
+  const fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  const resend = getResend();
+
+  let outcome = 'sent';
+  let errorMessage = null;
+  if (!resend) { outcome = 'failed'; errorMessage = 'no_resend_key'; }
+  else if (!adminEmail) { outcome = 'failed'; errorMessage = 'no_admin_email'; }
+  else {
+    try {
+      const subject = `🚨 Apollo discovery cycle stuck (~${ctx.heldMinutes}m)`;
+      const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;margin:0;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#1e293b;border-left:4px solid #ef4444;border-radius:8px;padding:24px;">
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:12px;">Apollo discovery cycle appears stuck</div>
+    <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:16px;">The Apollo cycle lock has been held for ~${ctx.heldMinutes} minutes (threshold: 6 min). A previous run likely crashed without releasing the lock, so every scheduled discovery cycle is being skipped.</div>
+    <div style="background:#0f1117;border-radius:6px;padding:14px 16px;font-size:13px;color:#94a3b8;margin-bottom:16px;">
+      <div>Lock reason: <strong style="color:#f1f5f9;">${ctx.lockReason || 'unknown'}</strong></div>
+      <div>Running since: <strong style="color:#f1f5f9;">${ctx.runningSince || 'unknown'}</strong></div>
+      <div>Held: <strong style="color:#f1f5f9;">~${ctx.heldMinutes} min</strong></div>
+      ${ctx.runningNonce ? `<div>Nonce: <code>${ctx.runningNonce}</code></div>` : ''}
+    </div>
+    <div style="font-size:13px;line-height:1.6;color:#94a3b8;">To clear: open admin → Outreach Engine and trigger a manual cycle once the lock TTL (<code>APOLLO_LOCK_TTL_MS</code>) elapses, or clear the lock row directly in Supabase. Further alerts are suppressed for 30 minutes.</div>
+    <div style="margin-top:20px;text-align:center;">
+      <a href="https://mycarconcierge.com/admin.html#outreach" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#b8942d);color:#0f1117;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:6px;">Open Outreach Engine →</a>
+    </div>
+  </div>
+  <div style="margin-top:16px;font-size:11px;color:#475569;text-align:center;">My Car Concierge · Apollo stuck-cycle monitor (Task #336)</div>
+</body></html>`;
+      await resend.emails.send({
+        from: `My Car Concierge <${fromEmail}>`,
+        to: [adminEmail],
+        subject,
+        html
+      });
+    } catch (sendErr) {
+      outcome = 'failed';
+      errorMessage = sendErr.message || String(sendErr);
+      console.error('[Apollo] Stuck-alert email send failed:', errorMessage);
+    }
+  }
+
+  try {
+    const { error: insErr } = await supabase.from('ai_action_log').insert({
+      module: 'apollo_stuck_alert',
+      action_type: 'stuck_lock',
+      target_id: 'apollo_discovery_lock',
+      decision: {
+        held_minutes: ctx.heldMinutes,
+        lock_reason: ctx.lockReason,
+        running_since: ctx.runningSince,
+        running_nonce: ctx.runningNonce
+      },
+      confidence: 1.0,
+      auto_executed: outcome === 'sent',
+      escalated: true,
+      outcome,
+      error_message: errorMessage,
+      execution_time_ms: 0,
+      created_at: new Date().toISOString()
+    });
+    if (insErr) {
+      console.warn('[Apollo] ai_action_log insert returned error for stuck-alert (cooldown may not engage):', insErr.message);
+    }
+  } catch (logErr) {
+    console.warn('[Apollo] Failed to record stuck-alert in ai_action_log:', logErr.message);
+  }
+
+  return { sent: outcome === 'sent', reason: errorMessage };
+}
+
 async function runApolloDiscoveryCycle(supabase) {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
@@ -2253,6 +2353,18 @@ async function runApolloDiscoveryCycle(supabase) {
         } catch (logErr) {
           console.warn('[Apollo] Failed to log stuck-lock skip row:', logErr.message);
         }
+
+        // Task #336 — real-time admin alert so a stuck cycle is noticed
+        // within minutes rather than waiting for the next daily digest
+        // (up to 24h away). Rate-limited to one alert per 30 minutes via
+        // ai_action_log so a wedged lock doesn't spam admins on every
+        // scheduled run.
+        await maybeSendApolloStuckAlert(supabase, {
+          heldMinutes,
+          runningSince: lock.running_since,
+          lockReason: lock.reason,
+          runningNonce: lock.running_nonce || null
+        });
       }
     }
 
