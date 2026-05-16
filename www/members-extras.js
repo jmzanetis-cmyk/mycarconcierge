@@ -613,9 +613,14 @@
         return;
       }
 
-      // Lazy-init the Leaflet map exactly once per job.
+      // Lazy-init the Leaflet map exactly once per job. Task #447: an
+      // entry may already exist holding only `rtChannel` / `etaTimer`
+      // (created by the realtime-subscribe block above and/or
+      // startConciergeTracking), so check for `entry.map` specifically
+      // rather than truthiness — otherwise first paint silently no-ops
+      // and the marker is never created.
       let entry = _mccConciergeMaps.get(jobId);
-      if (!entry) {
+      if (!entry || !entry.map) {
         try {
           const L = await loadLeafletOnce();
           if (!document.getElementById('concierge-map-' + jobId)) return; // gone while loading
@@ -632,7 +637,9 @@
             targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(map);
             map.fitBounds([[ping.lat, ping.lng], [target.lat, target.lng]], { padding: [24, 24], maxZoom: 15 });
           }
-          entry = { map, driverMarker, targetMarker };
+          // Merge into any pre-existing entry so we don't clobber
+          // rtChannel / etaTimer that were set before first paint.
+          entry = Object.assign(entry || {}, { map, driverMarker, targetMarker });
           _mccConciergeMaps.set(jobId, entry);
         } catch (e) {
           slot.innerHTML = `<div style="padding:12px;font-size:0.82rem;color:var(--text-muted);">Map unavailable. Driver is moving — refresh to retry.</div>`;

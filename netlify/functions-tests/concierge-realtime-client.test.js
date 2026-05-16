@@ -62,6 +62,15 @@ ok('client subscribes via supabaseClient.channel(tr.realtime.channel)',
 ok('client listens for tr.realtime.event broadcast events',
    /\.on\(\s*'broadcast'\s*,\s*\{\s*event:\s*tr\.realtime\.event/.test(SRC));
 
+// ── 5b. Regression: first paint must NOT be skipped when an entry
+//        already exists holding only rtChannel / etaTimer. The init
+//        branch must check `!entry.map` (not just `!entry`) AND merge
+//        new fields into the existing entry rather than clobbering it.
+ok('map-init checks !entry.map (not just !entry) — Task #447 ordering fix',
+   /if\s*\(\s*!\s*entry\s*\|\|\s*!\s*entry\.map\s*\)/.test(SRC));
+ok('map-init preserves pre-existing entry fields via Object.assign',
+   /Object\.assign\(\s*entry\s*\|\|\s*\{\}\s*,\s*\{\s*map\s*,\s*driverMarker\s*,\s*targetMarker\s*\}\s*\)/.test(SRC));
+
 // ── 6. Behavioral simulation of the apply/dispose contract ────────────────
 // Mirror the production helpers locally so we can run them under Node.
 function makeSim() {
@@ -153,6 +162,37 @@ function makeSim() {
   ok('dispose → map entry dropped', !sim.maps.has('job-A'));
   sim.restore();
   clearInterval(fakeTimer);
+}
+
+// 6d-bis. Regression sim for the map-init ordering bug. Mirrors the
+//          production initMapIfNeeded logic: when an entry already has
+//          only rtChannel (because realtime subscribed before first
+//          paint), the init branch MUST still create the map AND
+//          preserve rtChannel.
+{
+  const sim = makeSim();
+  // Production helper, transcribed verbatim from the post-fix code.
+  function initMapIfNeeded(jobId, ping) {
+    let entry = sim.maps.get(jobId);
+    if (!entry || !entry.map) {
+      const map = { _id: 'leaflet-map', remove() {} };
+      const driverMarker = { _id: 'marker', setLatLng() {} };
+      const targetMarker = null;
+      entry = Object.assign(entry || {}, { map, driverMarker, targetMarker });
+      sim.maps.set(jobId, entry);
+    }
+    return entry;
+  }
+  // Realtime subscribed first — entry has only rtChannel.
+  sim.maps.set('job-A', { rtChannel: { _id: 'pre-existing-ch' } });
+  const entry = initMapIfNeeded('job-A', { lat: 1, lng: 2 });
+  ok('init creates map even when entry already exists',  entry.map && entry.map._id === 'leaflet-map');
+  ok('init creates driverMarker even when entry already exists', entry.driverMarker && entry.driverMarker._id === 'marker');
+  ok('init preserves pre-existing rtChannel',             entry.rtChannel && entry.rtChannel._id === 'pre-existing-ch');
+  // Calling again with the map already present must NOT recreate it.
+  const sameEntry = initMapIfNeeded('job-A', { lat: 3, lng: 4 });
+  ok('second init is idempotent (same map instance)', sameEntry.map === entry.map);
+  sim.restore();
 }
 
 // 6e. dispose() on an unknown jobId is a no-op (idempotent).
