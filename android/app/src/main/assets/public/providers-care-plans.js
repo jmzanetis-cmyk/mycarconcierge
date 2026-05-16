@@ -79,9 +79,11 @@
     return (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
   }
 
-  async function api(method, path) {
+  async function api(method, path, body) {
     const headers = await authHeaders();
-    const res = await fetch(apiBase() + path, { method, headers });
+    const init = { method, headers };
+    if (body != null) init.body = JSON.stringify(body);
+    const res = await fetch(apiBase() + path, init);
     let data = null;
     const text = await res.text();
     try { data = text ? JSON.parse(text) : null; } catch (_) { data = { raw: text }; }
@@ -99,12 +101,29 @@
     const veh = vehicleLabel(plan.vehicle);
     const services = servicesLabel(plan);
     const amount = (plan.accepted_bid && plan.accepted_bid.amount) || plan.escrow_amount || comp.bid_amount;
+    const hasResponse = !!(comp.provider_response && String(comp.provider_response).trim());
+    const responseUi = hasResponse
+      ? '<div class="cp-dispute-response" style="margin-top:12px;padding:10px;border-radius:8px;background:rgba(255,255,255,0.04);border:1px solid rgba(255,255,255,0.1);">'
+        + '<div style="font-weight:600;margin-bottom:4px;">Your response</div>'
+        + (comp.provider_responded_at ? '<div style="font-size:0.8rem;color:var(--text-muted,#888);margin-bottom:6px;">' + escapeHtml(fmtDate(comp.provider_responded_at)) + '</div>' : '')
+        + '<div style="white-space:pre-wrap;">' + escapeHtml(comp.provider_response) + '</div>'
+        + '<button class="btn btn-sm cp-dispute-edit-response" type="button" data-plan-id="' + escapeHtml(plan.id) + '" style="margin-top:8px;">Edit response</button>'
+        + '</div>'
+      : '<div class="cp-dispute-response-form" style="margin-top:12px;">'
+        + '<label for="cp-resp-' + escapeHtml(plan.id) + '" style="display:block;font-weight:600;margin-bottom:6px;">Your response (admin will review)</label>'
+        + '<textarea id="cp-resp-' + escapeHtml(plan.id) + '" class="form-input cp-dispute-response-input" data-plan-id="' + escapeHtml(plan.id) + '" rows="3" maxlength="4000" placeholder="Explain what happened from your side. This will be visible to the admin reviewing the dispute." style="width:100%;"></textarea>'
+        + '<div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;">'
+        + '<button class="btn btn-primary cp-dispute-submit-response" type="button" data-plan-id="' + escapeHtml(plan.id) + '">Submit response</button>'
+        + '<span class="cp-dispute-response-msg" data-plan-id="' + escapeHtml(plan.id) + '" style="font-size:0.85rem;color:var(--text-muted,#888);"></span>'
+        + '</div>'
+        + '</div>';
     const disputeBlock = (comp.status === 'disputed' || plan.payment_status === 'disputed')
       ? '<div class="cp-dispute-panel" style="margin-top:14px;padding:14px;border-radius:10px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.3);">'
         + '<div style="font-weight:600;color:var(--accent-red,#ef4444);margin-bottom:6px;">Dispute raised by member</div>'
         + (comp.disputed_at ? '<div style="font-size:0.85rem;color:var(--text-muted,#888);margin-bottom:8px;">' + escapeHtml(fmtDate(comp.disputed_at)) + '</div>' : '')
         + (comp.dispute_reason ? '<div style="margin-bottom:6px;"><strong>Reason:</strong> ' + escapeHtml(comp.dispute_reason) + '</div>' : '')
         + (comp.dispute_description ? '<div style="white-space:pre-wrap;">' + escapeHtml(comp.dispute_description) + '</div>' : '')
+        + responseUi
         + '<div style="margin-top:10px;font-size:0.85rem;color:var(--text-muted,#888);">An administrator will review and resolve this dispute. You\'ll be contacted if more information is needed.</div>'
         + '</div>'
       : '';
@@ -160,8 +179,61 @@
     }
   }
 
+  async function submitDisputeResponse(planId, btn) {
+    const input = document.querySelector('.cp-dispute-response-input[data-plan-id="' + planId + '"]');
+    const msg = document.querySelector('.cp-dispute-response-msg[data-plan-id="' + planId + '"]');
+    if (!input) return;
+    const text = (input.value || '').trim();
+    if (!text) {
+      if (msg) { msg.textContent = 'Please write a response first.'; msg.style.color = 'var(--accent-red,#ef4444)'; }
+      return;
+    }
+    if (btn) { btn.disabled = true; btn.textContent = 'Submitting…'; }
+    if (msg) { msg.textContent = ''; }
+    try {
+      await api('POST', '/api/care-plans/' + encodeURIComponent(planId) + '/dispute-response', { response: text });
+      // Reload to show the persisted response
+      await loadAwardedPlansSection();
+    } catch (err) {
+      if (msg) {
+        msg.textContent = 'Could not submit: ' + (err && err.message ? err.message : 'unknown error');
+        msg.style.color = 'var(--accent-red,#ef4444)';
+      }
+      if (btn) { btn.disabled = false; btn.textContent = 'Submit response'; }
+    }
+  }
+
+  function handleListClick(ev) {
+    const submitBtn = ev.target.closest('.cp-dispute-submit-response');
+    if (submitBtn) {
+      const planId = submitBtn.getAttribute('data-plan-id');
+      if (planId) submitDisputeResponse(planId, submitBtn);
+      return;
+    }
+    const editBtn = ev.target.closest('.cp-dispute-edit-response');
+    if (editBtn) {
+      const planId = editBtn.getAttribute('data-plan-id');
+      const card = document.querySelector('.cp-awarded-card[data-plan-id="' + planId + '"]');
+      const responseBlock = card && card.querySelector('.cp-dispute-response');
+      const existingText = responseBlock ? responseBlock.querySelector('div[style*="white-space"]').textContent : '';
+      if (responseBlock) {
+        responseBlock.outerHTML = '<div class="cp-dispute-response-form" style="margin-top:12px;">'
+          + '<label for="cp-resp-' + planId + '" style="display:block;font-weight:600;margin-bottom:6px;">Your response (admin will review)</label>'
+          + '<textarea id="cp-resp-' + planId + '" class="form-input cp-dispute-response-input" data-plan-id="' + planId + '" rows="3" maxlength="4000" style="width:100%;"></textarea>'
+          + '<div style="display:flex;gap:8px;margin-top:8px;align-items:center;flex-wrap:wrap;">'
+          + '<button class="btn btn-primary cp-dispute-submit-response" type="button" data-plan-id="' + planId + '">Submit response</button>'
+          + '<span class="cp-dispute-response-msg" data-plan-id="' + planId + '" style="font-size:0.85rem;color:var(--text-muted,#888);"></span>'
+          + '</div>'
+          + '</div>';
+        const ta = document.getElementById('cp-resp-' + planId);
+        if (ta) ta.value = existingText;
+      }
+    }
+  }
+
   // Expose for testing + for showSection() hook
   window.loadAwardedCarePlansSection = loadAwardedPlansSection;
+  window.submitDisputeResponse = submitDisputeResponse;
 
   function bind() {
     const navItem = document.querySelector('.nav-item[data-section="care-plans-awarded"]');
@@ -173,6 +245,8 @@
     }
     const refreshBtn = document.getElementById('care-plans-awarded-refresh');
     if (refreshBtn) refreshBtn.addEventListener('click', loadAwardedPlansSection);
+    const list = document.getElementById('care-plans-awarded-list');
+    if (list) list.addEventListener('click', handleListClick);
     // Auto-load on page-load so the badge count is correct even before the
     // section is opened.
     try { loadAwardedPlansSection(); } catch (_) { /* ignore */ }

@@ -619,6 +619,99 @@ test.describe('Care plan provider journey (Task #328)', () => {
     expect(row.completion.dispute_description).toContain('Oil filter');
   });
 
+  test('POST /api/care-plans/:id/dispute-response persists provider response + surfaces via /awarded', async ({ request }) => {
+    const { plan, acceptedBid } = await seedPlan();
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', acceptedBid.id);
+    await sb.from('care_plans').update({
+      accepted_bid_id: acceptedBid.id,
+      provider_id: providerId,
+      status: 'awarded',
+      payment_status: 'disputed'
+    }).eq('id', plan.id);
+    await sb.from('care_plan_completions').insert({
+      care_plan_id: plan.id,
+      accepted_bid_id: acceptedBid.id,
+      member_id: memberId,
+      provider_id: providerId,
+      status: 'disputed',
+      bid_amount: 175,
+      dispute_reason: 'quality',
+      dispute_description: 'Member dispute text',
+      disputed_at: new Date().toISOString()
+    });
+
+    // 401 without auth
+    const noAuth = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/dispute-response`, {
+      headers: { 'Content-Type': 'application/json' },
+      data: { response: 'hi' }
+    });
+    expect(noAuth.status()).toBe(401);
+
+    // 400 on empty body
+    const empty = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/dispute-response`, {
+      headers: { Authorization: `Bearer ${providerToken}`, 'Content-Type': 'application/json' },
+      data: { response: '   ' }
+    });
+    expect(empty.status()).toBe(400);
+
+    // 403 from a member (not the winning provider)
+    const asMember = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/dispute-response`, {
+      headers: { Authorization: `Bearer ${memberToken}`, 'Content-Type': 'application/json' },
+      data: { response: 'I am not the provider' }
+    });
+    expect(asMember.status()).toBe(403);
+
+    // 200 from the winning provider
+    const responseText = `UI smoke response ${Date.now()}: filter was replaced, photos attached`;
+    const ok = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/dispute-response`, {
+      headers: { Authorization: `Bearer ${providerToken}`, 'Content-Type': 'application/json' },
+      data: { response: responseText }
+    });
+    expect(ok.status()).toBe(200);
+    const okBody = await ok.json();
+    expect(okBody.success).toBe(true);
+    expect(okBody.completion.provider_response).toBe(responseText);
+    expect(okBody.completion.provider_responded_at).toBeTruthy();
+
+    // Verify the response now surfaces through the awarded-plans endpoint
+    const list = await request.get(`${BASE_URL}/api/care-plans/awarded`, {
+      headers: { Authorization: `Bearer ${providerToken}` }
+    });
+    expect(list.status()).toBe(200);
+    const listBody = await list.json();
+    const row = listBody.plans.find(p => p.id === plan.id);
+    expect(row).toBeTruthy();
+    expect(row.completion.provider_response).toBe(responseText);
+  });
+
+  test('POST /api/care-plans/:id/dispute-response is 403 for a non-winning provider', async ({ request }) => {
+    // ProviderB won the bid → providerA must NOT be able to record a response.
+    const { plan, otherBid } = await seedPlan();
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', otherBid.id);
+    await sb.from('care_plans').update({
+      accepted_bid_id: otherBid.id,
+      provider_id: providerBId,
+      status: 'awarded',
+      payment_status: 'disputed'
+    }).eq('id', plan.id);
+    await sb.from('care_plan_completions').insert({
+      care_plan_id: plan.id,
+      accepted_bid_id: otherBid.id,
+      member_id: memberId,
+      provider_id: providerBId,
+      status: 'disputed',
+      bid_amount: 220,
+      dispute_reason: 'quality',
+      disputed_at: new Date().toISOString()
+    });
+
+    const res = await request.post(`${BASE_URL}/api/care-plans/${plan.id}/dispute-response`, {
+      headers: { Authorization: `Bearer ${providerToken}`, 'Content-Type': 'application/json' },
+      data: { response: 'I shouldn\'t be allowed to respond' }
+    });
+    expect(res.status()).toBe(403);
+  });
+
   test('Provider dashboard UI renders awarded plan card with status badge + dispute reason', async ({ page }) => {
     // Seed: awarded plan in disputed state attributed to providerA.
     const { plan, acceptedBid } = await seedPlan();
@@ -676,5 +769,25 @@ test.describe('Care plan provider journey (Task #328)', () => {
     await expect(dispute).toBeVisible();
     await expect(dispute).toContainText(/quality/i);
     await expect(dispute).toContainText(/oil filter not replaced/i);
+
+    // Response form must be present (no response submitted yet).
+    const respInput = card.locator('.cp-dispute-response-input');
+    await expect(respInput).toBeVisible();
+    const responseText = `UI browser test response ${Date.now()}: filter swapped + photos uploaded`;
+    await respInput.fill(responseText);
+    await card.locator('.cp-dispute-submit-response').click();
+
+    // After submission the panel reloads and shows the persisted response.
+    await page.waitForSelector(`${cardSel} .cp-dispute-response`, { timeout: 15_000 });
+    const respBlock = card.locator('.cp-dispute-response');
+    await expect(respBlock).toBeVisible();
+    await expect(respBlock).toContainText(responseText);
+
+    // DB invariant: completion row now carries provider_response.
+    const { data: compRow } = await sb.from('care_plan_completions')
+      .select('provider_response, provider_responded_at')
+      .eq('care_plan_id', plan.id).single();
+    expect(compRow.provider_response).toBe(responseText);
+    expect(compRow.provider_responded_at).toBeTruthy();
   });
 });
