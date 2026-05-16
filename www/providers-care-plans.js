@@ -1,9 +1,11 @@
 // Provider-facing Awarded Care Plans dashboard (Task #421).
-// Read-only sibling to members-care-plans.js: lists plans where this
-// provider's bid was accepted, shows escrow/payment status, and surfaces
-// any dispute the member has raised (reason/description) so providers
-// can see what's frozen and why. Adding a provider-side dispute *response*
-// is intentionally out of scope here — that's tracked separately.
+// Sibling to members-care-plans.js: lists plans where this provider's bid
+// was accepted, shows escrow/payment status, surfaces any dispute the
+// member has raised (reason/description) so providers can see what's
+// frozen and why, AND lets the winning provider submit/edit a free-text
+// response to that dispute (POST /api/care-plans/:id/dispute-response).
+// Admin/AI resolver still owns the actual payment resolution — provider
+// response is informational input only.
 (function () {
   'use strict';
 
@@ -155,11 +157,8 @@
     try {
       const data = await api('GET', '/api/care-plans/awarded');
       const plans = (data && data.plans) || [];
-      if (!plans.length) {
-        list.innerHTML = '<div class="empty-state"><div class="empty-state-title">No awarded plans yet</div><div class="empty-state-desc">When a member accepts one of your bids, the plan will appear here with payment status and any disputes.</div></div>';
-        return;
-      }
-      // Update badge count for disputed/held plans (actionable)
+      // Refresh the actionable-count badge BEFORE any early return so an
+      // empty list correctly clears a previously-shown count.
       const badge = document.getElementById('care-plans-awarded-count');
       if (badge) {
         const actionable = plans.filter(p => {
@@ -168,7 +167,11 @@
           return ps === 'disputed' || cs === 'disputed' || ps === 'held';
         }).length;
         if (actionable > 0) { badge.textContent = String(actionable); badge.style.display = ''; }
-        else { badge.style.display = 'none'; }
+        else { badge.textContent = ''; badge.style.display = 'none'; }
+      }
+      if (!plans.length) {
+        list.innerHTML = '<div class="empty-state"><div class="empty-state-title">No awarded plans yet</div><div class="empty-state-desc">When a member accepts one of your bids, the plan will appear here with payment status and any disputes.</div></div>';
+        return;
       }
       list.innerHTML = plans.map(renderPlanCard).join('');
     } catch (err) {
