@@ -328,6 +328,7 @@
       'commission-payouts': async () => { await loadFounderPayouts(); },
       packages: async () => { await loadAllPackages(); },
       payments: async () => { await loadPayments(); },
+      'driver-payouts': async () => { await loadDriverPayouts(); },
       disputes: async () => { await loadDisputes(); },
       refunds: async () => { await loadRefunds(); },
       'registration-verifications': async () => { await loadRegistrationVerifications(); },
@@ -1696,6 +1697,232 @@
       }
     }
     globalThis.saveStripeKeyExpiry = saveStripeKeyExpiry;
+
+    // ========================================================================
+    // Task #334 — Driver Payouts admin section
+    // ========================================================================
+    let driverPayoutsCache = null;
+
+    function dollars(cents) {
+      const n = Number(cents || 0) / 100;
+      return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadDriverPayouts() {
+      const tbody = document.getElementById('driver-payouts-table');
+      const earningsBody = document.getElementById('driver-payouts-earnings-table');
+      const cashoutsBody = document.getElementById('driver-cashouts-table');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+      if (cashoutsBody) cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading…</td></tr>';
+      try {
+        const res = await fetch('/api/admin/driver-payouts', { headers: getAdminHeaders() });
+        if (!res.ok) {
+          if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Failed to load: ${res.status}</td></tr>`;
+          return;
+        }
+        const data = await res.json();
+        driverPayoutsCache = data;
+
+        const drivers = data.drivers || [];
+        let available = 0, inflight = 0, paid = 0, blocked = 0, failed = 0;
+        drivers.forEach(d => {
+          available += d.available_cents || 0;
+          inflight  += d.in_flight_cents || 0;
+          paid      += (d.paid_cents || 0) + (d.manual_cents || 0);
+          blocked   += d.pending_account_cents || 0;
+          failed    += d.failed_cents || 0;
+        });
+        document.getElementById('driver-payouts-available-total').textContent = dollars(available);
+        document.getElementById('driver-payouts-inflight-total').textContent  = dollars(inflight);
+        document.getElementById('driver-payouts-paid-total').textContent      = dollars(paid);
+        document.getElementById('driver-payouts-failed-total').textContent    = dollars(blocked + failed);
+
+        // Badge in nav: drivers with failed/blocked balance OR cash-outs awaiting attention.
+        const badge = document.getElementById('driver-payouts-badge');
+        const attentionCount = drivers.filter(d => (d.failed_cents + d.pending_account_cents) > 0).length;
+        if (badge) {
+          badge.textContent = attentionCount;
+          badge.style.display = attentionCount > 0 ? 'inline-block' : 'none';
+        }
+
+        if (tbody) {
+          if (drivers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No drivers configured</td></tr>';
+          } else {
+            tbody.innerHTML = drivers.map(d => {
+              const drv = d.driver || {};
+              const connectBadge = drv.stripe_connect_account_id
+                ? (drv.stripe_payouts_enabled
+                    ? '<span class="status-badge approved">Payouts ON</span>'
+                    : '<span class="status-badge orange">Onboarding</span>')
+                : '<span class="status-badge red">Not connected</span>';
+              const canCashOut = !!(drv.stripe_connect_account_id && drv.stripe_payouts_enabled) && (d.available_cents || 0) >= 100;
+              return `<tr>
+                <td><strong>${escapeHtml(drv.full_name || '—')}</strong><div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(drv.phone || '')}</div></td>
+                <td>${connectBadge}</td>
+                <td><strong>${dollars(d.available_cents)}</strong></td>
+                <td>${dollars(d.in_flight_cents)}</td>
+                <td>${dollars((d.paid_cents || 0) + (d.manual_cents || 0))}</td>
+                <td>${dollars(d.pending_account_cents)}</td>
+                <td>${dollars(d.failed_cents)}</td>
+                <td>${canCashOut
+                  ? `<button class="btn btn-sm btn-primary" onclick="adminCashoutDriver('${drv.id}','standard')">Cash Out (ACH)</button>
+                     <button class="btn btn-sm" onclick="adminCashoutDriver('${drv.id}','instant')">Instant</button>`
+                  : '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        // Recent cash-outs (driver_cashouts is included in the same payload).
+        const cashouts = data.cashouts || [];
+        if (cashoutsBody) {
+          if (cashouts.length === 0) {
+            cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No cash-outs yet</td></tr>';
+          } else {
+            const driverNameById = {};
+            drivers.forEach(d => { if (d.driver) driverNameById[d.driver.id] = d.driver.full_name || d.driver.phone || d.driver.id; });
+            cashoutsBody.innerHTML = cashouts.map(c => {
+              const when = c.requested_at ? new Date(c.requested_at).toLocaleString() : '—';
+              const statusClass = ({ paid: 'approved', processing: 'orange', failed: 'red', cancelled: 'muted' })[c.status] || 'muted';
+              return `<tr>
+                <td style="font-size:0.8rem;">${escapeHtml(when)}</td>
+                <td>${escapeHtml(driverNameById[c.driver_id] || (c.driver_id || '').slice(0, 8))}</td>
+                <td><span class="status-badge ${c.method === 'instant' ? 'orange' : 'muted'}">${escapeHtml(c.method)}</span></td>
+                <td>${dollars(c.amount_cents)}</td>
+                <td>${c.fee_cents ? dollars(c.fee_cents) : '—'}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(c.status)}</span>${c.error ? `<div style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(c.error)}</div>` : ''}</td>
+                <td style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(c.stripe_transfer_id || '')}<br/>${escapeHtml(c.stripe_payout_id || '')}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        // Populate adjustment driver dropdown.
+        const sel = document.getElementById('driver-payout-adjust-driver');
+        if (sel) {
+          sel.innerHTML = '<option value="">Select driver…</option>' +
+            drivers.map(d => `<option value="${escapeHtml(d.driver.id)}">${escapeHtml(d.driver.full_name || d.driver.phone || d.driver.id)}</option>`).join('');
+        }
+
+        // Recent earnings table — flatten across drivers, take latest 50.
+        const all = [];
+        drivers.forEach(d => {
+          (d.recent || []).forEach(r => all.push({ ...r, driver_name: d.driver?.full_name || d.driver?.phone || d.driver?.id }));
+        });
+        all.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+        const top = all.slice(0, 50);
+        if (earningsBody) {
+          if (top.length === 0) {
+            earningsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No earnings recorded yet</td></tr>';
+          } else {
+            earningsBody.innerHTML = top.map(r => {
+              const when = r.recorded_at ? new Date(r.recorded_at).toLocaleString() : '—';
+              const statusClass = ({
+                paid: 'approved', pending: 'orange', pending_account: 'red',
+                failed: 'red', manual: 'muted'
+              })[r.payout_status] || 'muted';
+              const canRetry  = r.payout_status === 'failed' || r.payout_status === 'pending_account';
+              const canManual = r.payout_status !== 'paid' && r.payout_status !== 'manual';
+              const actions = [
+                canRetry  ? `<button class="btn btn-sm btn-secondary" onclick="retryDriverPayout('${r.id}')">Retry</button>` : '',
+                canManual ? `<button class="btn btn-sm" onclick="markDriverPayoutPaid('${r.id}')">Mark Paid</button>` : ''
+              ].filter(Boolean).join(' ');
+              return `<tr>
+                <td style="font-size:0.8rem;">${escapeHtml(when)}</td>
+                <td>${escapeHtml(r.driver_name)}</td>
+                <td>${escapeHtml(r.kind)}</td>
+                <td>${dollars(r.amount_cents)}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(r.payout_status)}</span>${r.payout_error ? `<div style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(r.payout_error)}</div>` : ''}</td>
+                <td style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml((r.job_id || '').slice(0, 8))}</td>
+                <td>${actions || '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+      } catch (err) {
+        console.error('loadDriverPayouts error:', err);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function submitDriverPayoutAdjustment() {
+      const driverId = document.getElementById('driver-payout-adjust-driver').value;
+      const amountStr = document.getElementById('driver-payout-adjust-amount').value;
+      const kind = document.getElementById('driver-payout-adjust-kind').value;
+      const notes = document.getElementById('driver-payout-adjust-notes').value;
+      if (!driverId) { alert('Pick a driver.'); return; }
+      const amountCents = Math.round(parseFloat(amountStr) * 100);
+      if (!Number.isFinite(amountCents) || amountCents === 0) { alert('Enter a nonzero amount.'); return; }
+      try {
+        const res = await fetch('/api/admin/driver-payouts/adjust', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driver_id: driverId, amount_cents: amountCents, kind, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Failed: ${data.error || res.statusText}`); return; }
+        document.getElementById('driver-payout-adjust-amount').value = '';
+        document.getElementById('driver-payout-adjust-notes').value = '';
+        await loadDriverPayouts();
+      } catch (err) {
+        alert('Adjustment failed: ' + err.message);
+      }
+    }
+
+    async function retryDriverPayout(earningsId) {
+      if (!confirm('Retry Stripe transfer for this earnings row?')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(earningsId)}/retry`, {
+          method: 'POST', headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Retry failed: ${data.error || res.statusText}`); return; }
+        await loadDriverPayouts();
+      } catch (err) { alert('Retry failed: ' + err.message); }
+    }
+
+    async function markDriverPayoutPaid(earningsId) {
+      const notes = prompt('Notes (e.g. "paid via Zelle ref 123")', 'Marked paid out-of-band');
+      if (notes === null) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(earningsId)}/mark-paid`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Failed: ${data.error || res.statusText}`); return; }
+        await loadDriverPayouts();
+      } catch (err) { alert('Failed: ' + err.message); }
+    }
+
+    async function adminCashoutDriver(driverId, method) {
+      const label = method === 'instant' ? 'Instant Payout (1.5% fee)' : 'standard ACH cash-out';
+      if (!confirm(`Trigger ${label} for this driver's full available balance?`)) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(driverId)}/cashout`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Cash-out failed: ${(data.error && data.error.message) || data.error || res.statusText}`); return; }
+        alert(`Cash-out queued: ${dollars(data.amount_cents)} (${method}${data.fee_cents ? ', fee ' + dollars(data.fee_cents) : ''})`);
+        await loadDriverPayouts();
+      } catch (err) { alert('Cash-out failed: ' + err.message); }
+    }
+
+    globalThis.loadDriverPayouts = loadDriverPayouts;
+    globalThis.submitDriverPayoutAdjustment = submitDriverPayoutAdjustment;
+    globalThis.retryDriverPayout = retryDriverPayout;
+    globalThis.markDriverPayoutPaid = markDriverPayoutPaid;
+    globalThis.adminCashoutDriver = adminCashoutDriver;
 
     async function loadDisputes() {
       // Task #281 — surface load errors instead of silently rendering "No disputes".

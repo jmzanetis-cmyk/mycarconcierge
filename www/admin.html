@@ -565,6 +565,7 @@
       <div class="nav-label">Operations</div>
       <div class="nav-item" data-section="packages"><span class="icon-inline" data-icon="package"></span> All Packages</div>
       <div class="nav-item" data-section="payments"><span class="icon-inline" data-icon="credit-card"></span> Payments</div>
+      <div class="nav-item" data-section="driver-payouts"><span class="icon-inline" data-icon="truck"></span> Driver Payouts <span class="nav-badge orange" id="driver-payouts-badge" style="display:none;">0</span></div>
       <div class="nav-item" data-section="disputes"><span class="icon-inline" data-icon="alert-triangle"></span> Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
       <div class="nav-item" data-section="refunds"><span class="icon-inline" data-icon="receipt"></span> Refunds <span class="nav-badge orange" id="refund-count">0</span></div>
       <div class="nav-item" data-section="registration-verifications"><span class="icon-inline" data-icon="search"></span> Registration Reviews <span class="nav-badge orange" id="registration-count">0</span></div>
@@ -2819,6 +2820,123 @@
           </thead>
           <tbody id="payments-table">
             <tr><td colspan="7" class="empty-state">No payments</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Driver Payouts Section (Task #334) -->
+    <section id="driver-payouts" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title">Driver Payouts</h1>
+        <p class="page-subtitle">Per-driver earnings, pending Stripe transfers, and manual adjustments</p>
+      </div>
+
+      <div class="stats-grid" style="margin-bottom:24px;">
+        <div class="stat-card">
+          <div class="stat-value" id="driver-payouts-available-total">$0</div>
+          <div class="stat-label">Available in Wallets</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="driver-payouts-inflight-total">$0</div>
+          <div class="stat-label">In Flight (Cashing Out)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="driver-payouts-paid-total">$0</div>
+          <div class="stat-label">Paid (all time)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-value" id="driver-payouts-failed-total">$0</div>
+          <div class="stat-label">Failed / Blocked</div>
+        </div>
+      </div>
+
+      <div class="card" style="margin-bottom:24px;padding:16px;">
+        <h3 style="margin-top:0;">Manual Adjustment</h3>
+        <p style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Add a tip, bonus, or correction. Negative amounts claw back overpayments. Marked as <code>manual</code> so they don't fire another Stripe transfer.</p>
+        <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:8px;align-items:end;">
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Driver</label>
+            <select id="driver-payout-adjust-driver" class="form-input"></select>
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Amount (USD)</label>
+            <input id="driver-payout-adjust-amount" type="number" step="0.01" class="form-input" placeholder="25.00" />
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Kind</label>
+            <select id="driver-payout-adjust-kind" class="form-input">
+              <option value="adjustment">Adjustment</option>
+              <option value="tip">Tip</option>
+              <option value="bonus">Bonus</option>
+            </select>
+          </div>
+          <div>
+            <label style="font-size:0.75rem;color:var(--text-muted);">Notes</label>
+            <input id="driver-payout-adjust-notes" type="text" class="form-input" placeholder="optional context" />
+          </div>
+          <button class="btn btn-primary" onclick="submitDriverPayoutAdjustment()">Add</button>
+        </div>
+      </div>
+
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Driver</th>
+              <th>Stripe Connect</th>
+              <th>Available</th>
+              <th>In Flight</th>
+              <th>Paid (Lifetime)</th>
+              <th>No Account</th>
+              <th>Failed</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="driver-payouts-table">
+            <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:32px;">Recent Cash-Outs</h3>
+      <p style="font-size:0.85rem;color:var(--text-muted);margin-top:-8px;">Driver-initiated and admin-initiated wallet withdrawals. Standard cash-outs land via the connected account's default ACH schedule; instant cash-outs use Stripe Instant Payouts (1.5% fee, min $0.50).</p>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Driver</th>
+              <th>Method</th>
+              <th>Amount</th>
+              <th>Fee</th>
+              <th>Status</th>
+              <th>Stripe IDs</th>
+            </tr>
+          </thead>
+          <tbody id="driver-cashouts-table">
+            <tr><td colspan="7" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3 style="margin-top:32px;">Recent Earnings</h3>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>When</th>
+              <th>Driver</th>
+              <th>Kind</th>
+              <th>Amount</th>
+              <th>Status</th>
+              <th>Job</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="driver-payouts-earnings-table">
+            <tr><td colspan="7" class="empty-state">Loading…</td></tr>
           </tbody>
         </table>
       </div>

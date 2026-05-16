@@ -237,6 +237,286 @@ async function audit(supabase, row) {
 }
 
 // ---------------------------------------------------------------------------
+// Stripe helpers (Task #334). Lazy-loaded so the function still boots when
+// STRIPE_SECRET_KEY is unset in dev — onboarding/payout endpoints will
+// degrade gracefully with a clear error code in that case.
+// ---------------------------------------------------------------------------
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  try {
+    const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+    return require('stripe')(key, { apiVersion: STRIPE_API_VERSION });
+  } catch (e) {
+    console.error('[driver-api] stripe init failed:', e.message);
+    return null;
+  }
+}
+
+// Accrue per-job earnings into each accepted driver's wallet. Earnings sit
+// at status='available' until the driver cashes out (Uber/Lyft model).
+// Idempotent via the (driver_id, job_id) partial-unique index on
+// driver_earnings — a job_completed replay won't double-credit.
+//
+// Note: NO Stripe transfer happens here. Money only moves when the driver
+// (or admin on their behalf) hits POST /me/cashout. This keeps Stripe API
+// calls off the leg-completion hot path and lets drivers batch their
+// earnings into one transfer + one Instant Payout fee.
+async function accrueJobEarnings(supabase, jobId) {
+  const { data: assignments } = await supabase
+    .from('concierge_job_drivers')
+    .select('driver_id, role, accepted_at, driver:drivers(id, full_name, email, per_job_rate_cents, stripe_connect_account_id, stripe_payouts_enabled)')
+    .eq('job_id', jobId)
+    .not('accepted_at', 'is', null);
+  if (!Array.isArray(assignments) || assignments.length === 0) return { credited: 0, skipped: 0 };
+
+  let credited = 0, skipped = 0;
+  for (const a of assignments) {
+    const driver = a.driver;
+    if (!driver) { skipped++; continue; }
+    const amount = Number(driver.per_job_rate_cents || 0);
+    if (amount <= 0) { skipped++; continue; }
+
+    // 'available' only if the driver has a Connect account AND Stripe has
+    // confirmed payouts are enabled — otherwise the row would be visible
+    // as cashable but the cashout endpoint would 409 on PAYOUTS_DISABLED.
+    // 'pending_account' covers both "no Connect account" and
+    // "Connect account but onboarding incomplete / requirements due".
+    // GET /me/stripe/status auto-promotes pending_account → available
+    // the moment Stripe flips payouts_enabled on.
+    const initialStatus = (driver.stripe_connect_account_id && driver.stripe_payouts_enabled)
+      ? 'available'
+      : 'pending_account';
+    const { data: inserted, error: insErr } = await supabase
+      .from('driver_earnings')
+      .insert({
+        driver_id: driver.id,
+        job_id: jobId,
+        amount_cents: amount,
+        kind: 'base',
+        payout_status: initialStatus,
+        notes: `Auto-credited on concierge.job_completed (role=${a.role})`
+      })
+      .select('id')
+      .single();
+    if (insErr) {
+      // 23505 = unique_violation → already credited for this job.
+      if (insErr.code === '23505' || /duplicate key/i.test(insErr.message || '')) {
+        skipped++;
+        continue;
+      }
+      console.error('[driver-api] earnings insert failed:', insErr.message);
+      skipped++;
+      continue;
+    }
+    credited++;
+    await emitEvent(supabase, 'concierge.driver_earned', {
+      job_id: jobId, driver_id: driver.id, amount_cents: amount,
+      earnings_id: inserted?.id, status: initialStatus
+    });
+  }
+  return { credited, skipped };
+}
+
+// Cash-out implementation (driver wallet → bank). Reused by both
+// POST /me/cashout (driver-initiated) and admin-triggered cashouts.
+// Returns { statusCode, body } shapes so callers can map to their own
+// response format.
+//
+// Flow:
+//   1. Sum 'available' earnings for the driver. Reject if below MIN.
+//   2. Insert driver_cashouts row (status='processing'). This becomes the
+//      atomic anchor we update from this point on — even if Stripe fails
+//      below, the cashout row records the attempt.
+//   3. Flip the affected earnings rows to 'paid' + cashout_id BEFORE we
+//      hit Stripe (so a concurrent cashout request can't double-spend the
+//      same balance — earnings move out of 'available' immediately).
+//   4. Create platform → connected-acct transfer (idempotency-keyed by
+//      cashout id). If method='instant', also create a Stripe Payout on
+//      the connected account with method=instant.
+//   5. On success: cashout.status='paid', completed_at=now.
+//      On failure: cashout.status='failed' + error; ROLL BACK the
+//      earnings rows back to 'available' so the driver can retry.
+async function executeCashout(supabase, driver, opts) {
+  const method = opts.method === 'instant' ? 'instant' : 'standard';
+  const initiatedByKind = opts.initiatedByKind || 'driver';
+  const initiatedById   = opts.initiatedById   || driver.profile_id || null;
+
+  if (!driver.stripe_connect_account_id) {
+    return { statusCode: 409, body: { error: { code: 'NO_CONNECT_ACCOUNT', message: 'Connect your bank account before cashing out' } } };
+  }
+  if (!driver.stripe_payouts_enabled) {
+    return { statusCode: 409, body: { error: { code: 'PAYOUTS_DISABLED', message: 'Finish Stripe verification before cashing out' } } };
+  }
+
+  // 1. Pull all available earnings for this driver, sum.
+  const { data: rows, error: selErr } = await supabase
+    .from('driver_earnings')
+    .select('id, amount_cents')
+    .eq('driver_id', driver.id)
+    .eq('payout_status', 'available');
+  if (selErr) return { statusCode: 500, body: { error: { code: 'DB_ERROR', message: selErr.message } } };
+  const earningsIds = (rows || []).map(r => r.id);
+  const gross = (rows || []).reduce((s, r) => s + (r.amount_cents || 0), 0);
+  const MIN_CASHOUT = 100; // $1 floor to avoid sub-cent Stripe rejections
+  if (gross < MIN_CASHOUT) {
+    return { statusCode: 409, body: { error: { code: 'INSUFFICIENT_BALANCE', message: `Minimum cash-out is $${(MIN_CASHOUT/100).toFixed(2)} — you have $${(gross/100).toFixed(2)} available` } } };
+  }
+
+  // Instant fee = 1.5% (matches Stripe's default; we charge it to the driver
+  // by reducing the payout amount, not the transfer amount).
+  const feeCents = method === 'instant' ? Math.max(50, Math.round(gross * 0.015)) : 0;
+
+  // 2. Insert cashout row.
+  const { data: cashout, error: coErr } = await supabase
+    .from('driver_cashouts')
+    .insert({
+      driver_id: driver.id,
+      amount_cents: gross,
+      fee_cents: feeCents,
+      method,
+      status: 'processing',
+      initiated_by_kind: initiatedByKind,
+      initiated_by_id: initiatedById
+    })
+    .select('id')
+    .single();
+  if (coErr || !cashout) {
+    return { statusCode: 500, body: { error: { code: 'DB_ERROR', message: coErr?.message || 'cashout insert failed' } } };
+  }
+  const cashoutId = cashout.id;
+
+  // 3. Reserve the earnings ATOMICALLY: only flip rows that are still
+  // 'available' AND not already linked to another cashout. Postgres
+  // serializes the per-row UPDATE locks, so two concurrent requests
+  // racing on the same balance will see only one succeed per row — the
+  // loser gets back fewer (or zero) reserved rows than it asked for and
+  // we abort + roll back, ensuring no double-spend.
+  const { data: reservedRows, error: resErr } = await supabase
+    .from('driver_earnings')
+    .update({ payout_status: 'paid', cashout_id: cashoutId, paid_at: new Date().toISOString() })
+    .in('id', earningsIds)
+    .eq('payout_status', 'available')   // critical: scope to still-available rows
+    .is('cashout_id', null)              // critical: never re-claim a linked row
+    .select('id, amount_cents');
+  if (resErr) {
+    await supabase.from('driver_cashouts').update({
+      status: 'failed', error: 'reservation_failed: ' + resErr.message, completed_at: new Date().toISOString()
+    }).eq('id', cashoutId);
+    return { statusCode: 500, body: { error: { code: 'DB_ERROR', message: resErr.message } } };
+  }
+  // If we didn't reserve every row we read in step 1, a concurrent cashout
+  // grabbed some of them. Roll back the partial reservation (flip back to
+  // available) and abort with 409 so the caller can retry against the
+  // freshly-updated balance.
+  if (!Array.isArray(reservedRows) || reservedRows.length !== earningsIds.length) {
+    const reservedIds = (reservedRows || []).map(r => r.id);
+    if (reservedIds.length > 0) {
+      await supabase.from('driver_earnings')
+        .update({ payout_status: 'available', cashout_id: null, paid_at: null })
+        .in('id', reservedIds);
+    }
+    await supabase.from('driver_cashouts').update({
+      status: 'cancelled',
+      error: `concurrent_cashout_race: reserved ${reservedIds.length} of ${earningsIds.length} rows`,
+      completed_at: new Date().toISOString()
+    }).eq('id', cashoutId);
+    return { statusCode: 409, body: { error: { code: 'CONCURRENT_CASHOUT', message: 'Another cashout is in progress — try again in a moment' } } };
+  }
+  // Use the actually-reserved set going forward (defensive — earningsIds
+  // and reservedRows are equivalent here, but this guards against future
+  // refactors of the read step).
+  const finalEarningsIds = reservedRows.map(r => r.id);
+
+  const stripe = getStripe();
+  if (!stripe) {
+    await supabase.from('driver_cashouts').update({
+      status: 'failed', error: 'stripe_unavailable', completed_at: new Date().toISOString()
+    }).eq('id', cashoutId);
+    // Roll back the reservation.
+    await supabase.from('driver_earnings')
+      .update({ payout_status: 'available', cashout_id: null, paid_at: null })
+      .in('id', finalEarningsIds);
+    return { statusCode: 503, body: { error: { code: 'STRIPE_UNAVAILABLE', message: 'Stripe not configured' } } };
+  }
+
+  // 4. Platform → connected-account transfer (always, for both methods).
+  let transferId = null;
+  try {
+    const transfer = await stripe.transfers.create({
+      amount: gross, currency: 'usd',
+      destination: driver.stripe_connect_account_id,
+      description: `MCC Driver cash-out (${method}) — ${cashoutId}`,
+      metadata: { driver_id: driver.id, cashout_id: cashoutId, method }
+    }, { idempotencyKey: `driver-cashout-transfer-${cashoutId}` });
+    transferId = transfer.id;
+  } catch (e) {
+    const msg = (e?.message || 'transfer_failed').slice(0, 500);
+    await supabase.from('driver_cashouts').update({
+      status: 'failed', error: msg, completed_at: new Date().toISOString()
+    }).eq('id', cashoutId);
+    // Roll back earnings so driver can retry.
+    await supabase.from('driver_earnings')
+      .update({ payout_status: 'available', cashout_id: null, paid_at: null })
+      .in('id', finalEarningsIds);
+    await emitEvent(supabase, 'driver.cashout_failed', { cashout_id: cashoutId, driver_id: driver.id, error: msg });
+    return { statusCode: 502, body: { error: { code: 'TRANSFER_FAILED', message: msg } } };
+  }
+
+  // 4b. Instant: also create a Stripe Payout on the connected account
+  //     with method=instant. Standard cash-outs rely on the connected
+  //     account's default automatic payout schedule (typically next
+  //     business day for US ACH).
+  let payoutId = null;
+  if (method === 'instant') {
+    const payoutAmount = gross - feeCents;
+    try {
+      const payout = await stripe.payouts.create({
+        amount: payoutAmount, currency: 'usd', method: 'instant',
+        description: `MCC Driver Instant Payout — ${cashoutId}`,
+        metadata: { driver_id: driver.id, cashout_id: cashoutId }
+      }, {
+        stripeAccount: driver.stripe_connect_account_id,
+        idempotencyKey: `driver-cashout-payout-${cashoutId}`
+      });
+      payoutId = payout.id;
+    } catch (e) {
+      const msg = (e?.message || 'instant_payout_failed').slice(0, 500);
+      // Transfer already landed in the connected account — funds aren't
+      // lost. Mark the cashout 'failed' but DO NOT roll back the earnings
+      // (the money IS in the driver's Stripe balance, just not instantly
+      // paid out). Admin retry will create the payout from there.
+      await supabase.from('driver_cashouts').update({
+        status: 'failed', error: 'instant_payout_failed: ' + msg,
+        stripe_transfer_id: transferId, completed_at: new Date().toISOString()
+      }).eq('id', cashoutId);
+      await emitEvent(supabase, 'driver.cashout_instant_failed', { cashout_id: cashoutId, driver_id: driver.id, error: msg });
+      return { statusCode: 502, body: { error: { code: 'INSTANT_PAYOUT_FAILED', message: msg, cashout_id: cashoutId } } };
+    }
+  }
+
+  // 5. Success.
+  await supabase.from('driver_cashouts').update({
+    status: 'paid',
+    stripe_transfer_id: transferId,
+    stripe_payout_id: payoutId,
+    completed_at: new Date().toISOString()
+  }).eq('id', cashoutId);
+  await emitEvent(supabase, 'driver.cashout_paid', {
+    cashout_id: cashoutId, driver_id: driver.id, amount_cents: gross,
+    fee_cents: feeCents, method
+  });
+  return {
+    statusCode: 200,
+    body: {
+      success: true, cashout_id: cashoutId, amount_cents: gross,
+      fee_cents: feeCents, net_cents: gross - feeCents, method,
+      transfer_id: transferId, payout_id: payoutId
+    }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Auth middleware: parse Bearer token, look up driver, ensure status=active.
 // ---------------------------------------------------------------------------
 async function authenticateDriver(event, supabase) {
@@ -251,7 +531,7 @@ async function authenticateDriver(event, supabase) {
   }
   const { data: driver, error } = await supabase
     .from('drivers')
-    .select('id, profile_id, full_name, phone, email, status, vehicle_class, hourly_rate_cents, per_job_rate_cents, onboarded_at')
+    .select('id, profile_id, full_name, phone, email, status, vehicle_class, hourly_rate_cents, per_job_rate_cents, onboarded_at, stripe_connect_account_id, stripe_payouts_enabled')
     .eq('profile_id', userData.user.id)
     .maybeSingle();
   if (error || !driver) return { error: errorResponse(401, 'AUTH_REQUIRED', 'No driver record linked to this user') };
@@ -532,6 +812,17 @@ async function handleCompleteLeg(event, supabase, driver, jobId, legId) {
   if (!remaining || remaining.length === 0) {
     await supabase.from('concierge_jobs').update({ status: 'completed' }).eq('id', jobId);
     await emitEvent(supabase, 'concierge.job_completed', { job_id: jobId });
+    // Task #334 — credit each accepted driver's wallet. NO Stripe transfer
+    // here: earnings sit at 'available' until the driver cashes out via
+    // POST /me/cashout (Uber/Lyft model).
+    try {
+      const result = await accrueJobEarnings(supabase, jobId);
+      if (result.credited > 0 || result.skipped > 0) {
+        console.log(`[driver-api] earnings for job ${jobId}: credited=${result.credited} skipped=${result.skipped}`);
+      }
+    } catch (e) {
+      console.error('[driver-api] accrueJobEarnings threw:', e.message);
+    }
   }
 
   await emitEvent(supabase, 'concierge.leg_completed', { job_id: jobId, leg_id: legId, driver_id: driver.id });
@@ -577,6 +868,153 @@ async function handleLocation(event, supabase, driver, jobId, legId, body) {
   const { error } = await supabase.from('driver_location_pings').insert(rows);
   if (error) return errorResponse(500, 'DB_ERROR', error.message);
   return jsonResponse(200, { inserted: rows.length });
+}
+
+// ---------------------------------------------------------------------------
+// Stripe Connect onboarding (Task #334)
+//
+// POST /me/stripe/onboard — creates an Express account if the driver
+//   doesn't have one and returns a single-use account_links URL the
+//   driver app opens in a browser tab. Mirrors the pattern used by
+//   stripe-connect-onboard.js for founders.
+// GET  /me/stripe/status   — returns charges_enabled / payouts_enabled /
+//   details_submitted / requirements from Stripe so the driver app can
+//   show "verified" vs "action required".
+// ---------------------------------------------------------------------------
+async function handleStripeOnboard(event, supabase, driver) {
+  const stripe = getStripe();
+  if (!stripe) return errorResponse(503, 'STRIPE_UNAVAILABLE', 'Stripe is not configured on the server');
+
+  let accountId = driver.stripe_connect_account_id;
+  if (!accountId) {
+    try {
+      const account = await stripe.accounts.create({
+        type: 'express',
+        email: driver.email || undefined,
+        metadata: { driver_id: driver.id, full_name: driver.full_name || '' },
+        capabilities: { transfers: { requested: true } }
+      });
+      accountId = account.id;
+      const { error: updErr } = await supabase
+        .from('drivers')
+        .update({ stripe_connect_account_id: accountId, updated_at: new Date().toISOString() })
+        .eq('id', driver.id);
+      if (updErr) return errorResponse(500, 'DB_ERROR', updErr.message);
+    } catch (e) {
+      return errorResponse(502, 'STRIPE_ERROR', e.message || 'Stripe account create failed');
+    }
+  }
+
+  const returnBase = process.env.DRIVER_APP_RETURN_URL || 'https://mycarconcierge.com/driver-stripe-return';
+  try {
+    const link = await stripe.accountLinks.create({
+      account: accountId,
+      refresh_url: `${returnBase}?stripe=refresh`,
+      return_url:  `${returnBase}?stripe=success`,
+      type: 'account_onboarding'
+    });
+    return jsonResponse(200, { url: link.url, account_id: accountId });
+  } catch (e) {
+    return errorResponse(502, 'STRIPE_ERROR', e.message || 'Account link create failed');
+  }
+}
+
+async function handleStripeStatus(event, supabase, driver) {
+  if (!driver.stripe_connect_account_id) {
+    return jsonResponse(200, {
+      connected: false, details_submitted: false,
+      charges_enabled: false, payouts_enabled: false
+    });
+  }
+  const stripe = getStripe();
+  if (!stripe) return errorResponse(503, 'STRIPE_UNAVAILABLE', 'Stripe is not configured on the server');
+  try {
+    const acct = await stripe.accounts.retrieve(driver.stripe_connect_account_id);
+    // Mirror the driver row's stripe_payouts_enabled flag so admin lists
+    // don't have to re-call Stripe on every render.
+    if (!!acct.payouts_enabled !== !!driver.stripe_payouts_enabled) {
+      await supabase.from('drivers')
+        .update({ stripe_payouts_enabled: !!acct.payouts_enabled, updated_at: new Date().toISOString() })
+        .eq('id', driver.id);
+    }
+    // If Stripe just turned payouts on, promote any 'pending_account'
+    // earnings the driver accumulated pre-onboarding to 'available' so
+    // they can immediately be cashed out.
+    if (acct.payouts_enabled) {
+      await supabase.from('driver_earnings')
+        .update({ payout_status: 'available' })
+        .eq('driver_id', driver.id)
+        .eq('payout_status', 'pending_account');
+    }
+    return jsonResponse(200, {
+      connected: true,
+      account_id: acct.id,
+      details_submitted: !!acct.details_submitted,
+      charges_enabled:   !!acct.charges_enabled,
+      payouts_enabled:   !!acct.payouts_enabled,
+      requirements:      acct.requirements || null
+    });
+  } catch (e) {
+    return errorResponse(502, 'STRIPE_ERROR', e.message || 'Account retrieve failed');
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Wallet & cash-out (Task #334 round 3)
+//
+// GET  /me/wallet  — current balance breakdown + recent earnings + recent
+//                    cash-outs. Backed by the driver_wallet_balances view
+//                    (see migration 20260516d).
+// POST /me/cashout — { method: 'standard' | 'instant' } — sweeps all
+//                    'available' earnings into one Stripe transfer +
+//                    (for instant) one Instant Payout. See executeCashout
+//                    above for the full transaction flow.
+// ---------------------------------------------------------------------------
+async function handleWallet(event, supabase, driver) {
+  const { data: bal } = await supabase
+    .from('driver_wallet_balances')
+    .select('available_cents, pending_account_cents, failed_cents, in_flight_cents, lifetime_paid_cents')
+    .eq('driver_id', driver.id)
+    .maybeSingle();
+
+  const { data: recentEarnings } = await supabase
+    .from('driver_earnings')
+    .select('id, job_id, amount_cents, kind, payout_status, recorded_at, cashout_id, notes')
+    .eq('driver_id', driver.id)
+    .order('recorded_at', { ascending: false })
+    .limit(50);
+
+  const { data: recentCashouts } = await supabase
+    .from('driver_cashouts')
+    .select('id, amount_cents, fee_cents, method, status, stripe_transfer_id, stripe_payout_id, error, requested_at, completed_at')
+    .eq('driver_id', driver.id)
+    .order('requested_at', { ascending: false })
+    .limit(20);
+
+  return jsonResponse(200, {
+    balance: bal || {
+      available_cents: 0, pending_account_cents: 0, failed_cents: 0,
+      in_flight_cents: 0, lifetime_paid_cents: 0
+    },
+    cashout_minimum_cents: 100,
+    instant_fee_pct: 0.015,
+    can_cash_out: !!(driver.stripe_connect_account_id && driver.stripe_payouts_enabled),
+    connect_status: {
+      connected: !!driver.stripe_connect_account_id,
+      payouts_enabled: !!driver.stripe_payouts_enabled
+    },
+    recent_earnings: recentEarnings || [],
+    recent_cashouts: recentCashouts || []
+  });
+}
+
+async function handleCashout(event, supabase, driver, body) {
+  const method = body?.method === 'instant' ? 'instant' : 'standard';
+  const result = await executeCashout(supabase, driver, {
+    method, initiatedByKind: 'driver', initiatedById: driver.profile_id
+  });
+  // executeCashout returns its own { statusCode, body } shape; map to ours.
+  return jsonResponse(result.statusCode, result.body);
 }
 
 async function handleEarnings(event, supabase, driver) {
@@ -639,9 +1077,13 @@ exports.handler = async function(event) {
     if (auth.error) return auth.error;
     const driver = auth.driver;
 
-    if (method === 'GET'  && route === 'me')       return await handleMe(event, supabase, driver);
-    if (method === 'GET'  && route === 'jobs')     return await handleListJobs(event, supabase, driver);
-    if (method === 'GET'  && route === 'earnings') return await handleEarnings(event, supabase, driver);
+    if (method === 'GET'  && route === 'me')                return await handleMe(event, supabase, driver);
+    if (method === 'GET'  && route === 'jobs')              return await handleListJobs(event, supabase, driver);
+    if (method === 'GET'  && route === 'earnings')          return await handleEarnings(event, supabase, driver);
+    if (method === 'POST' && route === 'me/stripe/onboard') return await handleStripeOnboard(event, supabase, driver);
+    if (method === 'GET'  && route === 'me/stripe/status')  return await handleStripeStatus(event, supabase, driver);
+    if (method === 'GET'  && route === 'me/wallet')         return await handleWallet(event, supabase, driver);
+    if (method === 'POST' && route === 'me/cashout')        return await handleCashout(event, supabase, driver, body);
 
     // Job-scoped routes ---------------------------------------------------
     let m = route.match(/^jobs\/([^/]+)$/);
@@ -672,3 +1114,5 @@ exports.handler = async function(event) {
 // Re-export internals for the smoke test.
 module.exports._stripPrefix = stripPrefix;
 module.exports._mintSupabaseSession = mintSupabaseSession;
+module.exports._accrueJobEarnings = accrueJobEarnings;
+module.exports._executeCashout    = executeCashout;

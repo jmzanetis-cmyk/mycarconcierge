@@ -425,5 +425,289 @@ const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';
   }
   console.log('  ✓ 8) EXPAND_SCENARIO covers all 11 scenarios');
 
+  // ---- 9) accrueJobEarnings: inserts driver_earnings as 'available' and does NOT call Stripe ----
+  {
+    const insertedRows = [];
+    let stripeCalled = false;
+    const fakeStripe = {
+      transfers: { create: () => { stripeCalled = true; return Promise.resolve({ id: 'tr_should_not_happen' }); } },
+      payouts:   { create: () => { stripeCalled = true; return Promise.resolve({ id: 'po_should_not_happen' }); } }
+    };
+    const stripeStubExports = () => fakeStripe;
+    const _savedStripeCache = {};
+    for (const r of [require, fnRequire]) {
+      try {
+        const p = r.resolve('stripe');
+        _savedStripeCache[p] = require.cache[p];
+        require.cache[p] = { id: p, filename: p, loaded: true, exports: stripeStubExports };
+      } catch (_) { /* not resolvable */ }
+    }
+    process.env.STRIPE_SECRET_KEY = 'sk_test_stub';
+
+    const accrueStub = {
+      from: (table) => {
+        const c = makeChain(table);
+        if (table === 'concierge_job_drivers') {
+          c.then = (resolve) => Promise.resolve({
+            data: [
+              {
+                driver_id: DRIVER_A, role: 'primary', accepted_at: '2026-05-16T00:00:00Z',
+                driver: {
+                  id: DRIVER_A, full_name: 'D A', email: 'a@x.com',
+                  per_job_rate_cents: 4500,
+                  stripe_connect_account_id: 'acct_stub',
+                  stripe_payouts_enabled: true
+                }
+              },
+              {
+                driver_id: DRIVER_B, role: 'secondary', accepted_at: '2026-05-16T00:00:00Z',
+                driver: {
+                  id: DRIVER_B, full_name: 'D B', email: 'b@x.com',
+                  per_job_rate_cents: 3000,
+                  stripe_connect_account_id: null
+                }
+              }
+            ],
+            error: null
+          }).then(resolve);
+        }
+        if (table === 'driver_earnings') {
+          c.insert = (rows) => {
+            insertedRows.push(rows);
+            return { select: () => ({ single: () => Promise.resolve({ data: { id: 'earn-' + insertedRows.length }, error: null }) }) };
+          };
+        }
+        if (table === 'agent_events') c.insert = () => Promise.resolve({ data: null, error: null });
+        return c;
+      }
+    };
+
+    const result = await driverApi._accrueJobEarnings(accrueStub, JOB_X);
+    assert.strictEqual(result.credited, 2, '9: both drivers credited');
+    assert.strictEqual(insertedRows.length, 2);
+    assert.strictEqual(insertedRows[0].payout_status, 'available',  '9: driver w/ Connect acct → available');
+    assert.strictEqual(insertedRows[1].payout_status, 'pending_account', '9: driver w/o Connect acct → pending_account');
+    assert.strictEqual(stripeCalled, false, '9: accrual must NEVER call Stripe — money only moves on cashout');
+    console.log('  ✓ 9) accrueJobEarnings credits wallet with correct status and never calls Stripe');
+
+    for (const [p, entry] of Object.entries(_savedStripeCache)) {
+      if (entry) require.cache[p] = entry; else delete require.cache[p];
+    }
+    delete process.env.STRIPE_SECRET_KEY;
+  }
+
+  // ---- 10) executeCashout (instant): transfers full balance + creates Instant Payout w/ 1.5% fee ----
+  {
+    const updates = [];
+    const inserted = {};
+    let transferArgs = null, transferOpts = null;
+    let payoutArgs = null,   payoutOpts   = null;
+    const fakeStripe = {
+      transfers: { create: (a, o) => { transferArgs = a; transferOpts = o; return Promise.resolve({ id: 'tr_co_1' }); } },
+      payouts:   { create: (a, o) => { payoutArgs = a;   payoutOpts = o;   return Promise.resolve({ id: 'po_co_1' }); } }
+    };
+    const stripeStubExports = () => fakeStripe;
+    const _savedStripeCache = {};
+    for (const r of [require, fnRequire]) {
+      try {
+        const p = r.resolve('stripe');
+        _savedStripeCache[p] = require.cache[p];
+        require.cache[p] = { id: p, filename: p, loaded: true, exports: stripeStubExports };
+      } catch (_) { /* not resolvable */ }
+    }
+    process.env.STRIPE_SECRET_KEY = 'sk_test_stub';
+
+    // 3 available rows totalling $100.00 (10000 cents) → expected fee = 150
+    const availableRows = [
+      { id: 'e1', amount_cents: 4500 },
+      { id: 'e2', amount_cents: 3000 },
+      { id: 'e3', amount_cents: 2500 }
+    ];
+    const cashoutStub = {
+      from: (table) => {
+        const c = makeChain(table);
+        if (table === 'driver_earnings') {
+          c.then = (resolve) => Promise.resolve({ data: availableRows, error: null }).then(resolve);
+          c.update = (row) => {
+            updates.push({ table: 'driver_earnings', row });
+            // Chainable mock that mimics the PostgREST builder. Both the
+            // reservation path (.in().eq().is().select()) and the rollback
+            // path (.in()) need to terminate as a thenable resolving to
+            // {data, error}. We default to returning all availableRows on
+            // .select() so the reservation count matches → no race-abort.
+            const builder = {
+              in:     () => builder,
+              eq:     () => builder,
+              is:     () => builder,
+              select: () => Promise.resolve({ data: availableRows, error: null }),
+              then:   (resolve) => Promise.resolve({ data: null, error: null }).then(resolve)
+            };
+            return builder;
+          };
+        }
+        if (table === 'driver_cashouts') {
+          c.insert = (row) => { inserted.cashout = row; return { select: () => ({ single: () => Promise.resolve({ data: { id: 'co_1' }, error: null }) }) }; };
+          c.update = (row) => { updates.push({ table: 'driver_cashouts', row }); return { eq: () => Promise.resolve({ data: null, error: null }) }; };
+        }
+        if (table === 'agent_events') c.insert = () => Promise.resolve({ data: null, error: null });
+        return c;
+      }
+    };
+    const driver = { id: DRIVER_A, profile_id: 'profA', stripe_connect_account_id: 'acct_stub', stripe_payouts_enabled: true };
+    const result = await driverApi._executeCashout(cashoutStub, driver, { method: 'instant' });
+    assert.strictEqual(result.statusCode, 200, '10: cashout 200');
+    assert.strictEqual(result.body.amount_cents, 10000);
+    assert.strictEqual(result.body.fee_cents, 150, '10: 1.5% fee on $100');
+    assert.strictEqual(result.body.net_cents, 9850);
+    assert.strictEqual(transferArgs.amount, 10000, '10: transfer is gross amount');
+    assert.strictEqual(transferArgs.destination, 'acct_stub');
+    assert.strictEqual(transferOpts.idempotencyKey, 'driver-cashout-transfer-co_1');
+    assert.strictEqual(payoutArgs.amount, 9850,    '10: payout is gross − fee');
+    assert.strictEqual(payoutArgs.method, 'instant');
+    assert.strictEqual(payoutOpts.stripeAccount, 'acct_stub');
+    assert.strictEqual(payoutOpts.idempotencyKey, 'driver-cashout-payout-co_1');
+    // earnings should be reserved (flipped to paid + linked) BEFORE Stripe was hit
+    const reservation = updates.find(u => u.table === 'driver_earnings' && u.row.payout_status === 'paid');
+    assert.ok(reservation, '10: earnings reserved as paid');
+    assert.strictEqual(reservation.row.cashout_id, 'co_1');
+    // final cashout row update to 'paid'
+    const final = updates.filter(u => u.table === 'driver_cashouts').pop();
+    assert.strictEqual(final.row.status, 'paid');
+    assert.strictEqual(final.row.stripe_transfer_id, 'tr_co_1');
+    assert.strictEqual(final.row.stripe_payout_id, 'po_co_1');
+    console.log('  ✓ 10) executeCashout (instant) creates transfer + instant payout with correct fee + reserves earnings');
+
+    for (const [p, entry] of Object.entries(_savedStripeCache)) {
+      if (entry) require.cache[p] = entry; else delete require.cache[p];
+    }
+    delete process.env.STRIPE_SECRET_KEY;
+  }
+
+  // ---- 11) executeCashout: insufficient balance → 409 (no Stripe call) ----
+  {
+    let stripeCalled = false;
+    const fakeStripe = {
+      transfers: { create: () => { stripeCalled = true; return Promise.resolve({}); } },
+      payouts:   { create: () => { stripeCalled = true; return Promise.resolve({}); } }
+    };
+    const _savedStripeCache = {};
+    for (const r of [require, fnRequire]) {
+      try {
+        const p = r.resolve('stripe');
+        _savedStripeCache[p] = require.cache[p];
+        require.cache[p] = { id: p, filename: p, loaded: true, exports: () => fakeStripe };
+      } catch (_) { /* not resolvable */ }
+    }
+    process.env.STRIPE_SECRET_KEY = 'sk_test_stub';
+
+    const stub = {
+      from: (table) => {
+        const c = makeChain(table);
+        if (table === 'driver_earnings') {
+          c.then = (resolve) => Promise.resolve({ data: [{ id: 'tiny', amount_cents: 50 }], error: null }).then(resolve);
+        }
+        return c;
+      }
+    };
+    const driver = { id: DRIVER_A, profile_id: 'profA', stripe_connect_account_id: 'acct_stub', stripe_payouts_enabled: true };
+    const result = await driverApi._executeCashout(stub, driver, { method: 'standard' });
+    assert.strictEqual(result.statusCode, 409);
+    assert.strictEqual(result.body.error.code, 'INSUFFICIENT_BALANCE');
+    assert.strictEqual(stripeCalled, false, '11: no Stripe call below minimum');
+    console.log('  ✓ 11) executeCashout rejects below $1 minimum without touching Stripe');
+
+    for (const [p, entry] of Object.entries(_savedStripeCache)) {
+      if (entry) require.cache[p] = entry; else delete require.cache[p];
+    }
+    delete process.env.STRIPE_SECRET_KEY;
+  }
+
+  // ---- 12) executeCashout: concurrent race → loser gets 409 CONCURRENT_CASHOUT, no Stripe call ----
+  {
+    let stripeCalled = false;
+    const fakeStripe = {
+      transfers: { create: () => { stripeCalled = true; return Promise.resolve({ id: 'tr_should_not_happen' }); } },
+      payouts:   { create: () => { stripeCalled = true; return Promise.resolve({ id: 'po_should_not_happen' }); } }
+    };
+    const _savedStripeCache = {};
+    for (const r of [require, fnRequire]) {
+      try {
+        const p = r.resolve('stripe');
+        _savedStripeCache[p] = require.cache[p];
+        require.cache[p] = { id: p, filename: p, loaded: true, exports: () => fakeStripe };
+      } catch (_) { /* not resolvable */ }
+    }
+    process.env.STRIPE_SECRET_KEY = 'sk_test_stub';
+
+    const cashoutUpdates = [];
+    let rollbackInvoked = false;
+    // Simulate the race: read sees 3 available rows, but the conditional
+    // reservation only succeeds on 1 (the other two were grabbed by a
+    // concurrent cashout request between the SELECT and the UPDATE).
+    const available = [
+      { id: 'e1', amount_cents: 4500 },
+      { id: 'e2', amount_cents: 3000 },
+      { id: 'e3', amount_cents: 2500 }
+    ];
+    const stub = {
+      from: (table) => {
+        const c = makeChain(table);
+        if (table === 'driver_earnings') {
+          c.then = (resolve) => Promise.resolve({ data: available, error: null }).then(resolve);
+          let updateCallNum = 0;
+          c.update = (row) => {
+            updateCallNum++;
+            const isRollback = row.payout_status === 'available';
+            if (isRollback) rollbackInvoked = true;
+            const builder = {
+              in:     () => builder,
+              eq:     () => builder,
+              is:     () => builder,
+              // First .update (reservation): returns only 1 of 3 rows → race detected.
+              // Rollback .update: no .select(), just terminates.
+              select: () => Promise.resolve({ data: [{ id: 'e1', amount_cents: 4500 }], error: null }),
+              then:   (resolve) => Promise.resolve({ data: null, error: null }).then(resolve)
+            };
+            return builder;
+          };
+        }
+        if (table === 'driver_cashouts') {
+          c.insert = () => ({ select: () => ({ single: () => Promise.resolve({ data: { id: 'co_race' }, error: null }) }) });
+          c.update = (row) => { cashoutUpdates.push(row); return { eq: () => Promise.resolve({ data: null, error: null }) }; };
+        }
+        if (table === 'agent_events') c.insert = () => Promise.resolve({ data: null, error: null });
+        return c;
+      }
+    };
+    const driver = { id: DRIVER_A, profile_id: 'profA', stripe_connect_account_id: 'acct_stub', stripe_payouts_enabled: true };
+    const result = await driverApi._executeCashout(stub, driver, { method: 'standard' });
+    assert.strictEqual(result.statusCode, 409,                          '12: race loser → 409');
+    assert.strictEqual(result.body.error.code, 'CONCURRENT_CASHOUT',    '12: race code');
+    assert.strictEqual(stripeCalled, false,                             '12: loser must never hit Stripe');
+    assert.strictEqual(rollbackInvoked, true,                           '12: partial reservation rolled back');
+    const cancelled = cashoutUpdates.find(u => u.status === 'cancelled');
+    assert.ok(cancelled, '12: cashout row marked cancelled');
+    assert.ok(/concurrent_cashout_race/.test(cancelled.error || ''),    '12: cancellation reason recorded');
+    console.log('  ✓ 12) executeCashout race loser returns 409 + rolls back partial reservation + skips Stripe');
+
+    for (const [p, entry] of Object.entries(_savedStripeCache)) {
+      if (entry) require.cache[p] = entry; else delete require.cache[p];
+    }
+    delete process.env.STRIPE_SECRET_KEY;
+  }
+
+  // ---- 13) authenticateDriver select includes Stripe fields (regression guard) ----
+  {
+    // Read the source of authenticateDriver and assert it selects the
+    // Stripe Connect fields. Without them, /me/wallet & /me/cashout return
+    // bogus 'NO_CONNECT_ACCOUNT' for onboarded drivers.
+    const src = require('fs').readFileSync(require.resolve('../functions/driver-api.js'), 'utf8');
+    const m = src.match(/\.from\('drivers'\)\s*\n?\s*\.select\(([^)]+)\)\s*\n?\s*\.eq\('profile_id'/);
+    assert.ok(m, '13: could not locate driver authentication select');
+    assert.ok(/stripe_connect_account_id/.test(m[1]),  '13: auth select must include stripe_connect_account_id');
+    assert.ok(/stripe_payouts_enabled/.test(m[1]),     '13: auth select must include stripe_payouts_enabled');
+    console.log('  ✓ 13) authenticateDriver loads Stripe Connect fields needed by /me/wallet + /me/cashout');
+  }
+
   console.log('\nAll driver-api smoke tests passed.');
 })().catch(e => { console.error('TEST FAILURE:', e); process.exit(1); });
