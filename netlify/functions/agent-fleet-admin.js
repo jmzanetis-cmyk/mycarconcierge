@@ -2795,5 +2795,13 @@ exports.handler = async function(event) {
 exports.__test = {
   applyMatchmakerRank,
   notifyMatchmakerAward,
-  sendMatchmakerFCMPush
+  sendMatchmakerFCMPush,
+  // Task #324 — Treasurer apply path coverage.
+  applyAction,
+  applyTreasurerReview,
+  _treasurerCapture,
+  _treasurerRefund,
+  _treasurerRetryPayout,
+  _treasurerDenyRefund,
+  _treasurerEscalatePayout
 };
