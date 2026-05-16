@@ -402,7 +402,7 @@ async function _insertAlert(supabase, alert_key, severity, finding) {
 
 // Send SMS+email and persist their results onto the alert row.
 async function _dispatchAndRecord(supabase, alertId, finding) {
-  const [smsResult, emailResult] = await Promise.all([sendSms(finding), sendEmail(finding)]);
+  const [smsResult, emailResult] = await Promise.all([sendSms(finding, supabase), sendEmail(finding)]);
 
   if (alertId) {
     const update = {};
@@ -454,34 +454,26 @@ function _severityHeaderColor(severity) {
   return '#b8942d';
 }
 
-async function sendSms(finding) {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from  = process.env.TWILIO_PHONE_NUMBER;
-  const to    = process.env.ADMIN_ALERT_PHONE;
-  if (!sid || !token || !from || !to) return { sent: false, error: 'twilio_not_configured' };
+// Task #429: route admin alerts through the shared SMS helper so we
+// honor profiles.sms_opt_out (TCPA STOP) by phone-number lookup. The
+// admin shouldn't normally be opted out, but the same code path is used
+// for any number set in ADMIN_ALERT_PHONE, so the check applies
+// uniformly.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
+async function sendSms(finding, supabase = null) {
+  const to = process.env.ADMIN_ALERT_PHONE;
+  if (!to) return { sent: false, error: 'twilio_not_configured' };
 
   const tag = _severityTag(finding.severity);
   let body = `${tag} ${finding.title}\n\n${finding.body}`;
   if (finding.next_action) body += `\n\nNext: ${finding.next_action}`;
   if (body.length > 1500) body = body.slice(0, 1497) + '...';
 
-  try {
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    if (!r.ok) {
-      const txt = await r.text().catch(() => '');
-      return { sent: false, error: `twilio_${r.status}: ${txt.slice(0, 200)}` };
-    }
-    return { sent: true };
-  } catch (e) {
-    return { sent: false, error: e.message };
-  }
+  const res = await sharedSendSms({ supabase, toPhone: to, body });
+  if (res.sent) return { sent: true };
+  if (res.reason === 'sms_opt_out') return { sent: false, error: 'sms_opt_out' };
+  if (res.reason === 'not_configured') return { sent: false, error: 'twilio_not_configured' };
+  return { sent: false, error: res.reason || 'send_failed' };
 }
 
 async function sendEmail(finding) {

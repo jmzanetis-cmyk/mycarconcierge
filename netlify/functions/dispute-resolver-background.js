@@ -124,10 +124,10 @@ Rules: escalate if conflicting evidence, complex, or amounts >$500, or either pa
   }).eq('id', completionId);
 
   if (memberProfile.phone && result.member_message) {
-    await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`);
+    await aiOpsSendSMS(supabase, memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`, memberProfile.id);
   }
   if (providerProfile.phone && result.provider_message) {
-    await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`);
+    await aiOpsSendSMS(supabase, providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`, providerProfile.id);
   }
 
   return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, auto_executed: true };

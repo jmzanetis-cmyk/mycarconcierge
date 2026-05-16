@@ -32,23 +32,13 @@ async function getAiOpsSettings(supabase) {
   return { threshold, maxRefund };
 }
 
-async function sendSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return false;
-  try {
-    const clean = toPhone.replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    return r.ok;
-  } catch { return false; }
+// Task #429: route through the shared SMS helper so the admin summary
+// honors profiles.sms_opt_out (TCPA STOP) when the admin phone happens
+// to belong to a profile that has texted STOP.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
+async function sendSMS(supabase, toPhone, body) {
+  const res = await sharedSendSms({ supabase, toPhone, body });
+  return res.sent === true;
 }
 
 async function callAI(prompt, maxTokens = 300) {
@@ -622,7 +612,7 @@ exports.handler = async function(event, context) {
         smsLines.push(`⚠️ Queue stalled: ${outreach.approvedQueue} approved, only ${outreach.sentToday} sent today${topReason ? ` (top reason: ${topReason[0]})` : ''}`);
       }
       if (aiOps.escalated > 0) smsLines.push(`⚠️ Check dashboard for ${aiOps.escalated} escalated item${aiOps.escalated > 1 ? 's' : ''}`);
-      smsSent = await sendSMS(adminPhone, smsLines.join('\n'));
+      smsSent = await sendSMS(supabase, adminPhone, smsLines.join('\n'));
       if (smsSent) await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
     }
 

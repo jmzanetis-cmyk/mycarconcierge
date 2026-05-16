@@ -91,23 +91,17 @@ async function logAiAction(supabase, { module, actionType, targetId, decision, c
   } catch {}
 }
 
-async function aiOpsSendSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return { sent: false };
-  try {
-    const clean = toPhone.replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    return r.ok ? { sent: true } : { sent: false };
-  } catch { return { sent: false }; }
+// Task #429: delegate to the shared sender so STOP / sms_opt_out is honored.
+// Signature changed to require `supabase` as the first arg. `userId` is
+// optional but should be passed whenever known (member/provider dispute
+// notifications) so the by-id check fires in addition to the by-phone check.
+const { sendSms: sharedSendSms } = require('./sms');
+async function aiOpsSendSMS(supabase, toPhone, body, userId = null) {
+  if (!supabase) {
+    console.warn('[aiOpsSendSMS] called without supabase — refusing send (TCPA fail-closed)');
+    return { sent: false, reason: 'no_supabase' };
+  }
+  return sharedSendSms({ supabase, toPhone, body, userId });
 }
 
 module.exports = { getAiOpsSettings, callAI, logAiAction, aiOpsSendSMS };

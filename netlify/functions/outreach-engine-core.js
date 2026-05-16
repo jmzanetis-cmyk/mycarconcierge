@@ -1,5 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { Resend } = require('resend');
+// Task #429: shared SMS sender with TCPA STOP / sms_opt_out enforcement.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
 
 let anthropicClient = null;
 let resendClient = null;
@@ -1137,36 +1139,24 @@ async function sendMessage(supabase, messageId) {
       error = err.message;
     }
   } else if (msg.channel === 'sms' && lead.phone) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone = process.env.TWILIO_PHONE_NUMBER;
-
-    if (!accountSid || !authToken || !fromPhone) {
-      return { error: 'SMS service not configured' };
-    }
-
+    // Task #429: route through the shared SMS helper so an outreach lead
+    // whose phone number matches a profiles row with sms_opt_out=true is
+    // skipped. Returns 'sms_opt_out' / 'not_configured' / 'twilio_error:NNN'
+    // / 'invalid_phone' on failure paths, which we map to the existing
+    // error shape so downstream queue-status logic is unchanged.
     const body = bodyBase + SMS_OPT_OUT;
-
-    try {
-      const twilioRes = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({ From: fromPhone, To: lead.phone, Body: body })
-        }
-      );
-      const result = await twilioRes.json();
-      if (twilioRes.ok) {
-        externalId = result.sid;
-      } else {
-        error = result.message || 'SMS send failed';
-      }
-    } catch (err) {
-      error = err.message;
+    const res = await sharedSendSms({ supabase, toPhone: lead.phone, body });
+    if (res.sent) {
+      externalId = res.sid;
+    } else if (res.reason === 'not_configured') {
+      return { error: 'SMS service not configured' };
+    } else if (res.reason === 'sms_opt_out') {
+      // Permanent skip — recipient has texted STOP. Mark skipped so the
+      // queue stops looping on this message.
+      await markMessageSkipped(supabase, msg, lead, 'sms_opt_out');
+      return { error: 'Recipient has opted out (STOP)', skipped: true };
+    } else {
+      error = res.reason || 'SMS send failed';
     }
   } else {
     // Permanent: lead has no email for an email-channel message (or no phone
@@ -1525,23 +1515,13 @@ async function getAiOpsSettings(supabase) {
   return { threshold, maxRefund };
 }
 
-async function sendOutreachSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return false;
-  try {
-    const clean = toPhone.replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    return r.ok;
-  } catch { return false; }
+// Task #429: shared helper enforces profiles.sms_opt_out (TCPA STOP) by
+// phone lookup before each send, so opted-out leads / admins stop
+// receiving outreach + admin-alert texts even though we don't have a
+// userId for them.
+async function sendOutreachSMS(supabase, toPhone, body) {
+  const res = await sharedSendSms({ supabase, toPhone, body });
+  return res.sent === true;
 }
 
 async function runOutreachAiDecisionLayer(supabase) {
@@ -1587,7 +1567,7 @@ Rules: pipeline_alert if active<3; follow_up_sms if stale>5; re_engagement if in
       const { data: leads } = await leadsQuery;
       let smsSent = 0;
       for (const lead of (leads || [])) {
-        if (lead.phone && await sendOutreachSMS(lead.phone, `${decision.sms_message} Reply STOP to opt out.`)) smsSent++;
+        if (lead.phone && await sendOutreachSMS(supabase, lead.phone, `${decision.sms_message} Reply STOP to opt out.`)) smsSent++;
       }
       executedActions.push(`${action}:sms_sent=${smsSent}`);
     }
@@ -1913,7 +1893,7 @@ async function sendAdminSMS(supabase, message) {
   try {
     const phone = await getAdminNotificationPhone(supabase);
     if (!phone) return false;
-    const ok = await sendOutreachSMS(phone, message);
+    const ok = await sendOutreachSMS(supabase, phone, message);
     if (ok) console.log('[AdminSMS] Notification sent to admin phone');
     else console.warn('[AdminSMS] Failed to send notification (Twilio error)');
     return ok;

@@ -42,39 +42,17 @@ const THRESHOLDS = [
   { days:  1, type: 'reminder_1',  smsType: 'reminder_1_sms',  severity: 'critical', prefCol: 'bgc_reminder_1',  prefColSms: 'bgc_reminder_1_sms',  defaultOn: false, defaultSms: false }
 ];
 
-// ─── Twilio SMS helper (Task #201) ──────────────────────────────────────────
-// Mirrors the small inline helper used by daily-digest-scheduled.js — kept
-// local so this function stays a single drop-in file. Returns true on a
-// successful Twilio 2xx, false otherwise (so callers can decide whether to
-// write the dedupe row). If TWILIO_* env vars are unset we silently no-op
-// and return false, matching the existing "dry run when creds missing"
-// behaviour for emails.
-async function sendSms(toPhone, body) {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from  = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return false;
-  try {
-    const clean = String(toPhone).replaceAll(/\D/g, '');
-    if (clean.length < 10) return false;
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method:  'POST',
-      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:    form.toString()
-    });
-    if (!r.ok) {
-      const txt = await r.text().catch(() => '');
-      console.error('[BGC reminders] Twilio non-2xx:', r.status, txt.slice(0, 200));
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.error('[BGC reminders] Twilio send threw:', e.message);
-    return false;
-  }
+// ─── Twilio SMS helper (Task #201, refactored Task #429) ────────────────────
+// Wraps the shared SMS helper so this function continues to honor
+// profiles.sms_opt_out (TCPA STOP). The shared helper checks the opt-out
+// flag by provider profile id AND by phone number before each send, so
+// an opted-out provider stops receiving reminder texts even if the local
+// dedupe cache would otherwise let one through. Returns true on a
+// successful Twilio 2xx, false otherwise.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
+async function sendSms(supabase, toPhone, body, providerId = null) {
+  const res = await sharedSendSms({ supabase, toPhone, body, userId: providerId });
+  return res.sent === true;
 }
 
 function reminderSmsBody({ employeeName, days, expiresAt, renewUrl }) {
@@ -375,7 +353,7 @@ exports.handler = async function() {
           const body = reminderSmsBody({
             employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
           });
-          const okSms = await sendSms(phone, body);
+          const okSms = await sendSms(supabase, phone, body, ctx.prof.id);
           if (okSms) {
             smsSent++;
             await logSent(supabase, c.employee_id, t.smsType, c.id, phone);

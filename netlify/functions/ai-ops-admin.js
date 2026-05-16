@@ -161,10 +161,10 @@ Rules:
   }).eq('id', completionId);
 
   if (memberProfile.phone && result.member_message) {
-    await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`);
+    await aiOpsSendSMS(supabase, memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`, memberProfile.id);
   }
   if (providerProfile.phone && result.provider_message) {
-    await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`);
+    await aiOpsSendSMS(supabase, providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`, providerProfile.id);
   }
 
   return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, admin_action_required: result.admin_action_required, auto_executed: true };
@@ -346,7 +346,7 @@ async function runDailyDigest(supabase) {
     smsLines.unshift(`🛑 Engine paused${enginePaused.reason ? ': ' + enginePaused.reason : ''}`);
   }
   if (adminPhone) {
-    const smsResult = await aiOpsSendSMS(adminPhone, smsLines.join('\n'));
+    const smsResult = await aiOpsSendSMS(supabase, adminPhone, smsLines.join('\n'));
     smsSent = smsResult.sent;
     if (smsSent) {
       await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
