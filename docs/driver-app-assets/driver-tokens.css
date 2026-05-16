@@ -6,6 +6,12 @@
    (.btn-primary / .btn-gold / .card / .form-input / .modal) to match the
    main platform's look.
 
+   SOURCE-FAITHFUL: every token value and base-component rule below is
+   copied verbatim from www/shared-styles.css. If you change something
+   here, also change it there (or vice versa) — drift between the two
+   files is what this asset exists to prevent. See follow-up Task #433
+   for a CI guard.
+
    Theme: dark by default. Set `<html data-theme="light">` to flip to
    light mode (no JS required for the tokens themselves).
    ========================================================================== */
@@ -283,10 +289,14 @@ body {
 .form-textarea:focus {
   outline: none;
   border-color: var(--border-focus);
-  box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.15);
+  box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.1);
 }
 
-/* ---------- Header theme-toggle pill (sun/moon + Day/Night) ---------- */
+/* ---------- Header theme-toggle pill (sun/moon + Day/Night) ----------
+   Pair with the markup shown in docs/driver-app-style-guide.md §6.
+   The sun + "Day" label show in dark mode (click to switch to day);
+   the moon + "Night" label show in light mode.
+   --------------------------------------------------------------------- */
 .header-theme-toggle {
   display: flex;
   align-items: center;
@@ -311,7 +321,11 @@ body {
   transform: scale(1.08);
   box-shadow: 0 0 12px rgba(201, 162, 39, 0.25);
 }
-[data-theme="dark"]  .header-theme-toggle .theme-icon-sun  { display: inline; }
-[data-theme="dark"]  .header-theme-toggle .theme-icon-moon { display: none;   }
-[data-theme="light"] .header-theme-toggle .theme-icon-sun  { display: none;   }
-[data-theme="light"] .header-theme-toggle .theme-icon-moon { display: inline; }
+[data-theme="dark"]  .header-theme-toggle .theme-icon-sun     { display: inline; }
+[data-theme="dark"]  .header-theme-toggle .theme-icon-moon    { display: none;   }
+[data-theme="dark"]  .header-theme-toggle .theme-label-light  { display: inline; }
+[data-theme="dark"]  .header-theme-toggle .theme-label-dark   { display: none;   }
+[data-theme="light"] .header-theme-toggle .theme-icon-sun     { display: none;   }
+[data-theme="light"] .header-theme-toggle .theme-icon-moon    { display: inline; }
+[data-theme="light"] .header-theme-toggle .theme-label-light  { display: none;   }
+[data-theme="light"] .header-theme-toggle .theme-label-dark   { display: inline; }
