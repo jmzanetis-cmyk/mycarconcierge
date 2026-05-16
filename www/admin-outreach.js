@@ -460,56 +460,22 @@
     } catch (_e) { return apolloEscapeHtml(iso); }
   }
 
+  // Task #330 extracted this into a shared globalThis.describeAuditRow in
+  // admin-audit-log.js so the new generic "Audit Log" section and this
+  // Apollo-only card render rows the exact same way. We still expose a
+  // thin wrapper named describeApolloAuditRow for backwards compatibility
+  // and so the loadApolloAuditLog call site below stays unchanged.
   function describeApolloAuditRow(row) {
-    const meta = row.metadata || {};
-    switch (row.action) {
-      case 'update_apollo_config': {
-        const updates = meta.updates || {};
-        const keys = Object.keys(updates);
-        // If admin toggled `enabled`, lead with "enabled" / "disabled"
-        // since it's the most operationally significant change.
-        let headline = 'Apollo settings updated';
-        if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
-          headline = updates.enabled === true
-            ? 'Apollo discovery <strong style="color:var(--success);">ENABLED</strong>'
-            : 'Apollo discovery <strong style="color:var(--danger,#dc2626);">DISABLED</strong>';
-        }
-        const parts = keys.map(k => {
-          const v = updates[k];
-          let display;
-          if (Array.isArray(v)) display = v.length ? v.join(', ') : '(empty)';
-          else if (v === null || v === '') display = '(cleared)';
-          else if (typeof v === 'boolean') display = v ? 'on' : 'off';
-          else display = String(v);
-          if (display.length > 60) display = display.slice(0, 57) + '...';
-          return `<code style="font-size:0.78rem;">${apolloEscapeHtml(k)}</code>=<span style="color:var(--text-secondary);">${apolloEscapeHtml(display)}</span>`;
-        });
-        const summary = parts.length ? `<div style="margin-top:4px;font-size:0.82rem;line-height:1.6;">${parts.join('  &middot;  ')}</div>` : '';
-        return { label: headline, summary };
-      }
-      case 'apollo_run_now':
-        return { label: 'Manual Apollo discovery run triggered', summary: '' };
-      case 'apollo_manual_search': {
-        const found = meta.found != null ? meta.found : '?';
-        const withEmail = meta.with_email != null ? meta.with_email : '?';
-        const page = meta.page != null ? meta.page : '?';
-        return {
-          label: 'Manual Apollo search executed',
-          summary: `<div style="margin-top:4px;font-size:0.82rem;color:var(--text-secondary);">Page ${apolloEscapeHtml(page)} &middot; <strong>${apolloEscapeHtml(found)}</strong> people found, <strong>${apolloEscapeHtml(withEmail)}</strong> with email</div>`
-        };
-      }
-      case 'apollo_manual_enrich': {
-        const total = meta.total != null ? meta.total : '?';
-        const enriched = meta.enriched != null ? meta.enriched : '?';
-        const failed = meta.failed != null ? meta.failed : '?';
-        return {
-          label: 'Manual Apollo enrichment run',
-          summary: `<div style="margin-top:4px;font-size:0.82rem;color:var(--text-secondary);">Processed <strong>${apolloEscapeHtml(total)}</strong> leads &middot; <strong style="color:var(--success);">${apolloEscapeHtml(enriched)}</strong> enriched &middot; <strong style="color:var(--danger,#dc2626);">${apolloEscapeHtml(failed)}</strong> failed</div>`
-        };
-      }
-      default:
-        return { label: apolloEscapeHtml(row.action), summary: `<div style="margin-top:4px;font-size:0.78rem;color:var(--text-muted);"><code>${apolloEscapeHtml(JSON.stringify(meta))}</code></div>` };
+    if (typeof globalThis.describeAuditRow === 'function') {
+      return globalThis.describeAuditRow(row);
     }
+    // Fallback if admin-audit-log.js failed to load — just render the
+    // action name; never crash the Apollo dashboard tab.
+    const meta = (row && row.metadata) || {};
+    return {
+      label: apolloEscapeHtml(String(row && row.action || 'unknown')),
+      summary: `<div style="margin-top:4px;font-size:0.78rem;color:var(--text-muted);"><code>${apolloEscapeHtml(JSON.stringify(meta))}</code></div>`
+    };
   }
 
   async function loadApolloAuditLog() {

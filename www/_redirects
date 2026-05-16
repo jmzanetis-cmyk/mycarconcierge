@@ -37,6 +37,7 @@
 /api/provider/finalize /.netlify/functions/provider-onboarding/finalize 200
 /api/admin/outreach/* /.netlify/functions/outreach-admin/:splat 200
 /api/admin/apollo/* /.netlify/functions/apollo-admin/:splat 200
+/api/admin/audit-log /.netlify/functions/admin-audit-log 200
 /api/outreach/ref /.netlify/functions/outreach-ref 200
 /unsubscribe /.netlify/functions/outreach-unsubscribe 200
 /api/webhooks/resend /.netlify/functions/outreach-resend-webhook 200

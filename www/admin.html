@@ -600,6 +600,7 @@
 
       <div class="nav-label">System</div>
       <div class="nav-item" data-section="sms-log"><span class="icon-inline" data-icon="message-circle"></span> SMS Log</div>
+      <div class="nav-item" data-section="audit-log"><span class="icon-inline" data-icon="shield"></span> Audit Log</div>
       <div class="nav-item" data-section="team-management"><span class="icon-inline" data-icon="users"></span> Team Management</div>
       <div class="nav-item" data-section="settings"><span class="icon-inline" data-icon="settings"></span> Settings</div>
     </div>
@@ -4986,6 +4987,45 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       </div>
     </section>
 
+    <!-- ===== Admin Audit Log (Task #330) ===== -->
+    <section id="audit-log" class="section">
+      <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
+        <div>
+          <h1 style="margin:0;font-size:1.6rem;color:var(--text-primary);"><span class="icon-inline" data-icon="shield"></span> Admin Audit Log</h1>
+          <p style="margin:4px 0 0;color:var(--text-muted);font-size:0.9rem;">Tamper-evident history of every privileged action — provider suspends, bid-credit adjustments, application reviews, concierge job changes, Apollo settings, and more. Sourced from <code>admin_audit_log</code>.</p>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header" style="flex-wrap:wrap;gap:10px;align-items:flex-end;">
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;flex:1;">
+            <div>
+              <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">Action</label>
+              <select id="admin-audit-filter-action" style="padding:7px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;min-width:220px;">
+                <option value="">All actions</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">Target ID</label>
+              <input type="text" id="admin-audit-filter-target" placeholder="uuid or string" style="padding:7px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;min-width:220px;">
+            </div>
+            <div>
+              <label style="display:block;font-size:0.78rem;color:var(--text-muted);margin-bottom:4px;">Performed by</label>
+              <input type="text" id="admin-audit-filter-actor" placeholder="admin or uuid" style="padding:7px 10px;border:1px solid var(--border-subtle);border-radius:8px;background:var(--bg-secondary);color:var(--text-primary);font-size:0.85rem;min-width:180px;">
+            </div>
+          </div>
+          <div style="display:flex;gap:8px;">
+            <button class="btn btn-sm btn-primary" onclick="loadAdminAuditLog()"><span class="icon-inline" data-icon="filter"></span> Apply</button>
+            <button class="btn btn-sm" onclick="document.getElementById('admin-audit-filter-action').value='';document.getElementById('admin-audit-filter-target').value='';document.getElementById('admin-audit-filter-actor').value='';loadAdminAuditLog();">Reset</button>
+            <button class="btn btn-sm" onclick="loadAdminAuditLog()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+          </div>
+        </div>
+        <div id="admin-audit-list" style="margin-top:16px;min-height:120px;">
+          <p style="color:var(--text-muted);text-align:center;padding:24px;font-size:0.88rem;">Loading recent admin actions...</p>
+        </div>
+      </div>
+    </section>
+
     <!-- ===== Member Survey Analytics (Task #166) ===== -->
     <section id="member-surveys" class="section">
       <div class="page-header" style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
@@ -5497,6 +5537,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="mcc-config.js?v=20260204"></script>
   <script src="supabaseclient.js?v=20260122"></script>
+  <script src="admin-audit-log.js?v=20260516a"></script>
   <script src="admin-outreach.js?v=20260429b"></script>
   <script src="admin-agent-activity.js?v=20260424a"></script>
   <script src="shared/survey-questions.js?v=20260429a"></script>

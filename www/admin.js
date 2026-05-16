@@ -346,6 +346,7 @@
       'ai-ops': async () => { await initAiOps(); },
       'agent-fleet': async () => { await loadAgentFleetSection(); },
       'sms-log': async () => { await loadSmsLog(1); },
+      'audit-log': async () => { if (typeof globalThis.loadAdminAuditLog === 'function') await globalThis.loadAdminAuditLog(); },
       'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
       'white-label': async () => { await loadWhiteLabelTenants(); },
       'api-usage': async () => { await loadApiUsage(); },
