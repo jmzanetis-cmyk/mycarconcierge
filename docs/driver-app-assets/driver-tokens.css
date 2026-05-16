@@ -3,14 +3,16 @@
    Extracted from www/shared-styles.css for use in the separate MCC Driver
    Replit project. Drop this file into the Driver app, link it after the
    Google Fonts <link> tags, and use the documented class names
-   (.btn-primary / .btn-gold / .card / .form-input / .modal) to match the
-   main platform's look.
+   (.btn-primary / .btn-gold / .card / .form-input) to match the main
+   platform's look. Modals, toasts, and other components beyond the
+   button/card/input core are intentionally out of scope here — refer
+   back to www/shared-styles.css if you need them.
 
-   SOURCE-FAITHFUL: every token value and base-component rule below is
-   copied verbatim from www/shared-styles.css. If you change something
-   here, also change it there (or vice versa) — drift between the two
-   files is what this asset exists to prevent. See follow-up Task #433
-   for a CI guard.
+   SOURCE-FAITHFUL: the token values and base-component rules below
+   mirror the corresponding blocks in www/shared-styles.css. If you
+   change something here, also change it there (or vice versa) — drift
+   between the two files is what this asset exists to prevent. See
+   follow-up Task #433 for a CI guard.
 
    Theme: dark by default. Set `<html data-theme="light">` to flip to
    light mode (no JS required for the tokens themselves).
