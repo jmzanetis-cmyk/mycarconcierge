@@ -525,16 +525,34 @@
       return _mccLeafletPromise;
     }
 
-    // Tracks active map instances + polling timers keyed by jobId so we
-    // can clean them up when the card is re-rendered or the job ends.
-    const _mccConciergeMaps = new Map(); // jobId → { map, driverMarker, targetMarker, timer }
+    // Tracks active map instances + timers + realtime channels keyed by
+    // jobId so we can clean them up when the card is re-rendered or the
+    // job ends. Task #447: each entry now also tracks a Supabase Realtime
+    // broadcast channel (`rtChannel`) that streams live driver pings and
+    // a slow timer (`etaTimer`) that refreshes ETA / catches up on
+    // reconnect.
+    const _mccConciergeMaps = new Map(); // jobId → { map, driverMarker, targetMarker, etaTimer, rtChannel }
 
     function _mccDisposeMap(jobId) {
       const m = _mccConciergeMaps.get(jobId);
       if (!m) return;
-      try { if (m.timer) clearInterval(m.timer); } catch {}
+      try { if (m.etaTimer) clearInterval(m.etaTimer); } catch {}
+      try { if (m.rtChannel && globalThis.supabaseClient) globalThis.supabaseClient.removeChannel(m.rtChannel); } catch {}
       try { if (m.map) m.map.remove(); } catch {}
       _mccConciergeMaps.delete(jobId);
+    }
+
+    // Apply a single ping payload (from either the HTTP first-paint or a
+    // realtime broadcast event) to the map for `jobId`. Honors the per-job
+    // ownership boundary by ignoring payloads whose job_id doesn't match —
+    // the server only broadcasts to channels for jobs the caller owns, but
+    // defense in depth doesn't cost anything.
+    function _mccApplyPing(jobId, ping) {
+      if (!ping || ping.lat == null || ping.lng == null) return;
+      if (ping.job_id && ping.job_id !== jobId) return; // wrong job, refuse
+      const entry = _mccConciergeMaps.get(jobId);
+      if (!entry || !entry.map || !entry.driverMarker) return;
+      try { entry.driverMarker.setLatLng([ping.lat, ping.lng]); } catch {}
     }
 
     function _mccFormatEta(seconds) {
@@ -559,6 +577,27 @@
       const tr = data && data.tracking;
       const ping = tr && tr.pings && tr.pings[0];
       const target = tr && tr.target;
+
+      // Task #447 — open (or re-open) the broadcast channel using the
+      // server-issued descriptor. Idempotent: if we already have a
+      // channel for this job we leave it alone. Done BEFORE first-paint
+      // map init so the channel is live by the time the marker exists.
+      if (tr && tr.realtime && tr.realtime.channel && globalThis.supabaseClient) {
+        const cur = _mccConciergeMaps.get(jobId);
+        if (!cur || !cur.rtChannel) {
+          try {
+            const ch = globalThis.supabaseClient
+              .channel(tr.realtime.channel)
+              .on('broadcast', { event: tr.realtime.event || 'driver_ping' }, (msg) => {
+                _mccApplyPing(jobId, msg && msg.payload);
+              })
+              .subscribe();
+            const entry = _mccConciergeMaps.get(jobId) || {};
+            entry.rtChannel = ch;
+            _mccConciergeMaps.set(jobId, entry);
+          } catch (e) { /* realtime optional — fall back to slow timer */ }
+        }
+      }
 
       // ETA text — update even if Leaflet hasn't loaded yet so the user
       // sees something useful immediately.
@@ -611,26 +650,37 @@
     }
 
     // Public entry point — call after rendering a concierge status card.
-    // Sets up an 18-second poller that mirrors the existing logistics
-    // refresh cadence. Auto-tears down when the slot is removed.
+    // Task #447: dot motion now arrives over a Supabase Realtime broadcast
+    // channel (opened inside _mccUpdateConciergeMap from the server-issued
+    // descriptor), so we no longer poll every 18s. We keep ONE slow timer
+    // at 60s to (a) refresh ETA from the HTTP endpoint and (b) act as a
+    // reconnect catch-up if the websocket dropped silently. Auto-tears
+    // down (map + channel + timer) when the slot is removed from the DOM.
     window.startConciergeTracking = function(jobId) {
       if (!jobId) return;
       _mccDisposeMap(jobId);                  // reset any prior session
-      _mccUpdateConciergeMap(jobId);          // first paint immediately
-      const timer = setInterval(() => {
+      _mccUpdateConciergeMap(jobId);          // first paint immediately (also opens RT channel)
+      const etaTimer = setInterval(() => {
         if (!document.getElementById('concierge-map-' + jobId)) {
           _mccDisposeMap(jobId);
           return;
         }
         _mccUpdateConciergeMap(jobId);
-      }, 18000);
+      }, 60000);
       // Stash the timer on the entry once the map exists.
       setTimeout(() => {
         const e = _mccConciergeMaps.get(jobId);
-        if (e) e.timer = timer;
-        else _mccConciergeMaps.set(jobId, { timer });
+        if (e) e.etaTimer = etaTimer;
+        else _mccConciergeMaps.set(jobId, { etaTimer });
       }, 0);
     };
+
+    // Test hooks (Task #447 smoke test). Exposed under a single private
+    // namespace so production callers never accidentally depend on them.
+    window.__mccConciergeTracking = window.__mccConciergeTracking || {};
+    window.__mccConciergeTracking.applyPing = _mccApplyPing;
+    window.__mccConciergeTracking.dispose   = _mccDisposeMap;
+    window.__mccConciergeTracking._maps     = _mccConciergeMaps;
 
     // Task #369: render status for vehicle-originated concierge jobs (no
     // appointment_id). Looks up the most recent live job for the member

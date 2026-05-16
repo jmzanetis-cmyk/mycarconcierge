@@ -282,6 +282,18 @@ async function handleTracking(event, supabase, user) {
       drivers:      driverProfiles,
       pings:        latestPings,
       freshness_s:  TRACKING_FRESHNESS_MS / 1000,
+      // Task #447 — server-issued Realtime channel descriptor. The client
+      // opens this broadcast channel after first paint so subsequent
+      // pings stream in without polling. Channel name is the job UUID
+      // (unguessable, scoped to a job the caller already proved they
+      // own). Driver-api fires `driver_ping` events into this channel
+      // after each successful ping insert.
+      realtime: {
+        channel:    'concierge_job:' + job.id,
+        event:      'driver_ping',
+        job_id:     job.id,
+        driver_ids: activeDriverIds
+      },
       generated_at: new Date().toISOString()
     }
   });

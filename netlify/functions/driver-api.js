@@ -867,6 +867,38 @@ async function handleLocation(event, supabase, driver, jobId, legId, body) {
   }
   const { error } = await supabase.from('driver_location_pings').insert(rows);
   if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  // Task #447 — fan out the freshest ping to the member's live map via
+  // Realtime broadcast. Members CAN'T subscribe to driver_location_pings
+  // directly (RLS blocks it; see 20260516_driver_pings_realtime.sql
+  // header) so the server relays the single most-recent ping on a
+  // per-job broadcast channel. The channel name is the job's UUID, which
+  // the member already learned from GET /api/concierge/active-job-tracking,
+  // and the payload carries only the same fields that endpoint already
+  // returns to that member. Best-effort: a broadcast failure must NOT
+  // fail the driver's ping POST (the canonical row is already saved and
+  // the member will catch up on the next 60s ETA refresh).
+  try {
+    const latest = rows[rows.length - 1];
+    await supabase.channel('concierge_job:' + jobId).send({
+      type: 'broadcast',
+      event: 'driver_ping',
+      payload: {
+        job_id:     jobId,
+        driver_id:  driver.id,
+        leg_id:     legId,
+        lat:        latest.lat,
+        lng:        latest.lng,
+        heading:    latest.heading,
+        speed_mps:  latest.speed_mps,
+        accuracy_m: latest.accuracy_m,
+        recorded_at: latest.recorded_at
+      }
+    });
+  } catch (e) {
+    console.warn('[driver-api] broadcast failed for job', jobId, e && e.message);
+  }
+
   return jsonResponse(200, { inserted: rows.length });
 }
 

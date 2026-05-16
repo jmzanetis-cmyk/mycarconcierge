@@ -200,6 +200,16 @@ function req(opts = {}) {
     ok('happy path → eta_seconds positive',     body.tracking.pings[0].eta_seconds > 0);
     eq('happy path → driver name surfaced',     body.tracking.drivers[0].name, 'Alex Driver');
     ok('happy path → target carries dest',      body.tracking.target && body.tracking.target.lat === 30.27);
+    // Task #447 — response carries a Realtime broadcast descriptor the
+    // member client uses to subscribe for live driver dot motion.
+    ok('happy path → realtime descriptor present', body.tracking.realtime && typeof body.tracking.realtime === 'object');
+    eq('happy path → realtime channel scoped to job',
+       body.tracking.realtime.channel, 'concierge_job:' + jobId);
+    eq('happy path → realtime event name',
+       body.tracking.realtime.event, 'driver_ping');
+    ok('happy path → realtime driver_ids list',
+       Array.isArray(body.tracking.realtime.driver_ids) &&
+       body.tracking.realtime.driver_ids.includes(driverId));
   }
 
   // ── 9. Stale pings (>10 min) get filtered out ──────────────────────────
