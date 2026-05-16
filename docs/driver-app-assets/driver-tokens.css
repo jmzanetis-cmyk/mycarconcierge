@@ -13,6 +13,11 @@
    change something here, also change it there (or vice versa) — drift
    between the two files is what this asset exists to prevent.
 
+   MAINTENANCE: only the token/body/button/card blocks are canonical
+   mirrors of www/shared-styles.css — the helper sections at the
+   bottom are convenience-only and should be diffed separately to
+   avoid accidental divergence.
+
    Two sections at the bottom go slightly beyond strict extraction
    and are marked accordingly:
      - "Form inputs (optional)" — convenience styles so the Driver
