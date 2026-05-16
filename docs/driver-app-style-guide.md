@@ -283,7 +283,21 @@ A checklist for the Driver-app maintainer — one sitting, no surprises:
 
 ---
 
-## 9. What this guide does NOT cover
+## 9. Keeping this in sync with the main platform
+
+Whoever touches `www/shared-styles.css` in the main MCC repo is
+responsible for mirroring any **token / body / button / card**
+changes into `docs/driver-app-assets/driver-tokens.css` in the same
+PR. The "helper" sections at the bottom of `driver-tokens.css`
+(form inputs, header theme toggle) are convenience-only and don't
+need to be diffed unless the Driver app explicitly asks for changes.
+
+Follow-up Task #433 proposes a CI guard that fails the build if the
+canonical token values drift between the two files.
+
+---
+
+## 10. What this guide does NOT cover
 
 - Specific Driver-app screens (job card, shift map, earnings) — those
   are the Driver-app team's design surface.
