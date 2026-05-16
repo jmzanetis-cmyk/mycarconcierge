@@ -148,6 +148,15 @@ const { sendSms, isOptedOut, normalizePhone } = require('../functions/_shared/sm
     ok('Twilio To header is E.164', /To=%2B15559999999/.test(twilioCalls[0].body || ''));
   }
 
+  // sendSms fails closed when supabase is missing entirely
+  {
+    twilioCalls.length = 0;
+    const r = await sendSms({ supabase: null, toPhone: '+15559999999', body: 'hi' });
+    ok('sendSms fails closed when supabase is null', r.sent === false);
+    eq('sendSms reason when supabase null', r.reason, 'sms_opt_out');
+    eq('no Twilio call when supabase null', twilioCalls.length, 0);
+  }
+
   // sendSms fails closed on lookup error
   {
     twilioCalls.length = 0;

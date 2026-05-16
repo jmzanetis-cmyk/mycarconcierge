@@ -62,7 +62,13 @@ function normalizePhone(raw) {
  *   user.
  */
 async function isOptedOut({ supabase, userId, phone }) {
-  if (!supabase) return false; // No client wired up — let caller's existing dry-run logic kick in
+  if (!supabase) {
+    // Per code review on Task #429: fail CLOSED when supabase is missing.
+    // A caller without a client cannot verify opt-out status, and TCPA
+    // requires we err on the side of not sending.
+    console.warn('[sms_opt_out] no supabase client — treating as opted-out (TCPA fail-closed)');
+    return true;
+  }
   try {
     if (userId) {
       const { data, error } = await supabase
