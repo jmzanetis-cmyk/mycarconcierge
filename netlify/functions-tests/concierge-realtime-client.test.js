@@ -88,6 +88,8 @@ function makeSim() {
     if (ping.job_id && ping.job_id !== jobId) return;
     const entry = maps.get(jobId);
     if (!entry || !entry.map || !entry.driverMarker) return;
+    if (ping.driver_id && Array.isArray(entry.driverIds) && entry.driverIds.length
+        && !entry.driverIds.includes(ping.driver_id)) return;
     entry.driverMarker.setLatLng([ping.lat, ping.lng]);
   }
   function dispose(jobId) {
@@ -125,6 +127,22 @@ function makeSim() {
   });
   sim.applyPing('job-A', { job_id: 'job-B-evil', lat: 99, lng: 99 });
   eq('wrong-job ping → marker NOT moved', positions.length, 0);
+  sim.restore();
+}
+
+// 6b-bis. Whitelist: ping from a driver_id not on entry.driverIds is rejected.
+{
+  const sim = makeSim();
+  const positions = [];
+  sim.maps.set('job-A', {
+    map: { remove() {} },
+    driverMarker: { setLatLng: (p) => positions.push(p) },
+    driverIds: ['driver-allowed']
+  });
+  sim.applyPing('job-A', { job_id: 'job-A', driver_id: 'driver-stranger', lat: 5, lng: 6 });
+  eq('off-whitelist driver_id → marker NOT moved', positions.length, 0);
+  sim.applyPing('job-A', { job_id: 'job-A', driver_id: 'driver-allowed', lat: 5, lng: 6 });
+  eq('on-whitelist driver_id → marker moved', positions.length, 1);
   sim.restore();
 }
 

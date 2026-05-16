@@ -544,14 +544,20 @@
 
     // Apply a single ping payload (from either the HTTP first-paint or a
     // realtime broadcast event) to the map for `jobId`. Honors the per-job
-    // ownership boundary by ignoring payloads whose job_id doesn't match —
-    // the server only broadcasts to channels for jobs the caller owns, but
-    // defense in depth doesn't cost anything.
+    // ownership boundary by ignoring payloads whose job_id doesn't match,
+    // and whose driver_id isn't on the server-issued whitelist for this
+    // job (defense in depth — the server only broadcasts to channels for
+    // jobs the caller owns and only by assigned drivers, but a stray
+    // payload mustn't move the dot).
     function _mccApplyPing(jobId, ping) {
       if (!ping || ping.lat == null || ping.lng == null) return;
       if (ping.job_id && ping.job_id !== jobId) return; // wrong job, refuse
       const entry = _mccConciergeMaps.get(jobId);
       if (!entry || !entry.map || !entry.driverMarker) return;
+      // Whitelist check: if we captured the server's driver_ids list,
+      // reject any ping from a driver that isn't on it.
+      if (ping.driver_id && Array.isArray(entry.driverIds) && entry.driverIds.length
+          && !entry.driverIds.includes(ping.driver_id)) return;
       try { entry.driverMarker.setLatLng([ping.lat, ping.lng]); } catch {}
     }
 
@@ -584,6 +590,9 @@
       // map init so the channel is live by the time the marker exists.
       if (tr && tr.realtime && tr.realtime.channel && globalThis.supabaseClient) {
         const cur = _mccConciergeMaps.get(jobId);
+        // Always refresh the server-issued driver_ids whitelist (it can
+        // change as drivers accept/decline mid-job).
+        const whitelist = Array.isArray(tr.realtime.driver_ids) ? tr.realtime.driver_ids.slice() : [];
         if (!cur || !cur.rtChannel) {
           try {
             const ch = globalThis.supabaseClient
@@ -594,8 +603,11 @@
               .subscribe();
             const entry = _mccConciergeMaps.get(jobId) || {};
             entry.rtChannel = ch;
+            entry.driverIds = whitelist;
             _mccConciergeMaps.set(jobId, entry);
           } catch (e) { /* realtime optional — fall back to slow timer */ }
+        } else {
+          cur.driverIds = whitelist;
         }
       }
 
