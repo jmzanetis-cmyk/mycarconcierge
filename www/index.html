@@ -122,7 +122,6 @@
     
     /* Light mode alternating sections for depth */
     [data-theme="light"] .how-it-works,
-    [data-theme="light"] .founder-programs,
     [data-theme="light"] .cta-section {
       background: var(--bg-section-alt, #eaecf0);
     }
@@ -249,100 +248,6 @@
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
-    }
-
-    /* Open-for-business announcement bar — sits above the hero badge to
-       signal that the marketplace is live and that both sides can sign up
-       and transact at no cost. */
-    .open-banner {
-      background: linear-gradient(135deg, rgba(76, 175, 80, 0.18), rgba(212, 168, 85, 0.12));
-      border-bottom: 1px solid rgba(76, 175, 80, 0.35);
-      color: var(--text-primary);
-      padding: 10px 16px;
-      text-align: center;
-      font-size: 0.92rem;
-      font-weight: 500;
-      line-height: 1.4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .open-banner-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #4CAF50;
-      box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.6);
-      animation: openBannerPulse 2s infinite;
-      flex-shrink: 0;
-    }
-    .open-banner-strong {
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      font-size: 0.78rem;
-    }
-    .open-banner-sep {
-      opacity: 0.55;
-      margin: 0 2px;
-    }
-    /* Inside the gold onboarding-banner, the pulsing dot needs to read as
-       a live "open" indicator against the gold gradient — switch to a
-       darker green ring + a clean inner dot so it stays readable. */
-    .onboarding-banner .open-banner-dot {
-      background: #1b5e20;
-      box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.6);
-      animation: openBannerPulseDark 2s infinite;
-    }
-    @keyframes openBannerPulse {
-      0%   { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(76, 175, 80, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
-    }
-    @keyframes openBannerPulseDark {
-      0%   { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.65); }
-      70%  { box-shadow: 0 0 0 7px rgba(27, 94, 32, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0); }
-    }
-    @media (max-width: 600px) {
-      .open-banner { font-size: 0.84rem; padding: 9px 12px; gap: 8px; }
-      .open-banner-strong { font-size: 0.7rem; }
-      .open-banner-sep { display: none; }
-    }
-
-    /* Free-pricing strip under the hero CTAs — reinforces that both
-       member and provider sign-ups are free. */
-    .hero-free-strip {
-      display: inline-flex;
-      align-items: center;
-      gap: 14px;
-      margin: 18px auto 0;
-      padding: 10px 18px;
-      background: rgba(76, 175, 80, 0.08);
-      border: 1px solid rgba(76, 175, 80, 0.25);
-      border-radius: 100px;
-      font-size: 0.88rem;
-      color: var(--text-primary);
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .hero-free-strip svg {
-      width: 14px;
-      height: 14px;
-      color: #4CAF50;
-      flex-shrink: 0;
-    }
-    .hero-free-strip strong { color: #4CAF50; font-weight: 600; }
-    .hero-free-strip-sep {
-      width: 1px;
-      height: 14px;
-      background: rgba(160, 168, 184, 0.3);
-    }
-    @media (max-width: 540px) {
-      .hero-free-strip { font-size: 0.8rem; gap: 8px; padding: 9px 14px; }
-      .hero-free-strip-sep { display: none; }
     }
 
     /* Hero Section */
@@ -1874,71 +1779,6 @@
     }
   </style>
   <script src="/i18n.js"></script>
-<!-- SEO-INJECT:START -->
-  <link rel="canonical" href="https://www.mycarconcierge.com/" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
-  <meta name="description" content="List your automotive service needs and let vetted providers compete for your business. Choose the best service at the most reasonable price." />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="My Car Concierge" />
-  <meta property="og:url" content="https://www.mycarconcierge.com/" />
-  <meta property="og:title" content="My Car Concierge – Your Automotive Service Marketplace" />
-  <meta property="og:description" content="List your automotive service needs and let vetted providers compete for your business. Choose the best service at the most reasonable price." />
-  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
-  <meta property="og:locale" content="en_US" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@mycarconcierge" />
-  <meta name="twitter:title" content="My Car Concierge – Your Automotive Service Marketplace" />
-  <meta name="twitter:description" content="List your automotive service needs and let vetted providers compete for your business. Choose the best service at the most reasonable price." />
-  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
-<!-- SEO-INJECT:END -->
-  <script type="application/ld+json">
-  {
-    "@context": "https://schema.org",
-    "@graph": [
-      {
-        "@type": "Organization",
-        "@id": "https://www.mycarconcierge.com/#organization",
-        "name": "My Car Concierge",
-        "url": "https://www.mycarconcierge.com",
-        "logo": "https://www.mycarconcierge.com/logo.png",
-        "description": "Your complete auto ownership platform. Get quotes from vetted providers, manage your vehicles, schedule maintenance, and shop smarter — all in one place.",
-        "sameAs": [
-          "https://www.facebook.com/mycarconcierge",
-          "https://www.instagram.com/mycarconcierge",
-          "https://twitter.com/mycarconcierge",
-          "https://www.linkedin.com/company/mycarconcierge"
-        ]
-      },
-      {
-        "@type": "WebSite",
-        "@id": "https://www.mycarconcierge.com/#website",
-        "url": "https://www.mycarconcierge.com",
-        "name": "My Car Concierge",
-        "publisher": { "@id": "https://www.mycarconcierge.com/#organization" },
-        "inLanguage": "en-US",
-        "potentialAction": {
-          "@type": "SearchAction",
-          "target": {
-            "@type": "EntryPoint",
-            "urlTemplate": "https://www.mycarconcierge.com/providers-directory.html?q={search_term_string}"
-          },
-          "query-input": "required name=search_term_string"
-        }
-      },
-      {
-        "@type": "Service",
-        "name": "Automotive Service Marketplace",
-        "provider": { "@id": "https://www.mycarconcierge.com/#organization" },
-        "areaServed": { "@type": "Country", "name": "United States" },
-        "description": "Connect vehicle owners with vetted automotive service providers for maintenance, repairs, detailing, and specialty work through a competitive bidding marketplace with secure escrow payments.",
-        "serviceType": "Automotive Service Booking Platform"
-      }
-    ]
-  }
-  </script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -1996,7 +1836,6 @@
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
       <a href="#" onclick="openFounderModal(); closeMobileMenu(); return false;" class="founder-link" data-i18n="nav.ourStory">About</a>
       <a href="/contact.html" onclick="closeMobileMenu()">Contact</a>
-      <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
       <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme">
         <span class="theme-icon-sun"><span class="icon-inline" data-icon="sun"></span> Day</span>
         <span class="theme-icon-moon"><span class="icon-inline" data-icon="moon"></span> Night</span>
@@ -2052,7 +1891,7 @@
           <span class="hero-free-strip-sep" aria-hidden="true"></span>
           <span><strong data-i18n="landing.heroFreeProviders">Free</strong> <span data-i18n="landing.heroFreeProvidersBody">to create a provider profile (bid credits sold separately)</span></span>
         </div>
-        
+
         <div class="social-proof-bar" id="social-proof-bar" style="display:none">
           <span class="social-proof-dot"></span>
           <span id="social-proof-text"></span>
@@ -2074,24 +1913,6 @@
               <a href="forgot-password.html" data-i18n="auth.forgotPassword">Forgot password?</a>
             </div>
           </form>
-        </div>
-      </div>
-    </section>
-
-    <!-- MCC Verified — customer trust section.
-         (Section 4 — Homepage / Landing Page Sections, "For Customers").
-         Bilingual via i18n (EN / ES). -->
-    <section class="features" id="mcc-verified-trust" style="padding-top:48px;padding-bottom:24px;">
-      <div class="container">
-        <div style="max-width:760px;margin:0 auto;text-align:center;padding:32px 24px;border:1px solid rgba(76,175,80,0.25);border-radius:16px;background:linear-gradient(135deg,rgba(76,175,80,0.06),rgba(212,168,85,0.04));">
-          <div style="display:inline-flex;align-items:center;justify-content:center;width:54px;height:54px;border-radius:50%;background:#4CAF50;color:#fff;font-size:1.6rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
-          <h2 data-i18n="landing.verifiedTrustTitle" style="font-family:'Playfair Display',Georgia,serif;font-size:2rem;font-weight:600;margin:0 0 12px;">Your car. Your trust. Our verification.</h2>
-          <p data-i18n="landing.verifiedTrustBody" style="color:var(--text-secondary,#c8ccd6);font-size:1rem;line-height:1.6;margin:0 0 20px;">
-            Every MCC Verified provider has passed comprehensive background screening for their team. Look for the &#10003; badge when browsing providers &mdash; it means their employees are screened, verified, and current.
-          </p>
-          <a href="/providers-directory.html?verified=true" data-i18n="landing.verifiedTrustCta" class="btn btn-primary" style="display:inline-block;padding:12px 24px;text-decoration:none;border-radius:10px;background:#2e7d32;color:#fff;font-weight:600;">
-            Browse Verified Providers &rarr;
-          </a>
         </div>
       </div>
     </section>
@@ -2257,42 +2078,6 @@
       </div>
     </section>
 
-    <section class="from-the-blog">
-      <div class="container">
-        <div class="section-header" style="text-align:center;margin-bottom:32px;">
-          <h2 style="font-family:'Playfair Display',serif;font-size:clamp(1.75rem,3.5vw,2.5rem);margin-bottom:8px;">From the Blog</h2>
-          <p style="color:var(--text-muted);font-size:1rem;">Plain-spoken guides on quotes, maintenance, and smart car shopping.</p>
-        </div>
-        <div class="blog-cards-grid" style="display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:24px;max-width:1100px;margin:0 auto;">
-          <a href="/blog/how-to-compare-auto-repair-quotes.html" class="blog-card-home" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;text-decoration:none;color:inherit;transition:transform 0.2s ease, border-color 0.2s ease;display:flex;flex-direction:column;gap:12px;">
-            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.25rem;line-height:1.3;margin:0;">How to Compare Auto Repair Quotes Without Getting Ripped Off</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin:0;">A field-tested framework for comparing auto repair quotes line-by-line and negotiating without sounding like you're negotiating.</p>
-            <span style="color:var(--accent-gold);font-size:0.875rem;font-weight:600;margin-top:auto;">Read the guide →</span>
-          </a>
-          <a href="/blog/fair-brake-job-cost-2026.html" class="blog-card-home" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;text-decoration:none;color:inherit;transition:transform 0.2s ease, border-color 0.2s ease;display:flex;flex-direction:column;gap:12px;">
-            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.25rem;line-height:1.3;margin:0;">What Does a Fair Brake Job Cost in 2026?</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin:0;">Real 2026 numbers by vehicle class and parts grade — plus the $200 mistake most drivers make when authorizing rotor replacement.</p>
-            <span style="color:var(--accent-gold);font-size:0.875rem;font-weight:600;margin-top:auto;">See the prices →</span>
-          </a>
-          <a href="/blog/how-to-find-trustworthy-mechanic.html" class="blog-card-home" style="background:var(--card-bg);border:1px solid var(--card-border);border-radius:12px;padding:24px;text-decoration:none;color:inherit;transition:transform 0.2s ease, border-color 0.2s ease;display:flex;flex-direction:column;gap:12px;">
-            <span style="display:inline-block;background:rgba(201,162,39,0.15);color:var(--accent-gold);font-size:0.75rem;font-weight:600;text-transform:uppercase;letter-spacing:0.05em;padding:4px 10px;border-radius:999px;align-self:flex-start;">Get Quotes</span>
-            <h3 style="font-family:'Playfair Display',serif;font-size:1.25rem;line-height:1.3;margin:0;">How to Find a Trustworthy Mechanic in Your Area</h3>
-            <p style="color:var(--text-muted);font-size:0.9rem;line-height:1.5;margin:0;">A repeatable vetting playbook — what to ask, what to ignore, and what to test before handing over the keys.</p>
-            <span style="color:var(--accent-gold);font-size:0.875rem;font-weight:600;margin-top:auto;">Get the playbook →</span>
-          </a>
-        </div>
-        <div style="text-align:center;margin-top:32px;">
-          <a href="/blog/" style="color:var(--accent-gold);font-weight:600;text-decoration:none;font-size:1rem;display:inline-flex;align-items:center;gap:6px;">Browse all posts <span style="font-size:1.2em;">&rarr;</span></a>
-        </div>
-      </div>
-    </section>
-    <style>
-      .from-the-blog { padding: 80px 0; }
-      .blog-card-home:hover { transform: translateY(-4px); border-color: var(--accent-gold) !important; }
-    </style>
-
     <section class="cta-section">
       <div class="container">
         <div class="cta-box">
@@ -2420,11 +2205,11 @@
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', data.user.id).single();
         
         if (profile?.role === 'admin') {
-          window.location.href = 'admin.html';
+          globalThis.location.href = 'admin.html';
         } else if (profile?.role === 'provider' || profile?.role === 'pending_provider') {
-          window.location.href = 'providers.html';
+          globalThis.location.href = 'providers.html';
         } else {
-          window.location.href = 'members.html';
+          globalThis.location.href = 'members.html';
         }
       } catch (err) {
         console.error('Login error:', err);
@@ -2484,7 +2269,6 @@
   <script src="/footer.js"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script src="/mcc-config.js"></script>
-  <script src="/white-label-client.js"></script>
   <script src="/chat-widget-base.js"></script>
   <script src="/ai-chat.js"></script>
   <script src="/helpdesk-widget.js"></script>
@@ -2586,7 +2370,7 @@
   <!-- Facebook SDK for JavaScript (Task #182) -->
   <div id="fb-root"></div>
   <script>
-    window.fbAsyncInit = function() {
+    globalThis.fbAsyncInit = function() {
       FB.init({
         appId: '1210351411006961',
         cookie: true,

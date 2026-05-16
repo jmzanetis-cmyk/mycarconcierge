@@ -4,9 +4,8 @@
   <meta charset="UTF-8" />
   <title>Fleet Dashboard – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#12161c" />
+  <meta name="theme-color" content="#0a0a0f" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
   <link rel="manifest" href="/manifest.json" />
@@ -14,58 +13,46 @@
   <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
   <style>
     :root {
-      --bg-deep: #12161c;
-      --bg-card: rgba(26, 32, 42, 0.9);
-      --bg-elevated: rgba(36, 44, 56, 0.95);
-      --bg-input: rgba(30, 38, 48, 0.9);
-      --text-primary: #f5f5f7;
-      --text-secondary: #a0a8b8;
-      --text-muted: #6b7280;
-      --accent-gold: #c9a227;
-      --accent-gold-soft: rgba(201, 162, 39, 0.18);
-      --accent-blue: #38bdf8;
-      --accent-blue-soft: rgba(56, 189, 248, 0.12);
-      --accent-green: #34d399;
-      --accent-green-soft: rgba(52, 211, 153, 0.12);
-      --accent-orange: #fb923c;
+      --bg-deep: #0a0a0f;
+      --bg-card: rgba(18, 18, 28, 0.95);
+      --bg-elevated: rgba(24, 24, 38, 0.98);
+      --bg-input: rgba(22, 22, 34, 0.9);
+      --text-primary: #f4f4f6;
+      --text-secondary: #9898a8;
+      --text-muted: #6b6b7a;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.12);
+      --accent-blue: #4a7cff;
+      --accent-blue-soft: rgba(74, 124, 255, 0.12);
+      --accent-green: #4ac88c;
+      --accent-green-soft: rgba(74, 200, 140, 0.12);
+      --accent-orange: #f59e0b;
       --accent-orange-soft: rgba(245, 158, 11, 0.12);
-      --accent-red: #f87171;
-      --accent-red-soft: rgba(248, 113, 113, 0.15);
-      --border-subtle: rgba(160, 168, 184, 0.15);
-      --border-medium: rgba(160, 168, 184, 0.25);
+      --accent-red: #ef5f5f;
+      --accent-red-soft: rgba(239, 95, 95, 0.12);
+      --border-subtle: rgba(148, 148, 168, 0.12);
+      --border-medium: rgba(148, 148, 168, 0.2);
       --radius-sm: 8px;
       --radius-md: 12px;
       --radius-lg: 16px;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
-    body { font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); height: 100vh; display: flex; overflow: hidden; }
-
-    /* Light mode sidebar */
-    [data-theme="light"] .sidebar {
-      background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
-      border-right: 1px solid rgba(30, 58, 95, 0.1);
-    }
-    [data-theme="light"] .nav-item:hover {
-      background: rgba(30, 58, 95, 0.06);
-    }
-    @media (max-width: 768px) {
-      [data-theme="light"] .sidebar {
-        background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
-      }
+    body { font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); height: 100vh; display: flex; overflow: hidden;
+      padding-top: env(safe-area-inset-top);
     }
 
     /* Layout */
-    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; z-index: 100; }
+    .sidebar { position: fixed; left: 0; top: 0; bottom: 0; width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); display: flex; flex-direction: column; z-index: 100;
+      padding-top: env(safe-area-inset-top);
+    }
     .main { flex: 1; margin-left: 260px; padding: 32px 40px; height: 100%; overflow-y: auto; }
 
     /* Sidebar */
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
-    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: filter 0.3s ease; }
-    .sidebar-brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4)); }
+    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
     .brand-text-sm { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text-primary); }
     .brand-fleet { font-size: 0.75rem; color: var(--accent-gold); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
 
@@ -82,7 +69,9 @@
     .user-email { font-size: 0.78rem; color: var(--text-muted); }
 
     /* Cards & Content */
-    .page-header { margin-bottom: 32px; }
+    .page-header { margin-bottom: 32px;
+      padding-top: env(safe-area-inset-top);
+    }
     .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
     .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
 
@@ -141,7 +130,9 @@
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 200; padding: 24px; }
     .modal-backdrop.active { display: flex; }
     .modal { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-subtle); }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-subtle);
+      padding-top: calc(20px + env(safe-area-inset-top));
+    }
     .modal-title { font-size: 1.1rem; font-weight: 600; }
     .modal-close { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; }
     .modal-body { padding: 24px; }
@@ -176,22 +167,20 @@
 
     /* Mobile */
     @media (max-width: 900px) {
-      .sidebar { transform: translateX(-100%); transition: transform 0.3s; }
+      .sidebar { transform: translateX(-100%); transition: transform 0.3s;
+      padding-top: env(safe-area-inset-top);
+    }
       .sidebar.open { transform: translateX(0); }
       .main { margin-left: 0; padding: 24px 20px; }
-      .mobile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+      .mobile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px;
+      padding-top: env(safe-area-inset-top);
+    }
       .mobile-menu-btn { display: flex; width: 40px; height: 40px; align-items: center; justify-content: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); cursor: pointer; }
       .form-row { grid-template-columns: 1fr; }
     }
     @media (min-width: 901px) { .mobile-header { display: none; } }
-  
-    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="/i18n.js"></script>
-<!-- SEO-INJECT:START -->
-  <link rel="canonical" href="https://www.mycarconcierge.com/fleet.html" />
-  <meta name="robots" content="noindex, nofollow" />
-<!-- SEO-INJECT:END -->
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -201,18 +190,18 @@
     <div id="language-switcher" style="padding:0 20px 16px;"></div>
 
     <div class="nav-label">Dashboard</div>
-    <div class="nav-item active" data-section="overview"><span class="icon-inline" data-icon="bar-chart"></span> Overview</div>
-    <div class="nav-item" data-section="vehicles"><span class="icon-inline" data-icon="car"></span> Fleet Vehicles <span class="nav-badge" id="vehicle-count">0</span></div>
-    <div class="nav-item" data-section="drivers"><span class="icon-inline" data-icon="users"></span> Drivers</div>
+    <div class="nav-item active" data-section="overview">📊 Overview</div>
+    <div class="nav-item" data-section="vehicles">🚗 Fleet Vehicles <span class="nav-badge" id="vehicle-count">0</span></div>
+    <div class="nav-item" data-section="drivers">👥 Drivers</div>
     
     <div class="nav-label">Services</div>
-    <div class="nav-item" data-section="services"><span class="icon-inline" data-icon="wrench"></span> Active Services <span class="nav-badge" id="active-service-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="approvals"<span class="icon-inline" data-icon="check"></span> Pending Approvals <span class="nav-badge" id="approval-count" style="background:var(--accent-orange);display:none;">0</span></div>
-    <div class="nav-item" data-section="history"><span class="icon-inline" data-icon="file-text"></span> Service History</div>
+    <div class="nav-item" data-section="services">🔧 Active Services <span class="nav-badge" id="active-service-count" style="display:none;">0</span></div>
+    <div class="nav-item" data-section="approvals">✓ Pending Approvals <span class="nav-badge" id="approval-count" style="background:var(--accent-orange);display:none;">0</span></div>
+    <div class="nav-item" data-section="history">📜 Service History</div>
     
     <div class="nav-label">Reports</div>
-    <div class="nav-item" data-section="spending"><span class="icon-inline" data-icon="dollar-sign"></span> Spending</div>
-    <div class="nav-item" data-section="maintenance"><span class="icon-inline" data-icon="calendar"></span> Maintenance Schedule</div>
+    <div class="nav-item" data-section="spending">💰 Spending</div>
+    <div class="nav-item" data-section="maintenance">📅 Maintenance Schedule</div>
 
     <div class="sidebar-footer">
       <div class="user-info">
@@ -222,13 +211,13 @@
           <div class="user-email" id="fleet-name">Company Fleet</div>
         </div>
       </div>
-      <div class="nav-item" onclick="logout()"><span class="icon-inline" data-icon="log-out"></span> Log Out</div>
+      <button class="nav-item" onclick="logout()" style="background:none;border:none;width:100%;text-align:left;font:inherit;color:inherit;cursor:pointer;">🚪 Log Out</button>
     </div>
   </aside>
 
   <main class="main">
     <div class="mobile-header">
-      <button class="mobile-menu-btn" onclick="toggleSidebar()"><span class="icon-inline" data-icon="list-ordered"></span></button>
+      <button class="mobile-menu-btn" onclick="toggleSidebar()">☰</button>
       <span style="font-weight:600;">Fleet Dashboard</span>
     </div>
 
@@ -240,27 +229,27 @@
       </div>
 
       <div id="budget-alert" class="alert-banner warning" style="display:none;">
-        <span class="icon-inline" data-icon="alert-triangle"></span> <span id="budget-alert-text">You've used 80% of your monthly maintenance budget.</span>
+        ⚠️ <span id="budget-alert-text">You've used 80% of your monthly maintenance budget.</span>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon blue"><span class="icon-inline" data-icon="car"></span></div>
+          <div class="stat-icon blue">🚗</div>
           <div class="stat-value" id="stat-total-vehicles">0</div>
           <div class="stat-label">Total Vehicles</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green"><span class="icon-inline" data-icon="check"></span></div>
+          <div class="stat-icon green">✓</div>
           <div class="stat-value" id="stat-active-vehicles">0</div>
           <div class="stat-label">Active</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange"><span class="icon-inline" data-icon="wrench"></span></div>
+          <div class="stat-icon orange">🔧</div>
           <div class="stat-value" id="stat-in-maintenance">0</div>
           <div class="stat-label">In Maintenance</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon gold"><span class="icon-inline" data-icon="dollar-sign"></span></div>
+          <div class="stat-icon gold">💰</div>
           <div class="stat-value" id="stat-monthly-spend">$0</div>
           <div class="stat-label">This Month</div>
           <div class="stat-change up" id="stat-spend-change">↑ 12% vs last month</div>
@@ -275,7 +264,7 @@
           </div>
           <div id="upcoming-maintenance">
             <div class="empty-state">
-              <div class="empty-state-icon"><span class="icon-inline" data-icon="calendar"></span></div>
+              <div class="empty-state-icon">📅</div>
               <p>No upcoming maintenance scheduled.</p>
             </div>
           </div>
@@ -293,19 +282,19 @@
           </div>
           <div style="font-size:0.88rem;">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-blue);"></span> Maintenance</span>
+              <span><span style="color:var(--accent-blue);">●</span> Maintenance</span>
               <span id="cat-maintenance">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-green);"></span> Repairs</span>
+              <span><span style="color:var(--accent-green);">●</span> Repairs</span>
               <span id="cat-repairs">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
-              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-orange);"></span> Detailing</span>
+              <span><span style="color:var(--accent-orange);">●</span> Detailing</span>
               <span id="cat-detailing">$0</span>
             </div>
             <div style="display:flex;justify-content:space-between;">
-              <span><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:var(--accent-gold);"></span> Other</span>
+              <span><span style="color:var(--accent-gold);">●</span> Other</span>
               <span id="cat-other">$0</span>
             </div>
           </div>
@@ -319,7 +308,7 @@
         </div>
         <div id="pending-approvals-preview">
           <div class="empty-state">
-            <div class="empty-state-icon"><span class="icon-inline" data-icon="check"></span></div>
+            <div class="empty-state-icon">✓</div>
             <p>No pending approvals.</p>
           </div>
         </div>
@@ -335,7 +324,7 @@
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
         <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary" onclick="openFleetCsvImport()"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
+        <button class="btn btn-secondary" onclick="showToast('CSV import coming soon.', 'info')">📥 Import CSV</button>
       </div>
 
       <div class="card">
@@ -400,7 +389,7 @@
       <div class="card">
         <div id="active-services-list">
           <div class="empty-state">
-            <div class="empty-state-icon"><span class="icon-inline" data-icon="wrench"></span></div>
+            <div class="empty-state-icon">🔧</div>
             <p>No active services.</p>
           </div>
         </div>
@@ -415,13 +404,13 @@
       </div>
 
       <div class="alert-banner info">
-        <span class="icon-inline" data-icon="lightbulb"></span> Services under <strong>$<span id="auto-approve-amount">100</span></strong> are automatically approved based on your settings.
+        💡 Services under <strong>$<span id="auto-approve-amount">100</span></strong> are automatically approved based on your settings.
       </div>
 
       <div class="card">
         <div id="approval-list">
           <div class="empty-state">
-            <div class="empty-state-icon"><span class="icon-inline" data-icon="check"></span></div>
+            <div class="empty-state-icon">✓</div>
             <p>No pending approvals. All caught up!</p>
           </div>
         </div>
@@ -449,7 +438,7 @@
             <option value="all">All Time</option>
           </select>
         </div>
-        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export CSV</button>
+        <button class="btn btn-secondary">📤 Export CSV</button>
       </div>
 
       <div class="card">
@@ -488,27 +477,27 @@
             <option value="year">This Year</option>
           </select>
         </div>
-        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export Report</button>
+        <button class="btn btn-secondary">📤 Export Report</button>
       </div>
 
       <div class="stats-grid">
         <div class="stat-card">
-          <div class="stat-icon gold"><span class="icon-inline" data-icon="dollar-sign"></span></div>
+          <div class="stat-icon gold">💰</div>
           <div class="stat-value" id="spend-total">$0</div>
           <div class="stat-label">Total Spending</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon blue"><span class="icon-inline" data-icon="bar-chart"></span></div>
+          <div class="stat-icon blue">📊</div>
           <div class="stat-value" id="spend-per-vehicle">$0</div>
           <div class="stat-label">Avg per Vehicle</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green"><span class="icon-inline" data-icon="wrench"></span></div>
+          <div class="stat-icon green">🔧</div>
           <div class="stat-value" id="spend-services">0</div>
           <div class="stat-label">Services Completed</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange"><span class="icon-inline" data-icon="dollar-sign"></span></div>
+          <div class="stat-icon orange">💵</div>
           <div class="stat-value" id="spend-savings">$0</div>
           <div class="stat-label">Est. Savings via MCC</div>
         </div>
@@ -519,7 +508,7 @@
           <h2 class="card-title">Spending Trend</h2>
         </div>
         <div class="chart-placeholder">
-          <span class="icon-inline" data-icon="trending-up"></span> Chart coming soon - spending over time
+          📈 Chart coming soon - spending over time
         </div>
       </div>
 
@@ -554,17 +543,17 @@
 
       <div class="stats-grid" style="grid-template-columns:repeat(3,1fr);">
         <div class="stat-card">
-          <div class="stat-icon red"><span class="icon-inline" data-icon="alert-triangle"></span></div>
+          <div class="stat-icon red">⚠️</div>
           <div class="stat-value" id="maint-overdue">0</div>
           <div class="stat-label">Overdue</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon orange"><span class="icon-inline" data-icon="bell"></span></div>
+          <div class="stat-icon orange">🔔</div>
           <div class="stat-value" id="maint-due-soon">0</div>
           <div class="stat-label">Due This Week</div>
         </div>
         <div class="stat-card">
-          <div class="stat-icon green"><span class="icon-inline" data-icon="check"></span></div>
+          <div class="stat-icon green">✓</div>
           <div class="stat-value" id="maint-upcoming">0</div>
           <div class="stat-label">Upcoming (30 days)</div>
         </div>
@@ -591,7 +580,7 @@
     </section>
     
     <div style="text-align:center;padding:40px 20px 20px;font-size:0.8rem;color:var(--text-muted);">
-      © 2026 My Car Concierge. All rights reserved.
+      © 2025 My Car Concierge. All rights reserved.
     </div>
   </main>
 
@@ -731,290 +720,469 @@
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
-  <script src="/white-label-client.js"></script>
-  <script src="fleet.js"></script>
-  <script src="/pwa-init.js?v=20260202"></script>
   <script>
-    var currentFleet = null; // Current fleet context for CSV import and other operations
+    let currentUser = null;
+    let fleet = null;
+    let fleetVehicles = [];
+    let drivers = [];
+    let approvals = [];
+    let serviceHistory = [];
+    let currentApprovalId = null;
 
-    async function loadCurrentFleet() {
-      try {
-        var session = await window.supabaseClient.auth.getSession();
-        var user = session?.data?.session?.user;
-        if (!user) return;
+    // ========== INITIALIZATION ==========
+    window.addEventListener('load', async () => {
+      const user = await getCurrentUser();
+      if (!user) return globalThis.location.href = 'login.html';
+      currentUser = user;
+      
+      // Check if user has fleet access
+      const { data: profile } = await supabaseClient.from('profiles').select('*, fleets(*)').eq('id', user.id).single();
+      
+      if (!profile?.fleet_id && profile?.account_type !== 'fleet') {
+        // No fleet access - redirect to member dashboard
+        return globalThis.location.href = 'members.html';
+      }
 
-        // Fetch the fleet where the logged-in user is the owner
-        var { data: fleet, error } = await window.supabaseClient
-          .from('fleets')
-          .select('id, name, company_name, owner_id, status')
-          .eq('owner_id', user.id)
-          .eq('status', 'active')
-          .maybeSingle();
+      fleet = profile.fleets || { company_name: profile.business_name || 'My Fleet', auto_approve_under: 100 };
+      
+      await loadFleetData();
+      setupEventListeners();
+      updateUI();
+    });
 
-        if (fleet && !error) {
-          currentFleet = fleet;
-          var nameEl = document.getElementById('fleet-name-nav');
-          if (nameEl && currentFleet.name) nameEl.textContent = currentFleet.name;
-        } else {
-          // Fallback: user may be a fleet member (manager), look up via fleet_members
-          var { data: membership } = await window.supabaseClient
-            .from('fleet_members')
-            .select('fleet_id, role, fleets(id, name, company_name, owner_id, status)')
-            .eq('user_id', user.id)
-            .in('role', ['owner', 'manager'])
-            .eq('status', 'active')
-            .limit(1)
-            .maybeSingle();
-          if (membership?.fleets) {
-            currentFleet = membership.fleets;
-          }
-        }
-      } catch (e) {
-        console.warn('Fleet context load error:', e.message);
+    async function loadFleetData() {
+      if (!fleet?.id) return;
+      
+      // Load fleet vehicles
+      const { data: vehicles } = await supabaseClient.from('fleet_vehicles')
+        .select('*, vehicles(*), profiles(full_name)')
+        .eq('fleet_id', fleet.id);
+      fleetVehicles = vehicles || [];
+
+      // Load drivers
+      const { data: driverData } = await supabaseClient.from('profiles')
+        .select('*')
+        .eq('fleet_id', fleet.id)
+        .eq('fleet_role', 'driver');
+      drivers = driverData || [];
+
+      // Load pending approvals
+      const { data: approvalData } = await supabaseClient.from('fleet_approvals')
+        .select('*, maintenance_packages(*, vehicles(*))')
+        .eq('fleet_id', fleet.id)
+        .eq('status', 'pending');
+      approvals = approvalData || [];
+
+      // Load service history
+      const vehicleIds = fleetVehicles.map(fv => fv.vehicle_id);
+      if (vehicleIds.length) {
+        const { data: history } = await supabaseClient.from('service_history')
+          .select('*, vehicles(*)')
+          .in('vehicle_id', vehicleIds)
+          .order('service_date', { ascending: false })
+          .limit(100);
+        serviceHistory = history || [];
+      }
+
+      renderAll();
+    }
+
+    function updateUI() {
+      // Update header
+      document.getElementById('user-name').textContent = currentUser.email?.split('@')[0] || 'Fleet Manager';
+      document.getElementById('fleet-name').textContent = fleet?.company_name || 'My Fleet';
+      document.getElementById('overview-subtitle').textContent = `Managing ${fleet?.company_name || 'your fleet'}'s vehicles.`;
+      document.getElementById('auto-approve-amount').textContent = fleet?.auto_approve_under || 100;
+      document.getElementById('vehicle-count').textContent = fleetVehicles.length;
+
+      // Stats
+      document.getElementById('stat-total-vehicles').textContent = fleetVehicles.length;
+      document.getElementById('stat-active-vehicles').textContent = fleetVehicles.filter(v => v.status === 'active').length;
+      document.getElementById('stat-in-maintenance').textContent = fleetVehicles.filter(v => v.status === 'maintenance').length;
+
+      // Approvals badge
+      if (approvals.length > 0) {
+        document.getElementById('approval-count').textContent = approvals.length;
+        document.getElementById('approval-count').style.display = 'inline';
       }
     }
 
+    function renderAll() {
+      renderVehiclesTable();
+      renderDriversTable();
+      renderApprovalsPreview();
+      renderApprovalsList();
+      renderHistoryTable();
+      renderUpcomingMaintenance();
+    }
+
+    function renderVehiclesTable() {
+      const tbody = document.getElementById('vehicles-table');
+      if (!fleetVehicles.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px;">No vehicles in fleet yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = fleetVehicles.map(fv => {
+        const v = fv.vehicles;
+        const statusClass = fv.status === 'active' ? 'active' : fv.status === 'maintenance' ? 'maintenance' : 'out';
+        return `
+          <tr>
+            <td>
+              <strong>${esc(v?.year || '')} ${esc(v?.make || '')} ${esc(v?.model || '')}</strong>
+              <div style="font-size:0.82rem;color:var(--text-muted);">${esc(v?.license_plate || 'No plate')}</div>
+            </td>
+            <td>${esc(fv.fleet_number || '-')}</td>
+            <td>${esc(fv.profiles?.full_name || 'Unassigned')}</td>
+            <td><span class="status ${statusClass}">${esc(fv.status || 'Active')}</span></td>
+            <td>${fv.next_service_due ? new Date(fv.next_service_due).toLocaleDateString() : '-'}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary" onclick="viewVehicle('${fv.id}')">View</button>
+              <button class="btn btn-sm btn-ghost" onclick="createServicePackage('${v?.id}')">+ Service</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderDriversTable() {
+      const tbody = document.getElementById('drivers-table');
+      if (!drivers.length) {
+        tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--text-muted);padding:40px;">No drivers added yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = drivers.map(d => {
+        const assignedVehicle = fleetVehicles.find(fv => fv.assigned_driver_id === d.id);
+        const v = assignedVehicle?.vehicles;
+        return `
+          <tr>
+            <td><strong>${esc(d.full_name || 'Unknown')}</strong></td>
+            <td>${esc(d.email || '-')}</td>
+            <td>${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : 'None'}</td>
+            <td>${esc(assignedVehicle?.department || '-')}</td>
+            <td>
+              <button class="btn btn-sm btn-secondary">Edit</button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderApprovalsPreview() {
+      const container = document.getElementById('pending-approvals-preview');
+      if (!approvals.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No pending approvals.</p></div>';
+        return;
+      }
+
+      container.innerHTML = approvals.slice(0, 3).map(a => {
+        const pkg = a.maintenance_packages;
+        const v = pkg?.vehicles;
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+            <div>
+              <strong>${esc(pkg?.title || 'Service')}</strong>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : 'Vehicle'}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="font-weight:600;">$${(a.amount || 0).toFixed(2)}</div>
+              <button class="btn btn-sm btn-success" onclick="openApprovalModal('${a.id}')">Review</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderApprovalsList() {
+      const container = document.getElementById('approval-list');
+      if (!approvals.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">✓</div><p>No pending approvals. All caught up!</p></div>';
+        return;
+      }
+
+      container.innerHTML = approvals.map(a => {
+        const pkg = a.maintenance_packages;
+        const v = pkg?.vehicles;
+        return `
+          <div class="card" style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;">
+              <div>
+                <h3 style="margin-bottom:4px;">${esc(pkg?.title || 'Service Request')}</h3>
+                <div style="color:var(--text-muted);font-size:0.88rem;">${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : 'Vehicle'}</div>
+                <p style="margin-top:12px;color:var(--text-secondary);">${esc(pkg?.description || 'No description provided.')}</p>
+              </div>
+              <div style="text-align:right;">
+                <div style="font-size:1.3rem;font-weight:600;">$${(a.amount || 0).toFixed(2)}</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);">Requested ${new Date(a.requested_at).toLocaleDateString()}</div>
+              </div>
+            </div>
+            <div style="margin-top:16px;display:flex;gap:12px;">
+              <button class="btn btn-success" onclick="approveRequest('${a.id}')">✓ Approve</button>
+              <button class="btn btn-secondary" onclick="rejectRequest('${a.id}')">✗ Reject</button>
+              <button class="btn btn-ghost" onclick="viewPackageDetails('${pkg?.id}')">View Details</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    function renderHistoryTable() {
+      const tbody = document.getElementById('history-table');
+      if (!serviceHistory.length) {
+        tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px;">No service history yet.</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = serviceHistory.map(h => {
+        const v = h.vehicles;
+        return `
+          <tr>
+            <td>${new Date(h.service_date).toLocaleDateString()}</td>
+            <td>${v ? `${esc(v.year)} ${esc(v.make)} ${esc(v.model)}` : '-'}</td>
+            <td>${esc(h.description || h.service_type || '-')}</td>
+            <td>${esc(h.provider_business || h.provider_name || '-')}</td>
+            <td>$${(h.total_cost || 0).toFixed(2)}</td>
+            <td>${h.receipt_url ? '<button class="btn btn-sm btn-ghost">📄</button>' : '-'}</td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function renderUpcomingMaintenance() {
+      const container = document.getElementById('upcoming-maintenance');
+      const upcoming = fleetVehicles.filter(fv => fv.next_service_due).slice(0, 5);
+      
+      if (!upcoming.length) {
+        container.innerHTML = '<div class="empty-state"><div class="empty-state-icon">📅</div><p>No upcoming maintenance scheduled.</p></div>';
+        return;
+      }
+
+      container.innerHTML = upcoming.map(fv => {
+        const v = fv.vehicles;
+        const dueDate = new Date(fv.next_service_due);
+        const isOverdue = dueDate < new Date();
+        return `
+          <div style="display:flex;justify-content:space-between;align-items:center;padding:12px 0;border-bottom:1px solid var(--border-subtle);">
+            <div>
+              <strong>${esc(v?.year || '')} ${esc(v?.make || '')} ${esc(v?.model || '')}</strong>
+              <div style="font-size:0.85rem;color:var(--text-muted);">Fleet #${esc(fv.fleet_number || '-')}</div>
+            </div>
+            <div style="text-align:right;">
+              <div style="color:${isOverdue ? 'var(--accent-red)' : 'var(--text-secondary)'};">${isOverdue ? 'Overdue' : dueDate.toLocaleDateString()}</div>
+              <button class="btn btn-sm btn-primary" onclick="createServicePackage('${v?.id}')">Schedule</button>
+            </div>
+          </div>
+        `;
+      }).join('');
+    }
+
+    // ========== ACTIONS ==========
+    function esc(s) {
+      return String(s ?? '').replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])
+      );
+    }
+
+    function openApprovalModal(approvalId) {
+      currentApprovalId = approvalId;
+      const a = approvals.find(x => x.id === approvalId);
+      if (!a) return;
+      const pkg = a.maintenance_packages;
+      const v = pkg?.vehicles;
+      document.getElementById('approve-modal-content').innerHTML = `
+        <p><strong>${esc(pkg?.title || 'Service Request')}</strong></p>
+        <p style="color:var(--text-muted);">${esc(v ? `${v.year} ${v.make} ${v.model}` : 'Vehicle')}</p>
+        <p style="font-size:1.2rem;font-weight:600;">$${(a.amount || 0).toFixed(2)}</p>
+        <p style="color:var(--text-secondary);margin-top:8px;">${esc(pkg?.description || 'No description provided.')}</p>
+      `;
+      document.getElementById('approve-modal').classList.add('active');
+    }
+
+    async function confirmApproval() {
+      closeModal('approve-modal');
+      if (currentApprovalId) await approveRequest(currentApprovalId);
+    }
+
+    async function rejectApproval() {
+      closeModal('approve-modal');
+      if (currentApprovalId) await rejectRequest(currentApprovalId);
+    }
+
+    function viewVehicle(id) {
+      showSection('vehicles');
+    }
+
+    function viewPackageDetails(id) {
+      showSection('approvals');
+    }
+
+    async function addFleetVehicle() {
+      const make = document.getElementById('av-make').value.trim();
+      const model = document.getElementById('av-model').value.trim();
+      if (!make || !model) return showToast('Please enter make and model.', 'error');
+
+      // Create vehicle
+      const { data: vehicle, error: vehicleError } = await supabaseClient.from('vehicles').insert({
+        owner_id: currentUser.id,
+        year: Number.parseInt(document.getElementById('av-year').value) || null,
+        make,
+        model,
+        vin: document.getElementById('av-vin').value.trim() || null,
+        license_plate: document.getElementById('av-plate').value.trim() || null,
+        mileage: Number.parseInt(document.getElementById('av-mileage').value) || null
+      }).select().single();
+
+      if (vehicleError || !vehicle) {
+        console.error('Failed to create vehicle:', vehicleError);
+        return showToast('Failed to create vehicle. Please try again.', 'error');
+      }
+
+      // Create fleet vehicle record
+      const { error: fleetError } = await supabaseClient.from('fleet_vehicles').insert({
+        fleet_id: fleet.id,
+        vehicle_id: vehicle.id,
+        fleet_number: document.getElementById('av-fleet-num').value.trim() || null,
+        assigned_driver_id: document.getElementById('av-driver').value || null,
+        department: document.getElementById('av-department').value.trim() || null,
+        maintenance_schedule: document.getElementById('av-schedule').value,
+        status: 'active'
+      });
+
+      if (fleetError) {
+        console.error('Failed to add vehicle to fleet:', fleetError);
+        return showToast('Failed to add vehicle to fleet. Please try again.', 'error');
+      }
+
+      closeModal('add-vehicle-modal');
+      showToast('Vehicle added to fleet!', 'success');
+      await loadFleetData();
+      updateUI();
+    }
+
+    async function addDriver() {
+      const name = document.getElementById('ad-name').value.trim();
+      const email = document.getElementById('ad-email').value.trim();
+      if (!name || !email) return showToast('Please enter name and email.', 'error');
+
+      // In production, this would send an invite email
+      // For now, create a placeholder profile
+      showToast(`Invite sent to ${email}. They can now create their MCC account.`, 'success');
+      closeModal('add-driver-modal');
+    }
+
+    async function approveRequest(approvalId) {
+      if (!confirm('Approve this service request?')) return;
+
+      const { error } = await supabaseClient.from('fleet_approvals').update({
+        status: 'approved',
+        approved_by: currentUser.id,
+        approved_at: new Date().toISOString()
+      }).eq('id', approvalId);
+
+      if (error) {
+        console.error('Failed to approve request:', error);
+        return showToast('Failed to approve. Please try again.', 'error');
+      }
+      showToast('Service request approved!', 'success');
+      await loadFleetData();
+      updateUI();
+    }
+
+    async function rejectRequest(approvalId) {
+      const reason = prompt('Please provide a reason for rejection:');
+      if (reason === null) return;
+
+      const { error } = await supabaseClient.from('fleet_approvals').update({
+        status: 'rejected',
+        approved_by: currentUser.id,
+        approved_at: new Date().toISOString(),
+        rejection_reason: reason
+      }).eq('id', approvalId);
+
+      if (error) {
+        console.error('Failed to reject request:', error);
+        return showToast('Failed to reject. Please try again.', 'error');
+      }
+      showToast('Service request rejected.', 'success');
+      await loadFleetData();
+      updateUI();
+    }
+
+    function createServicePackage(vehicleId) {
+      // Redirect to members page with vehicle pre-selected
+      globalThis.location.href = `members.html?create_package=${vehicleId}`;
+    }
+
+    // ========== MODALS ==========
+    function openAddVehicleModal() {
+      document.getElementById('add-vehicle-modal').classList.add('active');
+      // Populate driver dropdown
+      const select = document.getElementById('av-driver');
+      select.innerHTML = '<option value="">Unassigned</option>' +
+        drivers.map(d => `<option value="${esc(d.id)}">${esc(d.full_name)}</option>`).join('');
+    }
+
+    function openAddDriverModal() {
+      document.getElementById('add-driver-modal').classList.add('active');
+      // Populate vehicle dropdown
+      const select = document.getElementById('ad-vehicle');
+      const unassigned = fleetVehicles.filter(fv => !fv.assigned_driver_id);
+      select.innerHTML = '<option value="">No vehicle assigned</option>' + 
+        unassigned.map(fv => {
+          const v = fv.vehicles;
+          return `<option value="${esc(fv.id)}">${esc(v?.year)} ${esc(v?.make)} ${esc(v?.model)} (${esc(fv.fleet_number) || 'No #'})</option>`;
+        }).join('');
+    }
+
+    function closeModal(id) {
+      document.getElementById(id).classList.remove('active');
+    }
+
+    // ========== NAVIGATION ==========
+    function setupEventListeners() {
+      document.querySelectorAll('.nav-item[data-section]').forEach(item => {
+        item.addEventListener('click', () => showSection(item.dataset.section));
+      });
+
+      document.querySelectorAll('.modal-backdrop').forEach(modal => {
+        modal.addEventListener('click', e => { if (e.target === modal) modal.classList.remove('active'); });
+      });
+    }
+
+    function showSection(sectionId) {
+      document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+      document.getElementById(sectionId).classList.add('active');
+      document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+      document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
+      document.getElementById('sidebar').classList.remove('open');
+    }
+
+    function toggleSidebar() {
+      document.getElementById('sidebar').classList.toggle('open');
+    }
+
+    // ========== UTILITIES ==========
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 5000);
+    }
+
+    async function logout() {
+      await supabaseClient.auth.signOut();
+      globalThis.location.href = 'login.html';
+    }
+  </script>
+  <script src="/pwa-init.js"></script>
+  <script>
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
-      await loadCurrentFleet();
     });
-  </script>
-  <!-- CSV Import Modal -->
-  <div id="fleet-csv-import-modal" class="modal" style="display:none;" role="dialog" aria-modal="true">
-    <div class="modal-overlay" onclick="closeFleetCsvImport()"></div>
-    <div class="modal-container" style="max-width:560px;">
-      <div class="modal-header">
-        <h3 class="modal-title">Import Vehicles from CSV</h3>
-        <button class="modal-close" onclick="closeFleetCsvImport()" aria-label="Close">✕</button>
-      </div>
-      <div class="modal-body">
-        <p style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:16px;">
-          Upload a CSV file with one vehicle per row. Required columns: <strong>year</strong>, <strong>make</strong>, <strong>model</strong>. Optional: <em>color, license_plate, vin, mileage, fleet_number, department</em>.
-        </p>
-        <div style="background:var(--bg-input,#1e2630);border:1px solid var(--border-subtle);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-family:monospace;font-size:0.78rem;color:var(--text-muted);">
-          year,make,model,color,license_plate,vin,mileage,fleet_number,department<br>
-          2021,Ford,F-150,White,ABC123,1FTFW1ET0MFA12345,42000,F-01,Operations<br>
-          2020,Toyota,Camry,Black,XYZ789,,25000,C-01,Sales
-        </div>
-        <div id="csv-drop-zone" style="border:2px dashed var(--border-medium,rgba(160,168,184,0.3));border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
-          ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'"
-          ondragleave="this.style.borderColor=''"
-          ondrop="handleCsvDrop(event)">
-          <div style="font-size:32px;margin-bottom:10px;">📄</div>
-          <div style="font-weight:500;margin-bottom:6px;">Drop your CSV file here</div>
-          <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">or</div>
-          <button class="btn btn-secondary" style="font-size:0.85rem;padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
-          <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
-        </div>
-        <div id="csv-preview" style="display:none;margin-top:16px;">
-          <div style="font-weight:600;margin-bottom:10px;" id="csv-preview-title"></div>
-          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-input,#1e2630);">
-            <table style="width:100%;border-collapse:collapse;font-size:0.82rem;">
-              <thead id="csv-preview-head" style="position:sticky;top:0;background:var(--bg-elevated,#242c38);"></thead>
-              <tbody id="csv-preview-body"></tbody>
-            </table>
-          </div>
-        </div>
-        <div id="csv-import-error" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#f87171;font-size:0.88rem;"></div>
-        <div id="csv-import-progress" style="display:none;margin-top:12px;">
-          <div style="display:flex;justify-content:space-between;font-size:0.85rem;margin-bottom:6px;">
-            <span id="csv-progress-label">Importing...</span>
-            <span id="csv-progress-pct">0%</span>
-          </div>
-          <div style="background:var(--border-subtle);border-radius:4px;height:8px;">
-            <div id="csv-progress-bar" style="background:var(--accent-gold);border-radius:4px;height:8px;width:0%;transition:width 0.3s;"></div>
-          </div>
-        </div>
-      </div>
-      <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeFleetCsvImport()">Cancel</button>
-        <button class="btn btn-primary" id="csv-import-btn" onclick="runCsvImport()" disabled>Import Vehicles</button>
-      </div>
-    </div>
-  </div>
-
-  <script src="/mcc-icons.js?v=20260211"></script>
-  <script>
-    document.querySelectorAll('[data-icon]').forEach(function(el) {
-      var name = el.getAttribute('data-icon');
-      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
-      if (svg) el.innerHTML = svg;
-    });
-  </script>
-  <script>
-    // ===== Fleet CSV Import =====
-    var _csvRows = [];
-
-    function openFleetCsvImport() {
-      document.getElementById('fleet-csv-import-modal').style.display = 'flex';
-      _csvRows = [];
-      document.getElementById('csv-preview').style.display = 'none';
-      document.getElementById('csv-import-error').style.display = 'none';
-      document.getElementById('csv-import-progress').style.display = 'none';
-      document.getElementById('csv-import-btn').disabled = true;
-    }
-
-    function closeFleetCsvImport() {
-      document.getElementById('fleet-csv-import-modal').style.display = 'none';
-    }
-
-    function handleCsvDrop(event) {
-      event.preventDefault();
-      document.getElementById('csv-drop-zone').style.borderColor = '';
-      var file = event.dataTransfer.files[0];
-      if (file) handleCsvFile(file);
-    }
-
-    function handleCsvFile(file) {
-      if (!file || !file.name.endsWith('.csv')) {
-        showCsvError('Please upload a .csv file.');
-        return;
-      }
-      var reader = new FileReader();
-      reader.onload = function(e) {
-        parseCsv(e.target.result);
-      };
-      reader.readAsText(file);
-    }
-
-    // RFC-4180-compliant CSV row parser — handles quoted fields with embedded commas/newlines
-    function parseCsvRow(line) {
-      var cols = [];
-      var cur = '';
-      var inQuotes = false;
-      for (var i = 0; i < line.length; i++) {
-        var ch = line[i];
-        if (inQuotes) {
-          if (ch === '"') {
-            if (line[i + 1] === '"') { cur += '"'; i++; } // escaped quote
-            else { inQuotes = false; }
-          } else {
-            cur += ch;
-          }
-        } else {
-          if (ch === '"') {
-            inQuotes = true;
-          } else if (ch === ',') {
-            cols.push(cur.trim()); cur = '';
-          } else {
-            cur += ch;
-          }
-        }
-      }
-      cols.push(cur.trim());
-      return cols;
-    }
-
-    function parseCsv(text) {
-      var lines = text.trim().split(/\r?\n/).filter(l => l.trim());
-      if (lines.length < 2) { showCsvError('CSV must have a header row and at least one data row.'); return; }
-      var headers = parseCsvRow(lines[0]).map(h => h.toLowerCase().replace(/[\s-]/g, '_'));
-      var yearIdx = headers.indexOf('year');
-      var makeIdx = headers.indexOf('make');
-      var modelIdx = headers.indexOf('model');
-      if (yearIdx < 0 || makeIdx < 0 || modelIdx < 0) {
-        showCsvError('CSV must include "year", "make", and "model" columns.');
-        return;
-      }
-      _csvRows = [];
-      var errors = [];
-      lines.slice(1).forEach(function(line, i) {
-        var cols = parseCsvRow(line);
-        var row = {};
-        headers.forEach((h, idx) => { row[h] = cols[idx] || null; });
-        if (!row.year || !row.make || !row.model) {
-          errors.push('Row ' + (i + 2) + ': missing year/make/model');
-          return;
-        }
-        _csvRows.push(row);
-      });
-      if (!_csvRows.length) { showCsvError('No valid rows found. ' + errors.join('; ')); return; }
-
-      document.getElementById('csv-import-error').style.display = 'none';
-      document.getElementById('csv-preview-title').textContent = _csvRows.length + ' vehicles ready to import' + (errors.length ? ' (' + errors.length + ' rows skipped)' : '');
-
-      var previewHeaders = ['year','make','model','color','license_plate','vin','fleet_number','department'].filter(h => headers.includes(h));
-      document.getElementById('csv-preview-head').innerHTML = '<tr>' + previewHeaders.map(h => '<th style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);text-align:left;font-size:0.78rem;color:var(--text-muted);">' + h + '</th>').join('') + '</tr>';
-      document.getElementById('csv-preview-body').innerHTML = _csvRows.slice(0, 8).map(row =>
-        '<tr>' + previewHeaders.map(h => '<td style="padding:7px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.8rem;">' + (row[h] || '-') + '</td>').join('') + '</tr>'
-      ).join('');
-      document.getElementById('csv-preview').style.display = 'block';
-      document.getElementById('csv-import-btn').disabled = false;
-    }
-
-    function showCsvError(msg) {
-      var el = document.getElementById('csv-import-error');
-      el.textContent = msg;
-      el.style.display = 'block';
-      _csvRows = [];
-      document.getElementById('csv-import-btn').disabled = true;
-    }
-
-    async function runCsvImport() {
-      if (!_csvRows.length) return;
-      // Guard: if fleet hasn't loaded yet, attempt to load it now (handles early-click race)
-      if (!currentFleet || !currentFleet.id) {
-        await loadCurrentFleet();
-      }
-      if (!currentFleet || !currentFleet.id) {
-        showCsvError('No fleet found for your account. Please ensure you have an active fleet.');
-        return;
-      }
-
-      document.getElementById('csv-import-btn').disabled = true;
-      document.getElementById('csv-import-progress').style.display = 'block';
-      updateCsvProgress(0, _csvRows.length);
-
-      var fleetId = currentFleet.id;
-      var session = await window.supabaseClient.auth.getSession();
-      var token = session?.data?.session?.access_token;
-
-      try {
-        // Use server-side endpoint for authoritative limit enforcement
-        var res = await fetch('/api/fleet/import-vehicles', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
-          },
-          body: JSON.stringify({ fleet_id: fleetId, vehicles: _csvRows })
-        });
-        var data = await res.json();
-
-        if (!res.ok) {
-          if (res.status === 402) {
-            document.getElementById('csv-import-progress').style.display = 'none';
-            showCsvError(data.error || 'Vehicle limit reached. Please upgrade your fleet plan.');
-            document.getElementById('csv-import-btn').disabled = false;
-            return;
-          }
-          throw new Error(data.error || 'Import failed');
-        }
-
-        updateCsvProgress(data.imported, _csvRows.length);
-        var label = 'Imported ' + data.imported + '/' + _csvRows.length + ' vehicles';
-        if (data.failed) label += ' (' + data.failed + ' failed)';
-        document.getElementById('csv-progress-label').textContent = label;
-
-        setTimeout(function() {
-          closeFleetCsvImport();
-          if (typeof loadFleetDetails === 'function') loadFleetDetails(fleetId);
-          if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
-        }, 1200);
-      } catch (err) {
-        document.getElementById('csv-import-progress').style.display = 'none';
-        document.getElementById('csv-import-btn').disabled = false;
-        showCsvError('Import error: ' + err.message);
-      }
-    }
-
-    function updateCsvProgress(done, total) {
-      var pct = Math.round((done / total) * 100);
-      document.getElementById('csv-progress-pct').textContent = pct + '%';
-      document.getElementById('csv-progress-bar').style.width = pct + '%';
-      document.getElementById('csv-progress-label').textContent = 'Imported ' + done + ' of ' + total + '...';
-    }
   </script>
 </body>
 </html>

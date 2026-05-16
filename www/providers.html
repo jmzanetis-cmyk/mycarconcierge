@@ -364,13 +364,6 @@
     .countdown-timer { display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background: var(--accent-gold-soft); border-radius: var(--radius-sm); font-size: 0.82rem; font-weight: 500; color: var(--accent-gold); }
     .countdown-timer.urgent { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); animation: pulse 2s infinite; }
     .countdown-timer.expired { background: var(--bg-input); color: var(--text-muted); }
-
-    /* AI Provider Matching Badge */
-    .matched-package { border-color: rgba(34, 211, 238, 0.35); }
-    .matched-for-you-badge { display: flex; align-items: center; gap: 6px; padding: 8px 14px; margin: -24px -24px 16px -24px; border-radius: var(--radius-lg) var(--radius-lg) 0 0; background: linear-gradient(135deg, rgba(34, 211, 238, 0.15), rgba(56, 189, 248, 0.08)); border-bottom: 1px solid rgba(34, 211, 238, 0.25); color: var(--accent-teal); font-size: 0.82rem; font-weight: 600; }
-    .matched-for-you-badge svg { flex-shrink: 0; }
-    [data-theme="light"] .matched-package { border-color: rgba(13, 115, 119, 0.25); }
-    [data-theme="light"] .matched-for-you-badge { background: linear-gradient(135deg, rgba(13, 115, 119, 0.1), rgba(30, 58, 95, 0.05)); border-bottom-color: rgba(13, 115, 119, 0.2); color: var(--accent-teal); }
     @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.7; } }
 
     /* Services Grid */
@@ -427,9 +420,6 @@
     .location-details { flex: 1; }
     .location-address { font-size: 0.9rem; margin-bottom: 4px; line-height: 1.4; }
     .location-time { font-size: 0.78rem; color: var(--text-muted); }
-    .header-bell-btn { position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-secondary); cursor: pointer; transition: color 0.2s, background 0.2s; flex-shrink: 0; }
-    .header-bell-btn:hover { color: var(--text-primary); background: var(--bg-elevated); }
-    .header-bell-badge { position: absolute; top: -5px; right: -5px; background: var(--accent-red, #ef5f5f); color: #fff; font-size: 0.65rem; font-weight: 700; min-width: 17px; height: 17px; border-radius: 999px; display: inline-flex; align-items: center; justify-content: center; padding: 0 3px; pointer-events: none; }
 
     @media (max-width: 900px) {
       .sidebar { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 300px; padding: 16px 14px; padding-bottom: 100px; overflow-y: auto; -webkit-overflow-scrolling: touch; background: rgba(12, 12, 18, 0.98); }
@@ -788,29 +778,6 @@
     .bid-calculator-container { display: none; background: var(--bg-card); border: 1px solid var(--border-medium); border-radius: var(--radius-lg); padding: 20px; margin-bottom: 24px; animation: calcSlideIn 0.3s ease; }
     .bid-calculator-container.active { display: block; }
     @keyframes calcSlideIn { from { opacity: 0; transform: translateY(-10px); } to { opacity: 1; transform: translateY(0); } }
-    @keyframes spin { to { transform: rotate(360deg); } }
-
-    .bid-insights-stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(100px, 1fr)); gap: 12px; margin-bottom: 20px; }
-    .bid-insights-stat { text-align: center; padding: 14px 10px; background: var(--bg-input); border-radius: var(--radius-md); border: 1px solid var(--border-subtle); }
-    .bid-insights-stat-value { font-size: 1.4rem; font-weight: 700; margin-bottom: 2px; }
-    .bid-insights-stat-label { font-size: 0.75rem; color: var(--text-muted); }
-    .bid-insights-summary { padding: 16px; background: var(--bg-input); border-radius: var(--radius-md); margin-bottom: 16px; line-height: 1.6; font-size: 0.9rem; color: var(--text-secondary); border-left: 3px solid var(--accent-blue); }
-    .bid-insights-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
-    .bid-insight-chip { display: inline-flex; align-items: center; gap: 6px; padding: 8px 14px; border-radius: 100px; font-size: 0.8rem; font-weight: 500; border: 1px solid var(--border-subtle); background: var(--bg-elevated); transition: all 0.2s; cursor: default; }
-    .bid-insight-chip.strong { background: var(--accent-green-soft); color: var(--accent-green); border-color: rgba(52,211,153,0.3); }
-    .bid-insight-chip.moderate { background: var(--accent-gold-soft); color: var(--accent-gold); border-color: rgba(201,162,39,0.3); }
-    .bid-insight-chip.weak { background: var(--accent-red-soft); color: var(--accent-red); border-color: rgba(248,113,113,0.3); }
-    .bid-insights-recommendations { display: grid; gap: 12px; margin-bottom: 16px; }
-    .bid-insights-rec-card { padding: 14px 16px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); }
-    .bid-insights-rec-card h4 { font-size: 0.88rem; margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
-    .bid-insights-rec-card p { font-size: 0.83rem; color: var(--text-secondary); line-height: 1.5; margin: 0; }
-    .bid-insights-rec-card .price-range { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: var(--accent-gold-soft); border-radius: 100px; font-size: 0.78rem; font-weight: 600; color: var(--accent-gold); margin-top: 8px; }
-    .bid-insights-top-tip { display: flex; align-items: flex-start; gap: 12px; padding: 16px; background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(139,92,246,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius-md); }
-    .bid-insights-top-tip p { font-size: 0.88rem; color: var(--text-secondary); line-height: 1.5; margin: 0; }
-    .calc-ai-suggestion { margin-top: 12px; padding: 12px 16px; background: linear-gradient(135deg, rgba(56,189,248,0.08), rgba(139,92,246,0.08)); border: 1px solid rgba(56,189,248,0.2); border-radius: var(--radius-md); }
-    .calc-ai-suggestion-title { font-size: 0.8rem; font-weight: 600; color: var(--accent-blue); margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
-    .calc-ai-suggestion-range { font-size: 1.1rem; font-weight: 700; color: var(--accent-gold); }
-    .calc-ai-suggestion-meta { font-size: 0.75rem; color: var(--text-muted); margin-top: 4px; }
     .calc-section { margin-bottom: 20px; }
     .calc-section-title { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.08em; margin-bottom: 12px; display: flex; align-items: center; gap: 8px; }
     .calc-row { display: flex; gap: 12px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
@@ -883,26 +850,6 @@
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="/i18n.js"></script>
-<!-- SEO-INJECT:START -->
-  <link rel="canonical" href="https://www.mycarconcierge.com/providers.html" />
-  <meta name="robots" content="index, follow, max-image-preview:large" />
-  <meta name="description" content="Become a vetted provider on My Car Concierge. Win more jobs, manage your team, and grow your business through our marketplace." />
-  <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="My Car Concierge" />
-  <meta property="og:url" content="https://www.mycarconcierge.com/providers.html" />
-  <meta property="og:title" content="Provider Portal – My Car Concierge" />
-  <meta property="og:description" content="Become a vetted provider on My Car Concierge. Win more jobs, manage your team, and grow your business through our marketplace." />
-  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
-  <meta property="og:locale" content="en_US" />
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:site" content="@mycarconcierge" />
-  <meta name="twitter:title" content="Provider Portal – My Car Concierge" />
-  <meta name="twitter:description" content="Become a vetted provider on My Car Concierge. Win more jobs, manage your team, and grow your business through our marketplace." />
-  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
-<!-- SEO-INJECT:END -->
 </head>
 <body>
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;"></div>
@@ -922,7 +869,6 @@
     <div class="nav-item active" data-section="overview"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></span> Dashboard</div>
     <div class="nav-item" data-section="subscription"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></span> Bid Credits <span class="nav-badge" id="sub-badge" style="display:none;"></span></div>
     <div class="nav-item" data-section="browse"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> Browse Packages <span class="nav-badge" id="open-count" style="display:none;">0</span></div>
-    <div class="nav-item" onclick="window.open('/provider/jobs','_self')"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span> Job Board <span class="nav-badge" style="background:var(--accent-teal);color:#0c1a1f;font-size:0.62rem;">NEW</span></div>
     <div class="nav-item" data-section="bids"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> My Bids</div>
     <div class="nav-item" data-section="jobs"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Active Jobs</div>
     <div class="nav-item" data-section="refund-requests"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Refund Requests <span class="nav-badge" id="refund-count" style="display:none;background:var(--accent-orange);">0</span></div>
@@ -943,10 +889,8 @@
     <div class="nav-item" data-section="profile"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Business Profile</div>
     <div class="nav-item" data-section="availability"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4"/><path d="M8 2v4"/><path d="M3 10h18"/><path d="M8 14h.01"/><path d="M12 14h.01"/><path d="M16 14h.01"/><path d="M8 18h.01"/><path d="M12 18h.01"/></svg></span> Availability</div>
     <div class="nav-item" data-section="team"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Team Members</div>
-    <div class="nav-item" data-section="compliance"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Compliance <span class="nav-badge" id="bgc-badge-pill" style="display:none;background:var(--accent-teal);color:#0c1a1f;font-size:0.62rem;">VERIFIED</span></div>
     <div class="nav-item team-management-nav" data-section="team-section" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Team</div>
     <div class="nav-item" data-section="background-checks"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Background Checks</div>
-    <div class="nav-item" data-section="auto-bid"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Auto-Bid</div>
     <div class="nav-item pos-feature" data-section="pos-integration" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> POS Integration</div>
     
     <div class="nav-label">Earn More</div>
@@ -977,10 +921,6 @@
     <div class="mobile-header">
       <button class="mobile-menu-btn" onclick="toggleSidebar()"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
       <span style="font-family:'Playfair Display',serif;font-weight:600;font-size:1.1rem;">Provider Dashboard</span>
-      <button class="header-bell-btn" onclick="showSection('notifications')" title="Notifications" aria-label="Notifications">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-        <span id="header-notif-count" class="header-bell-badge" style="display:none;">0</span>
-      </button>
     </div>
 
     <!-- Desktop Header with Theme Toggle -->
@@ -989,37 +929,13 @@
         <span class="theme-icon-sun"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg> Day</span>
         <span class="theme-icon-moon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg> Night</span>
       </button>
-      <button class="header-bell-btn" onclick="showSection('notifications')" title="Notifications" aria-label="Notifications" style="margin-left:12px;">
-        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-        <span id="header-notif-count-desktop" class="header-bell-badge" style="display:none;">0</span>
-      </button>
     </div>
 
     <section id="overview" class="section active">
       <div class="page-header">
         <p class="page-subtitle" style="margin-top:4px;">Find jobs and grow your business.</p>
       </div>
-
-      <!-- BGC alerts panel (Task #113) — populated by bgc-compliance.js on every dashboard load -->
-      <div id="bgc-alerts-panel-overview" style="display:none;margin-bottom:18px;"></div>
-
-      <!-- Shop Onboarding Checklist (Task #89) -->
-      <div id="shop-onboarding-card" class="card" style="margin-bottom:24px;border:1px solid rgba(201,162,39,0.25);background:linear-gradient(145deg,rgba(201,162,39,0.06),rgba(26,32,42,0.9));">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span style="font-size:1.3rem;">🛠️</span>
-            <div>
-              <div style="font-weight:600;font-size:0.95rem;">Shop Setup Checklist</div>
-              <div style="font-size:0.8rem;color:var(--text-muted);">Complete these steps to get your shop fully running</div>
-            </div>
-          </div>
-          <button onclick="document.getElementById('shop-onboarding-card').style.display='none'" style="background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.1rem;padding:4px;">&times;</button>
-        </div>
-        <div id="shop-onboarding-checklist">
-          <div style="color:var(--text-muted);font-size:0.88rem;">Loading checklist…</div>
-        </div>
-      </div>
-
+      
       <!-- Bid Credits Info Card -->
       <div class="card" style="background:linear-gradient(135deg, var(--bg-card), var(--accent-gold-soft));border:1px solid var(--accent-gold);margin-bottom:24px;">
         <div style="display:flex;align-items:center;gap:20px;flex-wrap:wrap;">
@@ -1076,21 +992,6 @@
           <div class="stat-icon gold"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></div>
           <div class="stat-value" id="stat-rating">--</div>
           <div class="stat-label">Your Rating <span id="stat-review-count" style="color:var(--text-muted);font-size:0.8rem;">(0 reviews)</span></div>
-        </div>
-      </div>
-
-      <!-- Background Check Dashboard Card -->
-      <div class="card" id="bg-check-dashboard-card" style="margin-bottom:24px;border:1px solid var(--border-subtle);">
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:12px;">
-          <div style="width:40px;height:40px;border-radius:10px;background:var(--bg-input);display:flex;align-items:center;justify-content:center;font-size:1.3rem;flex-shrink:0;">🛡️</div>
-          <div style="flex:1;min-width:0;">
-            <div style="font-weight:600;font-size:1rem;">Background Verification</div>
-            <div style="font-size:0.78rem;color:var(--text-muted);">Trust badge for your profile and bids</div>
-          </div>
-          <button class="btn btn-ghost btn-sm" onclick="showSection('background-checks')" title="View full details" style="flex-shrink:0;font-size:0.8rem;">View →</button>
-        </div>
-        <div id="bg-check-dashboard-status">
-          <div style="color:var(--text-muted);font-size:0.85rem;">Loading…</div>
         </div>
       </div>
 
@@ -1162,7 +1063,7 @@
           <select class="form-input" id="filter-urgency" onchange="applyFilters()" style="padding:10px 12px;">
             <option value="">Any Deadline</option>
             <option value="urgent"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 14a1 1 0 0 1-.78-1.63l9.9-10.2a.5.5 0 0 1 .86.46l-1.92 6.02A1 1 0 0 0 13 10h7a1 1 0 0 1 .78 1.63l-9.9 10.2a.5.5 0 0 1-.86-.46l1.92-6.02A1 1 0 0 0 11 14z"/></svg></span> Under 24 hours</option>
-            <option value="soon"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> Under 3 days</option>
+            <option value="soon">Under 3 days</option>
             <option value="flexible"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span> More than 3 days</option>
           </select>
         </div>
@@ -1213,32 +1114,6 @@
 
     <section id="bids" class="section">
       <div class="page-header"><h1 class="page-title">My Bids</h1><p class="page-subtitle">Track your submitted bids.</p></div>
-      
-      <div id="bid-insights-panel" class="card" style="margin-bottom:24px;display:none;">
-        <div class="card-header">
-          <h2 class="card-title" style="display:flex;align-items:center;gap:10px;">
-            <span style="display:inline-flex;align-items:center;justify-content:center;width:32px;height:32px;background:linear-gradient(135deg,rgba(56,189,248,0.2),rgba(139,92,246,0.2));border-radius:8px;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="7.5 4.21 12 6.81 16.5 4.21"/><polyline points="7.5 19.79 7.5 14.6 3 12"/><polyline points="21 12 16.5 14.6 16.5 19.79"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" x2="12" y1="22.08" y2="12"/></svg>
-            </span>
-            Bid Insights
-            <span style="font-size:0.7rem;padding:3px 8px;background:linear-gradient(135deg,rgba(56,189,248,0.15),rgba(139,92,246,0.15));border:1px solid rgba(56,189,248,0.3);border-radius:100px;color:var(--accent-blue);font-weight:600;letter-spacing:0.03em;">AI-POWERED</span>
-          </h2>
-          <button class="btn btn-ghost btn-sm" onclick="loadBidInsights(true)" title="Refresh insights">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
-          </button>
-        </div>
-        <div id="bid-insights-content">
-          <div style="text-align:center;padding:30px;">
-            <div class="loading-spinner" style="margin:0 auto 12px;width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
-            <p style="color:var(--text-muted);font-size:0.88rem;">Analyzing your bidding performance...</p>
-          </div>
-        </div>
-        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);display:flex;align-items:center;gap:6px;">
-          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-muted)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" x2="12" y1="16" y2="12"/><line x1="12" x2="12.01" y1="8" y2="8"/></svg>
-          <span style="font-size:0.75rem;color:var(--text-muted);font-style:italic;">AI-generated guidance based on your bid history. Not a guarantee of future results.</span>
-        </div>
-      </div>
-      
       <div id="my-bids"><div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></div><div class="empty-state-title">No bids placed yet</div><div class="empty-state-desc">Browse open service packages and submit competitive bids to start winning jobs.</div><button class="empty-state-cta" onclick="showSection('browse')">Browse Packages</button></div></div>
     </section>
 
@@ -1253,9 +1128,6 @@
         </button>
       </div>
       <div id="active-jobs"><div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="empty-state-title">No active jobs right now</div><div class="empty-state-desc">When a member accepts your bid, the job will appear here with all the details you need to get started.</div><button class="empty-state-cta" onclick="showSection('bids')">Check Your Bids</button></div></div>
-    </section>
-
-    <section id="refund-requests" class="section">
     </section>
 
     <section id="refund-requests" class="section">
@@ -1567,26 +1439,6 @@
         </div>
       </div>
 
-      <div id="ai-review-summary-card" class="card" style="margin-bottom:24px;display:none;border:1px solid rgba(56,189,248,0.2);background:linear-gradient(145deg, rgba(56,189,248,0.05), rgba(26,32,42,0.95));">
-        <div class="card-header" style="margin-bottom:12px;">
-          <div style="display:flex;align-items:center;gap:10px;">
-            <div style="width:36px;height:36px;border-radius:10px;background:rgba(56,189,248,0.12);display:flex;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#38bdf8" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 8V4H8"/><rect width="16" height="12" x="4" y="8" rx="2"/><path d="M2 14h2"/><path d="M20 14h2"/><path d="M15 13v2"/><path d="M9 13v2"/></svg></div>
-            <h2 class="card-title">AI Review Summary</h2>
-          </div>
-          <span style="font-size:0.72rem;color:var(--text-muted);padding:4px 10px;background:var(--bg-input);border-radius:100px;border:1px solid var(--border-subtle);">AI-generated summary</span>
-        </div>
-        <div id="ai-review-summary-content" style="margin-bottom:16px;">
-          <p id="ai-summary-text" style="color:var(--text-secondary);line-height:1.7;font-size:0.95rem;margin-bottom:16px;"></p>
-          <div style="display:flex;gap:16px;flex-wrap:wrap;">
-            <div id="ai-positive-themes" style="flex:1;min-width:200px;"></div>
-            <div id="ai-constructive-themes" style="flex:1;min-width:200px;"></div>
-          </div>
-        </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding-top:12px;border-top:1px solid var(--border-subtle);">
-          <span id="ai-summary-meta" style="font-size:0.78rem;color:var(--text-muted);"></span>
-        </div>
-      </div>
-
       <!-- Rating breakdown -->
       <div class="card" style="margin-bottom:24px;">
         <div class="card-header"><h2 class="card-title">Rating Breakdown</h2></div>
@@ -1862,55 +1714,6 @@
         <p class="page-subtitle">Purchase credits to bid on service packages.</p>
       </div>
 
-      <!-- Provider Shop SaaS Subscription Card (Task #89) -->
-      <div id="shop-subscription-card" class="card" style="margin-bottom:24px;border:1px solid rgba(201,162,39,0.2);background:linear-gradient(145deg,rgba(201,162,39,0.05),rgba(26,32,42,0.95));">
-        <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
-          <div style="display:flex;align-items:center;gap:14px;">
-            <div style="width:44px;height:44px;background:rgba(201,162,39,0.15);border-radius:12px;display:flex;align-items:center;justify-content:center;font-size:22px;">🏪</div>
-            <div>
-              <div style="font-weight:600;font-size:0.95rem;">Provider Shop Plan</div>
-              <div id="shop-sub-plan" style="font-size:0.82rem;color:var(--text-muted);">Loading…</div>
-            </div>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px;">
-            <span id="shop-sub-status" style="font-size:0.82rem;font-weight:600;"></span>
-            <button class="btn btn-sm btn-secondary" onclick="openShopUpgradeModal()">Manage Plan</button>
-          </div>
-        </div>
-        <!-- Seat usage bar -->
-        <div style="margin-top:14px;padding-top:14px;border-top:1px solid var(--border-subtle);">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <span style="font-size:0.8rem;font-weight:600;color:var(--text-muted);">Team Seats</span>
-            <span id="shop-seat-text" style="font-size:0.8rem;color:var(--text-muted);">—</span>
-          </div>
-          <div style="height:6px;background:rgba(160,168,184,0.15);border-radius:3px;">
-            <div id="shop-seat-bar" style="height:100%;width:0%;background:#c9a227;border-radius:3px;transition:width 0.4s;"></div>
-          </div>
-        </div>
-        <!-- Gated features -->
-        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap;">
-          <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-subtle);font-size:0.78rem;font-weight:600;">
-            📱 SMS Reminders: <span id="shop-feat-sms" style="margin-left:4px;color:var(--text-muted);">—</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-subtle);font-size:0.78rem;font-weight:600;">
-            📊 Analytics: <span id="shop-feat-analytics" style="margin-left:4px;color:var(--text-muted);">—</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:6px;padding:5px 12px;border-radius:20px;border:1px solid var(--border-subtle);font-size:0.78rem;font-weight:600;">
-            🎁 Car Club: <span id="shop-feat-loyalty" style="margin-left:4px;color:var(--text-muted);">—</span>
-          </div>
-        </div>
-        <!-- Upgrade prompt -->
-        <div id="shop-upgrade-prompt" style="display:none;margin-top:14px;padding:12px 16px;background:rgba(201,162,39,0.08);border-radius:10px;border:1px solid rgba(201,162,39,0.25);">
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
-            <div>
-              <div style="font-weight:600;color:var(--accent-gold);font-size:0.9rem;">Unlock Pro Features</div>
-              <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">SMS reminders, advanced analytics &amp; Car Club loyalty programs.</div>
-            </div>
-            <button class="btn btn-sm btn-primary" onclick="openShopUpgradeModal()">Upgrade to Team →</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Quick Checkout Banner -->
       <div id="quick-checkout-banner" style="background:linear-gradient(135deg, var(--accent-gold), #c49a45);border-radius:var(--radius-lg);padding:20px 24px;margin-bottom:24px;display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:16px;">
         <div style="display:flex;align-items:center;gap:16px;">
@@ -2018,10 +1821,7 @@
     <!-- Business Profile Section -->
     <section id="profile" class="section">
       <div class="page-header">
-        <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-          <h1 class="page-title">Business Profile</h1>
-          <span id="bg-check-profile-badge" style="display:none;"></span>
-        </div>
+        <h1 class="page-title">Business Profile</h1>
         <p class="page-subtitle">Set up your profile to attract more customers.</p>
       </div>
 
@@ -2806,48 +2606,7 @@
         </p>
       </div>
 
-      <!-- Native App Push Notifications (Capacitor iOS / Android only) -->
-      <div class="card" id="provider-native-push-card" style="margin-top:24px;display:none;">
-        <div class="card-header">
-          <h2 class="card-title">
-            <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
-            Push Notifications
-          </h2>
-          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Get instant alerts for new bid opportunities, messages, and job updates.</p>
-        </div>
-        <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
-          <span><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
-          <div style="flex:1;">
-            <div id="provider-native-push-status-text" style="font-weight:600;margin-bottom:2px;">Push Notifications Disabled</div>
-            <div style="font-size:0.85rem;color:var(--text-muted);">Enable to receive instant alerts on this device.</div>
-          </div>
-          <span id="provider-native-push-badge" class="package-badge" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Off</span>
-        </div>
-        <div id="provider-native-push-enable-section">
-          <button class="btn btn-primary" id="provider-native-push-enable-btn" onclick="requestNativePushPermission('provider')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-            Enable Notifications
-          </button>
-        </div>
-        <div id="provider-native-push-enabled-section" style="display:none;">
-          <div style="padding:14px 16px;background:rgba(74,200,140,0.08);border:1px solid rgba(74,200,140,0.25);border-radius:var(--radius-md);margin-bottom:16px;">
-            <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">Push Notifications Active</div>
-            <div style="font-size:0.85rem;color:var(--text-secondary);">You'll receive alerts on this device for new bids, messages, job updates, and payment notifications.</div>
-          </div>
-          <button class="btn btn-secondary" onclick="disableNativePush('provider')">
-            <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
-            Disable Notifications
-          </button>
-        </div>
-        <div id="provider-native-push-denied-section" style="display:none;">
-          <div style="padding:14px 16px;background:rgba(239,95,95,0.08);border:1px solid rgba(239,95,95,0.25);border-radius:var(--radius-md);">
-            <div style="font-weight:600;color:var(--accent-red);margin-bottom:4px;">Notifications Blocked</div>
-            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">You've blocked notifications for this app. To re-enable them, go to your device Settings and allow notifications for My Car Concierge.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Push Notification Settings (Web) -->
+      <!-- Push Notification Settings -->
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
           <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Notification Settings</h2>
@@ -2910,27 +2669,6 @@
                 <div>
                   <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> Customer Messages</span>
                   <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when customers send you new messages</p>
-                </div>
-              </label>
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
-                <input type="checkbox" id="provider-push-bid-accepted" checked>
-                <div>
-                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span> Bid Accepted</span>
-                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Notified when a customer accepts your submitted bid</p>
-                </div>
-              </label>
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
-                <input type="checkbox" id="provider-push-ai-match" checked>
-                <div>
-                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 8v4l3 3"/></svg></span> AI Provider Match</span>
-                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when AI selects you as a top match for a new request</p>
-                </div>
-              </label>
-              <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
-                <input type="checkbox" id="provider-push-car-club" checked>
-                <div>
-                  <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg></span> Car Club Activity</span>
-                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Updates on your loyalty club punches and redeemed rewards</p>
                 </div>
               </label>
             </div>
@@ -3002,109 +2740,6 @@
         </div>
       </div>
 
-      <div class="card" id="public-profile-card" style="margin-top:24px;border:1px solid var(--accent-gold);background:var(--accent-gold-soft);">
-        <div class="card-header">
-          <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg></span> Public Profile</h2>
-        </div>
-        <div style="padding:4px 0;">
-          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
-            List your business in the My Car Concierge Provider Directory. Share your profile link on Google My Business, social media, and email signatures to bring your existing customers onto the platform.
-          </p>
-          <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;">
-            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-              <input type="checkbox" id="directory-opt-in" style="width:20px;height:20px;accent-color:var(--accent-gold);cursor:pointer;" onchange="toggleDirectoryOptIn()">
-              <span style="font-weight:600;">List my business in the public directory</span>
-            </label>
-          </div>
-          <div id="public-profile-link-section" style="display:none;padding:16px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
-            <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Your shareable profile link:</div>
-            <div style="display:flex;gap:8px;align-items:center;">
-              <input type="text" class="form-input" id="public-profile-url" readonly style="flex:1;font-size:0.9rem;background:var(--bg-input);cursor:text;">
-              <button class="btn btn-primary" onclick="copyProfileLink()" style="white-space:nowrap;padding:10px 20px;">
-                <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span> Copy Link
-              </button>
-            </div>
-            <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;">
-              <a id="preview-profile-link" href="#" target="_blank" style="font-size:0.85rem;color:var(--accent-gold);text-decoration:none;">Preview your profile &rarr;</a>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- Marketplace Visibility Toggle (Task #89) -->
-      <div class="card" style="margin-top:24px;border:1px solid rgba(34,211,238,0.2);">
-        <div class="card-header">
-          <h2 class="card-title"><span style="margin-right:8px;">🌐</span>Marketplace Visibility</h2>
-        </div>
-        <div style="padding:4px 0;">
-          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
-            Control whether your shop appears in member searches and receives bid requests. You can use MCC as a shop-management tool only, without marketplace exposure.
-          </p>
-          <div style="display:flex;flex-direction:column;gap:12px;">
-            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:14px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
-              <div>
-                <div style="font-weight:600;font-size:0.93rem;">Visible in Marketplace</div>
-                <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Appear in member searches and receive bid requests</div>
-              </div>
-              <div style="display:flex;align-items:center;gap:10px;">
-                <span id="marketplace-status-text" style="font-size:0.82rem;color:var(--text-muted);">Loading…</span>
-                <input type="checkbox" id="marketplace-visible-toggle" style="width:20px;height:20px;accent-color:var(--accent-gold);cursor:pointer;" onchange="saveMarketplaceVisibility()">
-              </div>
-            </label>
-            <label style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;padding:14px 16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
-              <div>
-                <div style="font-weight:600;font-size:0.93rem;">Shop-Only Mode</div>
-                <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">Use MCC purely for shop management — no marketplace exposure</div>
-              </div>
-              <input type="checkbox" id="shop-only-mode-toggle" style="width:20px;height:20px;accent-color:var(--accent-gold);cursor:pointer;" onchange="saveMarketplaceVisibility()">
-            </label>
-          </div>
-          <div style="margin-top:12px;padding:10px 14px;background:rgba(34,211,238,0.06);border:1px solid rgba(34,211,238,0.15);border-radius:8px;">
-            <p style="font-size:0.82rem;color:var(--text-muted);margin:0;">💡 You can switch between modes anytime. Marketplace visibility changes take effect immediately.</p>
-          </div>
-        </div>
-      </div>
-
-      <!-- Business Hours Editor (Task #89) -->
-      <div class="card" style="margin-top:24px;">
-        <div class="card-header">
-          <h2 class="card-title"><span style="margin-right:8px;">🕐</span>Business Hours</h2>
-          <button class="btn btn-primary btn-sm" onclick="saveBusinessHours()">Save Hours</button>
-        </div>
-        <div style="padding:4px 0;">
-          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">Set your shop hours. These display on your public shop profile so customers know when you're open.</p>
-          <div id="business-hours-editor" style="display:flex;flex-direction:column;gap:10px;">
-            <!-- Days rendered by JS -->
-          </div>
-        </div>
-      </div>
-
-      <!-- Walk-In Customer Kiosk Lookup (Task #89) -->
-      <div class="card" style="margin-top:24px;">
-        <div class="card-header">
-          <h2 class="card-title"><span style="margin-right:8px;">📋</span>Walk-In Customer Kiosk</h2>
-        </div>
-        <div style="padding:4px 0;">
-          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
-            Look up a returning customer by phone number or name for fast check-in. Previous vehicles and visit history are pre-filled automatically.
-          </p>
-          <div style="display:flex;gap:10px;margin-bottom:8px;">
-            <input type="tel" id="walkin-phone-input" class="form-input" placeholder="Phone number…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByPhone()">
-            <input type="text" id="walkin-name-search-input" class="form-input" placeholder="Or search by name…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByName()">
-            <button class="btn btn-primary" onclick="document.getElementById('walkin-phone-input').value?walkinLookupByPhone():walkinLookupByName()" style="white-space:nowrap;">Look Up</button>
-          </div>
-          <div id="walkin-lookup-result"></div>
-          <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
-            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;color:var(--text-muted);">Save New Walk-In Visit</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
-              <input type="text" id="walkin-name-field" class="form-input" placeholder="Customer name" />
-              <input type="text" id="walkin-vehicle-field" class="form-input" placeholder="Vehicle (e.g. 2019 Toyota)" />
-            </div>
-            <button class="btn btn-secondary" style="width:100%;" onclick="(async()=>{const ph=document.getElementById('walkin-phone-input').value.trim();const nm=document.getElementById('walkin-name-field').value.trim();const vh=document.getElementById('walkin-vehicle-field').value.trim();if(!ph)return;await saveWalkinCustomer(ph,nm,vh,'');if(typeof showToast==='function')showToast('Customer visit saved','success');})()">Save Visit Record</button>
-          </div>
-        </div>
-      </div>
-
       <!-- Danger Zone - Delete Account -->
       <div class="card" style="margin-top:24px;border:1px solid rgba(239,95,95,0.4);background:rgba(239,95,95,0.05);">
         <div class="card-header">
@@ -3132,9 +2767,6 @@
     <!-- Availability Section -->
     <section id="availability" class="section">
       <style>
-        .ab-svc-chip { transition: background 0.15s, color 0.15s, border-color 0.15s; }
-        .ab-svc-chip.active { background: var(--accent-gold) !important; color: var(--bg-deep) !important; border-color: var(--accent-gold) !important; font-weight: 600 !important; }
-
         .schedule-week-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 4px; min-height: 400px; }
         .schedule-day-column { background: var(--bg-input); border-radius: var(--radius-md); padding: 8px; position: relative; min-height: 350px; }
         .schedule-day-column .day-header { text-align: center; font-weight: 600; font-size: 0.85rem; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 8px; }
@@ -3322,14 +2954,13 @@
                   <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Name</th>
                   <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Email</th>
                   <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Role</th>
-                  <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">BGC</th>
                   <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Status</th>
                   <th style="text-align:right;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Actions</th>
                 </tr>
               </thead>
               <tbody id="team-members-tbody">
                 <tr>
-                  <td colspan="6" style="padding:48px;text-align:center;color:var(--text-muted);">
+                  <td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">
                     <div style="font-size:48px;margin-bottom:16px;opacity:0.5;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div>
                     <p>Loading team members...</p>
                   </td>
@@ -3349,64 +2980,6 @@
             <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></div>
             <p>No pending invitations</p>
           </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Compliance Section (Task #112: employee-level BGC) -->
-    <section id="compliance" class="section">
-      <div class="page-header">
-        <h1 class="page-title"><span class="section-icon" style="color:var(--accent-gold);margin-right:8px;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Team &amp; Compliance</h1>
-        <p class="page-subtitle">Background-check coverage for every customer-facing employee. 90%+ unlocks the MCC Verified badge.</p>
-      </div>
-
-      <!-- Alerts panel (Task #113) — populated by bgc-compliance.js -->
-      <div id="bgc-alerts-panel" style="display:none;margin-bottom:18px;"></div>
-
-      <!-- Task #114: 4-state Compliance Card (Active / At Risk / Inactive / Not enrolled).
-           Populated by bgc-compliance.js using verbatim PDF copy. -->
-      <div class="card" id="bgc-state-card" style="margin-bottom:18px;"></div>
-
-      <div class="card" id="bgc-summary-card">
-        <div style="display:flex;flex-wrap:wrap;align-items:center;gap:24px;justify-content:space-between;">
-          <div>
-            <div style="font-size:0.85rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;">Compliance</div>
-            <div style="display:flex;align-items:baseline;gap:12px;margin-top:6px;">
-              <div id="bgc-pct" style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);">—</div>
-              <div id="bgc-counts" style="color:var(--text-secondary);">0 of 0 employees cleared</div>
-            </div>
-          </div>
-          <div id="bgc-badge-state" style="padding:10px 18px;border-radius:999px;font-weight:600;font-size:0.85rem;background:rgba(255,255,255,0.05);color:var(--text-muted);">Not yet verified</div>
-        </div>
-        <div style="margin-top:18px;height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;">
-          <div id="bgc-pct-bar" style="height:100%;width:0%;background:linear-gradient(90deg,var(--accent-gold),var(--accent-teal));transition:width 0.4s ease;"></div>
-        </div>
-      </div>
-
-      <!-- Task #159: BGC reminder-email preferences. Populated by
-           bgc-compliance.js → loadNotificationPrefs(). -->
-      <div class="card" id="bgc-notif-prefs-card" style="margin-bottom:18px;"></div>
-
-      <div class="card">
-        <div class="card-header">
-          <h2 class="card-title">Customer-Facing Employees</h2>
-          <button class="btn btn-primary" onclick="window.bgcCompliance && window.bgcCompliance.openAddEmployee()">+ Add Employee</button>
-        </div>
-        <div style="overflow-x:auto;">
-          <table style="width:100%;border-collapse:collapse;">
-            <thead>
-              <tr style="border-bottom:1px solid var(--border-subtle);">
-                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Name</th>
-                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Role</th>
-                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">BGC Status</th>
-                <th style="text-align:left;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Expires</th>
-                <th style="text-align:right;padding:12px 16px;font-size:0.85rem;color:var(--text-muted);font-weight:500;">Action</th>
-              </tr>
-            </thead>
-            <tbody id="bgc-employees-tbody">
-              <tr><td colspan="5" style="padding:48px;text-align:center;color:var(--text-muted);">Loading…</td></tr>
-            </tbody>
-          </table>
         </div>
       </div>
     </section>
@@ -3791,7 +3364,6 @@
           <div id="fleet-job-queue">
             <div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></svg></div><div class="empty-state-title">No fleet requests yet</div><div class="empty-state-desc">Fleet requests from verified business accounts will appear here. These jobs offer guaranteed payment and volume discounts.</div></div>
           </div>
-          </div>
         </div>
       </div>
 
@@ -3881,78 +3453,8 @@
               <li>Builds trust with customers and increases your chances of winning bids</li>
               <li>Verified providers are highlighted with a trusted badge on their profile</li>
               <li>Required for certain premium service categories and fleet contracts</li>
-              <li>Checks are conducted via BackgroundChecks.com and typically complete within 24-72 hours</li>
+              <li>Checks are conducted by our trusted partner and typically complete within 24-72 hours</li>
             </ul>
-          </div>
-        </div>
-      </div>
-    </section>
-
-    <!-- Auto-Bid Section -->
-    <section id="auto-bid" class="section">
-      <div class="page-header">
-        <h1 class="page-title">Auto-Bid Settings</h1>
-        <p class="page-subtitle">Let the platform automatically place competitive bids on matching care plans while you focus on your work.</p>
-      </div>
-      <div class="card" style="max-width:640px;">
-        <div class="card-header">
-          <h2 class="card-title" style="display:flex;align-items:center;gap:10px;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
-            Auto-Bid Engine
-          </h2>
-          <label style="display:flex;align-items:center;gap:10px;cursor:pointer;">
-            <span style="font-size:0.85rem;color:var(--text-muted);" id="auto-bid-status-label">Disabled</span>
-            <div class="toggle-switch-wrapper" style="position:relative;width:46px;height:24px;">
-              <input type="checkbox" id="auto-bid-toggle" style="opacity:0;position:absolute;width:100%;height:100%;cursor:pointer;z-index:2;" onchange="onAutoBidToggle(this.checked)">
-              <div id="auto-bid-slider" style="position:absolute;inset:0;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:12px;transition:all 0.3s;">
-                <div style="position:absolute;top:2px;left:2px;width:18px;height:18px;border-radius:50%;background:var(--text-muted);transition:all 0.3s;" id="auto-bid-thumb"></div>
-              </div>
-            </div>
-          </label>
-        </div>
-
-        <div id="auto-bid-settings-body">
-          <div style="background:var(--accent-gold-soft);border:1px solid rgba(201,162,39,0.3);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:20px;font-size:0.85rem;color:var(--text-secondary);">
-            <strong style="color:var(--accent-gold);">How it works:</strong> When enabled, MCC automatically scans new care plans and places a bid at your configured percentage of the member's estimate — only for plans within your distance and service type preferences.
-          </div>
-
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;">
-            <div>
-              <label style="display:block;font-size:0.82rem;font-weight:500;color:var(--text-secondary);margin-bottom:6px;">Max Distance (miles)</label>
-              <input type="number" id="ab-max-distance" min="5" max="200" value="25" class="form-input" style="width:100%;padding:9px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);color:var(--text-primary);font-family:inherit;" oninput="updateAutoBidPreview()">
-            </div>
-            <div>
-              <label style="display:block;font-size:0.82rem;font-weight:500;color:var(--text-secondary);margin-bottom:6px;">Bid at % of Estimate: <strong id="ab-pct-label" style="color:var(--accent-gold);">85%</strong></label>
-              <input type="range" id="ab-pct" min="70" max="100" value="85" style="width:100%;accent-color:var(--accent-gold);" oninput="document.getElementById('ab-pct-label').textContent=this.value+'%';updateAutoBidPreview()">
-              <div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-muted);margin-top:2px;"><span>70% (competitive)</span><span>100% (full)</span></div>
-            </div>
-          </div>
-
-          <div style="margin-bottom:20px;">
-            <label style="display:block;font-size:0.82rem;font-weight:500;color:var(--text-secondary);margin-bottom:8px;">Service Types (leave empty to bid on all)</label>
-            <div id="ab-service-chips" style="display:flex;flex-wrap:wrap;gap:8px;">
-              <div class="ab-svc-chip" data-type="maintenance" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Maintenance</div>
-              <div class="ab-svc-chip" data-type="detailing" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Detailing</div>
-              <div class="ab-svc-chip" data-type="cosmetic" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Cosmetic</div>
-              <div class="ab-svc-chip" data-type="performance" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Performance</div>
-              <div class="ab-svc-chip" data-type="audio_electronics" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Electronics</div>
-              <div class="ab-svc-chip" data-type="ev_hybrid" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">EV/Hybrid</div>
-              <div class="ab-svc-chip" data-type="accident_repair" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Accident Repair</div>
-              <div class="ab-svc-chip" data-type="interior" onclick="toggleAbServiceType(this)" style="padding:5px 12px;border-radius:100px;font-size:0.78rem;font-weight:500;cursor:pointer;border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-secondary);transition:all 0.15s;">Interior</div>
-            </div>
-          </div>
-
-          <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;margin-bottom:20px;display:flex;align-items:center;justify-content:space-between;">
-            <div>
-              <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:2px;">Matching open plans right now</div>
-              <div style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);" id="ab-preview-count">—</div>
-            </div>
-            <button class="btn" style="background:var(--bg-input);color:var(--text-secondary);border:1px solid var(--border-subtle);padding:8px 14px;font-size:0.82rem;" onclick="updateAutoBidPreview()">Refresh Preview</button>
-          </div>
-
-          <div style="display:flex;gap:10px;">
-            <button class="btn" style="background:linear-gradient(135deg,var(--accent-gold),#e6b84a);color:var(--bg-deep);flex:1;justify-content:center;font-weight:600;" onclick="saveAutoBidSettings()">Save Auto-Bid Settings</button>
-            <a href="/provider/jobs" class="btn" style="background:var(--bg-elevated);color:var(--text-secondary);border:1px solid var(--border-subtle);padding:10px 16px;">View Job Board →</a>
           </div>
         </div>
       </div>
@@ -4283,7 +3785,6 @@
               <span>High</span>
             </div>
             <div class="calc-gauge-position competitive" id="calc-gauge-position">Competitive</div>
-            <div id="calc-ai-price-suggestion" class="calc-ai-suggestion" style="display:none;"></div>
           </div>
           
           <!-- Apply Button -->
@@ -4337,7 +3838,6 @@
               <option value="custom">Custom Amount...</option>
             </select>
             <input type="number" class="form-input" id="bid-price-custom" placeholder="Enter custom amount" min="0" style="display:none;margin-top:8px;">
-            <div id="bid-price-signal" style="display:none;margin-top:8px;padding:10px 12px;border-radius:var(--radius-md);font-size:0.85rem;line-height:1.4;transition:all 0.3s ease;"></div>
           </div>
           <div class="form-group"><label class="form-label">Estimated Duration</label><input type="text" class="form-input" id="bid-duration" placeholder="2-3 hours"></div>
         </div>
@@ -4346,17 +3846,7 @@
           <div class="form-group"><label class="form-label">Labor Cost ($)</label><input type="number" class="form-input" id="bid-labor" placeholder="150" min="0"></div>
         </div>
         <div class="form-group"><label class="form-label">Your Availability</label><input type="text" class="form-input" id="bid-availability" placeholder="Available Mon-Fri, can start next week"></div>
-        <div class="form-group">
-          <label class="form-label">Notes for Member</label>
-          <textarea class="form-textarea" id="bid-notes" placeholder="Describe your approach, experience with this type of work, etc."></textarea>
-          <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-            <button type="button" class="btn btn-secondary btn-sm" id="draft-pitch-btn" onclick="draftBidPitch()" style="font-size:0.82rem;padding:6px 14px;border:1px solid var(--accent-teal);color:var(--accent-teal);background:transparent;">
-              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-              Draft my pitch
-            </button>
-            <span id="draft-pitch-status" style="display:none;font-size:0.82rem;color:var(--text-muted);"></span>
-          </div>
-        </div>
+        <div class="form-group"><label class="form-label">Notes for Member</label><textarea class="form-textarea" id="bid-notes" placeholder="Describe your approach, experience with this type of work, etc."></textarea></div>
         
         <!-- All-Inclusive Pricing Confirmation -->
         <div class="form-group" style="margin-top:16px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
@@ -5530,31 +5020,11 @@
     </div>
   </div>
 
-  <!-- Background Check Report Viewer Modal (Connect Widget) -->
-  <div class="modal-backdrop" id="bg-report-viewer-modal">
-    <div class="modal" style="max-width:900px;width:95vw;height:85vh;display:flex;flex-direction:column;">
-      <div class="modal-header" style="flex-shrink:0;">
-        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><polyline points="10 9 9 9 8 9"/></svg></span> Background Check Report</h3>
-        <button class="modal-close" onclick="closeModal('bg-report-viewer-modal'); document.getElementById('bg-report-viewer-iframe').src='about:blank';">×</button>
-      </div>
-      <div class="modal-body" style="flex:1;padding:0;overflow:hidden;display:flex;flex-direction:column;min-height:0;">
-        <div id="bg-report-viewer-loader" style="display:flex;align-items:center;justify-content:center;height:100%;color:var(--text-muted);font-size:0.95rem;padding:40px;">Loading report…</div>
-        <div id="bg-report-viewer-error" style="display:none;padding:24px;color:var(--accent-red);font-size:0.9rem;"></div>
-        <iframe id="bg-report-viewer-iframe"
-          style="display:none;width:100%;flex:1;border:none;border-radius:0 0 var(--radius-lg) var(--radius-lg);"
-          sandbox="allow-scripts allow-same-origin allow-forms allow-popups allow-popups-to-escape-sandbox"
-          title="BackgroundChecks.com Connect Widget"
-          referrerpolicy="strict-origin-when-cross-origin">
-        </iframe>
-      </div>
-    </div>
-  </div>
-
   <!-- Background Check Modal -->
   <div class="modal-backdrop" id="background-check-modal">
     <div class="modal">
       <div class="modal-header">
-        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Initiate Background Check</h3>
+        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Initiate Background Check</h3>
         <button class="modal-close" onclick="closeModal('background-check-modal')">×</button>
       </div>
       <div class="modal-body">
@@ -5568,51 +5038,40 @@
 
         <div id="bg-check-employee-fields" style="display:none;">
           <div class="form-group">
-            <label class="form-label">Select Team Member</label>
+            <label class="form-label">Select Team Member *</label>
             <select class="form-input" id="bg-check-team-member">
               <option value="">Select a team member...</option>
             </select>
           </div>
         </div>
 
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;">
-          <div class="form-group">
-            <label class="form-label">First Name *</label>
-            <input type="text" class="form-input" id="bg-check-first-name" placeholder="First name">
-          </div>
-          <div class="form-group">
-            <label class="form-label">Last Name *</label>
-            <input type="text" class="form-input" id="bg-check-last-name" placeholder="Last name">
-          </div>
-        </div>
-
         <div class="form-group">
           <label class="form-label">Email Address *</label>
           <input type="email" class="form-input" id="bg-check-email" placeholder="Email for background check invitation">
-          <p class="form-hint" style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">An invitation link will be sent to this email to complete the check</p>
+          <p class="form-hint">An invitation will be sent to this email to complete the background check</p>
         </div>
 
         <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);margin-top:16px;">
-          <div style="font-weight:600;margin-bottom:8px;font-size:0.9rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Package Included</div>
-          <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.6;">
-            <div style="margin-bottom:4px;">✓ <strong>Criminal Check</strong> — national database, sex offender registry, global watchlist</div>
-            <div>✓ <strong>Motor Vehicle Report (MVR)</strong> — driving history verification</div>
+          <div style="font-weight:600;margin-bottom:8px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Background Check Package</div>
+          <div style="font-size:0.9rem;color:var(--text-muted);line-height:1.6;">
+            <div style="margin-bottom:8px;"><strong>Standard Criminal Check</strong> - National criminal database search, sex offender registry, global watchlist</div>
+            <div><strong>Motor Vehicle Report (MVR)</strong> - Driving history verification</div>
           </div>
         </div>
 
-        <div style="background:rgba(201,162,39,0.1);border:1px solid var(--accent-gold);padding:14px 16px;border-radius:var(--radius-md);margin-top:12px;">
-          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
-            <input type="checkbox" id="bg-check-fcra-ack" style="margin-top:3px;min-width:16px;min-height:16px;accent-color:var(--accent-gold);">
-            <span style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">
-              <strong style="color:var(--accent-gold);">FCRA Disclosure &amp; Acknowledgment (Required)</strong> — I confirm that I have reviewed the <a href="/background-check-disclosure.html" target="_blank" style="color:var(--accent-gold);text-decoration:underline;">FCRA Disclosure</a>, that the subject of this background check has received a copy of their rights under the Fair Credit Reporting Act, and has provided written consent for this consumer report screening as required by 15 U.S.C. § 1681b(b)(2)(A).
-            </span>
-          </label>
-        </div>
+        <div style="background:rgba(201,162,39,0.1);border:1px solid var(--accent-gold);padding:16px;border-radius:var(--radius-md);margin-top:16px;">
+          <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+            <span style="font-size:1.2rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m14.5 12.5-8 8a2.119 2.119 0 1 1-3-3l8-8"/><path d="m16 16 6-6"/><path d="m8 8 6-6"/><path d="m9 7 8 8"/><path d="m21 11-8-8"/></svg></span></span>
+            <span style="font-weight:600;color:var(--accent-gold);">Consent Required</span>
+          </div>
+          <div style="font-size:0.85rem;color:var(--text-muted);line-height:1.5;">
+            By initiating this background check, you confirm that the subject has provided written consent for this screening as required by the Fair Credit Reporting Act (FCRA).
+          </div>
         </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('background-check-modal')">Cancel</button>
-        <button class="btn btn-primary" id="bg-check-submit-btn" onclick="submitBackgroundCheck()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Initiate Check</button>
+        <button class="btn btn-primary" onclick="submitBackgroundCheck()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Initiate Check</button>
       </div>
     </div>
   </div>
@@ -6661,24 +6120,16 @@
     </div>
   </div>
 
-  <script>window._mccPushContext = 'provider';</script>
   <script src="https://js.stripe.com/v3/"></script>
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260122"></script>
   <script src="mcc-config.js?v=20260122"></script>
-  <script src="/white-label-client.js"></script>
   <script src="tos-modal.js?v=20260122"></script>
   <script src="emailService.js?v=20260122"></script>
   <script src="mobile-pay.js?v=20260124"></script>
   <script src="stripeutils.js?v=20260124"></script>
   <script src="mcc-icons.js?v=20260211"></script>
   <script src="providers-core.js?v=20260202"></script>
-  <script src="providers-settings.js?v=20260315"></script>
-  <script src="/bgc-badge.js?v=20260428"></script>
-  <script src="/bgc-pricing.js?v=20260429"></script>
-  <script src="/bgc-onboarding.js?v=20260429"></script>
-  <script src="bgc-compliance.js?v=20260428i"></script>
-  <script src="members-push.js?v=20260319"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script src="/chat-widget-base.js?v=20260122"></script>
   <script src="/helpdesk-widget.js?v=20260122"></script>
@@ -6704,102 +6155,16 @@
       new HelpdeskWidget({ mode: 'provider', position: 'bottom-right' });
     });
   </script>
-  <script src="/provider-onboarding.js?v=20260429" defer></script>
+  <script src="/provider-onboarding.js" defer></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
-        if (window._providerOnboarding && window._providerOnboarding.shouldShow()) {
-          window._providerOnboarding.show();
+        if (globalThis._providerOnboarding && globalThis._providerOnboarding.shouldShow()) {
+          globalThis._providerOnboarding.show();
         }
       }, 1500);
     });
   </script>
   <script src="analytics-tracker.js" defer></script>
-  <script>
-    // Provider onboarding checklist
-    (function initProviderChecklist() {
-      const STEPS = [
-        { key: 'provider_profile',       icon: '👤', label: 'Complete your profile',       action: "showSection('profile')",         hint: 'Add bio, photo, and service area' },
-        { key: 'provider_docs',          icon: '📄', label: 'Upload verification docs',     action: "showSection('background-checks')", hint: 'ID, insurance, and certifications' },
-        { key: 'provider_services',      icon: '🔧', label: 'Add your services',            action: "showSection('profile')",         hint: 'Set the services you offer' },
-        { key: 'provider_stripe',        icon: '💳', label: 'Connect Stripe payouts',       action: "showSection('subscription')",   hint: 'Required to receive payments' },
-        { key: 'provider_first_booking', icon: '🎉', label: 'Receive your first booking',  action: null,                           hint: 'Post a job or wait for requests' }
-      ];
-
-      function renderProviderChecklist(checklist) {
-        const container = document.getElementById('shop-onboarding-checklist');
-        if (!container) return;
-
-        const completedCount = STEPS.filter(s => checklist[s.key]).length;
-        const pct = Math.round((completedCount / STEPS.length) * 100);
-
-        let html = `<div style="margin-bottom:10px;">
-          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
-            <span style="font-size:0.8rem;color:var(--text-muted);">${completedCount} of ${STEPS.length} complete</span>
-            <span style="font-size:0.8rem;font-weight:600;color:var(--accent-gold);">${pct}%</span>
-          </div>
-          <div style="height:5px;background:var(--bg-secondary);border-radius:99px;overflow:hidden;">
-            <div style="height:100%;width:${pct}%;background:var(--accent-gold);border-radius:99px;transition:width 0.4s;"></div>
-          </div>
-        </div>
-        <div style="display:flex;flex-direction:column;gap:8px;margin-top:12px;">`;
-
-        for (const step of STEPS) {
-          const isDone = !!checklist[step.key];
-          html += `<div style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:8px;background:${isDone ? 'var(--accent-teal-soft,rgba(34,211,238,0.08))' : 'var(--bg-secondary)'};cursor:${step.action && !isDone ? 'pointer' : 'default'};"
-            ${step.action && !isDone ? `onclick="${step.action}"` : ''}>
-            <span style="font-size:1rem;line-height:1;">${isDone ? '✅' : step.icon}</span>
-            <div style="flex:1;min-width:0;">
-              <div style="font-size:0.88rem;font-weight:${isDone ? '500' : '600'};color:${isDone ? 'var(--text-muted)' : 'var(--text-primary)'};text-decoration:${isDone ? 'line-through' : 'none'};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${step.label}</div>
-              ${!isDone ? `<div style="font-size:0.76rem;color:var(--text-muted);">${step.hint}</div>` : ''}
-            </div>
-            ${!isDone && step.action ? `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--accent-gold);flex-shrink:0;"><polyline points="9 18 15 12 9 6"/></svg>` : ''}
-          </div>`;
-        }
-
-        html += '</div>';
-        container.innerHTML = html;
-
-        // Hide card if all steps complete
-        const card = document.getElementById('shop-onboarding-card');
-        if (card && completedCount === STEPS.length) {
-          card.style.display = 'none';
-        }
-      }
-
-      async function loadProviderChecklist() {
-        try {
-          const client = window.supabaseClient;
-          const { data: { session } } = client ? await client.auth.getSession() : { data: { session: null } };
-          if (!session?.access_token) throw new Error('no session');
-          const res = await fetch('/api/member/onboarding?role=provider', {
-            headers: { 'Authorization': 'Bearer ' + session.access_token }
-          });
-          if (!res.ok) throw new Error('not ok');
-          const data = await res.json();
-          if (data.checklist) renderProviderChecklist(data.checklist);
-        } catch (e) {
-          const c = document.getElementById('shop-onboarding-checklist');
-          if (c) c.innerHTML = '<p style="color:var(--text-muted);font-size:0.85rem;">Unable to load checklist.</p>';
-        }
-      }
-
-      // Expose helper so providers-core.js can call it after actions
-      window.markProviderOnboardingStep = async function(step) {
-        try {
-          const client = window.supabaseClient;
-          const { data: { session } } = client ? await client.auth.getSession() : { data: { session: null } };
-          if (!session?.access_token) return;
-          await fetch('/api/member/onboarding/step', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
-            body: JSON.stringify({ step, value: true })
-          });
-          loadProviderChecklist(); // Refresh display
-        } catch (_) {}
-      };
-
-      document.addEventListener('DOMContentLoaded', loadProviderChecklist);
-    })();
-  </script>
+</body>
 </html>
