@@ -59,3 +59,4 @@
 /api/survey/area-check /.netlify/functions/survey-area-check 200
 /api/survey/referral-link /.netlify/functions/survey-referral-link 200
 /api/fb/conversions /.netlify/functions/facebook-conversions-api 200
+/api/twilio/sms-inbound /.netlify/functions/twilio-sms-inbound 200
