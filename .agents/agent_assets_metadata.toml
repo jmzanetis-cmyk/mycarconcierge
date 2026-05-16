@@ -23,3 +23,15 @@ id = "vTDcQuskKr6amJQsZLr7D"
 uri = "file://attached_assets/outreach-migration-2-of-2.sql.txt"
 type = "text"
 title = "2. Run second — CRM bridge (pure SQL, no header)"
+
+[[outputs]]
+id = "v1M2DOugKccOLNfozDGf2"
+uri = "file://docs/driver-app-style-guide.md"
+type = "text"
+title = "MCC Driver App — Style Match Guide (Markdown)"
+
+[[outputs]]
+id = "eoPoMJ37FGaWuWMqopNMm"
+uri = "file://.local/exports/mcc-driver-style-guide.tar.gz"
+type = "unspecified"
+title = "Both files bundled (style guide + driver-tokens.css)"
