@@ -81,6 +81,41 @@ async function recordAndApply(supabase, { phoneE164, keyword, action, twilioSid,
       if (error) return { matched: 0, error: error.message };
       matched = ids.length;
     }
+
+    // Per Task #425 spec (Step 4) also clear provider_notification_prefs SMS
+    // flags for any provider whose `sms_phone` matches the inbound number, so
+    // STOP turns off SMS reminders even where the recipient profile isn't the
+    // texting account (provider/employee mismatch). On opt-in we just clear
+    // the deny-list; the provider has to re-enable each reminder explicitly.
+    try {
+      const { data: prefs } = await supabase
+        .from('provider_notification_prefs')
+        .select('user_id, sms_phone')
+        .not('sms_phone', 'is', null);
+      const prefMatches = (prefs || []).filter(p => normalizePhone(p.sms_phone) === phoneE164);
+      if (prefMatches.length > 0) {
+        const userIds = prefMatches.map(p => p.user_id);
+        const prefUpdate = action === 'opt_out'
+          ? {
+              bgc_reminder_60_sms: false,
+              bgc_reminder_30_sms: false,
+              bgc_reminder_14_sms: false,
+              bgc_reminder_7_sms:  false,
+              bgc_reminder_1_sms:  false,
+              sms_phone: null
+            }
+          : {}; // opt-in does NOT auto-re-enable opt-in-only SMS flags
+        if (action === 'opt_out') {
+          const { error: pErr } = await supabase
+            .from('provider_notification_prefs')
+            .update(prefUpdate)
+            .in('user_id', userIds);
+          if (pErr) console.warn(`[twilio-sms-inbound] provider_notification_prefs update warning: ${pErr.message}`);
+        }
+      }
+    } catch (e) {
+      console.warn(`[twilio-sms-inbound] provider_notification_prefs update threw: ${e.message}`);
+    }
     await supabase.from('sms_opt_out_log').insert({
       phone_e164: phoneE164,
       keyword,
