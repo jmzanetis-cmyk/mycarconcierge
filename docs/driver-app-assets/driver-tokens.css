@@ -11,15 +11,16 @@
    SOURCE-FAITHFUL: the token values and base-component rules below
    mirror the corresponding blocks in www/shared-styles.css. If you
    change something here, also change it there (or vice versa) — drift
-   between the two files is what this asset exists to prevent. See
-   follow-up Task #433 for a CI guard.
+   between the two files is what this asset exists to prevent.
 
-   Intentional additions (not in www/shared-styles.css):
-     - `.theme-label-light` / `.theme-label-dark` visibility selectors
-       on `.header-theme-toggle`. The main platform's header pill
-       hard-codes the "Day"/"Night" word into the button JS; the
-       Driver app gets a small markup-only enhancement so the label
-       flips together with the icon.
+   Two sections at the bottom go slightly beyond strict extraction
+   and are marked accordingly:
+     - "Form inputs (optional)" — convenience styles so the Driver
+       app's forms match without re-deriving them.
+     - "Header theme-toggle pill" — convenience styles + a small
+       markup-only enhancement (`.theme-label-light` / `.theme-label-dark`
+       visibility selectors) so the Day/Night word label flips with
+       the sun/moon icon without any JS.
 
    Theme: dark by default. Set `<html data-theme="light">` to flip to
    light mode (no JS required for the tokens themselves).
@@ -272,7 +273,11 @@ body {
   border: 1px solid rgba(30, 58, 95, 0.08);
 }
 
-/* ---------- Form inputs (optional but matched) ---------- */
+/* ==========================================================================
+   DRIVER-APP HELPERS (beyond the strict shared-styles.css extraction)
+   ========================================================================== */
+
+/* ---------- Form inputs (optional) ---------- */
 .form-label {
   display: block;
   font-size: 0.85rem;
