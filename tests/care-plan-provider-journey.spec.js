@@ -510,4 +510,171 @@ test.describe('Care plan provider journey (Task #328)', () => {
     });
     expect(completeAgain.status()).toBe(409);
   });
+
+  // --- Task #421: provider dashboard surface for awarded plans ---------------
+
+  test('GET /api/care-plans/awarded requires auth + provider role', async ({ request }) => {
+    const noAuth = await request.get(`${BASE_URL}/api/care-plans/awarded`);
+    expect(noAuth.status()).toBe(401);
+
+    // Member token → 403 (not a provider role)
+    const asMember = await request.get(`${BASE_URL}/api/care-plans/awarded`, {
+      headers: { Authorization: `Bearer ${memberToken}` }
+    });
+    expect(asMember.status()).toBe(403);
+  });
+
+  test('GET /api/care-plans/awarded only returns plans where this provider won', async ({ request }) => {
+    const { plan } = await seedHeldPlan(request).catch(async (e) => {
+      // Stripe-disabled environments: fall back to a non-held seeded plan
+      // by manually flipping accepted_bid_id + provider_id on the row so the
+      // endpoint can still surface it.
+      const { plan, acceptedBid } = await seedPlan();
+      await sb.from('care_plans').update({
+        accepted_bid_id: acceptedBid.id,
+        provider_id: providerId,
+        status: 'awarded'
+      }).eq('id', plan.id);
+      await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', acceptedBid.id);
+      return { plan };
+    });
+
+    const res = await request.get(`${BASE_URL}/api/care-plans/awarded`, {
+      headers: { Authorization: `Bearer ${providerToken}` }
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    expect(Array.isArray(body.plans)).toBe(true);
+    const row = body.plans.find(p => p.id === plan.id);
+    expect(row).toBeTruthy();
+    // Sanity: enrichment fields should be present (member/vehicle may be null
+    // for the bare seed, but the keys must exist so the UI can render).
+    expect(row).toHaveProperty('completion');
+    expect(row).toHaveProperty('member');
+    expect(row).toHaveProperty('vehicle');
+    expect(row).toHaveProperty('accepted_bid');
+  });
+
+  test('GET /api/care-plans/awarded excludes plans where another provider won (even if care_plans.provider_id drifted)', async ({ request }) => {
+    // Authoritative ownership comes from plan_bids, not the denormalized
+    // care_plans.provider_id column. Seed: providerB wins the bid, but
+    // care_plans.provider_id is forcibly set to providerA. Endpoint must
+    // STILL exclude this plan from providerA's awarded list.
+    const { plan, otherBid } = await seedPlan(); // otherBid is providerB's bid
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', otherBid.id);
+    await sb.from('care_plans').update({
+      accepted_bid_id: otherBid.id,
+      // Intentional drift: provider_id wrong on the denormalized column.
+      provider_id: providerId,
+      status: 'awarded'
+    }).eq('id', plan.id);
+
+    const res = await request.get(`${BASE_URL}/api/care-plans/awarded`, {
+      headers: { Authorization: `Bearer ${providerToken}` }
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    // ProviderA must NOT see providerB's plan even though the denormalized
+    // provider_id column was tampered with to point at providerA.
+    const row = body.plans.find(p => p.id === plan.id);
+    expect(row).toBeFalsy();
+  });
+
+  test('GET /api/care-plans/awarded surfaces dispute reason + description to provider', async ({ request }) => {
+    // Seed an awarded plan + a member-raised dispute and confirm the provider
+    // can see the reason/description through their own dashboard endpoint
+    // (no need to read the member's /completion endpoint).
+    const { plan, acceptedBid } = await seedPlan();
+    await sb.from('care_plans').update({
+      accepted_bid_id: acceptedBid.id,
+      provider_id: providerId,
+      status: 'awarded',
+      payment_status: 'disputed'
+    }).eq('id', plan.id);
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', acceptedBid.id);
+    const { error: cErr } = await sb.from('care_plan_completions').insert({
+      care_plan_id: plan.id,
+      accepted_bid_id: acceptedBid.id,
+      member_id: memberId,
+      provider_id: providerId,
+      status: 'disputed',
+      bid_amount: 175,
+      dispute_reason: 'quality',
+      dispute_description: 'Oil filter not replaced as agreed',
+      disputed_at: new Date().toISOString()
+    });
+    if (cErr) throw cErr;
+
+    const res = await request.get(`${BASE_URL}/api/care-plans/awarded`, {
+      headers: { Authorization: `Bearer ${providerToken}` }
+    });
+    expect(res.status()).toBe(200);
+    const body = await res.json();
+    const row = body.plans.find(p => p.id === plan.id);
+    expect(row).toBeTruthy();
+    expect(row.payment_status).toBe('disputed');
+    expect(row.completion).toBeTruthy();
+    expect(row.completion.status).toBe('disputed');
+    expect(row.completion.dispute_reason).toBe('quality');
+    expect(row.completion.dispute_description).toContain('Oil filter');
+  });
+
+  test('Provider dashboard UI renders awarded plan card with status badge + dispute reason', async ({ page }) => {
+    // Seed: awarded plan in disputed state attributed to providerA.
+    const { plan, acceptedBid } = await seedPlan();
+    await sb.from('care_plans').update({
+      accepted_bid_id: acceptedBid.id,
+      provider_id: providerId,
+      status: 'awarded',
+      payment_status: 'disputed',
+      title: `Task421 UI plan ${Date.now()}`
+    }).eq('id', plan.id);
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', acceptedBid.id);
+    await sb.from('care_plan_completions').insert({
+      care_plan_id: plan.id,
+      accepted_bid_id: acceptedBid.id,
+      member_id: memberId,
+      provider_id: providerId,
+      status: 'disputed',
+      bid_amount: 175,
+      dispute_reason: 'quality',
+      dispute_description: 'UI smoke: oil filter not replaced as agreed',
+      disputed_at: new Date().toISOString()
+    });
+
+    // Login via the UI: /login.html → password tab is default → submit.
+    await page.goto(`${BASE_URL}/login.html`);
+    await page.fill('#email', TEST_PROVIDER_EMAIL);
+    await page.fill('#password', TEST_PROVIDER_PASS);
+    await Promise.all([
+      page.waitForURL(/providers\.html/, { timeout: 30_000 }),
+      page.click('#login-btn')
+    ]).catch(async () => {
+      // Some envs land on members.html first then redirect via JS; force-nav
+      // if we didn't auto-route to the provider dashboard.
+      await page.goto(`${BASE_URL}/providers.html`);
+    });
+    await page.goto(`${BASE_URL}/providers.html`);
+
+    // Wait for the awarded-plans section + script to be present.
+    await page.waitForSelector('#care-plans-awarded-list', { timeout: 15_000 });
+
+    // Click the nav item to open the section and trigger a fresh load.
+    await page.click('.nav-item[data-section="care-plans-awarded"]');
+
+    // Wait for the seeded plan card to appear (script auto-loads on bind too).
+    const cardSel = `.cp-awarded-card[data-plan-id="${plan.id}"]`;
+    await page.waitForSelector(cardSel, { timeout: 20_000 });
+    const card = page.locator(cardSel);
+    await expect(card).toBeVisible();
+
+    // Status badge must read "Disputed".
+    await expect(card.locator('.cp-status-badge')).toHaveText(/Disputed/i);
+
+    // Dispute panel must surface the reason + description to the provider.
+    const dispute = card.locator('.cp-dispute-panel');
+    await expect(dispute).toBeVisible();
+    await expect(dispute).toContainText(/quality/i);
+    await expect(dispute).toContainText(/oil filter not replaced/i);
+  });
 });
