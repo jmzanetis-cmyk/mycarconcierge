@@ -250,8 +250,8 @@
             : '<a href="#compliance" class="btn btn-secondary" style="margin-top:14px;display:inline-block;text-decoration:none;">' + escapeHtml(state.cta) + '</a>'
           ) +
         '</div>' +
-        '<div style="text-align:right;min-width:140px;">' +
-          '<div style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);">' + pct.toFixed(0) + '%</div>' +
+        '<div style="text-align:end;min-width:140px;">' +
+          '<div style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);unicode-bidi:plaintext;">' + pct.toFixed(0) + '%</div>' +
           '<div style="color:var(--text-secondary);font-size:0.88rem;">' + escapeHtml(_clearedLine(compliant, total)) + '</div>' +
         '</div>' +
       '</div>' +

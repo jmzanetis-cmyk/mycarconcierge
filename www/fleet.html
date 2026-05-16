@@ -437,12 +437,12 @@
 
       <div style="display:flex;gap:16px;margin-bottom:24px;">
         <div class="form-group" style="margin-bottom:0;min-width:200px;">
-          <select class="form-select" id="history-vehicle-filter">
+          <select class="form-select" id="history-vehicle-filter" aria-label="Filter service history by vehicle">
             <option value="">All Vehicles</option>
           </select>
         </div>
         <div class="form-group" style="margin-bottom:0;min-width:150px;">
-          <select class="form-select" id="history-period-filter">
+          <select class="form-select" id="history-period-filter" aria-label="Filter service history by period">
             <option value="30">Last 30 Days</option>
             <option value="90">Last 90 Days</option>
             <option value="365">Last Year</option>
@@ -482,7 +482,7 @@
 
       <div style="display:flex;gap:16px;margin-bottom:24px;">
         <div class="form-group" style="margin-bottom:0;min-width:150px;">
-          <select class="form-select" id="spending-period">
+          <select class="form-select" id="spending-period" aria-label="Filter spending by period">
             <option value="month">This Month</option>
             <option value="quarter">This Quarter</option>
             <option value="year">This Year</option>
@@ -605,41 +605,41 @@
       <div class="modal-body">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Year</label>
+            <label class="form-label" for="av-year">Year</label>
             <input type="number" class="form-input" id="av-year" placeholder="2024">
           </div>
           <div class="form-group">
-            <label class="form-label">Make *</label>
+            <label class="form-label" for="av-make">Make *</label>
             <input type="text" class="form-input" id="av-make" placeholder="Toyota">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Model *</label>
+            <label class="form-label" for="av-model">Model *</label>
             <input type="text" class="form-input" id="av-model" placeholder="Camry">
           </div>
           <div class="form-group">
-            <label class="form-label">Fleet Number</label>
+            <label class="form-label" for="av-fleet-num">Fleet Number</label>
             <input type="text" class="form-input" id="av-fleet-num" placeholder="V-001">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">VIN</label>
+            <label class="form-label" for="av-vin">VIN</label>
             <input type="text" class="form-input" id="av-vin" placeholder="1HGBH41JXMN109186">
           </div>
           <div class="form-group">
-            <label class="form-label">License Plate</label>
+            <label class="form-label" for="av-plate">License Plate</label>
             <input type="text" class="form-input" id="av-plate" placeholder="ABC-1234">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Current Mileage</label>
+            <label class="form-label" for="av-mileage">Current Mileage</label>
             <input type="number" class="form-input" id="av-mileage" placeholder="45000">
           </div>
           <div class="form-group">
-            <label class="form-label">Assign to Driver</label>
+            <label class="form-label" for="av-driver">Assign to Driver</label>
             <select class="form-select" id="av-driver">
               <option value="">Unassigned</option>
             </select>
@@ -647,11 +647,11 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Department / Cost Center</label>
+            <label class="form-label" for="av-department">Department / Cost Center</label>
             <input type="text" class="form-input" id="av-department" placeholder="Sales">
           </div>
           <div class="form-group">
-            <label class="form-label">Maintenance Schedule</label>
+            <label class="form-label" for="av-schedule">Maintenance Schedule</label>
             <select class="form-select" id="av-schedule">
               <option value="standard">Standard</option>
               <option value="heavy_use">Heavy Use</option>
@@ -676,25 +676,25 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Full Name *</label>
+          <label class="form-label" for="ad-name">Full Name *</label>
           <input type="text" class="form-input" id="ad-name" placeholder="John Smith">
         </div>
         <div class="form-group">
-          <label class="form-label">Email *</label>
+          <label class="form-label" for="ad-email">Email *</label>
           <input type="email" class="form-input" id="ad-email" placeholder="john@company.com">
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Phone</label>
+            <label class="form-label" for="ad-phone">Phone</label>
             <input type="tel" class="form-input" id="ad-phone" placeholder="(555) 123-4567">
           </div>
           <div class="form-group">
-            <label class="form-label">Department</label>
+            <label class="form-label" for="ad-department">Department</label>
             <input type="text" class="form-input" id="ad-department" placeholder="Sales">
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Assign Vehicle</label>
+          <label class="form-label" for="ad-vehicle">Assign Vehicle</label>
           <select class="form-select" id="ad-vehicle">
             <option value="">No vehicle assigned</option>
           </select>
@@ -805,7 +805,7 @@
           <div style="font-weight:500;margin-bottom:6px;">Drop your CSV file here</div>
           <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">or</div>
           <button class="btn btn-secondary" style="font-size:0.85rem;padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
-          <input type="file" id="csv-file-input" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
+          <input type="file" id="csv-file-input" aria-label="Upload CSV file" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
         </div>
         <div id="csv-preview" style="display:none;margin-top:16px;">
           <div style="font-weight:600;margin-bottom:10px;" id="csv-preview-title"></div>
