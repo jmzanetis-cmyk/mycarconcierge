@@ -211,10 +211,10 @@ const html = document.documentElement;
 function setTheme(next) {
   html.classList.add('theme-transition');
   html.setAttribute('data-theme', next);
-  localStorage.setItem('mcc-theme', next);
+  localStorage.setItem('theme', next); // matches main platform's key
   setTimeout(() => html.classList.remove('theme-transition'), 350);
 }
-const saved = localStorage.getItem('mcc-theme') || 'dark';
+const saved = localStorage.getItem('theme') || 'dark';
 setTheme(saved);
 document.getElementById('theme-toggle').addEventListener('click', () => {
   setTheme(html.getAttribute('data-theme') === 'dark' ? 'light' : 'dark');
@@ -275,7 +275,7 @@ A checklist for the Driver-app maintainer — one sitting, no surprises:
    `.form-label` for forms.
 5. **Wire the theme toggle.** Add the markup from §6 to your top nav,
    wire the click handler, and persist the choice to `localStorage`
-   under the key `mcc-theme` so it matches the main app's behavior.
+   under the key `theme` so it matches the main platform.
 6. **Audit contrast.** Spot-check every gold button has white text in
    light mode, and that focus rings are visible on inputs.
 7. **Match copy to §7.** Run a global find for "car" outside the brand
