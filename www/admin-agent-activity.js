@@ -28,8 +28,12 @@
   // one stamps the other.
   function authHeaders() {
     const h = { 'Accept': 'application/json' };
+    // Check both legacy key names — admin.js writes `adminTeamToken`,
+    // admin-outreach.js reads `mcc_admin_team_token`. Take whichever is
+    // populated so the helper survives either page's storage convention.
     const token = window.adminTeamToken
                || localStorage.getItem('adminTeamToken')
+               || localStorage.getItem('mcc_admin_team_token')
                || '';
     if (token) h['x-admin-token'] = token;
     const pw = window.adminPasswordVerified
@@ -38,6 +42,20 @@
             || '';
     if (pw) h['x-admin-password'] = pw;
     return h;
+  }
+
+  // Task #338 — Wrap fetch so a network-level TypeError ("Failed to fetch":
+  // dev server has no /api/admin/agent-fleet route, transient offline,
+  // CORS preflight failure, etc.) degrades to an empty result instead of
+  // bubbling up and turning the whole strip into a red error banner.
+  // HTTP error responses still drop to the existing `if (!r.ok) return []`
+  // guard at each call site.
+  async function safeFetch(url, init) {
+    try {
+      return await fetch(url, init);
+    } catch {
+      return { ok: false, status: 0, json: async () => ({}) };
+    }
   }
 
   function esc(s) {
@@ -297,7 +315,7 @@
       params.set('target_id', opts.targetId);
       if (opts.targetKind) params.set('target_kind', opts.targetKind);
       if (opts.agentSlug && typeof opts.agentSlug === 'string') params.set('agent', opts.agentSlug);
-      const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions/by-target?${params}`, { headers: authHeaders() });
+      const r = await safeFetch(`${apiBase}/api/admin/agent-fleet/actions/by-target?${params}`, { headers: authHeaders() });
       if (!r.ok) return [];
       const j = await r.json();
       return j.actions || [];
@@ -307,7 +325,7 @@
       // Fetch per slug and merge (server endpoint only supports single agent filter).
       const all = await Promise.all(opts.agentSlug.map(async (slug) => {
         const p = new URLSearchParams({ limit: String(opts.limit || 10), agent: slug });
-        const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?${p}`, { headers: authHeaders() });
+        const r = await safeFetch(`${apiBase}/api/admin/agent-fleet/actions?${p}`, { headers: authHeaders() });
         if (!r.ok) return [];
         const j = await r.json();
         return j.actions || [];
@@ -318,7 +336,7 @@
       return merged;
     }
     if (opts.agentSlug) params.set('agent', opts.agentSlug);
-    const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?${params}`, { headers: authHeaders() });
+    const r = await safeFetch(`${apiBase}/api/admin/agent-fleet/actions?${params}`, { headers: authHeaders() });
     if (!r.ok) return [];
     const j = await r.json();
     return j.actions || [];
@@ -401,7 +419,7 @@
     const ids = eventIds.slice(0, 200).join(',');
     const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
     try {
-      const r = await fetch(
+      const r = await safeFetch(
         `${apiBase}/api/admin/agent-fleet/dead-letter?limit=200&event_ids=${encodeURIComponent(ids)}`,
         { headers: authHeaders() });
       if (!r.ok) return new Map();
@@ -422,7 +440,7 @@
     const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
     const params = new URLSearchParams({ limit: String(opts.limit || 10), module: opts.includeAiOpsModule });
     if (opts.targetId) params.set('target_id', opts.targetId);
-    const r = await fetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: authHeaders() });
+    const r = await safeFetch(`${apiBase}/api/admin/ai-ops/actions?${params}`, { headers: authHeaders() });
     if (!r.ok) return [];
     const j = await r.json();
     return j.actions || [];

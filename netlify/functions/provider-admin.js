@@ -340,6 +340,145 @@ async function _handleCheckLowRated(supabase, body) {
   });
 }
 
+// Task #240: server-side handler for the "approve provider application"
+// flow. Replaces the browser-side `supabaseClient.from('profiles').update({
+// role: 'provider', is_founding_provider: true, ... })` call in
+// www/admin.js so the last unaudited admin write to profiles can be
+// removed and the "Admins can update any profile" RLS policy dropped.
+//
+// Body: {
+//   application_id: uuid                        // pilot_applications row to mark approved
+//   profile_id?: uuid                           // existing profile to upgrade (skipped if absent)
+//   business_name, business_phone, city, state  // applicant fields copied to profile
+//   approved_by?: uuid                          // current admin user id (audit)
+// }
+async function _handleApproveApplication(supabase, body) {
+  const applicationId = String(body.application_id || '').trim();
+  const profileId = body.profile_id ? String(body.profile_id).trim() : null;
+  const approvedBy = body.approved_by ? String(body.approved_by).trim() : null;
+  if (!isUuid(applicationId)) return jsonResponse(400, { error: 'application_id must be a valid uuid' });
+  if (profileId && !isUuid(profileId)) return jsonResponse(400, { error: 'profile_id must be a valid uuid' });
+  if (approvedBy && !isUuid(approvedBy)) return jsonResponse(400, { error: 'approved_by must be a valid uuid' });
+
+  const businessName = (body.business_name || '').toString().trim().slice(0, 200);
+  const businessPhone = (body.business_phone || '').toString().trim().slice(0, 50);
+  const city = (body.city || '').toString().trim().slice(0, 100);
+  const state = (body.state || '').toString().trim().slice(0, 100);
+
+  // 1) Mark the pilot_applications row approved.
+  const { error: appErr } = await supabase
+    .from('pilot_applications')
+    .update({
+      status: 'approved',
+      approved_at: new Date().toISOString(),
+      approved_by: approvedBy
+    })
+    .eq('id', applicationId);
+  if (appErr) return jsonResponse(500, { error: 'Failed to mark application approved: ' + appErr.message });
+
+  // 2) Upgrade the matched profile (if one exists) to a founding provider.
+  let profileUpdated = false;
+  if (profileId) {
+    const profileUpdate = { role: 'provider', is_founding_provider: true };
+    if (businessName) profileUpdate.business_name = businessName;
+    if (businessPhone) profileUpdate.business_phone = businessPhone;
+    if (city) profileUpdate.city = city;
+    if (state) profileUpdate.state = state;
+    const { error: profErr } = await supabase
+      .from('profiles')
+      .update(profileUpdate)
+      .eq('id', profileId);
+    if (profErr) return jsonResponse(500, { error: 'Failed to upgrade profile: ' + profErr.message });
+    profileUpdated = true;
+
+    // Ensure a provider_stats row exists. Best-effort — don't fail the
+    // whole flow if this single upsert errors.
+    try {
+      await supabase.from('provider_stats').upsert({ provider_id: profileId }, { onConflict: 'provider_id' });
+    } catch (e) {
+      console.error('[provider-admin] provider_stats upsert failed:', e.message);
+    }
+  }
+
+  await audit(supabase, {
+    action: 'approve_provider_application',
+    target_id: profileId || applicationId,
+    target_type: profileId ? 'profile' : 'pilot_application',
+    metadata: {
+      application_id: applicationId,
+      profile_id: profileId,
+      profile_updated: profileUpdated,
+      business_name: businessName || null,
+      city: city || null,
+      state: state || null
+    },
+    performed_by: approvedBy || 'admin'
+  });
+
+  return jsonResponse(200, { ok: true, profile_updated: profileUpdated });
+}
+
+// Task #240: server-side handler for the member↔provider role flip in the
+// admin User Management tab. Replaces the browser-side
+// `supabaseClient.from('profiles').update({ role: ..., also_member: ...,
+// also_provider: ... })` call in www/admin.js's updateUserRole().
+//
+// Body: {
+//   user_id: uuid,
+//   role: 'member' | 'provider' | null,            // optional canonical role
+//   also_member?: boolean,                          // optional dual-role flags
+//   also_provider?: boolean,
+//   actor_id?: uuid                                 // current admin user id (audit)
+// }
+async function _handleUpdateUserRole(supabase, body) {
+  const userId = String(body.user_id || '').trim();
+  const actorId = body.actor_id ? String(body.actor_id).trim() : null;
+  if (!isUuid(userId)) return jsonResponse(400, { error: 'user_id must be a valid uuid' });
+  if (actorId && !isUuid(actorId)) return jsonResponse(400, { error: 'actor_id must be a valid uuid' });
+
+  // Whitelisted role-related boolean flags. The schema currently has both
+  // legacy `also_member`/`also_provider` and `is_also_member`/`is_also_provider`
+  // columns in active use across admin.js (the role-flip table writes the
+  // first pair, the dual-role checkboxes write the second). Allow either.
+  const BOOL_FIELDS = ['also_member', 'also_provider', 'is_also_member', 'is_also_provider', 'is_founding_provider'];
+  const updates = {};
+  if (body.role === 'member' || body.role === 'provider') updates.role = body.role;
+  for (const field of BOOL_FIELDS) {
+    if (typeof body[field] === 'boolean') updates[field] = body[field];
+  }
+  if (Object.keys(updates).length === 0) {
+    return jsonResponse(400, { error: 'no role fields to update' });
+  }
+
+  // Snapshot the prior values so the audit row records what changed.
+  const { data: before, error: beforeErr } = await supabase
+    .from('profiles')
+    .select(['role', ...BOOL_FIELDS].join(','))
+    .eq('id', userId)
+    .maybeSingle();
+  if (beforeErr) return jsonResponse(500, { error: 'Failed to load profile: ' + beforeErr.message });
+  if (!before) return jsonResponse(404, { error: 'profile not found' });
+
+  const { error: updErr } = await supabase
+    .from('profiles')
+    .update(updates)
+    .eq('id', userId);
+  if (updErr) return jsonResponse(500, { error: 'Failed to update role: ' + updErr.message });
+
+  await audit(supabase, {
+    action: 'update_user_role',
+    target_id: userId,
+    target_type: 'profile',
+    metadata: {
+      before: { role: before.role, also_member: before.also_member, also_provider: before.also_provider },
+      after: { ...before, ...updates }
+    },
+    performed_by: actorId || 'admin'
+  });
+
+  return jsonResponse(200, { ok: true, updated: updates });
+}
+
 async function _handleAdjustCredits(supabase, body) {
   const ids = _collectProviderIds(body);
   if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
@@ -360,10 +499,12 @@ async function _handleAdjustCredits(supabase, body) {
 // pattern used by agent-fleet-admin.js (Task #260) so future routes are
 // added by a single table entry instead of another `if` branch.
 const ROUTES = {
-  'POST suspend':         _handleSuspend,
-  'POST activate':        _handleActivate,
-  'POST check-low-rated': _handleCheckLowRated,
-  'POST adjust-credits':  _handleAdjustCredits
+  'POST suspend':              _handleSuspend,
+  'POST activate':             _handleActivate,
+  'POST check-low-rated':      _handleCheckLowRated,
+  'POST adjust-credits':       _handleAdjustCredits,
+  'POST approve-application':  _handleApproveApplication, // Task #240
+  'POST update-user-role':     _handleUpdateUserRole      // Task #240
 };
 
 exports.handler = async function(event) {

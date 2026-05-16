@@ -205,11 +205,10 @@
   <meta name="twitter:description" content="Apply to become a vetted provider on My Car Concierge. Background-checked professionals only — start winning more jobs today." />
   <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
 <!-- SEO-INJECT:END -->
+  <meta name="mcc-fb-event" content="Lead|signup_provider_view|signup_provider">
+  <script src="/auth-theme-toggle.js" defer></script>
 </head>
 <body>
-  <button class="theme-toggle-mini" onclick="toggleTheme()" title="Toggle theme" style="position: fixed; top: 20px; right: 20px; z-index: 1000; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 50%; width: 44px; height: 44px; cursor: pointer; font-size: 1.2rem; display: flex; align-items: center; justify-content: center; transition: all 0.2s ease;">
-    <span class="theme-icon"><span class="icon-inline" data-icon="sun"></span></span>
-  </button>
   <div class="container">
     <div class="header">
       <a href="index.html" class="header-brand">
@@ -228,7 +227,7 @@
       <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
         <div class="benefit">
           <div class="benefit-icon"><span class="icon-inline" data-icon="dollar-sign"></span></div>
-          <div><div class="benefit-title">Keep 100%</div><div class="benefit-desc">Zero platform usage fees — only standard Stripe processing (2.9% + 30¢ per transaction)</div></div>
+          <div><div class="benefit-title">Transparent Pricing</div><div class="benefit-desc">Keep 100% of what you earn — no platform fee, no monthly charges (just standard Stripe processing of 2.9% + 30¢). You only pay us for bid-credit packs when you compete for a job.</div></div>
         </div>
       </a>
       <a href="provider-info.html" class="benefit-link" style="text-decoration:none;color:inherit;">
@@ -277,6 +276,20 @@
         <h2 class="step-title" data-i18n="auth.createAccount">Account & Business Info</h2>
         <p class="step-subtitle">Set up your login and tell us about your business.</p>
 
+        <!-- Task #326 — Apple Sign In for provider track. Mirrors the
+             Facebook button just below; sets mcc_signup_intent='provider'
+             so login.js routes the OAuth callback to the provider survey
+             with role='pending_provider'. iOS App Store guidelines
+             require Apple Sign In parity wherever Facebook sign-in is
+             offered, so any future social login on this surface must
+             also be added here. -->
+        <button type="button" id="apple-signup-btn" onclick="signUpWithAppleProvider()"
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#000;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:12px;">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0;">
+            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+          </svg>
+          <span>Sign in with Apple</span>
+        </button>
         <!-- Task #318 — Facebook OAuth shortcut. Mirrors login.html and
              onboarding-provider.html. Sets mcc_signup_intent='provider'
              so login.js routes the callback to the provider survey. -->
@@ -737,7 +750,7 @@
           <p style="margin-bottom:12px;">2.3. <strong>Your Business Is Yours:</strong> Nothing in this Agreement prevents you from serving your own customers, advertising your business, working with other platforms, or building relationships in your community. MCC only applies to jobs booked through our platform.</p>
 
           <h4 style="margin:20px 0 12px;color:var(--text-primary);">3. PAYMENTS</h4>
-          <p style="margin-bottom:12px;">3.1. There are no platform fees. You keep 100% of what you earn on completed jobs.</p>
+          <p style="margin-bottom:12px;">3.1. There are no platform fees on completed jobs. You keep 100% of what you earn, minus standard Stripe payment processing. MCC's revenue comes solely from the bid-credit packs providers purchase to compete for jobs — there is no per-job commission.</p>
           <p style="margin-bottom:12px;">3.2. Payments are held in escrow until the customer confirms the job is complete, protecting both parties.</p>
           <p style="margin-bottom:12px;">3.3. Your earnings are processed within 3–5 business days after the customer approves the completed work.</p>
 
@@ -920,6 +933,41 @@
         }
       }
       globalThis.signUpWithFacebookProvider = signUpWithFacebookProvider;
+
+      // Task #326 — Apple OAuth shortcut for the legacy provider form.
+      // Same intent-flag handshake as the Facebook button: stamp
+      // mcc_signup_intent='provider' so login.js's PGRST116 branch
+      // creates a pending_provider profile (not a member one) when
+      // Apple posts back the OAuth callback.
+      async function signUpWithAppleProvider() {
+        const appleBtn = document.getElementById('apple-signup-btn');
+        if (appleBtn) appleBtn.disabled = true;
+        try {
+          try { localStorage.setItem('mcc_signup_intent', 'provider'); } catch (_e) { /* private mode */ }
+          const client = window.supabaseClient;
+          if (!client || !client.auth) {
+            alert('Sign-in is still loading. Please try again in a moment.');
+            if (appleBtn) appleBtn.disabled = false;
+            return;
+          }
+          const { error } = await client.auth.signInWithOAuth({
+            provider: 'apple',
+            options: {
+              redirectTo: window.location.origin + '/login.html?oauth=apple',
+              scopes: 'name email'
+            }
+          });
+          if (error) {
+            console.error('Apple signup error:', error);
+            alert('Failed to connect to Apple. Please try again.');
+            if (appleBtn) appleBtn.disabled = false;
+          }
+        } catch (err) {
+          console.error('Apple signup exception:', err);
+          if (appleBtn) appleBtn.disabled = false;
+        }
+      }
+      globalThis.signUpWithAppleProvider = signUpWithAppleProvider;
     })();
   </script>
   <script>
@@ -1068,19 +1116,7 @@
       }
     }
 
-    function toggleTheme() {
-      const html = document.documentElement;
-      html.classList.add('theme-transition');
-      const current = html.getAttribute('data-theme');
-      const newTheme = current === 'dark' ? 'light' : 'dark';
-      html.setAttribute('data-theme', newTheme);
-      localStorage.setItem('theme', newTheme);
-      const icon = document.querySelector('.theme-icon');
-      if (icon) icon.innerHTML = newTheme === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
-      const metaTheme = document.querySelector('meta[name="theme-color"]');
-      if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
-      setTimeout(() => html.classList.remove('theme-transition'), 300);
-    }
+    /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
 
     document.addEventListener('DOMContentLoaded', async () => {
       checkProviderReferral();
@@ -1098,5 +1134,6 @@
       if (svg) el.innerHTML = svg;
     });
   </script>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

@@ -1,10 +1,11 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Join My Car Concierge</title>
-  <meta name="theme-color" content="#ffffff">
+  <meta name="theme-color" content="#12161c">
+  <script>(function(){var t='dark';try{t=localStorage.getItem('theme')||'dark';}catch(e){}document.documentElement.setAttribute('data-theme',t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='dark'?'#12161c':'#f5f2ed';})();</script>
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -705,6 +706,8 @@
   <link rel="canonical" href="https://www.mycarconcierge.com/onboarding-member.html" />
   <meta name="robots" content="noindex, nofollow" />
 <!-- SEO-INJECT:END -->
+  <meta name="mcc-fb-event" content="Lead|onboarding_member_view|onboarding_member">
+  <script src="/auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="onboarding" id="onboarding">
@@ -735,7 +738,7 @@
             <span>Creating your member profile is <strong>free</strong>.</span>
           </div>
           <h2 class="step-question">What's your name?</h2>
-          <p class="step-subtitle">We'd love to know who we're helping.</p>
+          <p class="step-subtitle">Setup takes 30 seconds. No commitment, no membership required.</p>
           <div class="input-wrapper">
             <input type="text" class="input-field" id="input-name" placeholder="Your full name" autocomplete="name" aria-label="Full name" autofocus>
             <div class="input-error" id="error-name">Please enter your name</div>
@@ -1150,13 +1153,27 @@
           if (data.user) {
             userId = data.user.id;
 
+            // Task #341: capture the active UI language at signup so the
+            // welcome email and other day-one transactional messages
+            // arrive in the same language the user was browsing in.
+            // Reads i18n.js's storage key directly to avoid coupling to
+            // the I18n module (this page doesn't load i18n.js as a
+            // <script src>). Empty / unrecognized → null, which keeps
+            // the EN fallback the rest of the system already uses.
+            let preferredLanguage = null;
+            try {
+              const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+              if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+            } catch (_e) { /* ignore */ }
+
             const { error: profileError } = await supabaseClient.from('profiles').insert({
               id: userId,
               email: formData.email,
               role: 'member',
               full_name: formData.name,
               phone: formData.phone || null,
-              sms_consent: formData.smsConsent || false
+              sms_consent: formData.smsConsent || false,
+              preferred_language: preferredLanguage
             });
 
             if (profileError) console.error('Profile insert error:', profileError);
@@ -1172,6 +1189,16 @@
               }
             }
           }
+        }
+
+        // Task #184 — Facebook Pixel CompleteRegistration: a profile row now
+        // exists for this user (either freshly inserted or OAuth-updated), so
+        // the signup funnel milestone is officially complete.
+        if (typeof mccTrackFbOnce === 'function') {
+          mccTrackFbOnce('CompleteRegistration', 'member_signup_' + (userId || 'anon'), {
+            content_name: 'member',
+            status: oauthSource ? 'oauth_facebook' : 'email_password'
+          });
         }
 
         showStep(5);
@@ -1606,11 +1633,20 @@
         .single();
 
       if (selErr && selErr.code === 'PGRST116') {
+        // Task #341: stamp the active UI language so OAuth signups
+        // receive their first transactional emails in the right
+        // language. Same source as the email-signup path.
+        let preferredLanguage = null;
+        try {
+          const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+          if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+        } catch (_e) { /* ignore */ }
         const { error: insErr } = await supabaseClient.from('profiles').insert({
           id: user.id,
           email: user.email,
           role: 'member',
           full_name: fbName,
+          preferred_language: preferredLanguage,
           created_at: new Date().toISOString()
         });
         if (insErr) console.error('Failed to create profile for OAuth user:', insErr);
@@ -1633,5 +1669,6 @@
 
     maybeStartFromOAuth();
   </script>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

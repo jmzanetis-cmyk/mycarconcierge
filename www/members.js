@@ -7394,7 +7394,18 @@
           <div class="form-row" style="margin-top:12px;">
             <div style="flex:1;"><strong>VIN:</strong> <span style="font-family: monospace;">${vehicle.vin || 'Not provided'}</span></div>
           </div>
-          
+
+          <div style="margin-top:16px;padding:14px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+              <div>
+                <div style="font-weight:600;">${mccIcon('car', 14)} MCC Driver Concierge</div>
+                <div style="font-size:0.82rem;color:var(--text-muted);">Need someone to drive this vehicle to the shop?</div>
+              </div>
+              <button class="btn btn-secondary btn-sm" onclick="window.openConciergeRequestModal('vehicle-${vehicleId}','')">${mccIcon('plus', 14)} Request a Driver</button>
+            </div>
+            <div id="concierge-status-vehicle-${vehicleId}" style="margin-top:10px;"></div>
+          </div>
+
           <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
               <div>

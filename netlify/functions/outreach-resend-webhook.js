@@ -83,6 +83,23 @@ exports.handler = async function(event, context) {
     if (eventType === 'email.bounced') {
       const emailId = data.email_id;
       if (emailId) {
+        // Task #222 — also flip the matching bgc_launch_email_sends row so
+        // the launch-broadcast admin dashboard reflects bounces in real time.
+        // Best-effort, missing-table errors are silenced; other errors are
+        // logged for operability.
+        try {
+          const { error: bgcErr } = await supabase
+            .from('bgc_launch_email_sends')
+            .update({
+              status: 'bounced',
+              error_message: (data.bounce?.message || data.bounce?.type || 'bounced').slice(0, 800)
+            })
+            .eq('resend_message_id', emailId);
+          if (bgcErr && !/relation .* does not exist|schema cache/i.test(bgcErr.message)) {
+            console.warn('[outreach-resend-webhook] bgc_launch_email_sends bounce update failed:', bgcErr.message);
+          }
+        } catch (e) { console.warn('[outreach-resend-webhook] bounce mirror exception:', e.message); }
+
         const { data: msg } = await supabase
           .from('outreach_messages')
           .select('id, lead_id')
@@ -110,6 +127,20 @@ exports.handler = async function(event, context) {
     } else if (eventType === 'email.complained') {
       const emailId = data.email_id;
       if (emailId) {
+        // Task #222 — mirror complaint into the launch-broadcast send log,
+        // including any complaint reason Resend provides so the dashboard
+        // doesn't render an empty reason column for complaints.
+        try {
+          const reason = (data.complaint?.message || data.complaint?.type || data.feedback_id || 'spam complaint').toString().slice(0, 800);
+          const { error: bgcErr } = await supabase
+            .from('bgc_launch_email_sends')
+            .update({ status: 'complained', error_message: reason })
+            .eq('resend_message_id', emailId);
+          if (bgcErr && !/relation .* does not exist|schema cache/i.test(bgcErr.message)) {
+            console.warn('[outreach-resend-webhook] bgc_launch_email_sends complaint update failed:', bgcErr.message);
+          }
+        } catch (e) { console.warn('[outreach-resend-webhook] complaint mirror exception:', e.message); }
+
         const { data: msg } = await supabase
           .from('outreach_messages')
           .select('id, lead_id')

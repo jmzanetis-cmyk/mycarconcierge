@@ -1,0 +1,31 @@
+-- ============================================================================
+-- Task #240 — Drop the legacy "Admins can update any profile" RLS policy.
+--
+-- Background:
+--   * Task #131/#132 moved provider suspend/activate and bid-credit grants to
+--     audited server-side Netlify functions and added a column-scoped trigger
+--     to block direct browser writes to suspension_reason / suspended_at.
+--   * That trigger was a stop-gap because two browser-side admin writes still
+--     relied on the broad "Admins can update any profile" policy:
+--       1. www/admin.js approvePilotApplication() set
+--          { role:'provider', is_founding_provider:true, business_name,
+--            business_phone, city, state }.
+--       2. www/admin.js updateUserRole() set { role, also_member, also_provider }.
+--
+-- Task #240 moves both writes to new audited routes on
+--   netlify/functions/provider-admin.js
+--     POST /approve-application   → action='approve_provider_application'
+--     POST /update-user-role      → action='update_user_role'
+-- so the browser never writes to public.profiles directly anymore. With those
+-- writes gone, this migration removes the policy. Every privileged profile
+-- mutation now flows through the service-role Supabase client (which bypasses
+-- RLS) inside provider-admin.js, leaving an admin_audit_log row behind.
+--
+-- The column-scoped suspension trigger from 20260428e is now belt-and-braces
+-- (the policy is gone, but the trigger still rejects any future regression
+-- that might re-grant UPDATE to authenticated users). We leave it in place.
+-- ============================================================================
+
+-- The historical names for this policy varied across environments; cover both.
+DROP POLICY IF EXISTS "Admins can update any profile" ON public.profiles;
+DROP POLICY IF EXISTS "Admins can update profiles"    ON public.profiles;

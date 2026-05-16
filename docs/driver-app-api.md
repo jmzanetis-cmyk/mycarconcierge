@@ -414,3 +414,102 @@ Documented here so the Driver app team plans for the gaps:
 - Driver onboarding/background-check workflow — drivers are seeded as
   pre-vetted MCC employees/contractors for v1.
 - Member-facing live tracking — pings are not exposed to members.
+
+---
+
+## Member & provider concierge endpoints (Task #369)
+
+Members and providers can now create concierge jobs themselves. These hit a
+separate Netlify function (`netlify/functions/concierge-jobs-public.js`,
+proxied at `/api/concierge/*`) that uses **Supabase JWT bearer tokens** —
+the same `auth.users` session the user already has — and authoritatively
+re-reads `appointments.member_id` / `appointments.provider_id` to gate
+ownership. Leg expansion is delegated to the shared
+`netlify/functions/_concierge-scenarios.js` so members and providers
+**cannot** invent leg sequences.
+
+| Method & Path                       | Caller     | Body / Query                                         | Notes |
+|-------------------------------------|------------|------------------------------------------------------|-------|
+| `GET  /api/concierge?role=member`   | member     | —                                                    | Lists jobs where `member_id = auth.uid()`. |
+| `GET  /api/concierge?role=provider` | provider   | —                                                    | Caller must have `profiles.role='provider'` (or secondary). Lists `provider_id = auth.uid()`. |
+| `GET  /api/concierge/:job_id`       | either     | —                                                    | 403 unless caller is the named member or provider. |
+| `POST /api/concierge`               | member     | `{tier,scenario,appointment_id?,pickup_address,dropoff_address,notes?}` | `member_id` is forced to `auth.uid()`. If `appointment_id` is supplied, `appointments.member_id` must equal the caller. |
+| `POST /api/concierge`               | provider   | `{tier,scenario,appointment_id,...,created_by_kind:"provider"}` | `appointment_id` is REQUIRED. `appointments.provider_id` must equal caller. `member_id` is read from the appointment, never the body. |
+| `POST /api/concierge/:job_id/cancel`| either     | `{reason}` (3–500 chars)                             | Allowed for the named member, the named provider, or the original creator. Sets `status='cancelled'`. |
+
+Source-tracking columns added by `supabase/migrations/20260515d_concierge_created_by_kind.sql`:
+
+- `created_by_kind` — `'admin' | 'member' | 'provider' | 'system'` (default `'admin'`)
+- `created_by_id`   — `auth.users.id` of the requesting user (NULL for admin / system)
+
+Audit / events:
+- `admin_audit_log` writes `create_concierge_job` / `cancel_concierge_job`
+  with `metadata.source` and `performed_by = auth.uid()`.
+- `agent_events` emits `concierge.job_requested` and
+  `concierge.job_cancelled` (`source='concierge-jobs-public'`) so the
+  Concierge / Director agents can fan out notifications.
+
+Smoke tests: `node netlify/functions-tests/concierge-public.test.js`
+(8 tests covering auth, member ownership, provider role gating, scenario
+parity with the admin function, and cancel ownership rules).
+
+### Status transitions
+
+`POST /api/concierge/:job_id/transition` body `{to_status, note?}` lets the
+named member or provider push the job through its lifecycle. The server
+enforces a per-role allow-list (mirrored in
+`netlify/functions/concierge-jobs-public.js` `TRANSITIONS`):
+
+| Caller role | From status         | Allowed `to_status`                 |
+|-------------|---------------------|-------------------------------------|
+| provider    | `scheduled`         | `vehicle_received`, `problem_flagged` |
+| provider    | `in_progress`       | `vehicle_received`, `problem_flagged` |
+| provider    | `vehicle_received`  | `vehicle_released`, `problem_flagged` |
+| provider    | `vehicle_released`  | `completed`, `problem_flagged`      |
+| provider    | `requested`         | `problem_flagged`                   |
+| member      | any active          | `problem_flagged` only              |
+
+Disallowed hops return `409` with the `allowed` list. Each successful
+transition writes an `admin_audit_log` row (`transition_concierge_job`)
+and emits an `agent_events` row (`concierge.status_changed`) so the
+notification fan-out can pick it up.
+
+### New job lifecycle states (migration 20260515d)
+
+The `concierge_jobs.status` CHECK constraint has been widened to include:
+
+- `requested` — member or provider initiated, no driver assigned yet
+- `vehicle_received` — provider confirmed the vehicle is at the shop
+- `vehicle_released` — provider released it for return
+- `problem_flagged` — needs admin attention
+
+### Provider shop-address adjustment
+
+`POST /api/concierge/:job_id/update-address` body
+`{field: "pickup"|"dropoff", address, lat?, lng?}` lets the named provider
+correct the shop address for their concierge job. Server-side guards:
+
+- Caller must be the job's `provider_id` AND have provider role.
+- Job must not be `completed` or `cancelled`.
+- **Refused with 409 once any `concierge_job_drivers.accepted_at` is set**,
+  so a driver never sees a different address than the one they accepted.
+- Mirrors the change onto unstarted (`pending`) legs whose `from_address`/`to_address` still matches the old job address. If the leg mirror fails the job-row update is rolled back so on-disk state never disagrees.
+  destination still matches the old job address.
+
+Audit: `admin_audit_log` action `update_concierge_job_address`. Event:
+`concierge.address_updated`.
+
+### Vehicle ownership enforcement on create
+
+When `POST /api/concierge` includes a `member_vehicle_id`, the server
+verifies that `vehicles.owner_id === resolvedMemberId` (the caller for
+member-created jobs, the appointment's `member_id` for provider-created
+jobs). Cross-member attachment is rejected with 403.
+
+### Auto status hop on first driver assignment
+
+Admin `POST /api/admin/concierge-jobs/:id/assign-driver` automatically
+flips the job's status from `requested` (or legacy `draft`) to
+`scheduled` so the existing driver-api lifecycle (`scheduled →
+in_progress` on first leg start) keeps working for jobs created by
+members or providers via the public API.

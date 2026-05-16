@@ -7,7 +7,19 @@
     }
 
     // ========== FETCH HELPER ==========
+    // Task #234 — `safeFetch` is kept as a thin compatibility wrapper. It now
+    // delegates to `aiOpsFetch` (declared further below as `adminFetch` too)
+    // when that helper is available, so every admin loader gets the same
+    // diagnostic messages added in Task #174 (HTTP status, relative path,
+    // plain-language reason) instead of the bare "Server error (NNN)" text
+    // that production triage could not act on. We fall back to the legacy
+    // path only on the very first call ordering, before adminFetch has been
+    // defined; in practice every loader is invoked long after parse-time so
+    // the wrapper always finds adminFetch.
     async function safeFetch(url, options) {
+      if (typeof globalThis.adminFetch === 'function') {
+        return globalThis.adminFetch(url, options);
+      }
       const res = await fetch(url, options);
       if (!res.ok) {
         let errMsg = `Server error (${res.status})`;
@@ -200,11 +212,32 @@
     let currentVerification = null;
     let currentFilters = {
       applications: 'pending',
+      // Task #248 — lead-source filter for the applications queue. 'all'
+      // means "no source filter applied"; otherwise it matches a value from
+      // outreach_leads.source (e.g. 'hunter', 'apollo', 'manual') or the
+      // pseudo-source 'direct' for applications that were never linked to an
+      // outreach lead (no outreach_lead_id).
+      applicationsSource: 'all',
       payments: 'held',
       disputes: 'open',
       tickets: 'open',
       registrations: 'all'
     };
+
+    // Task #248 — hydrate application status + source filters from the URL on
+    // first script load so a shared link like
+    //   /admin.html?app_status=approved&app_source=hunter
+    // lands the reviewer in the right slice. Runs before any tab/render call
+    // so the initial paint already reflects the filter.
+    try {
+      const __initialParams = new URLSearchParams(globalThis.location.search);
+      const __qsStatus = __initialParams.get('app_status');
+      const __qsSource = __initialParams.get('app_source');
+      if (__qsStatus && ['pending', 'under_review', 'approved', 'rejected', 'all'].includes(__qsStatus)) {
+        currentFilters.applications = __qsStatus;
+      }
+      if (__qsSource) currentFilters.applicationsSource = __qsSource;
+    } catch { /* Intentionally silent — URL parse errors must not break admin boot. */ }
 
     // ========== PAGINATION STATE ==========
     const paginationState = {
@@ -393,7 +426,12 @@
         modalTitle.innerHTML = mccIcon('lock', 16) + ' Admin Access';
         passwordForm.style.display = 'block';
         modalBtn.textContent = 'Verify';
+        modalBtn.disabled = false;
         modalBtn.style.display = 'block';
+        // Task #233 — clear any leftover error from a previous attempt so
+        // re-opening the modal via "Sign in again" starts clean.
+        const pwErr = document.getElementById('admin-password-error');
+        if (pwErr) { pwErr.style.display = 'none'; pwErr.textContent = ''; }
         document.getElementById('admin-password-input').focus();
       } else if (state === 'team-login') {
         modalTitle.innerHTML = mccIcon('users', 16) + ' Team Login';
@@ -623,10 +661,24 @@
           adminPasswordVerified = password;
           localStorage.setItem('mcc_admin_pass', password);
           adminPermissions = null;
+          // Task #233 — restore the button so the modal is usable next time
+          // it's opened (e.g. via the AI Ops "Sign in again" prompt).
+          btn.textContent = 'Verify';
+          btn.disabled = false;
           document.getElementById('admin-password-modal').style.display = 'none';
           applyRolePermissions(null);
-          await loadAllData();
-          setupEventListeners();
+          // Task #233 — when this modal was opened via the AI Ops "Sign in
+          // again" button, run that loader's retry callback instead of doing
+          // a heavy full-dashboard refresh, so the admin lands back on the
+          // exact card they were on.
+          if (typeof _aiOpsReauthRetry === 'function') {
+            const fn = _aiOpsReauthRetry;
+            _aiOpsReauthRetry = null;
+            try { await fn(); } catch (retryErr) { console.error('[Admin] AI Ops reauth retry failed:', retryErr); }
+          } else {
+            await loadAllData();
+            setupEventListeners();
+          }
         } else {
           errorEl.textContent = 'Invalid password. Please try again.';
           errorEl.style.display = 'block';
@@ -1288,6 +1340,15 @@
         return;
       }
       applications = data || [];
+      // Task #248 — if a deep-link URL set a non-default status filter,
+      // sync the visual ".active" tab class to match (the HTML hardcodes
+      // "Pending" as the initial active tab).
+      try {
+        const tabs = document.querySelectorAll('#applications .tabs .tab');
+        if (tabs.length) {
+          tabs.forEach(t => t.classList.toggle('active', t.dataset.filter === currentFilters.applications));
+        }
+      } catch { /* Intentionally silent */ }
       // Task #189 — surface the originating cold-outreach lead on each
       // application. The browser admin client uses the anon JWT and so can
       // not SELECT from outreach_leads (RLS only grants service_role), so we
@@ -1461,6 +1522,32 @@
           providers = result.data || [];
           state.total = result.total;
           state.totalPages = result.totalPages;
+          // Task #249 — surface outreach attribution on the approved-providers
+          // list. profiles.outreach_lead_id is set by the same conversion path
+          // that populates provider_applications.outreach_lead_id (Task #137),
+          // so we hydrate _outreach_lead the same way the Applications tab
+          // does. Failures here never block the table render — the badge
+          // gracefully falls back to "Direct signup" / "Lead linked".
+          await hydrateApplicationOutreachLeads(providers);
+          // Task #372 — hydrate the BGC Live/Mock pill from the dedicated
+          // admin endpoint. Failures are swallowed so the providers table
+          // still renders if the BGC endpoint is unreachable.
+          try {
+            const bgcResp = await fetch(`${apiBase}/api/admin/bgc/providers`, {
+              headers: { 'Authorization': `Bearer ${session.access_token}` }
+            });
+            if (bgcResp.ok) {
+              const bgcJson = await bgcResp.json();
+              const liveMap = {};
+              (bgcJson.providers || []).forEach(b => { liveMap[b.provider_id] = b; });
+              providers = providers.map(p => liveMap[p.id] ? Object.assign({}, p, {
+                bgc_live_mode: liveMap[p.id].live_mode,
+                bgc_mode_reason: liveMap[p.id].mode_reason,
+                bgc_pending_count: liveMap[p.id].pending_count,
+                bgc_completed_count: liveMap[p.id].completed_count
+              }) : p);
+            }
+          } catch { /* non-fatal */ }
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
@@ -1518,6 +1605,8 @@
       if (error) { console.error('loadPayments failed:', error); setLoadError('payments', error); payments = []; renderPayments(); return; }
       payments = data || [];
       renderPayments();
+      // Task #246 — load Stripe key expiry pill alongside the payments table.
+      try { await loadStripeKeyExpiry(); } catch (err) { console.error('loadStripeKeyExpiry failed:', err); }
       // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('payments-agent-activity', {
@@ -1527,6 +1616,85 @@
         }); } catch { /* Intentionally silent */ }
       }
     }
+
+    // Task #246 — Stripe secret key expiry pill (in Payments section).
+    async function loadStripeKeyExpiry() {
+      const pill = document.getElementById('stripe-key-expiry-pill');
+      const dateEl = document.getElementById('stripe-key-expiry-date');
+      const input = document.getElementById('stripe-key-expiry-input');
+      if (!pill || !dateEl) return;
+      try {
+        const res = await fetch('/api/admin/stripe-key-expiry', { headers: getAdminHeaders() });
+        if (!res.ok) {
+          pill.className = 'status-badge muted';
+          pill.textContent = 'Unavailable';
+          dateEl.textContent = '';
+          return;
+        }
+        const data = await res.json();
+        if (!data.configured) {
+          pill.className = 'status-badge muted';
+          pill.textContent = 'Not configured';
+          dateEl.textContent = 'Set the date your Stripe secret key expires.';
+          return;
+        }
+        const days = data.days_until;
+        if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
+          pill.className = 'status-badge red';
+          pill.textContent = 'Invalid configuration';
+          dateEl.textContent = `Stored value "${data.expiry_date ?? ''}" is not a valid YYYY-MM-DD date. Re-enter below.`;
+          if (input && !input.value && data.expiry_date) input.value = data.expiry_date;
+          return;
+        }
+        let cls = 'status-badge approved'; // green
+        let label = `Healthy · expires in ${days} days`;
+        if (data.level === 'expired' || days <= 0) {
+          cls = 'status-badge red';
+          label = `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}`;
+        } else if (data.level === 'critical' || days <= 1) {
+          cls = 'status-badge red';
+          label = days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
+        } else if (data.level === 'warning' || days <= 3) {
+          cls = 'status-badge orange';
+          label = `Expires in ${days} days`;
+        }
+        pill.className = cls;
+        pill.textContent = label;
+        dateEl.textContent = `Date: ${data.expiry_date}`;
+        if (input && !input.value) input.value = data.expiry_date;
+      } catch (err) {
+        console.error('loadStripeKeyExpiry error:', err);
+        pill.className = 'status-badge muted';
+        pill.textContent = 'Error';
+      }
+    }
+
+    async function saveStripeKeyExpiry() {
+      const input = document.getElementById('stripe-key-expiry-input');
+      const value = (input?.value || '').trim();
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+        alert('Enter the expiry date in YYYY-MM-DD format.');
+        return;
+      }
+      try {
+        const res = await fetch('/api/admin/stripe-key-expiry', {
+          method: 'POST',
+          headers: getAdminHeaders(),
+          body: JSON.stringify({ expiry_date: value })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          alert(`Failed to update: ${data.error || res.statusText}`);
+          return;
+        }
+        await loadStripeKeyExpiry();
+        if (typeof showToast === 'function') showToast('Stripe key expiry updated. Alert state reset.');
+      } catch (err) {
+        console.error('saveStripeKeyExpiry error:', err);
+        alert('Failed to update Stripe key expiry.');
+      }
+    }
+    globalThis.saveStripeKeyExpiry = saveStripeKeyExpiry;
 
     async function loadDisputes() {
       // Task #281 — surface load errors instead of silently rendering "No disputes".
@@ -1989,16 +2157,16 @@
 
     async function toggleDualRole(userId, field, value) {
       try {
-        const updateData = {};
-        updateData[field] = value;
-        
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update(updateData)
-          .eq('id', userId);
-        
-        if (error) {
-          console.error('Error updating dual role:', error);
+        // Task #240: routed through audited server endpoint so the broad
+        // "Admins can update any profile" RLS policy can be dropped.
+        const res = await fetch('/api/admin/provider-actions/update-user-role', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: userId, [field]: value, actor_id: currentUser?.id || null })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          console.error('Error updating dual role:', json);
           showToast('Failed to update user role', 'error');
           await loadUserRoles(); // Reload to reset checkbox
           return;
@@ -2387,8 +2555,116 @@
     }
 
     // ========== RENDER TABLES ==========
+    // Task #248 — derive the filter "source key" for an application. Apps
+    // that were never linked to an outreach lead get the pseudo-source
+    // 'direct' so they're filterable as a group ("Direct signup"). Apps
+    // linked to a lead but with a missing/loaded-as-null source string
+    // collapse to 'outreach' (matches the badge fallback in
+    // renderApplicationLeadBadge).
+    function getApplicationSourceKey(app) {
+      if (!app || !app.outreach_lead_id) return 'direct';
+      const lead = app._outreach_lead;
+      const raw = (lead && lead.source) ? String(lead.source).trim().toLowerCase() : '';
+      return raw || 'outreach';
+    }
+    globalThis.getApplicationSourceKey = getApplicationSourceKey;
+
+    // Title-case a source key for display ("hunter" → "Hunter",
+    // "direct" → "Direct signup"). Mirrors renderApplicationLeadBadge.
+    function formatApplicationSourceLabel(key) {
+      if (key === 'direct') return 'Direct signup';
+      const s = String(key || '').replaceAll('_', ' ');
+      return s.charAt(0).toUpperCase() + s.slice(1);
+    }
+
+    // Task #248 — populate the <select> with the distinct source keys
+    // present in the loaded applications, plus render a tiny breakdown
+    // widget showing the count per source. Called from renderApplications
+    // so every refresh keeps both UI bits in sync with the data.
+    function refreshApplicationSourceUI() {
+      const select = document.getElementById('application-source-filter');
+      const breakdown = document.getElementById('application-source-breakdown');
+      if (!select && !breakdown) return;
+
+      // Group counts by source key across the FULL application set (not
+      // the status-filtered subset) so the dropdown options never
+      // disappear when the reviewer flips between status tabs.
+      const counts = new Map();
+      applications.forEach(a => {
+        const key = getApplicationSourceKey(a);
+        counts.set(key, (counts.get(key) || 0) + 1);
+      });
+
+      // Stable ordering: known sources first in a friendly order, then any
+      // unknown ones alphabetically. Keeps the dropdown predictable.
+      const knownOrder = ['hunter', 'apollo', 'manual', 'outreach', 'direct'];
+      const allKeys = Array.from(counts.keys());
+      const ordered = [
+        ...knownOrder.filter(k => counts.has(k)),
+        ...allKeys.filter(k => !knownOrder.includes(k)).sort()
+      ];
+
+      if (select) {
+        const current = currentFilters.applicationsSource || 'all';
+        const totalCount = applications.length;
+        const opts = [`<option value="all">All sources (${totalCount})</option>`];
+        ordered.forEach(k => {
+          opts.push(`<option value="${escapeHtml(k)}">${escapeHtml(formatApplicationSourceLabel(k))} (${counts.get(k)})</option>`);
+        });
+        // If the current filter refers to a source no longer present in
+        // the data, still render it so the user sees what they picked
+        // (with a 0 count) and can clear it.
+        if (current !== 'all' && !counts.has(current)) {
+          opts.push(`<option value="${escapeHtml(current)}">${escapeHtml(formatApplicationSourceLabel(current))} (0)</option>`);
+        }
+        select.innerHTML = opts.join('');
+        select.value = current;
+      }
+
+      if (breakdown) {
+        if (!ordered.length) {
+          breakdown.innerHTML = '';
+        } else {
+          breakdown.innerHTML = ordered.map(k => {
+            const isActive = currentFilters.applicationsSource === k;
+            const style = `padding:3px 8px;border-radius:100px;border:1px solid ${isActive ? 'var(--accent-gold)' : 'var(--border-subtle)'};background:${isActive ? 'rgba(201,162,39,0.12)' : 'transparent'};color:${isActive ? 'var(--accent-gold)' : 'var(--text-muted)'};`;
+            return `<span style="${style}">${escapeHtml(formatApplicationSourceLabel(k))}: <strong>${counts.get(k)}</strong></span>`;
+          }).join('');
+        }
+      }
+    }
+
+    // Task #248 — write the current applications filters back to the URL
+    // so deep links (e.g. shared in Slack) restore the same view.
+    function syncApplicationsUrl() {
+      try {
+        const params = new URLSearchParams(globalThis.location.search);
+        if (currentFilters.applications && currentFilters.applications !== 'pending') {
+          params.set('app_status', currentFilters.applications);
+        } else {
+          params.delete('app_status');
+        }
+        if (currentFilters.applicationsSource && currentFilters.applicationsSource !== 'all') {
+          params.set('app_source', currentFilters.applicationsSource);
+        } else {
+          params.delete('app_source');
+        }
+        const qs = params.toString();
+        const url = globalThis.location.pathname + (qs ? `?${qs}` : '') + globalThis.location.hash;
+        globalThis.history.replaceState(null, '', url);
+      } catch { /* Intentionally silent — URL update must never break the admin UI. */ }
+    }
+
+    // Task #248 — change handler bound to the source <select>. Updates
+    // state, refreshes the URL, and re-renders the table.
+    function filterApplicationsBySource(value) {
+      currentFilters.applicationsSource = value || 'all';
+      syncApplicationsUrl();
+      renderApplications();
+    }
+    globalThis.filterApplicationsBySource = filterApplicationsBySource;
+
     function renderApplications() {
-      const filtered = applications.filter(a => a.status === currentFilters.applications || currentFilters.applications === 'all');
       const tbody = document.getElementById('applications-table');
 
       // Task #281 — show load error before falling through to "No applications".
@@ -2397,8 +2673,23 @@
         return;
       }
 
+      // Task #248 — keep the source dropdown + breakdown widget in sync
+      // with the currently-loaded applications on every render.
+      refreshApplicationSourceUI();
+
+      const sourceFilter = currentFilters.applicationsSource || 'all';
+      const filtered = applications.filter(a => {
+        const statusOk = currentFilters.applications === 'all' || a.status === currentFilters.applications;
+        if (!statusOk) return false;
+        if (sourceFilter === 'all') return true;
+        return getApplicationSourceKey(a) === sourceFilter;
+      });
+
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No applications</td></tr>';
+        const reason = sourceFilter === 'all'
+          ? 'No applications'
+          : `No applications match source "${escapeHtml(formatApplicationSourceLabel(sourceFilter))}"`;
+        tbody.innerHTML = `<tr><td colspan="7" class="empty-state">${reason}</td></tr>`;
         return;
       }
 
@@ -2443,14 +2734,15 @@
       // Task #281 — show load error before falling through to "No providers match filters",
       // which previously masked a failed fetch as an empty result set.
       if (loadErrors.providers) {
-        renderTableLoadErrorRow('providers-table', 9, 'providers', 'loadProviders()');
+        // Task #249 — column count bumped from 9 → 10 (added Source column).
+        renderTableLoadErrorRow('providers-table', 10, 'providers', 'loadProviders()');
         updateBulkBar();
         return;
       }
       filteredProviders = filterProvidersData();
 
       if (!filteredProviders.length) {
-        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No providers match filters</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="10" class="empty-state">No providers match filters</td></tr>';
         updateBulkBar();
         return;
       }
@@ -2477,7 +2769,20 @@
             <td>${mccIcon('star', 16)} ${stats.average_rating?.toFixed(1) || 'New'}${stats.average_rating && stats.average_rating < 4 ? ' <span style="color:var(--accent-red);">' + mccIcon('alert-triangle', 16) + '</span>' : ''}</td>
             <td>${stats.jobs_completed || 0}</td>
             <td>$${(stats.total_earnings || 0).toLocaleString()}</td>
-            <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}</td>
+            <td>${renderBgCheckBadge(p.bgcheck_status, p.bgcheck_updated_at)}${
+              p.bgc_live_mode === true
+                ? ' <span title="' + (p.bgc_mode_reason || 'live BGC API') + '" style="display:inline-flex;align-items:center;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:700;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);margin-left:4px;">LIVE</span>'
+                : (p.bgc_live_mode === false
+                  ? ' <span title="' + (p.bgc_mode_reason || 'mock mode') + '" style="display:inline-flex;align-items:center;padding:2px 6px;border-radius:100px;font-size:0.65rem;font-weight:700;background:rgba(100,100,120,0.15);color:var(--text-muted);border:1px solid var(--border-subtle);margin-left:4px;">MOCK</span>'
+                  : '')
+            }${
+              (typeof p.bgc_pending_count === 'number' || typeof p.bgc_completed_count === 'number')
+                ? '<div style="font-size:0.7rem;color:var(--text-muted);margin-top:2px;" title="Real (non-mock) BGC checks">' +
+                  (p.bgc_completed_count || 0) + ' done · ' + (p.bgc_pending_count || 0) + ' pending' +
+                  '</div>'
+                : ''
+            }</td>
+            <td>${renderApplicationLeadBadge(p)}</td>
             <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
             <td>
               <div style="display:flex;gap:4px;">
@@ -3732,6 +4037,31 @@
       document.getElementById('edit-payment-mcc-fee').value = p.amount_mcc_fee ?? '';
       document.getElementById('edit-payment-refund-amount').value = p.refund_amount ?? '';
       document.getElementById('edit-payment-admin-note').value = p.admin_note || '';
+
+      // Task #247 — render the Outreach History panel for the paying member
+      // so admins triaging a payment issue can see whether the user
+      // originally came from cold outreach without leaving the modal.
+      // Mirrors the dispute / refund / ticket / application modal pattern
+      // from Task #188. Section is hidden when the payment has no
+      // member_id (or the renderer isn't loaded yet) to match the existing
+      // "omit when no user id" behavior elsewhere.
+      const paymentSection = document.getElementById('edit-payment-outreach-history-section');
+      const paymentBody = document.getElementById('edit-payment-outreach-history-body');
+      if (paymentSection && paymentBody) {
+        if (p.member_id && typeof globalThis.renderOutreachHistoryPanel === 'function') {
+          paymentSection.style.display = '';
+          paymentBody.textContent = 'Loading…';
+          try {
+            globalThis.renderOutreachHistoryPanel('edit-payment-outreach-history-body', p.member_id);
+          } catch (e) {
+            console.warn('[admin] payment outreach history panel failed:', e);
+            paymentSection.style.display = 'none';
+          }
+        } else {
+          paymentSection.style.display = 'none';
+        }
+      }
+
       const modal = document.getElementById('edit-payment-modal');
       modal.style.display = 'flex';
       modal.classList.add('active');
@@ -3881,7 +4211,8 @@
             tab.classList.add('active');
             const section = tabContainer.closest('.section').id;
             currentFilters[section] = tab.dataset.filter;
-            if (section === 'applications') renderApplications();
+            // Task #248 — keep ?app_status=... in the URL so links survive a refresh.
+            if (section === 'applications') { syncApplicationsUrl(); renderApplications(); }
             if (section === 'payments') renderPayments();
             if (section === 'disputes') renderDisputes();
             if (section === 'tickets') renderTickets();
@@ -4491,51 +4822,37 @@
       if (!confirm(`Approve ${app.business_name} as a Founding Provider?\n\nThis will create their provider profile with Founding Provider status.`)) return;
 
       try {
-        // Update pilot application status
-        const { error: updateError } = await supabaseClient
-          .from('pilot_applications')
-          .update({ 
-            status: 'approved',
-            approved_at: new Date().toISOString(),
-            approved_by: currentUser.id
-          })
-          .eq('id', id);
-
-        if (updateError) {
-          showToast('Failed to approve application', 'error');
-          console.error('Approval error:', updateError);
-          return;
-        }
-
-        // Check if a profile already exists for this email
+        // Task #240: pilot application approval is now an audited server
+        // endpoint. The browser previously updated pilot_applications and
+        // profiles directly via supabaseClient — that relied on the
+        // "Admins can update any profile" RLS policy which is being dropped.
+        // Look up the matching profile (read is fine under RLS) and pass its
+        // id to the server, which performs both writes under the
+        // service-role client and writes an admin_audit_log row.
         const { data: existingProfile } = await supabaseClient
           .from('profiles')
           .select('id')
           .eq('email', app.email)
-          .single();
+          .maybeSingle();
 
-        if (existingProfile) {
-          // Update existing profile to be a founding provider
-          const { error: profileError } = await supabaseClient
-            .from('profiles')
-            .update({
-              role: 'provider',
-              is_founding_provider: true,
-              business_name: app.business_name,
-              business_phone: app.phone,
-              city: app.city,
-              state: app.state
-            })
-            .eq('id', existingProfile.id);
-
-          if (profileError) {
-            console.error('Profile update error:', profileError);
-          }
-
-          // Ensure provider_stats exists
-          await supabaseClient.from('provider_stats').upsert({ 
-            provider_id: existingProfile.id 
-          }, { onConflict: 'provider_id' });
+        const res = await fetch('/api/admin/provider-actions/approve-application', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            application_id: id,
+            profile_id: existingProfile?.id || null,
+            business_name: app.business_name,
+            business_phone: app.phone,
+            city: app.city,
+            state: app.state,
+            approved_by: currentUser.id
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast(json.error || `Approval failed (${res.status})`, 'error');
+          console.error('Approval error:', json);
+          return;
         }
 
         showToast(`${app.business_name} approved as Founding Provider!`, 'success');
@@ -6834,13 +7151,27 @@
           break;
       }
 
-      const { error } = await supabaseClient
-        .from('profiles')
-        .update(updateData)
-        .eq('id', userId);
-
-      if (error) {
-        showToast('Failed to update role: ' + error.message, 'error');
+      // Task #240: role flips now route through an audited Netlify endpoint.
+      // The browser used to call supabaseClient.from('profiles').update(...)
+      // directly, which relied on the "Admins can update any profile" RLS
+      // policy that is being removed.
+      try {
+        const res = await fetch('/api/admin/provider-actions/update-user-role', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            user_id: userId,
+            ...updateData,
+            actor_id: currentUser?.id || null
+          })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast('Failed to update role: ' + (json.error || res.status), 'error');
+          return;
+        }
+      } catch (e) {
+        showToast('Failed to update role: ' + e.message, 'error');
         return;
       }
 
@@ -6910,14 +7241,22 @@
         }
       } else if (founderType === 'provider') {
         const newStatus = !user.isFoundingProvider;
-        
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update({ is_founding_provider: newStatus })
-          .eq('id', userId);
 
-        if (error) {
-          showToast('Failed to update founding provider status: ' + error.message, 'error');
+        // Task #240: routed through audited server endpoint so the broad
+        // "Admins can update any profile" RLS policy can be dropped.
+        try {
+          const res = await fetch('/api/admin/provider-actions/update-user-role', {
+            method: 'POST',
+            headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_id: userId, is_founding_provider: newStatus, actor_id: currentUser?.id || null })
+          });
+          const json = await res.json().catch(() => ({}));
+          if (!res.ok) {
+            showToast('Failed to update founding provider status: ' + (json.error || res.status), 'error');
+            return;
+          }
+        } catch (e) {
+          showToast('Failed to update founding provider status: ' + e.message, 'error');
           return;
         }
         showToast(newStatus ? 'User is now a Founding Provider!' : 'Founding provider status removed', 'success');
@@ -9689,6 +10028,15 @@
         const panel = document.getElementById(panelId);
         if (panel) panel.style.display = 'block';
         if (tab.dataset.tab === 'growth-funnel') loadGrowthFunnel();
+        // Task #269 — re-run Outreach Engine init on every click of its
+        // mo-tab (even when already active). If a transient error caused
+        // the first init to fail and leave the panel blank, the user now
+        // has an obvious recovery path: click the tab again.
+        if (tab.dataset.tab === 'outreach-engine' && typeof globalThis.initOutreachEngine === 'function') {
+          Promise.resolve(globalThis.initOutreachEngine()).catch(err => {
+            console.warn('[OutreachEngine] re-init failed:', err);
+          });
+        }
       });
     });
 
@@ -9834,7 +10182,123 @@
           title: 'Recent Hunter & Promoter Activity', showEmpty: true
         }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
       }
+      // Task #222 — Launch broadcast send progress + bounces.
+      try { await loadLaunchBroadcastStats(); }
+      catch (e) { console.warn('[admin] loadLaunchBroadcastStats failed:', e); }
     }
+
+    // Task #222 — Launch broadcast dashboard card.
+    // (escapeHtml is already defined at the top of this IIFE.)
+    async function loadLaunchBroadcastStats() {
+      const summary = document.getElementById('launch-broadcast-summary');
+      const grid    = document.getElementById('launch-broadcast-grid');
+      const lastEl  = document.getElementById('launch-broadcast-last-send');
+      const list    = document.getElementById('launch-broadcast-bounces');
+      const countEl = document.getElementById('launch-broadcast-bounces-count');
+      if (!summary || !grid || !list) return;
+      summary.textContent = 'Loading…';
+      grid.innerHTML = '';
+      list.innerHTML = '';
+      if (lastEl) lastEl.textContent = '';
+      if (countEl) countEl.textContent = '';
+
+      try {
+        const [statsRes, bouncesRes] = await Promise.all([
+          fetch('/api/admin/launch-broadcast/stats',         { headers: getAdminHeaders() }),
+          fetch('/api/admin/launch-broadcast/bounces?limit=50', { headers: getAdminHeaders() })
+        ]);
+
+        if (!statsRes.ok) {
+          summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          return;
+        }
+        const stats = await statsRes.json();
+        if (stats.table_missing) {
+          summary.textContent = stats.error || 'No launch broadcast data yet.';
+          return;
+        }
+        if (stats.error) {
+          summary.textContent = `Error loading stats: ${stats.error}`;
+          return;
+        }
+
+        const t = Object.assign({ queued:0, sent:0, bounced:0, complained:0, failed:0, total:0 }, stats.totals || {});
+        const unsubs = stats.unsubscribes_total || 0;
+        const bounceRate = t.sent > 0 ? ((t.bounced / t.sent) * 100).toFixed(2) : '0.00';
+        summary.innerHTML =
+          `<strong>${t.total.toLocaleString()}</strong> rows logged · ` +
+          `<strong>${t.queued.toLocaleString()}</strong> queued · ` +
+          `<strong style="color:var(--accent-green,#4ade80);">${t.sent.toLocaleString()}</strong> sent · ` +
+          `<strong style="color:var(--accent-red,#ef4444);">${t.bounced.toLocaleString()}</strong> bounced (${bounceRate}% of sent) · ` +
+          `<strong style="color:var(--accent-orange,#f59e0b);">${t.complained.toLocaleString()}</strong> complained · ` +
+          `<strong>${t.failed.toLocaleString()}</strong> failed · ` +
+          `<strong>${unsubs.toLocaleString()}</strong> on suppression list`;
+
+        if (lastEl && stats.last_send_at) {
+          const d = new Date(stats.last_send_at);
+          lastEl.textContent = `Last send: ${d.toLocaleString()}`;
+        }
+
+        const audiences = stats.audiences || {};
+        const audKeys = Object.keys(audiences);
+        const cells = [];
+        for (const aud of audKeys) {
+          const a = Object.assign({ queued:0, sent:0, bounced:0, complained:0, failed:0, total:0 }, audiences[aud] || {});
+          cells.push(
+            `<div class="stat-card">
+              <div class="stat-label" style="text-transform:capitalize;">${escapeHtml(aud)}</div>
+              <div class="stat-value">${a.sent.toLocaleString()}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:6px;">
+                queued ${a.queued} · bounced ${a.bounced} · complained ${a.complained} · failed ${a.failed}
+              </div>
+              <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">total logged ${a.total}</div>
+            </div>`
+          );
+        }
+        grid.innerHTML = cells.join('') || '<div style="padding:8px;color:var(--text-muted);">No audience data.</div>';
+
+        if (!bouncesRes.ok) {
+          list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          return;
+        }
+        const bounces = await bouncesRes.json();
+        const rows = bounces.rows || [];
+        if (countEl) countEl.textContent = `${rows.length} shown`;
+        if (rows.length === 0) {
+          list.innerHTML = '<div style="padding:12px;color:var(--text-muted);">No bounces or complaints yet.</div>';
+          return;
+        }
+        const statusColor = (s) => s === 'bounced' ? 'var(--accent-red,#ef4444)'
+          : s === 'complained' ? 'var(--accent-orange,#f59e0b)'
+          : 'var(--text-muted)';
+        list.innerHTML = `
+          <table style="width:100%;border-collapse:collapse;font-size:0.85rem;">
+            <thead style="position:sticky;top:0;background:var(--bg-elevated,#1e2530);">
+              <tr>
+                <th style="text-align:left;padding:8px;">Email</th>
+                <th style="text-align:left;padding:8px;">Audience</th>
+                <th style="text-align:left;padding:8px;">Status</th>
+                <th style="text-align:left;padding:8px;">Reason</th>
+                <th style="text-align:left;padding:8px;">When</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${rows.map(r => `
+                <tr style="border-top:1px solid var(--border-subtle);">
+                  <td style="padding:8px;font-family:monospace;">${escapeHtml(r.email)}</td>
+                  <td style="padding:8px;text-transform:capitalize;">${escapeHtml(r.audience || '')}</td>
+                  <td style="padding:8px;color:${statusColor(r.status)};text-transform:capitalize;">${escapeHtml(r.status || '')}</td>
+                  <td style="padding:8px;color:var(--text-muted);">${escapeHtml(r.error_message || '—')}</td>
+                  <td style="padding:8px;color:var(--text-muted);white-space:nowrap;">${r.created_at ? new Date(r.created_at).toLocaleString() : ''}</td>
+                </tr>`).join('')}
+            </tbody>
+          </table>`;
+      } catch (err) {
+        console.error('loadLaunchBroadcastStats error:', err);
+        summary.textContent = `Error: ${err.message || err}`;
+      }
+    }
+    globalThis.loadLaunchBroadcastStats = loadLaunchBroadcastStats;
 
     function getMarketingHeaders() {
       const headers = { 'Content-Type': 'application/json' };
@@ -11004,6 +11468,57 @@
       }
     }
     globalThis.aiOpsFetch = aiOpsFetch;
+    // Task #234 — expose the same diagnostic helper under a generic name so
+    // non-AI-Ops loaders (SMS log, SaaS subscriptions, dispute resolver,
+    // payment tracker, etc.) can call it without reading as if they're part
+    // of the AI Ops module. `safeFetch` (top of file) delegates here too.
+    globalThis.adminFetch = aiOpsFetch;
+
+    // Task #233 — shared helpers that turn the text-only "Not signed in as
+    // admin" error from aiOpsFetch into an actionable inline prompt with a
+    // "Sign in again" button. Used by every AI Ops loader (Activity,
+    // Escalations, Digest, Settings) so the four cards behave consistently.
+    let _aiOpsReauthRetry = null;
+
+    function openAiOpsReauth(retryFn) {
+      _aiOpsReauthRetry = (typeof retryFn === 'function') ? retryFn : null;
+      const modal = document.getElementById('admin-password-modal');
+      if (!modal) {
+        // Last-resort fallback: send the admin to the login page if the
+        // re-login modal isn't on this page for some reason.
+        window.location.href = 'admin.html';
+        return;
+      }
+      try { showModalState('password'); } catch { /* showModalState may not be in scope here, ignore */ }
+      modal.style.display = 'flex';
+      const input = document.getElementById('admin-password-input');
+      if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
+    }
+    globalThis.openAiOpsReauth = openAiOpsReauth;
+
+    function renderAiOpsAuthError(containerEl, err, retryFn) {
+      if (!containerEl) return;
+      const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+      if (!isAuthErr) {
+        containerEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+        return;
+      }
+      // Stash the retry callback under a one-shot global key so the inline
+      // onclick handler can find it without requiring a re-render binding.
+      const key = '_aiOpsRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[key] = function () {
+        const fn = globalThis[key];
+        try { delete globalThis[key]; } catch { globalThis[key] = null; }
+        openAiOpsReauth(typeof retryFn === 'function' ? retryFn : null);
+        return fn;
+      };
+      containerEl.innerHTML = `<div style="padding:28px 24px;text-align:center;max-width:560px;margin:0 auto;border:1px solid var(--border-subtle);border-radius:12px;background:var(--bg-secondary);">
+        <div style="font-size:1.05rem;font-weight:600;color:var(--accent-gold);margin-bottom:8px;">⚠ Your admin session expired</div>
+        <div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:18px;line-height:1.5;">${escapeHtml(err.message)}</div>
+        <button class="btn btn-primary" onclick="globalThis['${key}']()">Sign in again</button>
+      </div>`;
+    }
+    globalThis.renderAiOpsAuthError = renderAiOpsAuthError;
 
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
@@ -11228,20 +11743,28 @@
           // filters." empty state, hiding real outages. Now we surface the
           // diagnostic message from aiOpsFetch when both sides fail and
           // show a partial-fail banner when only one side fails.
-          const fleetErr = { msg: null };
-          const legacyErr = { msg: null };
+          const fleetErr = { msg: null, code: null };
+          const legacyErr = { msg: null, code: null };
           const [fleetRes, legacyRes] = await Promise.all([
             // Skip the fleet round-trip entirely when a legacy-only module filter is set.
             mod
               ? Promise.resolve({ actions: [] })
               : aiOpsFetch(`${apiBase}/api/admin/agent-fleet/actions?${fleetParams}`, { headers: getAiOpsHeaders() })
-                  .catch(e => { fleetErr.msg = e.message; return { actions: [] }; }),
+                  .catch(e => { fleetErr.msg = e.message; fleetErr.code = e.code; return { actions: [] }; }),
             aiOpsFetch(`${apiBase}/api/admin/ai-ops/actions?${legacyParams}`, { headers: getAiOpsHeaders() })
-              .catch(e => { legacyErr.msg = e.message; return { actions: [] }; })
+              .catch(e => { legacyErr.msg = e.message; legacyErr.code = e.code; return { actions: [] }; })
           ]);
           // Both sides failed → render the real error so the admin can act
           // instead of seeing a misleading empty state.
           if (fleetErr.msg && legacyErr.msg) {
+            // Task #233 — when both sides failed for the same auth reason,
+            // collapse the noise into a single "Sign in again" prompt.
+            const isAuth = (c) => c === 'NO_ADMIN_AUTH' || c === 'ADMIN_AUTH_REJECTED';
+            if (isAuth(fleetErr.code) && isAuth(legacyErr.code)) {
+              renderAiOpsAuthError(listEl, { code: fleetErr.code, message: fleetErr.msg }, loadAiOpsActivity);
+              if (pagEl) pagEl.innerHTML = '';
+              return;
+            }
             listEl.innerHTML = `<div style="padding:32px;text-align:left;color:var(--accent-red);max-width:760px;margin:0 auto;">
               <div style="font-weight:600;margin-bottom:8px;">Could not load AI activity.</div>
               <div style="font-size:0.85rem;margin-bottom:6px;"><strong>Agent Fleet:</strong> ${escapeHtml(fleetErr.msg)}</div>
@@ -11322,7 +11845,9 @@
           pagEl.innerHTML = total > 25 ? renderPaginationControls({ page: aiOpsActivityPage, limit: 25, total, totalPages }, 'changeAiOpsActivityPage') : '';
         }
       } catch (err) {
-        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button instead of
+        // a dead-end text message.
+        renderAiOpsAuthError(listEl, err, loadAiOpsActivity);
       }
     }
     globalThis.loadAiOpsActivity = loadAiOpsActivity;
@@ -11382,7 +11907,8 @@
           </div>`;
         }).join('');
       } catch (err) {
-        listEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button.
+        renderAiOpsAuthError(listEl, err, loadAiOpsEscalations);
       }
     }
     globalThis.loadAiOpsEscalations = loadAiOpsEscalations;
@@ -11434,7 +11960,8 @@
         if (selectorEl) selectorEl.style.display = '';
         renderSelectedDigest();
       } catch (err) {
-        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button.
+        renderAiOpsAuthError(contentEl, err, loadAiOpsDigests);
       }
     }
     globalThis.loadAiOpsDigests = loadAiOpsDigests;
@@ -11715,7 +12242,8 @@
           </div>
         `;
       } catch (err) {
-        if (contentEl) contentEl.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Settings unavailable: ${escapeHtml(err.message)}</div>`;
+        // Task #233 — auth errors render a "Sign in again" button.
+        renderAiOpsAuthError(contentEl, err, loadAiOpsSettings);
       }
     }
     globalThis.loadAiOpsSettings = loadAiOpsSettings;

@@ -13,7 +13,14 @@
 --   'autosuspend_low_rated' | bulk-suspended low-rated providers
 --   'create_provider_application' | server-side provider_application insert
 --   'approve_provider_application' | admin approved a provider application
+--                          via POST /api/admin/provider-actions/approve-application
+--                          (Task #240). metadata: { application_id, profile_id,
+--                          profile_updated, business_name, city, state }.
 --   'reject_provider_application'  | admin rejected a provider application
+--   'update_user_role'    | admin flipped a user's role / dual-role flags via
+--                           POST /api/admin/provider-actions/update-user-role
+--                           (Task #240). metadata: { before:{role,
+--                           also_member, also_provider}, after:{...} }.
 --   'request_application_info'     | admin asked the applicant for more info
 --   'adjust_bid_credits'  | admin granted/deducted bid credits via the
 --                          /api/admin/provider-actions/adjust-credits endpoint

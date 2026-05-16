@@ -81,7 +81,7 @@ const STUB_INIT = `
 `;
 
 async function waitForSupabase(page) {
-  await page.waitForFunction(() => !!(window.supabaseClient && window.supabaseClient.auth), null, { timeout: 10000 });
+  await page.waitForFunction(() => !!(globalThis.supabaseClient && globalThis.supabaseClient.auth), null, { timeout: 10000 });
 }
 
 test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
@@ -97,7 +97,7 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
     await expect(btn).toContainText(/continue with facebook/i);
     await waitForSupabase(page);
     await btn.click();
-    const call = await page.waitForFunction(() => window.__fbCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
+    const call = await page.waitForFunction(() => globalThis.__fbCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
     const opts = await call.jsonValue();
     expect(opts.provider).toBe('facebook');
     expect(opts.options.redirectTo).toMatch(/\/login\.html\?oauth=facebook$/);
@@ -111,7 +111,7 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
     await expect(btn).toContainText(/continue with facebook/i);
     await waitForSupabase(page);
     await btn.click();
-    const call = await page.waitForFunction(() => window.__fbCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
+    const call = await page.waitForFunction(() => globalThis.__fbCalls.signInWithOAuth[0] || null, null, { timeout: 5000 });
     const opts = await call.jsonValue();
     expect(opts.provider).toBe('facebook');
     expect(opts.options.redirectTo).toMatch(/\/onboarding-member\.html\?source=facebook$/);
@@ -130,18 +130,18 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
 
   test('login.html?oauth=facebook: brand-new FB user → INSERT profile + redirect to onboarding-member.html?source=facebook', async ({ page }) => {
     await page.addInitScript(() => {
-      window.__fbStubUser = {
+      globalThis.__fbStubUser = {
         id: 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee',
         email: 'newfb@example.com',
         user_metadata: { full_name: 'New FB User' }
       };
-      window.__fbExistingProfile = null; // PGRST116 → triggers profile insert + the FB-survey fork.
+      globalThis.__fbExistingProfile = null; // PGRST116 → triggers profile insert + the FB-survey fork.
     });
     await page.goto('/login.html?oauth=facebook');
     // handleUserRedirect must (a) insert a profiles row for the new OAuth
     // user and (b) forward FB signups specifically to the onboarding survey.
     await page.waitForURL(/\/onboarding-member\.html\?source=facebook/, { timeout: 10000 });
-    const inserted = await page.evaluate(() => window.__fbCalls.inserts.find(i => i.table === 'profiles'));
+    const inserted = await page.evaluate(() => globalThis.__fbCalls.inserts.find(i => i.table === 'profiles'));
     expect(inserted).toBeTruthy();
     expect(inserted.row.id).toBe('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee');
     expect(inserted.row.email).toBe('newfb@example.com');
@@ -151,25 +151,25 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
 
   test('login.html?oauth=facebook: returning member → straight to members.html, no insert, no signUp', async ({ page }) => {
     await page.addInitScript(() => {
-      window.__fbStubUser = {
+      globalThis.__fbStubUser = {
         id: 'bbbbbbbb-cccc-dddd-eeee-ffffffffffff',
         email: 'returning@example.com',
         user_metadata: { full_name: 'Returning Member' }
       };
       // Existing profile → handleUserRedirect must skip the FB-survey fork.
-      window.__fbExistingProfile = { role: 'member', is_also_member: false, is_also_provider: false };
+      globalThis.__fbExistingProfile = { role: 'member', is_also_member: false, is_also_provider: false };
     });
     await page.goto('/login.html?oauth=facebook');
     await page.waitForURL(/\/members\.html(\?|$)/, { timeout: 10000 });
-    const inserts = await page.evaluate(() => window.__fbCalls.inserts.filter(i => i.table === 'profiles').length);
-    const signUps = await page.evaluate(() => window.__fbCalls.signUp);
+    const inserts = await page.evaluate(() => globalThis.__fbCalls.inserts.filter(i => i.table === 'profiles').length);
+    const signUps = await page.evaluate(() => globalThis.__fbCalls.signUp);
     expect(inserts).toBe(0);
     expect(signUps).toBe(0);
   });
 
   test('onboarding-member.html?source=facebook: pre-fills name from user_metadata and starts at the phone step', async ({ page }) => {
     await page.addInitScript(() => {
-      window.__fbStubUser = {
+      globalThis.__fbStubUser = {
         id: '11111111-2222-3333-4444-555555555555',
         email: 'jane.fb@example.com',
         user_metadata: { full_name: 'Jane Facebook' }
@@ -177,7 +177,7 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
       // No existing profile row yet — maybeStartFromOAuth will see PGRST116
       // and INSERT one. (Task #183's "this page redirects directly back here
       // so no other page has had a chance to insert the profile row" branch.)
-      window.__fbExistingProfile = null;
+      globalThis.__fbExistingProfile = null;
     });
     await page.goto('/onboarding-member.html?source=facebook');
     // maybeStartFromOAuth polls getUser up to 20×150ms; give it room.
@@ -187,9 +187,9 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
     await expect(page.locator('#input-name')).toHaveValue('Jane Facebook');
     // The OAuth-user branch must INSERT a profile row when none exists.
     await expect.poll(async () =>
-      page.evaluate(() => window.__fbCalls.inserts.find(i => i.table === 'profiles') || null)
+      page.evaluate(() => globalThis.__fbCalls.inserts.find(i => i.table === 'profiles') || null)
     ).not.toBeNull();
-    const inserted = await page.evaluate(() => window.__fbCalls.inserts.find(i => i.table === 'profiles').row);
+    const inserted = await page.evaluate(() => globalThis.__fbCalls.inserts.find(i => i.table === 'profiles').row);
     expect(inserted.id).toBe('11111111-2222-3333-4444-555555555555');
     expect(inserted.email).toBe('jane.fb@example.com');
     expect(inserted.role).toBe('member');
@@ -198,14 +198,14 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
 
   test('onboarding-member.html?source=facebook submitSignup: UPDATEs the profile row, never calls auth.signUp', async ({ page }) => {
     await page.addInitScript(() => {
-      window.__fbStubUser = {
+      globalThis.__fbStubUser = {
         id: '11111111-2222-3333-4444-555555555555',
         email: 'jane.fb@example.com',
         user_metadata: { full_name: 'Jane Facebook' }
       };
       // Pretend a profile row already exists (no phone yet) so we don't
       // hit the "returning member" bounce-to-/members.html branch.
-      window.__fbExistingProfile = { id: '11111111-2222-3333-4444-555555555555', phone: null };
+      globalThis.__fbExistingProfile = { id: '11111111-2222-3333-4444-555555555555', phone: null };
     });
     await page.goto('/onboarding-member.html?source=facebook');
     const phoneInput = page.locator('#input-phone');
@@ -240,13 +240,13 @@ test.describe('Facebook sign-in (Task #183, locked down by Task #286)', () => {
     // The OAuth branch must UPDATE the profile row and must NOT call
     // auth.signUp (which would re-create a duplicate user).
     await expect.poll(async () =>
-      page.evaluate(() => window.__fbCalls.updates.find(u => u.table === 'profiles') || null),
+      page.evaluate(() => globalThis.__fbCalls.updates.find(u => u.table === 'profiles') || null),
       { timeout: 5000 }
     ).not.toBeNull();
-    const upd = await page.evaluate(() => window.__fbCalls.updates.find(u => u.table === 'profiles'));
+    const upd = await page.evaluate(() => globalThis.__fbCalls.updates.find(u => u.table === 'profiles'));
     expect(upd.eq).toEqual({ col: 'id', val: '11111111-2222-3333-4444-555555555555' });
     expect(upd.row.phone).toBe('5125559999');
-    const signUpCount = await page.evaluate(() => window.__fbCalls.signUp);
+    const signUpCount = await page.evaluate(() => globalThis.__fbCalls.signUp);
     expect(signUpCount).toBe(0);
   });
 });

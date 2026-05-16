@@ -8,6 +8,7 @@ const Anthropic = require('@anthropic-ai/sdk');
 const { GoogleGenerativeAI } = require('@google/generative-ai');
 const { GoogleGenAI } = require('@google/genai');
 const Stripe = require('stripe');
+const { STRIPE_API_VERSION } = require('./lib/stripe-api-version');
 const { createClient } = require('@supabase/supabase-js');
 const vision = require('@google-cloud/vision');
 const sharp = require('sharp');
@@ -5454,7 +5455,7 @@ async function getStripeClient() {
   }
 
   stripeClient = new Stripe(secret, {
-    apiVersion: '2023-10-16'
+    apiVersion: STRIPE_API_VERSION
   });
 
   return stripeClient;

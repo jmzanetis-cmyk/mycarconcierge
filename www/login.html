@@ -257,6 +257,27 @@
     }
   </style>
   <script src="/i18n.js"></script>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/login.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="Sign in to My Car Concierge. Manage your vehicles, bids, appointments, and providers from one secure account." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/login.html" />
+  <meta property="og:title" content="Sign In – My Car Concierge" />
+  <meta property="og:description" content="Sign in to My Car Concierge. Manage your vehicles, bids, appointments, and providers from one secure account." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="Sign In – My Car Concierge" />
+  <meta name="twitter:description" content="Sign in to My Car Concierge. Manage your vehicles, bids, appointments, and providers from one secure account." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
+  <script src="/auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -618,10 +639,22 @@
   <script src="/pwa-init.js"></script>
   <script src="/ai-chat.js"></script>
   <script>
+    /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
     });
   </script>
+  <script src="/utils.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+  <script src="analytics-tracker.js" defer></script>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

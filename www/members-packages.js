@@ -2388,7 +2388,9 @@
             fetch('/api/notifications/bid-accepted-push', {
               method: 'POST',
               headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${_bidAcceptSession.access_token}` },
-              body: JSON.stringify({ provider_id: bid.provider_id, package_title: pkg?.title || 'Maintenance Package', bid_amount: amount })
+              // Task #351: server now reads package_title + bid_amount from
+              // the DB using bid_id, so we no longer send them from the browser.
+              body: JSON.stringify({ bid_id: bidId, provider_id: bid.provider_id })
             }).catch(() => {});
           }
         } catch (e) {

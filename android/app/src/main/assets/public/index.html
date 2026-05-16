@@ -417,10 +417,59 @@
       max-width: 520px;
       margin: 0 auto 40px;
       font-size: 0.95rem;
-      color: var(--text-muted, #888);
-      font-style: italic;
+      color: var(--text-secondary);
       line-height: 1.6;
       animation: fadeInUp 0.6s ease 0.3s both;
+    }
+    [data-theme="light"] .hero-nudge { color: #4a5568; }
+
+    /* Tertiary text link beneath the primary/secondary CTA pair. */
+    .hero-tertiary {
+      margin-top: 18px;
+      animation: fadeInUp 0.6s ease 0.4s both;
+    }
+    .hero-tertiary a {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: rgba(201, 162, 39, 0.4);
+    }
+    .hero-tertiary a:hover { color: var(--accent-gold); }
+
+    /* Capability strip — what we can actually back today, sits between the
+       CTAs and the trust badges. No invented metrics. */
+    .capability-strip {
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 22px;
+      flex-wrap: wrap;
+      margin: 28px auto 0;
+      max-width: 760px;
+      animation: fadeInUp 0.6s ease 0.45s both;
+    }
+    .capability-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.86rem;
+      color: var(--text-secondary);
+    }
+    .capability-item .capability-icon {
+      color: var(--accent-gold);
+      display: inline-flex;
+    }
+    .capability-item a {
+      color: inherit;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+      text-decoration-color: rgba(201, 162, 39, 0.45);
+    }
+    .capability-item a:hover { color: var(--accent-gold); }
+    [data-theme="light"] .capability-item { color: #4a5568; }
+    @media (max-width: 600px) {
+      .capability-strip { gap: 12px 18px; font-size: 0.8rem; }
     }
 
     .hero-actions {
@@ -1768,6 +1817,7 @@
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
 
     .onboarding-banner {
+      display: block;
       position: relative;
       z-index: 101;
       background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
@@ -1894,17 +1944,17 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <output class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
+  <div class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
     <span class="open-banner-dot" aria-hidden="true"></span>
-    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Open for Business</span>
+    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Now Live</span>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <span data-i18n="landing.openForBusinessBody">Member &amp; provider profiles are free to create.</span>
+    <span data-i18n="landing.openForBusinessBody">Now accepting members and providers nationwide — both profiles are free to create.</span>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
     <a href="/onboarding-member.html" data-i18n="landing.openForBusinessMemberCta">Create a member profile</a>
     <span class="open-banner-sep" aria-hidden="true">&middot;</span>
     <a href="/onboarding-provider.html" data-i18n="landing.openForBusinessProviderCta">Create a provider profile</a>
     <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
-  </output>
+  </div>
   <script>
     if (!localStorage.getItem('onboardingBannerDismissed')) {
       document.getElementById('onboardingBanner').style.display = '';
@@ -1960,55 +2010,49 @@
       <div class="container">
         <div class="hero-badge" data-i18n="landing.heroBadge">Your complete auto ownership platform</div>
         <h1>
-          <span class="highlight" data-i18n="landing.heroHeadline1">One app.</span> <span data-i18n="landing.heroHeadline2">Every auto need.</span><br>
-          <span data-i18n="landing.heroHeadline3">Zero hassle.</span>
+          <span class="highlight" data-i18n="landing.heroHeadline1">Get competing bids</span><br>
+          <span data-i18n="landing.heroHeadline2">from verified mechanics.</span> <span data-i18n="landing.heroHeadline3">Pick the best one.</span>
         </h1>
         <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
-          Find trusted service. Track maintenance. Learn about your ride. Shop for your next one—all in one place.
+          Funds stay in escrow and are only released after you confirm the job is done. Stripe-secured payments. Background-checked providers.
         </p>
-        <p class="hero-nudge" data-i18n="landing.heroNudge">That noise. That light. That thing you've been putting off. We make it easy to finally get it done.</p>
+        <p class="hero-nudge" data-i18n="landing.heroNudge">Setup takes 30 seconds. No commitment, no membership required.</p>
         <div class="hero-actions">
           <a href="onboarding-member.html" class="btn btn-primary btn-lg" data-i18n="landing.getStartedFree">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
             </svg>
-            Get Started Free
-          </a>
-          <a href="#" onclick="openFounderModal(); return false;" class="btn btn-outline-gold" data-i18n="nav.ourStory">
-            About
+            Create Your Free Profile
           </a>
           <a href="onboarding-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProviderFree">
-            Create Your Provider Profile
+            I'm a Shop or Pro
           </a>
         </div>
+        <p class="hero-tertiary">
+          <a href="#" onclick="openFounderModal(); return false;" data-i18n="landing.heroTertiaryAbout">Read our story</a>
+        </p>
+
+        <div class="capability-strip" aria-label="Platform trust">
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="shield"></span></span>
+            <span data-i18n="landing.capEscrowProtected">Escrow Protected — you only pay when the job's done</span>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="shield-check"></span></span>
+            <a href="/background-check-disclosure.html" data-i18n="landing.capBackgroundChecked">Every provider background-checked</a>
+          </div>
+          <div class="capability-item">
+            <span class="capability-icon"><span class="icon-inline" data-icon="lock"></span></span>
+            <span data-i18n="landing.capStripeSecured">Payments secured by Stripe</span>
+          </div>
+        </div>
+
         <div class="hero-free-strip" role="note">
           <span><strong data-i18n="landing.heroFreeMembers">Free</strong> <span data-i18n="landing.heroFreeMembersBody">to create a member profile</span></span>
           <span class="hero-free-strip-sep" aria-hidden="true"></span>
           <span><strong data-i18n="landing.heroFreeProviders">Free</strong> <span data-i18n="landing.heroFreeProvidersBody">to create a provider profile (bid credits sold separately)</span></span>
         </div>
         
-        <div class="trust-strip">
-          <div class="trust-badge">
-            <span class="trust-icon"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
-            <span class="trust-text" data-i18n="landing.trustVettedProviders">Vetted Providers</span>
-          </div>
-          <div class="trust-badge" data-i18n="landing.trustBackgroundCheckedTooltip" data-i18n-attr="title" title="Background-checked providers · Annual renewal required · ✓ 90% team compliance minimum · Nationally accredited screening">
-            <span class="trust-icon" style="color:#4CAF50;"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span>
-            <span class="trust-text" data-i18n="landing.trustBackgroundCheckedProviders">Background-Checked Providers</span>
-          </div>
-          <div class="trust-badge">
-            <span class="trust-icon"><span class="icon-inline" data-icon="lock"></span></span>
-            <span class="trust-text" data-i18n="landing.trustEscrowProtection">Escrow Protection</span>
-          </div>
-          <div class="trust-badge">
-            <span class="trust-icon"><span class="icon-inline" data-icon="clipboard-list"></span></span>
-            <span class="trust-text" data-i18n="landing.trustVerifiedRegistration">Verified Registration</span>
-          </div>
-          <div class="trust-badge">
-            <span class="trust-icon"><span class="icon-inline" data-icon="dollar-sign"></span></span>
-            <span class="trust-text" data-i18n="landing.trustNoBillShock">No Bill Shock</span>
-          </div>
-        </div>
         <div class="social-proof-bar" id="social-proof-bar" style="display:none">
           <span class="social-proof-dot"></span>
           <span id="social-proof-text"></span>
@@ -2166,28 +2210,23 @@
       <div class="container">
         <div class="how-it-works-header">
           <span class="section-label" data-i18n="landing.simpleProcess">How It Works</span>
-          <h2 data-i18n="landing.howItWorksTitle">4 simple steps to better auto care</h2>
+          <h2 data-i18n="landing.howItWorksTitle">3 simple steps to better auto care</h2>
         </div>
         <div class="steps">
           <div class="step">
             <div class="step-number">1</div>
-            <h3 data-i18n="landing.step1Title">Tell us what you need</h3>
-            <p data-i18n="landing.step1Desc">Describe your service request with photos so providers understand the job.</p>
+            <h3 data-i18n="landing.step1Title">Post what you need</h3>
+            <p data-i18n="landing.step1Desc">Add a few details and a photo or two so providers understand the job.</p>
           </div>
           <div class="step">
             <div class="step-number">2</div>
-            <h3 data-i18n="landing.step2Title">Compare bids</h3>
-            <p data-i18n="landing.step2Desc">Vetted providers compete for your business with transparent pricing.</p>
+            <h3 data-i18n="landing.step2Title">Get bids from 2&ndash;3 verified providers</h3>
+            <p data-i18n="landing.step2Desc">Background-checked shops compete for your job. Compare them side by side.</p>
           </div>
           <div class="step">
             <div class="step-number">3</div>
-            <h3 data-i18n="landing.step3VerifiedTitle">Look for MCC Verified</h3>
-            <p data-i18n="landing.step3VerifiedDesc">Providers with the MCC Verified badge have completed background checks on the people who&rsquo;ll be working on your car. Filter to verified-only any time.</p>
-          </div>
-          <div class="step">
-            <div class="step-number">4</div>
-            <h3 data-i18n="landing.step4Title">Choose with confidence</h3>
-            <p data-i18n="landing.step4Desc">Select the best fit and pay securely through escrow protection.</p>
+            <h3 data-i18n="landing.step3Title">Pick the best price and schedule</h3>
+            <p data-i18n="landing.step3Desc">Funds stay in escrow until you confirm the work is done.</p>
           </div>
         </div>
       </div>
@@ -2196,9 +2235,9 @@
     <section class="founder-programs">
       <div class="container">
         <div class="founder-programs-header">
-          <div style="display:inline-block;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-size:0.75rem;font-weight:700;padding:6px 16px;border-radius:100px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px;">Limited Time — Founding Era</div>
-          <h2>Launch with us — earn while we grow</h2>
-          <p>We're in our rollout phase, actively onboarding members and providers. Our Founder Programs reward early supporters with exclusive, lifetime benefits — but they won't be available once we're established.</p>
+          <div style="display:inline-block;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-size:0.75rem;font-weight:700;padding:6px 16px;border-radius:100px;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:16px;">Founder Programs</div>
+          <h2>Earn alongside us as we grow</h2>
+          <p>Optional referral programs for members and providers who want to share the platform with their network. Free to join — no membership required.</p>
         </div>
         <div class="founder-cards">
           <div class="founder-card">
@@ -2212,7 +2251,6 @@
             <a href="provider-pilot.html" class="btn btn-outline-gold">Apply as Founding Provider</a>
           </div>
         </div>
-        <p class="founder-urgency">These programs won't be available forever. Early supporters get the best deal.</p>
         <div style="text-align:center;margin-top:24px;">
           <a href="founders.html" style="color:var(--accent-gold);font-weight:600;text-decoration:none;font-size:0.95rem;display:inline-flex;align-items:center;gap:6px;">Learn more about Founder Programs <span style="font-size:1.2em;">&rarr;</span></a>
         </div>
@@ -2568,5 +2606,6 @@
       fjs.parentNode.insertBefore(js, fjs);
     }(document, 'script', 'facebook-jssdk'));
   </script>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

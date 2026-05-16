@@ -151,8 +151,8 @@ test.describe('Task #293 — ES mobile compliance dashboard (fixture)', () => {
             document.head.appendChild(s);
           }, buildFixtureScript(state));
           await page.addScriptTag({ url: '/bgc-compliance.js' });
-          await page.waitForFunction(() => !!(window.bgcCompliance && window.bgcCompliance.refresh));
-          await page.evaluate(() => window.bgcCompliance.refresh());
+          await page.waitForFunction(() => !!(globalThis.bgcCompliance && globalThis.bgcCompliance.refresh));
+          await page.evaluate(() => globalThis.bgcCompliance.refresh());
 
           // (a) ES title + pill render.
           const card = page.locator('#bgc-state-card');
@@ -271,7 +271,7 @@ test.describe('Task #293 — ES mobile compliance dashboard (real providers.html
           // Force ES BEFORE login so the providers.html shell renders in
           // Spanish on first paint.
           await page.addInitScript(() => {
-            window.localStorage.setItem('mcc_language', 'es');
+            globalThis.localStorage.setItem('mcc_language', 'es');
           });
           await loginViaUI(page, TEST_PROVIDER_EMAIL, TEST_PROVIDER_PASS, 'provider');
           if (!page.url().includes('providers.html')) {
@@ -281,16 +281,16 @@ test.describe('Task #293 — ES mobile compliance dashboard (real providers.html
           await dismissOverlays(page);
           // Belt-and-suspenders: ensure the i18n layer also flips to ES.
           await page.evaluate(async () => {
-            window.localStorage.setItem('mcc_language', 'es');
-            if (window.I18n && typeof window.I18n.setLanguage === 'function') {
-              await window.I18n.setLanguage('es');
+            globalThis.localStorage.setItem('mcc_language', 'es');
+            if (globalThis.I18n && typeof globalThis.I18n.setLanguage === 'function') {
+              await globalThis.I18n.setLanguage('es');
             }
             document.documentElement.lang = 'es';
           });
           await navigateToSection(page, 'compliance');
           await expect(page.locator('#bgc-state-card')).toBeAttached({ timeout: 15000 });
           await page.waitForFunction(() =>
-            !!(window.bgcCompliance && typeof window.bgcCompliance.refresh === 'function'),
+            !!(globalThis.bgcCompliance && typeof globalThis.bgcCompliance.refresh === 'function'),
             { timeout: 15000 });
 
           // Drive the state.
@@ -301,7 +301,7 @@ test.describe('Task #293 — ES mobile compliance dashboard (real providers.html
             bgc_compliance_pct:      state.pct,
             bgc_badge_verified:      state.badge
           }).eq('id', providerId);
-          await page.evaluate(() => window.bgcCompliance.refresh());
+          await page.evaluate(() => globalThis.bgcCompliance.refresh());
 
           const card = page.locator('#bgc-state-card');
           await expect(card).toContainText(state.expectTitle, { timeout: 10000 });

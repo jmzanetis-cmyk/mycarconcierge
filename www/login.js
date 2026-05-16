@@ -319,6 +319,17 @@
         try { signupIntent = localStorage.getItem('mcc_signup_intent'); } catch (_e) { /* ignore */ }
         const isProviderIntent = signupIntent === 'provider';
 
+        // Task #341: capture the active UI language at OAuth signup so
+        // day-one transactional emails (welcome, magic link, BGC
+        // launch) go out in the language the user was browsing in.
+        // Reads i18n.js's storage key directly; null falls back to EN
+        // downstream and matches existing pre-#341 signups.
+        let preferredLanguage = null;
+        try {
+          const stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+          if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+        } catch (_e) { /* ignore */ }
+
         console.log('Creating profile for new OAuth user:', user.email, 'intent:', signupIntent || 'member');
         const { data: newProfile, error: createError } = await supabaseClient
           .from('profiles')
@@ -328,6 +339,7 @@
             full_name: user.user_metadata?.full_name || user.user_metadata?.name || user.email?.split('@')[0] || 'User',
             role: isProviderIntent ? 'pending_provider' : 'member',
             is_also_member: isProviderIntent ? true : undefined,
+            preferred_language: preferredLanguage,
             created_at: new Date().toISOString()
           })
           .select('role, is_also_member, is_also_provider')
@@ -344,17 +356,22 @@
         // Brand-new Facebook signups go through the onboarding survey,
         // matching the email signup experience. Provider-intent users
         // get routed to the provider survey instead of the member one.
-        if (urlParams.oauth === 'facebook') {
+        // Task #326: Apple OAuth follows the same routing as Facebook
+        // (iOS App Store parity) — provider-intent Apple signups land
+        // on the provider survey with role='pending_provider' instead
+        // of the default member onboarding.
+        if (urlParams.oauth === 'facebook' || urlParams.oauth === 'apple') {
+          const oauthSource = urlParams.oauth;
           if (isProviderIntent) {
             try { localStorage.removeItem('mcc_signup_intent'); } catch (_e) { /* ignore */ }
             localStorage.setItem('mcc_portal', 'provider');
             await new Promise(resolve => setTimeout(resolve, 300));
-            window.location.href = 'onboarding-provider.html?source=facebook';
+            window.location.href = 'onboarding-provider.html?source=' + oauthSource;
             return;
           }
           localStorage.setItem('mcc_portal', 'member');
           await new Promise(resolve => setTimeout(resolve, 300));
-          window.location.href = 'onboarding-member.html?source=facebook';
+          window.location.href = 'onboarding-member.html?source=' + oauthSource;
           return;
         }
       }

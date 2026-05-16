@@ -7635,5 +7635,1034 @@
       setTimeout(checkOnboardingStatus, 1500);
     });
   </script>
+
+  <!-- Welcome Modal (shown once on first login) -->
+  <div class="modal-backdrop" id="welcome-modal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-body" style="padding:40px 36px;text-align:center;">
+        <div style="width:64px;height:64px;background:linear-gradient(135deg,rgba(201,162,39,0.2),rgba(201,162,39,0.06));border:1px solid rgba(201,162,39,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;">🚗</div>
+        <h2 style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:500;margin-bottom:12px;" id="welcome-headline">Welcome to My Car Concierge.</h2>
+        <p style="color:var(--text-secondary);font-size:0.95rem;line-height:1.7;margin-bottom:28px;" id="welcome-body">You're all set. Add your vehicle and post your first service request to get competing bids from local providers.</p>
+        <div style="display:flex;flex-direction:column;gap:10px;">
+          <button class="btn btn-gold" style="width:100%;justify-content:center;padding:14px;" onclick="closeWelcomeModal();openVehicleModal();">Add My Vehicle</button>
+          <button class="btn btn-secondary" style="width:100%;justify-content:center;" onclick="closeWelcomeModal()">Explore the Dashboard</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- SaaS Pricing Modal -->
+  <div class="modal-backdrop" id="saas-pricing-modal">
+    <div class="modal" style="max-width:900px;width:96vw;max-height:90vh;overflow-y:auto;">
+      <div class="modal-header">
+        <h3 class="modal-title">Platform Add-ons & SaaS Plans</h3>
+        <button class="modal-close" onclick="closeModal('saas-pricing-modal')">✕</button>
+      </div>
+      <div class="modal-body" style="padding:0;">
+        <div style="padding:16px 24px 0;">
+          <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
+            <button class="btn btn-sm" id="saas-tab-fleet" onclick="switchSaasTab('fleet')" style="background:var(--accent-gold);color:#000;">Fleet</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-shop" onclick="switchSaasTab('shop')">Provider Shop</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-ai_api" onclick="switchSaasTab('ai_api')">AI API</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-outreach" onclick="switchSaasTab('outreach')">Outreach</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-white_label" onclick="switchSaasTab('white_label')">White-label</button>
+          </div>
+        </div>
+        <div id="saas-pricing-plans-container" style="padding:0 24px 24px;">
+          <div style="text-align:center;padding:32px;color:var(--text-muted);">Loading plans…</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- White-label Tenant First-Login Onboarding Wizard (Task #87) -->
+  <div id="wl-tenant-onboarding-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9500;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-elevated);border-radius:16px;width:min(560px,95vw);max-height:90vh;overflow:hidden;display:flex;flex-direction:column;box-shadow:0 24px 64px rgba(0,0,0,0.6);">
+      <!-- Header -->
+      <div style="padding:24px 28px 0;flex-shrink:0;">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;">
+          <div>
+            <h3 id="wl-ob-title" style="margin:0 0 4px;font-size:1.15rem;">Welcome to Your Tenant Portal</h3>
+            <p id="wl-ob-subtitle" style="margin:0;font-size:0.83rem;color:var(--text-muted);">Step 1 of 3 — Platform Overview</p>
+          </div>
+          <button onclick="dismissWlOnboarding()" style="background:none;border:none;color:var(--text-muted);font-size:18px;cursor:pointer;">✕</button>
+        </div>
+        <!-- Progress pills -->
+        <div style="display:flex;gap:6px;margin-bottom:20px;">
+          <div id="wl-ob-bar-1" style="flex:1;height:4px;border-radius:2px;background:var(--accent-gold);transition:background 0.3s;"></div>
+          <div id="wl-ob-bar-2" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+          <div id="wl-ob-bar-3" style="flex:1;height:4px;border-radius:2px;background:var(--border-subtle);transition:background 0.3s;"></div>
+        </div>
+      </div>
+
+      <!-- Steps -->
+      <div style="flex:1;overflow-y:auto;padding:0 28px;">
+
+        <!-- Step 1: Branding -->
+        <div id="wl-ob-step-1">
+          <h4 style="margin:0 0 8px;">Your Branding</h4>
+          <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your white-label platform is pre-configured with your brand name, domain, and color scheme. Review your branding settings below.</p>
+          <div id="wl-ob-branding-preview" style="padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:0.88rem;align-items:center;">
+              <span style="color:var(--text-muted);">Brand Name</span>
+              <strong id="wl-ob-brand">—</strong>
+              <span style="color:var(--text-muted);">Domain</span>
+              <span id="wl-ob-domain-display" style="font-family:monospace;font-size:0.82rem;color:var(--accent-teal);">—</span>
+              <span style="color:var(--text-muted);">Plan</span>
+              <span id="wl-ob-plan-display">—</span>
+              <span style="color:var(--text-muted);">Colors</span>
+              <div style="display:flex;gap:6px;align-items:center;">
+                <div id="wl-ob-color-preview" style="width:32px;height:20px;border-radius:4px;"></div>
+                <div id="wl-ob-accent-preview" style="width:32px;height:20px;border-radius:4px;"></div>
+              </div>
+            </div>
+          </div>
+          <div style="padding:12px 14px;background:rgba(184,148,45,0.1);border-radius:8px;border:1px solid rgba(184,148,45,0.3);font-size:0.83rem;color:var(--text-secondary);">
+            To update your logo, colors, or domain, contact your MCC account manager or use the admin portal. Changes apply immediately across your tenant.
+          </div>
+        </div>
+
+        <!-- Step 2: Team Seats & Roster -->
+        <div id="wl-ob-step-2" style="display:none;">
+          <h4 style="margin:0 0 12px;">Team Seats</h4>
+          <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your plan controls how many members and providers can join your tenant. Current usage:</p>
+          <div id="wl-ob-seat-info" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;"></div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;">Adding users to your tenant:</div>
+            <ul style="margin:0;padding-left:20px;font-size:0.83rem;color:var(--text-secondary);line-height:1.9;">
+              <li>Share your white-label domain URL with members and providers</li>
+              <li>Users who sign in through your domain are auto-assigned as seats</li>
+              <li>Manage your roster in the <strong>Roster tab</strong> — remove users or adjust roles</li>
+              <li>Upgrade your plan if you hit seat limits</li>
+            </ul>
+          </div>
+        </div>
+
+        <!-- Step 3: Billing -->
+        <div id="wl-ob-step-3" style="display:none;">
+          <h4 style="margin:0 0 12px;">Billing & Plan</h4>
+          <p style="color:var(--text-secondary);font-size:0.88rem;line-height:1.6;margin-bottom:16px;">Your white-label subscription controls your seat limits, plan features, and billing. Connect a payment method to activate or upgrade your plan.</p>
+          <div id="wl-ob-billing-status" style="padding:16px;background:var(--surface-3);border-radius:10px;border:1px solid var(--border-subtle);margin-bottom:16px;"></div>
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <button class="btn btn-primary" onclick="openSaasPricingModal('white_label'); dismissWlOnboarding();" style="font-size:0.9rem;">
+              View Plans &amp; Activate Billing →
+            </button>
+            <div style="font-size:0.78rem;color:var(--text-muted);text-align:center;">Powered by Stripe. You can change or cancel your plan at any time.</div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- Footer -->
+      <div style="padding:20px 28px;flex-shrink:0;border-top:1px solid var(--border-subtle);display:flex;justify-content:space-between;align-items:center;">
+        <button id="wl-ob-back-btn" onclick="wlObBack()" style="display:none;" class="btn btn-ghost">← Back</button>
+        <div></div>
+        <div style="display:flex;gap:10px;">
+          <button class="btn btn-secondary" onclick="dismissWlOnboarding()">Do This Later</button>
+          <button class="btn btn-primary" id="wl-ob-next-btn" onclick="wlObNext()">Next →</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    let saasPlanData = null;
+    let currentSaasTab = 'fleet';
+
+    async function openSaasPricingModal(product) {
+      // If a product is specified, switch to its tab before opening
+      const validProducts = ['fleet', 'shop', 'ai_api', 'outreach', 'white_label'];
+      if (product && validProducts.includes(product)) {
+        currentSaasTab = product;
+      }
+      openModal('saas-pricing-modal');
+      // Visually activate the correct tab button
+      if (product && validProducts.includes(product)) {
+        document.querySelectorAll('[id^="saas-tab-"]').forEach(btn => {
+          btn.style.background = '';
+          btn.style.color = '';
+          btn.className = 'btn btn-sm btn-secondary';
+        });
+        const activeBtn = document.getElementById('saas-tab-' + product);
+        if (activeBtn) { activeBtn.style.background = 'var(--accent-gold)'; activeBtn.style.color = '#000'; activeBtn.className = 'btn btn-sm'; }
+      }
+      if (!saasPlanData) {
+        try {
+          const resp = await fetch('/api/saas/plans');
+          const data = await resp.json();
+          saasPlanData = data.plans;
+        } catch (e) {
+          document.getElementById('saas-pricing-plans-container').innerHTML = '<div style="color:var(--accent-red);padding:24px;">Failed to load plans.</div>';
+          return;
+        }
+      }
+      renderSaasPlans(currentSaasTab);
+    }
+
+    function switchSaasTab(tab) {
+      currentSaasTab = tab;
+      document.querySelectorAll('[id^="saas-tab-"]').forEach(btn => {
+        btn.style.background = '';
+        btn.style.color = '';
+        btn.className = 'btn btn-sm btn-secondary';
+      });
+      const activeBtn = document.getElementById('saas-tab-' + tab);
+      if (activeBtn) { activeBtn.style.background = 'var(--accent-gold)'; activeBtn.style.color = '#000'; activeBtn.className = 'btn btn-sm'; }
+      renderSaasPlans(tab);
+    }
+
+    function renderSaasPlans(product) {
+      const container = document.getElementById('saas-pricing-plans-container');
+      if (!saasPlanData || !saasPlanData[product]) {
+        container.innerHTML = '<div style="color:var(--text-muted);padding:24px;">Plans unavailable.</div>';
+        return;
+      }
+      const plan = saasPlanData[product];
+      const tiers = plan.tiers;
+      const tierOrder = ['starter', 'pro', 'business'];
+      container.innerHTML = `
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:600;font-size:1.05rem;">${plan.name}</div>
+          <div style="color:var(--text-muted);font-size:0.9rem;">${plan.description}</div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:16px;">
+          ${tierOrder.map((tier, i) => {
+            const t = tiers[tier];
+            if (!t) return '';
+            const monthlyPrice = (t.price_monthly / 100).toFixed(0);
+            const isPopular = tier === 'pro';
+            return `
+              <div style="border:2px solid ${isPopular ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:24px;position:relative;background:var(--bg-elevated);">
+                ${isPopular ? '<div style="position:absolute;top:-12px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#000;font-size:0.72rem;font-weight:700;padding:3px 12px;border-radius:100px;">MOST POPULAR</div>' : ''}
+                <div style="font-weight:700;font-size:1rem;margin-bottom:4px;">${t.name}</div>
+                <div style="font-size:2rem;font-weight:800;margin:12px 0 4px;">$${monthlyPrice}<span style="font-size:0.85rem;font-weight:400;color:var(--text-muted);">/mo</span></div>
+                ${t.price_annual ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:16px;">$${(t.price_annual / 100 / 12).toFixed(0)}/mo billed annually</div>` : '<div style="margin-bottom:16px;"></div>'}
+                <ul style="list-style:none;padding:0;margin:0 0 20px;display:flex;flex-direction:column;gap:8px;">
+                  ${(t.features || []).map(f => `<li style="font-size:0.85rem;display:flex;align-items:flex-start;gap:8px;"><span style="color:var(--accent-green);flex-shrink:0;margin-top:1px;">✓</span>${f}</li>`).join('')}
+                </ul>
+                <button class="btn ${isPopular ? 'btn-primary' : 'btn-secondary'}" style="width:100%;" onclick="subscribeSaasPlan('${product}','${tier}')">
+                  ${t.stripe_price_id ? 'Get Started' : 'Contact Sales'}
+                </button>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      `;
+    }
+
+    async function subscribeSaasPlan(product, plan) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in to subscribe', 'error'); return; }
+        const resp = await fetch('/api/saas/checkout', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+          body: JSON.stringify({ product, plan })
+        });
+        const data = await resp.json();
+        if (data.url) {
+          window.location.href = data.url;
+        } else if (data.error) {
+          showToast(data.error, 'error');
+        }
+      } catch (e) {
+        showToast('Failed to start checkout: ' + e.message, 'error');
+      }
+    }
+
+    async function openBillingPortal() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please log in', 'error'); return; }
+        const resp = await fetch('/api/saas/billing-portal', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+          body: JSON.stringify({ return_url: window.location.href })
+        });
+        const data = await resp.json();
+        if (data.url) window.location.href = data.url;
+        else showToast(data.error || 'Failed to open billing portal', 'error');
+      } catch (e) {
+        showToast('Failed to open billing portal', 'error');
+      }
+    }
+
+    async function loadBillingSubscriptions() {
+      const container = document.getElementById('billing-subscriptions-list');
+      const portalBtn = document.getElementById('billing-portal-btn');
+      if (!container) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const resp = await fetch('/api/saas/subscription/status', {
+          headers: { 'Authorization': 'Bearer ' + session.access_token }
+        });
+        if (!resp.ok) throw new Error('Failed');
+        const data = await resp.json();
+        const subs = data.by_product || {};
+        const productLabels = { fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API', outreach: 'Outreach Engine', white_label: 'White-label' };
+        const statusColors = { active: 'var(--accent-green)', trialing: 'var(--accent-blue)', canceled: 'var(--text-muted)', past_due: 'var(--accent-red)' };
+
+        if (Object.keys(subs).length === 0) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;padding:4px 0;">No active subscriptions. Explore plans to unlock additional capabilities.</div>';
+          if (portalBtn) portalBtn.style.display = 'none';
+        } else {
+          container.innerHTML = Object.entries(subs).map(([product, sub]) => `
+            <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid var(--border-subtle);">
+              <div>
+                <div style="font-weight:600;font-size:0.9rem;margin-bottom:3px;">${productLabels[product] || product}</div>
+                <div>${getPlanBadge(sub.plan, sub.status)}</div>
+                ${sub.current_period_end ? `<div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Renews ${new Date(sub.current_period_end).toLocaleDateString()}</div>` : ''}
+              </div>
+            </div>
+          `).join('');
+          if (portalBtn) portalBtn.style.display = 'inline-flex';
+        }
+      } catch (e) {
+        if (container) container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Could not load billing info.</div>';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      const urlParams = new URLSearchParams(window.location.search);
+      if (urlParams.get('saas_success') === '1') {
+        setTimeout(() => {
+          showToast('Subscription activated! Welcome aboard.', 'success');
+          loadBillingSubscriptions();
+        }, 1000);
+        window.history.replaceState({}, '', '/members.html');
+      }
+    });
+
+    /**
+     * getPlanBadge(plan, status) → HTML string
+     * Returns a styled inline badge for a given SaaS plan tier and subscription status.
+     * Usage: element.innerHTML = getPlanBadge('pro', 'active')
+     * Available globally as window.getPlanBadge
+     */
+    function getPlanBadge(plan, status) {
+      const planStyles = {
+        starter:  { label: 'Starter',  bg: 'var(--bg-input)',           color: 'var(--text-secondary)' },
+        pro:      { label: 'Pro',       bg: 'var(--accent-blue-soft)',   color: 'var(--accent-blue)'    },
+        business: { label: 'Business',  bg: 'var(--accent-gold-soft)',   color: 'var(--accent-gold)'    }
+      };
+      const statusStyles = {
+        active:    { label: 'Active',    bg: 'var(--accent-green-soft)', color: 'var(--accent-green)' },
+        trialing:  { label: 'Trial',     bg: 'var(--accent-blue-soft)',  color: 'var(--accent-blue)'  },
+        past_due:  { label: 'Past Due',  bg: 'rgba(239,68,68,0.12)',    color: 'var(--accent-red)'   },
+        canceled:  { label: 'Canceled',  bg: 'var(--bg-input)',          color: 'var(--text-muted)'   },
+        inactive:  { label: 'Inactive',  bg: 'var(--bg-input)',          color: 'var(--text-muted)'   }
+      };
+      const p = planStyles[plan] || planStyles.starter;
+      const s = status ? (statusStyles[status] || statusStyles.inactive) : null;
+      const planBadge = `<span style="display:inline-flex;align-items:center;padding:2px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;letter-spacing:0.03em;background:${p.bg};color:${p.color};border:1px solid ${p.color}44;">${p.label}</span>`;
+      if (!s) return planBadge;
+      const statusBadge = `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};margin-left:4px;">${s.label}</span>`;
+      return planBadge + statusBadge;
+    }
+
+    window.getPlanBadge = getPlanBadge;
+    window.openSaasPricingModal = openSaasPricingModal;
+    window.openBillingPortal = openBillingPortal;
+    window.loadBillingSubscriptions = loadBillingSubscriptions;
+    window.subscribeSaasPlan = subscribeSaasPlan;
+    window.switchSaasTab = switchSaasTab;
+
+    // ========== FLEET SUBSCRIPTION STATUS (Task #88) ==========
+
+    async function loadFleetSubscription() {
+      const card = document.getElementById('fleet-subscription-card');
+      const banner = document.getElementById('fleet-upgrade-banner');
+      if (!card) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch('/api/fleet/subscription', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (!res.ok) return;
+        const { subscription: sub, plan, limits } = await res.json();
+        card.style.display = 'block';
+        const planEl = document.getElementById('fleet-sub-plan-label');
+        if (!sub || !plan) {
+          if (planEl) planEl.textContent = 'No active fleet plan — features limited to 3 vehicles.';
+          return;
+        }
+        if (planEl) {
+          const planNames = { starter: 'Fleet Starter', pro: 'Fleet Pro', business: 'Fleet Business' };
+          const periodEnd = sub.current_period_end ? new Date(sub.current_period_end).toLocaleDateString() : null;
+          planEl.innerHTML = `<span style="color:var(--accent-green);font-weight:600;">${planNames[plan] || plan}</span>${periodEnd ? ` · Renews ${periodEnd}` : ''}${sub.cancel_at_period_end ? ' · <span style="color:var(--accent-orange);">Cancels at period end</span>' : ''}`;
+        }
+        if (limits && limits.vehicles > 0) {
+          const barContainer = document.getElementById('fleet-sub-limit-bar');
+          if (barContainer) {
+            barContainer.style.display = 'block';
+            const vehicleCount = parseInt(document.getElementById('fleet-stat-total-vehicles')?.textContent || '0');
+            const pct = limits.vehicles === -1 ? 0 : Math.min(100, Math.round((vehicleCount / limits.vehicles) * 100));
+            const barFill = document.getElementById('fleet-limit-bar-fill');
+            const pctEl = document.getElementById('fleet-limit-pct');
+            const labelEl = document.getElementById('fleet-limit-label');
+            if (barFill) barFill.style.width = `${pct}%`;
+            if (barFill) barFill.style.background = pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-gold)';
+            if (pctEl) pctEl.textContent = limits.vehicles === -1 ? '∞ (Unlimited)' : `${vehicleCount} / ${limits.vehicles}`;
+            if (labelEl) labelEl.textContent = 'Vehicles used';
+            if (pct >= 80 && banner) {
+              banner.style.display = 'block';
+              const msg = document.getElementById('fleet-upgrade-msg');
+              if (msg) msg.textContent = `You've used ${vehicleCount} of ${limits.vehicles} vehicles on your ${plan} plan. Upgrade to expand capacity.`;
+            }
+          }
+        }
+      } catch (err) {
+        console.warn('[Fleet Sub]', err.message);
+      }
+    }
+
+    window.loadFleetSubscription = loadFleetSubscription;
+
+    // ========== DEVELOPER API KEY MANAGEMENT (Task #90) ==========
+
+    async function loadApiKeys() {
+      const listEl = document.getElementById('api-keys-list');
+      if (!listEl) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch('/api/developer/keys', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (!res.ok) {
+          if (res.status === 402) {
+            listEl.innerHTML = `<div style="padding:16px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);">
+              <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">AI API Subscription Required</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:10px;">Subscribe to the Automotive AI API plan to generate API keys and start building.</div>
+              <button class="btn btn-sm btn-primary" onclick="openSaasPricingModal('ai_api')">View AI API Plans →</button>
+            </div>`;
+          } else if (res.status === 401) {
+            listEl.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);">Sign in to manage API keys.</div>`;
+          }
+          return;
+        }
+        const { keys } = await res.json();
+        if (!keys.length) {
+          listEl.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);padding:8px 0;">No API keys yet. Generate your first key to start using the Automotive AI API.</div>`;
+          return;
+        }
+        const planColors = { starter: 'var(--accent-blue)', pro: 'var(--accent-teal)', business: '#7c3aed' };
+        listEl.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;margin-top:4px;">
+            ${keys.map(k => `
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--surface-3);border-radius:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:150px;">
+                  <div style="font-weight:600;font-size:0.9rem;">${k.name}</div>
+                  <div style="font-family:monospace;font-size:0.8rem;color:var(--text-muted);">${k.key_prefix}</div>
+                </div>
+                <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                  <span style="background:${planColors[k.plan] || '#888'}22;color:${planColors[k.plan] || '#888'};padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;text-transform:uppercase;">${k.plan}</span>
+                  <span style="font-size:0.8rem;color:var(--text-muted);">${k.calls_made.toLocaleString()} / ${k.calls_limit === -1 ? '∞' : k.calls_limit.toLocaleString()} calls</span>
+                  ${k.last_used_at ? `<span style="font-size:0.78rem;color:var(--text-muted);">Last used ${new Date(k.last_used_at).toLocaleDateString()}</span>` : ''}
+                  <button class="btn btn-sm" style="background:rgba(239,95,95,0.15);color:var(--accent-red);font-size:11px;" onclick="revokeApiKey('${k.id}')">Revoke</button>
+                </div>
+              </div>`).join('')}
+          </div>`;
+      } catch (err) {
+        if (listEl) listEl.innerHTML = `<div style="font-size:0.9rem;color:var(--accent-red);">Failed to load keys: ${err.message}</div>`;
+      }
+    }
+
+    async function generateApiKey() {
+      const btn = document.getElementById('generate-key-btn');
+      if (btn) { btn.disabled = true; btn.textContent = 'Generating…'; }
+      try {
+        const token = window._currentSession?.access_token;
+        const name = prompt('Name this API key (e.g., "My App"):', 'My API Key') || 'My API Key';
+        const res = await fetch('/api/developer/keys', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(token ? { 'Authorization': `Bearer ${token}` } : {}) },
+          body: JSON.stringify({ name })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          if (res.status === 402) {
+            alert('An Automotive AI API subscription is required. Click "Explore Plans" to subscribe.');
+            openSaasPricingModal('ai_api');
+          } else {
+            alert(data.error || 'Failed to generate key');
+          }
+          return;
+        }
+        document.getElementById('new-key-value').textContent = data.key.raw_key;
+        document.getElementById('new-key-reveal').style.display = 'block';
+        await loadApiKeys();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      } finally {
+        if (btn) { btn.disabled = false; btn.textContent = '+ Generate Key'; }
+      }
+    }
+
+    async function revokeApiKey(id) {
+      if (!confirm('Revoke this API key? Any apps using it will stop working immediately.')) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch(`/api/developer/keys/${id}`, {
+          method: 'DELETE',
+          headers: token ? { 'Authorization': `Bearer ${token}` } : {}
+        });
+        if (!res.ok) throw new Error((await res.json()).error || 'Failed');
+        await loadApiKeys();
+      } catch (err) {
+        alert('Error: ' + err.message);
+      }
+    }
+
+    function copyApiKey() {
+      const key = document.getElementById('new-key-value')?.textContent;
+      if (!key) return;
+      navigator.clipboard.writeText(key).then(() => alert('API key copied to clipboard!')).catch(() => {});
+    }
+
+    window.loadApiKeys = loadApiKeys;
+    window.generateApiKey = generateApiKey;
+    window.revokeApiKey = revokeApiKey;
+    window.copyApiKey = copyApiKey;
+
+    // ========== OUTREACH SAAS STATUS (Task #91) ==========
+
+    async function loadOutreachStatus() {
+      const el = document.getElementById('outreach-saas-status');
+      if (!el) return;
+      try {
+        const token = window._currentSession?.access_token;
+        const res = await fetch('/api/saas/outreach/status', { headers: token ? { 'Authorization': `Bearer ${token}` } : {} });
+        if (!res.ok) {
+          el.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);padding:8px 0;">Outreach Engine is available as an add-on. <button class="btn btn-sm btn-secondary" onclick="openSaasPricingModal('outreach')" style="margin-left:8px;">View Plans</button></div>`;
+          return;
+        }
+        const d = await res.json();
+        if (!d.subscribed) {
+          el.innerHTML = `
+            <div style="padding:16px;background:linear-gradient(135deg, var(--surface-3), transparent);border-radius:8px;border:1px solid var(--border-subtle);">
+              <div style="font-weight:600;margin-bottom:6px;">Not Subscribed</div>
+              <div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">Subscribe to the Outreach Engine to run AI-powered lead discovery and automated campaigns.</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <div style="flex:1;min-width:160px;padding:12px;background:var(--surface-2);border-radius:8px;text-align:center;">
+                  <div style="font-size:1.4rem;font-weight:700;color:var(--accent-teal);">500</div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);">Leads/month · Starter</div>
+                </div>
+                <div style="flex:1;min-width:160px;padding:12px;background:var(--surface-2);border-radius:8px;text-align:center;">
+                  <div style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);">5,000</div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);">Leads/month · Pro</div>
+                </div>
+                <div style="flex:1;min-width:160px;padding:12px;background:var(--surface-2);border-radius:8px;text-align:center;">
+                  <div style="font-size:1.4rem;font-weight:700;color:#7c3aed;">Unlimited</div>
+                  <div style="font-size:0.78rem;color:var(--text-muted);">Leads/month · Business</div>
+                </div>
+              </div>
+              <button class="btn btn-primary" onclick="openSaasPricingModal('outreach')" style="margin-top:12px;width:100%;">Subscribe to Outreach Engine →</button>
+            </div>`;
+          return;
+        }
+        const pct = d.pct_used || 0;
+        const barColor = pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-teal)';
+        const leadsLimit = d.limits?.leads_per_month;
+        el.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-bottom:16px;">
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-teal);">${d.current.leads_this_month.toLocaleString()}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Leads this month</div>
+            </div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold);">${leadsLimit === -1 ? '∞' : leadsLimit?.toLocaleString() || '—'}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Monthly limit</div>
+            </div>
+          </div>
+          ${leadsLimit !== -1 ? `
+          <div style="margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;">
+              <span>Lead usage</span><span>${pct}% used</span>
+            </div>
+            <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;">
+              <div style="height:100%;background:${barColor};width:${pct}%;border-radius:3px;transition:width 0.4s;"></div>
+            </div>
+          </div>` : ''}
+          ${pct >= 80 ? `<div style="padding:10px 14px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+            <span style="font-size:0.85rem;color:var(--accent-gold);font-weight:500;">⚡ Approaching monthly limit</span>
+            <button class="btn btn-sm btn-primary" onclick="openSaasPricingModal('outreach')">Upgrade Plan</button>
+          </div>` : ''}`;
+      } catch (err) {
+        if (el) el.innerHTML = `<div style="font-size:0.9rem;color:var(--accent-red);">Failed to load: ${err.message}</div>`;
+      }
+    }
+
+    window.loadOutreachStatus = loadOutreachStatus;
+
+    // ========== WHITE-LABEL TENANT ADMIN PORTAL (Task #87) ==========
+
+    function wlSeatBar(current, limit, unlimited, label) {
+      if (unlimited) {
+        return `<div style="margin-bottom:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>${label}</span><span>${current} / Unlimited</span></div>
+          <div style="height:6px;background:var(--accent-teal);border-radius:3px;opacity:0.3;"></div>
+        </div>`;
+      }
+      const pct = limit > 0 ? Math.min(100, Math.round((current / limit) * 100)) : 0;
+      const barColor = pct >= 90 ? 'var(--accent-red)' : pct >= 70 ? 'var(--accent-orange)' : 'var(--accent-teal)';
+      return `<div style="margin-bottom:12px;">
+        <div style="display:flex;justify-content:space-between;font-size:11px;color:var(--text-muted);margin-bottom:4px;"><span>${label}</span><span>${current} / ${limit} (${pct}%)</span></div>
+        <div style="height:6px;background:var(--border-subtle);border-radius:3px;overflow:hidden;">
+          <div style="height:100%;background:${barColor};width:${pct}%;border-radius:3px;transition:width 0.4s;"></div>
+        </div>
+      </div>`;
+    }
+
+    async function loadWlTenantPortal() {
+      const card = document.getElementById('wl-tenant-portal-card');
+      const el = document.getElementById('wl-tenant-portal-content');
+      if (!card || !el) return;
+      try {
+        const token = window._currentSession?.access_token;
+        if (!token) return;
+        const res = await fetch('/api/tenant/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) {
+          // User is not a tenant admin — hide the card entirely
+          card.style.display = 'none';
+          return;
+        }
+        const tenantResp = await res.json();
+        const { tenant, usage, user_role } = tenantResp;
+        window._wlPortalTenantData = tenantResp;
+        // Reset lazy-load flags so tabs reload fresh data on next open
+        _wlRosterLoaded = false; _wlAnalyticsLoaded = false;
+        card.style.display = '';
+        // Trigger first-login onboarding wizard for owners/admins
+        if (['owner', 'admin'].includes(user_role)) _maybeShowWlOnboarding(tenantResp);
+        const planBadgeColor = { starter: 'var(--accent-teal)', pro: 'var(--accent-gold)', business: '#7c3aed' }[tenant.plan] || 'var(--text-muted)';
+        const planLabel = { starter: 'Starter', pro: 'Pro', business: 'Business' }[tenant.plan] || tenant.plan;
+        const domain = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : '—');
+
+        el.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:12px;margin-bottom:20px;">
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.5rem;font-weight:700;color:${planBadgeColor};">${planLabel}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Plan</div>
+            </div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.5rem;font-weight:700;color:var(--accent-teal);">${usage.members.current}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Member Seats Used</div>
+            </div>
+            <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);">${usage.providers.current}</div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">Provider Seats Used</div>
+            </div>
+          </div>
+          <div style="margin-bottom:16px;">
+            ${wlSeatBar(usage.members.current, usage.members.limit, usage.members.unlimited, 'Member Seats')}
+            ${wlSeatBar(usage.providers.current, usage.providers.limit, usage.providers.unlimited, 'Provider Seats')}
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;margin-bottom:16px;">
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.88rem;">
+              <span style="color:var(--text-muted);">Brand Name</span><span style="font-weight:500;">${tenant.brand_name || tenant.name}</span>
+              <span style="color:var(--text-muted);">Domain</span><span style="font-weight:500;">${domain}</span>
+              <span style="color:var(--text-muted);">Status</span>
+              <span style="display:inline-flex;align-items:center;gap:6px;">
+                <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${tenant.status === 'active' ? 'var(--accent-teal)' : 'var(--accent-red)'};"></span>
+                <span style="font-weight:500;text-transform:capitalize;">${tenant.status}</span>
+              </span>
+              <span style="color:var(--text-muted);">Your Role</span><span style="font-weight:500;text-transform:capitalize;">${user_role}</span>
+            </div>
+          </div>
+          ${(usage.members.current / usage.members.limit) >= 0.8 && !usage.members.unlimited ? `
+          <div style="padding:10px 14px;background:var(--accent-gold-soft);border-radius:8px;border:1px solid var(--accent-gold);display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
+            <span style="font-size:0.85rem;color:var(--accent-gold);font-weight:500;">⚡ Member seats nearly full</span>
+            <button class="btn btn-sm btn-primary" onclick="openSaasPricingModal('white_label')">Upgrade Plan</button>
+          </div>` : ''}
+          <div style="display:flex;gap:10px;flex-wrap:wrap;">
+            <button class="btn btn-secondary btn-sm" onclick="openSaasPricingModal('white_label')">View Plans</button>
+            <button class="btn btn-ghost btn-sm" onclick="loadWlTenantPortal()">↻ Refresh</button>
+          </div>`;
+      } catch (err) {
+        if (el) el.innerHTML = `<div style="font-size:0.9rem;color:var(--text-muted);">Tenant portal not available.</div>`;
+        if (card) card.style.display = 'none';
+      }
+    }
+
+    window.loadWlTenantPortal = loadWlTenantPortal;
+
+    // ========== TENANT FIRST-LOGIN ONBOARDING WIZARD ==========
+    let _wlObStep = 1;
+    let _wlObTenantData = null;
+
+    function _wlObShowStep(step) {
+      _wlObStep = step;
+      for (let i = 1; i <= 3; i++) {
+        const el = document.getElementById('wl-ob-step-' + i);
+        if (el) el.style.display = i === step ? '' : 'none';
+        const bar = document.getElementById('wl-ob-bar-' + i);
+        if (bar) bar.style.background = i <= step ? 'var(--accent-gold)' : 'var(--border-subtle)';
+      }
+      const subtitles = ['Step 1 of 3 — Branding', 'Step 2 of 3 — Team Seats', 'Step 3 of 3 — Billing'];
+      const sub = document.getElementById('wl-ob-subtitle'); if (sub) sub.textContent = subtitles[step - 1];
+      const backBtn = document.getElementById('wl-ob-back-btn'); if (backBtn) backBtn.style.display = step > 1 ? '' : 'none';
+      const nextBtn = document.getElementById('wl-ob-next-btn'); if (nextBtn) nextBtn.textContent = step < 3 ? 'Next →' : 'Finish';
+      if (step === 2 && _wlObTenantData) _wlObRenderSeats();
+      if (step === 3 && _wlObTenantData) _wlObRenderBilling();
+    }
+
+    function _wlObRenderSeats() {
+      const { tenant, usage } = _wlObTenantData;
+      const el = document.getElementById('wl-ob-seat-info');
+      if (!el) return;
+      el.innerHTML = `
+        <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:var(--accent-teal);">${usage.members.current}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">of ${usage.members.unlimited ? '∞' : usage.members.limit} member seats</div>
+        </div>
+        <div style="padding:14px;background:var(--surface-3);border-radius:8px;text-align:center;">
+          <div style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);">${usage.providers.current}</div>
+          <div style="font-size:0.78rem;color:var(--text-muted);">of ${usage.providers.unlimited ? '∞' : usage.providers.limit} provider seats</div>
+        </div>`;
+    }
+
+    function _wlObRenderBilling() {
+      if (!_wlObTenantData) return;
+      const { tenant } = _wlObTenantData;
+      const el = document.getElementById('wl-ob-billing-status');
+      if (!el) return;
+      const planLabel = { starter: 'Starter', pro: 'Pro', business: 'Business' }[tenant.plan] || (tenant.plan || 'None');
+      const hasSub = !!(tenant.stripe_subscription_id);
+      el.innerHTML = `
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px 16px;font-size:0.88rem;align-items:center;">
+          <span style="color:var(--text-muted);">Current Plan</span>
+          <span style="font-weight:600;">${planLabel}</span>
+          <span style="color:var(--text-muted);">Billing Status</span>
+          <span style="display:flex;align-items:center;gap:6px;">
+            <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${hasSub ? 'var(--accent-teal)' : 'var(--accent-orange)'};"></span>
+            <span>${hasSub ? 'Active subscription' : 'No active subscription'}</span>
+          </span>
+          <span style="color:var(--text-muted);">Member Seats</span>
+          <span>${tenant.max_members === -1 ? 'Unlimited' : (tenant.max_members || 0)}</span>
+          <span style="color:var(--text-muted);">Provider Seats</span>
+          <span>${tenant.max_providers === -1 ? 'Unlimited' : (tenant.max_providers || 0)}</span>
+        </div>`;
+    }
+
+    function wlObNext() {
+      if (_wlObStep < 3) _wlObShowStep(_wlObStep + 1);
+      else dismissWlOnboarding();
+    }
+
+    function wlObBack() {
+      if (_wlObStep > 1) _wlObShowStep(_wlObStep - 1);
+    }
+
+    function dismissWlOnboarding() {
+      const modal = document.getElementById('wl-tenant-onboarding-modal');
+      if (modal) modal.style.display = 'none';
+      if (_wlObTenantData?.tenant?.id) {
+        try { localStorage.setItem('mcc_tenant_ob_done_' + _wlObTenantData.tenant.id, '1'); } catch {}
+      }
+    }
+
+    function _maybeShowWlOnboarding(tenantData) {
+      if (!tenantData?.tenant?.id) return;
+      if (!['owner', 'admin'].includes(tenantData.user_role)) return;
+      try {
+        if (localStorage.getItem('mcc_tenant_ob_done_' + tenantData.tenant.id)) return;
+      } catch {}
+      _wlObTenantData = tenantData;
+      const { tenant } = tenantData;
+      // Populate step 1 branding fields
+      const brandEl = document.getElementById('wl-ob-brand'); if (brandEl) brandEl.textContent = tenant.brand_name || '—';
+      const colorEl = document.getElementById('wl-ob-color-preview'); if (colorEl) colorEl.style.background = tenant.bg_color || '#12161c';
+      const accentEl = document.getElementById('wl-ob-accent-preview'); if (accentEl) accentEl.style.background = tenant.accent_color || '#b8942d';
+      const domainEl = document.getElementById('wl-ob-domain-display'); if (domainEl) domainEl.textContent = tenant.domain || (tenant.subdomain ? `${tenant.subdomain}.mycarconcierge.com` : 'No domain configured');
+      const planEl = document.getElementById('wl-ob-plan-display');
+      if (planEl) planEl.innerHTML = `<span style="background:var(--accent-gold);color:#000;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;">${(tenant.plan || 'none').toUpperCase()}</span>`;
+      _wlObShowStep(1);
+      const modal = document.getElementById('wl-tenant-onboarding-modal');
+      if (modal) modal.style.display = 'flex';
+    }
+
+    // ========== PORTAL TAB SWITCHING ==========
+    let _wlActiveTab = 'overview';
+    let _wlRosterLoaded = false;
+    let _wlAnalyticsLoaded = false;
+
+    function wlSwitchPortalTab(tab) {
+      _wlActiveTab = tab;
+      ['overview', 'roster', 'analytics', 'settings'].forEach(t => {
+        const el = document.getElementById('wl-tab-' + t);
+        if (el) el.style.display = t === tab ? '' : 'none';
+      });
+      document.querySelectorAll('.wl-ptab').forEach(btn => {
+        btn.classList.toggle('wl-ptab-active', btn.dataset.tab === tab);
+      });
+      if (tab === 'roster' && !_wlRosterLoaded) { _wlRosterLoaded = true; wlLoadRoster(); }
+      if (tab === 'analytics' && !_wlAnalyticsLoaded) { _wlAnalyticsLoaded = true; wlLoadAnalytics(); }
+      if (tab === 'settings') wlLoadSettings();
+    }
+
+    async function wlLoadRoster() {
+      const el = document.getElementById('wl-roster-content');
+      if (!el) return;
+      const token = window._currentSession?.access_token;
+      if (!token) { el.innerHTML = '<p style="color:var(--text-muted);">Not authenticated.</p>'; return; }
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;">Loading roster…</div>';
+      try {
+        const resp = await fetch('/api/tenant/roster', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!resp.ok) { el.innerHTML = '<p style="color:var(--accent-red);">Unable to load roster.</p>'; return; }
+        const { roster } = await resp.json();
+        if (!roster || roster.length === 0) { el.innerHTML = '<p style="color:var(--text-muted);">No members or providers have joined yet.</p>'; return; }
+        const roleColors = { owner: 'var(--accent-gold)', admin: 'var(--accent-teal)', provider: 'var(--accent-blue,#4a90e2)', member: 'var(--text-muted)' };
+        el.innerHTML = `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;border-collapse:collapse;font-size:0.86rem;">
+              <thead>
+                <tr style="border-bottom:1px solid var(--border-subtle);text-align:left;">
+                  <th style="padding:8px 12px;font-weight:600;color:var(--text-muted);">Name / Email</th>
+                  <th style="padding:8px 12px;font-weight:600;color:var(--text-muted);">Role</th>
+                  <th style="padding:8px 12px;font-weight:600;color:var(--text-muted);">Joined</th>
+                  <th style="padding:8px 12px;"></th>
+                </tr>
+              </thead>
+              <tbody>
+                ${roster.map(r => `
+                  <tr style="border-bottom:1px solid var(--border-subtle);" id="wl-roster-row-${r.user_id}">
+                    <td style="padding:10px 12px;">
+                      <div style="font-weight:500;">${r.display_name}</div>
+                      ${r.email && r.email !== r.display_name ? `<div style="font-size:0.78rem;color:var(--text-muted);">${r.email}</div>` : ''}
+                    </td>
+                    <td style="padding:10px 12px;"><span style="color:${roleColors[r.role] || 'var(--text-muted)'};font-weight:600;text-transform:capitalize;">${r.role}</span></td>
+                    <td style="padding:10px 12px;color:var(--text-muted);">${new Date(r.joined_at).toLocaleDateString()}</td>
+                    <td style="padding:10px 12px;text-align:right;">
+                      ${r.role !== 'owner' ? `<button class="btn btn-sm" onclick="wlRemoveRosterUser('${r.user_id}')" style="background:rgba(239,95,95,0.12);color:var(--accent-red);border:1px solid rgba(239,95,95,0.2);font-size:11px;padding:3px 10px;">Remove</button>` : ''}
+                    </td>
+                  </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>`;
+      } catch (e) {
+        el.innerHTML = '<p style="color:var(--accent-red);">Error loading roster.</p>';
+      }
+    }
+
+    async function wlRemoveRosterUser(userId) {
+      if (!confirm('Remove this user from your tenant?')) return;
+      const token = window._currentSession?.access_token;
+      if (!token) return;
+      try {
+        const resp = await fetch('/api/tenant/roster/' + userId, { method: 'DELETE', headers: { 'Authorization': 'Bearer ' + token } });
+        if (resp.ok) {
+          const row = document.getElementById('wl-roster-row-' + userId);
+          if (row) row.remove();
+        } else {
+          const err = await resp.json();
+          alert('Could not remove user: ' + (err.error || 'Unknown error'));
+        }
+      } catch (e) { alert('Error removing user.'); }
+    }
+
+    async function wlLoadAnalytics() {
+      const el = document.getElementById('wl-analytics-content');
+      if (!el) return;
+      const token = window._currentSession?.access_token;
+      if (!token) { el.innerHTML = '<p style="color:var(--text-muted);">Not authenticated.</p>'; return; }
+      el.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;">Loading analytics…</div>';
+      try {
+        const resp = await fetch('/api/tenant/analytics', { headers: { 'Authorization': 'Bearer ' + token } });
+        if (!resp.ok) { el.innerHTML = '<p style="color:var(--accent-red);">Unable to load analytics.</p>'; return; }
+        const { metrics } = await resp.json();
+        el.innerHTML = `
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:12px;margin-bottom:20px;">
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-teal);">${metrics.total_service_requests}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Service Requests</div>
+            </div>
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--accent-gold);">${metrics.total_bids}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Bids Placed</div>
+            </div>
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:var(--text-primary);">${metrics.total_page_views}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Page Views</div>
+            </div>
+            <div style="padding:16px;background:var(--surface-3);border-radius:8px;text-align:center;">
+              <div style="font-size:1.6rem;font-weight:700;color:#7c3aed;">${metrics.active_providers}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">Active Providers</div>
+            </div>
+          </div>
+          <div style="padding:12px 14px;background:var(--surface-3);border-radius:8px;font-size:0.83rem;color:var(--text-muted);">
+            Metrics are scoped to your tenant. Data updates in real time as members and providers use your platform.
+          </div>`;
+      } catch (e) {
+        el.innerHTML = '<p style="color:var(--accent-red);">Error loading analytics.</p>';
+      }
+    }
+
+    function wlLoadSettings() {
+      const el = document.getElementById('wl-settings-content');
+      if (!el || !window._wlPortalTenantData) return;
+      const { tenant, plan_features } = window._wlPortalTenantData;
+      const pf = plan_features || {};
+      el.innerHTML = `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Branding Configuration</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.86rem;">
+              <span style="color:var(--text-muted);">Brand Name</span><span>${tenant.brand_name || '—'}</span>
+              <span style="color:var(--text-muted);">Domain</span><span style="font-family:monospace;">${tenant.domain || (tenant.subdomain ? tenant.subdomain+'.mycarconcierge.com' : '—')}</span>
+              <span style="color:var(--text-muted);">Logo URL</span><span style="word-break:break-all;color:var(--text-secondary);font-size:0.8rem;">${tenant.logo_url || 'Not set'}</span>
+              <span style="color:var(--text-muted);">Support Email</span><span>${tenant.support_email || 'Not configured'}</span>
+            </div>
+            <div style="margin-top:12px;font-size:0.8rem;color:var(--text-muted);">To update branding, contact your MCC account manager or use the Admin Portal.</div>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Plan &amp; Billing</div>
+            <div style="display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font-size:0.86rem;">
+              <span style="color:var(--text-muted);">Plan</span><span style="font-weight:600;text-transform:capitalize;">${tenant.plan || '—'}</span>
+              <span style="color:var(--text-muted);">Member Seats</span><span>${tenant.max_members === -1 ? 'Unlimited' : (tenant.max_members || 0)}</span>
+              <span style="color:var(--text-muted);">Provider Seats</span><span>${tenant.max_providers === -1 ? 'Unlimited' : (tenant.max_providers || 0)}</span>
+            </div>
+            <div style="margin-top:10px;display:flex;gap:8px;flex-wrap:wrap;font-size:0.78rem;">
+              ${pf.custom_domain ? '<span style="color:var(--accent-teal);">✓ Custom Domain</span>' : '<span style="color:var(--text-muted);">✗ Custom Domain</span>'}
+              ${pf.analytics ? '<span style="color:var(--accent-teal);">✓ Analytics</span>' : '<span style="color:var(--text-muted);">✗ Analytics</span>'}
+              ${pf.sms_reminders ? '<span style="color:var(--accent-teal);">✓ SMS Reminders</span>' : '<span style="color:var(--text-muted);">✗ SMS Reminders</span>'}
+              ${pf.api_access ? '<span style="color:var(--accent-teal);">✓ API Access</span>' : '<span style="color:var(--text-muted);">✗ API Access</span>'}
+            </div>
+            <button class="btn btn-sm btn-primary" style="margin-top:12px;" onclick="openSaasPricingModal('white_label')">Manage Billing &amp; Upgrade</button>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Loyalty Program</div>
+            <div id="wl-loyalty-form"><div style="color:var(--text-muted);font-size:0.85rem;">Loading…</div></div>
+          </div>
+          <div style="padding:14px;background:var(--surface-3);border-radius:8px;border:1px solid var(--border-subtle);">
+            <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;">Approval Workflow</div>
+            <div id="wl-approval-form"><div style="color:var(--text-muted);font-size:0.85rem;">Loading…</div></div>
+          </div>
+        </div>`;
+      wlLoadLoyaltyConfig();
+      wlLoadApprovalWorkflow();
+    }
+
+    async function wlLoadLoyaltyConfig() {
+      const el = document.getElementById('wl-loyalty-form');
+      if (!el) return;
+      try {
+        const token = getAuthToken ? getAuthToken() : null;
+        const res = await fetch('/api/tenant/loyalty-config', { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = res.ok ? await res.json() : {};
+        const lp = data.loyalty_program || {};
+        el.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-loyalty-enabled" ${lp.enabled ? 'checked' : ''} style="width:16px;height:16px;">
+              Enable punch card loyalty program
+            </label>
+            <div>
+              <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Punch card goal (visits to earn reward)</label>
+              <input type="number" id="wl-loyalty-goal" value="${lp.punch_card_goal || 10}" min="1" max="50" style="width:80px;padding:6px 8px;background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <div>
+              <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Reward description</label>
+              <input type="text" id="wl-loyalty-reward" value="${(lp.reward_description || '').replace(/"/g,'&quot;')}" placeholder="e.g. Free oil change" style="width:100%;max-width:320px;padding:6px 8px;background:var(--surface-2);border:1px solid var(--border-subtle);border-radius:6px;color:var(--text-primary);font-size:0.85rem;">
+            </div>
+            <button class="btn btn-sm btn-primary" onclick="wlSaveLoyaltyConfig()">Save Loyalty Settings</button>
+          </div>`;
+      } catch(e) { el.innerHTML = '<p style="color:var(--accent-red);font-size:0.85rem;">Failed to load loyalty config.</p>'; }
+    }
+
+    window.wlSaveLoyaltyConfig = async function() {
+      const token = getAuthToken ? getAuthToken() : null;
+      const body = {
+        enabled: document.getElementById('wl-loyalty-enabled')?.checked,
+        punch_card_goal: parseInt(document.getElementById('wl-loyalty-goal')?.value, 10) || 10,
+        reward_description: document.getElementById('wl-loyalty-reward')?.value || ''
+      };
+      try {
+        const res = await fetch('/api/tenant/loyalty-config', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(body) });
+        if (res.ok) { showToast('Loyalty settings saved', 'success'); } else { showToast('Failed to save', 'error'); }
+      } catch(e) { showToast('Error saving loyalty config', 'error'); }
+    };
+
+    async function wlLoadApprovalWorkflow() {
+      const el = document.getElementById('wl-approval-form');
+      if (!el) return;
+      try {
+        const token = getAuthToken ? getAuthToken() : null;
+        const res = await fetch('/api/tenant/approval-workflow', { headers: { 'Authorization': 'Bearer ' + token } });
+        const data = res.ok ? await res.json() : {};
+        const aw = data.approval_workflow || {};
+        el.innerHTML = `
+          <div style="display:flex;flex-direction:column;gap:10px;">
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-aw-provider" ${aw.require_provider_approval ? 'checked' : ''} style="width:16px;height:16px;">
+              Require approval before providers can take jobs
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-aw-member" ${aw.require_member_approval ? 'checked' : ''} style="width:16px;height:16px;">
+              Require approval before members can post requests
+            </label>
+            <label style="display:flex;align-items:center;gap:8px;font-size:0.85rem;cursor:pointer;">
+              <input type="checkbox" id="wl-aw-auto" ${aw.auto_approve_verified !== false ? 'checked' : ''} style="width:16px;height:16px;">
+              Auto-approve verified accounts
+            </label>
+            <button class="btn btn-sm btn-primary" onclick="wlSaveApprovalWorkflow()">Save Workflow Settings</button>
+          </div>`;
+      } catch(e) { el.innerHTML = '<p style="color:var(--accent-red);font-size:0.85rem;">Failed to load workflow config.</p>'; }
+    }
+
+    window.wlSaveApprovalWorkflow = async function() {
+      const token = getAuthToken ? getAuthToken() : null;
+      const body = {
+        require_provider_approval: document.getElementById('wl-aw-provider')?.checked,
+        require_member_approval: document.getElementById('wl-aw-member')?.checked,
+        auto_approve_verified: document.getElementById('wl-aw-auto')?.checked
+      };
+      try {
+        const res = await fetch('/api/tenant/approval-workflow', { method:'POST', headers:{'Content-Type':'application/json','Authorization':'Bearer '+token}, body: JSON.stringify(body) });
+        if (res.ok) { showToast('Workflow settings saved', 'success'); } else { showToast('Failed to save', 'error'); }
+      } catch(e) { showToast('Error saving workflow config', 'error'); }
+    };
+
+    window.dismissWlOnboarding = dismissWlOnboarding;
+    window.wlObNext = wlObNext;
+    window.wlObBack = wlObBack;
+    window.wlSwitchPortalTab = wlSwitchPortalTab;
+    window.wlLoadRoster = wlLoadRoster;
+    window.wlRemoveRosterUser = wlRemoveRosterUser;
+    window.wlLoadAnalytics = wlLoadAnalytics;
+
+    // Hook into showSection so tenant portal loads when settings tab opens
+    const _origShowSection = window.showSection;
+    window.showSection = function(section) {
+      if (_origShowSection) _origShowSection(section);
+      if (section === 'settings') {
+        loadWlTenantPortal();
+      }
+      if (section === 'fleet') {
+        if (typeof window.loadFleetSubscription === 'function') {
+          setTimeout(window.loadFleetSubscription, 200);
+        }
+      }
+    };
+
+    // ========== END SaaS UI TASKS ==========
+  </script>
+
+  <!-- Vehicle Photos Modal -->
+  <div id="vehicle-photos-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;">
+        <div>
+          <h2 style="font-size:1.15rem;font-weight:700;color:var(--text-primary);" id="vp-modal-title">Vehicle Photos</h2>
+          <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;" id="vp-count">0/6 photos</div>
+        </div>
+        <button onclick="closeVehiclePhotosModal()" style="background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.4rem;line-height:1;padding:4px 8px;">✕</button>
+      </div>
+      <p style="font-size:0.83rem;color:var(--text-secondary);margin-bottom:16px;">Add up to 6 photos of your vehicle. Providers use these when reviewing care plan bids. The primary photo is shown first.</p>
+      <div id="vp-grid" style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;min-height:100px;"></div>
+    </div>
+  </div>
+
+  <!-- Photo Lightbox -->
+  <div id="vp-lightbox" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out;" onclick="closePhotoLightbox()">
+    <img src="" alt="Vehicle photo" style="max-width:94vw;max-height:90vh;object-fit:contain;border-radius:8px;">
+  </div>
+  <script src="/fb-pixel.js" defer></script>
 </body>
 </html>

@@ -41,7 +41,7 @@ async function mountFixture(page, { containerId = 'aap-test-container' } = {}) {
     localStorage.setItem('mcc_admin_pass', 'test-password');
   }, containerId);
   await page.addScriptTag({ url: '/admin-agent-activity.js' });
-  await page.waitForFunction(() => typeof window.renderAgentActivityPanel === 'function');
+  await page.waitForFunction(() => typeof globalThis.renderAgentActivityPanel === 'function');
 }
 
 test.describe('Agent Activity drawer — reasoning / decision / source (T#277)', () => {
@@ -101,7 +101,7 @@ test.describe('Agent Activity drawer — reasoning / decision / source (T#277)',
     await mountFixture(page);
 
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         targetId: 'prov-abc', targetKind: 'provider', limit: 10, showEmpty: true
       });
     });
@@ -211,7 +211,7 @@ test.describe('Agent Activity drawer — reasoning / decision / source (T#277)',
 
     // Use agentSlug + includeAiOpsModule so fetchLegacy actually runs.
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         agentSlug: 'treasurer',
         includeAiOpsModule: 'payment_tracker',
         limit: 10, showEmpty: true
@@ -280,7 +280,7 @@ test.describe('Agent Activity drawer — reasoning / decision / source (T#277)',
     await mountFixture(page);
 
     await page.evaluate(() => {
-      window.renderAgentActivityPanel('aap-test-container', {
+      globalThis.renderAgentActivityPanel('aap-test-container', {
         targetId: 'app-1', targetKind: 'application', limit: 10, showEmpty: true
       });
     });

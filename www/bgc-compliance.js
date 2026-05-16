@@ -168,6 +168,73 @@
     };
   }
 
+  // Task #372 — render the persistent BGC connection-status pill that sits
+  // next to the compliance state pill. This polls the public view via
+  // /api/provider/bgc/config + the existing supabase RLS-scoped read of
+  // provider_background_check_accounts_public so the provider can always
+  // tell at a glance whether their orders go to live BGC, the platform
+  // fallback, or are still in mock mode.
+  async function _renderConnectionPill() {
+    const slot = document.getElementById('bgc-connection-pill');
+    if (!slot) return;
+    let label = 'Mock mode'; let bg = 'rgba(255,255,255,0.06)'; let fg = 'var(--text-muted)'; let title = 'BGC live mode is off platform-wide — orders are simulated until ops flips BGC_LIVE_MODE on.';
+    try {
+      // Step 1: ask the platform whether live mode is on globally. Only when
+      // BGC_LIVE_MODE is true does the per-provider sub-account state matter
+      // for the user-facing label. /api/provider/bgc/config exposes this
+      // safely without leaking secrets.
+      let liveModeGlobal = false;
+      let platformFallback = false;
+      try {
+        const cfg = await fetch('/api/provider/bgc/config').then(r => r.ok ? r.json() : null).catch(() => null);
+        liveModeGlobal = !!(cfg && cfg.live_mode);
+        platformFallback = !!(cfg && cfg.platform_fallback);
+      } catch { liveModeGlobal = false; platformFallback = false; }
+
+      // Step 2: read the per-provider linked-account row via the RLS-scoped
+      // public view (no api_key column).
+      const sb = getSupabase();
+      let row = null;
+      if (sb && sb.auth) {
+        const { data: sessionWrap } = await sb.auth.getSession();
+        const uid = sessionWrap && sessionWrap.session && sessionWrap.session.user && sessionWrap.session.user.id;
+        if (uid) {
+          const r = await sb
+            .from('provider_background_check_accounts_public')
+            .select('live_mode, bgchecks_account_id')
+            .eq('provider_id', uid)
+            .maybeSingle();
+          row = r && r.data ? r.data : null;
+        }
+      }
+
+      // Step 3: combine global flag + provider row to pick the label. Only
+      // claim "Live · Sub-account linked" when BOTH are true; "Live · Platform
+      // fallback" when global is on but the provider hasn't linked their own
+      // account; "Setup pending" only when global is on but nothing is wired.
+      if (!liveModeGlobal) {
+        // default mock mode pill stays
+      } else if (row && row.live_mode) {
+        label = 'Live · Sub-account linked';
+        bg = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
+        fg = '#2eb88a';
+        title = 'Background checks run under your own BackgroundChecks.com sub-account' + (row.bgchecks_account_id ? ' (#' + row.bgchecks_account_id + ').' : '.');
+      } else if (platformFallback) {
+        label = 'Live · Platform fallback';
+        bg = 'rgba(212, 168, 85, 0.15)';
+        fg = '#d4a855';
+        title = 'BGC live mode is on, but you haven\u2019t linked your own sub-account. Orders run under MCC\u2019s platform account. Click Enroll BGC sub-account to get your own console.';
+      } else {
+        label = 'Setup pending';
+        bg = 'rgba(220, 80, 80, 0.15)';
+        fg = '#dc5050';
+        title = 'BGC live mode is on platform-wide but no API credential is configured \u2014 neither your sub-account nor the platform fallback token is available. New orders will fail until ops configures BGC_API_TOKEN or you link your sub-account.';
+      }
+    } catch { /* non-fatal — keep default mock pill */ }
+    slot.innerHTML =
+      '<span title="' + escapeHtml(title) + '" style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + bg + ';color:' + fg + ';margin-left:8px;">' + escapeHtml(label) + '</span>';
+  }
+
   function _renderStateCard(state, pct, compliant, total) {
     const card = document.getElementById('bgc-state-card');
     if (!card) return;
@@ -175,6 +242,7 @@
       '<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:24px;justify-content:space-between;">' +
         '<div style="flex:1;min-width:260px;">' +
           '<div style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + state.pillBg + ';color:' + state.pillFg + ';">' + escapeHtml(state.pillText) + '</div>' +
+          '<span id="bgc-connection-pill"></span>' +
           '<h3 style="margin:12px 0 6px;font-size:1.25rem;font-weight:600;color:var(--text-primary);">' + escapeHtml(state.title) + '</h3>' +
           '<p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">' + escapeHtml(state.body) + '</p>' +
           (state.key === 'not_enrolled'
@@ -261,6 +329,7 @@
     // 4-state state card. Renders only if the slot exists.
     const state = _stateCopy(pct, total, badge);
     _renderStateCard(state, pct, compliant, total);
+    _renderConnectionPill();
   }
 
   function startEnrollment() {
@@ -653,8 +722,17 @@
         alert('Could not initiate check: ' + (body.error || resp.status));
         return;
       }
-      if (body.mocked) {
-        alert('Background check started in test mode (BGC_API_TOKEN not configured).');
+      if (body.applicantInviteUrl) {
+        // Live mode — surface the BGC-hosted PII intake link so the
+        // provider can hand it to the employee. SSN/DOB are entered on
+        // BGC, never on MCC.
+        const msg = 'Background check ordered.\n\nSend this secure link to the employee so they can complete their consent and PII intake on BackgroundChecks.com:\n\n' + body.applicantInviteUrl;
+        try { await navigator.clipboard.writeText(body.applicantInviteUrl); } catch { /* clipboard may be unavailable */ }
+        alert(msg + '\n\n(Link copied to your clipboard.)');
+      } else if (body.mocked) {
+        alert('Background check started in test mode (BGC_LIVE_MODE not enabled).');
+      } else {
+        alert('Background check started. The employee will receive an email from BackgroundChecks.com to complete their secure intake.');
       }
       await refresh();
     } catch (e) {
