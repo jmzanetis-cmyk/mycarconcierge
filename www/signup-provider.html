@@ -972,162 +972,30 @@
       globalThis.signUpWithAppleProvider = signUpWithAppleProvider;
     })();
   </script>
-  <script>
-    let currentStep = 1;
-    const uploadedFiles = { insurance: [], certs: [] };
+  <!--
+    Task #348: A duplicate inline <script> block used to live here that
+    re-declared `currentStep`, `uploadedFiles`, `nextStep`, `prevStep`,
+    `updateDots`, `validateStep`, `handleFileUpload`, `removeFile`,
+    `submitApplication`, `showMessage`, and `checkProviderReferral`.
+    Because signup-provider.js (loaded above) already declares those
+    identifiers at top level, the inline block threw
+    `SyntaxError: Identifier 'currentStep' has already been declared`
+    every page load and was effectively dead code — none of its
+    functions/DOMContentLoaded handler ever registered. It was also
+    a strictly inferior implementation (used the wrong upload field
+    set {insurance, certs} vs the real {license, certs, portfolio},
+    skipped the signature pad + legal-name validation, and went
+    straight to supabase.auth.signUp instead of POSTing to
+    /api/provider/apply). signup-provider.js is the source of truth.
 
-    function nextStep(step) {
-      if (!validateStep(step)) return;
-      document.getElementById(`step-${step}`).classList.remove('active');
-      currentStep = step + 1;
-      document.getElementById(`step-${currentStep}`).classList.add('active');
-      updateDots();
-      window.scrollTo(0, 0);
-    }
-
-    function prevStep(step) {
-      document.getElementById(`step-${step}`).classList.remove('active');
-      currentStep = step - 1;
-      document.getElementById(`step-${currentStep}`).classList.add('active');
-      updateDots();
-      window.scrollTo(0, 0);
-    }
-
-    function updateDots() {
-      document.querySelectorAll('.step-dot').forEach(dot => {
-        const dotStep = parseInt(dot.dataset.step);
-        dot.classList.remove('active', 'completed');
-        if (dotStep === currentStep) dot.classList.add('active');
-        if (dotStep < currentStep) dot.classList.add('completed');
-      });
-    }
-
-    function validateStep(step) {
-      const inputs = document.getElementById(`step-${step}`).querySelectorAll('[required]');
-      let valid = true;
-      inputs.forEach(input => {
-        if (!input.value) {
-          input.style.borderColor = '#ef5f5f';
-          valid = false;
-        } else {
-          input.style.borderColor = '';
-        }
-      });
-      if (step === 1) {
-        const pass = document.getElementById('password').value;
-        const confirm = document.getElementById('password-confirm').value;
-        if (pass !== confirm) {
-          showMessage('Passwords do not match', 'error');
-          valid = false;
-        }
-      }
-      return valid;
-    }
-
-    function handleFileUpload(input, type) {
-      const list = document.getElementById(`${type}-list`);
-      Array.from(input.files).forEach(file => {
-        uploadedFiles[type].push(file);
-        const item = document.createElement('div');
-        item.className = 'uploaded-file';
-        item.innerHTML = `<span>${file.name}</span><button onclick="removeFile('${type}', '${file.name}')">&times;</button>`;
-        list.appendChild(item);
-      });
-    }
-
-    function removeFile(type, name) {
-      uploadedFiles[type] = uploadedFiles[type].filter(f => f.name !== name);
-      const list = document.getElementById(`${type}-list`);
-      list.innerHTML = '';
-      uploadedFiles[type].forEach(file => {
-        const item = document.createElement('div');
-        item.className = 'uploaded-file';
-        item.innerHTML = `<span>${file.name}</span><button onclick="removeFile('${type}', '${file.name}')">&times;</button>`;
-        list.appendChild(item);
-      });
-    }
-
-    async function submitApplication() {
-      if (!document.getElementById('terms-agree').checked) {
-        showMessage('Please agree to the terms to continue', 'error');
-        return;
-      }
-
-      const btn = document.getElementById('submit-btn');
-      btn.disabled = true;
-      btn.textContent = 'Submitting...';
-
-      try {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              role: 'provider_pending',
-              business_name: document.getElementById('business-name').value,
-              full_name: document.getElementById('contact-name').value
-            }
-          }
-        });
-
-        if (authError) throw authError;
-
-        document.getElementById('step-3').classList.remove('active');
-        document.getElementById('success-step').classList.add('active');
-        updateDots();
-
-      } catch (err) {
-        showMessage(err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Submit Application';
-      }
-    }
-
-    function showMessage(text, type) {
-      const el = document.getElementById('message');
-      el.textContent = text;
-      el.className = `message show ${type}`;
-      window.scrollTo(0, 0);
-    }
-
-    document.querySelectorAll('.checkbox-item input').forEach(input => {
-      input.addEventListener('change', () => {
-        input.parentElement.classList.toggle('selected', input.checked);
-      });
-    });
-
-    async function checkProviderReferral() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const refCode = urlParams.get('provider_ref');
-      if (refCode) {
-        try {
-          const response = await fetch(`/api/provider-referral/lookup/${refCode}`);
-          const data = await response.json();
-          if (data && data.provider_name) {
-            document.getElementById('referring-provider-name').textContent = data.provider_name;
-            document.getElementById('referral-banner').classList.add('show');
-            document.getElementById('provider-referral-code').value = refCode;
-            document.getElementById('provider-referral-id').value = data.provider_id;
-          }
-        } catch (err) {
-          console.error('Error looking up referral:', err);
-        }
-      }
-    }
-
-    /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      checkProviderReferral();
-      const icon = document.querySelector('.theme-icon');
-      if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
-      I18n.createLanguageSwitcher('language-switcher');
-    });
-
-  </script>
+    The inline DOMContentLoaded did call I18n.createLanguageSwitcher
+    and set the theme icon, but since it never executed those calls
+    weren't happening either — the page has been shipping without
+    them. They were not restored to keep this change minimal and
+    focused on the crash; if a missing language switcher needs to be
+    fixed, it should go through signup-provider.js's existing
+    DOMContentLoaded path.
+  -->
   <script src="/mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
