@@ -11,8 +11,17 @@ const { loginViaUI, navigateToSection, dismissOverlays } = require('./helpers');
 const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 const SUPABASE_URL = process.env.SUPABASE_URL;
 const SUPABASE_SERVICE_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY;
-const STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY;
+// Prefer a dedicated test-mode key so we don't have to clobber the
+// restricted live key (`rk_live_...`) the rest of the dev app uses
+// against the real Stripe account. Falls back to STRIPE_SECRET_KEY
+// for environments that only have one key configured.
+const STRIPE_SECRET_KEY = process.env.STRIPE_TEST_SECRET_KEY || process.env.STRIPE_SECRET_KEY;
 const STRIPE_WEBHOOK_SECRET = process.env.STRIPE_WEBHOOK_SECRET;
+// Optional: a pre-onboarded test Connect account id (acct_...). When
+// set, the suite uses it directly instead of trying to mint a brand-new
+// Express account (which is never `charges_enabled` on creation). This
+// is the recommended CI wiring per Task #327.
+const STRIPE_TEST_CONNECT_ACCOUNT_ID = process.env.STRIPE_TEST_CONNECT_ACCOUNT_ID || null;
 
 const TEST_MEMBER_EMAIL = process.env.MEMBER_TEST_EMAIL || 'testmember@mcc-test.com';
 const TEST_MEMBER_PASS = process.env.MEMBER_TEST_PASSWORD || 'TestPass123!';
@@ -70,22 +79,53 @@ test.describe('Care plan payment journey (Task #282)', () => {
     // Stripe-gated tests require both a working key AND a Connect account
     // that's actually `charges_enabled` (the /accept-bid handler hard-rejects
     // 409 otherwise). Newly-created Express test accounts typically aren't,
-    // so this skip-gate is the only way to keep these tests non-flaky.
+    // so the preferred CI wiring is to set STRIPE_TEST_CONNECT_ACCOUNT_ID to
+    // a pre-onboarded test account (Task #327). If that env var is absent we
+    // fall back to creating a fresh Express account and checking
+    // `charges_enabled`, which keeps these tests non-flaky in dev sandboxes
+    // where Connect onboarding can't be completed automatically.
     if (STRIPE_SECRET_KEY) {
       try {
         const { STRIPE_API_VERSION } = require('../lib/stripe-api-version');
         stripe = new Stripe(STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
-        const acct = await stripe.accounts.create({
-          type: 'express', country: 'US',
-          email: `mcc-task282-${Date.now()}@example.com`,
-          capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
-        });
-        stripeConnectAccountId = acct.id;
-        if (acct.charges_enabled) {
+        let acct;
+        if (STRIPE_TEST_CONNECT_ACCOUNT_ID) {
+          acct = await stripe.accounts.retrieve(STRIPE_TEST_CONNECT_ACCOUNT_ID);
+        } else {
+          acct = await stripe.accounts.create({
+            type: 'express', country: 'US',
+            email: `mcc-task282-${Date.now()}@example.com`,
+            capabilities: { card_payments: { requested: true }, transfers: { requested: true } }
+          });
+          // Only delete accounts we created ourselves; never delete a shared
+          // pre-onboarded CI fixture.
+          stripeConnectAccountId = acct.id;
+        }
+        // Task #327: when the caller explicitly provides
+        // STRIPE_TEST_CONNECT_ACCOUNT_ID they're asserting the account is
+        // ready; verify by attempting a small manual-capture PI with
+        // transfer_data.destination, which is the exact call /accept-bid
+        // makes. `charges_enabled` can lag behind async verification even
+        // when destination charges already work.
+        let usable = acct.charges_enabled;
+        if (!usable && STRIPE_TEST_CONNECT_ACCOUNT_ID) {
+          try {
+            const probe = await stripe.paymentIntents.create({
+              amount: 1000, currency: 'usd', capture_method: 'manual',
+              transfer_data: { destination: acct.id },
+              payment_method_types: ['card']
+            });
+            await stripe.paymentIntents.cancel(probe.id).catch(() => {});
+            usable = true;
+          } catch (probeErr) {
+            console.warn(`[Task #282] Probe PI failed on ${acct.id}: ${probeErr.code || ''} ${probeErr.message}`);
+          }
+        }
+        if (usable) {
           await sb.from('profiles').update({ stripe_account_id: acct.id }).eq('id', providerId);
           stripeUsable = true;
         } else {
-          console.warn('[Task #282] Stripe disabled: Connect account not charges_enabled.');
+          console.warn(`[Task #282] Stripe disabled: Connect account ${acct.id} not charges_enabled. Set STRIPE_TEST_CONNECT_ACCOUNT_ID to a pre-onboarded test account to enable the capture-path tests.`);
         }
       } catch (err) {
         console.warn(`[Task #282] Stripe disabled: ${err.code || ''} ${err.message}`);
@@ -281,6 +321,11 @@ test.describe('Care plan payment journey (Task #282)', () => {
   test('UI: full Stripe card flow → funds-held UI → mark complete → captured', async ({ page, request }) => {
     test.skip(!stripeUsable, 'Stripe test key not usable in this environment');
     test.skip(!STRIPE_WEBHOOK_SECRET, 'STRIPE_WEBHOOK_SECRET required');
+    // Browser-side Stripe.js must run in the same mode (test/live) as the
+    // server. The server prefers STRIPE_TEST_PUBLISHABLE_KEY in dev when set;
+    // without it, the page falls back to a live pk and confirmCardPayment
+    // fails with "No such payment_intent ... live mode key used".
+    test.skip(!process.env.STRIPE_TEST_PUBLISHABLE_KEY, 'STRIPE_TEST_PUBLISHABLE_KEY required for UI Stripe card flow');
 
     const { plan, acceptedBid, otherBid } = await seedPlan();
 
@@ -303,17 +348,26 @@ test.describe('Care plan payment journey (Task #282)', () => {
     const acceptBtn = detail.locator(`[data-accept-bid="${acceptedBid.id}"]`);
     await expect(acceptBtn).toBeVisible({ timeout: 5000 });
 
+    // Flip the stub before the click so the post-accept viewCarePlan refetch
+    // sees payment_status='requires_payment' and renders the card-element panel.
+    currentPaymentStatus = 'requires_payment';
     await acceptBtn.click();
     await expect(page.locator('#cp-card-element')).toBeVisible({ timeout: 15000 });
-    currentPaymentStatus = 'requires_payment';
 
-    // Fill Stripe Elements iframe with test card 4242…
+    // Fill Stripe Elements iframe with test card 4242…  Stripe Elements
+    // listens for keystroke events, so use pressSequentially (not fill) to
+    // ensure the card data is committed before we click confirm.
     const cardFrame = page.frameLocator('#cp-card-element iframe').first();
-    await cardFrame.locator('[name="cardnumber"]').fill('4242424242424242');
-    await cardFrame.locator('[name="exp-date"]').fill('12 / 34');
-    await cardFrame.locator('[name="cvc"]').fill('123');
-    await cardFrame.locator('[name="postal"]').fill('10001').catch(() => {});
-    await page.locator('#cp-card-confirm-btn').click();
+    await cardFrame.locator('[name="cardnumber"]').pressSequentially('4242424242424242', { delay: 20 });
+    await cardFrame.locator('[name="exp-date"]').pressSequentially('1234', { delay: 20 });
+    await cardFrame.locator('[name="cvc"]').pressSequentially('123', { delay: 20 });
+    await cardFrame.locator('[name="postal"]').pressSequentially('10001', { delay: 20 }).catch(() => {});
+    await page.locator('#cp-authorize-btn').click();
+    // Wait for confirmCardPayment to round-trip and the UI to re-render.
+    await page.waitForFunction(() => {
+      const btn = document.getElementById('cp-authorize-btn');
+      return !btn || btn.disabled === false && btn.textContent.indexOf('Authorizing') === -1;
+    }, null, { timeout: 30000 }).catch(() => {});
 
     // Read the PI id back from Supabase once the UI's confirm POST has settled.
     let pidRow = null;
@@ -338,8 +392,10 @@ test.describe('Care plan payment journey (Task #282)', () => {
     await page.evaluate((id) => globalThis.viewCarePlan(id), plan.id);
     await expect(page.locator('#cp-mark-complete-btn')).toBeVisible({ timeout: 10000 });
 
-    // Mark complete → real /complete endpoint captures the PI.
+    // Mark complete → opens a confirm modal → confirm fires /complete.
     await page.locator('#cp-mark-complete-btn').click();
+    await expect(page.locator('#cp-complete-confirm')).toBeVisible({ timeout: 5000 });
+    await page.locator('#cp-complete-confirm').click();
     const piCaptured = await stripe.paymentIntents.retrieve(currentPI);
     // Capture happens server-side; allow a moment for the request to settle.
     let captured = piCaptured;
@@ -351,7 +407,9 @@ test.describe('Care plan payment journey (Task #282)', () => {
 
     const { data: planFinal } = await sb.from('care_plans').select('payment_status, status').eq('id', plan.id).single();
     expect(planFinal.payment_status).toBe('captured');
-    expect(planFinal.status).toBe('completed');
+    // care_plans.status CHECK constraint terminates at 'awarded'; completion is
+    // tracked by the care_plan_completions row + payment_status='captured'.
+    expect(planFinal.status).toBe('awarded');
     const { data: completion } = await sb.from('care_plan_completions').select('id, provider_id').eq('care_plan_id', plan.id).maybeSingle();
     expect(completion).toBeTruthy();
     expect(completion.provider_id).toBe(providerId);
@@ -381,7 +439,10 @@ test.describe('Care plan payment journey (Task #282)', () => {
     expect(planAfterAccept.accepted_bid_id).toBe(acceptedBid.id);
     expect(planAfterAccept.stripe_payment_intent_id).toBe(piId);
 
-    await stripe.paymentIntents.confirm(piId, { payment_method: 'pm_card_visa' });
+    await stripe.paymentIntents.confirm(piId, {
+      payment_method: 'pm_card_visa',
+      return_url: `${BASE_URL}/members.html`
+    });
     const piHeld = await stripe.paymentIntents.retrieve(piId);
     expect(piHeld.status).toBe('requires_capture');
 
@@ -393,6 +454,9 @@ test.describe('Care plan payment journey (Task #282)', () => {
       headers: { Authorization: `Bearer ${memberToken}`, 'Content-Type': 'application/json' },
       data: { completion_notes: 'Task282 e2e capture' }
     });
+    if (completeRes.status() !== 201) {
+      console.error('[Task #327 debug] /complete failed:', completeRes.status(), await completeRes.text());
+    }
     expect(completeRes.status()).toBe(201);
     const completeBody = await completeRes.json();
     expect(completeBody.payment.captured).toBe(true);
@@ -400,7 +464,9 @@ test.describe('Care plan payment journey (Task #282)', () => {
 
     const { data: planFinal } = await sb.from('care_plans').select('payment_status, status').eq('id', plan.id).single();
     expect(planFinal.payment_status).toBe('captured');
-    expect(planFinal.status).toBe('completed');
+    // care_plans.status CHECK constraint terminates at 'awarded'; completion is
+    // tracked by the care_plan_completions row + payment_status='captured'.
+    expect(planFinal.status).toBe('awarded');
     const { data: completion } = await sb.from('care_plan_completions').select('id, provider_id').eq('care_plan_id', plan.id).maybeSingle();
     expect(completion).toBeTruthy();
     expect(completion.provider_id).toBe(providerId);
@@ -438,7 +504,10 @@ test.describe('Care plan payment journey (Task #282)', () => {
     // Re-confirm with a non-3DS test PM to clear the challenge. In Stripe
     // test mode this completes the SCA flow and moves the manual-capture
     // intent to requires_capture (the held state).
-    await stripe.paymentIntents.confirm(piId, { payment_method: 'pm_card_visa' });
+    await stripe.paymentIntents.confirm(piId, {
+      payment_method: 'pm_card_visa',
+      return_url: `${BASE_URL}/members.html`
+    });
     const piHeld = await stripe.paymentIntents.retrieve(piId);
     expect(piHeld.status).toBe('requires_capture');
 
@@ -472,15 +541,17 @@ test.describe('Care plan payment journey (Task #282)', () => {
     // Authoritative orphan-absence check via Stripe metadata search.
     // Search has eventual-consistency latency, so poll briefly until the
     // winner's PI shows up; an orphan would also show up here if it existed.
+    // Stripe's PaymentIntent search index has eventual consistency of up
+    // to ~60s, so poll generously before asserting.
     let live = [];
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 60; i++) {
       const search = await stripe.paymentIntents.search({
         query: `metadata['flow']:'care_plan' AND metadata['care_plan_id']:'${plan.id}'`,
         limit: 10
       });
       live = (search.data || []).filter((pi) => pi.status !== 'canceled');
       if (live.some((pi) => pi.id === winner.payment_intent_id)) break;
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise(r => setTimeout(r, 1000));
     }
     expect(live.length).toBe(1);
     expect(live[0].id).toBe(winner.payment_intent_id);
