@@ -106,8 +106,21 @@ function resolveHandlerFile(target) {
 const serverSrc    = fs.readFileSync(SERVER_PATH, 'utf8');
 const redirectsSrc = fs.readFileSync(REDIRECTS_PATH, 'utf8');
 const allowlist    = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, 'utf8'));
-const allowExact   = new Set(allowlist.exact || []);
+const allowExact   = new Set(allowlist.exact  || []);
 const allowPrefix  = new Set(allowlist.prefix || []);
+const allowNotes   = allowlist._notes || {};
+
+// Every allow-listed route must have a `_notes` entry covering its namespace
+// prefix (e.g. `/api/2fa/disable` is covered by the `/api/2fa/` _notes key).
+// This satisfies the "explicitly added with a comment" requirement at
+// namespace granularity — per-route comments for 245 grandfathered entries
+// would be noise, but namespace rationale is auditable.
+function hasNamespaceNote(route) {
+  for (const prefix of Object.keys(allowNotes)) {
+    if (route === prefix || route.startsWith(prefix)) return true;
+  }
+  return false;
+}
 
 const { exact: devExact, prefix: devPrefix } = extractDevRoutes(serverSrc);
 const rules = extractRedirectRules(redirectsSrc);
@@ -149,6 +162,21 @@ ok('no new dev prefix routes lack a prod handler or allow-list entry',
    newlyMissingPrefix.length === 0,
    newlyMissingPrefix.length
      ? `add a www/_redirects rule or extend _dev-only-api-routes.json for: ${newlyMissingPrefix.join(', ')}`
+     : '');
+
+// ── 5b. Every allow-list entry must have a documented namespace _note ──────
+console.log('Every allow-list entry has a namespace rationale in _notes');
+const undocumentedExact  = [...allowExact ].filter(r => !hasNamespaceNote(r));
+const undocumentedPrefix = [...allowPrefix].filter(r => !hasNamespaceNote(r));
+ok('every exact allow-list entry is covered by an _notes namespace',
+   undocumentedExact.length === 0,
+   undocumentedExact.length
+     ? `add an _notes entry for the namespace of: ${undocumentedExact.join(', ')}`
+     : '');
+ok('every prefix allow-list entry is covered by an _notes namespace',
+   undocumentedPrefix.length === 0,
+   undocumentedPrefix.length
+     ? `add an _notes entry for the namespace of: ${undocumentedPrefix.join(', ')}`
      : '');
 
 // ── 6. Allow-list hygiene: stale entries (route no longer in server.js) ────
