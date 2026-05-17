@@ -2050,6 +2050,52 @@ async function releaseApolloLock(supabase, nonce) {
   }
 }
 
+// Task #444 — force-release a wedged Apollo lock that has been held past the
+// auto-clear threshold (15 min by default). Uses a compare-and-swap on the
+// wedged lock's running_nonce + running_since so we never clobber a lock that
+// has since been legitimately re-acquired by a different cycle in the gap
+// between the stuck-lock detection read and this write. Returns
+// `{ cleared: true }` on success, or `{ cleared: false, reason }` describing
+// why the CAS failed (nonce_changed / running_since_changed / already_released
+// / error).
+async function forceReleaseApolloLock(supabase, { expectedNonce = null, expectedRunningSince = null } = {}) {
+  try {
+    const { data: row } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const meta = row?.metadata || {};
+    const cfg = meta.apollo_config || {};
+
+    if (!cfg.running_since && !cfg.running_nonce) {
+      return { cleared: false, reason: 'already_released' };
+    }
+    // CAS guards — the wedged lock we observed must still be the one in
+    // storage. If either field has changed, another cycle has taken over
+    // and we must NOT delete its lock.
+    if (expectedNonce && cfg.running_nonce && cfg.running_nonce !== expectedNonce) {
+      return { cleared: false, reason: 'nonce_changed' };
+    }
+    if (expectedRunningSince && cfg.running_since && cfg.running_since !== expectedRunningSince) {
+      return { cleared: false, reason: 'running_since_changed' };
+    }
+
+    const newCfg = { ...cfg };
+    delete newCfg.running_since;
+    delete newCfg.running_nonce;
+    await supabase.from('engine_state').update({ metadata: { ...meta, apollo_config: newCfg } }).eq('id', 1);
+    return { cleared: true };
+  } catch (err) {
+    console.error('[Apollo] Force-release error:', err.message);
+    return { cleared: false, reason: 'error', error: err.message };
+  }
+}
+
+// Task #444 — if the wedged lock has been held this long, force-release it
+// on the next scheduled cycle instead of just alerting. Set higher than the
+// 6-min stuck-alert threshold so admins still get the heads-up (and a chance
+// to investigate) before we auto-clear; set well below the 10-min lock TTL
+// so the auto-clear is only meaningful when the TTL alone isn't enough (i.e.
+// some other call path keeps refreshing or the operator has bumped the TTL).
+const APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS = 15 * 60 * 1000;
+
 async function draftWefunderBlastEmail(lead) {
   const firstName = lead.name?.split(' ')[0] || 'there';
   const companyCtx = lead.company ? ` at ${lead.company}` : '';
@@ -2234,18 +2280,36 @@ async function maybeSendApolloStuckAlert(supabase, ctx) {
   else if (!adminEmail) { outcome = 'failed'; errorMessage = 'no_admin_email'; }
   else {
     try {
-      const subject = `🚨 Apollo discovery cycle stuck (~${ctx.heldMinutes}m)`;
+      // Task #444 — surface whether this cycle auto-cleared the wedged lock
+      // (heldMs >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS) or just detected it.
+      // The subject + banner change so admins can tell at a glance whether
+      // they still need to intervene manually.
+      const autoCleared = ctx.autoCleared === true;
+      const subject = autoCleared
+        ? `✅ Apollo lock auto-cleared after ~${ctx.heldMinutes}m (cycle resuming)`
+        : `🚨 Apollo discovery cycle stuck (~${ctx.heldMinutes}m)`;
+      const bannerColor = autoCleared ? '#22c55e' : '#ef4444';
+      const headline = autoCleared
+        ? 'Apollo cycle lock was auto-cleared'
+        : 'Apollo discovery cycle appears stuck';
+      const summary = autoCleared
+        ? `The Apollo cycle lock had been held for ~${ctx.heldMinutes} minutes (auto-clear threshold: 15 min). A previous run likely crashed without releasing it, so this scheduled cycle force-released the wedged lock and is proceeding with discovery. No manual action is required — this email is a heads-up only.`
+        : `The Apollo cycle lock has been held for ~${ctx.heldMinutes} minutes (alert threshold: 6 min, auto-clear threshold: 15 min). A previous run likely crashed without releasing the lock, so every scheduled discovery cycle is being skipped until the lock is cleared or auto-clears.`;
+      const footer = autoCleared
+        ? 'The prior nonce + running_since are recorded in <code>outreach_activity_log</code> (<code>apollo_lock_auto_cleared</code>) and <code>ai_action_log</code> for audit. Further alerts are suppressed for 30 minutes.'
+        : 'To clear sooner: open admin → Outreach Engine → "Clear Apollo lock", or wait — the next scheduled cycle after 15 minutes will auto-clear the wedged lock. Further alerts are suppressed for 30 minutes.';
       const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;margin:0;padding:24px;">
-  <div style="max-width:560px;margin:0 auto;background:#1e293b;border-left:4px solid #ef4444;border-radius:8px;padding:24px;">
-    <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:12px;">Apollo discovery cycle appears stuck</div>
-    <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:16px;">The Apollo cycle lock has been held for ~${ctx.heldMinutes} minutes (threshold: 6 min). A previous run likely crashed without releasing the lock, so every scheduled discovery cycle is being skipped.</div>
+  <div style="max-width:560px;margin:0 auto;background:#1e293b;border-left:4px solid ${bannerColor};border-radius:8px;padding:24px;">
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:12px;">${headline}</div>
+    <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:16px;">${summary}</div>
     <div style="background:#0f1117;border-radius:6px;padding:14px 16px;font-size:13px;color:#94a3b8;margin-bottom:16px;">
       <div>Lock reason: <strong style="color:#f1f5f9;">${ctx.lockReason || 'unknown'}</strong></div>
       <div>Running since: <strong style="color:#f1f5f9;">${ctx.runningSince || 'unknown'}</strong></div>
       <div>Held: <strong style="color:#f1f5f9;">~${ctx.heldMinutes} min</strong></div>
       ${ctx.runningNonce ? `<div>Nonce: <code>${ctx.runningNonce}</code></div>` : ''}
+      <div>Auto-cleared this cycle: <strong style="color:#f1f5f9;">${autoCleared ? 'yes' : 'no'}</strong></div>
     </div>
-    <div style="font-size:13px;line-height:1.6;color:#94a3b8;">To clear: open admin → Outreach Engine and trigger a manual cycle once the lock TTL (<code>APOLLO_LOCK_TTL_MS</code>) elapses, or clear the lock row directly in Supabase. Further alerts are suppressed for 30 minutes.</div>
+    <div style="font-size:13px;line-height:1.6;color:#94a3b8;">${footer}</div>
     <div style="margin-top:20px;text-align:center;">
       <a href="https://mycarconcierge.com/admin.html#outreach" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#b8942d);color:#0f1117;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:6px;">Open Outreach Engine →</a>
     </div>
@@ -2312,7 +2376,8 @@ async function runApolloDiscoveryCycle(supabase) {
   // "Run now" from racing each other (double-spending Apollo credits and
   // producing duplicate apollo_discovery_cycle rows). Lock auto-expires
   // after APOLLO_LOCK_TTL_MS so a crashed cycle can't permanently block.
-  const lock = await tryAcquireApolloLock(supabase);
+  let lock = await tryAcquireApolloLock(supabase);
+  let lockAutoCleared = false;
   if (!lock.acquired) {
     // Distinguish "another cycle is genuinely running" from "we couldn't even
     // talk to the lock storage" so operators can tell concurrency from
@@ -2331,51 +2396,142 @@ async function runApolloDiscoveryCycle(supabase) {
     // the consecutive-failures streak.
     const STUCK_LOCK_THRESHOLD_MS = 6 * 60 * 1000;
     let heldMinutes = 0;
+    // Snapshot the wedged lock's identifying fields before any auto-clear +
+    // re-acquire mutates them, so the alert email + audit rows always
+    // describe the wedged cycle (not the fresh one we just acquired).
+    const wedgedRunningSince = lock.running_since;
+    const wedgedRunningNonce = lock.running_nonce || null;
+    const wedgedLockReason   = lock.reason;
     if ((lock.reason === 'already_running' || lock.reason === 'race_lost') && lock.running_since) {
       const heldMs = Date.now() - new Date(lock.running_since).getTime();
       // Floor (not round) so 5m59s never trips a "6m" alert — strict
       // "older than 6 minutes" semantics.
       heldMinutes = Number.isFinite(heldMs) && heldMs > 0 ? Math.floor(heldMs / 60000) : 0;
       if (heldMs >= STUCK_LOCK_THRESHOLD_MS) {
-        try {
-          await supabase.from('outreach_activity_log').insert({
-            event_type: 'apollo_discovery_skipped',
-            metadata: {
-              severity: 'high',
-              error_kind: 'lock_stuck',
-              lock_reason: lock.reason,
-              running_since: lock.running_since,
-              running_nonce: lock.running_nonce || null,
-              held_minutes: heldMinutes,
-              message: `Apollo cycle lock has been held for ~${heldMinutes}m — likely a stuck or crashed prior cycle`
-            }
+        // Task #444 — once the wedged lock has been held past the auto-clear
+        // threshold (15 min), force-release it via a compare-and-swap on the
+        // observed nonce + running_since and then attempt to re-acquire. If
+        // the CAS fails (a fresh cycle slipped in between our read and
+        // write) we leave the new lock alone and skip as before.
+        if (heldMs >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS) {
+          const releaseResult = await forceReleaseApolloLock(supabase, {
+            expectedNonce: wedgedRunningNonce,
+            expectedRunningSince: wedgedRunningSince
           });
-        } catch (logErr) {
-          console.warn('[Apollo] Failed to log stuck-lock skip row:', logErr.message);
+          lockAutoCleared = releaseResult.cleared === true;
+
+          // Record the auto-clear attempt (success OR failure) in
+          // outreach_activity_log + ai_action_log so the operation is fully
+          // auditable per Task #444 acceptance criteria.
+          try {
+            await supabase.from('outreach_activity_log').insert({
+              event_type: 'apollo_lock_auto_cleared',
+              metadata: {
+                severity: 'high',
+                held_minutes: heldMinutes,
+                prior_running_since: wedgedRunningSince,
+                prior_running_nonce: wedgedRunningNonce,
+                cleared: lockAutoCleared,
+                clear_reason: releaseResult.reason || null,
+                message: lockAutoCleared
+                  ? `Apollo cycle lock force-released after ~${heldMinutes}m (threshold: 15 min)`
+                  : `Apollo cycle lock auto-clear attempted but did not run: ${releaseResult.reason || 'unknown'}`
+              }
+            });
+          } catch (logErr) {
+            console.warn('[Apollo] Failed to log apollo_lock_auto_cleared row:', logErr.message);
+          }
+          try {
+            await supabase.from('ai_action_log').insert({
+              module: 'apollo_stuck_alert',
+              action_type: 'lock_auto_cleared',
+              target_id: 'apollo_discovery_lock',
+              decision: {
+                held_minutes: heldMinutes,
+                prior_running_since: wedgedRunningSince,
+                prior_running_nonce: wedgedRunningNonce,
+                cleared: lockAutoCleared,
+                clear_reason: releaseResult.reason || null
+              },
+              confidence: 1.0,
+              auto_executed: lockAutoCleared,
+              escalated: true,
+              outcome: lockAutoCleared ? 'sent' : 'failed',
+              error_message: lockAutoCleared ? null : (releaseResult.reason || 'unknown'),
+              execution_time_ms: 0,
+              created_at: new Date().toISOString()
+            });
+          } catch (logErr) {
+            console.warn('[Apollo] Failed to log apollo_lock_auto_cleared in ai_action_log:', logErr.message);
+          }
+
+          if (lockAutoCleared) {
+            console.warn(`[Apollo] Auto-cleared wedged lock (held ~${heldMinutes}m) — attempting to re-acquire and proceed`);
+            const reLock = await tryAcquireApolloLock(supabase);
+            if (reLock.acquired) {
+              lock = reLock;
+            } else {
+              console.warn(`[Apollo] Re-acquire after auto-clear failed (reason=${reLock.reason}) — skipping this run`);
+            }
+          }
         }
 
-        // Task #336 — real-time admin alert so a stuck cycle is noticed
-        // within minutes rather than waiting for the next daily digest
-        // (up to 24h away). Rate-limited to one alert per 30 minutes via
-        // ai_action_log so a wedged lock doesn't spam admins on every
-        // scheduled run.
+        // Only record the "skipped because stuck" row if we ultimately did
+        // not acquire the lock. If the auto-clear + re-acquire succeeded
+        // we're about to run discovery normally, so logging an
+        // apollo_discovery_skipped row would be misleading.
+        if (!lock.acquired) {
+          try {
+            await supabase.from('outreach_activity_log').insert({
+              event_type: 'apollo_discovery_skipped',
+              metadata: {
+                severity: 'high',
+                error_kind: 'lock_stuck',
+                lock_reason: wedgedLockReason,
+                running_since: wedgedRunningSince,
+                running_nonce: wedgedRunningNonce,
+                held_minutes: heldMinutes,
+                auto_clear_attempted: heldMs >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS,
+                auto_cleared: lockAutoCleared,
+                message: `Apollo cycle lock has been held for ~${heldMinutes}m — likely a stuck or crashed prior cycle`
+              }
+            });
+          } catch (logErr) {
+            console.warn('[Apollo] Failed to log stuck-lock skip row:', logErr.message);
+          }
+        }
+
+        // Task #336 / #444 — real-time admin alert so a stuck cycle is
+        // noticed within minutes rather than waiting for the next daily
+        // digest (up to 24h away). Rate-limited to one alert per 30 minutes
+        // via ai_action_log so a wedged lock doesn't spam admins on every
+        // scheduled run. The autoCleared flag flips the email subject /
+        // banner so admins can tell at a glance whether they still need to
+        // intervene manually.
         await maybeSendApolloStuckAlert(supabase, {
           heldMinutes,
-          runningSince: lock.running_since,
-          lockReason: lock.reason,
-          runningNonce: lock.running_nonce || null
+          runningSince: wedgedRunningSince,
+          lockReason: wedgedLockReason,
+          runningNonce: wedgedRunningNonce,
+          autoCleared: lockAutoCleared
         });
       }
     }
 
-    return {
-      skipped: true,
-      reason: 'already_running',
-      lock_reason: lock.reason || null,
-      running_since: lock.running_since || null,
-      held_minutes: heldMinutes,
-      lock_error: lock.error || null
-    };
+    if (!lock.acquired) {
+      return {
+        skipped: true,
+        reason: 'already_running',
+        lock_reason: wedgedLockReason || null,
+        running_since: wedgedRunningSince || null,
+        held_minutes: heldMinutes,
+        lock_auto_clear_attempted: heldMinutes > 0 && (Date.now() - new Date(wedgedRunningSince || 0).getTime()) >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS,
+        lock_auto_cleared: lockAutoCleared,
+        lock_error: lock.error || null
+      };
+    }
+    // Otherwise auto-clear + re-acquire succeeded — fall through to the
+    // main cycle execution below.
   }
 
   console.log('[Apollo] Starting automated discovery cycle...');
@@ -2719,7 +2875,10 @@ module.exports = {
   saveApolloConfig,
   tryAcquireApolloLock,
   releaseApolloLock,
+  forceReleaseApolloLock,
+  maybeSendApolloStuckAlert,
   APOLLO_LOCK_TTL_MS,
+  APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS,
   draftWefunderBlastEmail,
   runWefunderBlastForEligible,
   runApolloDiscoveryCycle
