@@ -22,6 +22,8 @@
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
 /api/admin/stripe-key-expiry /.netlify/functions/stripe-key-expiry-admin 200
 /api/admin/stripe-key-expiry/* /.netlify/functions/stripe-key-expiry-admin/:splat 200
+/api/admin/api-key-expiry /.netlify/functions/api-key-expiry-admin 200
+/api/admin/api-key-expiry/* /.netlify/functions/api-key-expiry-admin/:splat 200
 /api/admin/launch-broadcast /.netlify/functions/launch-broadcast-admin 200
 /api/admin/launch-broadcast/* /.netlify/functions/launch-broadcast-admin/:splat 200
 /api/admin/agent-fleet/* /.netlify/functions/agent-fleet-admin/:splat 200

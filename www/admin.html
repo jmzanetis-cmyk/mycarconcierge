@@ -2758,21 +2758,17 @@
 
       <div id="payments-agent-activity" style="margin-bottom:24px;"></div>
 
-      <!-- Task #246 — Stripe secret key expiry pill -->
-      <div class="card" id="stripe-key-expiry-card" style="margin-bottom:24px;">
-        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;">
+      <!-- Task #246 / Task #353 — Critical API key expiry tracker -->
+      <div class="card" id="api-key-expiry-card" style="margin-bottom:24px;">
+        <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;margin-bottom:12px;">
           <div>
-            <div style="font-size:0.82rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:6px;">Stripe Secret Key</div>
-            <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap;">
-              <span class="status-badge muted" id="stripe-key-expiry-pill">Loading…</span>
-              <span id="stripe-key-expiry-date" style="font-size:0.9rem;color:var(--text-secondary);"></span>
-            </div>
-            <div id="stripe-key-expiry-help" style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">After rotating the Stripe secret key, update this date so the next reminder cycle resets.</div>
+            <div style="font-size:1.05rem;font-weight:600;color:var(--text-primary);margin-bottom:4px;">Critical API Keys</div>
+            <div style="font-size:0.82rem;color:var(--text-muted);">Set the expiry date for each platform secret. We email the admin at 3 days, 1 day, and on/after expiry.</div>
           </div>
-          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
-            <input type="date" id="stripe-key-expiry-input" class="form-input" style="width:auto;padding:8px 12px;" />
-            <button class="btn btn-primary btn-sm" onclick="saveStripeKeyExpiry()">Update Expiry</button>
-          </div>
+          <button class="btn btn-secondary btn-sm" onclick="loadApiKeyExpiry()">Refresh</button>
+        </div>
+        <div id="api-key-expiry-rows" style="display:flex;flex-direction:column;gap:10px;">
+          <div style="padding:12px;color:var(--text-muted);font-size:0.9rem;">Loading…</div>
         </div>
       </div>
 

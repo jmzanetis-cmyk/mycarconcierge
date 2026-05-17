@@ -1607,8 +1607,9 @@
       if (error) { console.error('loadPayments failed:', error); setLoadError('payments', error); payments = []; renderPayments(); return; }
       payments = data || [];
       renderPayments();
-      // Task #246 — load Stripe key expiry pill alongside the payments table.
-      try { await loadStripeKeyExpiry(); } catch (err) { console.error('loadStripeKeyExpiry failed:', err); }
+      // Task #246 / Task #353 — load critical API key expiry tracker
+      // alongside the payments table.
+      try { await loadApiKeyExpiry(); } catch (err) { console.error('loadApiKeyExpiry failed:', err); }
       // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('payments-agent-activity', {
@@ -1619,84 +1620,109 @@
       }
     }
 
-    // Task #246 — Stripe secret key expiry pill (in Payments section).
-    async function loadStripeKeyExpiry() {
-      const pill = document.getElementById('stripe-key-expiry-pill');
-      const dateEl = document.getElementById('stripe-key-expiry-date');
-      const input = document.getElementById('stripe-key-expiry-input');
-      if (!pill || !dateEl) return;
+    // Task #246 / Task #353 — Critical API key expiry tracker (multi-key
+    // generalization of the original Stripe-only pill). Renders one row per
+    // tracked secret into #api-key-expiry-rows with a colored status pill,
+    // an inline YYYY-MM-DD input, and an Update button. The same idempotent
+    // alert ladder fires for each one (3-day / 1-day / 0-day email reminders).
+    function apiKeyExpiryPillFor(data) {
+      if (!data.configured) {
+        return { cls: 'status-badge muted', label: 'Not configured' };
+      }
+      const days = data.days_until;
+      if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
+        return { cls: 'status-badge red', label: 'Invalid date' };
+      }
+      if (data.level === 'expired' || days <= 0) {
+        return { cls: 'status-badge red', label: `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}` };
+      }
+      if (data.level === 'critical' || days <= 1) {
+        return { cls: 'status-badge red', label: days === 1 ? 'Expires in 1 day' : `Expires in ${days} days` };
+      }
+      if (data.level === 'warning' || days <= 3) {
+        return { cls: 'status-badge orange', label: `Expires in ${days} days` };
+      }
+      return { cls: 'status-badge approved', label: `Healthy · ${days} days` };
+    }
+
+    function renderApiKeyExpiryRows(keys) {
+      const host = document.getElementById('api-key-expiry-rows');
+      if (!host) return;
+      if (!Array.isArray(keys) || keys.length === 0) {
+        host.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.9rem;">No tracked keys configured.</div>';
+        return;
+      }
+      host.innerHTML = keys.map(k => {
+        const pill = apiKeyExpiryPillFor(k);
+        const dateStr = k.expiry_date ? escapeHtml(k.expiry_date) : '—';
+        const dateVal = k.expiry_date && /^\d{4}-\d{2}-\d{2}$/.test(k.expiry_date) ? escapeHtml(k.expiry_date) : '';
+        const feature = escapeHtml(k.feature || '');
+        return `
+          <div style="padding:12px 14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div style="min-width:240px;flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-weight:600;color:var(--text-primary);">${escapeHtml(k.label)}</span>
+                  <span class="${pill.cls}">${escapeHtml(pill.label)}</span>
+                  <span style="font-size:0.78rem;color:var(--text-muted);">env <code>${escapeHtml(k.env_var)}</code></span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${feature}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Expiry: ${dateStr}</div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <input type="date" data-api-key-input="${escapeHtml(k.id)}" class="form-input" style="width:auto;padding:6px 10px;font-size:0.85rem;" value="${dateVal}" />
+                <button class="btn btn-primary btn-sm" onclick="saveApiKeyExpiry('${escapeHtml(k.id)}')">Update</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function loadApiKeyExpiry() {
+      const host = document.getElementById('api-key-expiry-rows');
+      if (!host) return;
       try {
-        const res = await fetch('/api/admin/stripe-key-expiry', { headers: getAdminHeaders() });
+        const res = await fetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
         if (!res.ok) {
-          pill.className = 'status-badge muted';
-          pill.textContent = 'Unavailable';
-          dateEl.textContent = '';
+          host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Couldn't load API key expiry data (HTTP ${res.status}).</div>`;
           return;
         }
         const data = await res.json();
-        if (!data.configured) {
-          pill.className = 'status-badge muted';
-          pill.textContent = 'Not configured';
-          dateEl.textContent = 'Set the date your Stripe secret key expires.';
-          return;
-        }
-        const days = data.days_until;
-        if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
-          pill.className = 'status-badge red';
-          pill.textContent = 'Invalid configuration';
-          dateEl.textContent = `Stored value "${data.expiry_date ?? ''}" is not a valid YYYY-MM-DD date. Re-enter below.`;
-          if (input && !input.value && data.expiry_date) input.value = data.expiry_date;
-          return;
-        }
-        let cls = 'status-badge approved'; // green
-        let label = `Healthy · expires in ${days} days`;
-        if (data.level === 'expired' || days <= 0) {
-          cls = 'status-badge red';
-          label = `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}`;
-        } else if (data.level === 'critical' || days <= 1) {
-          cls = 'status-badge red';
-          label = days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
-        } else if (data.level === 'warning' || days <= 3) {
-          cls = 'status-badge orange';
-          label = `Expires in ${days} days`;
-        }
-        pill.className = cls;
-        pill.textContent = label;
-        dateEl.textContent = `Date: ${data.expiry_date}`;
-        if (input && !input.value) input.value = data.expiry_date;
+        renderApiKeyExpiryRows(data.keys || []);
       } catch (err) {
-        console.error('loadStripeKeyExpiry error:', err);
-        pill.className = 'status-badge muted';
-        pill.textContent = 'Error';
+        console.error('loadApiKeyExpiry error:', err);
+        host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Error loading API key expiry data: ${escapeHtml(err.message || String(err))}</div>`;
       }
     }
 
-    async function saveStripeKeyExpiry() {
-      const input = document.getElementById('stripe-key-expiry-input');
+    async function saveApiKeyExpiry(keyId) {
+      const input = document.querySelector(`[data-api-key-input="${keyId}"]`);
       const value = (input?.value || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
         alert('Enter the expiry date in YYYY-MM-DD format.');
         return;
       }
       try {
-        const res = await fetch('/api/admin/stripe-key-expiry', {
+        const res = await fetch('/api/admin/api-key-expiry', {
           method: 'POST',
           headers: getAdminHeaders(),
-          body: JSON.stringify({ expiry_date: value })
+          body: JSON.stringify({ key_id: keyId, expiry_date: value })
         });
         const data = await res.json();
         if (!res.ok) {
           alert(`Failed to update: ${data.error || res.statusText}`);
           return;
         }
-        await loadStripeKeyExpiry();
-        if (typeof showToast === 'function') showToast('Stripe key expiry updated. Alert state reset.');
+        await loadApiKeyExpiry();
+        if (typeof showToast === 'function') showToast(`Expiry updated for ${data.key?.label || keyId}. Alert state reset.`);
       } catch (err) {
-        console.error('saveStripeKeyExpiry error:', err);
-        alert('Failed to update Stripe key expiry.');
+        console.error('saveApiKeyExpiry error:', err);
+        alert('Failed to update API key expiry.');
       }
     }
-    globalThis.saveStripeKeyExpiry = saveStripeKeyExpiry;
+
+    globalThis.loadApiKeyExpiry = loadApiKeyExpiry;
+    globalThis.saveApiKeyExpiry = saveApiKeyExpiry;
 
     // ========================================================================
     // Task #334 — Driver Payouts admin section
