@@ -195,6 +195,20 @@ async function ensureBid(carePlanId, providerId) {
 }
 
 // ---------------------------------------------------------------------------
+// Helper: upsert a provider_stats row. Rating data lives in provider_stats,
+// not on profiles (profiles.avg_rating does not exist in the schema).
+// Best-effort: warns on error rather than throwing, matching the pattern in
+// provider-application-review.js and provider-admin.js.
+// ---------------------------------------------------------------------------
+async function ensureProviderStats(providerId) {
+  const { error } = await supabase
+    .from('provider_stats')
+    .upsert({ provider_id: providerId, average_rating: 4.9 }, { onConflict: 'provider_id' });
+  if (error) console.warn(`  [provider_stats] upsert warning: ${error.message}`);
+  else console.log('  [provider_stats] upserted (average_rating=4.9)');
+}
+
+// ---------------------------------------------------------------------------
 // Helper: ensure provider_applications row exists (approved) for the provider.
 // ---------------------------------------------------------------------------
 async function ensureProviderApplication(providerId) {
@@ -262,13 +276,11 @@ async function main() {
     zip_code: '90001',
     bid_credits: 10,
     free_trial_bids: 5,
-    avg_rating: 4.9,
-    review_count: 17,
-    completed_jobs: 12,
     bgc_badge_verified: true,
     bgc_compliance_pct: 100,
     verification_status: 'verified'
   });
+  await ensureProviderStats(providerId);
   await ensureProviderApplication(providerId);
 
   // --- Seed bid from provider on member's care plan ---
