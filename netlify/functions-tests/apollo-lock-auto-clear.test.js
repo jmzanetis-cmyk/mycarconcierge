@@ -35,9 +35,12 @@ const assert = require('assert');
 process.env.SUPABASE_URL = 'http://stub.local';
 process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-role-key';
 process.env.APOLLO_API_KEY = 'stub-apollo-key';
-// Intentionally omit RESEND_API_KEY + ADMIN_EMAIL so stuck-alert sends
-// resolve to outcome=failed without trying to hit the network. The
-// ai_action_log insert still runs (we want to assert it).
+// Explicitly remove RESEND_API_KEY + ADMIN_EMAIL so stuck-alert sends
+// resolve to outcome=failed without hitting the network. Delete (not just
+// omit) so the test is hermetic even when the Netlify build env injects
+// the real keys. The ai_action_log insert still runs (we assert it).
+delete process.env.RESEND_API_KEY;
+delete process.env.ADMIN_EMAIL;
 
 const {
   forceReleaseApolloLock,
