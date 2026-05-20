@@ -276,9 +276,7 @@ async function main() {
     zip_code: '90001',
     bid_credits: 10,
     free_trial_bids: 5,
-    bgc_badge_verified: true,
-    bgc_compliance_pct: 100,
-    verification_status: 'verified'
+    application_status: 'approved'
   });
   await ensureProviderStats(providerId);
   await ensureProviderApplication(providerId);
