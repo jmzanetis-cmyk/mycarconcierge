@@ -1,6 +1,9 @@
 (function() {
   if (window.location.pathname.includes('/admin')) return;
 
+  // Do not run in native iOS/Android Capacitor — App Store Guideline 5.1.2.
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) return;
+
   var vid = localStorage.getItem('mcc_vid');
   if (!vid) {
     vid = 'v_' + Math.random().toString(36).substring(2) + Date.now().toString(36);
