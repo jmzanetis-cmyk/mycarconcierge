@@ -188,7 +188,7 @@ In App Store Connect, under **App Privacy**, declare the following data types. S
 
 ## Screenshot Requirements
 
-Apple requires screenshots for each device size used in submission. A new build requires at minimum the **6.7" display** and **6.1" display** sizes. iPad screenshots are required only if the app is universal (iPad-capable).
+Apple requires screenshots for each device size used in submission. A new build requires at minimum the **6.7" display** and **6.1" display** sizes. The app is iPhone-only (`UIDeviceFamily = [1]`); iPad screenshots are not required or accepted.
 
 ### Required Device Sizes
 
@@ -197,7 +197,16 @@ Apple requires screenshots for each device size used in submission. A new build 
 | **6.7" Super Retina XDR** | 1290 × 2796 | iPhone 15 Pro Max, iPhone 14 Pro Max |
 | **6.1" Super Retina XDR** | 1179 × 2556 | iPhone 15, iPhone 14 |
 | *(Optional)* 5.5" Retina HD | 1242 × 2208 | iPhone 8 Plus |
-| *(Optional)* 12.9" iPad Pro | 2048 × 2732 | iPad Pro 12.9" |
+
+### iPhone-only decision
+
+The app is restricted to iPhone (`UIDeviceFamily = [1]` in `ios/App/App/Info.plist`) as of v1.
+iPad support can be added in a future release if there is demand.
+
+**App Store Connect manual step required on next submission:**
+1. Go to App Store Connect → Your App → App Store → iPhone & iPad screenshots
+2. Delete any existing iPad screenshots from the listing (previously submitted stretched iPhone images)
+3. Under "App Information" → "Availability" confirm Devices shows iPhone only (this follows automatically from `UIDeviceFamily` once the new build is processed)
 
 ### Recommended Screenshots (5–10 per device, minimum 3)
 
