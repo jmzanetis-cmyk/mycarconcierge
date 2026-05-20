@@ -271,17 +271,33 @@ Run through every item below before clicking **Submit for Review** in App Store 
 
 ### Review Demo Account
 
-Apple reviewers need a working test account to verify the app. Create a dedicated reviewer account before submission:
+Apple reviewers need working test accounts to verify both the member and provider flows.
+Two accounts are seeded by `scripts/seed-app-store-reviewer.js` (see below).
 
-- [ ] Demo member account created at `https://mycarconcierge.com` with email and password (not SSO)
-- [ ] Account has at least one vehicle added
-- [ ] Account has at least one past or pending service request (so reviewers can see the bid flow)
+- [ ] Reviewer accounts seeded in production Supabase (run `scripts/seed-app-store-reviewer.js`)
 - [ ] Demo credentials entered in App Store Connect → App Review Information:
-  - **Username:** `reviewer@mycarconcierge.com` (or your chosen reviewer email)
-  - **Password:** *(set in App Store Connect — do not commit to git)*
+  - **Member account:** `reviewer-member@mycarconcierge.com`
+  - **Provider account:** `reviewer-provider@mycarconcierge.com`
+  - **Password:** *(same for both — stored in App Store Connect only, never committed to git)*
 - [ ] Notes to Apple reviewer filled in — explain any features that require special setup:
-  > "This is an automotive service marketplace. Use the provided demo account to browse service requests, view provider bids, and test the vehicle management features. Payment flows use Stripe; tap 'Pay' and use test card 4242 4242 4242 4242. Push notifications require accepting the prompt on first launch."
+  > "This is an automotive service marketplace. Two demo accounts are provided: a member account (reviewer-member@mycarconcierge.com) and a provider account (reviewer-provider@mycarconcierge.com) — both use the same password shown above. Sign in as the member to browse service requests and view bids. Sign in as the provider to see the bid dashboard. Payment flows use Stripe; tap 'Pay' and use test card 4242 4242 4242 4242. Push notifications require accepting the prompt on first launch."
 - [ ] App Privacy section updated to reflect no iOS tracking (see App Store Connect → App Privacy; Guideline 5.1.2 addressed in commit `b4a7b2a`)
+
+#### Running the seed script
+
+```bash
+# Generate a strong password and note it down — you will enter it in App Store Connect
+REVIEWER_PASSWORD=$(openssl rand -base64 16)
+echo "$REVIEWER_PASSWORD"
+
+# Run the seed (safe to re-run; all operations are idempotent)
+SUPABASE_SERVICE_ROLE_KEY=<your-key> REVIEWER_PASSWORD="$REVIEWER_PASSWORD" \
+  node scripts/seed-app-store-reviewer.js
+```
+
+The script creates/updates:
+- `reviewer-member@mycarconcierge.com` — member role, 2022 Toyota Camry, open care plan
+- `reviewer-provider@mycarconcierge.com` — provider role (also member), verified profile, $149 bid on the member's care plan
 
 ### App Privacy / ATT declaration (App Store Connect)
 
