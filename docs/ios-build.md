@@ -281,6 +281,26 @@ Apple reviewers need a working test account to verify the app. Create a dedicate
   - **Password:** *(set in App Store Connect — do not commit to git)*
 - [ ] Notes to Apple reviewer filled in — explain any features that require special setup:
   > "This is an automotive service marketplace. Use the provided demo account to browse service requests, view provider bids, and test the vehicle management features. Payment flows use Stripe; tap 'Pay' and use test card 4242 4242 4242 4242. Push notifications require accepting the prompt on first launch."
+- [ ] App Privacy section updated to reflect no iOS tracking (see App Store Connect → App Privacy; Guideline 5.1.2 addressed in commit `b4a7b2a`)
+
+### App Privacy / ATT declaration (App Store Connect)
+
+After gating Facebook Pixel in iOS builds (Guideline 5.1.2), update the
+App Privacy section in App Store Connect before resubmitting:
+
+1. Go to App Store Connect → Your App → App Privacy
+2. Under "Data Collection" confirm "We do not collect data from this app"
+   OR if the app collects any first-party data (e.g. account email for
+   authentication), set that category to "Data Used to Identify You" and
+   mark it as not used for tracking.
+3. Remove or update any "Tracking" data-type declarations that were
+   previously set (Facebook Pixel events no longer fire on iOS).
+4. **NSUserTrackingUsageDescription is NOT required** — because Path B
+   disables tracking rather than requesting permission, the ATT prompt
+   is never shown and the plist key is not needed.
+5. Re-answer the data use questionnaire and click "Publish".
+
+This is a manual dashboard step; there is no code artifact.
 
 ### Final Review
 
