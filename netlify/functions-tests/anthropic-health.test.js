@@ -172,16 +172,24 @@ const mod = require('../functions/anthropic-health-scheduled');
     const repoRoot = path.resolve(__dirname, '..', '..');
     // Match ANY claude-* literal (not just sonnet/opus/haiku) so future
     // family names (e.g. a new tier) can't slip past the drift guard.
-    // Scan every production file under www/server.js + netlify/functions/
-    // (only the smoke file itself is excluded so it doesn't count its own
-    // MODELS_IN_USE entries; agent-fleet-runtime.js IS scanned because its
-    // default-model literal — `agent.model || 'claude-sonnet-4-5'` — is a
-    // real production call site, not just a pricing-table entry).
-    const out = execSync(
-      "rg --no-filename -o \"claude-[0-9a-z][0-9a-z-]*\" www/server.js netlify/functions/ -g '!*.test.js' -g '!anthropic-health-scheduled.js' | sort -u",
-      { cwd: repoRoot, encoding: 'utf8' }
-    );
-    const found = out.split('\n').map(s => s.trim()).filter(Boolean);
+    // Scan every production file under netlify/functions/ (www/server.js was
+    // removed in commit 56cd3fd; all routes now live in netlify/functions/).
+    // agent-fleet-runtime.js IS scanned because its default-model literal
+    // (`agent.model || 'claude-sonnet-4-5'`) is a real production call site.
+    // Falls back to grep when rg (ripgrep) is not installed locally.
+    let rawOut;
+    try {
+      rawOut = execSync(
+        "rg --no-filename -o 'claude-[0-9a-z][0-9a-z-]*' netlify/functions/ -g '!*.test.js' -g '!anthropic-health-scheduled.js'",
+        { cwd: repoRoot, encoding: 'utf8' }
+      );
+    } catch {
+      rawOut = execSync(
+        "grep -roh 'claude-[0-9a-z][0-9a-z-]*' netlify/functions/ --include='*.js' --exclude='*.test.js' --exclude='anthropic-health-scheduled.js' --exclude-dir=node_modules",
+        { cwd: repoRoot, encoding: 'utf8' }
+      );
+    }
+    const found = [...new Set(rawOut.split('\n').map(s => s.trim()).filter(Boolean))].sort();
     const declared = new Set(mod._MODELS_IN_USE);
     const foundSet = new Set(found);
     const stale = [...declared].filter(m => !foundSet.has(m));
