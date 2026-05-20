@@ -103,7 +103,8 @@ function resolveHandlerFile(target) {
 }
 
 // ── 3. Test execution ───────────────────────────────────────────────────────
-const serverSrc    = fs.readFileSync(SERVER_PATH, 'utf8');
+const serverExists = fs.existsSync(SERVER_PATH);
+const serverSrc    = serverExists ? fs.readFileSync(SERVER_PATH, 'utf8') : '';
 const redirectsSrc = fs.readFileSync(REDIRECTS_PATH, 'utf8');
 const allowlist    = JSON.parse(fs.readFileSync(ALLOWLIST_PATH, 'utf8'));
 const allowExact   = new Set(allowlist.exact  || []);
@@ -126,8 +127,12 @@ const { exact: devExact, prefix: devPrefix } = extractDevRoutes(serverSrc);
 const rules = extractRedirectRules(redirectsSrc);
 
 console.log('Static counts');
-ok('parsed ≥1 dev exact /api route from server.js',  devExact.size  > 0, `got ${devExact.size}`);
-ok('parsed ≥1 dev prefix /api route from server.js', devPrefix.size > 0, `got ${devPrefix.size}`);
+if (!serverExists) {
+  console.log('[INFO] Skipping server.js-dependent sections — file removed in commit 56cd3fd; functionality moved to netlify/functions/');
+} else {
+  ok('parsed ≥1 dev exact /api route from server.js',  devExact.size  > 0, `got ${devExact.size}`);
+  ok('parsed ≥1 dev prefix /api route from server.js', devPrefix.size > 0, `got ${devPrefix.size}`);
+}
 ok('parsed ≥1 /api redirect rule from _redirects',   rules.length   > 0, `got ${rules.length}`);
 
 // ── 4. Every redirect target must resolve to a real handler file ────────────
@@ -139,6 +144,7 @@ for (const r of rules) {
      handler ? `missing file: ${path.relative(ROOT, handler)}` : `unparsable target`);
 }
 
+if (serverExists) {
 // ── 5. Every dev /api route must be EITHER routed in prod OR allow-listed ──
 console.log('Every dev /api route is routed or allow-listed');
 const newlyMissingExact  = [];
@@ -189,6 +195,7 @@ ok('no stale exact entries in allow-list (remove if route no longer exists)',
 ok('no stale prefix entries in allow-list (remove if route no longer exists)',
    staleAllowPrefix.length === 0,
    staleAllowPrefix.length ? `remove from allow-list: ${staleAllowPrefix.join(', ')}` : '');
+} // end if (serverExists)
 
 // ── 7. Regression pin: the four Task #343 survey handlers MUST stay routed ──
 console.log('Regression pin: Task #343 survey handlers stay routed');
