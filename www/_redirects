@@ -95,3 +95,4 @@
 /api/admin/survey-not-interested /.netlify/functions/admin-survey/not-interested 200
 /api/admin/send-bulk-welcome-emails /.netlify/functions/admin-welcome-email 200
 /api/admin/hubspot/* /.netlify/functions/admin-hubspot/:splat 200
+/api/admin/marketing/* /.netlify/functions/admin-marketing/:splat 200
