@@ -30,6 +30,12 @@
 /api/admin/refunds /.netlify/functions/admin-refunds 200
 /api/admin/agreements/* /.netlify/functions/admin-agreements/:splat 200
 /api/admin/agreements /.netlify/functions/admin-agreements 200
+/api/admin/founders/* /.netlify/functions/admin-founders/:splat 200
+/api/admin/payout-settings /.netlify/functions/admin-founders/payout-settings 200
+/api/admin/milestones/* /.netlify/functions/admin-founders/milestones/:splat 200
+/api/admin/milestones /.netlify/functions/admin-founders/milestones 200
+/api/admin/bonus-reserve/* /.netlify/functions/admin-founders/bonus-reserve/:splat 200
+/api/admin/bonus-reserve /.netlify/functions/admin-founders/bonus-reserve 200
 /api/admin/team-members/* /.netlify/functions/admin-team/members/:splat 200
 /api/admin/team-members /.netlify/functions/admin-team/members 200
 /api/admin/team-invites/* /.netlify/functions/admin-team/invites/:splat 200
