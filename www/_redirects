@@ -93,3 +93,4 @@
 /api/admin/survey-leads/* /.netlify/functions/admin-survey/leads/:splat 200
 /api/admin/survey-leads /.netlify/functions/admin-survey/leads 200
 /api/admin/survey-not-interested /.netlify/functions/admin-survey/not-interested 200
+/api/admin/send-bulk-welcome-emails /.netlify/functions/admin-welcome-email 200
