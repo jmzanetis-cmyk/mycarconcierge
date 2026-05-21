@@ -1563,11 +1563,11 @@ async function handleStats24h(event, ctx) {
     escEventRes, failEventRes
   ] = await Promise.all([
     supabase.from('agent_actions').select('*', { count: 'exact', head: true })
-      .gte('created_at', since).eq('status', 'executed'),
+      .gte('created_at', since).eq('status', 'completed'),
     supabase.from('agent_actions').select('*', { count: 'exact', head: true })
       .gte('created_at', since).eq('needs_review', true).is('reviewed_at', null),
     supabase.from('agent_actions').select('*', { count: 'exact', head: true })
-      .gte('created_at', since).eq('status', 'errored'),
+      .gte('created_at', since).eq('status', 'error'),
     supabase.from('agent_events').select('payload')
       .gte('created_at', since).eq('event_type', 'agent.escalated'),
     supabase.from('agent_events').select('payload')
