@@ -87,3 +87,9 @@
 /api/survey/referral-link /.netlify/functions/survey-referral-link 200
 /api/fb/conversions /.netlify/functions/facebook-conversions-api 200
 /api/twilio/sms-inbound /.netlify/functions/twilio-sms-inbound 200
+/api/admin/survey-stats /.netlify/functions/admin-survey/stats 200
+/api/admin/survey-analytics /.netlify/functions/admin-survey/analytics 200
+/api/admin/survey-leads/export /.netlify/functions/admin-survey/leads/export 200
+/api/admin/survey-leads/* /.netlify/functions/admin-survey/leads/:splat 200
+/api/admin/survey-leads /.netlify/functions/admin-survey/leads 200
+/api/admin/survey-not-interested /.netlify/functions/admin-survey/not-interested 200
