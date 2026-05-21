@@ -21,6 +21,15 @@
 /api/helpdesk /.netlify/functions/helpdesk 200
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
 /api/admin/stats/* /.netlify/functions/admin-stats/:splat 200
+/api/admin/providers /.netlify/functions/admin-data/providers 200
+/api/admin/members /.netlify/functions/admin-data/members 200
+/api/admin/packages /.netlify/functions/admin-data/packages 200
+/api/admin/2fa-global-status /.netlify/functions/admin-data/2fa-global-status 200
+/api/admin/2fa-global-toggle /.netlify/functions/admin-data/2fa-global-toggle 200
+/api/admin/team-members/* /.netlify/functions/admin-team/members/:splat 200
+/api/admin/team-members /.netlify/functions/admin-team/members 200
+/api/admin/team-invites/* /.netlify/functions/admin-team/invites/:splat 200
+/api/admin/team-invites /.netlify/functions/admin-team/invites 200
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
 /api/admin/stripe-key-expiry /.netlify/functions/stripe-key-expiry-admin 200
 /api/admin/stripe-key-expiry/* /.netlify/functions/stripe-key-expiry-admin/:splat 200
