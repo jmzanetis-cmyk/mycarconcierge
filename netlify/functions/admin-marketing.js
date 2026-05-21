@@ -479,6 +479,93 @@ exports.handler = async function(event) {
       return utils.successResponse(await handleCheckDedup(sb6, body));
     }
 
+    // POST outreach-cycle — trigger outreach engine cycle
+    if (method === 'POST' && path === 'outreach-cycle') {
+      var sb7 = getSb();
+      if (!sb7) return utils.errorResponse(500, 'Server configuration error');
+      try {
+        var { runEngineCycle } = require('./outreach-engine-core');
+        var cycleResult = await runEngineCycle(sb7);
+        return utils.successResponse(cycleResult);
+      } catch (cycleErr) {
+        console.error('[admin-marketing] outreach-cycle error:', cycleErr.message);
+        return utils.errorResponse(500, 'Cycle failed: ' + cycleErr.message);
+      }
+    }
+
+    // POST instantly-sync — sync outreach leads to Instantly.ai
+    if (method === 'POST' && path === 'instantly-sync') {
+      var instantlyKey = process.env.INSTANTLY_API_KEY;
+      if (!instantlyKey) return utils.errorResponse(400, 'INSTANTLY_API_KEY not configured');
+      var sb8 = getSb();
+      if (!sb8) return utils.errorResponse(500, 'Server configuration error');
+
+      var campaignId  = body.campaign_id || null;
+      var syncLimit   = Math.min(parseInt(body.limit) || 500, 1000);
+
+      var leadsResult = await sb8.from('outreach_leads')
+        .select('*').not('email', 'is', null).not('score', 'is', null).limit(syncLimit);
+      var leadsToSync = (leadsResult.data || []).filter(function(l) { return l.email && !(l.metadata && l.metadata.instantly_synced); });
+
+      if (leadsToSync.length === 0) return utils.successResponse({ synced: 0, message: 'No unsynced leads with emails found' });
+
+      var totalSynced = 0;
+      var batchErrors = [];
+      for (var bi = 0; bi < leadsToSync.length; bi += 100) {
+        var batch = leadsToSync.slice(bi, bi + 100);
+        var instantlyLeads = batch.map(function(lead) {
+          var nameParts = (lead.name || '').split(' ');
+          return {
+            email: lead.email, first_name: nameParts[0] || '', last_name: nameParts.slice(1).join(' ') || '',
+            company_name: lead.company || lead.name || '', website: lead.website || '',
+            custom_variables: { lead_type: lead.type || '', source: lead.source || '', score: String(lead.score || ''), mcc_lead_id: lead.id }
+          };
+        });
+        var batchBody = { leads: instantlyLeads };
+        if (campaignId) batchBody.campaign_id = campaignId;
+        try {
+          var batchRes = await fetch('https://api.instantly.ai/api/v2/leads/bulk-add', {
+            method: 'POST',
+            headers: { 'Authorization': 'Bearer ' + instantlyKey, 'Content-Type': 'application/json' },
+            body: JSON.stringify(batchBody)
+          });
+          if (batchRes.ok) {
+            totalSynced += batch.length;
+            for (var li = 0; li < batch.length; li++) {
+              var existingMeta = batch[li].metadata || {};
+              sb8.from('outreach_leads').update({ metadata: Object.assign({}, existingMeta, { instantly_synced: true, instantly_synced_at: new Date().toISOString(), instantly_campaign_id: campaignId }) }).eq('id', batch[li].id).then(function() {}).catch(function() {});
+            }
+          } else {
+            var batchErrText = await batchRes.text();
+            batchErrors.push('Batch ' + (bi / 100 + 1) + ': ' + batchRes.status + ' - ' + batchErrText);
+          }
+        } catch (batchErr) {
+          batchErrors.push('Batch ' + (bi / 100 + 1) + ': ' + batchErr.message);
+        }
+      }
+
+      return utils.successResponse({ synced: totalSynced, total: leadsToSync.length, errors: batchErrors.length > 0 ? batchErrors : undefined });
+    }
+
+    // POST instantly-create-campaign — create a campaign in Instantly.ai
+    if (method === 'POST' && path === 'instantly-create-campaign') {
+      var iKey = process.env.INSTANTLY_API_KEY;
+      if (!iKey) return utils.errorResponse(400, 'INSTANTLY_API_KEY not configured');
+      if (!body.name) return utils.errorResponse(400, 'Campaign name is required');
+
+      var campaignPayload = { name: body.name };
+      if (body.schedule) campaignPayload.campaign_schedule = body.schedule;
+
+      var iRes = await fetch('https://api.instantly.ai/api/v2/campaigns', {
+        method: 'POST',
+        headers: { 'Authorization': 'Bearer ' + iKey, 'Content-Type': 'application/json' },
+        body: JSON.stringify(campaignPayload)
+      });
+      var iData = await iRes.json().catch(function() { return {}; });
+      if (!iRes.ok) return utils.errorResponse(iRes.status >= 500 ? 502 : iRes.status, (iData && iData.message) || 'Instantly API error');
+      return utils.successResponse({ campaign: iData });
+    }
+
     return utils.errorResponse(404, 'Unknown route: ' + method + ' ' + path);
 
   } catch (err) {
