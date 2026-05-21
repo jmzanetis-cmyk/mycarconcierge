@@ -28,6 +28,8 @@
 /api/admin/2fa-global-toggle /.netlify/functions/admin-data/2fa-global-toggle 200
 /api/admin/refunds/* /.netlify/functions/admin-refunds/:splat 200
 /api/admin/refunds /.netlify/functions/admin-refunds 200
+/api/admin/agreements/* /.netlify/functions/admin-agreements/:splat 200
+/api/admin/agreements /.netlify/functions/admin-agreements 200
 /api/admin/team-members/* /.netlify/functions/admin-team/members/:splat 200
 /api/admin/team-members /.netlify/functions/admin-team/members 200
 /api/admin/team-invites/* /.netlify/functions/admin-team/invites/:splat 200
