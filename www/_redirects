@@ -20,6 +20,7 @@
 /api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
 /api/helpdesk /.netlify/functions/helpdesk 200
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
+/api/admin/stats/* /.netlify/functions/admin-stats/:splat 200
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
 /api/admin/stripe-key-expiry /.netlify/functions/stripe-key-expiry-admin 200
 /api/admin/stripe-key-expiry/* /.netlify/functions/stripe-key-expiry-admin/:splat 200
