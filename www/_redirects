@@ -16,6 +16,7 @@
 /api/stripe/connect/onboard/* /.netlify/functions/stripe-connect-onboard/:splat 200
 /api/stripe/connect/callback /.netlify/functions/stripe-connect-callback 200
 /api/stripe/connect/status/* /.netlify/functions/stripe-connect-status/:splat 200
+/api/ai/* /.netlify/functions/ai-member/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
 /api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
 /api/helpdesk /.netlify/functions/helpdesk 200
