@@ -11812,7 +11812,7 @@
       // token still authenticates correctly.
       const headers = {};
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass') || localStorage.getItem('adminPassword');
+      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       if (pw) headers['x-admin-password'] = pw;
       return headers;
     }
@@ -12828,7 +12828,7 @@
         if (statusFilter) params.set('status', statusFilter);
         if (typeFilter) params.set('type', typeFilter);
         const data = await safeFetch(`/api/admin/sms-log?${params}`, {
-          headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
+          headers: { 'x-admin-password': localStorage.getItem('mcc_admin_pass') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
         });
 
         const { rows = [], total = 0, summary = {} } = data;
@@ -12912,7 +12912,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-password': localStorage.getItem('adminPassword') || '',
+            'x-admin-password': localStorage.getItem('mcc_admin_pass') || '',
             'x-admin-token': localStorage.getItem('adminTeamToken') || ''
           },
           body: JSON.stringify({ sids: [sid] })
