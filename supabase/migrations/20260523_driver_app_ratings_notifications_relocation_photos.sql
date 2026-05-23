@@ -36,6 +36,10 @@ CREATE INDEX IF NOT EXISTS ride_ratings_rated_id_idx
 ALTER TABLE public.drivers
   ADD COLUMN IF NOT EXISTS total_ratings INTEGER NOT NULL DEFAULT 0;
 
+-- Lock the table down: only service_role (driver-app server) can read/write.
+-- No policies = no access for anon/authenticated PostgREST clients.
+ALTER TABLE public.ride_ratings ENABLE ROW LEVEL SECURITY;
+
 -- ------------------------------------------------------------
 -- 2. driver_notifications (from mcc_driver/scripts/sql/create-driver-notifications.sql)
 -- ------------------------------------------------------------
@@ -56,6 +60,13 @@ CREATE INDEX IF NOT EXISTS driver_notifications_driver_id_idx
 CREATE INDEX IF NOT EXISTS driver_notifications_unread_idx
   ON public.driver_notifications (driver_id, read)
   WHERE read = FALSE;
+
+-- Lock the table down: only service_role (driver-app server) can read/write.
+-- No policies = no access for anon/authenticated PostgREST clients.
+-- Realtime subscriptions made with an anon/authenticated JWT will also see
+-- zero rows; the driver-app server must broadcast via service_role or fan
+-- out per-driver channels server-side.
+ALTER TABLE public.driver_notifications ENABLE ROW LEVEL SECURITY;
 
 -- Enable Realtime on driver_notifications (idempotent guard).
 DO $$
