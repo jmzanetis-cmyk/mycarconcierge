@@ -523,8 +523,95 @@
       loadSummary(providerId),
       loadEmployees(providerId),
       loadAlerts(providerId),
-      loadNotificationPrefs(providerId)
+      loadNotificationPrefs(providerId),
+      loadSubaccountCard(providerId)
     ]);
+  }
+
+  // ── Task #374: BGC sub-account link card ──────────────────────────────
+  // Reads the safe public view `provider_background_check_accounts_public`
+  // (NEVER the base table — the api_key column is revoked from
+  // authenticated/anon by migration 20260515e). Renders a small card so
+  // providers can see at a glance whether ordered checks will run under
+  // their own BGC sub-account or fall back to the platform credential,
+  // and lets them deep-link to /bgc-enroll-account.html to enroll.
+  async function loadSubaccountCard(providerId) {
+    const slot = document.getElementById('bgc-subaccount-card');
+    if (!slot) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    let row = null;
+    try {
+      const { data } = await sb
+        .from('provider_background_check_accounts_public')
+        .select('live_mode, bgchecks_account_id, created_at, updated_at')
+        .eq('provider_id', providerId)
+        .maybeSingle();
+      row = data || null;
+    } catch { row = null; }
+
+    const isEs = _stateLang() === 'es';
+    // The public view deliberately omits the secret api_key column. Per
+    // migration 20260515e the `live_mode` flag is the canonical "is your
+    // sub-account linked?" signal — it's only set true by the enrollment
+    // flow after /token/decrypt succeeds.
+    const linked = !!(row && row.live_mode);
+
+    const title = isEs ? 'Sub-cuenta de BackgroundChecks.com' : 'BackgroundChecks.com sub-account';
+    let pillText; let pillBg; let pillFg; let body; let cta;
+
+    if (linked) {
+      pillText = isEs ? '✓ Vinculada' : '✓ Linked';
+      pillBg = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
+      pillFg = '#2eb88a';
+      body = isEs
+        ? 'Las verificaciones que solicites se realizarán bajo tu propia sub-cuenta de BackgroundChecks.com'
+          + (row && row.bgchecks_account_id ? ' (#' + escapeHtml(String(row.bgchecks_account_id)) + ')' : '')
+          + '.'
+        : 'Background checks you order will run under your own BackgroundChecks.com sub-account'
+          + (row && row.bgchecks_account_id ? ' (#' + escapeHtml(String(row.bgchecks_account_id)) + ')' : '')
+          + '.';
+      cta = '<a href="/bgc-enroll-account.html" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none;display:inline-block;">'
+          + escapeHtml(isEs ? 'Reenrolar / actualizar' : 'Re-enroll / update') + '</a>';
+    } else {
+      pillText = isEs ? 'No vinculada' : 'Not linked';
+      pillBg = 'rgba(212, 168, 85, 0.15)';
+      pillFg = '#d4a855';
+      body = isEs
+        ? 'Aún no has vinculado tu propia sub-cuenta de BackgroundChecks.com. Por ahora, las verificaciones se procesan con la cuenta de respaldo de MCC. Enrólate gratis para tener tu propia consola y facturación.'
+        : 'You haven’t linked your own BackgroundChecks.com sub-account yet. Until you do, ordered checks run against MCC’s fallback account. Enroll for free to get your own console and billing.';
+      cta = '<a href="/bgc-enroll-account.html" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none;display:inline-block;" onclick="globalThis.bgcCompliance.armSubaccountRefresh()">'
+          + escapeHtml(isEs ? 'Enrolar sub-cuenta →' : 'Enroll sub-account →') + '</a>';
+    }
+
+    slot.style.display = '';
+    slot.innerHTML =
+      '<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:18px;justify-content:space-between;">' +
+        '<div style="flex:1;min-width:240px;">' +
+          '<div style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + pillBg + ';color:' + pillFg + ';">' + escapeHtml(pillText) + '</div>' +
+          '<h3 style="margin:12px 0 6px;font-size:1.05rem;font-weight:600;color:var(--text-primary);">' + escapeHtml(title) + '</h3>' +
+          '<p style="margin:0;color:var(--text-secondary);font-size:0.92rem;line-height:1.5;">' + body + '</p>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;">' + cta + '</div>' +
+      '</div>';
+  }
+
+  // Called when the provider clicks "Enroll sub-account" so we can
+  // refresh the card the moment they return to this tab (the enrollment
+  // page opens in a new tab, and `handleSuccess` there links the account
+  // via /api/provider/bgc/decrypt-token).
+  let _subaccountRefreshArmed = false;
+  function armSubaccountRefresh() {
+    if (_subaccountRefreshArmed) return;
+    _subaccountRefreshArmed = true;
+    const handler = async function () {
+      if (document.visibilityState !== 'visible') return;
+      const providerId = await getProviderId();
+      if (providerId) await loadSubaccountCard(providerId);
+    };
+    window.addEventListener('focus', handler);
+    document.addEventListener('visibilitychange', handler);
   }
 
   // ── Task #159 (+ Task #201): BGC reminder preferences ─────────────────
@@ -740,7 +827,7 @@
     }
   }
 
-  globalThis.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs };
+  globalThis.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs, loadSubaccountCard, armSubaccountRefresh };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {
