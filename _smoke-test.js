@@ -6,6 +6,13 @@ const providerAdminHandler = require('./netlify/functions/provider-admin').handl
 const providerApplicationHandler = require('./netlify/functions/provider-application').handler;
 const PW = process.env.ADMIN_PASSWORD;
 
+// safe(v): strip control characters and truncate to 80 chars before logging.
+// Prevents CRLF injection from external API error messages / exception text.
+function safe(v) {
+  const s = typeof v === 'string' ? v : JSON.stringify(v);
+  return s.replace(/[\r\n\t\x00-\x1f\x7f]/g, ' ').slice(0, 80);
+}
+
 async function callProviderAdmin(method, route, body, opts = {}) {
   const headers = { 'content-type': 'application/json' };
   if (opts.withAuth !== false) headers['x-admin-password'] = PW;
@@ -182,7 +189,7 @@ async function _verifyPromoterPostFkLink(r) {
       process.exitCode = 1;
     }
   } catch (e) {
-    console.log(`    ⚠ T#178 FK check threw: ${e.message}`);
+    console.log(`    ⚠ T#178 FK check threw: ${safe(e.message)}`);
     process.exitCode = 1;
   }
 }
@@ -401,7 +408,7 @@ async function step14bLeadReasoningLookup(_ctx) {
     await sbLead.from('agent_actions').delete().eq('id', newActId);
     await sbLead.from('social_leads').delete().eq('id', newLeadId);
   } catch (e) {
-    console.log(`  ✗ step 14b threw: ${e.message}`);
+    console.log(`  ✗ step 14b threw: ${safe(e.message)}`);
   }
 }
 
@@ -466,7 +473,7 @@ async function step14cInvokeHunterFk(_ctx) {
     }
     await sbH.from('social_leads').delete().eq('id', newLeadId);
   } catch (e) {
-    console.log(`  ✗ step 14c threw: ${e.message}`);
+    console.log(`  ✗ step 14c threw: ${safe(e.message)}`);
     process.exitCode = 1;
   }
 }
@@ -585,13 +592,13 @@ async function step22ProvisionTempUser(ctx) {
       email: ctx.testEmail, password: ctx.testPassword
     });
     if (siErr) {
-      console.log(`  ⚠ user created but signIn failed (${siErr.message}) — steps 23-24 will skip`);
+      console.log(`  ⚠ user created but signIn failed (${safe(siErr.message)}) — steps 23-24 will skip`);
     } else {
       ctx.testJwt = si.session.access_token;
     }
     console.log(`  ✓ user provisioned id=${ctx.testUserId}${ctx.testJwt ? ' + JWT minted' : ' (no JWT)'}`);
   } catch (e) {
-    console.log(`  ✗ provisioning failed: ${e.message} — skipping steps 23-26`);
+    console.log(`  ✗ provisioning failed: ${safe(e.message)} — skipping steps 23-26`);
   }
 }
 
