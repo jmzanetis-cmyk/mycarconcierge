@@ -40,6 +40,7 @@ const {
   getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent,
   sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
+const { maybeSendAuditWarningAlert } = require('./_shared/audit-warning-alert');
 const { Resend } = require('resend');
 const crypto = require('node:crypto');
 
@@ -724,6 +725,7 @@ async function _markTreasurerExecuted(supabase, id, action, summary) {
   if (upErr) {
     const msg = `Audit update failed for action ${id} (review queue still shows it as pending): ${upErr.message}`;
     console.error('[treasurer apply]', msg);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'treasurer', db_error: msg });
     return { audit_warning: msg };
   }
   const { error: insErr } = await supabase.from('agent_actions').insert({
@@ -737,6 +739,7 @@ async function _markTreasurerExecuted(supabase, id, action, summary) {
   if (insErr) {
     const msg = `Audit-trail insert failed for action ${id} (action is marked executed but the apply row is missing): ${insErr.message}`;
     console.error('[treasurer apply]', msg);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'treasurer', db_error: msg });
     return { audit_warning: msg };
   }
   return { audit_warning: null };
@@ -1214,6 +1217,7 @@ async function applyGatekeeperReview(supabase, id, action) {
   if (stampErr) {
     auditWarning = `Provider role updated to ${newRole} but audit update failed for action ${id} (review queue still shows it as pending): ${stampErr.message}`;
     console.error('[gatekeeper apply]', auditWarning);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'gatekeeper', db_error: auditWarning });
   } else {
     const { error: insErr } = await supabase.from('agent_actions').insert({
       agent_slug: 'gatekeeper',
@@ -1226,6 +1230,7 @@ async function applyGatekeeperReview(supabase, id, action) {
     if (insErr) {
       auditWarning = `Provider role updated to ${newRole} and action ${id} marked executed, but audit-trail insert failed: ${insErr.message}`;
       console.error('[gatekeeper apply]', auditWarning);
+      void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'gatekeeper', db_error: auditWarning });
     }
   }
 
@@ -1320,6 +1325,7 @@ async function applyMatchmakerRank(supabase, id, action) {
   if (stampErr) {
     auditWarning = `Bid ${winnerBidId} accepted but audit update failed for action ${id} (review queue still shows it as pending): ${stampErr.message}`;
     console.error('[matchmaker apply]', auditWarning);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'matchmaker', db_error: auditWarning });
   }
 
   // Task #153 — fan out award notifications + emails before we write the
@@ -1361,6 +1367,7 @@ async function applyMatchmakerRank(supabase, id, action) {
   if (applyInsErr && !auditWarning) {
     auditWarning = `Bid ${winnerBidId} accepted and action ${id} marked executed, but audit-trail insert failed: ${applyInsErr.message}`;
     console.error('[matchmaker apply]', auditWarning);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'matchmaker', db_error: auditWarning });
   }
 
   return {
@@ -2065,10 +2072,7 @@ async function handleApplyAction(event, ctx) {
 // care_plan_completion) but the agent_actions row is still flagged as
 // pending. These are the rows that fell through an audit-write failure
 // and need operator reconciliation. Currently scans `approve_capture`
-// and `approve_refund` recommendations — `retry_payout` has no DB-side
-// handle to join against, so detection there would require a Stripe
-// API scan and is left for hands-on triage via the audit-trail.
-async function listAuditMismatches(supabase) {
+async function listAuditMismatches(supabase, stripe) {
   const { data: actions, error } = await supabase
     .from('agent_actions')
     .select('id, decision, review_status, created_at, reviewed_at')
@@ -2084,48 +2088,93 @@ async function listAuditMismatches(supabase) {
     let dec = a.decision;
     if (typeof dec === 'string') { try { dec = JSON.parse(dec); } catch { dec = {}; } }
     const rec = dec && dec.recommendation;
-    const carePlanId = dec && dec.payload && dec.payload.care_plan_id;
-    if (!carePlanId) continue;
-    if (!['approve_capture', 'approve_refund'].includes(rec)) continue;
 
-    const { data: cpc, error: cpcErr } = await supabase
-      .from('care_plan_completions')
-      .select('id, payment_capture_status, captured_at, refunded_at, captured_amount, refund_amount, stripe_payment_intent_id')
-      .eq('care_plan_id', carePlanId)
-      .order('created_at', { ascending: false }).limit(1).maybeSingle();
-    if (cpcErr) {
-      // Fail loud — silently skipping a row would risk false-negative
-      // "no stuck rows", which defeats the whole point of this scanner.
-      throw new Error(`audit-mismatch scan failed at action ${a.id} / care_plan ${carePlanId}: ${cpcErr.message}`);
+    // ---- approve_capture / approve_refund: join against care_plan_completions ----
+    if (['approve_capture', 'approve_refund'].includes(rec)) {
+      const carePlanId = dec && dec.payload && dec.payload.care_plan_id;
+      if (!carePlanId) continue;
+
+      const { data: cpc, error: cpcErr } = await supabase
+        .from('care_plan_completions')
+        .select('id, payment_capture_status, captured_at, refunded_at, captured_amount, refund_amount, stripe_payment_intent_id')
+        .eq('care_plan_id', carePlanId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (cpcErr) {
+        // Fail loud — silently skipping a row would risk a false-negative
+        // "no stuck rows", which defeats the whole point of this scanner.
+        throw new Error(`audit-mismatch scan failed at action ${a.id} / care_plan ${carePlanId}: ${cpcErr.message}`);
+      }
+      if (!cpc) continue;
+
+      const stripeMoved =
+        (rec === 'approve_capture' && cpc.payment_capture_status === 'captured') ||
+        (rec === 'approve_refund' && (cpc.payment_capture_status === 'refunded' || cpc.payment_capture_status === 'partially_refunded'));
+      if (!stripeMoved) continue;
+
+      mismatches.push({
+        action_id: a.id,
+        recommendation: rec,
+        review_status: a.review_status,
+        care_plan_id: carePlanId,
+        completion_id: cpc.id,
+        payment_intent_id: cpc.stripe_payment_intent_id,
+        capture_status: cpc.payment_capture_status,
+        captured_amount: cpc.captured_amount,
+        refund_amount: cpc.refund_amount,
+        captured_at: cpc.captured_at,
+        refunded_at: cpc.refunded_at,
+        action_created_at: a.created_at,
+        hint: 'Stripe shows the money moved but the review queue row is still pending. Re-click Apply on the action — the Stripe idempotency key will short-circuit and the audit row will be re-stamped.'
+      });
+      continue;
     }
-    if (!cpc) continue;
 
-    const stripeMoved =
-      (rec === 'approve_capture' && cpc.payment_capture_status === 'captured') ||
-      (rec === 'approve_refund' && (cpc.payment_capture_status === 'refunded' || cpc.payment_capture_status === 'partially_refunded'));
-    if (!stripeMoved) continue;
+    // ---- retry_payout: no DB handle — probe Stripe payouts API ----
+    if (rec === 'retry_payout' && stripe) {
+      const providerId = dec && dec.payload && dec.payload.provider_id;
+      if (!providerId) continue;
 
-    mismatches.push({
-      action_id: a.id,
-      recommendation: rec,
-      review_status: a.review_status,
-      care_plan_id: carePlanId,
-      completion_id: cpc.id,
-      payment_intent_id: cpc.stripe_payment_intent_id,
-      capture_status: cpc.payment_capture_status,
-      captured_amount: cpc.captured_amount,
-      refund_amount: cpc.refund_amount,
-      captured_at: cpc.captured_at,
-      refunded_at: cpc.refunded_at,
-      action_created_at: a.created_at,
-      hint: 'Stripe shows the money moved but the review queue row is still pending. Re-click Apply on the action — the Stripe idempotency key will short-circuit and the audit row will be re-stamped.'
-    });
+      const { data: prof } = await supabase
+        .from('profiles').select('stripe_account_id').eq('id', providerId).maybeSingle();
+      if (!prof || !prof.stripe_account_id) continue;
+
+      let payouts;
+      try {
+        const result = await stripe.payouts.list(
+          { limit: 100 },
+          { stripeAccount: prof.stripe_account_id }
+        );
+        payouts = result.data || [];
+      } catch {
+        continue; // Stripe unavailable for this account — skip silently
+      }
+
+      const match = payouts.find(
+        p => p.metadata && String(p.metadata.treasurer_action_id) === String(a.id)
+           && ['paid', 'in_transit'].includes(p.status)
+      );
+      if (!match) continue;
+
+      mismatches.push({
+        action_id: a.id,
+        recommendation: 'retry_payout',
+        review_status: a.review_status,
+        provider_id: providerId,
+        stripe_account_id: prof.stripe_account_id,
+        payout_id: match.id,
+        payout_status: match.status,
+        payout_amount: match.amount,
+        payout_currency: match.currency,
+        action_created_at: a.created_at,
+        hint: `Stripe shows payout ${match.id} (${match.status}) for this action, but the review-queue row is still pending. Re-click Apply — the idempotency key will short-circuit and re-stamp the audit row.`
+      });
+    }
   }
   return { mismatches, scanned: (actions || []).length };
 }
 
 async function handleAuditMismatches(event, ctx) {
-  const r = await listAuditMismatches(ctx.supabase);
+  const r = await listAuditMismatches(ctx.supabase, _getStripe());
   return jsonResponse(200, r);
 }
 
@@ -2803,5 +2852,8 @@ exports.__test = {
   _treasurerRefund,
   _treasurerRetryPayout,
   _treasurerDenyRefund,
-  _treasurerEscalatePayout
+  _treasurerEscalatePayout,
+  // Task #411/#412 — audit-warning alert + retry_payout mismatch scan.
+  listAuditMismatches,
+  _markTreasurerExecuted
 };

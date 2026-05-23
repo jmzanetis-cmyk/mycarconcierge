@@ -2,16 +2,34 @@
 // failures via the `audit_warning` field instead of swallowing them, and
 // that the new listAuditMismatches scan detects Stripe-side state that
 // diverges from the review-queue status (and fails loud on DB errors).
+// Task #411 — maybeSendAuditWarningAlert sends email + deduplicates.
+// Task #412 — listAuditMismatches detects stuck retry_payout via Stripe scan.
 //
 // Stubs Supabase + Stripe so no live creds are required.
 
 const path = require('path');
+const Module = require('module');
 process.env.STRIPE_SECRET_KEY = process.env.STRIPE_SECRET_KEY || 'sk_test_dummy';
+
+// Module._load stub map — set up before any require so re-loading the alert
+// helper picks up the fake Resend client.
+let _resendEmailCalls = [];
+const _origLoad = Module._load;
+const _stubs = new Map();
+_stubs.set('resend', {
+  Resend: function() {
+    return { emails: { send: async (opts) => { _resendEmailCalls.push(opts); return { id: 'mock' }; } } };
+  }
+});
+Module._load = function(req, parent, ...rest) {
+  if (_stubs.has(req)) return _stubs.get(req);
+  return _origLoad.call(this, req, parent, ...rest);
+};
 
 const modPath = path.resolve(__dirname, '../functions/agent-fleet-admin.js');
 delete require.cache[modPath];
 const admin = require(modPath);
-const { applyMatchmakerRank } = admin.__test;
+const { applyMatchmakerRank, listAuditMismatches, _markTreasurerExecuted } = admin.__test;
 
 let failures = 0;
 let passed = 0;
@@ -97,15 +115,6 @@ function makeFake({ injectErrors = {} } = {}) {
 // Reach into the module to call listAuditMismatches without needing the
 // full HTTP plumbing (admin password + Netlify event shape). The test
 // for HTTP auth/route registration lives in admin-routes-auth.test.js.
-function getListAuditMismatches() {
-  const src = require('fs').readFileSync(modPath, 'utf8');
-  const Module = require('module');
-  const m = new Module(modPath);
-  m.filename = modPath;
-  m.paths = Module._nodeModulePaths(path.dirname(modPath));
-  m._compile(src + '\nmodule.exports.listAuditMismatches = listAuditMismatches;\n', modPath);
-  return m.exports.listAuditMismatches;
-}
 
 (async () => {
   // ---------- Test 1: matchmaker apply with healthy DB → no warning ----------
@@ -135,7 +144,6 @@ function getListAuditMismatches() {
      '[insert-fail] audit_warning surfaces the insert error');
 
   // ---------- Test 4: listAuditMismatches detects Stripe/queue divergence ----------
-  const listAuditMismatches = getListAuditMismatches();
   const sb4 = makeFake();
   sb4.state.agent_actions = [
     // proposed + Stripe captured → SHOULD show up
@@ -159,7 +167,7 @@ function getListAuditMismatches() {
     { id: 'cpc-3', care_plan_id: 'plan-pending', payment_capture_status: 'requires_capture',
       stripe_payment_intent_id: 'pi_pending' }
   ];
-  const scan = await listAuditMismatches(sb4);
+  const scan = await listAuditMismatches(sb4, null);
   ok(Array.isArray(scan.mismatches), '[scan] returns a mismatches array');
   ok(scan.mismatches.length === 1 && scan.mismatches[0].action_id === 99,
      '[scan] only the proposed+captured row (action 99) is reported');
@@ -176,14 +184,88 @@ function getListAuditMismatches() {
       created_at: '2026-05-15T00:00:00Z' }
   ];
   let threw = null;
-  try { await listAuditMismatches(sb5); }
+  try { await listAuditMismatches(sb5, null); }
   catch (e) { threw = e; }
   ok(threw && /connection reset/.test(threw.message),
      '[scan-fail-loud] DB error on cpc lookup throws (does NOT silently report 0 rows)');
+
+  // ---------- Test 6 (Task #411): maybeSendAuditWarningAlert sends email ----------
+  {
+    const alertPath = path.resolve(__dirname, '../functions/_shared/audit-warning-alert.js');
+    delete require.cache[alertPath];
+    const { maybeSendAuditWarningAlert: alertFn } = require(alertPath);
+
+    process.env.RESEND_API_KEY = 'test-key';
+    process.env.ADMIN_EMAIL = 'admin@test.com';
+    _resendEmailCalls = [];
+
+    const alertSb = makeFake();
+    alertSb.state.ai_action_log = [];
+    await alertFn({ supabase: alertSb, action_id: 777, slug: 'treasurer', db_error: 'disk full' });
+    ok(_resendEmailCalls.length === 1, '[alert] email sent when no prior alert');
+    ok(_resendEmailCalls[0].to === 'admin@test.com', '[alert] email sent to ADMIN_EMAIL');
+    ok(_resendEmailCalls[0].subject.includes('777'), '[alert] subject includes action_id');
+    ok(alertSb.state.ai_action_log.some(r => r.module === 'audit_warning' && r.outcome === 'sent'),
+       '[alert] ai_action_log row inserted with outcome=sent');
+
+    // ---------- Test 7 (Task #411): dedup suppresses second alert ----------
+    _resendEmailCalls = [];
+    alertSb.state.ai_action_log = [{
+      id: 'prior', module: 'audit_warning', action_type: 'alert', outcome: 'sent',
+      created_at: new Date().toISOString(), decision: { action_id: '777' }
+    }];
+    await alertFn({ supabase: alertSb, action_id: 777, slug: 'treasurer', db_error: 'disk full' });
+    ok(_resendEmailCalls.length === 0, '[alert-dedup] second alert suppressed within 24h');
+
+    delete process.env.RESEND_API_KEY;
+    delete process.env.ADMIN_EMAIL;
+  }
+
+  // ---------- Test 8 (Task #412): retry_payout mismatch detected via Stripe scan ----------
+  {
+    const sb6 = makeFake();
+    sb6.state.agent_actions = [
+      { id: 55, agent_slug: 'treasurer', action_type: 'review', review_status: 'proposed',
+        decision: { recommendation: 'retry_payout', payload: { provider_id: 'prov-rp', amount: 100 } },
+        created_at: '2026-05-20T00:00:00Z' }
+    ];
+    sb6.state.profiles = [{ id: 'prov-rp', stripe_account_id: 'acct_123' }];
+
+    const fakeStripe = {
+      payouts: {
+        list: async (params, opts) => ({
+          data: [
+            { id: 'po_abc', status: 'paid', amount: 10000, currency: 'usd',
+              metadata: { treasurer_action_id: '55' } }
+          ]
+        })
+      }
+    };
+    const scan2 = await listAuditMismatches(sb6, fakeStripe);
+    ok(scan2.mismatches.length === 1, '[retry_payout scan] mismatch detected');
+    ok(scan2.mismatches[0].payout_id === 'po_abc', '[retry_payout scan] payout_id in result');
+    ok(scan2.mismatches[0].payout_status === 'paid', '[retry_payout scan] payout_status in result');
+    ok(typeof scan2.mismatches[0].hint === 'string', '[retry_payout scan] hint present');
+  }
+
+  // ---------- Test 9 (Task #412): no mismatch when payout not yet in Stripe ----------
+  {
+    const sb7 = makeFake();
+    sb7.state.agent_actions = [
+      { id: 56, agent_slug: 'treasurer', action_type: 'review', review_status: 'proposed',
+        decision: { recommendation: 'retry_payout', payload: { provider_id: 'prov-rp', amount: 100 } },
+        created_at: '2026-05-20T00:00:00Z' }
+    ];
+    sb7.state.profiles = [{ id: 'prov-rp', stripe_account_id: 'acct_123' }];
+
+    const fakeStripeEmpty = { payouts: { list: async () => ({ data: [] }) } };
+    const scan3 = await listAuditMismatches(sb7, fakeStripeEmpty);
+    ok(scan3.mismatches.length === 0, '[retry_payout no-match] no mismatch when payout absent');
+  }
 
   if (failures) {
     console.error(`\n${failures} failure(s) / ${passed} pass(es)`);
     process.exit(1);
   }
-  console.log(`\nAll Task #323 audit-warning checks passed (${passed} assertions).`);
+  console.log(`\nAll Task #323/#411/#412 audit-warning checks passed (${passed} assertions).`);
 })().catch(e => { console.error('test threw:', e); process.exit(1); });
