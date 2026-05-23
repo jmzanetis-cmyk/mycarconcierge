@@ -1398,6 +1398,302 @@ async function step30OutreachLeadIdColumn(ctx) {
   }
 }
 
+// ============================================================================
+// Task #362 — /api/notifications/bid-accepted-push abuse-case smoke test.
+//
+// The endpoint has matching authz gates in prod (Task #257) and dev (Task #351):
+//   - caller's JWT is required
+//   - bid_id must exist
+//   - bid.provider_id must match the requested provider_id
+//   - bid.status must be 'accepted'
+//   - caller must be the member who owns the package the bid belongs to
+//   - wording (price + title) is read from the DB row, not the request body
+//
+// Step 31a hits the dev mirror (HTTP) with every abuse shape (missing/invalid
+// bid_id, wrong provider_id, pending bid, foreign package) and asserts the
+// right 4xx; then a happy-path call from the package owner returns 200.
+//
+// Step 31b invokes the production Netlify handler in-process with global.fetch
+// stubbed to intercept FCM calls. We provision a fake device_push_token, then
+// assert the captured FCM message body matches the DB-derived wording
+// ($X.XX bid on "<DB title>" accepted…) even when the request body tries to
+// inject misleading text. This proves the wording is authoritative DB-derived.
+//
+// All test rows are cleaned up in a finally block (children → parents).
+// Skips cleanly when no JWT is available or the dev server isn't reachable.
+// ============================================================================
+async function _step31ProvisionFixtures(ctx) {
+  // Provision provider B + member C, two packages, three bids:
+  //   acceptedBid  — provider B, on caller's package, status='accepted'
+  //   pendingBid   — provider B, on caller's package, status='pending'
+  //   foreignBid   — provider B, on member C's package, status='accepted'
+  const stamp = Date.now();
+  const providerEmail = `smoke-bidprov-${stamp}@mcc-smoke.test`;
+  const memberCEmail  = `smoke-bidmemc-${stamp}@mcc-smoke.test`;
+
+  const { data: pu, error: puErr } = await ctx.adminSb.auth.admin.createUser({
+    email: providerEmail, password: 'SmokeBid!' + stamp, email_confirm: true
+  });
+  if (puErr) throw puErr;
+  const providerId = pu.user.id;
+  await ctx.adminSb.from('profiles').upsert(
+    { id: providerId, email: providerEmail, role: 'provider' }, { onConflict: 'id' }
+  );
+
+  const { data: mu, error: muErr } = await ctx.adminSb.auth.admin.createUser({
+    email: memberCEmail, password: 'SmokeBid!' + stamp, email_confirm: true
+  });
+  if (muErr) throw muErr;
+  const memberCId = mu.user.id;
+  await ctx.adminSb.from('profiles').upsert(
+    { id: memberCId, email: memberCEmail, role: 'member' }, { onConflict: 'id' }
+  );
+
+  const pkgTitle = `Smoke Bid Pkg "${stamp}"`;
+  const { data: pkgA, error: pkgAErr } = await ctx.adminSb.from('maintenance_packages')
+    .insert({ member_id: ctx.testUserId, title: pkgTitle, description: 'smoke', status: 'open' })
+    .select('id, title').single();
+  if (pkgAErr) throw pkgAErr;
+
+  const { data: pkgC, error: pkgCErr } = await ctx.adminSb.from('maintenance_packages')
+    .insert({ member_id: memberCId, title: 'Smoke Other Pkg', description: 'smoke', status: 'open' })
+    .select('id').single();
+  if (pkgCErr) throw pkgCErr;
+
+  const acceptedPrice = 123.4;  // exercises .toFixed(2) → "123.40"
+  const { data: acceptedBid, error: ab1 } = await ctx.adminSb.from('bids')
+    .insert({ package_id: pkgA.id, provider_id: providerId, price: acceptedPrice, status: 'accepted' })
+    .select('id, price').single();
+  if (ab1) throw ab1;
+
+  const { data: pendingBid, error: pb1 } = await ctx.adminSb.from('bids')
+    .insert({ package_id: pkgA.id, provider_id: providerId, price: 50, status: 'pending' })
+    .select('id').single();
+  if (pb1) throw pb1;
+
+  const { data: foreignBid, error: fb1 } = await ctx.adminSb.from('bids')
+    .insert({ package_id: pkgC.id, provider_id: providerId, price: 75, status: 'accepted' })
+    .select('id').single();
+  if (fb1) throw fb1;
+
+  return {
+    providerId, memberCId,
+    pkgAId: pkgA.id, pkgCId: pkgC.id,
+    pkgTitle: pkgA.title,
+    acceptedBidId: acceptedBid.id, acceptedPrice: acceptedBid.price,
+    pendingBidId: pendingBid.id, foreignBidId: foreignBid.id
+  };
+}
+
+// Tiny assertion helper: log + flip process.exitCode on failure so a
+// regression in any abuse case fails the smoke run (instead of silently
+// printing ✗ and exiting 0). Mirrors how other steps escalate by
+// setting process.exitCode = 1 on assertion mismatch.
+function _step31Expect(ok, passMsg, failMsg) {
+  if (ok) {
+    console.log('  ✓ ' + passMsg);
+  } else {
+    console.log('  ✗ ' + failMsg);
+    process.exitCode = 1;
+  }
+}
+
+async function _step31RunHttpAbuseCases(ctx, baseUrl, fx) {
+  const post = async (body, opts = {}) => {
+    const headers = { 'content-type': 'application/json' };
+    if (opts.token !== null) headers['authorization'] = 'Bearer ' + (opts.token || ctx.testJwt);
+    const r = await fetch(baseUrl + '/api/notifications/bid-accepted-push', {
+      method: 'POST', headers, body: JSON.stringify(body)
+    });
+    let parsed; try { parsed = await r.json(); } catch { parsed = {}; }
+    return { status: r.status, body: parsed };
+  };
+  const fakeUuid = '00000000-0000-0000-0000-000000000000';
+
+  // 1) No Authorization header → 401
+  const r0 = await fetch(baseUrl + '/api/notifications/bid-accepted-push', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ provider_id: fx.providerId, bid_id: fx.acceptedBidId })
+  });
+  _step31Expect(r0.status === 401, 'no-auth blocked (401)',
+    `no-auth: expected 401, got ${r0.status}`);
+
+  // 2) Missing bid_id → 400
+  const r1 = await post({ provider_id: fx.providerId });
+  _step31Expect(r1.status === 400, 'missing bid_id rejected (400)',
+    `missing bid_id: expected 400, got ${r1.status}`);
+
+  // 3) Invalid bid_id format → 400
+  const r2 = await post({ provider_id: fx.providerId, bid_id: 'not-a-uuid' });
+  _step31Expect(r2.status === 400, 'invalid-format bid_id rejected (400)',
+    `invalid bid_id: expected 400, got ${r2.status}`);
+
+  // 4) Missing provider_id → 400
+  const r3 = await post({ bid_id: fx.acceptedBidId });
+  _step31Expect(r3.status === 400, 'missing provider_id rejected (400)',
+    `missing provider_id: expected 400, got ${r3.status}`);
+
+  // 5) Well-formed bid_id, not in DB → 404
+  const r4 = await post({ provider_id: fx.providerId, bid_id: fakeUuid });
+  _step31Expect(r4.status === 404, 'unknown bid_id rejected (404)',
+    `unknown bid_id: expected 404, got ${r4.status}`);
+
+  // 6) provider_id doesn't match the bid's provider_id → 403
+  const r5 = await post({ provider_id: fakeUuid, bid_id: fx.acceptedBidId });
+  _step31Expect(r5.status === 403, 'provider_id mismatch rejected (403)',
+    `provider mismatch: expected 403, got ${r5.status}`);
+
+  // 7) Bid exists & provider matches but status='pending' → 409
+  const r6 = await post({ provider_id: fx.providerId, bid_id: fx.pendingBidId });
+  _step31Expect(r6.status === 409, 'non-accepted bid rejected (409)',
+    `pending bid: expected 409, got ${r6.status}`);
+
+  // 8) Caller doesn't own the package the bid belongs to → 403
+  const r7 = await post({ provider_id: fx.providerId, bid_id: fx.foreignBidId });
+  _step31Expect(r7.status === 403, 'non-owner caller rejected (403)',
+    `foreign package: expected 403, got ${r7.status}`);
+
+  // 9) Happy path — package owner triggering push for the accepted provider.
+  //    Dev mirror returns { ok: true }; FCM dispatch runs async with no real
+  //    creds in the smoke env so it harmlessly logs and we get 200 back.
+  const r8 = await post({ provider_id: fx.providerId, bid_id: fx.acceptedBidId });
+  _step31Expect(r8.status === 200 && r8.body && r8.body.ok === true,
+    'owner happy-path accepted (200 ok:true)',
+    `happy path: expected 200 ok:true, got ${r8.status} ${JSON.stringify(r8.body).slice(0, 200)}`);
+}
+
+async function _step31AssertProdWording(ctx, fx) {
+  // In-process Netlify handler invocation with global.fetch stubbed so we
+  // can capture the FCM message body and assert the wording was built from
+  // the DB row (bids.price toFixed(2) + maintenance_packages.title) rather
+  // than from anything the caller put in the request body.
+  const { generateKeyPairSync } = require('node:crypto');
+  const { privateKey } = generateKeyPairSync('rsa', { modulusLength: 2048 });
+  const fakeKey = privateKey.export({ type: 'pkcs8', format: 'pem' });
+  const fakeSa = JSON.stringify({
+    project_id: 'mcc-smoke-fake',
+    client_email: 'smoke@mcc-smoke.iam.gserviceaccount.com',
+    private_key: fakeKey
+  });
+
+  // Insert a fake device_push_token for the provider so dispatch reaches FCM.
+  const fakeToken = 'smoke-fake-fcm-token-' + Date.now();
+  await ctx.adminSb.from('device_push_tokens').insert({
+    member_id: fx.providerId, token: fakeToken, platform: 'android', active: true
+  });
+
+  const origEnv = process.env.FCM_SERVICE_ACCOUNT_JSON;
+  const origFetch = global.fetch;
+  process.env.FCM_SERVICE_ACCOUNT_JSON = fakeSa;
+
+  let capturedFcmBody = null;
+  global.fetch = async (url, opts) => {
+    const u = String(url);
+    if (u.includes('oauth2.googleapis.com/token')) {
+      return new Response(JSON.stringify({ access_token: 'fake-token', expires_in: 3600 }),
+        { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    if (u.includes('fcm.googleapis.com/v1/projects/')) {
+      try { capturedFcmBody = JSON.parse(opts && opts.body); } catch { capturedFcmBody = null; }
+      return new Response(JSON.stringify({ name: 'projects/fake/messages/123' }),
+        { status: 200, headers: { 'content-type': 'application/json' } });
+    }
+    return origFetch(url, opts);
+  };
+
+  // Fresh handler require so it picks up the env var on first read of utils.
+  delete require.cache[require.resolve('./netlify/functions/notifications-bid-accepted-push')];
+  const bidPushHandler = require('./netlify/functions/notifications-bid-accepted-push').handler;
+
+  let result;
+  try {
+    result = await bidPushHandler({
+      httpMethod: 'POST',
+      headers: { authorization: 'Bearer ' + ctx.testJwt, 'content-type': 'application/json' },
+      // Pass deliberately-misleading wording in the body — the handler must
+      // ignore these and derive the push body from bids.price + pkg.title.
+      body: JSON.stringify({
+        provider_id: fx.providerId,
+        bid_id: fx.acceptedBidId,
+        package_title: 'EVIL TITLE FROM ATTACKER',
+        bid_amount: 99999.99
+      })
+    });
+  } finally {
+    global.fetch = origFetch;
+    if (origEnv === undefined) delete process.env.FCM_SERVICE_ACCOUNT_JSON;
+    else process.env.FCM_SERVICE_ACCOUNT_JSON = origEnv;
+    delete require.cache[require.resolve('./netlify/functions/notifications-bid-accepted-push')];
+    // Best-effort cleanup of the fake push token.
+    await ctx.adminSb.from('device_push_tokens').delete().eq('token', fakeToken).catch(() => {});
+  }
+
+  let parsedResp; try { parsedResp = JSON.parse(result.body); } catch { parsedResp = {}; }
+  _step31Expect(result.statusCode === 200 && parsedResp.ok === true,
+    `prod handler returned 200 ok:true (success=${parsedResp.success || 0})`,
+    `prod handler happy-path: expected 200 ok:true, got ${result.statusCode} ${JSON.stringify(parsedResp).slice(0, 200)}`);
+  if (result.statusCode !== 200 || !parsedResp.ok) return;
+
+  _step31Expect(!!(capturedFcmBody && capturedFcmBody.message && capturedFcmBody.message.notification),
+    'FCM message body captured',
+    'FCM message body was not captured — wording cannot be verified');
+  if (!capturedFcmBody || !capturedFcmBody.message || !capturedFcmBody.message.notification) return;
+
+  const pushBody = capturedFcmBody.message.notification.body;
+  const expectedAmt = '$' + Number(fx.acceptedPrice).toFixed(2);
+  const expectedTitleQuoted = `"${fx.pkgTitle}"`;
+  const wordingOk = pushBody.includes(expectedAmt) && pushBody.includes(expectedTitleQuoted)
+    && !pushBody.includes('EVIL TITLE FROM ATTACKER') && !pushBody.includes('99999.99');
+  _step31Expect(wordingOk,
+    `push body derived from DB: "${pushBody}"`,
+    `push body wording mismatch — got "${pushBody}" (expected ${expectedAmt} + ${expectedTitleQuoted})`);
+}
+
+async function _step31Cleanup(ctx, fx) {
+  if (!fx) return;
+  try {
+    await ctx.adminSb.from('bids').delete().in('id', [fx.acceptedBidId, fx.pendingBidId, fx.foreignBidId].filter(Boolean));
+    await ctx.adminSb.from('maintenance_packages').delete().in('id', [fx.pkgAId, fx.pkgCId].filter(Boolean));
+    if (fx.memberCId) {
+      await ctx.adminSb.from('profiles').delete().eq('id', fx.memberCId);
+      await ctx.adminSb.auth.admin.deleteUser(fx.memberCId);
+    }
+    if (fx.providerId) {
+      await ctx.adminSb.from('profiles').delete().eq('id', fx.providerId);
+      await ctx.adminSb.auth.admin.deleteUser(fx.providerId);
+    }
+  } catch (e) {
+    console.log(`  ⚠ STEP 31 cleanup partial: ${e.message}`);
+  }
+}
+
+async function step31BidAcceptedPushAuthz(ctx) {
+  console.log('\n━━━ STEP 31: /api/notifications/bid-accepted-push abuse-case coverage (Task #362) ━━━');
+  if (!(ctx.testUserId && ctx.testJwt && ctx.adminSb)) {
+    console.log('  ⚠ skipped — no JWT (same reason as STEP 23-24)');
+    return;
+  }
+  const baseUrl = process.env.SMOKE_LOCAL_BASE || 'http://127.0.0.1:5000';
+  const ping = await fetch(baseUrl + '/api/notifications/bid-accepted-push', { method: 'POST' }).catch(() => null);
+  if (!ping) {
+    console.log(`  ⚠ no local server reachable at ${baseUrl} — skipping HTTP abuse cases`);
+  }
+
+  let fx = null;
+  try {
+    fx = await _step31ProvisionFixtures(ctx);
+    console.log(`  ✓ fixtures: providerB=${fx.providerId.slice(0,8)} pkgA=${fx.pkgAId.slice(0,8)} acceptedBid=${fx.acceptedBidId.slice(0,8)}`);
+    if (ping) await _step31RunHttpAbuseCases(ctx, baseUrl, fx);
+    await _step31AssertProdWording(ctx, fx);
+  } catch (e) {
+    console.log(`  ✗ STEP 31 threw: ${e.message}`);
+    process.exitCode = 1;
+  } finally {
+    await _step31Cleanup(ctx, fx);
+  }
+}
+
 // ─── Top-level runner ───────────────────────────────────────────────────────
 // Walks every `step*` function in declaration order. Each step runs against a
 // shared `ctx` so later steps can depend on earlier results (channel id, post
@@ -1439,7 +1735,8 @@ const STEPS = [
   step27bAnonRpcLockdown,
   step28IncrementEngineStat,
   step29AutoLinkTrigger,
-  step30OutreachLeadIdColumn
+  step30OutreachLeadIdColumn,
+  step31BidAcceptedPushAuthz
 ];
 
 (async () => {
