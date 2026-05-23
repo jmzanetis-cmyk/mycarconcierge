@@ -158,14 +158,22 @@ async function handleDocument(event, supabase, user) {
   if (typeof body.file_url !== 'string' ||
       body.file_url.length === 0 ||
       body.file_url.length > 2000)                     errors.push('file_url (1-2000 chars) required');
-  // The file_url should be a Supabase storage URL inside our project — defend
-  // against the client posting arbitrary external URLs into our docs table.
+  // The file_url should be a Supabase storage URL inside our project, pointing
+  // at the provider-documents bucket under this user's own prefix. Defends
+  // against the client posting arbitrary external URLs — or URLs that target
+  // another bucket / another tenant's prefix on the same Supabase host — into
+  // our docs table.
   if (!errors.length) {
     try {
       const u = new URL(body.file_url);
       const supabaseHost = (() => { try { return new URL(process.env.SUPABASE_URL || '').hostname; } catch { return ''; } })();
       if (supabaseHost && u.hostname !== supabaseHost) {
         errors.push('file_url must be on the configured Supabase storage host');
+      } else {
+        const expectedPrefix = `/storage/v1/object/public/provider-documents/${user.id}/`;
+        if (!u.pathname.startsWith(expectedPrefix) || u.pathname.length <= expectedPrefix.length) {
+          errors.push('file_url must point at the provider-documents bucket under this user\'s own prefix');
+        }
       }
     } catch { errors.push('file_url must be a valid URL'); }
   }
