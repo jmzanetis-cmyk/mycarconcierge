@@ -1211,6 +1211,118 @@ async function step24fFinalizePromotion(ctx) {
   }
 }
 
+// ============================================================================
+// Task #467 — /finalize idempotency: re-finalizing an already-promoted provider
+// must return 409 and leave counters untouched.
+// Skips cleanly when SUPABASE_ANON_KEY can't mint JWTs (same guard as 23-24).
+// ============================================================================
+const providerOnboardingHandler = require('./netlify/functions/provider-onboarding').handler;
+
+async function callFinalize(body, token) {
+  const event = {
+    httpMethod: 'POST',
+    path: '/.netlify/functions/provider-onboarding/finalize',
+    headers: { 'content-type': 'application/json', authorization: `Bearer ${token}` },
+    queryStringParameters: {},
+    body: body ? JSON.stringify(body) : null
+  };
+  const r = await providerOnboardingHandler(event);
+  let b; try { b = JSON.parse(r.body); } catch { b = r.body; }
+  return { status: r.statusCode, body: b };
+}
+
+async function step24fFinalizeReFinalize(ctx) {
+  if (!ctx.testJwt) {
+    console.log('\n━━━ STEP 24f: SKIPPED — no JWT (SUPABASE_ANON_KEY misconfigured) ━━━');
+    return;
+  }
+  console.log('\n━━━ STEP 24f: /finalize re-finalize returns 409 (Task #467) ━━━');
+
+  // Provision a fresh user so this step is independent of step 22's user.
+  const emailC = `smoke-467-${Date.now()}@example.com`;
+  const pwC = 'Smoke467!Pass';
+  let userCId, userCJwt;
+  try {
+    const { data: cu, error: cuErr } = await ctx.adminSb.auth.admin.createUser({
+      email: emailC, password: pwC, email_confirm: true
+    });
+    if (cuErr) throw cuErr;
+    userCId = cu.user.id;
+    await ctx.adminSb.from('profiles').upsert({ id: userCId, email: emailC, role: 'member' }, { onConflict: 'id' });
+
+    const { data: si, error: siErr } = await ctx.anonSb.auth.signInWithPassword({ email: emailC, password: pwC });
+    if (siErr) throw siErr;
+    userCJwt = si.session.access_token;
+
+    // Insert a standard (non-founding) application for user C.
+    await ctx.adminSb.from('provider_applications').insert({
+      user_id: userCId,
+      business_name: 'Smoke467 Garage',
+      contact_name: 'Smoke467 Tester',
+      email: emailC,
+      services_offered: ['oil_change'],
+      status: 'pending',
+      is_founding_provider: false
+    });
+
+    const finalizeBody = {
+      full_name: 'Smoke467 Tester',
+      business_name: 'Smoke467 Garage',
+      city: 'Testville',
+      state: 'CA',
+      service_area: 'Testville CA',
+      services_offered: ['oil_change'],
+      sms_consent: false
+    };
+
+    // First finalize — should promote.
+    const r1 = await callFinalize(finalizeBody, userCJwt);
+    if (r1.status === 200 && r1.body.role === 'provider' && r1.body.free_trial_bids === 3) {
+      console.log(`  ✓ first finalize promoted (free_trial_bids=${r1.body.free_trial_bids})`);
+    } else {
+      console.log(`  ✗ first finalize unexpected: status=${r1.status} body=${JSON.stringify(r1.body).slice(0,200)}`);
+      return;
+    }
+
+    // Insert a second application with is_founding_provider=true (stale tab scenario).
+    await ctx.adminSb.from('provider_applications').insert({
+      user_id: userCId,
+      business_name: 'Smoke467 Garage',
+      contact_name: 'Smoke467 Tester',
+      email: emailC,
+      services_offered: ['oil_change'],
+      status: 'pending',
+      is_founding_provider: true
+    });
+
+    // Second finalize — must be rejected with 409.
+    const r2 = await callFinalize(finalizeBody, userCJwt);
+    if (r2.status === 409 && r2.body.error === 'already_provider') {
+      console.log('  ✓ second finalize blocked (409 already_provider)');
+    } else {
+      console.log(`  ✗ expected 409 already_provider, got status=${r2.status} body=${JSON.stringify(r2.body).slice(0,200)}`);
+    }
+
+    // Profile must still be non-founding with 3 bids.
+    const { data: prof } = await ctx.adminSb.from('profiles')
+      .select('role, free_trial_bids, is_founding_provider')
+      .eq('id', userCId)
+      .single();
+    if (prof?.free_trial_bids === 3 && prof?.is_founding_provider === false) {
+      console.log('  ✓ counters unchanged after rejected re-finalize');
+    } else {
+      console.log(`  ✗ profile mutated: ${JSON.stringify(prof)}`);
+    }
+  } finally {
+    if (userCId) {
+      await ctx.adminSb.from('provider_applications').delete().eq('user_id', userCId);
+      await ctx.adminSb.from('profiles').delete().eq('id', userCId);
+      await ctx.adminSb.auth.admin.deleteUser(userCId).catch(() => {});
+      console.log('  ✓ cleanup complete');
+    }
+  }
+}
+
 async function step2526SuspendActivateAndAudit(ctx) {
   if (!ctx.testUserId) return;
   console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
@@ -1730,6 +1842,7 @@ const STEPS = [
   step24dProviderOnboardingIdor,
   step24eFinalizeIdor,
   step24fFinalizePromotion,
+  step24fFinalizeReFinalize,
   step2526SuspendActivateAndAudit,
   step27CheckCrmDuplicate,
   step27bAnonRpcLockdown,

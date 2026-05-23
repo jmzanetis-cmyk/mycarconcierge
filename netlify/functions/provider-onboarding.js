@@ -284,6 +284,17 @@ async function handleFinalize(event, supabase, user) {
   const body = _parseBody(event);
   if (body === null) return jsonResponse(400, { error: 'invalid JSON body' });
 
+  // Guard: if the profile is already a provider, re-finalizing would reset
+  // counters (e.g. free_trial_bids) — reject idempotently instead.
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  if (existingProfile?.role === 'provider') {
+    return jsonResponse(409, { error: 'already_provider' });
+  }
+
   const errors = [];
   if (!strLen(body.full_name, 2, 200))      errors.push('full_name (2-200 chars) required');
   if (!strLen(body.business_name, 2, 200))  errors.push('business_name (2-200 chars) required');
