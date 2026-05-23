@@ -9621,10 +9621,8 @@
 
     async function loadChatInsights() {
       try {
-        // Task #355 — adminFetch routes 401/403 through the shared "Sign in
-        // again" prompt instead of failing silently in console.
-        const data = await adminFetch('/api/admin/chat-insights', { headers: getAdminHeaders() });
-        
+        const data = await aiOpsFetch('/api/admin/chat-insights', { headers: getAdminHeaders() });
+
         document.getElementById('chat-stat-total-sessions').textContent = data.totalSessions || 0;
         document.getElementById('chat-stat-total-messages').textContent = data.totalMessages || 0;
         document.getElementById('chat-stat-thumbs-up').textContent = data.thumbsUp || 0;
@@ -9784,21 +9782,24 @@
     let teamMembers = [];
 
     async function loadTeamMembers() {
+      const tbody = document.getElementById('team-members-body');
       try {
         // Task #355 — adminFetch surfaces 401/403 as coded auth errors that
         // we route through the shared "Sign in again" prompt below.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const data = await adminFetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
+        const data = await aiOpsFetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
         teamMembers = Array.isArray(data) ? data : (data.members || []);
         renderTeamMembers();
         loadPendingInvites();
       } catch (err) {
         console.error('Failed to load team members:', err);
-        const tbody = document.getElementById('team-members-body');
-        if (isAdminAuthError(err) && tbody) {
-          renderAdminAuthErrorRow(tbody, 6, err, loadTeamMembers);
-        } else if (tbody) {
-          tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+        if (tbody) {
+          const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+          if (isAuthErr) {
+            renderAiOpsAuthError(tbody.closest('div, section, [id]') || tbody, err, loadTeamMembers);
+          } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+          }
         }
       }
     }
@@ -10164,7 +10165,7 @@
       try {
         // Task #355 — adminFetch routes 401/403 through the shared auth row.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const invites = await adminFetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
+        const invites = await aiOpsFetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
 
         const roleBadgeClass = {
           super_admin: 'badge-green', crm_manager: 'badge-blue', marketing: 'badge-purple',
@@ -10202,9 +10203,13 @@
           </tr>`;
         }).join('');
       } catch (err) {
-        console.error('Failed to load invites:', err);
-        if (isAdminAuthError(err)) renderAdminAuthErrorRow(tbody, 6, err, loadPendingInvites);
-        else tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+        const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+        if (isAuthErr) {
+          renderAiOpsAuthError(tbody.closest('div, section, [id]') || tbody, err, loadPendingInvites);
+        } else {
+          console.error('Failed to load invites:', err);
+          tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+        }
       }
     }
 
@@ -10438,14 +10443,8 @@
 
     async function loadTrafficData() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-      const headers = {};
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
-
       try {
-        const response = await fetch(`${apiBase}/api/analytics/data?days=${trafficDays}`, { headers });
-        if (!response.ok) throw new Error('Failed to load traffic data');
-        const data = await response.json();
+        const data = await aiOpsFetch(`${apiBase}/api/analytics/data?days=${trafficDays}`, { headers: getAiOpsHeaders() });
 
         document.getElementById('traffic-total-views').textContent = (data.totalViews || 0).toLocaleString();
         document.getElementById('traffic-total-visitors').textContent = (data.totalVisitors || 0).toLocaleString();
@@ -11278,9 +11277,7 @@
         if (minScore) params.set('min_score', minScore);
         if (source) params.set('source', source);
         params.set('limit', '200');
-        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-leads?${params}`, { headers: getMarketingHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/outreach-leads?${params}`, { headers: getMarketingHeaders() });
         emailOutreachLeads = (data.leads || []).filter(l => l.email);
         if (emailOutreachLeads.length === 0) {
           preview.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">No leads with email addresses found for these filters.</div>';
@@ -11294,7 +11291,7 @@
         if (addBtn) addBtn.style.display = 'block';
         showToast(`Loaded ${emailOutreachLeads.length} leads from Outreach Engine`);
       } catch (err) {
-        preview.innerHTML = '<div style="color:var(--accent-red);padding:12px;">Error: ' + escapeHtml(err.message) + '</div>';
+        renderAiOpsAuthError(preview, err, loadEmailOutreachLeads);
         const addBtn = document.getElementById('email-add-leads-btn');
         if (addBtn) addBtn.style.display = 'none';
       }
@@ -11387,9 +11384,7 @@
     async function loadGrowthFunnel() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const res = await fetch(`${apiBase}/api/admin/marketing/pipeline-metrics`, { headers: getMarketingHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load metrics');
+        const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/pipeline-metrics`, { headers: getMarketingHeaders() });
 
         const el = (id) => document.getElementById(id);
         if (el('funnel-total-leads')) el('funnel-total-leads').textContent = (data.total_leads || 0).toLocaleString();
@@ -11511,9 +11506,7 @@
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
       try {
-        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load queue');
+        const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
         const messages = data.data || data.items || [];
         if (bulkBar) bulkBar.style.display = messages.length > 0 ? 'block' : 'none';
         if (messages.length === 0) {
@@ -11523,7 +11516,7 @@
         listEl.innerHTML = messages.map(_renderQueueMessageCard).join('');
         if (globalThis.renderIcons) renderIcons(listEl);
       } catch (err) {
-        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+        renderAiOpsAuthError(listEl, err, loadApprovalQueue);
       }
     }
     globalThis.loadApprovalQueue = loadApprovalQueue;
@@ -13174,9 +13167,7 @@
           </div>
         `;
       } catch (err) {
-        // Task #355 — auth-expiry routes to the shared "Sign in again" prompt.
-        if (isAdminAuthError(err)) renderAdminAuthErrorInto(container, err, loadSaasSubscriptions);
-        else container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
+        renderAiOpsAuthError(container, err, loadSaasSubscriptions);
       }
     }
 
@@ -13193,18 +13184,8 @@
       const contentEl = document.getElementById('white-label-content');
       if (!statsEl || !contentEl) return;
 
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = token ? { 'x-admin-token': token } : {};
-
       try {
-        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
-        const res = await fetch('/api/admin/white-label/tenants', { headers });
-        if (!res.ok) {
-          const err = new Error(`Failed to load tenants (HTTP ${res.status})`);
-          if (res.status === 401 || res.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
-          throw err;
-        }
-        const { tenants, meta } = await res.json();
+        const { tenants, meta } = await aiOpsFetch('/api/admin/white-label/tenants', { headers: getAiOpsHeaders() });
 
         const active = tenants.filter(t => t.status === 'active').length;
         const byPlan = { starter: 0, pro: 0, business: 0 };
@@ -13283,10 +13264,7 @@
         // Store for edit lookups
         globalThis._wlTenants = tenants;
       } catch (err) {
-        // Task #355 — surface auth-expiry with the shared "Sign in again"
-        // prompt instead of a dead-end error string.
-        if (isAdminAuthError(err)) renderAdminAuthErrorInto(contentEl, err, loadWhiteLabelTenants);
-        else contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
+        renderAiOpsAuthError(contentEl, err, loadWhiteLabelTenants);
       }
     }
 
@@ -13683,11 +13661,6 @@
     // ========== AI API USAGE DASHBOARD (Task #90) ==========
     let _apiUsageChart = null;
     async function loadApiUsage() {
-      // Task #464 — read the canonical admin password key set by the login
-      // flow (mcc_admin_pass, with adminPasswordVerified as in-memory fallback).
-      // The previous read used a sessionStorage key that nothing writes to,
-      // so password-only admins always saw the "session not found" branch
-      // even with a valid session.
       const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
@@ -13706,8 +13679,7 @@
       }
       if (callsEl) callsEl.textContent = '…';
       try {
-        // Task #355 — adminFetch routes 401/403 to the shared "Sign in again" prompt.
-        const data = await adminFetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
+        const data = await aiOpsFetch('/api/admin/api-usage', { headers: getAiOpsHeaders() });
         if (keysEl) keysEl.textContent = data.active_keys ?? '--';
         if (callsEl) callsEl.textContent = (data.total_calls_this_month || 0).toLocaleString();
         if (revenueEl) revenueEl.textContent = '$' + ((data.estimated_revenue_cents || 0) / 100).toFixed(2);
@@ -13840,11 +13812,8 @@
 
     async function loadSurveyAnalytics() {
       try {
-        const headers = getAdminHeaders();
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const res = await fetch(apiBase + '/api/admin/survey-stats', { headers });
-        if (!res.ok) throw new Error('Stats fetch failed');
-        const data = await res.json();
+        const data = await aiOpsFetch(apiBase + '/api/admin/survey-stats', { headers: getAdminHeaders() });
 
         const el = id => document.getElementById(id);
         if (el('sl-total'))          el('sl-total').textContent          = (data.total_responses || 0).toLocaleString();
@@ -13937,13 +13906,7 @@
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         // Always include ?range for explicitness and server-side telemetry
         const url = apiBase + '/api/admin/survey-analytics?range=' + encodeURIComponent(range);
-        const res = await fetch(url, { headers });
-        if (!res.ok) {
-          let serverMsg = '';
-          try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch { /* Intentionally silent */ }
-          throw new Error(`HTTP ${res.status}${serverMsg ? ' — ' + serverMsg : ''}`);
-        }
-        const data = await res.json();
+        const data = await aiOpsFetch(url, { headers: getAdminHeaders() });
 
         if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
         if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
@@ -13979,16 +13942,21 @@
           banner.textContent = 'survey_responses table is missing expected columns. Apply supabase/migrations/20260428_survey_responses_columns_fix.sql in Supabase SQL Editor, then refresh this page.';
         }
       } catch (err) {
-        console.error('[MemberSurveys] load error:', err.message);
-        if (banner) {
-          banner.style.display = 'block';
-          banner.textContent = 'Could not load survey analytics: ' + err.message + '. Check server logs and try Refresh.';
+        const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+        if (isAuthErr && banner) {
+          renderAiOpsAuthError(banner, err, loadMemberSurveyAnalytics);
+        } else {
+          console.error('[MemberSurveys] load error:', err.message);
+          if (banner) {
+            banner.style.display = 'block';
+            banner.textContent = 'Could not load survey analytics: ' + err.message + '. Check server logs and try Refresh.';
+          }
+          // Reset headline cards to a clear "error" sentinel rather than stale numbers
+          if (el('ms-total')) el('ms-total').textContent = '—';
+          if (el('ms-week')) el('ms-week').textContent = '—';
+          if (el('ms-top-pain')) el('ms-top-pain').textContent = '—';
+          if (el('ms-top-improvement')) el('ms-top-improvement').textContent = '—';
         }
-        // Reset headline cards to a clear "error" sentinel rather than stale numbers
-        if (el('ms-total')) el('ms-total').textContent = '—';
-        if (el('ms-week')) el('ms-week').textContent = '—';
-        if (el('ms-top-pain')) el('ms-top-pain').textContent = '—';
-        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = '—';
       }
     }
     globalThis.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;
