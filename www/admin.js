@@ -13582,7 +13582,12 @@
     // ========== AI API USAGE DASHBOARD (Task #90) ==========
     let _apiUsageChart = null;
     async function loadApiUsage() {
-      const adminPassword = sessionStorage.getItem('adminPassword');
+      // Task #464 — read the canonical admin password key set by the login
+      // flow (mcc_admin_pass, with adminPasswordVerified as in-memory fallback).
+      // The previous `sessionStorage.getItem('adminPassword')` read was a dead
+      // key — nothing writes to it — so password-only admins always saw the
+      // "session not found" branch even with a valid session.
+      const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
       const revenueEl = document.getElementById('api-stat-revenue');
@@ -13671,7 +13676,8 @@
 
     async function adminRevokeApiKey(keyId, btn) {
       if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
-      const adminPassword = sessionStorage.getItem('adminPassword');
+      // Task #464 — canonical admin password key (see loadApiUsage above).
+      const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       if (!adminPassword) { alert('Admin session not found. Please refresh.'); return; }
       btn.disabled = true; btn.textContent = 'Revoking…';
       try {
