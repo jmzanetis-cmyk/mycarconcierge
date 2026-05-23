@@ -13584,9 +13584,9 @@
     async function loadApiUsage() {
       // Task #464 — read the canonical admin password key set by the login
       // flow (mcc_admin_pass, with adminPasswordVerified as in-memory fallback).
-      // The previous `sessionStorage.getItem('adminPassword')` read was a dead
-      // key — nothing writes to it — so password-only admins always saw the
-      // "session not found" branch even with a valid session.
+      // The previous read used a sessionStorage key that nothing writes to,
+      // so password-only admins always saw the "session not found" branch
+      // even with a valid session.
       const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
