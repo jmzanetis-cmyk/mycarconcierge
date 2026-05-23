@@ -65,7 +65,9 @@ function makeSupabaseStub(initial = {}) {
     const builder = {
       select() { return builder; },
       eq(col, val) { ctx._filters.push(r => r[col] === val); return builder; },
+      in(col, vals) { ctx._filters.push(r => vals.includes(r[col])); return builder; },
       gte(col, val) { ctx._filters.push(r => r[col] >= val); return builder; },
+      gt(col, val) { ctx._filters.push(r => r[col] > val); return builder; },
       order() { return builder; },
       limit(n) { ctx._limit = n; return builder; },
       async maybeSingle() {
@@ -164,7 +166,7 @@ async function main() {
     eq(sent2.length, 1, 'duplicate alert sent');
   });
 
-  await run('runChecker fires alert_3d + alert_1d when 1 day out', async () => {
+  await run('runChecker fires ONLY alert_1d when 1 day out and supersedes alert_3d (Task #354)', async () => {
     const supabase = makeSupabaseStub({
       ai_ops_settings: [
         { key: 'api_key_expiry__anthropic_api_key', value: plusDaysFromToday(1), updated_at: new Date().toISOString() }
@@ -172,7 +174,45 @@ async function main() {
     });
     await scheduled._runChecker(supabase, { onlyKeyId: 'anthropic_api_key' });
     const sent = supabase._tables.ai_action_log.filter(r => r.outcome === 'sent').map(r => r.action_type).sort();
-    eq(sent, ['alert_1d', 'alert_3d']);
+    eq(sent, ['alert_1d'], 'only the 1-day email should fire on first-eligible run');
+    const superseded = supabase._tables.ai_action_log.filter(r => r.outcome === 'superseded').map(r => r.action_type).sort();
+    eq(superseded, ['alert_3d'], 'alert_3d should be marked superseded so it never fires later');
+    // Second run must not fire either threshold again.
+    await scheduled._runChecker(supabase, { onlyKeyId: 'anthropic_api_key' });
+    const sent2 = supabase._tables.ai_action_log.filter(r => r.outcome === 'sent');
+    eq(sent2.length, 1, 'no duplicate alerts on a follow-up run');
+  });
+
+  await run('runChecker fires ONLY alert_expired when already expired and supersedes 3d+1d (Task #354)', async () => {
+    const supabase = makeSupabaseStub({
+      ai_ops_settings: [
+        { key: 'api_key_expiry__anthropic_api_key', value: plusDaysFromToday(-2), updated_at: new Date().toISOString() }
+      ]
+    });
+    await scheduled._runChecker(supabase, { onlyKeyId: 'anthropic_api_key' });
+    const sent = supabase._tables.ai_action_log.filter(r => r.outcome === 'sent').map(r => r.action_type).sort();
+    eq(sent, ['alert_expired'], 'only the expired email should fire when first-eligible run is past expiry');
+    const superseded = supabase._tables.ai_action_log.filter(r => r.outcome === 'superseded').map(r => r.action_type).sort();
+    eq(superseded, ['alert_1d', 'alert_3d']);
+  });
+
+  await run('runChecker resets the alert ladder when the expiry date changes (Task #354)', async () => {
+    // First cycle: expires today → only alert_expired fires; 3d+1d superseded.
+    const settingRow = { key: 'api_key_expiry__anthropic_api_key', value: plusDaysFromToday(0), updated_at: new Date(Date.now() - 60000).toISOString() };
+    const supabase = makeSupabaseStub({ ai_ops_settings: [settingRow] });
+    await scheduled._runChecker(supabase, { onlyKeyId: 'anthropic_api_key' });
+    const firstSent = supabase._tables.ai_action_log.filter(r => r.outcome === 'sent').map(r => r.action_type);
+    eq(firstSent, ['alert_expired']);
+    // Pathological case: admin saves the new date at the EXACT same
+    // millisecond that the prior cycle's log was written. With a `gte`
+    // window the prior log would silently block the new cycle; with the
+    // strict `gt` window (Task #354) the ladder resets correctly.
+    const collisionTs = supabase._tables.ai_action_log.find(r => r.action_type === 'alert_expired').created_at;
+    settingRow.value = plusDaysFromToday(3);
+    settingRow.updated_at = collisionTs;
+    await scheduled._runChecker(supabase, { onlyKeyId: 'anthropic_api_key' });
+    const allSent = supabase._tables.ai_action_log.filter(r => r.outcome === 'sent').map(r => r.action_type).sort();
+    eq(allSent, ['alert_3d', 'alert_expired'], 'date-change must let the lower threshold fire again even when timestamps collide');
   });
 
   await run('runChecker retries when prior attempt failed (no_resend)', async () => {

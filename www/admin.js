@@ -41,14 +41,91 @@
     // them instead of falling through to the generic empty-state row that
     // makes failures look like "no data".
     let loadErrors = { providers: null, members: null, payments: null, disputes: null, tickets: null, applications: null };
+    // Task #355 — preserve the error `code` (NO_ADMIN_AUTH / ADMIN_AUTH_REJECTED
+    // from adminFetch) alongside the human message so renderTableLoadErrorRow
+    // can swap the dead-end Retry button for an actionable "Sign in again"
+    // prompt when the failure was a session expiry. Stored as a parallel map
+    // so the existing `loadErrors[key]` string lookups keep working.
+    const loadErrorCodes = {};
     function setLoadError(key, err) {
       const msg = err && (err.message || err.error || err.hint) ? (err.message || err.error || err.hint) : (err ? String(err) : 'Unknown error');
       loadErrors[key] = msg;
+      loadErrorCodes[key] = err && err.code ? err.code : null;
     }
+    // Task #355 — single canonical renderer for an "admin session expired"
+    // table-row banner. Every admin loader that pours an error into a table
+    // calls this so the prompt copy, color, and Sign-in-again behavior stay
+    // identical. `retryFn` may be a function or a string (HTML onclick form
+    // used by `renderTableLoadErrorRow`).
+    function renderAdminAuthErrorRow(tbody, colspan, err, retryFn) {
+      if (!tbody) return;
+      const stashKey = '_adminAuthRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[stashKey] = function () {
+        try { delete globalThis[stashKey]; } catch { globalThis[stashKey] = null; }
+        const fn = (typeof retryFn === 'function')
+          ? retryFn
+          : (typeof retryFn === 'string'
+              ? () => { try { new Function(retryFn)(); } catch (e) { console.error('Auth retry failed:', e); } }
+              : null);
+        if (typeof globalThis.openAdminReauth === 'function') globalThis.openAdminReauth(fn);
+        else if (typeof globalThis.openAiOpsReauth === 'function') globalThis.openAiOpsReauth(fn);
+      };
+      const msg = (err && err.message) ? err.message : (typeof err === 'string' ? err : 'Your admin session is no longer valid.');
+      tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(245,158,11,0.06);border-left:3px solid var(--accent-gold);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:240px;">
+            <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">⚠ Your admin session expired</div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(msg)}</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="globalThis['${stashKey}']()">Sign in again</button>
+        </div>
+      </td></tr>`;
+    }
+    globalThis.renderAdminAuthErrorRow = renderAdminAuthErrorRow;
+
+    // Task #355 — same "Sign in again" prompt as the table-row variant but
+    // rendered into an arbitrary container element (e.g. a card body, a
+    // summary div) so non-table loaders share the exact same UI and copy.
+    function renderAdminAuthErrorInto(el, err, retryFn) {
+      if (!el) return;
+      const stashKey = '_adminAuthRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[stashKey] = function () {
+        try { delete globalThis[stashKey]; } catch { globalThis[stashKey] = null; }
+        const fn = (typeof retryFn === 'function')
+          ? retryFn
+          : (typeof retryFn === 'string'
+              ? () => { try { new Function(retryFn)(); } catch (e) { console.error('Auth retry failed:', e); } }
+              : null);
+        if (typeof globalThis.openAdminReauth === 'function') globalThis.openAdminReauth(fn);
+        else if (typeof globalThis.openAiOpsReauth === 'function') globalThis.openAiOpsReauth(fn);
+      };
+      const msg = (err && err.message) ? err.message : (typeof err === 'string' ? err : 'Your admin session is no longer valid.');
+      el.innerHTML = `<div style="padding:18px 16px;background:rgba(245,158,11,0.06);border-left:3px solid var(--accent-gold);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:240px;">
+          <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">⚠ Your admin session expired</div>
+          <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(msg)}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="globalThis['${stashKey}']()">Sign in again</button>
+      </div>`;
+    }
+    globalThis.renderAdminAuthErrorInto = renderAdminAuthErrorInto;
+
+    // Task #355 — helper that lets non-table loaders decide auth vs non-auth
+    // without each one duplicating the `err.code === ...` boilerplate.
+    function isAdminAuthError(err) {
+      return !!(err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED'));
+    }
+    globalThis.isAdminAuthError = isAdminAuthError;
+
     function renderTableLoadErrorRow(tbodyId, colspan, key, retryFn) {
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
       const msg = loadErrors[key] || 'Unknown error';
+      const code = loadErrorCodes[key];
+      if (code === 'NO_ADMIN_AUTH' || code === 'ADMIN_AUTH_REJECTED') {
+        renderAdminAuthErrorRow(tbody, colspan, { message: msg, code }, retryFn);
+        return;
+      }
       tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(220,53,69,0.06);border-left:3px solid #dc3545;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:240px;">
@@ -1335,7 +1412,16 @@
       const { data, error } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
       if (error) {
         console.error('loadApplications failed:', error);
-        setLoadError('applications', error);
+        // Task #355 — Supabase 401/JWT-expired errors tag the load with the
+        // ADMIN_AUTH_REJECTED code so the shared table-row renderer surfaces
+        // the "Sign in again" prompt instead of just "Failed to load".
+        const isAuth = error && (
+          error.status === 401 || error.status === 403 ||
+          /jwt|token|unauthor|expired/i.test(error.message || '')
+        );
+        const wrapped = new Error(error.message || 'Failed to load applications');
+        if (isAuth) wrapped.code = 'ADMIN_AUTH_REJECTED';
+        setLoadError('applications', wrapped);
         applications = [];
         renderApplications();
         document.getElementById('app-count').textContent = '!';
@@ -1497,7 +1583,9 @@
 
     async function loadProviders(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { setLoadError('providers', 'No active admin session — sign in again.'); renderProviders(); return; }
+      // Task #355 — flag this as an auth failure so renderTableLoadErrorRow
+      // surfaces the "Sign in again" prompt instead of a generic Retry.
+      if (!session) { setLoadError('providers', { message: 'No active admin session — sign in again.', code: 'NO_ADMIN_AUTH' }); renderProviders(); return; }
 
       const state = paginationState.providers;
       state.page = page;
@@ -1517,7 +1605,14 @@
         const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
+        if (!response.ok) {
+          let e; try { e = await response.json(); } catch { /* Intentionally silent */ }
+          const err = new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`);
+          // Task #355 — preserve auth-failure code so renderTableLoadErrorRow
+          // can swap Retry for "Sign in again".
+          if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -1682,16 +1777,18 @@
       const host = document.getElementById('api-key-expiry-rows');
       if (!host) return;
       try {
-        const res = await fetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
-        if (!res.ok) {
-          host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Couldn't load API key expiry data (HTTP ${res.status}).</div>`;
-          return;
-        }
-        const data = await res.json();
+        // Task #355 — adminFetch surfaces 401/403 with auth codes so the
+        // catch can render the shared "Sign in again" prompt instead of a
+        // dead-end red error string.
+        const data = await adminFetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
         renderApiKeyExpiryRows(data.keys || []);
       } catch (err) {
         console.error('loadApiKeyExpiry error:', err);
-        host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Error loading API key expiry data: ${escapeHtml(err.message || String(err))}</div>`;
+        if (err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED') && typeof globalThis.renderAdminAuthError === 'function') {
+          globalThis.renderAdminAuthError(host, err, loadApiKeyExpiry);
+        } else {
+          host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Error loading API key expiry data: ${escapeHtml(err.message || String(err))}</div>`;
+        }
       }
     }
 
@@ -1745,13 +1842,25 @@
       const cashoutsBody = document.getElementById('driver-cashouts-table');
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
       if (cashoutsBody) cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading…</td></tr>';
+      let data;
       try {
-        const res = await fetch('/api/admin/driver-payouts', { headers: getAdminHeaders() });
-        if (!res.ok) {
-          if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Failed to load: ${res.status}</td></tr>`;
-          return;
+        // Task #355 — adminFetch routes 401/403 through the shared "Sign in
+        // again" prompt instead of leaving a dead-end "Failed to load: 401"
+        // string in the table.
+        data = await adminFetch('/api/admin/driver-payouts', { headers: getAdminHeaders() });
+      } catch (err) {
+        console.error('loadDriverPayouts error:', err);
+        // Task #355 — single shared "Sign in again" renderer for auth errors
+        // (NO_ADMIN_AUTH / ADMIN_AUTH_REJECTED).
+        if (isAdminAuthError(err)) {
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, loadDriverPayouts);
+          if (cashoutsBody) renderAdminAuthErrorRow(cashoutsBody, 7, err, loadDriverPayouts);
+        } else if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Failed to load: ${escapeHtml(err.message || String(err))}</td></tr>`;
         }
-        const data = await res.json();
+        return;
+      }
+      try {
         driverPayoutsCache = data;
 
         const drivers = data.drivers || [];
@@ -1972,7 +2081,9 @@
 
     async function loadMembers(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { setLoadError('members', 'No active admin session — sign in again.'); renderMembers(); return; }
+      // Task #355 — auth-coded error so the "Sign in again" prompt appears
+      // instead of a dead-end Retry button.
+      if (!session) { setLoadError('members', { message: 'No active admin session — sign in again.', code: 'NO_ADMIN_AUTH' }); renderMembers(); return; }
 
       const state = paginationState.members;
       state.page = page;
@@ -1991,7 +2102,13 @@
         const response = await fetch(`${apiBase}/api/admin/members?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`); }
+        if (!response.ok) {
+          let e; try { e = await response.json(); } catch { /* Intentionally silent */ }
+          const err = new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`);
+          // Task #355 — preserve auth code for the "Sign in again" prompt.
+          if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -2043,7 +2160,17 @@
 
     async function loadAgreements(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) return;
+      // Task #355 — missing/expired admin session surfaces the shared "Sign
+      // in again" prompt instead of silently returning.
+      if (!session) {
+        const tbody = document.getElementById('agreements-tbody');
+        if (tbody) {
+          const err = new Error('No admin session — please sign in again to view agreements.');
+          err.code = 'NO_ADMIN_AUTH';
+          renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
+        }
+        return;
+      }
       
       const state = paginationState.agreements;
       state.page = page;
@@ -2065,6 +2192,12 @@
         const response = await fetch(`${apiBase}/api/admin/agreements?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — 401/403 routes through the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/agreements (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -2079,6 +2212,11 @@
         }
       } catch (err) {
         console.error('Error loading agreements:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('agreements-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
+          return;
+        }
         agreements = [];
         renderAgreements();
       }
@@ -2465,6 +2603,12 @@
         const response = await fetch(`${apiBase}/api/admin/packages?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/packages (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -2480,6 +2624,11 @@
         }
       } catch (err) {
         console.error('Error loading packages:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('all-packages-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAllPackages(page));
+          return;
+        }
         allPackages = [];
         renderAllPackages();
       }
@@ -3430,6 +3579,12 @@
         const response = await fetch(`${apiBase}/api/admin/refunds?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/refunds (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -3445,6 +3600,11 @@
         }
       } catch (err) {
         console.error('Error loading refunds:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('refunds-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadRefunds(page));
+          return;
+        }
         allRefunds = [];
         renderRefunds();
       }
@@ -7952,9 +8112,18 @@
 
     // ========== REGISTRATION VERIFICATIONS ==========
     async function loadRegistrationVerifications(status = null) {
+      const tbody = document.getElementById('registration-verifications-tbody');
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return;
+        // Task #355 — surface auth state via the shared "Sign in again" prompt.
+        if (!session) {
+          if (tbody) {
+            const err = new Error('No admin session — please sign in again to view verifications.');
+            err.code = 'NO_ADMIN_AUTH';
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadRegistrationVerifications(status));
+          }
+          return;
+        }
 
         let url = '/api/registration/verifications';
         if (status && status !== 'all') {
@@ -7967,6 +8136,12 @@
 
         if (!response.ok) {
           console.error('Failed to load registration verifications');
+          if ((response.status === 401 || response.status === 403) && tbody) {
+            const err = new Error(`Admin session rejected on /api/registration/verifications (HTTP ${response.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadRegistrationVerifications(status));
+            return;
+          }
           registrationVerifications = [];
           renderRegistrationVerifications();
           return;
@@ -9345,11 +9520,9 @@
 
     async function loadChatInsights() {
       try {
-        const resp = await fetch('/api/admin/chat-insights', {
-          headers: getAdminHeaders()
-        });
-        if (!resp.ok) throw new Error('Failed to load chat insights');
-        const data = await resp.json();
+        // Task #355 — adminFetch routes 401/403 through the shared "Sign in
+        // again" prompt instead of failing silently in console.
+        const data = await adminFetch('/api/admin/chat-insights', { headers: getAdminHeaders() });
         
         document.getElementById('chat-stat-total-sessions').textContent = data.totalSessions || 0;
         document.getElementById('chat-stat-total-messages').textContent = data.totalMessages || 0;
@@ -9379,6 +9552,9 @@
         
       } catch (err) {
         console.error('Failed to load chat insights:', err);
+        if (isAdminAuthError(err)) {
+          renderAdminAuthErrorInto(document.getElementById('chat-recent-activity'), err, loadChatInsights);
+        }
       }
     }
 
@@ -9508,16 +9684,21 @@
 
     async function loadTeamMembers() {
       try {
+        // Task #355 — adminFetch surfaces 401/403 as coded auth errors that
+        // we route through the shared "Sign in again" prompt below.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
-        if (!response.ok) throw new Error('Failed to fetch');
-        const data = await response.json();
+        const data = await adminFetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
         teamMembers = Array.isArray(data) ? data : (data.members || []);
         renderTeamMembers();
         loadPendingInvites();
       } catch (err) {
         console.error('Failed to load team members:', err);
-        document.getElementById('team-members-body').innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+        const tbody = document.getElementById('team-members-body');
+        if (isAdminAuthError(err) && tbody) {
+          renderAdminAuthErrorRow(tbody, 6, err, loadTeamMembers);
+        } else if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+        }
       }
     }
 
@@ -9880,10 +10061,9 @@
       const tbody = document.getElementById('pending-invites-body');
       if (!tbody) return;
       try {
+        // Task #355 — adminFetch routes 401/403 through the shared auth row.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
-        if (!response.ok) throw new Error('Failed to fetch');
-        const invites = await response.json();
+        const invites = await adminFetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
 
         const roleBadgeClass = {
           super_admin: 'badge-green', crm_manager: 'badge-blue', marketing: 'badge-purple',
@@ -9922,7 +10102,8 @@
         }).join('');
       } catch (err) {
         console.error('Failed to load invites:', err);
-        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+        if (isAdminAuthError(err)) renderAdminAuthErrorRow(tbody, 6, err, loadPendingInvites);
+        else tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
       }
     }
 
@@ -10463,7 +10644,15 @@
         ]);
 
         if (!statsRes.ok) {
-          summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          // Task #355 — auth failures route through the shared "Sign in again"
+          // prompt instead of a dead-end status string.
+          if ((statsRes.status === 401 || statsRes.status === 403) && typeof globalThis.renderAdminAuthError === 'function') {
+            const err = new Error(`Admin session rejected on /api/admin/launch-broadcast-stats (HTTP ${statsRes.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            globalThis.renderAdminAuthError(summary, err, loadLaunchBroadcastStats);
+          } else {
+            summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          }
           return;
         }
         const stats = await statsRes.json();
@@ -10512,7 +10701,14 @@
         grid.innerHTML = cells.join('') || '<div style="padding:8px;color:var(--text-muted);">No audience data.</div>';
 
         if (!bouncesRes.ok) {
-          list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          // Task #355 — auth-expiry surfaces the shared "Sign in again" prompt.
+          if ((bouncesRes.status === 401 || bouncesRes.status === 403)) {
+            const err = new Error(`Admin session rejected on /api/admin/launch-broadcast/bounces (HTTP ${bouncesRes.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            renderAdminAuthErrorInto(list, err, loadLaunchBroadcastStats);
+          } else {
+            list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          }
           return;
         }
         const bounces = await bouncesRes.json();
@@ -11749,6 +11945,10 @@
       if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
     }
     globalThis.openAiOpsReauth = openAiOpsReauth;
+    // Task #355 — generic alias so non-AI-Ops admin loaders (Provider /
+    // Member / BGC / Care Plans / Marketing Hub / SMS log / etc.) can call
+    // the same re-login modal without reading as if they belong to AI Ops.
+    globalThis.openAdminReauth = openAiOpsReauth;
 
     function renderAiOpsAuthError(containerEl, err, retryFn) {
       if (!containerEl) return;
@@ -11773,6 +11973,11 @@
       </div>`;
     }
     globalThis.renderAiOpsAuthError = renderAiOpsAuthError;
+    // Task #355 — generic alias. Non-AI-Ops admin loaders should call
+    // `renderAdminAuthError(container, err, retryFn)` so a 401/403 always
+    // surfaces the same actionable "Sign in again" prompt instead of a
+    // dead-end error string.
+    globalThis.renderAdminAuthError = renderAiOpsAuthError;
 
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
@@ -12319,9 +12524,10 @@
       contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;">Loading…</div>';
       try {
         const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
+        // Task #355 — adminFetch surfaces auth failures with NO_ADMIN_AUTH /
+        // ADMIN_AUTH_REJECTED codes so the catch can render the "Sign in
+        // again" prompt instead of a dead-end "Failed" message.
+        const data = await adminFetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
         const rows = data.completions || [];
         if (!rows.length) {
           contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;font-size:0.9rem;">No completions found.</div>';
@@ -12370,7 +12576,13 @@
           <div style="color:var(--text-muted);font-size:0.78rem;padding:8px;">${rows.length} record${rows.length === 1 ? '' : 's'} · Capture/Refund actions hit Stripe live — held funds get released immediately.</div>
         `;
       } catch (err) {
-        contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${err.message}</div>`;
+        // Task #355 — auth failures route to the shared "Sign in again"
+        // prompt; everything else falls back to the inline red error.
+        if (err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED') && typeof globalThis.renderAdminAuthError === 'function') {
+          globalThis.renderAdminAuthError(contentEl, err, loadCarePlanCompletions);
+        } else {
+          contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+        }
       }
     }
     globalThis.loadCarePlanCompletions = loadCarePlanCompletions;
@@ -12680,7 +12892,15 @@
         }
       } catch (err) {
         console.error('[SMS_LOG] Load error:', err);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${err.message}</td></tr>`;
+        // Task #355 — surface auth failures with the shared "Sign in again"
+        // prompt instead of leaving the bare error message in the table.
+        if (tbody) {
+          if (isAdminAuthError(err)) {
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadSmsLog(smsLogPage));
+          } else {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${escapeHtml(err.message)}</td></tr>`;
+          }
+        }
       }
     }
 
@@ -12853,7 +13073,9 @@
           </div>
         `;
       } catch (err) {
-        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
+        // Task #355 — auth-expiry routes to the shared "Sign in again" prompt.
+        if (isAdminAuthError(err)) renderAdminAuthErrorInto(container, err, loadSaasSubscriptions);
+        else container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
       }
     }
 
@@ -12874,8 +13096,13 @@
       const headers = token ? { 'x-admin-token': token } : {};
 
       try {
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
         const res = await fetch('/api/admin/white-label/tenants', { headers });
-        if (!res.ok) throw new Error('Failed to load tenants');
+        if (!res.ok) {
+          const err = new Error(`Failed to load tenants (HTTP ${res.status})`);
+          if (res.status === 401 || res.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const { tenants, meta } = await res.json();
 
         const active = tenants.filter(t => t.status === 'active').length;
@@ -12955,7 +13182,10 @@
         // Store for edit lookups
         globalThis._wlTenants = tenants;
       } catch (err) {
-        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
+        // Task #355 — surface auth-expiry with the shared "Sign in again"
+        // prompt instead of a dead-end error string.
+        if (isAdminAuthError(err)) renderAdminAuthErrorInto(contentEl, err, loadWhiteLabelTenants);
+        else contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
       }
     }
 
@@ -13353,17 +13583,25 @@
     let _apiUsageChart = null;
     async function loadApiUsage() {
       const adminPassword = sessionStorage.getItem('adminPassword');
-      if (!adminPassword) return;
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
       const revenueEl = document.getElementById('api-stat-revenue');
       const monthEl = document.getElementById('api-stat-month');
       const tableEl = document.getElementById('api-keys-table');
+      // Task #355 — missing admin session surfaces the shared "Sign in again"
+      // prompt instead of silently returning.
+      if (!adminPassword) {
+        if (tableEl) {
+          const err = new Error('No admin session — please sign in again to view API usage.');
+          err.code = 'NO_ADMIN_AUTH';
+          renderAdminAuthErrorInto(tableEl, err, loadApiUsage);
+        }
+        return;
+      }
       if (callsEl) callsEl.textContent = '…';
       try {
-        const resp = await fetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
-        if (!resp.ok) throw new Error('Failed to load API usage');
-        const data = await resp.json();
+        // Task #355 — adminFetch routes 401/403 to the shared "Sign in again" prompt.
+        const data = await adminFetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
         if (keysEl) keysEl.textContent = data.active_keys ?? '--';
         if (callsEl) callsEl.textContent = (data.total_calls_this_month || 0).toLocaleString();
         if (revenueEl) revenueEl.textContent = '$' + ((data.estimated_revenue_cents || 0) / 100).toFixed(2);
@@ -13425,6 +13663,8 @@
       } catch (err) {
         if (callsEl) callsEl.textContent = 'Error';
         console.error('[Admin] API usage load error:', err.message);
+        // Task #355 — auth-expiry surfaces the shared "Sign in again" prompt.
+        if (isAdminAuthError(err) && tableEl) renderAdminAuthErrorInto(tableEl, err, loadApiUsage);
       }
     }
     globalThis.loadApiUsage = loadApiUsage;

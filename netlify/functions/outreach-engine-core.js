@@ -1977,7 +1977,15 @@ async function saveApolloConfig(supabase, updates) {
   }
 }
 
-const APOLLO_LOCK_TTL_MS = 10 * 60 * 1000;
+// Task #444 — raised from the original 10 min to 30 min so the auto-clear
+// path (15 min, with audit row + admin email) becomes the primary recovery
+// mechanism for a wedged Apollo cycle. The TTL reclaim inside
+// tryAcquireApolloLock stays as a silent emergency backstop for the worst
+// case where the scheduled cycle itself stops running for ~30 min. Ordering:
+//   6 min  → real-time stuck-alert email (Task #336)
+//   15 min → auto-clear + audit row + heads-up email (Task #444)
+//   30 min → silent TTL reclaim inside tryAcquireApolloLock (last resort)
+const APOLLO_LOCK_TTL_MS = 30 * 60 * 1000;
 
 async function tryAcquireApolloLock(supabase, { ttlMs = APOLLO_LOCK_TTL_MS } = {}) {
   const now = new Date();
@@ -2054,10 +2062,22 @@ async function releaseApolloLock(supabase, nonce) {
 // auto-clear threshold (15 min by default). Uses a compare-and-swap on the
 // wedged lock's running_nonce + running_since so we never clobber a lock that
 // has since been legitimately re-acquired by a different cycle in the gap
-// between the stuck-lock detection read and this write. Returns
-// `{ cleared: true }` on success, or `{ cleared: false, reason }` describing
-// why the CAS failed (nonce_changed / running_since_changed / already_released
-// / error).
+// between the stuck-lock detection read and this write.
+//
+// Two CAS layers:
+//   1. In-memory pre-check after the SELECT — cheap classifier that
+//      distinguishes already_released vs nonce_changed vs running_since_changed
+//      for clear audit-log messaging.
+//   2. Authoritative DB-level CAS — the UPDATE filters on both
+//      `metadata->apollo_config->>running_nonce` AND
+//      `metadata->apollo_config->>running_since` matching the expected
+//      values. PostgREST returns 0 rows when the predicate doesn't match,
+//      which we treat as a `cas_miss` (someone slipped in between our
+//      SELECT and UPDATE).
+//
+// Returns `{ cleared: true }` on success, or `{ cleared: false, reason }`
+// describing why the CAS failed (already_released / nonce_changed /
+// running_since_changed / cas_miss / error).
 async function forceReleaseApolloLock(supabase, { expectedNonce = null, expectedRunningSince = null } = {}) {
   try {
     const { data: row } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
@@ -2067,9 +2087,10 @@ async function forceReleaseApolloLock(supabase, { expectedNonce = null, expected
     if (!cfg.running_since && !cfg.running_nonce) {
       return { cleared: false, reason: 'already_released' };
     }
-    // CAS guards — the wedged lock we observed must still be the one in
-    // storage. If either field has changed, another cycle has taken over
-    // and we must NOT delete its lock.
+    // In-memory fast-path classification (race-prone if treated as
+    // authoritative — the DB-level CAS below is what actually guarantees
+    // safety; these just give us a clearer reason string for the audit
+    // row when the value hasn't changed since the SELECT).
     if (expectedNonce && cfg.running_nonce && cfg.running_nonce !== expectedNonce) {
       return { cleared: false, reason: 'nonce_changed' };
     }
@@ -2080,7 +2101,34 @@ async function forceReleaseApolloLock(supabase, { expectedNonce = null, expected
     const newCfg = { ...cfg };
     delete newCfg.running_since;
     delete newCfg.running_nonce;
-    await supabase.from('engine_state').update({ metadata: { ...meta, apollo_config: newCfg } }).eq('id', 1);
+
+    // Authoritative atomic CAS: the UPDATE filters on the wedged lock's
+    // nonce + running_since via JSONB-path predicates so PostgreSQL itself
+    // enforces "only clear if these fields are still what we saw". If a
+    // fresh owner slipped in between SELECT and UPDATE, the predicate
+    // doesn't match, 0 rows are updated, and we treat it as a CAS miss
+    // (the fresh owner's lock stays intact).
+    let updateQuery = supabase
+      .from('engine_state')
+      .update({ metadata: { ...meta, apollo_config: newCfg } })
+      .eq('id', 1);
+    if (expectedNonce) {
+      updateQuery = updateQuery.eq('metadata->apollo_config->>running_nonce', expectedNonce);
+    }
+    if (expectedRunningSince) {
+      updateQuery = updateQuery.eq('metadata->apollo_config->>running_since', expectedRunningSince);
+    }
+    const { data: updatedRows, error: updateErr } = await updateQuery.select('id');
+    if (updateErr) {
+      console.error('[Apollo] Force-release UPDATE error:', updateErr.message);
+      return { cleared: false, reason: 'error', error: updateErr.message };
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      // Race: lock changed between our SELECT and UPDATE. The fresh
+      // owner's lock is safe (we didn't write anything) — skip this run.
+      console.warn('[Apollo] Force-release CAS miss — fresh owner slipped in between read and write');
+      return { cleared: false, reason: 'cas_miss' };
+    }
     return { cleared: true };
   } catch (err) {
     console.error('[Apollo] Force-release error:', err.message);
@@ -2089,11 +2137,13 @@ async function forceReleaseApolloLock(supabase, { expectedNonce = null, expected
 }
 
 // Task #444 — if the wedged lock has been held this long, force-release it
-// on the next scheduled cycle instead of just alerting. Set higher than the
-// 6-min stuck-alert threshold so admins still get the heads-up (and a chance
-// to investigate) before we auto-clear; set well below the 10-min lock TTL
-// so the auto-clear is only meaningful when the TTL alone isn't enough (i.e.
-// some other call path keeps refreshing or the operator has bumped the TTL).
+// on the next scheduled cycle instead of just alerting. Set above the 6-min
+// stuck-alert threshold (so admins get one heads-up email before any
+// self-healing kicks in) and BELOW APOLLO_LOCK_TTL_MS (30 min) so the
+// auto-clear branch is the primary recovery mechanism — the TTL reclaim in
+// tryAcquireApolloLock is the silent emergency fallback if auto-clear
+// itself fails for some reason (e.g. CAS miss because a fresh cycle slipped
+// in between read and write).
 const APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS = 15 * 60 * 1000;
 
 async function draftWefunderBlastEmail(lead) {

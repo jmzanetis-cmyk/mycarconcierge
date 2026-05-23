@@ -68,23 +68,36 @@ async function loadExpirySetting(supabase, keyConfig) {
   return data || null;
 }
 
-async function alreadyAlerted(supabase, keyConfig, actionType, sinceIso) {
-  // A threshold counts as "alerted" only when a prior attempt actually sent
-  // the email (outcome='sent'). Failed attempts (Resend transient error,
-  // missing API key, etc.) must NOT block the next scheduled run from
-  // retrying — otherwise a single transient failure permanently suppresses
-  // the alert until the admin updates the date.
+async function alreadyAlerted(supabase, keyConfig, actionType, expiryDateStr) {
+  // A threshold counts as "alerted" when a prior attempt actually sent the
+  // email (outcome='sent') OR when a later, more-severe threshold fired and
+  // marked this lower one as superseded (outcome='superseded'). Failed
+  // attempts (Resend transient error, missing API key, etc.) must NOT block
+  // the next scheduled run from retrying — otherwise a single transient
+  // failure permanently suppresses the alert until the admin updates the
+  // date.
+  //
+  // The "cycle" is identified by the expiry date string itself (stored in
+  // decision.expiry_date), NOT by a timestamp window. Using a timestamp
+  // window was fragile: ai_ops_settings.updated_at can land on the same
+  // millisecond as a just-inserted alert's created_at (especially on a
+  // single test machine), which broke either same-cycle dedup (with `gt`)
+  // or cross-cycle reset (with `gte`). Comparing the date string is
+  // exact and survives any clock-precision edge case: a fresh cycle
+  // begins the moment the admin saves a different expiry value.
   const { data, error } = await supabase
     .from('ai_action_log')
-    .select('id')
+    .select('id,decision,created_at')
     .eq('module', keyConfig.module)
     .eq('action_type', actionType)
-    .eq('outcome', 'sent')
-    .gte('created_at', sinceIso)
-    .limit(1)
-    .maybeSingle();
+    .in('outcome', ['sent', 'superseded'])
+    .order('created_at', { ascending: false })
+    .limit(50);
   if (error) throw new Error(`alreadyAlerted query failed for ${keyConfig.id}: ${error.message}`);
-  return !!data;
+  return (data || []).some(row => {
+    const dec = row.decision || {};
+    return dec.expiry_date === expiryDateStr;
+  });
 }
 
 function computeStatus(expiryDateStr) {
@@ -186,18 +199,42 @@ async function checkOneKey(supabase, keyConfig) {
   }
 
   const { daysUntil, level } = computeStatus(expiryDateStr);
-  const sinceIso = setting.updated_at || new Date(0).toISOString();
 
-  const alertsSent = [];
-  const thresholds = [
+  // Pick only the single most-severe threshold whose condition is true.
+  // Lower-severity thresholds get marked 'superseded' so they don't fire on
+  // a later run (alreadyAlerted treats 'superseded' the same as 'sent').
+  // This prevents the "first-eligible run sends 3 emails at once" bug — if
+  // the very first scheduled run after admin sets a date already finds the
+  // key expired, we send only the expired email, not the 3d + 1d + expired
+  // chain. The ladder still resets on date change because alreadyAlerted
+  // matches against decision.expiry_date — a new expiry value is a fresh
+  // cycle and prior cycles' rows don't block it.
+  const ladder = [
     { actionType: 'alert_3d',      condition: daysUntil <= 3 },
     { actionType: 'alert_1d',      condition: daysUntil <= 1 },
     { actionType: 'alert_expired', condition: daysUntil <= 0 }
   ];
+  const eligible = ladder.filter(t => t.condition);
+  const fireIdx = eligible.length - 1; // most-severe applicable threshold
 
-  for (const { actionType, condition } of thresholds) {
-    if (!condition) continue;
-    if (await alreadyAlerted(supabase, keyConfig, actionType, sinceIso)) continue;
+  const alertsSent = [];
+  for (let i = 0; i < eligible.length; i++) {
+    const { actionType } = eligible[i];
+    if (await alreadyAlerted(supabase, keyConfig, actionType, expiryDateStr)) continue;
+    if (i < fireIdx) {
+      // Supersede: log so a later run won't re-fire this lower threshold,
+      // but don't actually send an email.
+      await logAction(supabase, keyConfig, actionType, {
+        key_id: keyConfig.id,
+        expiry_date: expiryDateStr,
+        days_until: daysUntil,
+        level,
+        superseded_by: eligible[fireIdx].actionType,
+        reason: 'higher_severity_threshold_already_applies'
+      }, { escalated: false, outcome: 'superseded' });
+      alertsSent.push({ threshold: actionType, email_sent: false, superseded: true });
+      continue;
+    }
     const result = await sendAlertEmail(keyConfig, { daysUntil, expiryDateStr, threshold: actionType });
     await logAction(supabase, keyConfig, actionType, {
       key_id: keyConfig.id,
