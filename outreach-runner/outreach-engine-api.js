@@ -1166,6 +1166,39 @@ async function sendMessage(supabase, messageId) {
       return { error: 'SMS service not configured' };
     }
 
+    // Task #436 — TCPA STOP enforcement: check profiles.sms_opt_out by phone
+    // before every send. The Netlify outreach-engine-core.js path already does
+    // this via _shared/sms.js (Task #429); this brings the standalone dev
+    // server in line. Fail-closed: a DB error blocks the send rather than
+    // risking a violation.
+    {
+      const rawDigits = String(lead.phone).replace(/\D/g, '');
+      const e164 = rawDigits.length === 10 ? `+1${rawDigits}`
+                 : rawDigits.startsWith('1') && rawDigits.length === 11 ? `+${rawDigits}`
+                 : lead.phone;
+      try {
+        const { data: optedOut } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`phone.eq.${e164},phone.eq.${rawDigits}`)
+          .eq('sms_opt_out', true)
+          .limit(1);
+        if (Array.isArray(optedOut) && optedOut.length > 0) {
+          await supabase.from('outreach_messages').update({ status: 'skipped' }).eq('id', messageId);
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: lead.id,
+            message_id: msg.id,
+            event_type: 'skipped',
+            metadata: { reason: 'sms_opt_out' }
+          });
+          return { error: 'Recipient has opted out (STOP)', skipped: true };
+        }
+      } catch (e) {
+        console.warn('[OutreachEngine] sms_opt_out lookup failed — blocking send (TCPA fail-closed):', e.message);
+        return { error: 'Could not verify opt-out status — send blocked (TCPA fail-closed)', skipped: true };
+      }
+    }
+
     const body = bodyBase + SMS_OPT_OUT;
 
     try {
