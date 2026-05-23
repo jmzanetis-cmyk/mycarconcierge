@@ -41,7 +41,8 @@ let MODELS_IN_USE = [
   'claude-sonnet-4-5',
   'claude-sonnet-4-20250514',
   'claude-haiku-4-5-20251001',
-  'claude-opus-4-5'
+  'claude-opus-4-5',
+  'claude-opus-4-7'
 ];
 
 let MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
