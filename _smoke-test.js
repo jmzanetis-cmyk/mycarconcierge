@@ -1052,6 +1052,165 @@ async function step24eFinalizeIdor(ctx) {
   }
 }
 
+// ============================================================================
+// Task #360 — /api/provider/finalize correctly promotes the profile.
+// finalize is the only endpoint that mutates role → 'provider' and seeds
+// free_trial_bids (3 for standard, 999999 for founding). A regression here
+// would silently grant unlimited free bids or strip them. This step proves:
+//   - founding application → response + profiles row: role='provider',
+//     is_founding_provider=true, free_trial_bids=999999
+//   - non-founding application → role='provider',
+//     is_founding_provider=false, free_trial_bids=3
+//   - no recent application → 403
+// Provisions three throwaway users + applications via the service role, mints
+// real JWTs via signInWithPassword, calls /api/provider/finalize over HTTP,
+// and cleans up after itself. Skips cleanly when no local server is reachable
+// or SUPABASE_ANON_KEY can't mint JWTs (same reason as STEP 23-24).
+// ============================================================================
+async function _step24fRunFinalize(ctx, baseUrl, user, scenario) {
+  const payload = {
+    full_name: 'Smoke Finalize ' + scenario.label,
+    business_name: 'Finalize ' + scenario.label + ' Garage',
+    city: 'Testville', state: 'CA',
+    service_area: 'San Francisco Bay Area',
+    services_offered: ['oil_change', 'brakes'],
+    sms_consent: true
+  };
+  const r = await fetch(baseUrl + '/api/provider/finalize', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json', authorization: 'Bearer ' + user.jwt },
+    body: JSON.stringify(payload)
+  });
+  let respBody; try { respBody = await r.json(); } catch { respBody = {}; }
+  if (r.status !== 200) {
+    console.log(`  ✗ [${scenario.label}] expected 200, got ${r.status}: ${JSON.stringify(respBody).slice(0, 200)}`);
+    return;
+  }
+  // Assert response payload matches expectations.
+  const respOk =
+    respBody.role === 'provider' &&
+    respBody.is_founding_provider === scenario.founding &&
+    respBody.free_trial_bids === scenario.expectedBids;
+  if (respOk) {
+    console.log(`  ✓ [${scenario.label}] response: role=provider founding=${scenario.founding} free_trial_bids=${scenario.expectedBids}`);
+  } else {
+    console.log(`  ✗ [${scenario.label}] response mismatch: ${JSON.stringify(respBody).slice(0, 200)}`);
+  }
+  // Re-read profiles row and confirm the response actually matches what was written.
+  const { data: prof } = await ctx.adminSb.from('profiles')
+    .select('role, is_founding_provider, free_trial_bids, business_name')
+    .eq('id', user.id).single();
+  const profOk = prof &&
+    prof.role === 'provider' &&
+    !!prof.is_founding_provider === scenario.founding &&
+    prof.free_trial_bids === scenario.expectedBids;
+  if (profOk) {
+    console.log(`  ✓ [${scenario.label}] profile row matches: role=${prof.role} founding=${prof.is_founding_provider} free_trial_bids=${prof.free_trial_bids}`);
+  } else {
+    console.log(`  ✗ [${scenario.label}] profile row mismatch: ${JSON.stringify(prof)}`);
+  }
+}
+
+async function _step24fProvisionUser(ctx, label, opts) {
+  const email = `smoke-finalize-${label}-${Date.now()}@mcc-smoke.test`;
+  const password = 'SmokeFinalize!' + Date.now() + label;
+  const { data: cu, error: cuErr } = await ctx.adminSb.auth.admin.createUser({
+    email, password, email_confirm: true
+  });
+  if (cuErr) throw new Error(`createUser ${label}: ${cuErr.message}`);
+  const id = cu.user.id;
+  await ctx.adminSb.from('profiles').upsert(
+    { id, email, role: 'member', free_trial_bids: 0 }, { onConflict: 'id' }
+  );
+  let appId = null;
+  if (opts.withApp) {
+    const { data: app, error: appErr } = await ctx.adminSb
+      .from('provider_applications')
+      .insert({
+        user_id: id,
+        business_name: 'Finalize ' + label + ' Garage',
+        contact_name: 'Finalize ' + label,
+        phone: '5550000000',
+        email,
+        services_offered: ['oil_change'],
+        legal_signatory_name: 'Finalize ' + label,
+        agreement_signed_at: new Date().toISOString(),
+        status: 'pending',
+        is_founding_provider: !!opts.founding
+      })
+      .select('id').single();
+    if (appErr) throw new Error(`insert app ${label}: ${appErr.message}`);
+    appId = app.id;
+  }
+  const { data: si, error: siErr } = await ctx.anonSb.auth.signInWithPassword({ email, password });
+  if (siErr) throw new Error(`signIn ${label}: ${siErr.message}`);
+  return { id, email, jwt: si.session.access_token, appId };
+}
+
+async function step24fFinalizePromotion(ctx) {
+  console.log('\n━━━ STEP 24f: /api/provider/finalize promotion (founding + standard + no-app 403) ━━━');
+  if (!(ctx.adminSb && ctx.anonSb)) {
+    console.log('  ⚠ skipped — no admin/anon Supabase clients (STEP 22 failed)');
+    return;
+  }
+  if (!ctx.testJwt) {
+    console.log('  ⚠ skipped — SUPABASE_ANON_KEY cannot mint JWTs (same as STEP 23-24)');
+    return;
+  }
+  const baseUrl = process.env.SMOKE_LOCAL_BASE || 'http://127.0.0.1:5000';
+  const ping = await fetch(baseUrl + '/api/provider/finalize', { method: 'POST' }).catch(() => null);
+  if (!ping) {
+    console.log(`  ⚠ no local server reachable at ${baseUrl} — skipping`);
+    return;
+  }
+  const users = { founding: null, standard: null, noapp: null };
+  try {
+    users.founding = await _step24fProvisionUser(ctx, 'founding', { withApp: true, founding: true });
+    users.standard = await _step24fProvisionUser(ctx, 'standard', { withApp: true, founding: false });
+    users.noapp    = await _step24fProvisionUser(ctx, 'noapp',    { withApp: false });
+
+    await _step24fRunFinalize(ctx, baseUrl, users.founding,
+      { label: 'founding', founding: true,  expectedBids: 999999 });
+    await _step24fRunFinalize(ctx, baseUrl, users.standard,
+      { label: 'standard', founding: false, expectedBids: 3 });
+
+    // No recent application → 403, profile must remain role='member'.
+    const r3 = await fetch(baseUrl + '/api/provider/finalize', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + users.noapp.jwt },
+      body: JSON.stringify({
+        full_name: 'No App User', business_name: 'No App Garage',
+        city: 'Testville', state: 'CA', service_area: 'SF Bay',
+        services_offered: ['oil_change'], sms_consent: false
+      })
+    });
+    let r3Body; try { r3Body = await r3.json(); } catch { r3Body = {}; }
+    if (r3.status === 403) console.log(`  ✓ [no-app] finalize without recent application blocked (403)`);
+    else console.log(`  ✗ [no-app] expected 403, got ${r3.status}: ${JSON.stringify(r3Body).slice(0, 200)}`);
+
+    const { data: noappProf } = await ctx.adminSb.from('profiles')
+      .select('role, free_trial_bids').eq('id', users.noapp.id).single();
+    if (noappProf?.role === 'member') {
+      console.log(`  ✓ [no-app] profile NOT promoted (role=${noappProf.role})`);
+    } else {
+      console.log(`  ✗ [no-app] profile leaked promotion: ${JSON.stringify(noappProf)}`);
+    }
+  } catch (e) {
+    console.log(`  ✗ STEP 24f threw: ${e.message}`);
+  } finally {
+    try {
+      for (const u of Object.values(users)) {
+        if (!u) continue;
+        if (u.appId) await ctx.adminSb.from('provider_applications').delete().eq('id', u.appId);
+        await ctx.adminSb.from('profiles').delete().eq('id', u.id);
+        await ctx.adminSb.auth.admin.deleteUser(u.id);
+      }
+    } catch (e) {
+      console.log(`  ⚠ STEP 24f cleanup partial: ${e.message}`);
+    }
+  }
+}
+
 async function step2526SuspendActivateAndAudit(ctx) {
   if (!ctx.testUserId) return;
   console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
@@ -1274,6 +1433,7 @@ const STEPS = [
   step24cProviderOnboardingAuth,
   step24dProviderOnboardingIdor,
   step24eFinalizeIdor,
+  step24fFinalizePromotion,
   step2526SuspendActivateAndAudit,
   step27CheckCrmDuplicate,
   step27bAnonRpcLockdown,
