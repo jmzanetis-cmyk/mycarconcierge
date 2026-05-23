@@ -2473,11 +2473,61 @@ async function handleEmailTracking(req, res, { getSupabaseClient }) {
   return false;
 }
 
+function _verifyResendSig(rawBody, headers) {
+  const crypto = require('node:crypto');
+  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+  const svixId        = headers['svix-id'];
+  const svixTimestamp = headers['svix-timestamp'];
+  const svixSignature = headers['svix-signature'];
+
+  if (!webhookSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      return { valid: false, reason: 'webhook secret not configured' };
+    }
+    console.warn('[outreach-resend-webhook] dev mode: skipping signature check');
+    return { valid: true };
+  }
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return { valid: false, reason: 'Missing Svix signature headers' };
+  }
+
+  const timestampMs = Number.parseInt(svixTimestamp, 10) * 1000;
+  if (Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    return { valid: false, reason: 'Webhook timestamp too old or too new' };
+  }
+
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const secretBytes   = Buffer.from(webhookSecret.replace(/^whsec_/, ''), 'base64');
+  const hmac          = require('node:crypto').createHmac('sha256', secretBytes);
+  hmac.update(signedContent);
+  const computedSig = `v1,${hmac.digest('base64')}`;
+  const isValid = svixSignature.split(' ').some(sig => {
+    try { return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(computedSig)); } catch { return false; }
+  });
+  return { valid: isValid, reason: isValid ? null : 'Signature mismatch' };
+}
+
 async function handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders }) {
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, req);
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  const rawBodyStr = await new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', c => { data += c; });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  }).catch(() => '');
+
+  const verification = _verifyResendSig(rawBodyStr, req.headers || {});
+  if (!verification.valid) {
+    console.warn('[OutreachEngine] Resend webhook rejected:', verification.reason);
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Webhook signature invalid', reason: verification.reason }));
     return;
   }
 
@@ -2489,7 +2539,7 @@ async function handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders
   }
 
   try {
-    const body = await parseBody(req);
+    const body = JSON.parse(rawBodyStr || '{}');
     const eventType = body.type;
     const data = body.data || {};
 

@@ -4,7 +4,10 @@ const { createSupabaseClient } = require('./outreach-engine-core');
 function verifyResendWebhookSignature(rawBody, headers) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.info('[OutreachEngine] RESEND_WEBHOOK_SECRET not configured; add to Netlify env vars to enable signature verification');
+    if (process.env.NODE_ENV === 'production') {
+      return { valid: false, reason: 'webhook secret not configured' };
+    }
+    console.warn('[outreach-resend-webhook] dev mode: skipping signature check');
     return { valid: true, reason: null };
   }
 
