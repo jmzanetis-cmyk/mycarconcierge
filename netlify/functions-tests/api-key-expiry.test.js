@@ -31,11 +31,15 @@ function truthy(v, msg) { if (!v) throw new Error(msg || 'expected truthy'); }
 
 // ---------- module-load isolation ----------
 let currentSupabase = {};
+// Probe stub — controls what runProbe() returns without hitting real APIs.
+// Set currentProbeResult before each probe test.
+let currentProbeResult = { working: null, reason: 'test stub' };
 const origLoad = Module._load;
 const stubs = new Map();
 stubs.set('@supabase/supabase-js', { createClient: () => currentSupabase });
 const fakeResend = { emails: { send: async () => ({ data: { id: 'fake' } }) } };
 stubs.set('resend', { Resend: function() { return fakeResend; } });
+stubs.set('../../lib/api-key-probes', { runProbe: async () => currentProbeResult });
 
 Module._load = function(request, parent, ...rest) {
   if (stubs.has(request)) return stubs.get(request);
@@ -355,6 +359,75 @@ async function main() {
     const result = await stripeShim._runChecker(supabase);
     eq(result.keys_checked, 1);
     eq(result.results[0].key_id, 'stripe_secret_key');
+  });
+
+  // ── live probe tests (Task #458) ───────────────────────────────────────────
+
+  await run('probe_ok is logged and no alert sent when probe succeeds', async () => {
+    currentProbeResult = { working: true };
+    const supabase = makeSupabaseStub();
+    const kc = findKeyConfig('anthropic_api_key');
+    await scheduled._checkProbeForKey(supabase, kc);
+    const okLogs = supabase._tables.ai_action_log.filter(r => r.action_type === 'probe_ok');
+    eq(okLogs.length, 1, 'expected probe_ok log entry');
+    const alertLogs = supabase._tables.ai_action_log.filter(r => r.action_type === 'probe_alert');
+    eq(alertLogs.length, 0, 'no alert on passing probe');
+    currentProbeResult = { working: null, reason: 'test stub' };
+  });
+
+  await run('probe_alert sent and logged when probe fails', async () => {
+    currentProbeResult = { working: false, error: 'HTTP 401: Unauthorized' };
+    const supabase = makeSupabaseStub();
+    const kc = findKeyConfig('resend_api_key');
+    const r = await scheduled._checkProbeForKey(supabase, kc);
+    eq(r.probe, 'failed', 'expected probe failed result');
+    const alerts = supabase._tables.ai_action_log.filter(r => r.action_type === 'probe_alert');
+    eq(alerts.length, 1);
+    eq(alerts[0].outcome, 'sent');
+    currentProbeResult = { working: null, reason: 'test stub' };
+  });
+
+  await run('probe_alert is suppressed when already sent within 24h', async () => {
+    currentProbeResult = { working: false, error: 'HTTP 401: Unauthorized' };
+    const alreadySentLog = {
+      module: 'api_key_expiry__twilio_auth_token',
+      action_type: 'probe_alert',
+      outcome: 'sent',
+      created_at: new Date().toISOString()
+    };
+    const supabase = makeSupabaseStub({ ai_action_log: [alreadySentLog] });
+    const kc = findKeyConfig('twilio_auth_token');
+    const r = await scheduled._checkProbeForKey(supabase, kc);
+    eq(r.suppressed, true, 'expected suppressed: true');
+    const newAlerts = supabase._tables.ai_action_log.filter(r => r.outcome === 'sent' && r.action_type === 'probe_alert');
+    eq(newAlerts.length, 1, 'no additional alert should be sent');
+    currentProbeResult = { working: null, reason: 'test stub' };
+  });
+
+  await run('probe_skipped silently when probe returns working: null', async () => {
+    currentProbeResult = { working: null, reason: 'signing secret — not probeable via API' };
+    const supabase = makeSupabaseStub();
+    const kc = findKeyConfig('stripe_webhook_secret');
+    const r = await scheduled._checkProbeForKey(supabase, kc);
+    eq(r.probe_skipped, true);
+    eq(supabase._tables.ai_action_log.length, 0, 'no log entries for skipped probe');
+    currentProbeResult = { working: null, reason: 'test stub' };
+  });
+
+  await run('runChecker probe_results included in output when probes run', async () => {
+    currentProbeResult = { working: true };
+    const supabase = makeSupabaseStub();
+    const result = await scheduled._runChecker(supabase, { onlyKeyId: 'github_token' });
+    truthy(Array.isArray(result.probe_results), 'probe_results should be array');
+    eq(result.probe_results.length, 1);
+    eq(result.probe_results[0].probe, 'ok');
+    currentProbeResult = { working: null, reason: 'test stub' };
+  });
+
+  await run('runChecker with skipProbes:true omits probe_results', async () => {
+    const supabase = makeSupabaseStub();
+    const result = await scheduled._runChecker(supabase, { onlyKeyId: 'github_token', skipProbes: true });
+    eq(result.probe_results, undefined);
   });
 
   console.log(`\n${testsRun - testsFailed}/${testsRun} passed`);

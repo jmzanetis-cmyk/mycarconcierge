@@ -1,12 +1,13 @@
 // ============================================================================
-// MCC API Key Expiry Reminder — Scheduled Function (Task #353)
+// MCC API Key Expiry Reminder — Scheduled Function (Task #353 / #458)
 //
-// Generalization of the Task #246 Stripe-only reminder. Daily job that
-// loops over every entry in lib/api-key-expiry-config.js, compares "now"
-// to the configured expiry date (one ai_ops_settings row per tracked
-// key), and sends an email alert to the admin notification address at the
-// 3-day / 1-day / 0-day thresholds — the same idempotency model the
-// Stripe-only path used.
+// Daily job that:
+//   1. Compares each key's manually-entered expiry date against today and
+//      sends email alerts at the 3-day / 1-day / 0-day thresholds.
+//   2. Runs a live probe against the upstream API for each key to catch
+//      silent failures (rotated, revoked, or misconfigured keys) even before
+//      the expiry date arrives. A probe failure that hasn't been alerted in
+//      the past 24 hours triggers an immediate email.
 //
 // Backward compat: the Stripe entry in TRACKED_KEYS reuses
 // setting_key 'stripe_key_expiry_date' + module 'stripe_key_expiry', so
@@ -21,6 +22,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const { TRACKED_KEYS } = require('../../lib/api-key-expiry-config');
+const { runProbe } = require('../../lib/api-key-probes');
 
 const ADMIN_EMAIL = process.env.STRIPE_KEY_EXPIRY_ADMIN_EMAIL
   || process.env.ADMIN_NOTIFICATION_EMAIL
@@ -264,12 +266,109 @@ async function checkOneKey(supabase, keyConfig) {
   };
 }
 
-async function runChecker(supabase, { onlyKeyId } = {}) {
+// ── live probe alert ─────────────────────────────────────────────────────────
+
+function buildProbeFailedEmailHtml(keyConfig, { error }) {
+  const accent = '#ef4444';
+  const rotationListHtml = keyConfig.rotation_steps.map(s => `<li>${s}</li>`).join('');
+  return `<!DOCTYPE html>
+<html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;margin:0;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;">
+    <div style="background:#1e293b;border-left:4px solid ${accent};border-radius:8px;padding:24px;">
+      <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:12px;">🚨 ${keyConfig.label} is NOT WORKING</div>
+      <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:16px;">${keyConfig.feature}</div>
+      <div style="background:#0f1117;border-radius:6px;padding:14px 16px;font-size:13px;color:#94a3b8;margin-bottom:16px;">
+        <div>Key: <strong style="color:#f1f5f9;">${keyConfig.label}</strong> (env var <code>${keyConfig.env_var}</code>)</div>
+        <div>Probe error: <strong style="color:#f87171;">${error || 'unknown'}</strong></div>
+        <div>Detected: <strong style="color:#f1f5f9;">${new Date().toISOString()}</strong></div>
+      </div>
+      <div style="font-size:13px;line-height:1.6;color:#94a3b8;">
+        Rotation procedure:
+        <ol style="margin:8px 0 0 18px;padding:0;">${rotationListHtml}</ol>
+      </div>
+      <div style="margin-top:20px;text-align:center;">
+        <a href="https://mycarconcierge.com/admin.html#payments" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#b8942d);color:#0f1117;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:6px;">Open API Keys Panel →</a>
+      </div>
+    </div>
+    <div style="margin-top:16px;font-size:11px;color:#475569;text-align:center;">My Car Concierge · API key live monitor</div>
+  </div>
+</body></html>`;
+}
+
+async function probeAlreadyAlerted(supabase, keyConfig) {
+  // Suppress repeat alerts if we already sent one in the last 24 hours
+  const since = new Date(Date.now() - 86400000).toISOString();
+  const { data } = await supabase
+    .from('ai_action_log')
+    .select('id')
+    .eq('module', keyConfig.module)
+    .eq('action_type', 'probe_alert')
+    .eq('outcome', 'sent')
+    .gte('created_at', since)
+    .limit(1)
+    .maybeSingle();
+  return !!data;
+}
+
+async function checkProbeForKey(supabase, keyConfig) {
+  let probe;
+  try {
+    probe = await runProbe(keyConfig);
+  } catch (err) {
+    probe = { working: false, error: err.message };
+  }
+
+  if (probe.working === null) {
+    // Unprobeable — skip silently
+    return { key_id: keyConfig.id, probe_skipped: true, reason: probe.reason };
+  }
+
+  if (probe.working === true) {
+    await logAction(supabase, keyConfig, 'probe_ok', { probe: 'ok' }, { outcome: 'ok' });
+    return { key_id: keyConfig.id, probe: 'ok' };
+  }
+
+  // Key is failing — alert if we haven't recently
+  const alreadySent = await probeAlreadyAlerted(supabase, keyConfig);
+  const errorMsg = probe.error || 'probe failed';
+
+  if (!alreadySent) {
+    const resend = getResend();
+    let sent = false;
+    if (resend && ADMIN_EMAIL) {
+      try {
+        const result = await resend.emails.send({
+          from: `My Car Concierge <${FROM_EMAIL}>`,
+          to: [ADMIN_EMAIL],
+          subject: `🚨 ${keyConfig.label} is NOT WORKING — check ${keyConfig.env_var}`,
+          html: buildProbeFailedEmailHtml(keyConfig, { error: errorMsg })
+        });
+        sent = !result.error;
+      } catch {}
+    }
+    await logAction(supabase, keyConfig, 'probe_alert', {
+      key_id: keyConfig.id,
+      error: errorMsg,
+      email_sent: sent
+    }, { escalated: true, outcome: sent ? 'sent' : 'failed' });
+    return { key_id: keyConfig.id, probe: 'failed', error: errorMsg, alert_sent: sent };
+  }
+
+  await logAction(supabase, keyConfig, 'probe_alert', {
+    key_id: keyConfig.id,
+    error: errorMsg,
+    suppressed: true
+  }, { escalated: true, outcome: 'suppressed' });
+  return { key_id: keyConfig.id, probe: 'failed', error: errorMsg, alert_sent: false, suppressed: true };
+}
+
+async function runChecker(supabase, { onlyKeyId, skipProbes = false } = {}) {
   const t0 = Date.now();
   const targets = onlyKeyId
     ? TRACKED_KEYS.filter(k => k.id === onlyKeyId)
     : TRACKED_KEYS;
   const results = [];
+  const probeResults = [];
   for (const keyConfig of targets) {
     try {
       results.push(await checkOneKey(supabase, keyConfig));
@@ -277,11 +376,20 @@ async function runChecker(supabase, { onlyKeyId } = {}) {
       console.error(`[ApiKeyExpiry:${keyConfig.id}] checkOneKey failed:`, err.message);
       results.push({ key_id: keyConfig.id, error: err.message });
     }
+    if (!skipProbes) {
+      try {
+        probeResults.push(await checkProbeForKey(supabase, keyConfig));
+      } catch (err) {
+        console.error(`[ApiKeyExpiry:${keyConfig.id}] probe failed:`, err.message);
+        probeResults.push({ key_id: keyConfig.id, probe_error: err.message });
+      }
+    }
   }
   return {
     success: true,
     keys_checked: results.length,
     results,
+    probe_results: skipProbes ? undefined : probeResults,
     execution_time_ms: Date.now() - t0
   };
 }
@@ -305,5 +413,6 @@ exports.handler = async function() {
 // Shared with the admin endpoint + dev mirror + tests.
 exports._runChecker = runChecker;
 exports._checkOneKey = checkOneKey;
+exports._checkProbeForKey = checkProbeForKey;
 exports._computeStatus = computeStatus;
 exports._TRACKED_KEYS = TRACKED_KEYS;
