@@ -827,6 +827,8 @@
         try { await loadDashboardAgentTile(); }
         catch (e) { console.warn('[admin] dashboard agent tile failed:', e); }
       }
+      // Task #459 — show API key alert banner if any key is failing or expiring
+      try { await loadDashboardApiKeyAlert(); } catch {}
     }
 
     async function loadDashboardStats() {
@@ -1825,6 +1827,58 @@
 
     globalThis.loadApiKeyExpiry = loadApiKeyExpiry;
     globalThis.saveApiKeyExpiry = saveApiKeyExpiry;
+
+    // Task #459 — Render a banner on admin home when any key needs attention
+    function renderDashboardApiKeyAlert(keys) {
+      const host = document.getElementById('dashboard-api-key-alert');
+      if (!host) return;
+      const urgent = (keys || []).filter(k =>
+        k.probe_failing ||
+        k.level === 'expired' ||
+        k.level === 'critical' ||
+        k.level === 'warning'
+      );
+      if (urgent.length === 0) { host.style.display = 'none'; return; }
+
+      const hasExpiredOrFailing = urgent.some(k => k.probe_failing || k.level === 'expired' || k.level === 'critical');
+      const accent = hasExpiredOrFailing ? 'var(--accent-red)' : 'var(--accent-orange, #f59e0b)';
+      const borderColor = hasExpiredOrFailing ? 'var(--accent-red-soft, #fca5a5)' : 'var(--accent-orange-soft, #fde68a)';
+      const icon = hasExpiredOrFailing ? 'alert-triangle' : 'alert-circle';
+
+      const pills = urgent.map(k => {
+        let label, cls;
+        if (k.probe_failing) { label = `${escapeHtml(k.label)}: probe failure`; cls = 'status-badge red'; }
+        else if (k.level === 'expired') { label = `${escapeHtml(k.label)}: EXPIRED`; cls = 'status-badge red'; }
+        else if (k.level === 'critical') { label = `${escapeHtml(k.label)}: expires tomorrow`; cls = 'status-badge red'; }
+        else { label = `${escapeHtml(k.label)}: expiring soon`; cls = 'status-badge orange'; }
+        return `<span class="${cls}" style="font-size:0.75rem;">${label}</span>`;
+      }).join('');
+
+      host.style.display = '';
+      host.innerHTML = `
+        <div style="background:var(--bg-elevated);border:1px solid ${borderColor};border-left:4px solid ${accent};border-radius:var(--radius-md);padding:14px 16px;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <span class="icon-inline" data-icon="${icon}" style="color:${accent};flex-shrink:0;margin-top:2px;"></span>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px;">${urgent.length} API key${urgent.length > 1 ? 's need' : ' needs'} attention</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">${pills}</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="navigateToSection('payments');setTimeout(()=>document.getElementById('api-key-expiry-rows')?.scrollIntoView({behavior:'smooth'}),300);" style="flex-shrink:0;">
+            View API Keys →
+          </button>
+        </div>`;
+      if (typeof renderIcons === 'function') renderIcons(host);
+    }
+
+    async function loadDashboardApiKeyAlert() {
+      try {
+        const res = await fetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
+        if (!res.ok) return;
+        const data = await res.json();
+        renderDashboardApiKeyAlert(data.keys || []);
+      } catch {}
+    }
+
+    globalThis.loadDashboardApiKeyAlert = loadDashboardApiKeyAlert;
 
     // ========================================================================
     // Task #334 — Driver Payouts admin section

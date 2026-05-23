@@ -76,6 +76,19 @@ async function fetchKeyStatus(supabase, keyConfig) {
     rotation_steps: keyConfig.rotation_steps
   };
 
+  // Check if a live probe has failed in the last 24 hours (Task #458 / #459)
+  const since24h = new Date(Date.now() - 86400000).toISOString();
+  const { data: recentProbeAlert } = await supabase
+    .from('ai_action_log')
+    .select('action_type, created_at, outcome')
+    .eq('module', keyConfig.module)
+    .eq('action_type', 'probe_alert')
+    .eq('outcome', 'sent')
+    .gte('created_at', since24h)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
   if (!setting || !setting.value) {
     return {
       ...base,
@@ -84,6 +97,7 @@ async function fetchKeyStatus(supabase, keyConfig) {
       updated_at: null,
       days_until: null,
       level: 'unknown',
+      probe_failing: !!recentProbeAlert,
       recent_alerts: []
     };
   }
@@ -110,6 +124,7 @@ async function fetchKeyStatus(supabase, keyConfig) {
     updated_at: setting.updated_at,
     days_until: status.daysUntil,
     level: status.level,
+    probe_failing: !!recentProbeAlert,
     recent_alerts: alerts || []
   };
 }
