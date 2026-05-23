@@ -1,8 +1,8 @@
 'use strict';
 
-// Task #425 (Step 3): cross-provider alert-dismissal lockdown.
+// Task #425 (Step 3) + Task #289: cross-provider alert-dismissal lockdown.
 //
-// Two layers of verification:
+// Three layers of verification:
 //
 //   (A) STATIC: the providers_dismiss_own_alerts policy in the latest
 //       migration that defines it keeps `provider_id = auth.uid()` in BOTH
@@ -12,6 +12,11 @@
 //       semantics, simulate Provider A trying to UPDATE an alert whose
 //       provider_id belongs to Provider B. The update MUST return 0 rows
 //       affected (RLS-filtered) instead of mutating Provider B's row.
+//
+//   (C) LIVE (Task #289): real Supabase roundtrip — service-role provisions
+//       Provider A + B + alert rows, signs in as A, tries to dismiss B's
+//       alert, asserts 0 rows affected. Skips when SUPABASE_ANON_KEY is not
+//       a real JWT.
 //
 // Run:  node netlify/functions-tests/provider-alerts-rls.test.js
 
@@ -133,6 +138,102 @@ function makeRlsClient(table, callerUid) {
   const bStill = table.find(r => r.id === 'alert-2');
   ok('Provider A cannot reassign B\'s alert (0 rows affected)', Array.isArray(stealData) && stealData.length === 0);
   ok('Provider B\'s alert provider_id unchanged after steal attempt', bStill && bStill.provider_id === PROVIDER_B);
+
+  // ── (C) Live roundtrip (Task #289) ────────────────────────────────────────
+  const SUPABASE_URL = process.env.SUPABASE_URL;
+  const SERVICE_KEY  = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const ANON_KEY     = process.env.SUPABASE_ANON_KEY;
+  const isRealJwt = (k) => typeof k === 'string' && k.startsWith('eyJ') && k.length > 200;
+
+  if (!SUPABASE_URL || !SERVICE_KEY || !isRealJwt(ANON_KEY)) {
+    console.log('  ⚠ live roundtrip (C) skipped — SUPABASE_ANON_KEY is not a real JWT (set it to enable)');
+  } else {
+    const { createClient } = require('@supabase/supabase-js');
+    const svc  = createClient(SUPABASE_URL, SERVICE_KEY, { auth: { persistSession: false } });
+    const anon = createClient(SUPABASE_URL, ANON_KEY,    { auth: { persistSession: false } });
+
+    const tag  = Date.now();
+    const emailA = `alerts-rls-a-${tag}@example.com`;
+    const emailB = `alerts-rls-b-${tag}@example.com`;
+    const pw = 'AlertRls1!Test';
+    let uidA, uidB, alertAId, alertBId;
+
+    try {
+      // Provision Provider A
+      const { data: cuA, error: errA } = await svc.auth.admin.createUser({
+        email: emailA, password: pw, email_confirm: true
+      });
+      if (errA) throw new Error('createUser A: ' + errA.message);
+      uidA = cuA.user.id;
+      await svc.from('profiles').upsert({ id: uidA, email: emailA, role: 'provider' });
+
+      // Provision Provider B
+      const { data: cuB, error: errB } = await svc.auth.admin.createUser({
+        email: emailB, password: pw, email_confirm: true
+      });
+      if (errB) throw new Error('createUser B: ' + errB.message);
+      uidB = cuB.user.id;
+      await svc.from('profiles').upsert({ id: uidB, email: emailB, role: 'provider' });
+
+      // Insert alert rows via service role
+      const { data: insA, error: insErrA } = await svc.from('provider_alerts')
+        .insert({ provider_id: uidA, message: 'Alert for A', is_dismissed: false })
+        .select('id').single();
+      if (insErrA) throw new Error('insert alert A: ' + insErrA.message);
+      alertAId = insA.id;
+
+      const { data: insB, error: insErrB } = await svc.from('provider_alerts')
+        .insert({ provider_id: uidB, message: 'Alert for B', is_dismissed: false })
+        .select('id').single();
+      if (insErrB) throw new Error('insert alert B: ' + insErrB.message);
+      alertBId = insB.id;
+
+      // Sign in as Provider A
+      const { data: si, error: siErr } = await anon.auth.signInWithPassword({ email: emailA, password: pw });
+      if (siErr) throw new Error('signIn A: ' + siErr.message);
+      const authedA = createClient(SUPABASE_URL, ANON_KEY, {
+        auth: { persistSession: false },
+        global: { headers: { Authorization: `Bearer ${si.session.access_token}` } }
+      });
+
+      // Provider A tries to dismiss Provider B's alert — must get 0 rows back.
+      const { data: hostile, error: hostileErr } = await authedA
+        .from('provider_alerts')
+        .update({ is_dismissed: true })
+        .eq('id', alertBId)
+        .select();
+      ok('live: Provider A update against B\'s alert → 0 rows (RLS filtered)',
+        !hostileErr && Array.isArray(hostile) && hostile.length === 0,
+        hostileErr ? hostileErr.message : `got ${hostile?.length} rows`);
+
+      // Verify B's alert is still undismissed via service role.
+      const { data: bCheck } = await svc.from('provider_alerts')
+        .select('is_dismissed').eq('id', alertBId).single();
+      ok('live: Provider B\'s alert remained is_dismissed=false after hostile update',
+        bCheck && bCheck.is_dismissed === false,
+        JSON.stringify(bCheck));
+
+      // Provider A can dismiss their own alert.
+      const { data: ownDis, error: ownErr } = await authedA
+        .from('provider_alerts')
+        .update({ is_dismissed: true })
+        .eq('id', alertAId)
+        .select();
+      ok('live: Provider A can dismiss own alert (1 row updated)',
+        !ownErr && Array.isArray(ownDis) && ownDis.length === 1 && ownDis[0].is_dismissed === true,
+        ownErr ? ownErr.message : `got ${ownDis?.length} rows`);
+
+    } catch (e) {
+      console.error('  FAIL live roundtrip:', e.message);
+      fail++;
+    } finally {
+      // Cleanup
+      if (alertAId) await svc.from('provider_alerts').delete().eq('id', alertAId).catch(() => {});
+      if (alertBId) await svc.from('provider_alerts').delete().eq('id', alertBId).catch(() => {});
+      if (uidA) await svc.auth.admin.deleteUser(uidA).catch(() => {});
+      if (uidB) await svc.auth.admin.deleteUser(uidB).catch(() => {});
+    }
+  }
 
   console.log(`\n${pass} passed, ${fail} failed`);
   process.exit(fail === 0 ? 0 : 1);
