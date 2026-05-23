@@ -1643,8 +1643,13 @@
                 bgc_pending_count: liveMap[p.id].pending_count,
                 bgc_completed_count: liveMap[p.id].completed_count
               }) : p);
+              // Task #373 — render the BGC Mode visibility panel above
+              // the providers table from the same payload.
+              renderBgcModePanel(bgcJson);
+            } else {
+              renderBgcModePanel({ error: `HTTP ${bgcResp.status}` });
             }
-          } catch { /* non-fatal */ }
+          } catch (e) { renderBgcModePanel({ error: e?.message || 'fetch failed' }); }
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
@@ -3130,6 +3135,102 @@
       const s = cfg[status] || { bg: 'rgba(100,100,120,0.1)', border: 'var(--border-subtle)', color: 'var(--text-muted)', icon: '—', label: status };
       const title = updatedAt ? `title="Updated ${new Date(updatedAt).toLocaleDateString()}"` : '';
       return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};border:1px solid ${s.border};" ${title}>${s.icon} ${s.label}</span>`;
+    }
+
+    // Task #373 — BackgroundChecks.com Mode visibility panel. Renders a
+    // header card with the global BGC_LIVE_MODE flag + platform-fallback
+    // status, and a per-provider table showing each provider's Live/Mock
+    // pill, mode_reason, pending/completed counts, and bgchecks_account_id.
+    // Source data: GET /api/admin/bgc/providers (already fetched by
+    // loadProviders so the same payload is reused — no extra round-trip).
+    function renderBgcModePanel(bgcJson) {
+      const host = document.getElementById('bgc-mode-panel');
+      if (!host) return;
+      if (bgcJson && bgcJson.error) {
+        host.innerHTML = `
+          <div class="card" style="padding:16px 20px;border:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;font-size:0.95rem;">BackgroundChecks.com Mode</div>
+                <div style="font-size:0.8rem;color:var(--accent-red);">Failed to load: ${escapeHtml(String(bgcJson.error))}</div>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="loadProviders(paginationState.providers.page||1)">Retry</button>
+            </div>
+          </div>`;
+        return;
+      }
+      const rows = (bgcJson && bgcJson.providers) || [];
+      const liveGlobal = !!(bgcJson && bgcJson.live_mode_global);
+      const hasFallback = !!(bgcJson && bgcJson.platform_fallback);
+      const liveCount = rows.filter(r => r.live_mode).length;
+      const mockCount = rows.length - liveCount;
+
+      const headerPill = (label, color, bg, border) =>
+        `<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;background:${bg};color:${color};border:1px solid ${border};">${label}</span>`;
+
+      const globalPill = liveGlobal
+        ? headerPill('BGC_LIVE_MODE ON', 'var(--accent-green)', 'rgba(74,200,140,0.15)', 'rgba(74,200,140,0.3)')
+        : headerPill('BGC_LIVE_MODE OFF', 'var(--text-muted)', 'rgba(100,100,120,0.15)', 'var(--border-subtle)');
+      const fallbackPill = hasFallback
+        ? headerPill('Platform fallback token present', 'var(--accent-blue)', 'rgba(56,189,248,0.12)', 'rgba(56,189,248,0.25)')
+        : headerPill('No platform fallback token', 'var(--accent-orange)', 'rgba(245,158,11,0.12)', 'rgba(245,158,11,0.25)');
+
+      const bodyHtml = rows.length === 0
+        ? `<div class="empty-state" style="padding:18px;">No providers have BGC activity yet.</div>`
+        : `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;">Provider</th>
+                  <th style="text-align:left;">Mode</th>
+                  <th style="text-align:left;">Reason</th>
+                  <th style="text-align:right;">Pending</th>
+                  <th style="text-align:right;">Completed</th>
+                  <th style="text-align:left;">BGC account ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map(r => {
+                  const livePill = r.live_mode
+                    ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);">LIVE</span>'
+                    : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(100,100,120,0.15);color:var(--text-muted);border:1px solid var(--border-subtle);">MOCK</span>';
+                  const name = escapeHtml(r.business_name || 'Unnamed');
+                  const email = r.email ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(r.email)}</div>` : '';
+                  const reason = escapeHtml(r.mode_reason || '—');
+                  const acct = r.bgchecks_account_id
+                    ? `<code style="font-size:0.78rem;">${escapeHtml(String(r.bgchecks_account_id))}</code>`
+                    : '<span style="color:var(--text-muted);">—</span>';
+                  return `
+                    <tr>
+                      <td><div><strong>${name}</strong></div>${email}</td>
+                      <td>${livePill}</td>
+                      <td style="font-size:0.82rem;color:var(--text-muted);">${reason}</td>
+                      <td style="text-align:right;">${r.pending_count || 0}</td>
+                      <td style="text-align:right;">${r.completed_count || 0}</td>
+                      <td>${acct}</td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+      host.innerHTML = `
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600;font-size:0.95rem;">BackgroundChecks.com Mode</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">Which providers are hitting the real BGC API vs. the mock path.</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              ${globalPill}
+              ${fallbackPill}
+              ${headerPill(`${liveCount} live`, 'var(--accent-green)', 'rgba(74,200,140,0.1)', 'rgba(74,200,140,0.25)')}
+              ${headerPill(`${mockCount} mock`, 'var(--text-muted)', 'rgba(100,100,120,0.1)', 'var(--border-subtle)')}
+            </div>
+          </div>
+          ${bodyHtml}
+        </div>`;
     }
 
     function renderProviders() {

@@ -2534,6 +2534,12 @@
 
       <div id="providers-agent-activity" style="margin-bottom:24px;"></div>
 
+      <!-- Task #373 — BackgroundChecks.com Mode visibility panel.
+           Populated by renderBgcModePanel() after loadProviders() fetches
+           /api/admin/bgc/providers. Lets ops see at a glance which
+           providers are on the real BGC API vs. still on the mock path. -->
+      <div id="bgc-mode-panel" style="margin-bottom:16px;"></div>
+
       <!-- Bulk Actions Bar -->
       <div id="bulk-actions-bar" class="card" style="display:none;margin-bottom:16px;padding:16px 20px;background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
