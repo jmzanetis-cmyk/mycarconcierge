@@ -901,6 +901,157 @@ async function step24dProviderOnboardingIdor(ctx) {
   }
 }
 
+// ============================================================================
+// Task #466 — IDOR coverage for /api/provider/finalize, which Task #359 left
+// out because finalize doesn't take an application_id — it re-reads the JWT
+// user's most-recent provider_applications row from the past hour. That
+// implicit JWT→user_id binding is the entire defence, so prove it holds:
+// user A's finalize call must NOT promote user B's profile or pick up
+// user B's is_founding_provider flag, even when B has a fresh
+// founding-provider application sitting in the same one-hour window the
+// finalize lookup uses.
+// Skips cleanly when no local server is reachable or no JWT is available.
+// ============================================================================
+async function step24eFinalizeIdor(ctx) {
+  console.log('\n━━━ STEP 24e: /api/provider/finalize IDOR (no cross-user promotion) ━━━');
+  if (!(ctx.testUserId && ctx.testJwt && ctx.adminSb)) {
+    console.log('  ⚠ skipped — no JWT for user A (same reason as STEP 23-24)');
+    return;
+  }
+  const baseUrl = process.env.SMOKE_LOCAL_BASE || 'http://127.0.0.1:5000';
+  const ping = await fetch(baseUrl + '/api/provider/finalize', { method: 'POST' }).catch(() => null);
+  if (!ping) {
+    console.log(`  ⚠ no local server reachable at ${baseUrl} — skipping`);
+    return;
+  }
+
+  let otherUserId = null;
+  let otherAppId = null;
+  // Snapshot user A's pre-call profile so the cleanup block can restore A
+  // (finalize may legitimately update A's own profile if A happens to have a
+  // recent app of their own from earlier steps; later STEPS expect A to look
+  // the same as it did after step22's provisioning).
+  let aSnapshot = null;
+  try {
+    const { data: aBefore } = await ctx.adminSb
+      .from('profiles')
+      .select('role, is_founding_provider, full_name, business_name, city, state, service_area, services_offered, free_trial_bids, bid_credits, total_bids_purchased, total_bids_used, sms_consent, sms_consent_date')
+      .eq('id', ctx.testUserId)
+      .maybeSingle();
+    aSnapshot = aBefore || null;
+
+    // Provision user B + a founding-provider application in the last-hour
+    // window finalize searches. is_founding_provider=true is the flag we
+    // want to prove can't bleed across users.
+    const otherEmail = `smoke-finalize-${Date.now()}@mcc-smoke.test`;
+    const { data: cu, error: cuErr } = await ctx.adminSb.auth.admin.createUser({
+      email: otherEmail, password: 'SmokeFinalize!' + Date.now(), email_confirm: true
+    });
+    if (cuErr) throw cuErr;
+    otherUserId = cu.user.id;
+    await ctx.adminSb.from('profiles').upsert(
+      { id: otherUserId, email: otherEmail, role: 'member', is_founding_provider: true },
+      { onConflict: 'id' }
+    );
+    const { data: app, error: appErr } = await ctx.adminSb
+      .from('provider_applications')
+      .insert({
+        user_id: otherUserId,
+        business_name: 'Finalize Victim Garage',
+        contact_name: 'Finalize Victim',
+        phone: '5559871234',
+        email: otherEmail,
+        services_offered: ['oil_change'],
+        legal_signatory_name: 'Finalize Victim',
+        agreement_signed_at: new Date().toISOString(),
+        status: 'pending',
+        is_founding_provider: true
+      })
+      .select('id').single();
+    if (appErr) throw appErr;
+    otherAppId = app.id;
+    console.log(`  ✓ provisioned victim user_id=${otherUserId} application_id=${otherAppId} (is_founding_provider=true)`);
+
+    // Attacker = user A. Send a valid finalize body so we exercise the
+    // JWT→user_id binding, not the validation branch.
+    const r = await fetch(baseUrl + '/api/provider/finalize', {
+      method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + ctx.testJwt },
+      body: JSON.stringify({
+        full_name: 'Smoke Attacker',
+        business_name: 'Attacker Auto Shop',
+        city: 'Testville',
+        state: 'CA',
+        service_area: '50 mile radius',
+        services_offered: ['oil_change'],
+        sms_consent: false
+      })
+    });
+    let parsed; try { parsed = await r.json(); } catch { parsed = {}; }
+    // Either outcome is acceptable for this test — 200 means A had their own
+    // recent app and got promoted off it; 403 means A had no recent app.
+    // What matters is the assertions below about B and A's is_founding bit.
+    console.log(`  · finalize as user A returned ${r.status} ${JSON.stringify(parsed).slice(0, 140)}`);
+
+    // Assertion 1 — user B's profile must be untouched (still member, still
+    // their own is_founding_provider value).
+    const { data: bAfter } = await ctx.adminSb
+      .from('profiles')
+      .select('role, is_founding_provider')
+      .eq('id', otherUserId)
+      .maybeSingle();
+    if (bAfter && bAfter.role === 'member') {
+      console.log('  ✓ victim profile.role still "member" — finalize did not cross-promote');
+    } else {
+      console.log(`  ✗ SECURITY: victim profile.role=${bAfter?.role} (expected "member") — cross-user promotion`);
+    }
+    if (bAfter && bAfter.is_founding_provider === true) {
+      console.log('  ✓ victim is_founding_provider still true (unchanged)');
+    } else {
+      console.log(`  ✗ victim is_founding_provider=${bAfter?.is_founding_provider} (expected true) — victim row mutated`);
+    }
+
+    // Assertion 2 — user A's is_founding_provider must not have flipped to
+    // true off of B's flag. Compare to the pre-call snapshot value.
+    const { data: aAfter } = await ctx.adminSb
+      .from('profiles')
+      .select('is_founding_provider')
+      .eq('id', ctx.testUserId)
+      .maybeSingle();
+    const aBeforeFlag = !!(aSnapshot && aSnapshot.is_founding_provider);
+    const aAfterFlag = !!(aAfter && aAfter.is_founding_provider);
+    if (aAfterFlag === aBeforeFlag && aAfterFlag === false) {
+      console.log('  ✓ attacker is_founding_provider still false — victim flag did not bleed');
+    } else if (aAfterFlag !== aBeforeFlag) {
+      console.log(`  ✗ SECURITY: attacker is_founding_provider changed ${aBeforeFlag}→${aAfterFlag} — victim flag bled across`);
+    } else {
+      console.log(`  · attacker is_founding_provider unchanged (${aAfterFlag}) — note: was already true before call`);
+    }
+  } catch (e) {
+    console.log(`  ✗ STEP 24e threw: ${e.message}`);
+  } finally {
+    // Cleanup victim first (children → parent → auth user).
+    try {
+      if (otherAppId) await ctx.adminSb.from('provider_applications').delete().eq('id', otherAppId);
+      if (otherUserId) {
+        await ctx.adminSb.from('profiles').delete().eq('id', otherUserId);
+        await ctx.adminSb.auth.admin.deleteUser(otherUserId);
+      }
+    } catch (e) {
+      console.log(`  ⚠ STEP 24e victim cleanup partial: ${e.message}`);
+    }
+    // Restore user A's snapshot so downstream STEPS see A unchanged. If
+    // finalize did legitimately promote A, this rolls that back.
+    try {
+      if (aSnapshot) {
+        await ctx.adminSb.from('profiles').update(aSnapshot).eq('id', ctx.testUserId);
+      }
+    } catch (e) {
+      console.log(`  ⚠ STEP 24e attacker rollback partial: ${e.message}`);
+    }
+  }
+}
+
 async function step2526SuspendActivateAndAudit(ctx) {
   if (!ctx.testUserId) return;
   console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
@@ -1122,6 +1273,7 @@ const STEPS = [
   step24bInProcessRoute,
   step24cProviderOnboardingAuth,
   step24dProviderOnboardingIdor,
+  step24eFinalizeIdor,
   step2526SuspendActivateAndAudit,
   step27CheckCrmDuplicate,
   step27bAnonRpcLockdown,
