@@ -4717,7 +4717,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
 
-        const response = await fetch('/api/provider/connect-status', {
+        const response = await fetch(`/api/stripe/connect/status/${session.user.id}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         
@@ -4767,9 +4767,9 @@
           return;
         }
 
-        const response = await fetch('/api/provider/connect-onboard', {
+        const response = await fetch(`/api/stripe/connect/onboard/${session.user.id}`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           }
