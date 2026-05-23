@@ -1747,6 +1747,27 @@
       return { cls: 'status-badge approved', label: `Healthy · ${days} days` };
     }
 
+    // Task #460 — build "Alerts sent this cycle" chips for a key row
+    function buildAlertSentChips(k) {
+      const alerts = Array.isArray(k.recent_alerts) ? k.recent_alerts : [];
+      const THRESHOLDS = [
+        { type: 'alert_3d',      label: '3-day' },
+        { type: 'alert_1d',      label: '1-day' },
+        { type: 'alert_expired', label: 'Expired' },
+        { type: 'probe_alert',   label: 'Probe failure' }
+      ];
+      const chips = THRESHOLDS.map(t => {
+        const sent = alerts.find(a => a.action_type === t.type && a.outcome === 'sent');
+        if (sent) {
+          const ts = sent.created_at ? new Date(sent.created_at).toLocaleDateString() : '';
+          return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:0.72rem;padding:2px 7px;border-radius:10px;background:var(--accent-green-soft,#d1fae5);color:var(--accent-green,#059669);" title="Sent ${escapeHtml(ts)}">✓ ${escapeHtml(t.label)}</span>`;
+        }
+        return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:0.72rem;padding:2px 7px;border-radius:10px;background:var(--bg-subtle,rgba(255,255,255,0.04));color:var(--text-muted);">${escapeHtml(t.label)}</span>`;
+      }).join('');
+      if (!chips) return '';
+      return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;" title="Alert status resets when you update the expiry date">${chips}</div>`;
+    }
+
     function renderApiKeyExpiryRows(keys) {
       const host = document.getElementById('api-key-expiry-rows');
       if (!host) return;
@@ -1756,20 +1777,26 @@
       }
       host.innerHTML = keys.map(k => {
         const pill = apiKeyExpiryPillFor(k);
+        const probePill = k.probe_failing
+          ? `<span class="status-badge red" style="font-size:0.72rem;">Probe failing</span>`
+          : '';
         const dateStr = k.expiry_date ? escapeHtml(k.expiry_date) : '—';
         const dateVal = k.expiry_date && /^\d{4}-\d{2}-\d{2}$/.test(k.expiry_date) ? escapeHtml(k.expiry_date) : '';
         const feature = escapeHtml(k.feature || '');
+        const alertChips = buildAlertSentChips(k);
         return `
           <div style="padding:12px 14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);">
-            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
               <div style="min-width:240px;flex:1;">
                 <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
                   <span style="font-weight:600;color:var(--text-primary);">${escapeHtml(k.label)}</span>
                   <span class="${pill.cls}">${escapeHtml(pill.label)}</span>
+                  ${probePill}
                   <span style="font-size:0.78rem;color:var(--text-muted);">env <code>${escapeHtml(k.env_var)}</code></span>
                 </div>
                 <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${feature}</div>
                 <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Expiry: ${dateStr}</div>
+                ${alertChips}
               </div>
               <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
                 <input type="date" data-api-key-input="${escapeHtml(k.id)}" class="form-input" style="width:auto;padding:6px 10px;font-size:0.85rem;" value="${dateVal}" />
