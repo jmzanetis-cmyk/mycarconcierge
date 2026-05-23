@@ -766,6 +766,141 @@ async function step24cProviderOnboardingAuth(ctx) {
   }
 }
 
+// ============================================================================
+// Task #359 — IDOR coverage for the Task #235 `_ownsApplication` check.
+// STEP 24c above only covered unauth/bogus-token rejection (the auth gate);
+// this step proves the ownership gate also works: signed-in user A must NOT
+// be able to attach a document/external-review/reference to user B's
+// provider_applications row. Provisions a fresh user B via the service role,
+// creates an application owned by B, and asserts each endpoint returns 403
+// when user A (ctx.testJwt) sends application_id = B's. Cleans up afterwards.
+// Skips cleanly when no local server is reachable or no JWT is available.
+// ============================================================================
+async function _step24dRunIdorChecks(ctx, baseUrl, otherAppId) {
+  const post = async (sub, body) => {
+    const r = await fetch(baseUrl + '/api/provider/' + sub, {
+      method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        authorization: 'Bearer ' + ctx.testJwt
+      },
+      body: JSON.stringify(body)
+    });
+    let parsed; try { parsed = await r.json(); } catch { parsed = {}; }
+    return { status: r.status, body: parsed };
+  };
+
+  // /document — payload passes validation (valid Supabase storage file_url)
+  // so we exercise the _ownsApplication branch, not the validation branch.
+  const supabaseHost = (() => { try { return new URL(process.env.SUPABASE_URL || '').hostname; } catch { return ''; } })();
+  const fileUrl = `https://${supabaseHost}/storage/v1/object/public/provider-docs/smoke-${Date.now()}.pdf`;
+  const d = await post('document', {
+    application_id: otherAppId,
+    document_type: 'business_license',
+    document_name: 'smoke-idor.pdf',
+    file_url: fileUrl
+  });
+  if (d.status === 403) console.log(`  ✓ /document blocked cross-user attach (403)`);
+  else console.log(`  ✗ /document: expected 403, got ${d.status} ${JSON.stringify(d.body).slice(0, 200)}`);
+
+  // /external-review — google host satisfies PLATFORM_HOSTS.
+  const er = await post('external-review', {
+    application_id: otherAppId,
+    platform: 'google',
+    profile_url: 'https://www.google.com/maps/place/smoke-idor'
+  });
+  if (er.status === 403) console.log(`  ✓ /external-review blocked cross-user attach (403)`);
+  else console.log(`  ✗ /external-review: expected 403, got ${er.status} ${JSON.stringify(er.body).slice(0, 200)}`);
+
+  // /reference
+  const rf = await post('reference', {
+    application_id: otherAppId,
+    reference_name: 'Smoke Reference',
+    relationship: 'customer'
+  });
+  if (rf.status === 403) console.log(`  ✓ /reference blocked cross-user attach (403)`);
+  else console.log(`  ✗ /reference: expected 403, got ${rf.status} ${JSON.stringify(rf.body).slice(0, 200)}`);
+}
+
+async function step24dProviderOnboardingIdor(ctx) {
+  console.log('\n━━━ STEP 24d: /api/provider/{document,external-review,reference} IDOR (cross-user 403) ━━━');
+  if (!(ctx.testUserId && ctx.testJwt && ctx.adminSb)) {
+    console.log('  ⚠ skipped — no JWT for user A (same reason as STEP 23-24)');
+    return;
+  }
+  const baseUrl = process.env.SMOKE_LOCAL_BASE || 'http://127.0.0.1:5000';
+  const ping = await fetch(baseUrl + '/api/provider/document', { method: 'POST' }).catch(() => null);
+  if (!ping) {
+    console.log(`  ⚠ no local server reachable at ${baseUrl} — skipping`);
+    return;
+  }
+
+  let otherUserId = null;
+  let otherAppId = null;
+  try {
+    // Provision user B + a provider_applications row they own. We do this
+    // via the service role so we don't have to mint a second JWT — the
+    // attacker is user A (ctx.testJwt); the victim is user B.
+    const otherEmail = `smoke-idor-${Date.now()}@mcc-smoke.test`;
+    const { data: cu, error: cuErr } = await ctx.adminSb.auth.admin.createUser({
+      email: otherEmail, password: 'SmokeIdor!' + Date.now(), email_confirm: true
+    });
+    if (cuErr) throw cuErr;
+    otherUserId = cu.user.id;
+    await ctx.adminSb.from('profiles').upsert(
+      { id: otherUserId, email: otherEmail, role: 'member' }, { onConflict: 'id' }
+    );
+    const { data: app, error: appErr } = await ctx.adminSb
+      .from('provider_applications')
+      .insert({
+        user_id: otherUserId,
+        business_name: 'IDOR Victim Garage',
+        contact_name: 'IDOR Victim',
+        phone: '5559876543',
+        email: otherEmail,
+        services_offered: ['oil_change'],
+        legal_signatory_name: 'IDOR Victim',
+        agreement_signed_at: new Date().toISOString(),
+        status: 'pending'
+      })
+      .select('id').single();
+    if (appErr) throw appErr;
+    otherAppId = app.id;
+    console.log(`  ✓ provisioned victim user_id=${otherUserId} application_id=${otherAppId}`);
+
+    await _step24dRunIdorChecks(ctx, baseUrl, otherAppId);
+
+    // Belt-and-braces: confirm no rows were actually written against the
+    // victim's application_id by the attacker's calls.
+    const counts = await Promise.all([
+      ctx.adminSb.from('provider_documents').select('id', { count: 'exact', head: true }).eq('application_id', otherAppId),
+      ctx.adminSb.from('provider_external_reviews').select('id', { count: 'exact', head: true }).eq('application_id', otherAppId),
+      ctx.adminSb.from('provider_references').select('id', { count: 'exact', head: true }).eq('application_id', otherAppId)
+    ]);
+    const total = counts.reduce((n, r) => n + (r.count || 0), 0);
+    if (total === 0) console.log('  ✓ no rows leaked into victim application (documents/reviews/references all 0)');
+    else console.log(`  ✗ SECURITY: ${total} row(s) attached to victim application — IDOR control failed`);
+  } catch (e) {
+    console.log(`  ✗ STEP 24d threw: ${e.message}`);
+  } finally {
+    // Cleanup — order matters (children before parents).
+    try {
+      if (otherAppId) {
+        await ctx.adminSb.from('provider_documents').delete().eq('application_id', otherAppId);
+        await ctx.adminSb.from('provider_external_reviews').delete().eq('application_id', otherAppId);
+        await ctx.adminSb.from('provider_references').delete().eq('application_id', otherAppId);
+        await ctx.adminSb.from('provider_applications').delete().eq('id', otherAppId);
+      }
+      if (otherUserId) {
+        await ctx.adminSb.from('profiles').delete().eq('id', otherUserId);
+        await ctx.adminSb.auth.admin.deleteUser(otherUserId);
+      }
+    } catch (e) {
+      console.log(`  ⚠ STEP 24d cleanup partial: ${e.message}`);
+    }
+  }
+}
+
 async function step2526SuspendActivateAndAudit(ctx) {
   if (!ctx.testUserId) return;
   console.log('\n━━━ STEP 25: provider-admin /suspend + /activate happy path ━━━');
@@ -986,6 +1121,7 @@ const STEPS = [
   step2324HappyPathAndRateLimit,
   step24bInProcessRoute,
   step24cProviderOnboardingAuth,
+  step24dProviderOnboardingIdor,
   step2526SuspendActivateAndAudit,
   step27CheckCrmDuplicate,
   step27bAnonRpcLockdown,
