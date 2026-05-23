@@ -39,9 +39,97 @@
 
 const utils = require('./utils');
 const { authorizeAgentInvocation } = require('./agent-fleet-runtime');
+const { Resend } = require('resend');
 
 const CURSOR_KEY = 'concierge_push_last_event_id';
 const MAX_EVENTS_PER_TICK = 100;
+
+// Task #435 — stall detection
+const HEARTBEAT_KEY          = 'concierge_push_last_heartbeat';
+const STALL_ALERT_KEY        = 'concierge_push_stall_alert_sent_at';
+const STALL_THRESHOLD_MS     = 3 * 60 * 1000;   // alert if heartbeat older than 3 min
+const STALL_ALERT_COOLDOWN_MS = 30 * 60 * 1000; // suppress repeat alerts within 30 min
+
+async function readHeartbeat(supabase) {
+  try {
+    const { data } = await supabase
+      .from('ai_ops_settings').select('value, updated_at').eq('key', HEARTBEAT_KEY).maybeSingle();
+    return data || null;
+  } catch { return null; }
+}
+
+async function writeHeartbeat(supabase, meta) {
+  try {
+    await supabase.from('ai_ops_settings').upsert(
+      { key: HEARTBEAT_KEY, value: JSON.stringify({ ts: new Date().toISOString(), ...meta }), updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+  } catch { /* best-effort */ }
+}
+
+async function sendStallAlert(ageMinutes) {
+  const adminEmail = process.env.ADMIN_NOTIFICATION_EMAIL || process.env.ADMIN_EMAIL || '';
+  const fromEmail  = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  const slackUrl   = process.env.ADMIN_SLACK_WEBHOOK_URL || '';
+
+  const subject = `🚨 Concierge push notifier stalled (${ageMinutes}m since last heartbeat)`;
+  const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;margin:0;padding:24px;">
+<div style="max-width:520px;margin:0 auto;">
+  <div style="background:#1e293b;border-left:4px solid #ef4444;border-radius:8px;padding:20px;">
+    <div style="font-size:16px;font-weight:700;color:#f1f5f9;margin-bottom:10px;">🚨 Concierge Push Notifier Stalled</div>
+    <p style="font-size:14px;color:#cbd5e1;">The scheduled concierge-push-notifier function has not written a heartbeat in <strong>${ageMinutes} minutes</strong>. Driver assignment and job-status push notifications may be delayed or silently dropped.</p>
+    <p style="font-size:13px;color:#94a3b8;">Check Netlify → Functions → concierge-push-notifier-scheduled for recent invocations and errors.</p>
+    <div style="margin-top:14px;text-align:center;">
+      <a href="https://app.netlify.com" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#b8942d);color:#0f1117;font-weight:700;font-size:13px;text-decoration:none;padding:10px 22px;border-radius:6px;">Open Netlify →</a>
+    </div>
+  </div>
+</div></body></html>`;
+
+  await Promise.allSettled([
+    (async () => {
+      const apiKey = process.env.RESEND_API_KEY;
+      if (!apiKey || !adminEmail) return;
+      const resend = new Resend(apiKey);
+      await resend.emails.send({ from: `My Car Concierge <${fromEmail}>`, to: [adminEmail], subject, html });
+    })(),
+    (async () => {
+      if (!slackUrl) return;
+      await fetch(slackUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: `🚨 *Concierge push notifier stalled* — ${ageMinutes}m since last heartbeat. Check Netlify for errors.` })
+      });
+    })()
+  ]);
+}
+
+async function checkStall(supabase, heartbeat) {
+  if (!heartbeat || !heartbeat.updated_at) return;
+  const ageMs = Date.now() - new Date(heartbeat.updated_at).getTime();
+  if (ageMs <= STALL_THRESHOLD_MS) return;
+
+  // Suppress if already alerted within cooldown window
+  try {
+    const { data: alertRow } = await supabase
+      .from('ai_ops_settings').select('value').eq('key', STALL_ALERT_KEY).maybeSingle();
+    if (alertRow?.value) {
+      const lastAlert = new Date(alertRow.value).getTime();
+      if (Date.now() - lastAlert < STALL_ALERT_COOLDOWN_MS) return;
+    }
+  } catch { /* ignore */ }
+
+  const ageMinutes = Math.round(ageMs / 60000);
+  console.warn(`[concierge-push-notifier] STALL DETECTED: ${ageMinutes}m since last heartbeat`);
+  await sendStallAlert(ageMinutes);
+
+  // Record alert timestamp
+  try {
+    await supabase.from('ai_ops_settings').upsert(
+      { key: STALL_ALERT_KEY, value: new Date().toISOString(), updated_at: new Date().toISOString() },
+      { onConflict: 'key' }
+    );
+  } catch { /* best-effort */ }
+}
 
 // ----- FCM v1 helpers (cached OAuth token, mirrors bid-accepted-push) -------
 let _fcmAccessToken = null;
@@ -322,6 +410,11 @@ async function handleEvent(supabase, projectId, evt) {
 
 // ----- Main entry ------------------------------------------------------------
 async function runOnce(supabase) {
+  // Task #435 — stall detection: check heartbeat age before doing work,
+  // then write heartbeat on success.
+  const heartbeat = await readHeartbeat(supabase);
+  await checkStall(supabase, heartbeat);
+
   // Resolve FCM project id once per tick. Missing config is non-fatal — we
   // still advance the cursor so backlog doesn't grow unbounded.
   let projectId = null;
@@ -335,6 +428,7 @@ async function runOnce(supabase) {
   if (cursor == null) {
     cursor = await seedCursor(supabase);
     await writeCursor(supabase, cursor);
+    await writeHeartbeat(supabase, { seeded: true, cursor });
     return { ok: true, seeded: true, cursor };
   }
 
@@ -354,7 +448,10 @@ async function runOnce(supabase) {
     return { ok: false, error: e.message };
   }
 
-  if (events.length === 0) return { ok: true, processed: 0, cursor };
+  if (events.length === 0) {
+    await writeHeartbeat(supabase, { processed: 0, cursor });
+    return { ok: true, processed: 0, cursor };
+  }
 
   const results = [];
   let highestSeen = cursor;
@@ -371,6 +468,7 @@ async function runOnce(supabase) {
   }
 
   await writeCursor(supabase, highestSeen);
+  await writeHeartbeat(supabase, { processed: events.length, cursor: highestSeen });
   return {
     ok: true,
     processed: events.length,
@@ -415,4 +513,4 @@ exports.handler = async function(event) {
 };
 
 // Exported for tests.
-exports._internal = { runOnce, handleEvent, CURSOR_KEY };
+exports._internal = { runOnce, handleEvent, CURSOR_KEY, HEARTBEAT_KEY, STALL_ALERT_KEY, checkStall, writeHeartbeat };

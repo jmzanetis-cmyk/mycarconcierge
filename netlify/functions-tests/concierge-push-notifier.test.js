@@ -110,7 +110,7 @@ Module.prototype.require = function(id) {
   return origRequire.apply(this, arguments);
 };
 
-// Stub global.fetch — FCM OAuth + v1 send both go through here.
+// Stub global.fetch — FCM OAuth + v1 send + Resend + Slack all go through here.
 let fetchCalls = [];
 global.fetch = async (url, opts) => {
   fetchCalls.push({ url: String(url), opts });
@@ -128,6 +128,10 @@ global.fetch = async (url, opts) => {
       json: async () => ({ name: 'projects/mcc-test/messages/fake' })
     };
   }
+  // Task #435 — stall alert channels: Resend + Slack
+  if (String(url).includes('resend.com') || String(url).includes('slack.com')) {
+    return { ok: true, status: 200, json: async () => ({ id: 'stub' }) };
+  }
   throw new Error('unexpected fetch: ' + url);
 };
 
@@ -135,7 +139,7 @@ global.fetch = async (url, opts) => {
 const handlerPath = path.join(__dirname, '..', 'functions', 'concierge-push-notifier-scheduled.js');
 delete require.cache[require.resolve(handlerPath)];
 const mod = require(handlerPath);
-const { runOnce, handleEvent } = mod._internal;
+const { runOnce, handleEvent, checkStall, writeHeartbeat, HEARTBEAT_KEY, STALL_ALERT_KEY } = mod._internal;
 
 // ----- Helpers --------------------------------------------------------------
 function resetState() {
@@ -420,6 +424,59 @@ async function test8_cursor_advances_to_highest_event() {
   console.log('  ✓ Test 8: cursor advances to highest processed event id');
 }
 
+// Task #435 — stall detection tests
+async function test9_stall_detection_no_alert_when_fresh() {
+  resetState();
+  const freshHeartbeat = { updated_at: new Date().toISOString(), value: '{}' };
+  const alertsSent = fetchCalls.filter(f => f.url.includes('resend.com') || f.url.includes('slack.com')).length;
+  await checkStall(stubClient, freshHeartbeat);
+  const alertsAfter = fetchCalls.filter(f => f.url.includes('resend.com') || f.url.includes('slack.com')).length;
+  assert.strictEqual(alertsSent, alertsAfter, 'no alert when heartbeat is fresh');
+  console.log('  ✓ Test 9: no stall alert when heartbeat is recent');
+}
+
+async function test10_stall_detection_alerts_when_stale() {
+  resetState();
+  process.env.RESEND_API_KEY = 'rk_test';
+  process.env.ADMIN_NOTIFICATION_EMAIL = 'admin@example.com';
+  // Heartbeat 10 minutes old (well past 3-min threshold)
+  const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const staleHeartbeat = { updated_at: staleTs, value: '{}' };
+  // No prior stall alert row in db
+  dbState.ai_ops_settings = { maybeSingle: (f) => ({ data: null, error: null }) };
+
+  const before = fetchCalls.filter(f => f.url.includes('resend.com')).length;
+  await checkStall(stubClient, staleHeartbeat);
+  const after = fetchCalls.filter(f => f.url.includes('resend.com')).length;
+  assert.ok(after > before, 'expected Resend call for stale heartbeat');
+
+  // Stall alert key should have been written
+  const staleSaved = lastUpdates.filter(u => u.op === 'upsert' && u.table === 'ai_ops_settings' && u.row?.key === STALL_ALERT_KEY);
+  assert.ok(staleSaved.length > 0, 'expected stall alert timestamp to be saved');
+  console.log('  ✓ Test 10: stall alert sent when heartbeat is stale');
+}
+
+async function test11_stall_suppressed_within_cooldown() {
+  resetState();
+  process.env.RESEND_API_KEY = 'rk_test';
+  process.env.ADMIN_NOTIFICATION_EMAIL = 'admin@example.com';
+  const staleTs = new Date(Date.now() - 10 * 60 * 1000).toISOString();
+  const staleHeartbeat = { updated_at: staleTs, value: '{}' };
+  // Stall alert was sent 5 minutes ago (within 30-min cooldown)
+  const recentAlert = new Date(Date.now() - 5 * 60 * 1000).toISOString();
+  dbState.ai_ops_settings = {
+    maybeSingle: (f) => {
+      if (f.key === STALL_ALERT_KEY) return { data: { value: recentAlert }, error: null };
+      return { data: null, error: null };
+    }
+  };
+  const before = fetchCalls.filter(f => f.url.includes('resend.com')).length;
+  await checkStall(stubClient, staleHeartbeat);
+  const after = fetchCalls.filter(f => f.url.includes('resend.com')).length;
+  assert.strictEqual(before, after, 'stall alert suppressed within cooldown');
+  console.log('  ✓ Test 11: stall alert suppressed within cooldown window');
+}
+
 // ----- Throwaway test private key (PKCS#8 RSA-2048) -------------------------
 function TEST_PRIVATE_KEY() {
   // Generated once with: openssl genpkey -algorithm RSA -pkeyopt rsa_keygen_bits:2048
@@ -445,7 +502,10 @@ function TEST_PRIVATE_KEY() {
     await test6_leg_started_non_first_skipped();
     await test7_job_completed_pushes_member();
     await test8_cursor_advances_to_highest_event();
-    console.log('\nAll 9 concierge-push-notifier tests passed.\n');
+    await test9_stall_detection_no_alert_when_fresh();
+    await test10_stall_detection_alerts_when_stale();
+    await test11_stall_suppressed_within_cooldown();
+    console.log('\nAll 12 concierge-push-notifier tests passed.\n');
   } catch (e) {
     console.error('\nTest failed:', e.message);
     console.error(e.stack);
