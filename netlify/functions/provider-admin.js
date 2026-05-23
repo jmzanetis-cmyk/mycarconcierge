@@ -21,6 +21,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
+const { notifySensitiveAuditAction } = require('./_shared/sensitive-audit-alert');
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
@@ -117,12 +118,21 @@ async function suspendProviders(supabase, providerIds, reason, source = 'manual'
 
   // Fan out: audit + email + notification per provider. All best-effort, in
   // parallel. Email failures must not roll back the suspend.
+  const suspendAction = source === 'autosuspend' ? 'autosuspend_low_rated' : 'suspend_provider';
   await Promise.all((data || []).map(async (p) => {
     await audit(supabase, {
-      action: source === 'autosuspend' ? 'autosuspend_low_rated' : 'suspend_provider',
+      action: suspendAction,
       target_id: p.id, target_type: 'profile',
       reason, metadata: { source, suspended_at: suspendedAt },
       performed_by: 'admin'
+    });
+    // Task #427 — admin notification for sensitive action
+    await notifySensitiveAuditAction({
+      action: suspendAction,
+      target: `${p.full_name || p.business_name || p.email || p.id}`,
+      reason,
+      performedBy: 'admin',
+      metadata: { provider_id: p.id, source }
     });
     if (p.email) {
       await sendEmail(p.email,
@@ -184,6 +194,13 @@ async function activateProviders(supabase, providerIds) {
       action: 'activate_provider',
       target_id: p.id, target_type: 'profile',
       performed_by: 'admin'
+    });
+    // Task #427 — admin notification for sensitive action
+    await notifySensitiveAuditAction({
+      action: 'activate_provider',
+      target: `${p.full_name || p.business_name || p.email || p.id}`,
+      performedBy: 'admin',
+      metadata: { provider_id: p.id }
     });
     if (p.email) {
       await sendEmail(p.email,

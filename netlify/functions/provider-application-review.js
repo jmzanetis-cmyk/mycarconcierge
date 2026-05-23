@@ -26,6 +26,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
+const { notifySensitiveAuditAction } = require('./_shared/sensitive-audit-alert');
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
@@ -228,6 +229,13 @@ async function approveApplication(supabase, body) {
     },
     performed_by: 'admin'
   });
+  // Task #427 — admin notification for sensitive action
+  await notifySensitiveAuditAction({
+    action: 'approve_provider_application',
+    target: app.business_name || app.email || applicationId,
+    performedBy: reviewedBy || 'admin',
+    metadata: { application_id: applicationId, user_id: app.user_id }
+  });
 
   // Task #238 — best-effort applicant notification (email + in-app row).
   // Failures must not roll back the approval; we already have the status
@@ -293,6 +301,14 @@ async function rejectApplicationFn(supabase, body) {
       reviewed_at: reviewedAt
     },
     performed_by: 'admin'
+  });
+  // Task #427 — admin notification for sensitive action
+  await notifySensitiveAuditAction({
+    action: 'reject_provider_application',
+    target: app.business_name || app.email || applicationId,
+    reason,
+    performedBy: reviewedBy || 'admin',
+    metadata: { application_id: applicationId, user_id: app.user_id }
   });
 
   // Task #238 — best-effort applicant notification (email + in-app row).
