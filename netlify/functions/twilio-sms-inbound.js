@@ -90,11 +90,11 @@ async function recordAndApply(supabase, { phoneE164, keyword, action, twilioSid,
     try {
       const { data: prefs } = await supabase
         .from('provider_notification_prefs')
-        .select('user_id, sms_phone')
+        .select('provider_id, sms_phone')
         .not('sms_phone', 'is', null);
       const prefMatches = (prefs || []).filter(p => normalizePhone(p.sms_phone) === phoneE164);
       if (prefMatches.length > 0) {
-        const userIds = prefMatches.map(p => p.user_id);
+        const providerIds = prefMatches.map(p => p.provider_id);
         const prefUpdate = action === 'opt_out'
           ? {
               bgc_reminder_60_sms: false,
@@ -109,7 +109,7 @@ async function recordAndApply(supabase, { phoneE164, keyword, action, twilioSid,
           const { error: pErr } = await supabase
             .from('provider_notification_prefs')
             .update(prefUpdate)
-            .in('user_id', userIds);
+            .in('provider_id', providerIds);
           if (pErr) console.warn(`[twilio-sms-inbound] provider_notification_prefs update warning: ${pErr.message}`);
         }
       }
