@@ -35,3 +35,9 @@ id = "eoPoMJ37FGaWuWMqopNMm"
 uri = "file://.local/exports/mcc-driver-style-guide.tar.gz"
 type = "unspecified"
 title = "Both files bundled (style guide + driver-tokens.css)"
+
+[[outputs]]
+id = "WkiOgZYXAq-YekANk1evG"
+uri = "file://.local/claude-code-tasks.md"
+type = "text"
+title = "Claude Code task briefs — MCC priority sweep"
