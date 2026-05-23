@@ -1,11 +1,3 @@
-    // ========== SECURITY HELPERS ==========
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
-    }
-
     // ========== FETCH HELPER ==========
     // Task #234 — `safeFetch` is kept as a thin compatibility wrapper. It now
     // delegates to `aiOpsFetch` (declared further below as `adminFetch` too)
@@ -1834,16 +1826,11 @@
         return;
       }
       try {
-        const res = await fetch('/api/admin/api-key-expiry', {
+        const data = await adminFetch('/api/admin/api-key-expiry', {
           method: 'POST',
           headers: getAdminHeaders(),
           body: JSON.stringify({ key_id: keyId, expiry_date: value })
         });
-        const data = await res.json();
-        if (!res.ok) {
-          alert(`Failed to update: ${data.error || res.statusText}`);
-          return;
-        }
         await loadApiKeyExpiry();
         if (typeof showToast === 'function') showToast(`Expiry updated for ${data.key?.label || keyId}. Alert state reset.`);
       } catch (err) {
@@ -1898,9 +1885,7 @@
 
     async function loadDashboardApiKeyAlert() {
       try {
-        const res = await fetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
-        if (!res.ok) return;
-        const data = await res.json();
+        const data = await adminFetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
         renderDashboardApiKeyAlert(data.keys || []);
       } catch {}
     }
