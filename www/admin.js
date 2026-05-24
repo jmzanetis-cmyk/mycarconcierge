@@ -821,6 +821,15 @@
       }
       // Task #459 — show API key alert banner if any key is failing or expiring
       try { await loadDashboardApiKeyAlert(); } catch {}
+      // Task #406 — if the admin landed here via a shared activity-card
+      // deep link (?aap_src=...&aap_id=...[&aap_section=...|&aap_modal=...]),
+      // route to the right section/modal now that loadAllData has populated
+      // the in-memory caches viewApplication/viewDispute/viewTicket need.
+      try {
+        if (typeof globalThis.consumeAgentActivityDeepLink === 'function') {
+          await globalThis.consumeAgentActivityDeepLink();
+        }
+      } catch (e) { console.warn('[admin] agent activity deep-link routing failed:', e); }
     }
 
     async function loadDashboardStats() {
@@ -1662,7 +1671,8 @@
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('providers-agent-activity', {
           agentSlug: ['matchmaker', 'treasurer', 'gatekeeper', 'advocate'],
-          limit: 10, title: 'Recent Provider-related Agent Activity', showEmpty: false
+          limit: 10, title: 'Recent Provider-related Agent Activity', showEmpty: false,
+          linkContext: { section: 'providers' }
         }); } catch { /* Intentionally silent */ }
       }
     }
@@ -1709,7 +1719,8 @@
         try { globalThis.renderAgentActivityPanel('payments-agent-activity', {
           agentSlug: 'treasurer',
           includeAiOpsModule: 'payment_tracker',
-          limit: 10, title: 'Recent Payment-related Agent Activity', showEmpty: false
+          limit: 10, title: 'Recent Payment-related Agent Activity', showEmpty: false,
+          linkContext: { section: 'payments' }
         }); } catch { /* Intentionally silent */ }
       }
     }
@@ -1822,7 +1833,7 @@
       const input = document.querySelector(`[data-api-key-input="${keyId}"]`);
       const value = (input?.value || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        alert('Enter the expiry date in YYYY-MM-DD format.');
+        showToast('Enter the expiry date in YYYY-MM-DD format.', 'error');
         return;
       }
       try {
@@ -1835,7 +1846,7 @@
         if (typeof showToast === 'function') showToast(`Expiry updated for ${data.key?.label || keyId}. Alert state reset.`);
       } catch (err) {
         console.error('saveApiKeyExpiry error:', err);
-        alert('Failed to update API key expiry.');
+        showToast('Failed to update API key expiry.', 'error');
       }
     }
 
@@ -2062,9 +2073,9 @@
       const amountStr = document.getElementById('driver-payout-adjust-amount').value;
       const kind = document.getElementById('driver-payout-adjust-kind').value;
       const notes = document.getElementById('driver-payout-adjust-notes').value;
-      if (!driverId) { alert('Pick a driver.'); return; }
+      if (!driverId) { showToast('Pick a driver.', 'error'); return; }
       const amountCents = Math.round(parseFloat(amountStr) * 100);
-      if (!Number.isFinite(amountCents) || amountCents === 0) { alert('Enter a nonzero amount.'); return; }
+      if (!Number.isFinite(amountCents) || amountCents === 0) { showToast('Enter a nonzero amount.', 'error'); return; }
       try {
         const res = await fetch('/api/admin/driver-payouts/adjust', {
           method: 'POST',
@@ -2072,12 +2083,12 @@
           body: JSON.stringify({ driver_id: driverId, amount_cents: amountCents, kind, notes })
         });
         const data = await res.json();
-        if (!res.ok) { alert(`Failed: ${data.error || res.statusText}`); return; }
+        if (!res.ok) { showToast(`Failed: ${data.error || res.statusText}`, 'error'); return; }
         document.getElementById('driver-payout-adjust-amount').value = '';
         document.getElementById('driver-payout-adjust-notes').value = '';
         await loadDriverPayouts();
       } catch (err) {
-        alert('Adjustment failed: ' + err.message);
+        showToast('Adjustment failed: ' + err.message, 'error');
       }
     }
 
@@ -2088,9 +2099,9 @@
           method: 'POST', headers: getAdminHeaders()
         });
         const data = await res.json();
-        if (!res.ok) { alert(`Retry failed: ${data.error || res.statusText}`); return; }
+        if (!res.ok) { showToast(`Retry failed: ${data.error || res.statusText}`, 'error'); return; }
         await loadDriverPayouts();
-      } catch (err) { alert('Retry failed: ' + err.message); }
+      } catch (err) { showToast('Retry failed: ' + err.message, 'error'); }
     }
 
     async function markDriverPayoutPaid(earningsId) {
@@ -2103,9 +2114,9 @@
           body: JSON.stringify({ notes })
         });
         const data = await res.json();
-        if (!res.ok) { alert(`Failed: ${data.error || res.statusText}`); return; }
+        if (!res.ok) { showToast(`Failed: ${data.error || res.statusText}`, 'error'); return; }
         await loadDriverPayouts();
-      } catch (err) { alert('Failed: ' + err.message); }
+      } catch (err) { showToast('Failed: ' + err.message, 'error'); }
     }
 
     async function adminCashoutDriver(driverId, method) {
@@ -2118,10 +2129,10 @@
           body: JSON.stringify({ method })
         });
         const data = await res.json();
-        if (!res.ok) { alert(`Cash-out failed: ${(data.error && data.error.message) || data.error || res.statusText}`); return; }
-        alert(`Cash-out queued: ${dollars(data.amount_cents)} (${method}${data.fee_cents ? ', fee ' + dollars(data.fee_cents) : ''})`);
+        if (!res.ok) { showToast(`Cash-out failed: ${(data.error && data.error.message) || data.error || res.statusText}`, 'error'); return; }
+        showToast(`Cash-out queued: ${dollars(data.amount_cents)} (${method}${data.fee_cents ? ', fee ' + dollars(data.fee_cents) : ''})`, 'success');
         await loadDriverPayouts();
-      } catch (err) { alert('Cash-out failed: ' + err.message); }
+      } catch (err) { showToast('Cash-out failed: ' + err.message, 'error'); }
     }
 
     globalThis.loadDriverPayouts = loadDriverPayouts;
@@ -2514,7 +2525,7 @@
         URL.revokeObjectURL(url);
       } catch (err) {
         console.error('Error downloading PDF:', err);
-        alert('Failed to download PDF. Please try again.');
+        showToast('Failed to download PDF. Please try again.', 'error');
       } finally {
         btn.innerHTML = origText;
         btn.disabled = false;
@@ -4233,7 +4244,8 @@
         const targetId = app.user_id || app.id;
         try { globalThis.renderAgentActivityPanel(`app-agent-${app.id}`, {
           targetId, targetKind: 'application', agentSlug: 'gatekeeper',
-          title: 'Gatekeeper Review', limit: 8, showEmpty: true
+          title: 'Gatekeeper Review', limit: 8, showEmpty: true,
+          linkContext: { modal: { type: 'application', id: app.id } }
         }); } catch (e) { console.warn('[admin] gatekeeper panel failed:', e); }
       }
     }
@@ -4434,7 +4446,8 @@
         try { globalThis.renderAgentActivityPanel(`dispute-agent-${d.id}`, {
           targetId: d.id, targetKind: 'dispute',
           agentSlug: 'advocate', includeAiOpsModule: 'dispute_resolver',
-          title: 'AI Dispute Analysis', limit: 8, showEmpty: true
+          title: 'AI Dispute Analysis', limit: 8, showEmpty: true,
+          linkContext: { modal: { type: 'dispute', id: d.id } }
         }); } catch (e) { console.warn('[admin] dispute agent panel failed:', e); }
       }
     }
@@ -4559,7 +4572,8 @@
         try { globalThis.renderAgentActivityPanel(`ticket-agent-${t.id}`, {
           targetId: t.id, targetKind: 'ticket',
           includeAiOpsModule: 'ai_helpdesk',
-          title: 'AI Helpdesk', limit: 8, showEmpty: true
+          title: 'AI Helpdesk', limit: 8, showEmpty: true,
+          linkContext: { modal: { type: 'ticket', id: t.id } }
         }); } catch (e) { console.warn('[admin] ticket agent panel failed:', e); }
       }
 
@@ -5267,7 +5281,8 @@
         if (typeof globalThis.renderAgentActivityPanel === 'function') {
           try { globalThis.renderAgentActivityPanel('pilot-agent-activity', {
             agentSlug: 'gatekeeper',
-            limit: 10, title: 'Recent Gatekeeper Reviews', showEmpty: false
+            limit: 10, title: 'Recent Gatekeeper Reviews', showEmpty: false,
+            linkContext: { section: 'pilot-applications' }
           }); } catch { /* Intentionally silent */ }
         }
       } catch (err) {
@@ -5511,7 +5526,8 @@
         if (typeof globalThis.renderAgentActivityPanel === 'function') {
           try { globalThis.renderAgentActivityPanel('member-founders-agent-activity', {
             agentSlug: ['concierge', 'advocate'],
-            limit: 10, title: 'Recent Member-Founder Agent Activity', showEmpty: false
+            limit: 10, title: 'Recent Member-Founder Agent Activity', showEmpty: false,
+            linkContext: { section: 'member-founders' }
           }); } catch { /* Intentionally silent */ }
         }
       } catch (err) {
@@ -10780,7 +10796,8 @@
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('mo-agent-activity', {
           agentSlug: ['hunter', 'promoter'], limit: 15,
-          title: 'Recent Hunter & Promoter Activity', showEmpty: true
+          title: 'Recent Hunter & Promoter Activity', showEmpty: true,
+          linkContext: { section: 'marketing-outreach' }
         }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
       }
       // Task #222 — Launch broadcast send progress + bounces.
@@ -12195,7 +12212,8 @@
       // Render last 25 across all agents using the shared helper.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         globalThis.renderAgentActivityPanel('agent-fleet-recent', {
-          limit: 25, title: '', showEmpty: true
+          limit: 25, title: '', showEmpty: true,
+          linkContext: { section: 'agent-fleet' }
         });
       }
     }
@@ -12228,7 +12246,8 @@
       }
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         globalThis.renderAgentActivityPanel('dashboard-agent-recent', {
-          limit: 10, title: 'Recent Agent Actions', showEmpty: true
+          limit: 10, title: 'Recent Agent Actions', showEmpty: true,
+          linkContext: { section: 'dashboard' }
         });
       }
     }
@@ -13983,19 +14002,15 @@
         const topSat = Object.entries(data.by_provider_satisfaction || {}).sort((a,b) => b[1]-a[1])[0];
         if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topSat ? (MS_LABELS.provider_satisfaction[topSat[0]] || topSat[0]) : '—';
 
-        // Render every survey dimension. Order matches the visual groups in admin.html
-        // (Discovery & Satisfaction → Service Habits → Spending → Trust → Tracking & Comms → Adoption).
-        // Canvases are named `ms-chart-<key>` so adding a new dimension only requires
-        // appending the key here AND a matching canvas card in admin.html.
-        const CHART_KEYS = [
-          'provider_discovery','provider_satisfaction','top_priority',
-          'service_frequency','service_types','vehicle_count',
-          'annual_spend','pricing_confidence','estimate_surprise','quote_behavior',
-          'provider_honesty','provider_vetting','maintenance_avoidance','dispute_history',
-          'history_tracking','job_status_updates','maintenance_reminders',
-          'competitive_bids','app_usage','payment_comfort','decision_maker','near_term_need'
-        ];
-        for (const key of CHART_KEYS) {
+        // Render every survey dimension. The list of keys is the single source of
+        // truth in www/shared/survey-questions.js (MCCSurvey.KEYS); we iterate it
+        // directly so adding a new question there automatically renders a chart.
+        // Each key needs a matching <canvas id="ms-chart-<key>"> card in admin.html
+        // (the survey-questions-drift smoke test enforces that mapping).
+        const surveyKeys = (globalThis.MCCSurvey && Array.isArray(globalThis.MCCSurvey.KEYS))
+          ? globalThis.MCCSurvey.KEYS
+          : [];
+        for (const key of surveyKeys) {
           buildMsDoughnut('ms-chart-' + key, MS_LABELS[key] || {}, data['by_' + key] || {});
         }
 
@@ -14136,7 +14151,10 @@
       const search  = (document.getElementById('sl-search')?.value || '').trim();
       const filter  = document.getElementById('sl-filter')?.value || 'all';
       const sortDir = surveyLeadsState.sortDir || 'desc';
-      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir });
+      // Thread the active Survey Analytics range so the list reflects the same window
+      // as the charts. Falls back to 'all' when the selector hasn't been rendered yet.
+      const range   = document.getElementById('ms-range-select')?.value || 'all';
+      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir, range });
       const tbody   = document.getElementById('sl-table-body');
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
       try {
@@ -14314,9 +14332,11 @@
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const headers = getAdminHeaders();
       const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
-      const url     = apiBase + '/api/admin/survey-leads/export';
+      // Thread the active Survey Analytics range so the CSV matches the charts/list window.
+      const range   = document.getElementById('ms-range-select')?.value || 'all';
+      const url     = apiBase + '/api/admin/survey-leads/export?range=' + encodeURIComponent(range);
       const a       = document.createElement('a');
-      a.href = url + (pw ? '?_t=' + Date.now() : '');
+      a.href = url + (pw ? '&_t=' + Date.now() : '');
       // Pass password via fetch and redirect to blob URL
       fetch(url, { headers }).then(r => r.blob()).then(blob => {
         const blobUrl = URL.createObjectURL(blob);

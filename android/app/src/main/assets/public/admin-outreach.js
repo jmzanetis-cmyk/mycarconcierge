@@ -460,56 +460,22 @@
     } catch (_e) { return apolloEscapeHtml(iso); }
   }
 
+  // Task #330 extracted this into a shared globalThis.describeAuditRow in
+  // admin-audit-log.js so the new generic "Audit Log" section and this
+  // Apollo-only card render rows the exact same way. We still expose a
+  // thin wrapper named describeApolloAuditRow for backwards compatibility
+  // and so the loadApolloAuditLog call site below stays unchanged.
   function describeApolloAuditRow(row) {
-    const meta = row.metadata || {};
-    switch (row.action) {
-      case 'update_apollo_config': {
-        const updates = meta.updates || {};
-        const keys = Object.keys(updates);
-        // If admin toggled `enabled`, lead with "enabled" / "disabled"
-        // since it's the most operationally significant change.
-        let headline = 'Apollo settings updated';
-        if (Object.prototype.hasOwnProperty.call(updates, 'enabled')) {
-          headline = updates.enabled === true
-            ? 'Apollo discovery <strong style="color:var(--success);">ENABLED</strong>'
-            : 'Apollo discovery <strong style="color:var(--danger,#dc2626);">DISABLED</strong>';
-        }
-        const parts = keys.map(k => {
-          const v = updates[k];
-          let display;
-          if (Array.isArray(v)) display = v.length ? v.join(', ') : '(empty)';
-          else if (v === null || v === '') display = '(cleared)';
-          else if (typeof v === 'boolean') display = v ? 'on' : 'off';
-          else display = String(v);
-          if (display.length > 60) display = display.slice(0, 57) + '...';
-          return `<code style="font-size:0.78rem;">${apolloEscapeHtml(k)}</code>=<span style="color:var(--text-secondary);">${apolloEscapeHtml(display)}</span>`;
-        });
-        const summary = parts.length ? `<div style="margin-top:4px;font-size:0.82rem;line-height:1.6;">${parts.join('  &middot;  ')}</div>` : '';
-        return { label: headline, summary };
-      }
-      case 'apollo_run_now':
-        return { label: 'Manual Apollo discovery run triggered', summary: '' };
-      case 'apollo_manual_search': {
-        const found = meta.found != null ? meta.found : '?';
-        const withEmail = meta.with_email != null ? meta.with_email : '?';
-        const page = meta.page != null ? meta.page : '?';
-        return {
-          label: 'Manual Apollo search executed',
-          summary: `<div style="margin-top:4px;font-size:0.82rem;color:var(--text-secondary);">Page ${apolloEscapeHtml(page)} &middot; <strong>${apolloEscapeHtml(found)}</strong> people found, <strong>${apolloEscapeHtml(withEmail)}</strong> with email</div>`
-        };
-      }
-      case 'apollo_manual_enrich': {
-        const total = meta.total != null ? meta.total : '?';
-        const enriched = meta.enriched != null ? meta.enriched : '?';
-        const failed = meta.failed != null ? meta.failed : '?';
-        return {
-          label: 'Manual Apollo enrichment run',
-          summary: `<div style="margin-top:4px;font-size:0.82rem;color:var(--text-secondary);">Processed <strong>${apolloEscapeHtml(total)}</strong> leads &middot; <strong style="color:var(--success);">${apolloEscapeHtml(enriched)}</strong> enriched &middot; <strong style="color:var(--danger,#dc2626);">${apolloEscapeHtml(failed)}</strong> failed</div>`
-        };
-      }
-      default:
-        return { label: apolloEscapeHtml(row.action), summary: `<div style="margin-top:4px;font-size:0.78rem;color:var(--text-muted);"><code>${apolloEscapeHtml(JSON.stringify(meta))}</code></div>` };
+    if (typeof globalThis.describeAuditRow === 'function') {
+      return globalThis.describeAuditRow(row);
     }
+    // Fallback if admin-audit-log.js failed to load — just render the
+    // action name; never crash the Apollo dashboard tab.
+    const meta = (row && row.metadata) || {};
+    return {
+      label: apolloEscapeHtml(String(row && row.action || 'unknown')),
+      summary: `<div style="margin-top:4px;font-size:0.78rem;color:var(--text-muted);"><code>${apolloEscapeHtml(JSON.stringify(meta))}</code></div>`
+    };
   }
 
   async function loadApolloAuditLog() {
@@ -718,17 +684,51 @@
     }
   }
 
-  async function initOutreachEngine() {
-    try {
-      const statusRes = await outreachFetch('/schema-status');
-      if (!statusRes.ok) throw new Error('Status check failed: ' + statusRes.status);
-      const statusData = await statusRes.json();
-      schemaReady = statusData.schema_ready;
-    } catch (e) {
-      console.error('Outreach schema check failed:', e);
-      schemaReady = false;
-    }
+  function renderOutreachLoadingState(container) {
+    if (!container) return;
+    container.querySelector('.outreach-loading-state')?.remove();
+    container.querySelector('.outreach-error-state')?.remove();
+    const loading = document.createElement('div');
+    loading.className = 'outreach-loading-state card';
+    loading.innerHTML = `
+      <div style="padding:40px;text-align:center;" role="status" aria-live="polite">
+        <div class="spinner" style="display:inline-block;width:36px;height:36px;border:3px solid var(--border-color,#2a2f3e);border-top-color:var(--accent-gold,#b8942d);border-radius:50%;animation:mccSpin 0.8s linear infinite;margin-bottom:14px;"></div>
+        <h3 style="margin:0 0 6px;">Loading Outreach Engine…</h3>
+        <p style="color:var(--text-muted);margin:0;">Fetching schema status and pipeline state.</p>
+      </div>
+      <style>@keyframes mccSpin { to { transform: rotate(360deg); } }</style>
+    `;
+    container.insertBefore(loading, container.firstChild);
+  }
 
+  function renderOutreachErrorState(container, err) {
+    if (!container) return;
+    container.querySelector('.outreach-loading-state')?.remove();
+    container.querySelector('.outreach-error-state')?.remove();
+    // Clear stale content/notices so the retry card isn't shown alongside
+    // a half-rendered prior state.
+    container.querySelector('.outreach-content')?.remove();
+    container.querySelector('.outreach-schema-notice')?.remove();
+    const raw = err && err.message ? err.message : String(err || 'Unknown error');
+    const msg = raw
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;');
+    const errBox = document.createElement('div');
+    errBox.className = 'outreach-error-state card';
+    errBox.innerHTML = `
+      <div style="padding:40px;text-align:center;">
+        <span class="icon-inline" data-icon="alert-triangle" style="width:48px;height:48px;color:var(--accent-gold);"></span>
+        <h3 style="margin:14px 0 6px;">Couldn't load Outreach Engine</h3>
+        <p style="color:var(--text-muted);max-width:520px;margin:0 auto 16px;">${msg}</p>
+        <button class="btn btn-primary" onclick="globalThis.initOutreachEngine()">Try again</button>
+      </div>
+    `;
+    container.appendChild(errBox);
+    if (typeof initInlineIcons !== 'undefined') initInlineIcons(container);
+  }
+
+  async function initOutreachEngine() {
     // Task #269 — the wrapper element in www/admin.html is `mo-outreach-engine`
     // (matching the `mo-` prefix the .mo-tab click handler uses to find panels).
     // The previous lookup of `outreach-engine` always returned null, so this
@@ -737,37 +737,60 @@
     const container = document.getElementById('mo-outreach-engine');
     if (!container) return;
 
-    if (!schemaReady) {
-      container.querySelector('.outreach-content')?.remove();
-      const notice = container.querySelector('.outreach-schema-notice') || document.createElement('div');
-      notice.className = 'outreach-schema-notice card';
-      notice.innerHTML = `
-        <div style="padding:40px;text-align:center;">
-          <span class="icon-inline" data-icon="alert-triangle" style="width:48px;height:48px;color:var(--accent-gold);"></span>
-          <h2 style="margin:16px 0 8px;">Database Schema Required</h2>
-          <p style="color:var(--text-muted);max-width:560px;margin:0 auto 12px;">The Outreach Engine tables have not been created yet. Open the Supabase SQL Editor and apply the migration files below in order:</p>
-          <pre style="display:inline-block;text-align:left;background:var(--bg-elevated);padding:12px 16px;border-radius:6px;margin:0 auto 20px;font-size:13px;line-height:1.6;">supabase/migrations/20260420_outreach_engine_initial.sql
+    // Task #339 — show a visible loading placeholder while async init runs so
+    // re-clicking the mo-tab (or first-load) doesn't look like a dead click.
+    renderOutreachLoadingState(container);
+
+    try {
+      // Task #339 — let transport/API errors propagate to the outer catch so
+      // they render the "Couldn't load — try again" card. A missing schema
+      // (status response with schema_ready=false) is still a normal branch
+      // that shows the migration-required notice.
+      const statusRes = await outreachFetch('/schema-status');
+      if (!statusRes.ok) throw new Error('Status check failed: ' + statusRes.status);
+      const statusData = await statusRes.json();
+      schemaReady = statusData.schema_ready;
+
+      container.querySelector('.outreach-loading-state')?.remove();
+
+      if (!schemaReady) {
+        container.querySelector('.outreach-content')?.remove();
+        const notice = container.querySelector('.outreach-schema-notice') || document.createElement('div');
+        notice.className = 'outreach-schema-notice card';
+        notice.innerHTML = `
+          <div style="padding:40px;text-align:center;">
+            <span class="icon-inline" data-icon="alert-triangle" style="width:48px;height:48px;color:var(--accent-gold);"></span>
+            <h2 style="margin:16px 0 8px;">Database Schema Required</h2>
+            <p style="color:var(--text-muted);max-width:560px;margin:0 auto 12px;">The Outreach Engine tables have not been created yet. Open the Supabase SQL Editor and apply the migration files below in order:</p>
+            <pre style="display:inline-block;text-align:left;background:var(--bg-elevated);padding:12px 16px;border-radius:6px;margin:0 auto 20px;font-size:13px;line-height:1.6;">supabase/migrations/20260420_outreach_engine_initial.sql
 supabase/migrations/20260424_outreach_email_events.sql
 supabase/migrations/20260425_outreach_crm_bridge.sql
 (plus any later 20260*_outreach_*.sql)</pre>
-          <div>
-            <button class="btn" onclick="globalThis.initOutreachEngine()">Check Again</button>
+            <div>
+              <button class="btn" onclick="globalThis.initOutreachEngine()">Check Again</button>
+            </div>
           </div>
-        </div>
-      `;
-      if (!container.querySelector('.outreach-schema-notice')) container.appendChild(notice);
-      if (typeof initInlineIcons !== 'undefined') initInlineIcons(container);
-      return;
-    }
+        `;
+        if (!container.querySelector('.outreach-schema-notice')) container.appendChild(notice);
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(container);
+        return;
+      }
 
-    container.querySelector('.outreach-schema-notice')?.remove();
-    await loadEngineState();
-    switchOutreachTab('pipeline');
-    setupOutreachRealtime();
-    // Task #243 — render the Facebook Page connection picker card.
-    // Safe to fail independently of the rest of the panel.
-    try { await initFacebookPageConnection(); }
-    catch (e) { console.warn('[FB Page] init failed:', e); }
+      container.querySelector('.outreach-schema-notice')?.remove();
+      await loadEngineState();
+      switchOutreachTab('pipeline');
+      setupOutreachRealtime();
+      // Task #243 — render the Facebook Page connection picker card.
+      // Safe to fail independently of the rest of the panel.
+      try { await initFacebookPageConnection(); }
+      catch (e) { console.warn('[FB Page] init failed:', e); }
+    } catch (e) {
+      // Task #339 — surface init failures instead of leaving the panel blank.
+      console.error('Outreach Engine init failed:', e);
+      renderOutreachErrorState(container, e);
+    } finally {
+      container.querySelector('.outreach-loading-state')?.remove();
+    }
   }
 
   async function loadEngineState() {
@@ -782,11 +805,19 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         // regardless of which sub-tab the admin lands on.
         loadApolloLockHealth()
       ]);
+      // Task #339 — surface transport/API failures so initOutreachEngine()'s
+      // outer catch can render the retry card instead of feeding garbage
+      // into renderEngineControlPanel().
+      if (!stateRes.ok) throw new Error('Engine state fetch failed: ' + stateRes.status);
       const data = await stateRes.json();
       outreachState = data;
       renderEngineControlPanel();
     } catch (e) {
+      // Task #339 — rethrow so initOutreachEngine()'s outer catch can render
+      // the "Couldn't load — try again" retry card instead of silently
+      // leaving the panel partially initialized.
       console.error('Failed to load engine state:', e);
+      throw e;
     }
   }
 
@@ -1133,6 +1164,62 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const s = String(v);
     if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
     return s;
+  }
+
+  // Task #402 — lead-level CSV export. Hits /api/admin/outreach/leads/export
+  // with the currently applied lead-list filters so admins can pull the same
+  // rows they see on screen (plus the joined contacted_at / profile_created_at
+  // / application_submitted_at funnel timestamps) into a spreadsheet.
+  async function downloadLeadsCsv(triggerBtn) {
+    const type = document.getElementById('leads-filter-type')?.value || '';
+    const status = document.getElementById('leads-filter-status')?.value || '';
+    const source = document.getElementById('leads-filter-source')?.value || '';
+    const dateFrom = document.getElementById('leads-filter-date-from')?.value || '';
+    const dateTo = document.getElementById('leads-filter-date-to')?.value || '';
+    const search = document.getElementById('leads-search')?.value || '';
+    const params = new URLSearchParams();
+    if (type) params.set('type', type);
+    if (status) params.set('status', status);
+    if (source) params.set('source', source);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (search) params.set('search', search);
+
+    const originalHtml = triggerBtn ? triggerBtn.innerHTML : null;
+    if (triggerBtn) {
+      triggerBtn.disabled = true;
+      triggerBtn.innerHTML = 'Exporting…';
+    }
+    try {
+      const res = await outreachFetch('/leads/export' + (params.toString() ? '?' + params.toString() : ''));
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.error) msg = j.error; } catch (_) { /* not JSON */ }
+        if (typeof showToast !== 'undefined') showToast('Export failed: ' + msg, 'error');
+        return;
+      }
+      const blob = await res.blob();
+      let filename = 'outreach-leads.csv';
+      const disp = res.headers.get('Content-Disposition') || '';
+      const match = disp.match(/filename="?([^";]+)"?/i);
+      if (match) filename = match[1];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (typeof showToast !== 'undefined') showToast('Lead CSV download started');
+    } catch (err) {
+      if (typeof showToast !== 'undefined') showToast('Export failed: ' + err.message, 'error');
+    } finally {
+      if (triggerBtn) {
+        triggerBtn.disabled = false;
+        if (originalHtml !== null) triggerBtn.innerHTML = originalHtml;
+      }
+    }
   }
 
   function downloadConversionFunnelCsv() {
@@ -1506,11 +1593,17 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const search = document.getElementById('leads-search')?.value || '';
     const type = document.getElementById('leads-filter-type')?.value || '';
     const status = document.getElementById('leads-filter-status')?.value || '';
+    const source = document.getElementById('leads-filter-source')?.value || '';
+    const dateFrom = document.getElementById('leads-filter-date-from')?.value || '';
+    const dateTo = document.getElementById('leads-filter-date-to')?.value || '';
 
     const params = new URLSearchParams({ page: '1', limit: '50' });
     if (search) params.set('search', search);
     if (type) params.set('type', type);
     if (status) params.set('status', status);
+    if (source) params.set('source', source);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
 
     container.innerHTML = '<div style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
 
@@ -2403,6 +2496,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.loadConversionFunnel = loadConversionFunnel;
   globalThis.resetConversionFunnelDates = resetConversionFunnelDates;
   globalThis.downloadConversionFunnelCsv = downloadConversionFunnelCsv;
+  globalThis.downloadLeadsCsv = downloadLeadsCsv;
 
   // ===================================================================
   // Task #243 — Facebook Page admin OAuth picker

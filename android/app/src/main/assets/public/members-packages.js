@@ -3013,6 +3013,12 @@
           if (errorEl) {
             errorEl.textContent = event.error ? event.error.message : '';
           }
+          const submitBtn = document.getElementById('approve-additional-work-btn');
+          if (submitBtn) {
+            const ready = !!event.complete && !event.error;
+            submitBtn.disabled = !ready;
+            submitBtn.setAttribute('aria-disabled', ready ? 'false' : 'true');
+          }
         });
       } catch (err) {
         console.error('Error mounting card element:', err);
@@ -3383,7 +3389,7 @@
               </div>
             </div>
             
-            <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;margin-bottom:12px;">
+            <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;margin-bottom:12px;" disabled aria-disabled="true">
               ${mccIcon('lock', 16)} Authorize Payment ($${amount.toFixed(2)})
             </button>
             <button class="btn btn-secondary" onclick="openSplitPaymentModal('${pkg.id}', ${Math.round(amount * 100)})" style="width:100%;">
@@ -3677,6 +3683,12 @@
             const errorEl = document.getElementById(`escrow-card-errors-${packageId}`);
             if (errorEl) {
               errorEl.textContent = event.error ? event.error.message : '';
+            }
+            const submitBtn = document.getElementById(`authorize-payment-btn-${packageId}`);
+            if (submitBtn) {
+              const ready = !!event.complete && !event.error;
+              submitBtn.disabled = !ready;
+              submitBtn.setAttribute('aria-disabled', ready ? 'false' : 'true');
             }
           });
           

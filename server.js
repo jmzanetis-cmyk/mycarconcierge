@@ -192,7 +192,7 @@ Focus on:
 - High-level explanation of how My Car Concierge works for providers:
   - They list services.
   - Members book through the platform.
-  - Providers complete the work and get paid (subject to platform fees and policies).
+  - Providers complete the work and get paid the full bid amount (no platform fee on completed jobs; standard Stripe processing applies).
 - Common categories of services they can offer (maintenance, repairs, diagnostics, body work, detailing, towing, inspections, etc.).
 - General onboarding-style questions: what they should expect, what info they might need (business details, insurance, service capabilities).
 
@@ -1423,7 +1423,7 @@ async function handleAdminGetAgreementPDF(req, res, requestId) {
       if (isFoundingProvider) {
         sectionHeader('1. FOUNDING PROVIDER BENEFITS');
 
-        sectionBody('1.1 Zero Fees.', 'Founding Provider receives unlimited bid credits at no cost and pays zero transaction fees. Founding Provider keeps 100% of customer payments minus only credit card payment processing fees when applied.');
+        sectionBody('1.1 Unlimited Bid Credits.', 'Founding Provider receives unlimited bid credits at no cost (every other provider purchases bid-credit packs to compete for jobs). MCC charges no platform fee on completed jobs for any provider; Founding Provider keeps 100% of customer payments minus only standard credit-card payment processing fees.');
 
         sectionBody('1.2 Referral Commissions.', 'Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for the lifetime of the respective provider\'s account. Commissions paid monthly within 15 business days.');
 
@@ -1485,7 +1485,7 @@ async function handleAdminGetAgreementPDF(req, res, requestId) {
 
         sectionBody('3.2 Duration.', 'This Agreement continues indefinitely and may only be terminated by mutual written agreement of both parties.');
 
-        sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other benefits (zero fees, milestone bonuses) end upon termination.');
+        sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other Founding Provider benefits (unlimited free bid credits, milestone bonuses) end upon termination.');
 
         sectionBody('3.4 Confidentiality.', 'Both parties maintain confidentiality of business information, customer data, and proprietary processes.');
 
@@ -22216,7 +22216,7 @@ async function handlePosCheckout(req, res, requestId, sessionId) {
         totalCents,
         platformFeeCents,
         vipMember: platformFeeExempt,
-        vipMessage: platformFeeExempt ? 'VIP Member - No Platform Fee' : null
+        vipMessage: platformFeeExempt ? 'VIP Loyal Customer' : null
       }));
       
     } catch (error) {
@@ -22773,7 +22773,7 @@ async function handlePosLinkMarketplaceJob(req, res, requestId, sessionId) {
         totalCents: priceCents,
         platformFeeCents,
         vipMember: platformFeeExempt,
-        vipMessage: platformFeeExempt ? 'VIP Member - No Platform Fee' : null
+        vipMessage: platformFeeExempt ? 'VIP Loyal Customer' : null
       }));
       
     } catch (error) {

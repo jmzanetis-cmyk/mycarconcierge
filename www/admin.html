@@ -845,7 +845,7 @@
         <div class="stat-card">
           <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);"><span class="icon-inline" data-icon="dollar-sign"></span></div>
           <div class="stat-value" id="analytics-revenue">$0</div>
-          <div class="stat-label">Total Revenue (MCC Fees)</div>
+          <div class="stat-label">Total Revenue (Bid Packs)</div>
           <div id="analytics-revenue-change" style="font-size:0.8rem;margin-top:4px;"></div>
         </div>
         <div class="stat-card">
@@ -1154,8 +1154,14 @@
                   <select id="leads-filter-status" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')">
                     <option value="">All Status</option><option value="new">New</option><option value="contacted">Contacted</option><option value="responded">Responded</option><option value="converted">Converted</option><option value="unsubscribed">Unsubscribed</option>
                   </select>
+                  <select id="leads-filter-source" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')" title="Filter by lead source">
+                    <option value="">All Sources</option><option value="apollo">Apollo</option><option value="google_places">Google Places</option><option value="manual">Manual</option><option value="csv_import">CSV Import</option><option value="crm_reengagement">CRM Re-engagement</option><option value="referral_nudge">Referral Nudge</option>
+                  </select>
+                  <input type="date" id="leads-filter-date-from" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')" title="Lead created on/after">
+                  <input type="date" id="leads-filter-date-to" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')" title="Lead created on/before">
                   <button class="btn btn-sm" onclick="showAddLeadModal()"><span class="icon-inline" data-icon="plus"></span> Add Lead</button>
                   <button class="btn btn-sm" onclick="showImportModal()"><span class="icon-inline" data-icon="download"></span> Import</button>
+                  <button class="btn btn-sm" onclick="downloadLeadsCsv(this)" title="Export the filtered lead list as CSV"><span class="icon-inline" data-icon="download"></span> Download CSV</button>
                 </div>
               </div>
               <div id="outreach-leads-list"></div>
@@ -1228,8 +1234,14 @@
                   <select id="leads-filter-status" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')">
                     <option value="">All Status</option><option value="new">New</option><option value="contacted">Contacted</option><option value="responded">Responded</option><option value="converted">Converted</option><option value="unsubscribed">Unsubscribed</option>
                   </select>
+                  <select id="leads-filter-source" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')" title="Filter by lead source">
+                    <option value="">All Sources</option><option value="apollo">Apollo</option><option value="google_places">Google Places</option><option value="manual">Manual</option><option value="csv_import">CSV Import</option><option value="crm_reengagement">CRM Re-engagement</option><option value="referral_nudge">Referral Nudge</option>
+                  </select>
+                  <input type="date" id="leads-filter-date-from" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')" title="Lead created on/after">
+                  <input type="date" id="leads-filter-date-to" class="form-input" style="width:auto;" onchange="switchOutreachTab('leads')" title="Lead created on/before">
                   <button class="btn btn-sm" onclick="showAddLeadModal()"><span class="icon-inline" data-icon="plus"></span> Add Lead</button>
                   <button class="btn btn-sm" onclick="showImportModal()"><span class="icon-inline" data-icon="download"></span> Import</button>
+                  <button class="btn btn-sm" onclick="downloadLeadsCsv(this)" title="Export the filtered lead list as CSV"><span class="icon-inline" data-icon="download"></span> Download CSV</button>
                 </div>
               </div>
               <div id="outreach-leads-list"></div>
@@ -2796,7 +2808,7 @@
         </div>
         <div class="stat-card">
           <div class="stat-value" id="payments-fees">$0</div>
-          <div class="stat-label">MCC Fees (30 days)</div>
+          <div class="stat-label">Platform Revenue (30 days)</div>
         </div>
       </div>
 
@@ -5662,9 +5674,9 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
   <script src="supabaseclient.js?v=20260122"></script>
   <script src="admin-audit-log.js?v=20260516a"></script>
   <script src="admin-outreach.js?v=20260429b"></script>
-  <script src="admin-agent-activity.js?v=20260424a"></script>
+  <script src="admin-agent-activity.js?v=20260524a"></script>
   <script src="shared/survey-questions.js?v=20260429a"></script>
-  <script src="admin.js?v=20260429a"></script>
+  <script src="admin.js?v=20260524a"></script>
   <script src="/pwa-init.js?v=20260202"></script>
   <script>
     function toggleTheme() {

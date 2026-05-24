@@ -150,7 +150,7 @@ async function step2AddRedditChannel(ctx) {
     platform: 'reddit', handle: 'MyCarConcierge_smoke_' + Date.now(),
     monitor_keywords: ['mechanic', 'oil change'], monitor_audience: 'member', enabled: false
   });
-  console.log(`  status=${r.status} ${r.status === 200 ? '✓ channel id=' + r.body.channel?.id : '✗ ' + JSON.stringify(r.body)}`);
+  console.log(`  status=${r.status} ${r.status === 200 ? '✓ channel id=' + String(r.body.channel?.id ?? '').slice(0, 64) : '✗ ' + JSON.stringify(r.body).slice(0, 200)}`);
   ctx.channelId = r.body.channel?.id;
 }
 
@@ -160,7 +160,7 @@ async function step3RequestPromoterDraft(ctx) {
     platform: 'reddit', audience: 'member', channel_id: ctx.channelId,
     brief: 'announce snow-removal launch in NJ — friendly, helpful, mention free quotes'
   });
-  console.log(`  status=${r.status} ${r.status === 200 ? '✓ event id=' + r.body.event_id : '✗ ' + JSON.stringify(r.body)}`);
+  console.log(`  status=${r.status} ${r.status === 200 ? '✓ event id=' + String(r.body.event_id ?? '').slice(0, 64) : '✗ ' + JSON.stringify(r.body).slice(0, 200)}`);
   ctx.eventId = r.body.event_id;
 }
 
@@ -348,7 +348,7 @@ async function step13bVariantPersistence(ctx) {
 async function step14DeleteChannel(ctx) {
   console.log('\n━━━ STEP 14: DELETE channel ━━━');
   const r14 = await call('DELETE', `social/channels/${ctx.channelId}`);
-  console.log(`  status=${r14.status} ${r14.status === 200 ? '✓ deleted id=' + r14.body.id : '✗ ' + JSON.stringify(r14.body).slice(0,200)}`);
+  console.log(`  status=${r14.status} ${r14.status === 200 ? '✓ deleted id=' + String(r14.body.id ?? '').slice(0, 64) : '✗ ' + JSON.stringify(r14.body).slice(0,200)}`);
 }
 
 // ──────────────────────────────────────────────────────────────────────
@@ -625,7 +625,7 @@ async function step2324HappyPathAndRateLimit(ctx) {
     console.log(`  ✗ application create failed status=${pa3.status} body=${JSON.stringify(pa3.body).slice(0,300)}`);
     return;
   }
-  console.log(`  ✓ created application_id=${pa3.body.application_id}`);
+  console.log(`  ✓ created application_id=${String(pa3.body.application_id).slice(0, 64)}`);
   const { data: row } = await ctx.adminSb.from('provider_applications')
     .select('id, user_id, agreement_ip_address, status').eq('id', pa3.body.application_id).single();
   if (row?.user_id === ctx.testUserId) {
@@ -636,7 +636,7 @@ async function step2324HappyPathAndRateLimit(ctx) {
 
   console.log('\n━━━ STEP 24: provider-application 24h rate-limit returns 429 ━━━');
   const pa4 = await callProviderApplication(happyPayload, { token: ctx.testJwt });
-  if (pa4.status === 429) console.log(`  ✓ duplicate within 24h blocked (existing_id=${pa4.body.existing_application_id})`);
+  if (pa4.status === 429) console.log(`  ✓ duplicate within 24h blocked (existing_id=${String(pa4.body.existing_application_id ?? '').slice(0, 64)})`);
   else console.log(`  ✗ expected 429, got ${pa4.status} body=${JSON.stringify(pa4.body).slice(0,200)}`);
 }
 

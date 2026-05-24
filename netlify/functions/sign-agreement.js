@@ -53,7 +53,7 @@ function generatePDF(agreementData) {
 
     sectionHeader('1. FOUNDING PROVIDER BENEFITS');
 
-    sectionBody('1.1 Zero Fees.', 'Founding Provider receives unlimited bid credits at no cost and pays zero transaction fees. Founding Provider keeps 100% of customer payments minus only credit card payment processing fees when applied.');
+    sectionBody('1.1 Unlimited Bid Credits.', 'Founding Provider receives unlimited bid credits at no cost (every other provider purchases bid-credit packs to compete for jobs). MCC charges no platform fee on completed jobs for any provider; Founding Provider keeps 100% of customer payments minus only standard credit-card payment processing fees.');
 
     sectionBody('1.2 Referral Commissions.', 'Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for the lifetime of the respective provider\'s account. Commissions paid monthly within 15 business days.');
 
@@ -115,7 +115,7 @@ function generatePDF(agreementData) {
 
     sectionBody('3.2 Duration.', 'This Agreement continues indefinitely and may only be terminated by mutual written agreement of both parties.');
 
-    sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other benefits (zero fees, milestone bonuses) end upon termination.');
+    sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other Founding Provider benefits (unlimited free bid credits, milestone bonuses) end upon termination.');
 
     sectionBody('3.4 Confidentiality.', 'Both parties maintain confidentiality of business information, customer data, and proprietary processes.');
 
@@ -246,7 +246,7 @@ function buildEmailHtml(agreementData) {
 
     '<p style="color:#555;font-size:15px;line-height:1.6;margin:0 0 15px;">Your signed agreement PDF is attached to this email for your records. As a Founding Provider, you enjoy:</p>' +
     '<ul style="color:#555;font-size:14px;line-height:1.8;padding-left:20px;margin:0 0 25px;">' +
-    '<li><strong style="color:#b8942d;">Zero Fees</strong> - Keep 100% of customer payments</li>' +
+    '<li><strong style="color:#b8942d;">Unlimited Free Bid Credits</strong> - Plus MCC charges no platform fee on completed jobs (you keep 100% of customer payments)</li>' +
     '<li><strong style="color:#b8942d;">90% Referral Commissions</strong> - On providers you refer</li>' +
     '<li><strong style="color:#b8942d;">Milestone Bonuses</strong> - Up to $125,000 as the platform grows</li>' +
     '</ul>' +

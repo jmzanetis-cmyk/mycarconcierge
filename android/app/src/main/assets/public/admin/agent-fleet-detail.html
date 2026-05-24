@@ -1206,6 +1206,16 @@ document.getElementById('promptSave').addEventListener('click', async () => {
 });
 wireConfigEdits();
 
+globalThis.addEventListener('beforeunload', (e) => {
+  const ta = document.getElementById('promptBody');
+  if (!ta) return;
+  if (ta.value !== editorPristineBody) {
+    e.preventDefault();
+    e.returnValue = '';
+    return '';
+  }
+});
+
 // boot
 if (getPw()) { api('/agents').then(showApp).catch(() => showLogin()); }
 else { showLogin(); }

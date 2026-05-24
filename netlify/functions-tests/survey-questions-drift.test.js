@@ -13,12 +13,14 @@
 //     else in `www/` (the original Task #166 regression).
 //
 // This test asserts the structural invariants of the shared module and
-// verifies that the one known parallel list of survey keys (the
-// `CHART_KEYS` array inside `www/admin.js`, which controls which dimension
-// charts get rendered on the admin dashboard) is the *same set* as
-// `MCCSurvey.KEYS`. If anyone adds or removes a question in the shared
-// file without updating the admin chart loop, this test fails loudly
-// instead of silently dropping a chart from the dashboard.
+// verifies that the admin dashboard renders one `<canvas id="ms-chart-<key>">`
+// card for every key in `MCCSurvey.KEYS`. Task #397 removed the parallel
+// `CHART_KEYS` array in `www/admin.js` — the chart loop now iterates
+// `MCCSurvey.KEYS` directly, so the only remaining place a key can go
+// missing is the static canvas list in `www/admin.html`. If anyone adds
+// or removes a question in the shared file without updating the canvas
+// cards, this test fails loudly instead of silently dropping a chart from
+// the dashboard.
 
 'use strict';
 
@@ -27,6 +29,7 @@ const path = require('node:path');
 
 const REPO_ROOT = path.resolve(__dirname, '..', '..');
 const SHARED_PATH = path.join(REPO_ROOT, 'www', 'shared', 'survey-questions.js');
+const ADMIN_HTML_PATH = path.join(REPO_ROOT, 'www', 'admin.html');
 const ADMIN_JS_PATH = path.join(REPO_ROOT, 'www', 'admin.js');
 
 // Bumping this requires intentionally updating the test alongside the
@@ -174,41 +177,56 @@ check(
 );
 
 // ---------------------------------------------------------------------------
-// 2. Drift check: the admin dashboard's CHART_KEYS array must be the same
-//    *set* as MCCSurvey.KEYS. If a future change adds a question to the
-//    shared file but forgets to render its chart (or removes a question
-//    without dropping the dead chart card), this test fails.
+// 2. Drift check: the admin dashboard's static `<canvas id="ms-chart-<key>">`
+//    cards in www/admin.html must be the same *set* as MCCSurvey.KEYS. The
+//    chart loop in www/admin.js now iterates MCCSurvey.KEYS directly (Task
+//    #397 removed the parallel CHART_KEYS array), so the only remaining
+//    drift surface is the canvas cards. If a future change adds a question
+//    to the shared file but forgets to add its canvas card (or removes a
+//    question without dropping the dead card), this test fails.
 // ---------------------------------------------------------------------------
-const adminSrc = fs.readFileSync(ADMIN_JS_PATH, 'utf8');
-const chartKeysMatch = adminSrc.match(/const\s+CHART_KEYS\s*=\s*\[([\s\S]*?)\]/);
+const adminHtml = fs.readFileSync(ADMIN_HTML_PATH, 'utf8');
+const canvasIds = Array.from(adminHtml.matchAll(/<canvas\s+id="ms-chart-([a-z0-9_]+)"/gi))
+  .map(m => m[1]);
 
 check(
-  'admin.js still declares the CHART_KEYS array',
-  Boolean(chartKeysMatch),
-  'Could not find `const CHART_KEYS = [ … ]` in www/admin.js. If the dashboard '
-    + 'was refactored, update this test to point at the new declaration.',
+  'admin.html declares at least one ms-chart-<key> canvas card',
+  canvasIds.length > 0,
+  'Could not find any `<canvas id="ms-chart-…">` elements in www/admin.html. '
+    + 'If the dashboard was refactored, update this test to point at the new markup.',
 );
 
-if (chartKeysMatch) {
-  const chartKeys = Array.from(chartKeysMatch[1].matchAll(/'([^']+)'|"([^"]+)"/g))
-    .map(m => m[1] || m[2]);
+{
   const sharedSet = new Set(MCCSurvey.KEYS);
-  const chartSet = new Set(chartKeys);
-  const missing = MCCSurvey.KEYS.filter(k => !chartSet.has(k));
-  const extra = chartKeys.filter(k => !sharedSet.has(k));
+  const canvasSet = new Set(canvasIds);
+  const missing = MCCSurvey.KEYS.filter(k => !canvasSet.has(k));
+  const extra = canvasIds.filter(k => !sharedSet.has(k));
+  const dupes = canvasIds.filter((k, i) => canvasIds.indexOf(k) !== i);
 
   check(
-    'admin.js CHART_KEYS matches MCCSurvey.KEYS as a set',
-    missing.length === 0 && extra.length === 0,
+    'admin.html ms-chart-<key> canvas IDs match MCCSurvey.KEYS as a set',
+    missing.length === 0 && extra.length === 0 && dupes.length === 0,
     [
-      missing.length ? 'Missing from admin.js CHART_KEYS: ' + missing.join(', ') : '',
-      extra.length ? 'Extra in admin.js CHART_KEYS (not in shared file): ' + extra.join(', ') : '',
+      missing.length ? 'Missing canvas cards in admin.html: ' + missing.map(k => 'ms-chart-' + k).join(', ') : '',
+      extra.length ? 'Extra canvas cards in admin.html (not in shared file): ' + extra.map(k => 'ms-chart-' + k).join(', ') : '',
+      dupes.length ? 'Duplicate canvas IDs in admin.html: ' + Array.from(new Set(dupes)).map(k => 'ms-chart-' + k).join(', ') : '',
       'If you added or removed a survey question in www/shared/survey-questions.js, '
-        + 'update the CHART_KEYS array (and the matching <canvas id="ms-chart-…"> '
-        + 'cards in www/admin.html) so the dashboard renders the new dimension.',
+        + 'add or remove the matching <canvas id="ms-chart-<key>"> card in www/admin.html '
+        + 'so the dashboard renders the new dimension.',
     ].filter(Boolean).join('\n'),
   );
 }
+
+// Belt-and-suspenders: make sure nobody re-introduces a hand-maintained
+// parallel key list inside admin.js. Task #397 deleted `CHART_KEYS`; the
+// chart loop now iterates MCCSurvey.KEYS directly.
+const adminSrc = fs.readFileSync(ADMIN_JS_PATH, 'utf8');
+check(
+  'admin.js no longer declares a parallel CHART_KEYS array (Task #397)',
+  !/const\s+CHART_KEYS\s*=\s*\[/.test(adminSrc),
+  'Found a `const CHART_KEYS = [ … ]` literal in www/admin.js. The dashboard '
+    + 'should iterate MCCSurvey.KEYS directly instead of maintaining a parallel list.',
+);
 
 console.log(`\n${passed} passed, ${failed} failed`);
 process.exit(failed === 0 ? 0 : 1);

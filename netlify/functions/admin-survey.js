@@ -196,6 +196,8 @@ async function handleLeads(supabase, qs) {
   var search  = (qs.search  || '').trim();
   var filter  = qs.filter   || 'all';
   var sortDir = qs.sort_dir === 'asc' ? true : false;
+  var range   = qs.range    || 'all'; // '7d' | '30d' | '90d' | 'all'
+  var startDate = getDateRange(range); // null when 'all'
   var offset  = (page - 1) * limit;
 
   var query = supabase
@@ -205,6 +207,9 @@ async function handleLeads(supabase, qs) {
 
   if (filter === 'interested')     { query = query.eq('interested', true);  }
   else if (filter === 'not_interested') { query = query.eq('interested', false); }
+
+  // Date-range filter so leads list matches the Survey Analytics window the admin picked
+  if (startDate) query = query.gte('created_at', startDate);
 
   if (search) {
     query = query.or('email.ilike.%' + search + '%,first_name.ilike.%' + search + '%,last_name.ilike.%' + search + '%');
@@ -290,13 +295,17 @@ async function handleLeads(supabase, qs) {
   };
 }
 
-async function handleExport(supabase) {
-  var result = await supabase
+async function handleExport(supabase, qs) {
+  var range     = (qs && qs.range) || 'all';
+  var startDate = getDateRange(range);
+  var query = supabase
     .from('survey_responses')
     .select('id, email, first_name, last_name, phone, zip, interested, feature_ratings, created_at')
     .not('email', 'is', null)
     .order('created_at', { ascending: false })
     .limit(5000);
+  if (startDate) query = query.gte('created_at', startDate);
+  var result = await query;
 
   if (result.error) throw result.error;
 
@@ -386,7 +395,7 @@ exports.handler = async function(event) {
 
     // GET /api/admin/survey-leads/export
     if (method === 'GET' && path === 'leads/export') {
-      return await handleExport(supabase);
+      return await handleExport(supabase, qs);
     }
 
     // GET /api/admin/survey-leads

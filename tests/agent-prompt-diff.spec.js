@@ -149,6 +149,118 @@ test.describe('Agent Fleet detail — prompt-version diff viewer (T#176)', () =>
     expect(versionFetches.includes(2)).toBe(true);
   });
 
+  // ───────────────────────────────────────────────────────────────────────────
+  // Task #399 — "Load into editor" flow. Pulls an older version's body into the
+  // textarea without activating it, then saves to create v(active+1) — NOT a
+  // silent rollback to the loaded version. Guards three things at once:
+  //   (a) Load button populates the textarea with the older version body.
+  //   (b) The green "active in production: vN" pill stays anchored to the live
+  //       version and the gold "loaded for editing: vN" pill appears alongside.
+  //   (c) Editing + Save POSTs the EDITED body and the resulting version is
+  //       active+1 — the active pill flips to that new number, not the loaded
+  //       older one.
+  // ───────────────────────────────────────────────────────────────────────────
+  test('Load into editor populates textarea, shows both pills, and Save creates v(active+1)', async ({ page }) => {
+    const slug = 'analyst';
+    const v1Body = 'You are an analyst.\nKeep answers concise.\n';
+    const v2Body = 'You are an analyst agent.\nKeep answers concise and direct.\nAlways cite sources.\n';
+    const v3Body = 'You are an analyst agent.\nKeep answers concise and direct.\nAlways cite sources.\nReturn JSON when asked.\n';
+
+    // Mutable so the post-save reload can swap to v4 as the new active.
+    let activeVersion = 3;
+    let activeBody = v3Body;
+    const versionsList = [
+      { id: 3, version: 3, notes: 'Add JSON note',  is_active: true,  created_at: '2026-04-29T10:00:00Z', created_by: 'admin' },
+      { id: 2, version: 2, notes: 'Cite sources',   is_active: false, created_at: '2026-04-28T10:00:00Z', created_by: 'admin' },
+      { id: 1, version: 1, notes: 'Initial import', is_active: false, created_at: '2026-04-27T10:00:00Z', created_by: 'admin' }
+    ];
+    const bodyByVersion = { 1: v1Body, 2: v2Body, 3: v3Body };
+
+    let capturedSavePayload = null; // body sent to POST /agents/:slug/prompt
+
+    await page.route('**/api/admin/agent-fleet/**', async (route) => {
+      const req = route.request();
+      const method = req.method();
+      if (!req.headers()['x-admin-password']) {
+        return route.fulfill({ status: 401, contentType: 'application/json', body: JSON.stringify({ error: 'Unauthorized' }) });
+      }
+      const pathPart = req.url().split('/api/admin/agent-fleet')[1] || '';
+
+      // Per-version body fetch (used by Load into editor and by the diff viewer).
+      const versionMatch = pathPart.match(/^\/agents\/[^/]+\/prompt\/(\d+)$/);
+      if (method === 'GET' && versionMatch) {
+        const v = Number.parseInt(versionMatch[1], 10);
+        const body = bodyByVersion[v];
+        if (body == null) return route.fulfill({ status: 404, contentType: 'application/json', body: JSON.stringify({ error: 'Version not found' }) });
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          version: { id: v, version: v, body, notes: versionsList.find(x => x.version === v)?.notes, is_active: v === activeVersion, created_at: versionsList.find(x => x.version === v)?.created_at }
+        }) });
+      }
+
+      // Save new prompt version → capture payload, mint v(active+1) as new active.
+      if (method === 'POST' && /\/agents\/[^/]+\/prompt$/.test(pathPart)) {
+        capturedSavePayload = JSON.parse(req.postData() || '{}');
+        const newVersion = activeVersion + 1;
+        bodyByVersion[newVersion] = capturedSavePayload.body;
+        // Flip prior active off; push the new row on top.
+        for (const v of versionsList) v.is_active = false;
+        versionsList.unshift({ id: newVersion, version: newVersion, notes: capturedSavePayload.notes || '', is_active: true, created_at: '2026-04-30T10:00:00Z', created_by: 'admin' });
+        activeVersion = newVersion;
+        activeBody = capturedSavePayload.body;
+        return route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({
+          version: { id: newVersion, version: newVersion, body: activeBody, is_active: true, created_at: '2026-04-30T10:00:00Z' }
+        }) });
+      }
+
+      const r = _fulfillStaticAgentFleetRoute({ method, pathPart, slug, versionsList, activeVersion, activeBody });
+      return route.fulfill(r || { status: 200, contentType: 'application/json', body: '{}' });
+    });
+
+    await page.goto(`${BASE_URL}/admin/agent-fleet-detail.html?slug=${slug}`);
+    await page.waitForLoadState('domcontentloaded');
+    await expect(page.locator('#loginShell')).toBeVisible();
+    await page.locator('#pwInput').fill(ADMIN_PASSWORD);
+    await page.locator('#pwSubmit').click();
+
+    await expect(page.locator('#appShell')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('#promptHistory .version-row')).toHaveCount(3, { timeout: 10000 });
+
+    // Textarea starts with the active v3 body.
+    const ta = page.locator('#promptBody');
+    await expect(ta).toHaveValue(v3Body);
+
+    // Initial pill shows ONLY the active badge (no loaded badge — loaded === active).
+    await expect(page.locator('#promptVersionPill .prompt-pill-active')).toContainText('active in production: v3');
+    await expect(page.locator('#promptVersionPill .prompt-pill-loaded')).toHaveCount(0);
+
+    // (a) Click "Load into editor" on the v1 row.
+    await page.locator('#promptHistory .version-row[data-version="1"] [data-load="1"]').click();
+
+    // Textarea body swapped to v1.
+    await expect(ta).toHaveValue(v1Body);
+
+    // (b) Both pills now visible — active still anchored to v3, loaded shows v1.
+    await expect(page.locator('#promptVersionPill .prompt-pill-active')).toContainText('active in production: v3');
+    await expect(page.locator('#promptVersionPill .prompt-pill-loaded')).toContainText('loaded for editing: v1');
+
+    // (c) Edit the textarea, save, assert new version === v(active+1) === v4.
+    const editedBody = v1Body + 'Edited on top of v1.\n';
+    await ta.fill(editedBody);
+    await page.locator('#promptSave').click();
+
+    // Save POST was sent with the EDITED body — not the unmodified v1 body.
+    await expect.poll(() => capturedSavePayload && capturedSavePayload.body).toBe(editedBody);
+
+    // After save, loadPrompt() re-runs → active pill flips to v4 (active+1),
+    // NOT a silent rollback to v1.
+    await expect(page.locator('#promptVersionPill .prompt-pill-active')).toContainText('active in production: v4', { timeout: 10000 });
+    // The "loaded for editing" pill is gone now that loaded === active.
+    await expect(page.locator('#promptVersionPill .prompt-pill-loaded')).toHaveCount(0);
+    // History row count grew by one and v4 is on top, marked active.
+    await expect(page.locator('#promptHistory .version-row')).toHaveCount(4, { timeout: 10000 });
+    await expect(page.locator('#promptHistory .version-row[data-version="4"] .badge-on')).toBeVisible();
+  });
+
   test('clicking the active row diffs against the immediately-preceding version', async ({ page }) => {
     const slug = 'analyst';
     const v1Body = 'first\nsecond\n';

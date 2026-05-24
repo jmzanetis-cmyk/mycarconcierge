@@ -27,6 +27,20 @@
 (function() {
   'use strict';
 
+  function noop() { /* pixel disabled — no-op */ }
+
+  // Always expose the helpers so callers don't have to null-check.
+  globalThis.mccTrackFb = noop;
+  globalThis.mccTrackFbOnce = noop;
+  globalThis.mccTrackFbPurchase = noop;
+
+  // Facebook Pixel must not run in native iOS/Android builds — App Store Guideline 5.1.2.
+  // Helpers are already set to no-ops above; bail out before the SDK loads.
+  if (typeof window !== 'undefined' && window.Capacitor &&
+      window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    return;
+  }
+
   function readPixelId() {
     try {
       if (typeof globalThis.MCC_FB_PIXEL_ID === 'string' && globalThis.MCC_FB_PIXEL_ID.trim()) {
@@ -40,13 +54,6 @@
     }
     return null;
   }
-
-  function noop() { /* pixel disabled — no-op */ }
-
-  // Always expose the helpers so callers don't have to null-check.
-  globalThis.mccTrackFb = noop;
-  globalThis.mccTrackFbOnce = noop;
-  globalThis.mccTrackFbPurchase = noop;
 
   var pixelId = readPixelId();
 

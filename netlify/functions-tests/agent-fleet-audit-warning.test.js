@@ -58,7 +58,15 @@ function makeFake({ injectErrors = {} } = {}) {
   };
 
   function from(table) {
-    const ctx = { table, _filters: [], _mode: null, _patch: null, _row: null };
+    const ctx = { table, _filters: [], _mode: null, _patch: null, _row: null, _selectCols: null };
+    function project(row) {
+      if (!ctx._selectCols || ctx._selectCols === '*') return row;
+      const cols = ctx._selectCols.split(',').map(s => s.trim()).filter(Boolean);
+      if (!cols.length || cols.includes('*')) return row;
+      const out = {};
+      cols.forEach(c => { out[c] = row[c]; });
+      return out;
+    }
     function exec() {
       return new Promise(resolve => {
         const inj = injectErrors[`${table}.${ctx._mode || 'select'}`];
@@ -72,13 +80,13 @@ function makeFake({ injectErrors = {} } = {}) {
           ctx._filters.every(([c, v, op]) => op === 'neq' ? r[c] !== v : r[c] === v));
         if (ctx._mode === 'update') {
           rows.forEach(r => Object.assign(r, ctx._patch));
-          return resolve({ data: rows, error: null });
+          return resolve({ data: rows.map(project), error: null });
         }
-        resolve({ data: rows, error: null });
+        resolve({ data: rows.map(project), error: null });
       });
     }
     const builder = {
-      select() { return builder; },
+      select(cols) { if (typeof cols === 'string') ctx._selectCols = cols; return builder; },
       eq(c, v) { ctx._filters.push([c, v, 'eq']); return builder; },
       neq(c, v) { ctx._filters.push([c, v, 'neq']); return builder; },
       gte() { return builder; },

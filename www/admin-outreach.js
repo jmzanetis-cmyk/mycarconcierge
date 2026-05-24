@@ -1166,6 +1166,62 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     return s;
   }
 
+  // Task #402 — lead-level CSV export. Hits /api/admin/outreach/leads/export
+  // with the currently applied lead-list filters so admins can pull the same
+  // rows they see on screen (plus the joined contacted_at / profile_created_at
+  // / application_submitted_at funnel timestamps) into a spreadsheet.
+  async function downloadLeadsCsv(triggerBtn) {
+    const type = document.getElementById('leads-filter-type')?.value || '';
+    const status = document.getElementById('leads-filter-status')?.value || '';
+    const source = document.getElementById('leads-filter-source')?.value || '';
+    const dateFrom = document.getElementById('leads-filter-date-from')?.value || '';
+    const dateTo = document.getElementById('leads-filter-date-to')?.value || '';
+    const search = document.getElementById('leads-search')?.value || '';
+    const params = new URLSearchParams();
+    if (type) params.set('type', type);
+    if (status) params.set('status', status);
+    if (source) params.set('source', source);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
+    if (search) params.set('search', search);
+
+    const originalHtml = triggerBtn ? triggerBtn.innerHTML : null;
+    if (triggerBtn) {
+      triggerBtn.disabled = true;
+      triggerBtn.innerHTML = 'Exporting…';
+    }
+    try {
+      const res = await outreachFetch('/leads/export' + (params.toString() ? '?' + params.toString() : ''));
+      if (!res.ok) {
+        let msg = `HTTP ${res.status}`;
+        try { const j = await res.json(); if (j?.error) msg = j.error; } catch (_) { /* not JSON */ }
+        if (typeof showToast !== 'undefined') showToast('Export failed: ' + msg, 'error');
+        return;
+      }
+      const blob = await res.blob();
+      let filename = 'outreach-leads.csv';
+      const disp = res.headers.get('Content-Disposition') || '';
+      const match = disp.match(/filename="?([^";]+)"?/i);
+      if (match) filename = match[1];
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+      if (typeof showToast !== 'undefined') showToast('Lead CSV download started');
+    } catch (err) {
+      if (typeof showToast !== 'undefined') showToast('Export failed: ' + err.message, 'error');
+    } finally {
+      if (triggerBtn) {
+        triggerBtn.disabled = false;
+        if (originalHtml !== null) triggerBtn.innerHTML = originalHtml;
+      }
+    }
+  }
+
   function downloadConversionFunnelCsv() {
     const data = lastConversionFunnelData;
     if (!data) return;
@@ -1537,11 +1593,17 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
     const search = document.getElementById('leads-search')?.value || '';
     const type = document.getElementById('leads-filter-type')?.value || '';
     const status = document.getElementById('leads-filter-status')?.value || '';
+    const source = document.getElementById('leads-filter-source')?.value || '';
+    const dateFrom = document.getElementById('leads-filter-date-from')?.value || '';
+    const dateTo = document.getElementById('leads-filter-date-to')?.value || '';
 
     const params = new URLSearchParams({ page: '1', limit: '50' });
     if (search) params.set('search', search);
     if (type) params.set('type', type);
     if (status) params.set('status', status);
+    if (source) params.set('source', source);
+    if (dateFrom) params.set('date_from', dateFrom);
+    if (dateTo) params.set('date_to', dateTo);
 
     container.innerHTML = '<div style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
 
@@ -2434,6 +2496,7 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
   globalThis.loadConversionFunnel = loadConversionFunnel;
   globalThis.resetConversionFunnelDates = resetConversionFunnelDates;
   globalThis.downloadConversionFunnelCsv = downloadConversionFunnelCsv;
+  globalThis.downloadLeadsCsv = downloadLeadsCsv;
 
   // ===================================================================
   // Task #243 — Facebook Page admin OAuth picker

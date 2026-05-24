@@ -3655,7 +3655,6 @@
       document.getElementById('calc-display-tax-pct').textContent = taxRate.toFixed(1);
       document.getElementById('calc-display-tax').textContent = '$' + tax.toFixed(2);
       document.getElementById('calc-display-total').textContent = '$' + total.toFixed(2);
-      document.getElementById('calc-display-platform-fee').textContent = '-$' + platformFee.toFixed(2);
       document.getElementById('calc-display-net').textContent = '$' + netEarnings.toFixed(2);
       
       // Update competition gauge

@@ -1034,10 +1034,6 @@ const EmailTemplates = {
             <span style="color: #a7f3d0;">Job Total:</span>
             <span style="color: #ffffff; font-weight: 600;">\${{total_amount}}</span>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
-            <span style="color: #a7f3d0;">Platform Fee:</span>
-            <span style="color: #4ade80;">$0.00</span>
-          </div>
           <div style="display: flex; justify-content: space-between; border-top: 1px solid rgba(255,255,255,0.2); padding-top: 8px; margin-top: 8px;">
             <span style="color: #ffffff; font-weight: 600;">Your Payment:</span>
             <span style="color: #4ade80; font-weight: bold; font-size: 20px;">\${{provider_amount}}</span>

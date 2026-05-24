@@ -164,6 +164,36 @@
     .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
     .footer a { color: var(--text-secondary); }
 
+    /* Social sign-up (Apple + Facebook) — Task #407.
+       Mirrors signup-member.html so the public provider funnel has
+       the same one-click options. iOS App Store guidelines require
+       Apple parity wherever Facebook sign-in is offered. */
+    .social-divider { display: flex; align-items: center; gap: 12px; margin: 20px 0; color: var(--text-muted); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; }
+    .social-divider::before, .social-divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
+    .btn-apple-signin {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 14px 24px;
+      background: #000000; border: none; border-radius: var(--radius-lg);
+      color: #ffffff; font-family: inherit; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s ease; margin-bottom: 10px;
+    }
+    .btn-apple-signin:hover { background: #1a1a1a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3); }
+    .btn-apple-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-apple-signin .apple-icon { flex-shrink: 0; }
+    [data-theme="light"] .btn-apple-signin { background: #000000; color: #ffffff; }
+    .btn-facebook-signin {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 14px 24px;
+      background: #1877F2; border: none; border-radius: var(--radius-lg);
+      color: #ffffff; font-family: inherit; font-size: 0.95rem; font-weight: 600;
+      cursor: pointer; transition: all 0.2s ease;
+    }
+    .btn-facebook-signin:hover { background: #166FE5; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3); }
+    .btn-facebook-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-facebook-signin .facebook-icon { flex-shrink: 0; }
+    .oauth-spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #ffffff; border-radius: 50%; animation: oauth-spin 0.8s linear infinite; margin-right: 8px; }
+    @keyframes oauth-spin { to { transform: rotate(360deg); } }
+
     @media (max-width: 600px) {
       .form-row, .form-row.three { grid-template-columns: 1fr; }
       .form-card { padding: 28px 20px; }
@@ -259,6 +289,23 @@
           <div></div>
           <button class="btn btn-primary" onclick="nextStep(1)">Continue →</button>
         </div>
+
+        <!-- Social sign-up — Task #407. iOS App Store guidelines require
+             Apple parity wherever Facebook sign-in is offered, so any
+             future social login added here must include both. -->
+        <div class="social-divider"><span data-i18n="common.or">or</span></div>
+        <button type="button" class="btn-apple-signin" id="apple-signin-btn" onclick="signUpProviderWithApple()">
+          <svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+            <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+          </svg>
+          <span data-i18n="auth.signUpWithApple">Sign up with Apple</span>
+        </button>
+        <button type="button" class="btn-facebook-signin" id="facebook-signin-btn" onclick="signUpProviderWithFacebook()">
+          <svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+          <span data-i18n="auth.signUpWithFacebook">Continue with Facebook</span>
+        </button>
       </div>
 
       <!-- Step 2: Business Info -->
@@ -802,6 +849,143 @@
     let currentStep = 1;
     let uploadedFiles = { license: [], insurance: [], certs: [], portfolio: [] };
     let userId = null;
+
+    // ========== Social sign-up (Task #407) ==========
+    // Mirrors signUpWithApple / signUpWithFacebook in signup-member.html.
+    // On return, ?oauth=apple|facebook triggers handleProviderOAuthReturn
+    // below, which upserts a pending_provider profile and forwards to
+    // onboarding-provider.html so the new provider lands on the same
+    // onboarding flow email signups use.
+    const APPLE_BTN_ICON_SVG = '<svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>';
+    const FACEBOOK_BTN_ICON_SVG = '<svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>';
+
+    function resetOAuthButton(btn, icon, label) {
+      if (!btn) return;
+      btn.disabled = false;
+      btn.innerHTML = icon + '<span>' + label + '</span>';
+    }
+
+    async function signUpProviderWithApple() {
+      const btn = document.getElementById('apple-signin-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="oauth-spinner"></span>Connecting...'; }
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'apple',
+          options: {
+            redirectTo: globalThis.location.origin + '/signup-provider.html?oauth=apple',
+            scopes: 'name email'
+          }
+        });
+        if (error) {
+          console.error('Apple Sign Up error:', error);
+          showMessage('Failed to connect to Apple. Please try again.');
+          resetOAuthButton(btn, APPLE_BTN_ICON_SVG, 'Sign up with Apple');
+        }
+      } catch (err) {
+        console.error('Apple Sign Up exception:', err);
+        showMessage('An error occurred. Please try again.');
+        resetOAuthButton(btn, APPLE_BTN_ICON_SVG, 'Sign up with Apple');
+      }
+    }
+    globalThis.signUpProviderWithApple = signUpProviderWithApple;
+
+    async function signUpProviderWithFacebook() {
+      const btn = document.getElementById('facebook-signin-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="oauth-spinner"></span>Connecting...'; }
+      try {
+        const { error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'facebook',
+          options: {
+            redirectTo: globalThis.location.origin + '/signup-provider.html?oauth=facebook',
+            scopes: 'email,public_profile'
+          }
+        });
+        if (error) {
+          console.error('Facebook Sign Up error:', error);
+          showMessage('Failed to connect to Facebook. Please try again.');
+          resetOAuthButton(btn, FACEBOOK_BTN_ICON_SVG, 'Continue with Facebook');
+        }
+      } catch (err) {
+        console.error('Facebook Sign Up exception:', err);
+        showMessage('An error occurred. Please try again.');
+        resetOAuthButton(btn, FACEBOOK_BTN_ICON_SVG, 'Continue with Facebook');
+      }
+    }
+    globalThis.signUpProviderWithFacebook = signUpProviderWithFacebook;
+
+    // After Apple/Facebook redirect lands back here with ?oauth=...,
+    // upsert a pending_provider profile (mirroring nextStep(1)'s
+    // existing profile branch — preserve is_also_member if the user
+    // is already a member) and forward to the provider onboarding
+    // flow with ?source=<provider> so analytics + future pre-fill
+    // hooks know the originating OAuth provider.
+    async function handleProviderOAuthReturn() {
+      const params = new URLSearchParams(globalThis.location.search);
+      const oauthProvider = params.get('oauth');
+      if (oauthProvider !== 'apple' && oauthProvider !== 'facebook') return;
+
+      let user = null;
+      for (let i = 0; i < 20 && !user; i++) {
+        try {
+          const { data } = await supabaseClient.auth.getUser();
+          user = data?.user || null;
+        } catch (_e) { /* wait for session */ }
+        if (!user) await new Promise(r => setTimeout(r, 150));
+      }
+      if (!user) return;
+
+      const providerLabel = oauthProvider === 'apple' ? 'Apple' : 'Facebook';
+      showMessage('Connecting your ' + providerLabel + ' account...', 'info');
+
+      const { data: existing } = await supabaseClient
+        .from('profiles')
+        .select('id, role, is_also_member')
+        .eq('id', user.id)
+        .maybeSingle();
+
+      if (existing) {
+        // Already-registered users get role bumped to pending_provider
+        // (or kept as-is if already a provider). Preserves is_also_member
+        // exactly like the email Step-1 branch above.
+        if (existing.role !== 'provider' && existing.role !== 'admin') {
+          const { error: updateErr } = await supabaseClient.from('profiles').update({
+            role: 'pending_provider',
+            is_also_member: existing.is_also_member || existing.role === 'member'
+          }).eq('id', user.id);
+          if (updateErr) {
+            console.error('Profile update error after ' + providerLabel + ' signup:', updateErr);
+            showMessage('Could not finish creating your account. Please try again.');
+            return;
+          }
+        }
+      } else {
+        const fullName = user.user_metadata?.full_name
+          || user.user_metadata?.name
+          || (user.email ? user.email.split('@')[0] : 'Provider');
+        const { error: insertErr } = await supabaseClient.from('profiles').insert({
+          id: user.id,
+          email: user.email,
+          full_name: fullName,
+          role: 'pending_provider',
+          free_trial_bids: 3,
+          created_at: new Date().toISOString()
+        });
+        if (insertErr) {
+          console.error('Profile insert error after ' + providerLabel + ' signup:', insertErr);
+          showMessage('Could not finish creating your account. Please try again.');
+          return;
+        }
+      }
+
+      try { localStorage.setItem('mcc_portal', 'provider'); } catch (_e) { /* private mode */ }
+      const dest = (existing && existing.role === 'provider')
+        ? 'providers.html'
+        : 'onboarding-provider.html?source=' + encodeURIComponent(oauthProvider);
+      globalThis.location.href = dest;
+    }
+
+    handleProviderOAuthReturn();
+    // ========== END Social sign-up ==========
 
     // ========== SIGNATURE PAD ==========
     let signaturePad = null;

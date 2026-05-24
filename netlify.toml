@@ -154,6 +154,14 @@
 [functions."concierge-push-notifier-scheduled"]
   schedule = "* * * * *"
 
+# Task #394 — Bid credit reconciler. Daily safety net for the Stripe webhook
+# bid-credit path: lists Stripe Checkout Sessions completed in the last 7d
+# with metadata.bids set, cross-checks bid_credit_grants, and alerts admin
+# (Resend + ai_action_log) for any session paid >= 1h ago without a grant
+# row. Runs at 03:30 UTC, after payment-tracker (03:00).
+[functions."bid-credit-reconciler-scheduled"]
+  schedule = "30 3 * * *"
+
 
 [[headers]]
   for = "/sw.js"

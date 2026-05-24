@@ -1001,6 +1001,20 @@
         <p class="page-subtitle" style="margin-top:4px;">Find jobs and grow your business.</p>
       </div>
 
+      <!-- Match Pause banner (Task #389) — shown when matches_paused=true -->
+      <div id="match-pause-banner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:var(--radius-lg);background:linear-gradient(135deg,rgba(201,162,39,0.18),rgba(201,162,39,0.06));border:1px solid rgba(201,162,39,0.45);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+            <span aria-hidden="true" style="font-size:1.4rem;">⏸️</span>
+            <div style="min-width:0;">
+              <div style="font-weight:600;font-size:0.95rem;">Matches paused</div>
+              <div id="match-pause-banner-detail" style="font-size:0.85rem;color:var(--text-secondary);margin-top:2px;">You won't receive new match invitations right now.</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="resumeMatchesFromBanner()" style="white-space:nowrap;">Resume matches</button>
+        </div>
+      </div>
+
       <!-- BGC alerts panel (Task #113) — populated by bgc-compliance.js on every dashboard load -->
       <div id="bgc-alerts-panel-overview" style="display:none;margin-bottom:18px;"></div>
 
@@ -2657,6 +2671,53 @@
         </div>
       </div>
 
+      <!-- Match Preferences (Task #389) -->
+      <div class="card" id="match-preferences-card">
+        <div class="card-header">
+          <h2 class="card-title">🎯 Match Preferences</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:0.9rem;">Control which auto-match invitations you receive. Filters apply to AI-matched packages — your public profile and organic discovery aren't affected.</p>
+
+        <div class="form-group">
+          <label class="form-label">Categories to be matched on</label>
+          <div id="match-categories-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;">
+            <label class="service-checkbox"><input type="checkbox" value="maintenance" class="match-category-check"> <span>Maintenance</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="manufacturer_service" class="match-category-check"> <span>Manufacturer Service</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="accident_repair" class="match-category-check"> <span>Accident Repair</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="performance" class="match-category-check"> <span>Performance</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="cosmetic" class="match-category-check"> <span>Cosmetic</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="offroad" class="match-category-check"> <span>Off-Road</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="snow_removal" class="match-category-check"> <span>Snow Removal</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="other" class="match-category-check"> <span>Other</span></label>
+          </div>
+          <div class="form-hint" style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">Defaults to the categories from your provider application.</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="match-radius-miles">Match radius (miles)</label>
+            <input type="number" class="form-input" id="match-radius-miles" min="1" max="500" step="1" placeholder="25">
+            <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--text-muted);">Defaults to the radius captured at signup.</div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:28px;">
+              <input type="checkbox" id="match-paused-toggle" style="width:18px;height:18px;">
+              <span>Pause match invitations</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="match-paused-until-row" style="display:none;">
+          <label class="form-label" for="match-paused-until">Auto-resume on (optional)</label>
+          <input type="date" class="form-input" id="match-paused-until">
+          <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--text-muted);">Leave blank to pause until you turn it back on manually. After this date matches resume automatically.</div>
+        </div>
+
+        <div id="match-prefs-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:0.85rem;"></div>
+
+        <button class="btn btn-primary" onclick="saveMatchPreferences()">Save Match Preferences</button>
+      </div>
+
       <!-- Emergency Services Settings -->
       <div class="card" style="border:1px solid rgba(239, 95, 95, 0.3);background:linear-gradient(135deg, var(--bg-card), rgba(239, 95, 95, 0.05));">
         <div class="card-header">
@@ -4265,12 +4326,8 @@
               <span>ALL-INCLUSIVE:</span>
               <span id="calc-display-total">$0.00</span>
             </div>
-            <div class="calc-breakdown-fee" style="display:none;">
-              <span>Platform Fee:</span>
-              <span id="calc-display-platform-fee">-$0.00</span>
-            </div>
             <div class="calc-breakdown-net">
-              <span>Your Earnings (no platform fee):</span>
+              <span>Your Earnings (MCC charges no platform fee on completed jobs):</span>
               <span id="calc-display-net">$0.00</span>
             </div>
           </div>
@@ -4323,7 +4380,6 @@
                 <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Applicable taxes</div>
                 <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Shop/service fees</div>
                 <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Disposal fees</div>
-                <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Platform fees</div>
               </div>
             </div>
           </div>

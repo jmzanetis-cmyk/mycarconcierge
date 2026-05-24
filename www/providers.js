@@ -190,7 +190,8 @@
         loadPosIntegrationStatus(),
         loadTeamManagementData(),
         loadLoyaltyNetwork(),
-        loadStripeConnectStatus()
+        loadStripeConnectStatus(),
+        (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve())
       ]);
       
       // Check if returning from Stripe Connect onboarding
@@ -1032,19 +1033,19 @@
               </div>
               ${r.review_title ? `<strong style="font-size:1rem;">${r.review_title}</strong>` : ''}
             </div>
-            <div style="text-align:right;font-size:0.85rem;color:var(--text-muted);">
+            <div style="text-align:end;font-size:0.85rem;color:var(--text-muted);">
               ${new Date(r.created_at).toLocaleDateString()}
-              ${r.verified_purchase ? '<span style="color:var(--accent-green);margin-left:8px;">✓ Verified</span>' : ''}
+              ${r.verified_purchase ? '<span style="color:var(--accent-green);margin-inline-start:8px;">✓ Verified</span>' : ''}
             </div>
           </div>
           ${r.review_text ? `<p style="color:var(--text-secondary);margin-bottom:12px;">${r.review_text}</p>` : ''}
           <div style="font-size:0.85rem;color:var(--text-muted);">
-            ${r.service_type ? `<span style="margin-right:16px;">${mccIcon('wrench', 14)} ${r.service_type}</span>` : ''}
-            ${r.vehicle_info ? `<span style="margin-right:16px;">${mccIcon('car', 14)} ${r.vehicle_info}</span>` : ''}
+            ${r.service_type ? `<span style="margin-inline-end:16px;">${mccIcon('wrench', 14)} ${r.service_type}</span>` : ''}
+            ${r.vehicle_info ? `<span style="margin-inline-end:16px;">${mccIcon('car', 14)} ${r.vehicle_info}</span>` : ''}
             ${r.amount_paid ? `<span>${mccIcon('dollar-sign', 14)} $${r.amount_paid.toFixed(2)}</span>` : ''}
           </div>
           ${r.provider_response ? `
-            <div style="margin-top:16px;padding:12px 16px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+            <div style="margin-top:16px;padding:12px 16px;background:var(--bg-input);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-gold);">
               <div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:4px;">Your Response:</div>
               <p style="margin:0;">${r.provider_response}</p>
             </div>
@@ -1245,7 +1246,7 @@
               <div style="font-size:0.85rem;color:var(--text-muted);">${new Date(p.created_at).toLocaleDateString()}</div>
               ${p.status === 'released' && p.package_id ? `<button class="btn btn-ghost btn-sm" onclick="providerEarningsDebrief('${p.package_id}')" style="margin-top:6px;font-size:0.78rem;color:var(--accent-blue);padding:3px 8px;">${mccIcon('file-text', 14)} AI Service Summary</button>` : ''}
             </div>
-            <div style="text-align:right;">
+            <div style="text-align:end;">
               <div style="font-weight:600;color:${p.status === 'released' ? 'var(--accent-green)' : p.status === 'held' ? 'var(--accent-blue)' : 'var(--text-muted)'};">
                 ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
               </div>
@@ -1762,7 +1763,7 @@
               <div class="package-title">${p.title}${memberBadgesHtml ? `<span class="member-badges">${memberBadgesHtml}</span>` : ''}</div>
               <div class="package-vehicle">${vehicleName}</div>
             </div>
-            <div style="text-align:right;">
+            <div style="text-align:end;">
               ${destinationBadgeHtml}
               ${isRecurring ? '<span class="package-badge recurring">Recurring</span>' : ''}
               ${p._isPrivateJob ? `<span class="package-badge" style="background:rgba(139, 92, 246, 0.15);color:#a78bfa;border:1px solid rgba(139, 92, 246, 0.5);">${mccIcon('lock', 14)} Private Request</span>` : ''}
@@ -1792,7 +1793,7 @@
             ` : `
               ${showBidButton && !biddingExpired ? `
                 ${alreadyBid ? `
-                  <span style="color:var(--accent-green);font-size:0.85rem;margin-right:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
+                  <span style="color:var(--accent-green);font-size:0.85rem;margin-inline-end:8px;">✓ Your bid: $${myCurrentBid?.price || '?'}</span>
                   <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}', ${myCurrentBid?.price || 0})">Update Bid</button>
                 ` : `
                   <button class="btn btn-primary btn-sm" onclick="openBidModal('${p.id}', '${p.title.replaceAll('\'', "\\'")}')">Submit Bid</button>
@@ -2021,7 +2022,7 @@
               <div class="job-dashboard-title">${pkg?.title || 'Package'}</div>
               <div class="job-dashboard-vehicle">${mccIcon('car', 14)} ${vehicleName}</div>
             </div>
-            <div style="text-align:right;">
+            <div style="text-align:end;">
               <div class="job-dashboard-price">$${(bid.price || 0).toFixed(2)}</div>
               <span class="bid-status ${statusClass}">${statusBadge}</span>
             </div>
@@ -2292,14 +2293,14 @@
     window.transitionConciergeJob = async function(jobId, packageId, appointmentId, toStatus, promptLabel) {
       const note = window.prompt(promptLabel || `Add a note for "${toStatus}" (optional):`, '') || '';
       const headers = await providerConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again.'); return; }
+      if (!headers) { showToast('Please sign in again.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/transition', {
         method: 'POST', headers,
         body: JSON.stringify({ to_status: toStatus, note: note.trim() || null })
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        alert('Transition failed: ' + (err.error || resp.status));
+        showToast('Transition failed: ' + (err.error || resp.status), 'error');
         return;
       }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
@@ -2389,11 +2390,11 @@
       const reason = window.prompt('Why are you cancelling this driver request?', 'Coordination changed');
       if (!reason || reason.trim().length < 3) return;
       const headers = await providerConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to cancel.'); return; }
+      if (!headers) { showToast('Please sign in again to cancel.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
       });
-      if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      if (!resp.ok) { showToast('Cancel failed: ' + (await resp.text()), 'error'); return; }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
     };
 
@@ -2402,14 +2403,14 @@
       const next = window.prompt(`Update ${label} address (drivers haven't accepted yet):`, currentAddress || '');
       if (!next || next.trim().length < 3) return;
       const headers = await providerConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to edit address.'); return; }
+      if (!headers) { showToast('Please sign in again to edit address.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/update-address', {
         method: 'POST', headers,
         body: JSON.stringify({ field, address: next.trim() })
       });
       if (!resp.ok) {
         const txt = await resp.text();
-        alert('Address update failed: ' + txt);
+        showToast('Address update failed: ' + txt, 'error');
         return;
       }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
@@ -3056,7 +3057,7 @@
         ` : '';
         
         return `
-          <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid ${typeInfo.color};margin-bottom:12px;">
+          <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-inline-start:3px solid ${typeInfo.color};margin-bottom:12px;">
             <div style="font-size:20px;">${typeInfo.icon}</div>
             <div style="flex:1;">
               <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;">${typeInfo.label}</div>
@@ -3121,7 +3122,7 @@
         reader.onload = (e) => {
           const img = document.createElement('div');
           img.style.cssText = 'width:80px;height:80px;border-radius:8px;overflow:hidden;border:2px solid var(--accent-gold);position:relative;';
-          img.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;"><div style="position:absolute;top:2px;right:2px;background:var(--accent-gold);color:#000;padding:2px 4px;border-radius:4px;font-size:0.65rem;font-weight:600;">ID</div>`;
+          img.innerHTML = `<img src="${e.target.result}" style="width:100%;height:100%;object-fit:cover;"><div style="position:absolute;top:2px;inset-inline-end:2px;background:var(--accent-gold);color:#000;padding:2px 4px;border-radius:4px;font-size:0.65rem;font-weight:600;">ID</div>`;
           preview.appendChild(img);
         };
         reader.readAsDataURL(fileInput.files[0]);
@@ -3265,7 +3266,7 @@
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
               <div style="width:50px;height:50px;border-radius:6px;overflow:hidden;border:2px solid var(--accent-gold);position:relative;cursor:pointer;" onclick="window.open('${exchange.driver_id_photo_url}','_blank')">
                 <img src="${exchange.driver_id_photo_url}" style="width:100%;height:100%;object-fit:cover;">
-                <div style="position:absolute;top:2px;right:2px;background:var(--accent-gold);color:#000;padding:1px 3px;border-radius:3px;font-size:0.55rem;font-weight:600;">ID</div>
+                <div style="position:absolute;top:2px;inset-inline-end:2px;background:var(--accent-gold);color:#000;padding:1px 3px;border-radius:3px;font-size:0.55rem;font-weight:600;">ID</div>
               </div>
               ${exchange.key_photos.slice(0, 3).map(url => `
                 <div style="width:50px;height:50px;border-radius:6px;overflow:hidden;border:1px solid var(--border-subtle);cursor:pointer;" onclick="window.open('${url}','_blank')">
@@ -3276,7 +3277,7 @@
           ` : '';
           
           return `
-            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid var(--accent-green);margin-bottom:12px;">
+            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-green);margin-bottom:12px;">
               <div style="font-size:20px;">${icon}</div>
               <div style="flex:1;">
                 <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px;">
@@ -3291,7 +3292,7 @@
           `;
         } else {
           return `
-            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid var(--border-subtle);margin-bottom:12px;">
+            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-inline-start:3px solid var(--border-subtle);margin-bottom:12px;">
               <div style="font-size:20px;opacity:0.5;">${icon}</div>
               <div style="flex:1;">
                 <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:var(--text-muted);">${label}</div>
@@ -3667,7 +3668,7 @@
             ${serviceSpecificHtml}
             
             ${destService.special_instructions ? `
-              <div style="margin-top:16px;padding:12px 16px;background:var(--bg-card);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+              <div style="margin-top:16px;padding:12px 16px;background:var(--bg-card);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-gold);">
                 <div style="color:var(--text-muted);font-size:0.85rem;margin-bottom:4px;">${mccIcon('file-text', 14)} Special Instructions</div>
                 <div style="color:var(--text-secondary);line-height:1.5;">${destService.special_instructions}</div>
               </div>
@@ -3715,12 +3716,12 @@
           try {
             const oilPref = typeof pkg.oil_preference === 'string' ? JSON.parse(pkg.oil_preference) : pkg.oil_preference;
             if (oilPref.choice === 'provider') {
-              return `<div style="margin-bottom:20px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+              return `<div style="margin-bottom:20px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-gold);">
                 <strong>${mccIcon('wrench', 14)} Oil/Fluid Preference</strong>
                 <p style="color:var(--text-secondary);margin-top:8px;">Provider's choice based on vehicle specs & manufacturer recommendations</p>
               </div>`;
             } else if (oilPref.choice === 'specify') {
-              return `<div style="margin-bottom:20px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+              return `<div style="margin-bottom:20px;padding:12px 16px;background:var(--accent-gold-soft);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-gold);">
                 <strong>${mccIcon('wrench', 14)} Oil/Fluid Preference</strong>
                 <div style="margin-top:8px;display:flex;gap:16px;flex-wrap:wrap;">
                   <span style="color:var(--text-secondary);">Type: <strong style="color:var(--text-primary);">${oilPref.oil_type || 'Not specified'}</strong></span>
@@ -4062,7 +4063,6 @@
       document.getElementById('calc-display-tax-pct').textContent = taxRate.toFixed(1);
       document.getElementById('calc-display-tax').textContent = '$' + tax.toFixed(2);
       document.getElementById('calc-display-total').textContent = '$' + total.toFixed(2);
-      document.getElementById('calc-display-platform-fee').textContent = '-$' + platformFee.toFixed(2);
       document.getElementById('calc-display-net').textContent = '$' + netEarnings.toFixed(2);
       
       // Update competition gauge
@@ -4134,7 +4134,7 @@
       const data = window.competitionData || calculatorCompetitionData;
       
       if (!data || !bidAmount || bidAmount <= 0) {
-        marker.style.left = '50%';
+        marker.style.insetInlineStart = '50%';
         fill.className = 'calc-gauge-fill competitive';
         fill.style.width = '50%';
         positionEl.textContent = 'Enter values to see position';
@@ -4146,7 +4146,7 @@
       const range = maxBid - minBid;
       
       if (range <= 0) {
-        marker.style.left = '50%';
+        marker.style.insetInlineStart = '50%';
         fill.className = 'calc-gauge-fill competitive';
         fill.style.width = '50%';
         positionEl.textContent = 'Competitive - Good position!';
@@ -4175,7 +4175,7 @@
       }
       
       // Update UI
-      marker.style.left = position + '%';
+      marker.style.insetInlineStart = position + '%';
       fill.className = 'calc-gauge-fill ' + fillClass;
       fill.style.width = position + '%';
       positionEl.textContent = classification;
@@ -4957,6 +4957,7 @@
       } else if (pct < 80) {
         bar.style.background = 'var(--accent-orange)';
       } else {
+        // RTL note (Task #410): 90deg gradient is a cosmetic colour ramp on a width-driven progress bar (intentionally physical). Follow-up #506.
         bar.style.background = 'linear-gradient(90deg, var(--accent-gold), #c49a45)';
       }
     }
@@ -5131,7 +5132,7 @@
           <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 14px;background:var(--bg-input);border-radius:var(--radius-sm);margin-bottom:8px;">
             <div>
               <span style="font-weight:500;">${mccIcon('x', 14)} ${dateRange}</span>
-              ${block.reason ? `<span style="color:var(--text-muted);margin-left:12px;">(${block.reason})</span>` : ''}
+              ${block.reason ? `<span style="color:var(--text-muted);margin-inline-start:12px;">(${block.reason})</span>` : ''}
             </div>
             <button onclick="removeBlockedDate(${i})" style="background:none;border:none;color:var(--accent-red);cursor:pointer;font-size:1.1rem;">×</button>
           </div>
@@ -5235,7 +5236,7 @@
         
         return `
           <div style="background:var(--bg-elevated);border:2px solid ${hasBadge ? 'var(--accent-gold)' : 'var(--border-subtle)'};border-radius:var(--radius-lg);padding:20px;position:relative;text-align:center;">
-            ${badgeText ? `<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">${badgeText}</div>` : ''}
+            ${badgeText ? `<div style="position:absolute;top:-10px;inset-inline-start:50%;transform:translateX(-50%);background:var(--accent-gold);color:#0a0a0f;font-size:0.7rem;font-weight:600;padding:3px 10px;border-radius:100px;">${badgeText}</div>` : ''}
             
             <div style="font-size:2.5rem;margin-bottom:8px;">${mccIcon('tag', 40)}</div>
             <h3 style="font-size:1.2rem;font-weight:600;margin-bottom:4px;">${pack.name}</h3>
@@ -5303,10 +5304,10 @@
         <table style="width:100%;border-collapse:collapse;">
           <thead>
             <tr style="border-bottom:1px solid var(--border-subtle);">
-              <th style="text-align:left;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Date</th>
-              <th style="text-align:left;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Pack</th>
-              <th style="text-align:left;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Credits</th>
-              <th style="text-align:right;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Amount</th>
+              <th style="text-align:start;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Date</th>
+              <th style="text-align:start;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Pack</th>
+              <th style="text-align:start;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Credits</th>
+              <th style="text-align:end;padding:12px 8px;font-weight:500;color:var(--text-muted);font-size:0.85rem;">Amount</th>
             </tr>
           </thead>
           <tbody>
@@ -5317,7 +5318,7 @@
                 <td style="padding:12px 8px;">
                   ${p.bids_purchased}${p.bonus_bids > 0 ? ` <span style="color:var(--accent-green);">+${p.bonus_bids}</span>` : ''}
                 </td>
-                <td style="padding:12px 8px;text-align:right;">$${p.amount_paid.toFixed(2)}</td>
+                <td style="padding:12px 8px;text-align:end;">$${p.amount_paid.toFixed(2)}</td>
               </tr>
             `).join('')}
           </tbody>
@@ -5895,12 +5896,12 @@
           const cleared = check.status === 'eligible' || check.status === 'clear' || check.status === 'complete';
           const borderColor = cleared ? 'var(--success)' : (check.status === 'needs_review' || check.status === 'not_eligible') ? 'var(--error)' : 'var(--border-subtle)';
 
-          return `<div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-bottom:12px;border-left:3px solid ${borderColor};">
+          return `<div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;margin-bottom:12px;border-inline-start:3px solid ${borderColor};">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;">
               <div>
                 <div style="font-weight:600;font-size:0.95rem;margin-bottom:4px;">
                   ${check.subject_first_name || ''} ${check.subject_last_name || ''}
-                  ${check.subject_type === 'employee' ? '<span style="font-size:0.75rem;background:var(--accent-gold-soft);color:var(--accent-gold);padding:2px 7px;border-radius:20px;margin-left:6px;">Employee</span>' : ''}
+                  ${check.subject_type === 'employee' ? '<span style="font-size:0.75rem;background:var(--accent-gold-soft);color:var(--accent-gold);padding:2px 7px;border-radius:20px;margin-inline-start:6px;">Employee</span>' : ''}
                 </div>
                 <div style="font-size:0.82rem;color:var(--text-muted);">${check.subject_email || ''}</div>
               </div>
@@ -6353,10 +6354,10 @@
                 <span class="emergency-type-badge">${typeLabels[e.emergency_type] || e.emergency_type}</span>
                 <div style="margin-top:8px;">
                   <span class="emergency-distance">${mccIcon('map-pin', 14)} ${distance}</span>
-                  <span class="emergency-time" style="margin-left:12px;">⏱️ ${timeAgo}</span>
+                  <span class="emergency-time" style="margin-inline-start:12px;">⏱️ ${timeAgo}</span>
                 </div>
               </div>
-              <div style="text-align:right;">
+              <div style="text-align:end;">
                 ${countdownHtml}
                 <div style="font-size:1.1rem;font-weight:600;color:var(--accent-green);margin-top:4px;">${mccIcon('dollar-sign', 14)} ${escrowAmount}</div>
                 <div style="font-size:0.75rem;color:var(--text-muted);">escrow authorized</div>
@@ -7826,7 +7827,7 @@
                 <div style="font-size:1rem;margin-bottom:4px;">${batch.name || batch.service_type || 'Bulk Service Request'}</div>
                 <div style="font-size:0.85rem;color:var(--text-muted);">Posted ${timePosted}</div>
               </div>
-              <div style="text-align:right;">
+              <div style="text-align:end;">
                 <div style="font-size:0.82rem;color:var(--text-muted);">Estimated Value</div>
                 <div style="font-size:1.4rem;font-weight:600;color:var(--accent-gold);">$${estimatedValue.toLocaleString()}</div>
               </div>
@@ -7929,6 +7930,7 @@
                 <span style="color:var(--accent-gold);font-weight:500;">${progress}%</span>
               </div>
               <div style="height:8px;background:var(--bg-input);border-radius:4px;overflow:hidden;">
+                <!-- RTL note (Task #410): 90deg gradient is cosmetic on a width-driven progress bar (intentionally physical). Follow-up #506. -->
                 <div style="height:100%;width:${progress}%;background:linear-gradient(90deg,var(--accent-gold),#c49a45);transition:width 0.3s;"></div>
               </div>
             </div>
@@ -8044,7 +8046,7 @@
               ${batch.date_range_start ? `<span style="font-size:0.88rem;color:var(--text-secondary);">${mccIcon('calendar', 14)} ${new Date(batch.date_range_start).toLocaleDateString()} - ${new Date(batch.date_range_end || batch.date_range_start).toLocaleDateString()}</span>` : ''}
             </div>
           </div>
-          <div style="text-align:right;">
+          <div style="text-align:end;">
             <div style="font-size:0.82rem;color:var(--text-muted);">Progress</div>
             <div style="font-size:1.2rem;font-weight:600;color:var(--accent-gold);">${progress}%</div>
           </div>
@@ -8913,7 +8915,7 @@
               <div style="flex:1;height:8px;background:var(--bg-elevated);border-radius:4px;overflow:hidden;">
                 <div style="height:100%;width:${pct}%;background:${star >= 4 ? '#d4a855' : star >= 3 ? '#f39c12' : '#e74c3c'};"></div>
               </div>
-              <span style="width:30px;font-size:0.75rem;color:var(--text-muted);text-align:right;">${count}</span>
+              <span style="width:30px;font-size:0.75rem;color:var(--text-muted);text-align:end;">${count}</span>
             </div>
           `;
         }).join('');
@@ -9013,7 +9015,7 @@
                 <div style="height:100%;width:${(s.count / maxCount * 100)}%;background:var(--accent-blue);border-radius:4px;"></div>
               </div>
             </div>
-            <div style="text-align:right;min-width:60px;">
+            <div style="text-align:end;min-width:60px;">
               <div style="font-weight:600;color:var(--accent-blue);">${s.count}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);">${formatCents(s.revenue)}</div>
             </div>
@@ -9034,7 +9036,7 @@
                 <div style="height:100%;width:${(s.revenue / maxRev * 100)}%;background:var(--accent-gold);border-radius:4px;"></div>
               </div>
             </div>
-            <div style="text-align:right;min-width:60px;">
+            <div style="text-align:end;min-width:60px;">
               <div style="font-weight:600;color:var(--accent-gold);">${formatCents(s.revenue)}</div>
               <div style="font-size:0.75rem;color:var(--text-muted);">${s.count} jobs</div>
             </div>
@@ -9280,7 +9282,7 @@
       if (!toast) {
         toast = document.createElement('div');
         toast.id = 'referral-toast';
-        toast.style.cssText = 'position:fixed;bottom:24px;right:24px;background:var(--bg-elevated);border:1px solid var(--accent-green);border-radius:var(--radius-md);padding:16px 20px;display:flex;align-items:center;gap:12px;z-index:200;animation:toastIn 0.3s ease;';
+        toast.style.cssText = 'position:fixed;bottom:24px;inset-inline-end:24px;background:var(--bg-elevated);border:1px solid var(--accent-green);border-radius:var(--radius-md);padding:16px 20px;display:flex;align-items:center;gap:12px;z-index:200;animation:toastIn 0.3s ease;';
         document.body.appendChild(toast);
       }
       toast.innerHTML = `<span style="color:var(--accent-green);">✓</span> ${message}`;
@@ -9340,7 +9342,7 @@
       } catch (error) {
         console.error('Error loading loyalty network:', error);
         if (loadingEl) {
-          loadingEl.innerHTML = '<p style="color:var(--text-muted);">Unable to load loyalty network. <button onclick="loadLoyaltyNetwork()" class="btn btn-secondary btn-sm" style="margin-left:8px;">Retry</button></p>';
+          loadingEl.innerHTML = '<p style="color:var(--text-muted);">Unable to load loyalty network. <button onclick="loadLoyaltyNetwork()" class="btn btn-secondary btn-sm" style="margin-inline-start:8px;">Retry</button></p>';
         }
       }
     }
@@ -10070,7 +10072,7 @@
             .section-title { font-weight: bold; font-size: 11px; text-transform: uppercase; margin-bottom: 6px; background: #eee; padding: 4px 6px; }
             .row { display: flex; justify-content: space-between; padding: 3px 0; font-size: 11px; }
             .row-label { color: #555; }
-            .row-value { font-weight: 500; text-align: right; max-width: 55%; }
+            .row-value { font-weight: 500; text-align: end; max-width: 55%; }
             .service-item { padding: 6px 0; border-bottom: 1px dotted #ccc; }
             .service-name { font-weight: bold; font-size: 12px; }
             .service-desc { font-size: 10px; color: #555; margin-top: 2px; }
@@ -10179,7 +10181,7 @@
           const color = statusColors[itemStatus] || '#666';
           itemsHtml += `<div class="row"><span class="row-label">${itemName}:</span><span class="row-value" style="color:${color};font-weight:600;">${itemStatus}</span></div>`;
           if (item.note) {
-            itemsHtml += `<div style="font-size:9px;color:#666;padding-left:10px;margin-bottom:4px;">↳ ${item.note}</div>`;
+            itemsHtml += `<div style="font-size:9px;color:#666;padding-inline-start:10px;margin-bottom:4px;">↳ ${item.note}</div>`;
           }
         }
       });
@@ -10294,7 +10296,7 @@
         
         if (!resp.ok) throw new Error(data.error || 'Failed to send receipt');
         
-        let statusHtml = '<div style="color:var(--accent-green);">✅ Receipt delivery complete!</div><ul style="margin-top:8px;font-size:0.9rem;text-align:left;list-style:none;padding:0;">';
+        let statusHtml = '<div style="color:var(--accent-green);">✅ Receipt delivery complete!</div><ul style="margin-top:8px;font-size:0.9rem;text-align:start;list-style:none;padding:0;">';
         
         if (data.emailResult) {
           statusHtml += `<li>${data.emailResult.sent ? '✓ Email sent' : '⚠️ Email: ' + (data.emailResult.reason || 'not sent')}</li>`;
@@ -10565,7 +10567,7 @@
                 <div style="font-weight:600;font-size:1.1rem;margin-bottom:4px;">${job.title}</div>
                 <div style="color:var(--text-muted);font-size:0.9rem;">${mccIcon('car', 14)} ${vehicleName}</div>
               </div>
-              <div style="text-align:right;">
+              <div style="text-align:end;">
                 <div style="font-weight:700;color:var(--accent-gold);font-size:1.2rem;">$${(job.price || 0).toFixed(2)}</div>
                 ${escrowBadge}
               </div>
@@ -11334,7 +11336,7 @@
               <div class="pos-history-vehicle">${s.vehicle_info || 'N/A'}</div>
               <div class="pos-history-date">${new Date(s.created_at).toLocaleDateString()} ${new Date(s.created_at).toLocaleTimeString()}</div>
             </div>
-            <div style="text-align:right;">
+            <div style="text-align:end;">
               <div class="pos-history-amount">$${(s.total_amount || 0).toFixed(2)}</div>
               <span class="pos-status-badge ${s.status}">${s.status}</span>
             </div>
@@ -11414,7 +11416,7 @@
           const statusBg = item.status === 'serving' ? 'var(--accent-blue-soft)' : 'rgba(245,158,11,0.15)';
           
           return `
-            <div class="package-card" style="border-left:4px solid var(--${statusClass});margin-bottom:16px;">
+            <div class="package-card" style="border-inline-start:4px solid var(--${statusClass});margin-bottom:16px;">
               <div class="package-header">
                 <div>
                   <div style="display:flex;align-items:center;gap:12px;margin-bottom:8px;">
@@ -12069,7 +12071,7 @@
                 Active
               </span>
             </td>
-            <td style="padding:16px;text-align:right;">
+            <td style="padding:16px;text-align:end;">
               ${canManage ? `
                 <div style="display:flex;gap:8px;justify-content:flex-end;">
                   <select onchange="updateTeamMemberRole('${member.id}', this.value)" style="padding:6px 12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);color:var(--text-primary);font-size:0.82rem;cursor:pointer;">
@@ -12114,7 +12116,7 @@
                 <div style="font-weight:500;">${invite.email}</div>
                 <div style="font-size:0.82rem;color:var(--text-muted);margin-top:2px;">
                   <span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.72rem;${roleBadgeStyle}">${invite.role.charAt(0).toUpperCase() + invite.role.slice(1)}</span>
-                  <span style="margin-left:8px;">Expires: ${isExpired ? '<span style="color:var(--accent-red);">Expired</span>' : expiryDate.toLocaleDateString()}</span>
+                  <span style="margin-inline-start:8px;">Expires: ${isExpired ? '<span style="color:var(--accent-red);">Expired</span>' : expiryDate.toLocaleDateString()}</span>
                 </div>
               </div>
             </div>
@@ -13022,8 +13024,8 @@
           return `<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);margin-bottom:8px;">
             <div>
               <strong style="font-size:0.9rem;">${dateStr}</strong>
-              <span style="color:var(--text-muted);font-size:0.85rem;margin-left:8px;">${startStr} - ${endStr}</span>
-              ${b.reason ? `<span style="color:var(--text-secondary);font-size:0.85rem;margin-left:8px;">— ${b.reason}</span>` : ''}
+              <span style="color:var(--text-muted);font-size:0.85rem;margin-inline-start:8px;">${startStr} - ${endStr}</span>
+              ${b.reason ? `<span style="color:var(--text-secondary);font-size:0.85rem;margin-inline-start:8px;">— ${b.reason}</span>` : ''}
             </div>
             <button onclick="deleteBlockedTime('${b.id}')" class="btn btn-secondary" style="padding:4px 10px;font-size:0.8rem;">Delete</button>
           </div>`;

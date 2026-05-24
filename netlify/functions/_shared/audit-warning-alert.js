@@ -23,7 +23,7 @@ async function maybeSendAuditWarningAlert({ supabase, action_id, slug, db_error 
   try {
     const { data: existing } = await supabase
       .from('ai_action_log')
-      .select('id')
+      .select('id, decision, created_at')
       .eq('module', 'audit_warning')
       .eq('action_type', 'alert')
       .eq('outcome', 'sent')

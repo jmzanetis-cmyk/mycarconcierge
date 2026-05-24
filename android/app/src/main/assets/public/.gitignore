@@ -24,7 +24,6 @@ screenshots/
 *.backup
 *.pptx
 server.js
-outreach-engine-api.js
 emailService.js
 cordova.js
 cordova_plugins.js

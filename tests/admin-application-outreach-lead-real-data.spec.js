@@ -8,16 +8,14 @@
 // via the service-role Supabase client, then loads admin.html as a real
 // admin and asserts the rendered badge text inside the actual table.
 //
-// The dev server (`www/server.js`) does NOT proxy
-// `/api/admin/provider-application/*` to the netlify function (only prod
-// does, via `_redirects`), so we satisfy that fetch by intercepting it with
-// `page.route` and invoking the netlify handler in-process. The handler
-// then talks to the real Supabase project and returns the rows we seeded —
-// so the data flowing into renderApplicationLeadBadge is genuine, not a
-// hand-crafted stub.
+// Task #400 wired `/api/admin/provider-application/*` into the dev server
+// (`www/server.js`) so it forwards to the netlify handler the same way
+// `_redirects` does in production. The previous `page.route` bridge that
+// invoked the handler in-process is no longer needed — the admin page's
+// fetch flows through the dev server, which calls the real netlify handler,
+// which talks to the real Supabase project and returns the rows we seeded.
 
 const { test, expect } = require('@playwright/test');
-const path = require('node:path');
 const {
   BASE_URL,
   SUPABASE_SERVICE_KEY,
@@ -25,10 +23,6 @@ const {
   getSupabaseAdmin,
   injectAdminSession
 } = require('./helpers');
-
-const HANDLER_PATH = path.resolve(
-  __dirname, '..', 'netlify', 'functions', 'provider-application-review.js'
-);
 
 // Stable identifiers so cleanup is deterministic even if the test crashes
 // mid-run and we re-run later.
@@ -109,26 +103,9 @@ test.describe('Admin source badge — real data E2E (Task #250)', () => {
   });
 
   test('renders Hunter source badge for linked application and Direct signup for unlinked', async ({ page }) => {
-    // Bridge the dev-server gap: the admin page POSTs to
-    // /api/admin/provider-application/outreach-leads, which dev does not
-    // proxy. We invoke the real netlify handler in-process so the response
-    // contains real Supabase rows — not a hand-crafted fixture.
-    delete require.cache[require.resolve(HANDLER_PATH)];
-    const handler = require(HANDLER_PATH);
-    await page.route('**/api/admin/provider-application/outreach-leads', async (route) => {
-      const req = route.request();
-      const result = await handler.handler({
-        httpMethod: req.method(),
-        path: '/api/admin/provider-application/outreach-leads',
-        headers: { 'x-admin-password': ADMIN_PASSWORD },
-        body: req.postData() || '{}'
-      });
-      await route.fulfill({
-        status: result.statusCode,
-        contentType: 'application/json',
-        body: typeof result.body === 'string' ? result.body : JSON.stringify(result.body)
-      });
-    });
+    // The dev server (Task #400) now proxies
+    // /api/admin/provider-application/* directly to the netlify handler, so
+    // the page fetch hits real Supabase without any in-process bridge.
 
     // Sign in as admin and pre-seed the admin-password local-storage entry
     // so getAdminHeaders() attaches x-admin-password to the outreach-leads
@@ -184,23 +161,9 @@ test.describe('Admin source badge — real data E2E (Task #250)', () => {
   });
 
   test('clicking the badge navigates to Marketing → Outreach → Leads with the email pre-filled', async ({ page }) => {
-    // Same in-process bridge as the previous test.
-    delete require.cache[require.resolve(HANDLER_PATH)];
-    const handler = require(HANDLER_PATH);
-    await page.route('**/api/admin/provider-application/outreach-leads', async (route) => {
-      const req = route.request();
-      const result = await handler.handler({
-        httpMethod: req.method(),
-        path: '/api/admin/provider-application/outreach-leads',
-        headers: { 'x-admin-password': ADMIN_PASSWORD },
-        body: req.postData() || '{}'
-      });
-      await route.fulfill({
-        status: result.statusCode,
-        contentType: 'application/json',
-        body: typeof result.body === 'string' ? result.body : JSON.stringify(result.body)
-      });
-    });
+    // Dev server proxies /api/admin/provider-application/* to the netlify
+    // handler (Task #400) — no in-process bridge required.
+
     // Stub loadLeads so clicking through doesn't trigger a real outreach
     // engine fetch (that endpoint is out of scope for this assertion).
     await page.addInitScript(() => {

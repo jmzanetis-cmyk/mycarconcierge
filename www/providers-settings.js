@@ -47,6 +47,145 @@ async function saveProviderProfile() {
   }
 }
 
+// ========== MATCH PREFERENCES (Task #389) ==========
+async function loadMatchPreferences() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const resp = await fetch('/api/provider/match-preferences', {
+      headers: { 'Authorization': 'Bearer ' + session.access_token }
+    });
+    if (!resp.ok) return;
+    const prefs = await resp.json();
+    if (!prefs) return;
+
+    const cats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
+    document.querySelectorAll('.match-category-check').forEach(cb => {
+      cb.checked = cats.length === 0 ? true : cats.includes(cb.value);
+    });
+
+    const radiusInput = document.getElementById('match-radius-miles');
+    if (radiusInput) radiusInput.value = prefs.match_radius_miles || 25;
+
+    const pausedToggle = document.getElementById('match-paused-toggle');
+    if (pausedToggle) {
+      pausedToggle.checked = !!prefs.matches_paused;
+      pausedToggle.onchange = toggleMatchPausedUntilRow;
+    }
+    const untilInput = document.getElementById('match-paused-until');
+    if (untilInput && prefs.matches_paused_until) {
+      untilInput.value = String(prefs.matches_paused_until).slice(0, 10);
+    } else if (untilInput) {
+      untilInput.value = '';
+    }
+    toggleMatchPausedUntilRow();
+
+    if (typeof updateMatchPauseBanner === 'function') updateMatchPauseBanner(prefs);
+  } catch (err) {
+    console.warn('loadMatchPreferences error:', err.message);
+  }
+}
+
+function toggleMatchPausedUntilRow() {
+  const toggle = document.getElementById('match-paused-toggle');
+  const row = document.getElementById('match-paused-until-row');
+  if (row) row.style.display = toggle?.checked ? '' : 'none';
+}
+
+function showMatchPrefsError(msg) {
+  const box = document.getElementById('match-prefs-error');
+  if (!box) return;
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = msg;
+  box.style.display = '';
+}
+
+async function saveMatchPreferences() {
+  showMatchPrefsError('');
+  const categories = Array.from(document.querySelectorAll('.match-category-check:checked')).map(cb => cb.value);
+  const radiusRaw = document.getElementById('match-radius-miles')?.value;
+  const radius = Number.parseInt(radiusRaw, 10);
+  const paused = !!document.getElementById('match-paused-toggle')?.checked;
+  const untilRaw = document.getElementById('match-paused-until')?.value || null;
+
+  if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
+    showMatchPrefsError('Match radius must be between 1 and 500 miles.');
+    return;
+  }
+  if (!paused && categories.length === 0) {
+    showMatchPrefsError('Select at least one category, or pause matches.');
+    return;
+  }
+
+  let pausedUntilIso = null;
+  if (paused && untilRaw) {
+    const d = new Date(untilRaw + 'T23:59:59');
+    if (!Number.isNaN(d.getTime())) pausedUntilIso = d.toISOString();
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/match-preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({
+        match_categories: categories,
+        match_radius_miles: radius,
+        matches_paused: paused,
+        matches_paused_until: pausedUntilIso
+      })
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Save failed');
+    showToast('Match preferences saved!', 'success');
+    if (typeof updateMatchPauseBanner === 'function') updateMatchPauseBanner(result.preferences || result);
+  } catch (err) {
+    console.error('saveMatchPreferences error:', err);
+    showMatchPrefsError(err.message || 'Failed to save preferences');
+  }
+}
+
+async function resumeMatchesFromBanner() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/match-preferences/resume', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token }
+    });
+    if (!resp.ok) throw new Error('Resume failed');
+    showToast('Matches resumed.', 'success');
+    const banner = document.getElementById('match-pause-banner');
+    if (banner) banner.style.display = 'none';
+    const toggle = document.getElementById('match-paused-toggle');
+    if (toggle) { toggle.checked = false; toggleMatchPausedUntilRow(); }
+    const untilInput = document.getElementById('match-paused-until');
+    if (untilInput) untilInput.value = '';
+  } catch (err) {
+    showToast('Could not resume matches.', 'error');
+  }
+}
+
+function updateMatchPauseBanner(prefs) {
+  const banner = document.getElementById('match-pause-banner');
+  const detail = document.getElementById('match-pause-banner-detail');
+  if (!banner) return;
+  if (!prefs || !prefs.matches_paused) { banner.style.display = 'none'; return; }
+  const until = prefs.matches_paused_until ? new Date(prefs.matches_paused_until) : null;
+  if (until && until.getTime() <= Date.now()) { banner.style.display = 'none'; return; }
+  if (detail) {
+    detail.textContent = until
+      ? `You won't receive new match invitations until ${until.toLocaleDateString()}.`
+      : `You won't receive new match invitations until you resume.`;
+  }
+  banner.style.display = '';
+}
+
+window.loadMatchPreferences = loadMatchPreferences;
+window.saveMatchPreferences = saveMatchPreferences;
+window.toggleMatchPausedUntilRow = toggleMatchPausedUntilRow;
+window.resumeMatchesFromBanner = resumeMatchesFromBanner;
+window.updateMatchPauseBanner = updateMatchPauseBanner;
+
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
   const radius = Number.parseInt(document.getElementById('emergency-radius')?.value) || 15;
@@ -412,7 +551,7 @@ async function loadBackgroundCheckStatus(opts = {}) {
           ${pc.invitation_url && ['initiated','pending'].includes(pc.status) ? `
             <div style="margin-top:12px;padding:12px 14px;background:var(--accent-gold-soft);border:1px solid rgba(201,162,39,0.3);border-radius:var(--radius-md);font-size:0.85rem;">
               <strong style="color:var(--accent-gold);">Action needed:</strong> Complete your application at BackgroundChecks.com.
-              <a href="${pc.invitation_url}" target="_blank" rel="noopener" class="btn btn-sm btn-gold" style="margin-left:12px;">Open Application</a>
+              <a href="${pc.invitation_url}" target="_blank" rel="noopener" class="btn btn-sm btn-gold" style="margin-inline-start:12px;">Open Application</a>
             </div>` : ''}
           <div style="margin-top:14px;display:flex;gap:8px;">
             <button class="btn btn-secondary btn-sm" onclick="loadBackgroundCheckStatus()">${mccIcon('refresh-cw', 14)} Refresh</button>
@@ -751,6 +890,7 @@ async function loadVerificationBadgeStatus() {
               <span>${data.verifiedEmployees}/${data.totalEmployees}</span>
             </div>
             <div style="background:var(--bg-input);border-radius:var(--radius-full);height:8px;overflow:hidden;">
+              <!-- RTL note (Task #410): 90deg gradient is cosmetic on a width-driven progress bar (intentionally physical). Follow-up #506. -->
               <div style="background:linear-gradient(90deg, var(--accent-green), #4ade80);height:100%;width:${data.totalEmployees > 0 ? (data.verifiedEmployees / data.totalEmployees * 100) : 0}%;transition:width 0.3s ease;"></div>
             </div>
           </div>
@@ -758,7 +898,7 @@ async function loadVerificationBadgeStatus() {
         
         ${pendingHtml}
         
-        <div style="margin-top:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:var(--radius-md);border-left:3px solid var(--accent-gold);">
+        <div style="margin-top:20px;padding:12px;background:rgba(234,179,8,0.1);border-radius:var(--radius-md);border-inline-start:3px solid var(--accent-gold);">
           <div style="display:flex;align-items:flex-start;gap:10px;">
             <span style="font-size:1.1rem;">${mccIcon('lightbulb', 14)}</span>
             <div style="font-size:0.85rem;color:var(--text-secondary);">
@@ -1645,6 +1785,7 @@ function renderShopOnboardingChecklist(steps) {
         <span style="font-size:0.82rem;color:#6b7280;">${completed}/${total} complete</span>
       </div>
       <div style="height:6px;background:rgba(160,168,184,0.15);border-radius:3px;">
+        <!-- RTL note (Task #410): 90deg gradient is cosmetic on a width-driven progress bar (intentionally physical). Follow-up #506. -->
         <div style="height:100%;width:${pct}%;background:linear-gradient(90deg,#c9a227,#e8bc5a);border-radius:3px;transition:width 0.4s;"></div>
       </div>
     </div>
@@ -1766,7 +1907,7 @@ async function loadBusinessHours() {
     return `<div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
       <div style="width:100px;font-size:0.88rem;font-weight:600;">${DAY_LABELS[day]}</div>
       <input type="checkbox" id="hours-closed-${day}" ${h.closed ? 'checked' : ''} onchange="toggleDayClosed('${day}')" style="width:16px;height:16px;accent-color:var(--accent-gold);" title="Closed">
-      <label for="hours-closed-${day}" style="font-size:0.82rem;color:var(--text-muted);margin-right:8px;">Closed</label>
+      <label for="hours-closed-${day}" style="font-size:0.82rem;color:var(--text-muted);margin-inline-end:8px;">Closed</label>
       <div id="hours-time-${day}" style="display:flex;align-items:center;gap:8px;${h.closed ? 'opacity:0.3;pointer-events:none;' : ''}">
         <input type="time" id="hours-open-${day}" value="${h.open || '09:00'}" class="form-input" style="padding:6px 8px;font-size:0.85rem;width:120px;">
         <span style="color:var(--text-muted);font-size:0.85rem;">–</span>
@@ -1852,7 +1993,7 @@ function applyAutoBidToggleStyle(on, slider, thumb, label) {
   }
   if (slider) slider.style.background = on ? 'var(--accent-gold)' : 'var(--bg-input)';
   if (slider) slider.style.borderColor = on ? 'var(--accent-gold)' : 'var(--border-subtle)';
-  if (thumb) { thumb.style.left = on ? '24px' : '2px'; thumb.style.background = on ? 'var(--bg-deep)' : 'var(--text-muted)'; }
+  if (thumb) { thumb.style.insetInlineStart = on ? '24px' : '2px'; thumb.style.background = on ? 'var(--bg-deep)' : 'var(--text-muted)'; }
   if (label) { label.textContent = on ? 'Enabled' : 'Disabled'; label.style.color = on ? 'var(--accent-gold)' : 'var(--text-muted)'; }
 }
 

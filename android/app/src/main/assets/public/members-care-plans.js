@@ -469,7 +469,7 @@
         '<div id="cp-card-element" style="padding:14px;border:1px solid var(--border-color,#2c2f36);border-radius:10px;background:rgba(20,24,30,0.6);min-height:44px;"></div>' +
         '<div id="cp-card-errors" style="color:var(--accent-red,#ef4444);font-size:0.85rem;margin-top:8px;min-height:18px;"></div>' +
         '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">' +
-          '<button class="btn btn-primary" type="button" id="cp-authorize-btn" data-bid-id="' + escapeHtml(bidId) + '">' + escapeHtml(t('member.cpAuthorizePay', 'Authorize Payment')) + '</button>' +
+          '<button class="btn btn-primary" type="button" id="cp-authorize-btn" data-bid-id="' + escapeHtml(bidId) + '" disabled aria-disabled="true">' + escapeHtml(t('member.cpAuthorizePay', 'Authorize Payment')) + '</button>' +
           '<button class="btn" type="button" id="cp-cancel-card">' + escapeHtml(t('common.cancel', 'Cancel')) + '</button>' +
         '</div>' +
       '</div>';
@@ -536,6 +536,12 @@
       card.mount('#cp-card-element');
       card.on('change', function (ev) {
         if (errEl) errEl.textContent = ev.error ? ev.error.message : '';
+        const authBtn = document.getElementById('cp-authorize-btn');
+        if (authBtn && !isSubmitting) {
+          const ready = !!ev.complete && !ev.error;
+          authBtn.disabled = !ready;
+          authBtn.setAttribute('aria-disabled', ready ? 'false' : 'true');
+        }
       });
       activeStripe = stripe;
       activeElements = elements;

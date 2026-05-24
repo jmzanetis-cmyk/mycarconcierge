@@ -2,10 +2,11 @@
 
 // Task #305 — Arabic RTL mobile readability of the BGC compliance dashboard.
 // Mirrors tests/bgc-state-card-es-mobile.spec.js but flips the locale to
-// Arabic and the document direction to RTL. Arabic has no compliance copy
-// of its own in www/bgc-compliance.js (no STATE_COPY_AR), so the rendered
-// titles + pills remain English — this spec is strictly a LAYOUT check
-// for the dir="rtl" flip:
+// Arabic and the document direction to RTL. Task #409 added STATE_COPY_AR
+// to www/bgc-compliance.js, so the rendered titles + pills must now be the
+// native Arabic strings. This spec covers BOTH:
+//   • native Arabic copy renders (titles + pills)
+//   • the dir="rtl" layout flip:
 //   • zero horizontal overflow on the state card at 360×800 + 393×852
 //   • percentage figure stays on one line
 //   • after the flex flip, the percent column sits on the LEFT visually
@@ -34,18 +35,17 @@ const VIEWPORTS = [
       userAgent: 'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1' } }
 ];
 
-// Arabic falls back to STATE_COPY_EN inside bgc-compliance.js (there is
-// no STATE_COPY_AR), so the titles/pills below match the English copy on
-// purpose. The RTL flip we care about is layout, not strings.
+// Task #409 — Arabic now has native compliance copy in www/bgc-compliance.js
+// (STATE_COPY_AR), so titles/pills must match the Arabic strings exactly.
 const STATES = [
   { key: 'not_enrolled', total: 0,  compliant: 0,  pct: 0,
-    expectTitle: 'Get MCC Verified',           expectPill: 'Not enrolled' },
+    expectTitle: 'احصل على توثيق MCC',            expectPill: 'غير مُسجَّل' },
   { key: 'activating',   total: 5,  compliant: 5,  pct: 100,
-    expectTitle: 'MCC Verified — Activating',  expectPill: 'Activating' },
+    expectTitle: 'موثّق من MCC — قيد التفعيل',    expectPill: 'قيد التفعيل' },
   { key: 'at_risk',      total: 10, compliant: 8,  pct: 85,
-    expectTitle: 'MCC Verified — At Risk',     expectPill: '⚠ At Risk' },
+    expectTitle: 'موثّق من MCC — في خطر',         expectPill: '⚠ في خطر' },
   { key: 'inactive',     total: 5,  compliant: 3,  pct: 60,
-    expectTitle: 'MCC Verified — Inactive ✗', expectPill: '✗ Inactive' }
+    expectTitle: 'موثّق من MCC — غير نشط ✗',      expectPill: '✗ غير نشط' }
 ];
 
 function buildFixtureScript(state) {

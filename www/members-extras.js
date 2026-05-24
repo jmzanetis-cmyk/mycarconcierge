@@ -752,11 +752,11 @@
       const reason = window.prompt('Why are you cancelling this driver request?', 'Plans changed');
       if (!reason || reason.trim().length < 3) return;
       const headers = await getConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to cancel.'); return; }
+      if (!headers) { showToast('Please sign in again to cancel.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
       });
-      if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      if (!resp.ok) { showToast('Cancel failed: ' + (await resp.text()), 'error'); return; }
       window.loadConciergeStatusForAppointment(packageId, appointmentId);
     };
 

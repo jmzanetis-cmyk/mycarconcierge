@@ -248,6 +248,13 @@ exports.handler = async function(event) {
     return utils.errorResponse(403, 'Only the package owner can trigger this push');
   }
 
+  // Task #408: skip self-notification when QA / dual-role accounts act as
+  // both member (callerId) and bidding provider (providerId) on the same
+  // package — mirrors the POST /api/plan-bids guard from Task #298.
+  if (providerId === callerId) {
+    return utils.successResponse({ ok: true, sent: false, reason: 'self_award_skipped', success: 0, failure: 0 });
+  }
+
   // Task #351: wording comes from the DB row we already fetched for authz,
   // never from the request body. The client may still send package_title /
   // bid_amount for back-compat, but they are now advisory and ignored.

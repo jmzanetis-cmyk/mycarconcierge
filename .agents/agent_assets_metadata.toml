@@ -41,3 +41,9 @@ id = "WkiOgZYXAq-YekANk1evG"
 uri = "file://.local/claude-code-tasks.md"
 type = "text"
 title = "Claude Code task briefs — MCC priority sweep"
+
+[[outputs]]
+id = "ZiqbU_abrduUzjRz-UECZ"
+uri = "file://.local/tasks/remaining-tasks-summary.md"
+type = "text"
+title = "Remaining Tasks for Claude Code (updated)"

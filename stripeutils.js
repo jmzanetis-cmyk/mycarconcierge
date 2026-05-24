@@ -63,7 +63,10 @@ function initStripeSync() {
 /**
  * MCC Fee Structure
  */
-const MCC_FEE_PERCENT = 0.075; // 7.5%
+// MCC charges no platform fee on completed jobs. Revenue comes from bid-credit
+// pack sales. The constant is kept at 0 (and exported) so any downstream
+// `calculateFees` callers compute provider_amount = totalAmount.
+const MCC_FEE_PERCENT = 0;
 
 function calculateFees(totalAmount) {
   const mccFee = totalAmount * MCC_FEE_PERCENT;
