@@ -4,11 +4,7 @@ const { createSupabaseClient } = require('./outreach-engine-core');
 function verifyResendWebhookSignature(rawBody, headers) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    if (process.env.NODE_ENV === 'production') {
-      return { valid: false, reason: 'webhook secret not configured' };
-    }
-    console.warn('[outreach-resend-webhook] dev mode: skipping signature check');
-    return { valid: true, reason: null };
+    return { valid: false, reason: 'RESEND_WEBHOOK_SECRET not configured' };
   }
 
   const svixId = headers['svix-id'];
@@ -75,7 +71,8 @@ exports.handler = async function(event, context) {
 
   const supabase = createSupabaseClient();
   if (!supabase) {
-    return { statusCode: 200, body: 'ok' };
+    console.error('[outreach-resend-webhook] database not configured');
+    return { statusCode: 500, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'database not configured' }) };
   }
 
   try {

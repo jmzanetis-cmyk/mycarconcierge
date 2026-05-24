@@ -86,7 +86,7 @@ function makeEvent(headers, body) {
     ok('secret set + missing sig headers → 401', r.statusCode === 401, `got ${r.statusCode}`);
   }
 
-  // Test 3: secret set + valid HMAC → 200 (supabase is null so handler returns early 200)
+  // Test 3: secret set + valid HMAC + no DB → 500 (fail-closed so Resend retries)
   {
     const secret = 'whsec_dGVzdHNlY3JldGtleWZvcnRlc3Rpbmc=';
     const body = JSON.stringify({ type: 'email.sent', data: {} });
@@ -96,10 +96,10 @@ function makeEvent(headers, body) {
     const handler = loadFresh();
     const r = await handler(makeEvent(svixHdrs, body));
     delete process.env.RESEND_WEBHOOK_SECRET;
-    ok('valid HMAC → 200', r.statusCode === 200, `got ${r.statusCode}`);
+    ok('valid HMAC + no DB → 500 (fail-closed)', r.statusCode === 500, `got ${r.statusCode}`);
   }
 
-  // Test 4: dev (no NODE_ENV=production) + no secret → still passes through (200)
+  // Test 4: no secret → 401 regardless of NODE_ENV (dev bypass removed)
   {
     const saved = process.env.RESEND_WEBHOOK_SECRET;
     const savedEnv = process.env.NODE_ENV;
@@ -109,7 +109,7 @@ function makeEvent(headers, body) {
     const r = await handler(makeEvent({}, '{}'));
     if (saved !== undefined) process.env.RESEND_WEBHOOK_SECRET = saved;
     process.env.NODE_ENV = savedEnv;
-    ok('dev + no secret → passes through (200)', r.statusCode === 200, `got ${r.statusCode}`);
+    ok('no secret → 401 regardless of NODE_ENV', r.statusCode === 401, `got ${r.statusCode}`);
   }
 
   console.log(`\n${pass} passed, ${fail} failed`);
