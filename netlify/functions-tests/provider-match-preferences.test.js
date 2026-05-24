@@ -126,7 +126,7 @@ t('undefined radius default', () => {
 
 console.log('\n[13] Source-of-truth guard — production function matches test copy');
 t('www/server.js still contains applyMatchPreferenceFilter implementation', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'www', 'server.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'server.js'), 'utf8');
   assert.ok(src.includes('function applyMatchPreferenceFilter('), 'helper not found in www/server.js');
   assert.ok(src.includes("reason: 'category_mismatch'"), 'category branch missing');
   assert.ok(src.includes("reason: 'out_of_radius'"), 'radius branch missing');
@@ -147,7 +147,7 @@ t('20260524_provider_match_preferences.sql contract', () => {
 
 console.log('\n[15] API endpoint registered in server router');
 t('match-preferences route wired', () => {
-  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'www', 'server.js'), 'utf8');
+  const src = fs.readFileSync(path.join(__dirname, '..', '..', 'server.js'), 'utf8');
   assert.ok(src.includes("/api/provider/match-preferences"), 'route literal missing');
   assert.ok(src.includes('handleProviderMatchPreferences'), 'handler missing');
 });

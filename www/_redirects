@@ -66,6 +66,8 @@
 /unsubscribe /.netlify/functions/outreach-unsubscribe 200
 /api/webhooks/resend /.netlify/functions/outreach-resend-webhook 200
 /api/webhooks/background-check /.netlify/functions/background-check-webhook 200
+/api/provider/match-preferences/resume /.netlify/functions/provider-match-preferences/resume 200
+/api/provider/match-preferences /.netlify/functions/provider-match-preferences 200
 /api/provider/initiate-background-check /.netlify/functions/initiate-background-check 200
 /api/provider/bgc/config /.netlify/functions/bgc-config 200
 /api/provider/bgc/decrypt-token /.netlify/functions/bgc-decrypt-token 200

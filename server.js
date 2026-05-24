@@ -28631,6 +28631,108 @@ async function runBackgroundProviderMatching() {
   }
 }
 
+// Task #389 — filter a single provider candidate against their match preferences.
+// Returns { include: boolean, reason: string }.
+function applyMatchPreferenceFilter(provider, prefs, pkgCategory, packageZip, nowMs) {
+  if (!prefs) return { include: true, reason: 'no_prefs' };
+  if (prefs.matches_paused) {
+    const until = prefs.matches_paused_until ? new Date(prefs.matches_paused_until).getTime() : null;
+    if (!until || until > nowMs) return { include: false, reason: 'paused' };
+  }
+  const cats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
+  if (cats.length > 0 && pkgCategory && !cats.includes(pkgCategory)) {
+    return { include: false, reason: 'category_mismatch' };
+  }
+  const radius = Number(prefs.match_radius_miles) || 25;
+  const providerZip = (provider.zip_code || '').toString();
+  if (providerZip && packageZip) {
+    const diff = Math.abs(parseInt(providerZip.substring(0,3), 10) - parseInt(packageZip.substring(0,3), 10));
+    if (!Number.isFinite(diff)) return { include: true, reason: 'unknown_distance' };
+    const allowedDiff = Math.max(0, Math.ceil(radius / 50));
+    if (diff > allowedDiff) return { include: false, reason: 'out_of_radius' };
+  }
+  return { include: true, reason: 'ok' };
+}
+
+async function handleProviderMatchPreferences(req, res, requestId) {
+  setSecurityHeaders(res, true);
+  setCorsHeaders(res);
+  if (req.method === 'OPTIONS') { res.writeHead(200); res.end(); return; }
+
+  const user = await enforce2fa(req, res, requestId);
+  if (!user) return;
+
+  const supabase = getSupabaseClient();
+  if (!supabase) {
+    res.writeHead(500, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Database not configured' }));
+    return;
+  }
+
+  const isResume = req.url.endsWith('/resume');
+
+  if (req.method === 'GET' && !isResume) {
+    const { data, error } = await supabase
+      .from('provider_match_preferences')
+      .select('*')
+      .eq('profile_id', user.id)
+      .maybeSingle();
+    res.writeHead(error ? 500 : 200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(error ? { error: error.message } : (data || null)));
+    return;
+  }
+
+  if (req.method === 'POST' && isResume) {
+    const { data, error } = await supabase
+      .from('provider_match_preferences')
+      .update({ matches_paused: false, matches_paused_until: null, updated_at: new Date().toISOString() })
+      .eq('profile_id', user.id)
+      .select()
+      .single();
+    res.writeHead(error ? 500 : 200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(error ? { error: error.message } : { preferences: data }));
+    return;
+  }
+
+  if (req.method === 'POST' && !isResume) {
+    let body = {};
+    try {
+      const raw = await new Promise((resolve, reject) => {
+        let buf = '';
+        req.on('data', c => { buf += c; });
+        req.on('end', () => resolve(buf));
+        req.on('error', reject);
+      });
+      body = raw ? JSON.parse(raw) : {};
+    } catch {
+      res.writeHead(400, { 'Content-Type': 'application/json' });
+      res.end(JSON.stringify({ error: 'invalid JSON body' }));
+      return;
+    }
+    const { match_categories, match_radius_miles, matches_paused, matches_paused_until } = body;
+    const radius = Number.parseInt(match_radius_miles, 10);
+    const row = {
+      profile_id: user.id,
+      match_categories: Array.isArray(match_categories) ? match_categories : [],
+      match_radius_miles: Number.isFinite(radius) ? radius : 25,
+      matches_paused: !!matches_paused,
+      matches_paused_until: (matches_paused && matches_paused_until) ? matches_paused_until : null,
+      updated_at: new Date().toISOString()
+    };
+    const { data, error } = await supabase
+      .from('provider_match_preferences')
+      .upsert(row, { onConflict: 'profile_id' })
+      .select()
+      .single();
+    res.writeHead(error ? 500 : 200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify(error ? { error: error.message } : { preferences: data }));
+    return;
+  }
+
+  res.writeHead(405, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify({ error: 'method not allowed' }));
+}
+
 async function handleMatchProvidersForPackage(req, res, requestId, packageId) {
   const isInternalCall = req._internalBackgroundCall === true;
   
@@ -33280,6 +33382,12 @@ function saveAdminInvites(invites) {
     return;
   }
   
+  // Provider match preferences (Task #389)
+  if (req.url.startsWith('/api/provider/match-preferences')) {
+    handleProviderMatchPreferences(req, res, requestId);
+    return;
+  }
+
   // AI Provider Matching Route
   if (req.method === 'POST' && req.url.match(/^\/api\/package\/[^/]+\/match-providers$/)) {
     const packageId = req.url.split('/api/package/')[1]?.split('/')[0];
