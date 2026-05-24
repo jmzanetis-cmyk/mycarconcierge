@@ -5611,7 +5611,35 @@ async function sendSmsNotification(phoneNumber, message, userId = null, notifica
       return { sent: false, reason: 'user_preference_disabled' };
     }
   }
-  
+
+  // TCPA: honour STOP replies — check profiles.sms_opt_out before every send.
+  // Fail-closed: if the DB lookup fails we skip the send rather than risk a violation.
+  try {
+    const supabase = getSupabaseClient();
+    if (supabase) {
+      let optedOut = false;
+      if (userId) {
+        const { data } = await supabase.from('profiles').select('sms_opt_out').eq('id', userId).maybeSingle();
+        if (data?.sms_opt_out === true) optedOut = true;
+      }
+      if (!optedOut && phoneNumber) {
+        const clean = String(phoneNumber).replaceAll(/\D/g, '');
+        const e164 = clean.length === 10 ? `+1${clean}` : (clean.startsWith('1') && clean.length === 11 ? `+${clean}` : null);
+        if (e164) {
+          const { data } = await supabase.from('profiles').select('id').or(`phone.eq.${e164},phone.eq.${e164.replace(/^\+1/, '')}`).eq('sms_opt_out', true).limit(1);
+          if (Array.isArray(data) && data.length > 0) optedOut = true;
+        }
+      }
+      if (optedOut) {
+        console.log(`SMS skipped: ${phoneNumber} has opted out via STOP (TCPA)`);
+        return { sent: false, reason: 'sms_opt_out' };
+      }
+    }
+  } catch (optOutErr) {
+    console.error('SMS opt-out check failed — refusing send (fail-closed for TCPA):', optOutErr.message);
+    return { sent: false, reason: 'sms_opt_out_check_failed' };
+  }
+
   const twilioSid = process.env.TWILIO_ACCOUNT_SID;
   const twilioToken = process.env.TWILIO_AUTH_TOKEN;
   const twilioPhone = process.env.TWILIO_PHONE_NUMBER;
