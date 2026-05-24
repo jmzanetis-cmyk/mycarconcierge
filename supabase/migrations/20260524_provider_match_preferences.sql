@@ -47,7 +47,7 @@ BEGIN
   END IF;
 
   FOR r IN
-    SELECT p.id AS profile_id, a.services_offered, a.service_radius_miles
+    SELECT p.id AS profile_id, a.services_offered, a.pickup_radius_miles
       FROM public.profiles p
       LEFT JOIN public.provider_applications a ON a.user_id = p.id
      WHERE p.role IN ('provider','pending_provider') OR p.is_also_provider = true
@@ -74,7 +74,7 @@ BEGIN
       END IF;
     END IF;
 
-    v_radius := COALESCE(r.service_radius_miles, 25);
+    v_radius := COALESCE(r.pickup_radius_miles, 25);
     IF v_radius <= 0 OR v_radius > 500 THEN v_radius := 25; END IF;
 
     INSERT INTO public.provider_match_preferences
