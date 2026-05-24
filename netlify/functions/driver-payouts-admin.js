@@ -23,6 +23,7 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+const { alertOnAuditFailure } = require('../../lib/audit-warning-alert');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -95,7 +96,15 @@ async function audit(supabase, action, metadata) {
       metadata: { ...metadata, source: 'driver-payouts-admin' },
       performed_by: 'admin'
     });
-  } catch (e) { /* best-effort */ }
+  } catch (e) {
+    await alertOnAuditFailure(supabase, {
+      action,
+      targetType: 'driver_earnings',
+      targetId: metadata?.earnings_id || metadata?.driver_id || null,
+      metadata,
+      error: e,
+    });
+  }
 }
 
 // ---------------------------------------------------------------------------

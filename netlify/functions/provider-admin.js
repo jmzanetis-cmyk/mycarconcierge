@@ -22,6 +22,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const { notifySensitiveAuditAction } = require('./_shared/sensitive-audit-alert');
+const { alertOnAuditFailure } = require('../../lib/audit-warning-alert');
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
@@ -67,6 +68,13 @@ async function audit(supabase, row) {
     await supabase.from('admin_audit_log').insert(row);
   } catch (e) {
     console.error('[provider-admin] audit write failed:', e.message);
+    await alertOnAuditFailure(supabase, {
+      action: row.action || 'unknown',
+      targetType: row.target_type || 'provider',
+      targetId: row.target_id || null,
+      metadata: row.metadata || null,
+      error: e,
+    });
   }
 }
 
