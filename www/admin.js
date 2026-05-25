@@ -393,6 +393,7 @@
       violations: async () => { await loadViolationReports(); },
       'car-reviews': async () => { await loadPendingCARs(); },
       'pilot-applications': async () => { await loadPilotApplications(); },
+      'driver-applications': async () => { await loadDriverApplications(); },
       'member-founders': async () => { await loadMemberFounderApplications(); },
       'commission-payouts': async () => { await loadFounderPayouts(); },
       packages: async () => { await loadAllPackages(); },
@@ -5501,6 +5502,216 @@
         renderPilotApplications();
       }
     });
+
+    // ========== DRIVER APPLICATIONS ==========
+    let driverApplications = [];
+
+    async function loadDriverApplications() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('profiles')
+          .select('id, full_name, email, phone, city, state, created_at, role')
+          .eq('role', 'pending_driver')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('loadDriverApplications error:', error);
+          driverApplications = [];
+          renderDriverApplications();
+          return;
+        }
+
+        const profileIds = (data || []).map(p => p.id);
+        let driverRows = [];
+        if (profileIds.length) {
+          const { data: driversData } = await supabaseClient
+            .from('drivers')
+            .select('profile_id, notes, status')
+            .in('profile_id', profileIds);
+          driverRows = driversData || [];
+        }
+        const driverByProfileId = {};
+        driverRows.forEach(d => { driverByProfileId[d.profile_id] = d; });
+        driverApplications = (data || []).map(p => ({ ...p, _driver: driverByProfileId[p.id] || null }));
+
+        renderDriverApplications();
+
+        const badge = document.getElementById('driver-apps-badge');
+        if (badge) {
+          badge.textContent = driverApplications.length;
+          badge.style.display = driverApplications.length > 0 ? 'inline' : 'none';
+        }
+      } catch (err) {
+        console.error('loadDriverApplications error:', err);
+      }
+    }
+
+    function renderDriverApplications() {
+      const tbody = document.getElementById('driver-applications-table');
+      if (!tbody) return;
+
+      if (!driverApplications.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No pending driver applications</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = driverApplications.map(profile => {
+        const driver = profile._driver;
+        let notes = {};
+        try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
+        const vehicle = [notes.vehicle_year, notes.vehicle_make, notes.vehicle_model].filter(Boolean).join(' ') || 'Not provided';
+        const location = [profile.city, profile.state].filter(Boolean).join(', ') || 'N/A';
+
+        return `
+          <tr>
+            <td>
+              <div><strong>${escapeHtml(profile.full_name || 'No name')}</strong></div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(profile.email || '')}</div>
+            </td>
+            <td>${escapeHtml(profile.phone || 'N/A')}</td>
+            <td>${escapeHtml(location)}</td>
+            <td>${escapeHtml(vehicle)}</td>
+            <td>${new Date(profile.created_at).toLocaleDateString()}</td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary btn-sm" onclick="viewDriverApplication('${profile.id}')">View</button>
+                <button class="btn btn-success btn-sm" onclick="approveDriver('${profile.id}')" title="Approve">${mccIcon('check', 16)}</button>
+                <button class="btn btn-danger btn-sm" onclick="rejectDriver('${profile.id}')" title="Reject">${mccIcon('x', 16)}</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function viewDriverApplication(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+
+      const driver = profile._driver;
+      let notes = {};
+      try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
+
+      const modalContent = `
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('truck', 24)} Driver Application</div>
+          <div class="detail-grid">
+            <span class="detail-label">Full Name:</span><span class="detail-value">${escapeHtml(profile.full_name || 'N/A')}</span>
+            <span class="detail-label">Email:</span><span class="detail-value">${escapeHtml(profile.email || 'N/A')}</span>
+            <span class="detail-label">Phone:</span><span class="detail-value">${escapeHtml(profile.phone || 'N/A')}</span>
+            <span class="detail-label">Location:</span><span class="detail-value">${escapeHtml([profile.city, profile.state].filter(Boolean).join(', ') || 'N/A')}</span>
+            <span class="detail-label">Availability:</span><span class="detail-value">${escapeHtml(notes.availability || 'N/A')}</span>
+          </div>
+        </div>
+        <div class="form-section">
+          <div class="form-section-title">Vehicle &amp; License</div>
+          <div class="detail-grid">
+            <span class="detail-label">License Number:</span><span class="detail-value">${escapeHtml(notes.license_number || 'N/A')}</span>
+            <span class="detail-label">License State:</span><span class="detail-value">${escapeHtml(notes.license_state || 'N/A')}</span>
+            <span class="detail-label">Vehicle Year:</span><span class="detail-value">${escapeHtml(notes.vehicle_year || 'N/A')}</span>
+            <span class="detail-label">Vehicle Make:</span><span class="detail-value">${escapeHtml(notes.vehicle_make || 'N/A')}</span>
+            <span class="detail-label">Vehicle Model:</span><span class="detail-value">${escapeHtml(notes.vehicle_model || 'N/A')}</span>
+            <span class="detail-label">Vehicle Color:</span><span class="detail-value">${escapeHtml(notes.vehicle_color || 'N/A')}</span>
+          </div>
+        </div>
+        <div class="form-section" style="border-bottom:none;">
+          <div class="detail-grid">
+            <span class="detail-label">Applied:</span><span class="detail-value">${new Date(profile.created_at).toLocaleString()}</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('application-modal-body').innerHTML = modalContent;
+      const modalFooter = document.querySelector('#application-modal .modal-footer');
+      if (modalFooter) {
+        modalFooter.innerHTML = `
+          <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
+          <button class="btn btn-danger" onclick="rejectDriver('${profile.id}'); closeModal('application-modal');">Reject</button>
+          <button class="btn btn-success" onclick="approveDriver('${profile.id}'); closeModal('application-modal');">Approve Driver</button>
+        `;
+      }
+      document.getElementById('application-modal').classList.add('active');
+    }
+
+    async function approveDriver(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+      if (!confirm(`Approve ${profile.full_name || profile.email} as an MCC Driver?`)) return;
+
+      try {
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .update({ role: 'driver' })
+          .eq('id', profileId);
+
+        if (profileError) {
+          showToast('Failed to update profile role', 'error');
+          console.error('approveDriver profile error:', profileError);
+          return;
+        }
+
+        const driver = profile._driver;
+        let notes = {};
+        try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
+
+        if (driver) {
+          await supabaseClient
+            .from('drivers')
+            .update({ status: 'active', onboarded_at: new Date().toISOString() })
+            .eq('profile_id', profileId);
+        } else {
+          await supabaseClient.from('drivers').insert({
+            profile_id: profileId,
+            full_name: profile.full_name || 'Driver',
+            phone: profile.phone || '',
+            email: profile.email || '',
+            status: 'active',
+            vehicle_class: [],
+            hourly_rate_cents: 0,
+            per_job_rate_cents: 0,
+            stripe_payouts_enabled: false,
+            total_ratings: 0,
+            total_rides_completed: 0,
+            onboarded_at: new Date().toISOString()
+          });
+        }
+
+        showToast(`${profile.full_name || 'Driver'} approved!`, 'success');
+        await loadDriverApplications();
+      } catch (err) {
+        console.error('approveDriver error:', err);
+        showToast('Error approving driver', 'error');
+      }
+    }
+
+    async function rejectDriver(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+      if (!confirm(`Reject driver application from ${profile.full_name || profile.email}?`)) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ role: 'rejected_driver' })
+          .eq('id', profileId);
+
+        if (error) {
+          showToast('Failed to reject application', 'error');
+          console.error('rejectDriver error:', error);
+          return;
+        }
+
+        showToast('Driver application rejected', 'success');
+        await loadDriverApplications();
+      } catch (err) {
+        console.error('rejectDriver error:', err);
+        showToast('Error rejecting driver', 'error');
+      }
+    }
+
+    globalThis.approveDriver = approveDriver;
+    globalThis.rejectDriver = rejectDriver;
+    globalThis.viewDriverApplication = viewDriverApplication;
 
     // ========== MEMBER FOUNDER APPLICATIONS ==========
     let memberFounderApplications = [];

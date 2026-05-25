@@ -559,6 +559,7 @@
 
       <div class="nav-label">Founder Management</div>
       <div class="nav-item" data-section="pilot-applications"><span class="icon-inline" data-icon="star"></span> Provider Founders <span class="nav-badge orange" id="pilot-count">0</span></div>
+      <div class="nav-item" data-section="driver-applications"><span class="icon-inline" data-icon="truck"></span> Driver Applications <span class="nav-badge orange" id="driver-apps-badge" style="display:none;">0</span></div>
       <div class="nav-item" data-section="member-founders"><span class="icon-inline" data-icon="users"></span> Member Founders <span class="nav-badge orange" id="member-founder-count">0</span></div>
       <div class="nav-item" data-section="commission-payouts"><span class="icon-inline" data-icon="dollar-sign"></span> Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
 
@@ -2055,6 +2056,32 @@
           </thead>
           <tbody id="pilot-applications-table">
             <tr><td colspan="7" class="empty-state">No pilot applications</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Driver Applications Section -->
+    <section id="driver-applications" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="truck"></span> Driver Applications</h1>
+        <p class="page-subtitle">Review and approve MCC Driver applicants</p>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <table>
+          <thead>
+            <tr>
+              <th>Applicant</th>
+              <th>Phone</th>
+              <th>Location</th>
+              <th>Vehicle</th>
+              <th>Applied</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody id="driver-applications-table">
+            <tr><td colspan="6" class="empty-state">No pending driver applications</td></tr>
           </tbody>
         </table>
       </div>
