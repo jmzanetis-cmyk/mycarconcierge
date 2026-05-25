@@ -1,0 +1,645 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Driver Application – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="manifest" href="/manifest.json" />
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/shared-styles.css">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-blue: #38bdf8;
+      --accent-green: #34d399;
+      --accent-orange: #fb923c;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --border-focus: rgba(56, 189, 248, 0.5);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-elevated: #ffffff;
+      --bg-input: #f0f1f3;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --border-focus: rgba(184, 148, 45, 0.5);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
+      --accent-blue: #1e3a5f;
+      --accent-green: #059669;
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      padding: 40px 24px;
+    }
+
+    .container { max-width: 680px; margin: 0 auto; }
+
+    .header { text-align: center; margin-bottom: 36px; }
+    .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
+    .header-brand img { height: 100px; border-radius: var(--radius-md); filter: drop-shadow(0 6px 24px rgba(201, 162, 39, 0.25)); transition: all 0.3s ease; }
+    .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(201, 162, 39, 0.5)); transform: scale(1.03); }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 10px; }
+    .header p { color: var(--text-secondary); font-size: 1rem; max-width: 480px; margin: 0 auto; }
+
+    .perks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px; }
+    .perk { background: linear-gradient(135deg, var(--bg-card), rgba(201, 162, 39, 0.04)); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
+    .perk-icon { font-size: 20px; flex-shrink: 0; }
+    .perk-title { font-weight: 600; font-size: 0.88rem; color: var(--text-primary); line-height: 1.2; }
+    .perk-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+
+    .form-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 40px; }
+
+    .step { display: none; }
+    .step.active { display: block; }
+
+    .step-indicator { display: flex; justify-content: center; gap: 8px; margin-bottom: 32px; }
+    .step-dot { width: 12px; height: 12px; border-radius: 50%; background: var(--bg-input); border: 2px solid var(--border-subtle); transition: all 0.2s; }
+    .step-dot.active { background: var(--accent-gold); border-color: var(--accent-gold); }
+    .step-dot.completed { background: var(--accent-green); border-color: var(--accent-green); }
+
+    .step-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 8px; }
+    .step-subtitle { color: var(--text-secondary); margin-bottom: 28px; font-size: 0.95rem; }
+
+    .form-group { margin-bottom: 20px; }
+    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-label .required { color: var(--accent-gold); }
+    .form-input, .form-select, .form-textarea {
+      width: 100%; padding: 14px 16px;
+      background: var(--bg-input); border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-md); color: var(--text-primary);
+      font-family: inherit; font-size: 0.95rem; transition: all 0.15s;
+    }
+    .form-input:focus, .form-select:focus, .form-textarea:focus {
+      outline: none; border-color: var(--border-focus);
+      box-shadow: 0 0 0 3px rgba(56, 189, 248, 0.1);
+    }
+    .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
+    .form-select option { background: #1e2630; color: var(--text-primary); }
+    .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
+    .form-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 14px 28px; font-family: inherit;
+      font-size: 0.95rem; font-weight: 600; border: none;
+      border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s;
+    }
+    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
+    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201, 162, 39, 0.35); }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn-ghost { background: transparent; color: var(--text-secondary); }
+    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+
+    .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
+
+    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; display: none; }
+    .message.show { display: block; }
+    .message.error { background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); color: #ef5f5f; }
+    .message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
+    .message.info { background: rgba(56, 189, 248, 0.1); border: 1px solid rgba(56, 189, 248, 0.3); color: var(--accent-blue); }
+
+    .success-screen { text-align: center; padding: 40px 20px; }
+    .success-icon { font-size: 64px; margin-bottom: 24px; }
+    .success-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 16px; }
+    .success-text { color: var(--text-secondary); margin-bottom: 32px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.6; }
+
+    .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
+    .footer a { color: var(--text-secondary); }
+
+    .disclaimer { font-size: 0.78rem; color: var(--text-muted); line-height: 1.6; padding: 14px 16px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: var(--radius-md); margin-bottom: 20px; }
+
+    .section-label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
+
+    @media (max-width: 600px) {
+      .form-row, .form-row.three { grid-template-columns: 1fr; }
+      .form-card { padding: 28px 20px; }
+      .perks { grid-template-columns: 1fr; }
+    }
+
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
+  </style>
+  <script src="/auth-theme-toggle.js" defer></script>
+</head>
+<body>
+  <div class="container">
+    <div class="header">
+      <a href="index.html" class="header-brand">
+        <img src="logo.png" alt="My Car Concierge">
+      </a>
+      <h1>Apply to Drive with MCC</h1>
+      <p>Join our founding driver roster — earn more per trip, keep more of it, and set your own schedule.</p>
+    </div>
+
+    <div class="perks">
+      <div class="perk">
+        <div class="perk-icon">💰</div>
+        <div>
+          <div class="perk-title">$35–100+ per trip</div>
+          <div class="perk-desc">Keep 75% — no hidden deductions</div>
+        </div>
+      </div>
+      <div class="perk">
+        <div class="perk-icon">🕐</div>
+        <div>
+          <div class="perk-title">Your schedule</div>
+          <div class="perk-desc">No minimum hours, no deactivation</div>
+        </div>
+      </div>
+      <div class="perk">
+        <div class="perk-icon">🏆</div>
+        <div>
+          <div class="perk-title">Founding Driver badge</div>
+          <div class="perk-desc">Zero platform fees for your first 90 days</div>
+        </div>
+      </div>
+      <div class="perk">
+        <div class="perk-icon">📋</div>
+        <div>
+          <div class="perk-title">Mileage & tax tools</div>
+          <div class="perk-desc">Built-in — no third-party app needed</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="form-card">
+      <div class="step-indicator">
+        <div class="step-dot active" id="dot-1"></div>
+        <div class="step-dot" id="dot-2"></div>
+        <div class="step-dot" id="dot-3"></div>
+      </div>
+
+      <div class="message" id="message"></div>
+
+      <!-- Step 1: Account & Personal Info -->
+      <div class="step active" id="step-1">
+        <h2 class="step-title">Account & Contact Info</h2>
+        <p class="step-subtitle">Create your login and tell us how to reach you.</p>
+
+        <div class="form-group">
+          <label class="form-label" for="full-name">Full Name <span class="required">*</span></label>
+          <input class="form-input" type="text" id="full-name" placeholder="Jane Smith" autocomplete="name" />
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="email">Email <span class="required">*</span></label>
+            <input class="form-input" type="email" id="email" placeholder="jane@example.com" autocomplete="email" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="phone">Phone <span class="required">*</span></label>
+            <input class="form-input" type="tel" id="phone" placeholder="(555) 555-5555" autocomplete="tel" />
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="city">City <span class="required">*</span></label>
+            <input class="form-input" type="text" id="city" placeholder="Chicago" autocomplete="address-level2" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="state">State <span class="required">*</span></label>
+            <select class="form-select" id="state" autocomplete="address-level1">
+              <option value="">Select state</option>
+              <option>AL</option><option>AK</option><option>AZ</option><option>AR</option>
+              <option>CA</option><option>CO</option><option>CT</option><option>DE</option>
+              <option>FL</option><option>GA</option><option>HI</option><option>ID</option>
+              <option>IL</option><option>IN</option><option>IA</option><option>KS</option>
+              <option>KY</option><option>LA</option><option>ME</option><option>MD</option>
+              <option>MA</option><option>MI</option><option>MN</option><option>MS</option>
+              <option>MO</option><option>MT</option><option>NE</option><option>NV</option>
+              <option>NH</option><option>NJ</option><option>NM</option><option>NY</option>
+              <option>NC</option><option>ND</option><option>OH</option><option>OK</option>
+              <option>OR</option><option>PA</option><option>RI</option><option>SC</option>
+              <option>SD</option><option>TN</option><option>TX</option><option>UT</option>
+              <option>VT</option><option>VA</option><option>WA</option><option>WV</option>
+              <option>WI</option><option>WY</option><option>DC</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">Password <span class="required">*</span></label>
+          <input class="form-input" type="password" id="password" placeholder="At least 8 characters" autocomplete="new-password" />
+          <p class="form-hint">Minimum 8 characters</p>
+        </div>
+
+        <div class="form-nav">
+          <span></span>
+          <button class="btn btn-primary" onclick="goToStep(2)">Next →</button>
+        </div>
+      </div>
+
+      <!-- Step 2: License & Vehicle -->
+      <div class="step" id="step-2">
+        <h2 class="step-title">License &amp; Vehicle</h2>
+        <p class="step-subtitle">Tell us about your driver's license and the vehicle you'll use for pickups.</p>
+
+        <span class="section-label">Driver's License</span>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="license-number">License Number <span class="required">*</span></label>
+            <input class="form-input" type="text" id="license-number" placeholder="D1234567" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="license-state">Issuing State <span class="required">*</span></label>
+            <select class="form-select" id="license-state">
+              <option value="">Select state</option>
+              <option>AL</option><option>AK</option><option>AZ</option><option>AR</option>
+              <option>CA</option><option>CO</option><option>CT</option><option>DE</option>
+              <option>FL</option><option>GA</option><option>HI</option><option>ID</option>
+              <option>IL</option><option>IN</option><option>IA</option><option>KS</option>
+              <option>KY</option><option>LA</option><option>ME</option><option>MD</option>
+              <option>MA</option><option>MI</option><option>MN</option><option>MS</option>
+              <option>MO</option><option>MT</option><option>NE</option><option>NV</option>
+              <option>NH</option><option>NJ</option><option>NM</option><option>NY</option>
+              <option>NC</option><option>ND</option><option>OH</option><option>OK</option>
+              <option>OR</option><option>PA</option><option>RI</option><option>SC</option>
+              <option>SD</option><option>TN</option><option>TX</option><option>UT</option>
+              <option>VT</option><option>VA</option><option>WA</option><option>WV</option>
+              <option>WI</option><option>WY</option><option>DC</option>
+            </select>
+          </div>
+        </div>
+
+        <span class="section-label" style="margin-top:8px;">Your Vehicle</span>
+
+        <div class="form-row three">
+          <div class="form-group">
+            <label class="form-label" for="vehicle-year">Year <span class="required">*</span></label>
+            <input class="form-input" type="number" id="vehicle-year" placeholder="2019" min="1990" max="2027" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="vehicle-make">Make <span class="required">*</span></label>
+            <input class="form-input" type="text" id="vehicle-make" placeholder="Toyota" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="vehicle-model">Model <span class="required">*</span></label>
+            <input class="form-input" type="text" id="vehicle-model" placeholder="Camry" />
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="vehicle-color">Color <span class="required">*</span></label>
+          <input class="form-input" type="text" id="vehicle-color" placeholder="Silver" />
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
+          <button class="btn btn-primary" onclick="goToStep(3)">Next →</button>
+        </div>
+      </div>
+
+      <!-- Step 3: Availability & Submit -->
+      <div class="step" id="step-3">
+        <h2 class="step-title">Availability &amp; Review</h2>
+        <p class="step-subtitle">Almost done — when are you available to take jobs?</p>
+
+        <div class="form-group">
+          <label class="form-label" for="availability">Typical Availability <span class="required">*</span></label>
+          <select class="form-select" id="availability">
+            <option value="">Select availability</option>
+            <option value="Weekdays (Mon–Fri)">Weekdays (Mon–Fri)</option>
+            <option value="Weekends (Sat–Sun)">Weekends (Sat–Sun)</option>
+            <option value="Evenings & Weekends">Evenings &amp; Weekends</option>
+            <option value="Full-time (any day)">Full-time (any day)</option>
+            <option value="Flexible">Flexible — varies week to week</option>
+          </select>
+        </div>
+
+        <!-- Pre-launch disclaimer (required by task spec) -->
+        <div class="disclaimer">
+          By applying, you're joining our pre-launch driver waitlist. We'll notify you by email when MCC Driver is live in your area.
+        </div>
+
+        <div class="form-nav">
+          <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
+          <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
+        </div>
+      </div>
+
+      <!-- Success screen -->
+      <div class="step" id="success-screen">
+        <div class="success-screen">
+          <div class="success-icon">🚗</div>
+          <h2 class="success-title">Application Received!</h2>
+          <p class="success-text">
+            You're on the founding driver waitlist. We'll review your application and notify you at <strong id="success-email"></strong> when MCC Driver launches in your area.
+          </p>
+          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:28px;">Founding Drivers who apply now lock in zero platform fees for their first 90 days once we go live.</p>
+          <a href="drivers.html" class="btn btn-secondary" style="margin-right:12px;">Back to Driver Info</a>
+          <a href="index.html" class="btn btn-ghost">Return Home</a>
+        </div>
+      </div>
+    </div>
+
+    <div class="footer">
+      <p>© 2026 My Car Concierge. All rights reserved.</p>
+      <p style="margin-top:8px;"><a href="login.html">Already have an account? Sign in</a></p>
+    </div>
+  </div>
+
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js"></script>
+  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="/utils.js"></script>
+  <script src="/pwa-init.js?v=20260202"></script>
+  <script>
+    (function() {
+      var currentStep = 1;
+
+      function showMessage(text, type) {
+        type = type || 'error';
+        var el = document.getElementById('message');
+        el.textContent = text;
+        el.className = 'message ' + type + ' show';
+        el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      }
+
+      function clearMessage() {
+        var el = document.getElementById('message');
+        el.className = 'message';
+        el.textContent = '';
+      }
+
+      function updateDots(step) {
+        for (var i = 1; i <= 3; i++) {
+          var dot = document.getElementById('dot-' + i);
+          if (!dot) continue;
+          dot.className = 'step-dot';
+          if (i < step) dot.classList.add('completed');
+          else if (i === step) dot.classList.add('active');
+        }
+      }
+
+      function validateStep1() {
+        var name  = document.getElementById('full-name').value.trim();
+        var email = document.getElementById('email').value.trim();
+        var phone = document.getElementById('phone').value.trim();
+        var city  = document.getElementById('city').value.trim();
+        var state = document.getElementById('state').value;
+        var pass  = document.getElementById('password').value;
+
+        if (!name)  { showMessage('Please enter your full name.'); return false; }
+        if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+          showMessage('Please enter a valid email address.'); return false;
+        }
+        var digits = phone.replace(/\D/g, '');
+        if (digits.length < 10) { showMessage('Please enter a valid phone number with at least 10 digits.'); return false; }
+        if (!city)  { showMessage('Please enter your city.'); return false; }
+        if (!state) { showMessage('Please select your state.'); return false; }
+        if (pass.length < 8) { showMessage('Password must be at least 8 characters.'); return false; }
+        return true;
+      }
+
+      function validateStep2() {
+        var licNum   = document.getElementById('license-number').value.trim();
+        var licState = document.getElementById('license-state').value;
+        var year     = document.getElementById('vehicle-year').value.trim();
+        var make     = document.getElementById('vehicle-make').value.trim();
+        var model    = document.getElementById('vehicle-model').value.trim();
+        var color    = document.getElementById('vehicle-color').value.trim();
+
+        if (!licNum)   { showMessage("Please enter your driver's license number."); return false; }
+        if (!licState) { showMessage("Please select your license issuing state."); return false; }
+        var yr = parseInt(year, 10);
+        if (!year || isNaN(yr) || yr < 1990 || yr > 2027) {
+          showMessage('Please enter a valid vehicle year (1990–2027).'); return false;
+        }
+        if (!make)  { showMessage('Please enter your vehicle make.'); return false; }
+        if (!model) { showMessage('Please enter your vehicle model.'); return false; }
+        if (!color) { showMessage('Please enter your vehicle color.'); return false; }
+        return true;
+      }
+
+      function validateStep3() {
+        var avail = document.getElementById('availability').value;
+        if (!avail) { showMessage('Please select your availability.'); return false; }
+        return true;
+      }
+
+      function goToStep(n) {
+        clearMessage();
+        if (n > currentStep) {
+          if (currentStep === 1 && !validateStep1()) return;
+          if (currentStep === 2 && !validateStep2()) return;
+        }
+        document.getElementById('step-' + currentStep).classList.remove('active');
+        currentStep = n;
+        document.getElementById('step-' + currentStep).classList.add('active');
+        updateDots(currentStep);
+        window.scrollTo({ top: 0, behavior: 'smooth' });
+      }
+
+      async function submitApplication() {
+        clearMessage();
+        if (!validateStep3()) return;
+
+        var submitBtn = document.getElementById('submit-btn');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Submitting…';
+
+        var email    = document.getElementById('email').value.trim();
+        var password = document.getElementById('password').value;
+        var name     = document.getElementById('full-name').value.trim();
+        var phone    = document.getElementById('phone').value.trim();
+        var city     = document.getElementById('city').value.trim();
+        var state    = document.getElementById('state').value;
+
+        var licNum   = document.getElementById('license-number').value.trim();
+        var licState = document.getElementById('license-state').value;
+        var year     = document.getElementById('vehicle-year').value.trim();
+        var make     = document.getElementById('vehicle-make').value.trim();
+        var model    = document.getElementById('vehicle-model').value.trim();
+        var color    = document.getElementById('vehicle-color').value.trim();
+        var avail    = document.getElementById('availability').value;
+
+        try {
+          var client = window.supabaseClient;
+          if (!client || !client.auth) {
+            showMessage('Sign-up service is loading. Please try again in a moment.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Application';
+            return;
+          }
+
+          showMessage('Creating your account…', 'info');
+
+          var userId;
+          var signUpResult = await client.auth.signUp({ email: email, password: password });
+
+          if (signUpResult.error) {
+            if (signUpResult.error.message.toLowerCase().includes('already registered')) {
+              showMessage('Signing in to existing account…', 'info');
+              var signInResult = await client.auth.signInWithPassword({ email: email, password: password });
+              if (signInResult.error) {
+                showMessage('This email is already registered. Please use the correct password or log in first.');
+                submitBtn.disabled = false;
+                submitBtn.textContent = 'Submit Application';
+                return;
+              }
+              userId = signInResult.data.user && signInResult.data.user.id;
+            } else {
+              showMessage('Unable to create account: ' + signUpResult.error.message);
+              submitBtn.disabled = false;
+              submitBtn.textContent = 'Submit Application';
+              return;
+            }
+          } else {
+            userId = signUpResult.data.user && signUpResult.data.user.id;
+            // Sign in immediately to establish a session for profile writes
+            await client.auth.signInWithPassword({ email: email, password: password });
+          }
+
+          if (!userId) {
+            showMessage('Error: could not establish user account. Please try again.');
+            submitBtn.disabled = false;
+            submitBtn.textContent = 'Submit Application';
+            return;
+          }
+
+          showMessage('Saving your application…', 'info');
+
+          // Upsert profile with role=pending_driver
+          var existingProfile = (await client.from('profiles').select('id, role').eq('id', userId).single()).data;
+
+          if (existingProfile) {
+            await client.from('profiles').update({
+              role: 'pending_driver',
+              full_name: name,
+              phone: phone,
+              city: city,
+              state: state
+            }).eq('id', userId);
+          } else {
+            var preferredLanguage = null;
+            try {
+              var stored = (localStorage.getItem('mcc_language') || '').toLowerCase();
+              if (['en','es','fr','el','zh','hi','ar'].includes(stored)) preferredLanguage = stored;
+            } catch (_e) { /* ignore */ }
+
+            await client.from('profiles').insert({
+              id: userId,
+              role: 'pending_driver',
+              full_name: name,
+              phone: phone,
+              city: city,
+              state: state,
+              preferred_language: preferredLanguage
+            });
+          }
+
+          // Insert drivers row with application data in notes
+          var notes = JSON.stringify({
+            license_number: licNum,
+            license_state: licState,
+            vehicle_year: year,
+            vehicle_make: make,
+            vehicle_model: model,
+            vehicle_color: color,
+            availability: avail
+          });
+
+          var driversResult = await client.from('drivers').insert({
+            profile_id: userId,
+            email: email,
+            full_name: name,
+            phone: phone,
+            status: 'pending',
+            notes: notes,
+            vehicle_class: [],
+            hourly_rate_cents: 0,
+            per_job_rate_cents: 0,
+            stripe_payouts_enabled: false,
+            total_ratings: 0,
+            total_rides_completed: 0
+          });
+
+          if (driversResult.error) {
+            // Driver row may already exist if they resubmit; update notes instead
+            if (driversResult.error.code === '23505') {
+              await client.from('drivers').update({
+                notes: notes,
+                status: 'pending'
+              }).eq('profile_id', userId);
+            } else {
+              console.error('drivers insert error:', driversResult.error);
+            }
+          }
+
+          // Show success
+          document.getElementById('step-3').classList.remove('active');
+          document.getElementById('success-screen').classList.add('active');
+          document.getElementById('dot-3').className = 'step-dot completed';
+          var successEmail = document.getElementById('success-email');
+          if (successEmail) successEmail.textContent = email;
+          window.scrollTo({ top: 0, behavior: 'smooth' });
+
+        } catch (err) {
+          console.error('submitApplication error:', err);
+          showMessage('Something went wrong. Please try again.');
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Submit Application';
+        }
+      }
+
+      globalThis.goToStep = goToStep;
+      globalThis.submitApplication = submitApplication;
+    })();
+  </script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+</body>
+</html>
