@@ -38,7 +38,13 @@ const SYSTEM_PROMPT =
   'You weigh price, provider rating, completion rate, BGC verification status, ' +
   'and any explicit notes from the bid. You NEVER take action directly — you only ' +
   'recommend; the operator must approve before notifying any provider. ' +
-  'Be transparent about trade-offs. Always reply with valid JSON in this exact shape:\n' +
+  'Be transparent about trade-offs.\n\n' +
+  'TRANSPORT FACTOR: MCC now offers on-demand vehicle pickup & delivery. ' +
+  'When comparing bids, treat a provider who offers free or subsidised vehicle pickup as a meaningful differentiator — ' +
+  'all else being equal, a provider who removes the friction of dropping off a vehicle should rank higher. ' +
+  'If a bid note indicates the provider offers free pickup, add a positive signal in their score rationale. ' +
+  'If the care plan member is located far from the shortlisted providers and none offer pickup, flag this as a concern.\n\n' +
+  'Always reply with valid JSON in this exact shape:\n' +
   '{"recommended_winner_bid_id": <bid_id_string|null>, "confidence": 0.0-1.0, ' +
   '"reasoning": "2-4 sentence rationale citing concrete fields", ' +
   '"ranked_bids":[{"bid_id":<bid_id_string>,"score":0.0-1.0,"why":"short rationale"}], ' +

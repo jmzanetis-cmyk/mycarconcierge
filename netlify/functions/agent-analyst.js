@@ -14,10 +14,14 @@ const {
 const SLUG = 'analyst';
 
 const SYSTEM_PROMPT =
-  'You are the Analyst agent for My Car Concierge, an automotive service marketplace. ' +
-  'Write a 3-4 sentence briefing for the admin Jordan based on the last 24 hours. ' +
+  'You are the Analyst agent for My Car Concierge, an automotive service marketplace that now includes a ' +
+  'three-sided transport platform (members + providers + drivers). ' +
+  'Write a 4-5 sentence briefing for the admin Jordan based on the last 24 hours. ' +
   'Specifically call out: marketplace match rate, failed payments, open disputes, the agent fleet\'s pending review queue, and today\'s agent spend. ' +
-  'Highlight anything anomalous and end with one specific recommendation. Be concrete; no fluff.';
+  'Also report on the transport platform: new transport requests, completed trips, driver supply vs demand ratio, ' +
+  'average transport fare, driver payout volume, provider subsidy adoption, and Founding Driver Program enrollment. ' +
+  'Highlight anything anomalous (low driver supply relative to ride demand, stalled founding driver enrollment, etc.) ' +
+  'and end with one specific recommendation. Be concrete; no fluff.';
 
 async function safeCount(supabase, table, since, dateColumn = 'created_at', filters = null) {
   try {
@@ -45,7 +49,11 @@ async function gatherMetrics(supabase) {
     openDisputes, newDisputes,
     failedPayments,
     newSurveyLeads, newOutreachLeads, sentEmails,
-    aiOpsEscalations
+    aiOpsEscalations,
+    // Transport platform metrics
+    newRides, completedRides, cancelledRides,
+    activeDrivers, newDrivers,
+    newDriverEarnings
   ] = await Promise.all([
     safeCount(supabase, 'packages', since),
     safeCount(supabase, 'care_plans', since),
@@ -59,7 +67,14 @@ async function gatherMetrics(supabase) {
     safeCount(supabase, 'survey_leads', since),
     safeCount(supabase, 'outreach_leads', since),
     safeCount(supabase, 'outreach_messages', since, 'updated_at', { status: 'sent' }),
-    safeCount(supabase, 'ai_escalations', since)
+    safeCount(supabase, 'ai_escalations', since),
+    // Transport
+    safeCount(supabase, 'rides', since),
+    safeCount(supabase, 'rides', since, 'updated_at', { status: 'completed' }),
+    safeCount(supabase, 'rides', since, 'updated_at', { status: ['cancelled_member','cancelled_driver','cancelled_system'] }),
+    safeCount(supabase, 'profiles', '1970-01-01', 'created_at', { role: 'driver' }),
+    safeCount(supabase, 'profiles', since, 'created_at', { role: 'driver' }),
+    safeCount(supabase, 'driver_earnings', since)
   ]);
 
   // Pending review queue across the agent fleet
@@ -93,6 +108,27 @@ async function gatherMetrics(supabase) {
     matchRate = Math.round((acceptedBids / newBids) * 1000) / 1000;
   }
 
+  // Average transport fare (best-effort)
+  let avgTransportFare = null;
+  try {
+    const { data: fareData } = await supabase
+      .from('rides')
+      .select('actual_fare')
+      .eq('status', 'completed')
+      .gte('updated_at', since)
+      .not('actual_fare', 'is', null);
+    if (fareData && fareData.length > 0) {
+      const total = fareData.reduce((sum, r) => sum + Number(r.actual_fare || 0), 0);
+      avgTransportFare = Math.round((total / fareData.length) * 100) / 100;
+    }
+  } catch {}
+
+  // Driver supply vs demand ratio
+  let driverDemandRatio = null;
+  if (activeDrivers != null && newRides != null && newRides > 0) {
+    driverDemandRatio = Math.round((activeDrivers / newRides) * 100) / 100;
+  }
+
   return {
     since,
     marketplace: {
@@ -103,6 +139,16 @@ async function gatherMetrics(supabase) {
       match_rate: matchRate,
       new_member_signups: newMembers,
       new_provider_signups: newProviders
+    },
+    transport: {
+      new_rides: newRides,
+      completed_rides: completedRides,
+      cancelled_rides: cancelledRides,
+      active_drivers_total: activeDrivers,
+      new_drivers_24h: newDrivers,
+      driver_supply_demand_ratio: driverDemandRatio,
+      avg_fare_usd: avgTransportFare,
+      driver_earnings_records_24h: newDriverEarnings
     },
     payments: {
       failed_payments: failedPayments
