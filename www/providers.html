@@ -1269,6 +1269,10 @@
         <button class="btn btn-primary" onclick="openQrScannerModal()" style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:1.2rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span></span> Scan Member Check-in
         </button>
+        <button class="btn btn-secondary" onclick="openProviderTransportModal()" style="display:flex;align-items:center;gap:8px;border:1px solid var(--border-subtle);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+          Request Driver
+        </button>
       </div>
       <div id="active-jobs"><div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="empty-state-title">No active jobs right now</div><div class="empty-state-desc">When a member accepts your bid, the job will appear here with all the details you need to get started.</div><button class="empty-state-cta" onclick="showSection('bids')">Check Your Bids</button></div></div>
     </section>
@@ -4447,6 +4451,17 @@
           </label>
         </div>
 
+        <!-- Include Free Vehicle Pickup -->
+        <div class="form-group" style="margin-top:12px;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);" id="bid-pickup-section">
+          <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+            <input type="checkbox" id="bid-include-pickup" style="width:20px;height:20px;margin-top:2px;flex-shrink:0;" onchange="updateBidPickupLabel()">
+            <span style="font-size:0.9rem;line-height:1.5;">
+              <strong>Include free vehicle pickup</strong><br>
+              <span style="color:var(--text-secondary);font-size:0.85rem;" id="bid-pickup-label">I'll dispatch a driver to pick up the member's vehicle when my bid is accepted — I cover the transport cost.</span>
+            </span>
+          </label>
+        </div>
+
         <!-- Competing Bid Alerts -->
         <div class="form-group" style="margin-top:12px;padding:14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);">
           <div style="font-size:0.85rem;font-weight:600;margin-bottom:10px;color:var(--text-secondary);">Notify me when another provider bids on this job</div>
@@ -6502,6 +6517,77 @@
     </section>
 
   </main>
+
+  <!-- Provider Transport Request Modal -->
+  <div class="modal-backdrop" id="provider-transport-modal">
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Request Driver for Member</h3>
+        <button class="modal-close" onclick="closeModal('provider-transport-modal')">×</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Member</label>
+          <select class="form-select" id="pt-member-select" onchange="onProviderTransportMemberChange()">
+            <option value="">Select an active job member...</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Pickup Address <span style="color:var(--text-muted);font-weight:400;">(member's location)</span></label>
+          <input type="text" class="form-input" id="pt-pickup" placeholder="Member's address" oninput="scheduleProviderTransportEstimate()">
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Drop-off Address <span style="color:var(--text-muted);font-weight:400;">(your shop)</span></label>
+          <input type="text" class="form-input" id="pt-dropoff" placeholder="Your shop / service address" oninput="scheduleProviderTransportEstimate()">
+        </div>
+
+        <div style="display:flex;gap:16px;flex-wrap:wrap;">
+          <div class="form-group" style="margin:0;flex:1;min-width:140px;">
+            <label class="form-label">Driver Mode</label>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-primary btn-sm" id="pt-solo-btn" onclick="setProviderTransportMode('solo')" style="flex:1;">Solo</button>
+              <button class="btn btn-secondary btn-sm" id="pt-tandem-btn" onclick="setProviderTransportMode('tandem')" style="flex:1;">Tandem</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label" style="display:flex;justify-content:space-between;">
+            <span>Provider Subsidy</span>
+            <span id="pt-subsidy-pct-label" style="color:var(--accent-gold);font-weight:700;">0%</span>
+          </label>
+          <input type="range" id="pt-subsidy-slider" min="0" max="100" step="5" value="0" oninput="updateProviderTransportSubsidy()" style="width:100%;margin:6px 0;">
+          <div id="pt-cost-split" style="display:flex;justify-content:space-between;font-size:0.85rem;color:var(--text-secondary);margin-top:4px;">
+            <span>Member pays: <strong id="pt-member-pays">—</strong></span>
+            <span>You cover: <strong id="pt-provider-pays">—</strong></span>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Notes</label>
+          <textarea class="form-input" id="pt-notes" rows="2" placeholder="Instructions for the driver..." style="resize:vertical;"></textarea>
+        </div>
+
+        <div id="pt-estimate" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div id="pt-estimate-distance" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:2px;"></div>
+              <div id="pt-estimate-total" style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);"></div>
+            </div>
+            <div id="pt-estimate-split" style="font-size:0.8rem;color:var(--text-muted);text-align:right;line-height:1.5;"></div>
+          </div>
+        </div>
+
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('provider-transport-modal')">Cancel</button>
+        <button class="btn btn-primary" id="pt-submit-btn" onclick="submitProviderTransportRequest()">Request Driver</button>
+      </div>
+    </div>
+  </div>
 
   <div class="toast-container" id="toast-container"></div>
 

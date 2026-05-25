@@ -77,6 +77,9 @@
 /api/admin/facebook/* /.netlify/functions/admin-facebook 200
 /api/admin/concierge-jobs/* /.netlify/functions/concierge-jobs-admin/:splat 200
 /api/admin/concierge-jobs /.netlify/functions/concierge-jobs-admin 200
+/api/transport/provider-request /.netlify/functions/transport-request/provider-request 200
+/api/transport/requests /.netlify/functions/transport-request/requests 200
+/api/transport/request /.netlify/functions/transport-request 200
 /api/driver/v1/* /.netlify/functions/driver-api/:splat 200
 /api/concierge/active-job-tracking /.netlify/functions/member-job-tracking 200
 /api/admin/driver-payouts /.netlify/functions/driver-payouts-admin 200

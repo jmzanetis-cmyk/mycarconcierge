@@ -454,9 +454,10 @@
         loadConversations(),
         loadNotifications(),
         checkActiveEmergency(),
-        loadCarClubProviders()
+        loadCarClubProviders(),
+        loadTransportRequests()
       ]);
-      
+
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
@@ -6864,6 +6865,36 @@
           status: 'held',
           held_at: new Date().toISOString()
         });
+
+        // Auto-create transport if provider included free pickup with their bid
+        if (bid.include_free_pickup) {
+          try {
+            const { data: { session } } = await supabaseClient.auth.getSession();
+            const tok = session?.access_token;
+            const memberAddr = [userProfile?.address, userProfile?.city, userProfile?.state, userProfile?.zip_code].filter(Boolean).join(', ');
+            const providerAddr = await fetchProviderAddressForTransport(bid.provider_id);
+            const pkg = packages.find(p => p.id === packageId);
+            if (tok && memberAddr) {
+              fetch('/api/transport/request', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+                body: JSON.stringify({
+                  pickup_address: memberAddr,
+                  dropoff_address: providerAddr || 'Provider shop — address in job details',
+                  vehicle_id: pkg?.vehicle_id || null,
+                  provider_id: bid.provider_id,
+                  is_asap: false,
+                  is_tandem: false,
+                  estimated_distance_miles: 0,
+                  provider_covers: true,
+                  notes: 'Free pickup included with service bid — provider covers cost'
+                })
+              }).then(() => loadTransportRequests()).catch(() => {});
+            }
+          } catch (e) {
+            console.log('Auto-transport creation failed (non-critical):', e);
+          }
+        }
 
         // Notify provider that their bid was accepted (in-app + email)
         const pkg = packages.find(p => p.id === packageId);
@@ -18326,3 +18357,333 @@ See you there!`);
       }
     }
     // ========== END OBD SCANNER SECTION ==========
+
+    // ========== TRANSPORT REQUEST (MEMBER) ==========
+
+    let transportIsAsap = true;
+    let transportIsSolo = true;
+    let transportPickupCoords = null;
+    let transportDropoffCoords = null;
+    let transportEstimateTimer = null;
+    let transportProviders = []; // providers from member's job history
+
+    function calcTransportFare(miles, isTandem) {
+      const d = Number(miles) || 0;
+      let base;
+      if (d <= 5)       base = 35;
+      else if (d <= 10) base = 50;
+      else if (d <= 15) base = 65;
+      else if (d <= 20) base = 80;
+      else if (d <= 25) base = 100;
+      else              base = Math.round(d * 4 * 100) / 100;
+      return isTandem ? Math.round(base * 1.5 * 100) / 100 : base;
+    }
+
+    function haversineDistanceMiles(lat1, lng1, lat2, lng2) {
+      const R = 3958.8;
+      const dLat = (lat2 - lat1) * Math.PI / 180;
+      const dLng = (lng2 - lng1) * Math.PI / 180;
+      const a = Math.sin(dLat / 2) ** 2 + Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * Math.sin(dLng / 2) ** 2;
+      return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    }
+
+    async function geocodeAddressNominatim(address) {
+      if (!address || address.trim().length < 5) return null;
+      try {
+        const url = `https://nominatim.openstreetmap.org/search?format=json&limit=1&q=${encodeURIComponent(address)}`;
+        const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });
+        const data = await res.json();
+        if (data && data.length > 0) return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+      } catch (e) {}
+      return null;
+    }
+
+    async function openTransportModal() {
+      transportIsAsap = true;
+      transportIsSolo = true;
+      transportPickupCoords = null;
+      transportDropoffCoords = null;
+
+      // Reset form
+      document.getElementById('tr-pickup').value = '';
+      document.getElementById('tr-dropoff').value = '';
+      document.getElementById('tr-notes').value = '';
+      document.getElementById('tr-estimate').style.display = 'none';
+      document.getElementById('tr-geocoding-note').style.display = 'none';
+      setTransportTiming('asap');
+      setTransportMode('solo');
+
+      // Populate vehicles
+      const sel = document.getElementById('tr-vehicle');
+      sel.innerHTML = '<option value="">Select a vehicle...</option>' +
+        vehicles.map(v => `<option value="${v.id}">${v.nickname || `${v.year || ''} ${v.make} ${v.model}`.trim()}</option>`).join('');
+
+      // Pre-fill pickup from profile address
+      const profileAddr = [userProfile?.address, userProfile?.city, userProfile?.state, userProfile?.zip_code].filter(Boolean).join(', ');
+      if (profileAddr) document.getElementById('tr-pickup').value = profileAddr;
+
+      // Populate provider dropdown from completed/accepted packages
+      await loadTransportProviderOptions();
+
+      openModal('transport-modal');
+    }
+
+    async function loadTransportProviderOptions() {
+      try {
+        const acceptedPkgs = packages.filter(p => ['accepted', 'in_progress', 'completed'].includes(p.status) && p.accepted_bid_id);
+        if (!acceptedPkgs.length) { transportProviders = []; return; }
+
+        const bidIds = acceptedPkgs.map(p => p.accepted_bid_id).filter(Boolean);
+        const { data: bids } = await supabaseClient.from('bids').select('provider_id').in('id', bidIds);
+        const providerIds = [...new Set((bids || []).map(b => b.provider_id))];
+        if (!providerIds.length) { transportProviders = []; return; }
+
+        const { data: provs } = await supabaseClient.from('profiles')
+          .select('id, business_name, full_name, business_address, address, city, state, zip_code')
+          .in('id', providerIds);
+
+        transportProviders = (provs || []).map(p => ({
+          id: p.id,
+          name: p.business_name || p.full_name || 'Provider',
+          address: p.business_address || [p.address, p.city, p.state, p.zip_code].filter(Boolean).join(', ')
+        }));
+
+        const sel = document.getElementById('tr-provider-select');
+        sel.innerHTML = '<option value="">Or select a provider from your history...</option>' +
+          transportProviders.map(p => `<option value="${p.id}">${p.name}</option>`).join('');
+      } catch (e) {
+        console.log('Could not load provider options:', e);
+      }
+    }
+
+    function prefillTransportProviderAddress() {
+      const sel = document.getElementById('tr-provider-select');
+      const prov = transportProviders.find(p => p.id === sel.value);
+      if (prov && prov.address) {
+        document.getElementById('tr-dropoff').value = prov.address;
+        transportDropoffCoords = null;
+        scheduleTransportEstimateUpdate();
+      }
+    }
+
+    function setTransportTiming(mode) {
+      transportIsAsap = mode === 'asap';
+      document.getElementById('tr-asap-btn').className = transportIsAsap ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+      document.getElementById('tr-schedule-btn').className = transportIsAsap ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
+      document.getElementById('tr-schedule-field').style.display = transportIsAsap ? 'none' : 'block';
+      document.getElementById('tr-asap-btn').style.flex = '1';
+      document.getElementById('tr-schedule-btn').style.flex = '1';
+    }
+
+    function setTransportMode(mode) {
+      transportIsSolo = mode === 'solo';
+      document.getElementById('tr-solo-btn').className = transportIsSolo ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+      document.getElementById('tr-tandem-btn').className = transportIsSolo ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
+      document.getElementById('tr-solo-btn').style.flex = '1';
+      document.getElementById('tr-tandem-btn').style.flex = '1';
+      document.getElementById('tr-solo-desc').style.display = transportIsSolo ? 'block' : 'none';
+      document.getElementById('tr-tandem-desc').style.display = transportIsSolo ? 'none' : 'block';
+      updateTransportEstimate();
+    }
+
+    function scheduleTransportEstimateUpdate() {
+      clearTimeout(transportEstimateTimer);
+      transportEstimateTimer = setTimeout(updateTransportEstimate, 800);
+    }
+
+    async function updateTransportEstimate() {
+      const pickup = document.getElementById('tr-pickup').value.trim();
+      const dropoff = document.getElementById('tr-dropoff').value.trim();
+      const estimateEl = document.getElementById('tr-estimate');
+      const geocodingNote = document.getElementById('tr-geocoding-note');
+
+      if (!pickup || !dropoff) {
+        estimateEl.style.display = 'none';
+        geocodingNote.style.display = 'none';
+        return;
+      }
+
+      geocodingNote.style.display = 'block';
+      geocodingNote.textContent = 'Calculating distance estimate...';
+
+      // Geocode if not already done
+      const [pCoords, dCoords] = await Promise.all([
+        transportPickupCoords ? Promise.resolve(transportPickupCoords) : geocodeAddressNominatim(pickup),
+        transportDropoffCoords ? Promise.resolve(transportDropoffCoords) : geocodeAddressNominatim(dropoff)
+      ]);
+
+      transportPickupCoords = pCoords;
+      transportDropoffCoords = dCoords;
+
+      if (pCoords && dCoords) {
+        const miles = haversineDistanceMiles(pCoords.lat, pCoords.lng, dCoords.lat, dCoords.lng);
+        const fare = calcTransportFare(miles, !transportIsSolo);
+        document.getElementById('tr-estimate-distance').textContent = `~${miles.toFixed(1)} miles`;
+        document.getElementById('tr-estimate-fare').textContent = `Estimated: $${fare.toFixed(2)}`;
+        estimateEl.style.display = 'block';
+        geocodingNote.style.display = 'none';
+      } else {
+        estimateEl.style.display = 'none';
+        geocodingNote.style.display = 'none';
+      }
+    }
+
+    async function submitTransportRequest() {
+      const pickup = document.getElementById('tr-pickup').value.trim();
+      const dropoff = document.getElementById('tr-dropoff').value.trim();
+      const vehicleId = document.getElementById('tr-vehicle').value;
+      const notes = document.getElementById('tr-notes').value.trim();
+      const scheduledAt = document.getElementById('tr-scheduled-at').value;
+
+      if (!pickup) return showToast('Please enter a pickup address', 'error');
+      if (!dropoff) return showToast('Please enter a drop-off address', 'error');
+      if (!transportIsAsap && !scheduledAt) return showToast('Please select a pickup date and time', 'error');
+
+      const btn = document.getElementById('tr-submit-btn');
+      btn.disabled = true;
+      btn.textContent = 'Requesting...';
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) throw new Error('Not authenticated');
+
+        const miles = (transportPickupCoords && transportDropoffCoords)
+          ? haversineDistanceMiles(transportPickupCoords.lat, transportPickupCoords.lng, transportDropoffCoords.lat, transportDropoffCoords.lng)
+          : 0;
+
+        const body = {
+          pickup_address: pickup,
+          pickup_lat: transportPickupCoords?.lat || 0,
+          pickup_lng: transportPickupCoords?.lng || 0,
+          dropoff_address: dropoff,
+          dropoff_lat: transportDropoffCoords?.lat || 0,
+          dropoff_lng: transportDropoffCoords?.lng || 0,
+          vehicle_id: vehicleId || null,
+          is_asap: transportIsAsap,
+          scheduled_at: scheduledAt || null,
+          is_tandem: !transportIsSolo,
+          estimated_distance_miles: miles,
+          notes
+        };
+
+        const res = await fetch('/api/transport/request', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify(body)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Request failed');
+
+        closeModal('transport-modal');
+        showToast('Pickup requested! We\'ll notify you when a driver is assigned.', 'success');
+        await loadTransportRequests();
+      } catch (e) {
+        console.error('Transport request error:', e);
+        showToast('Failed to request pickup: ' + e.message, 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Request Pickup';
+      }
+    }
+
+    let transportRides = [];
+
+    async function loadTransportRequests() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+
+        const res = await fetch('/api/transport/requests', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        transportRides = data.rides || [];
+        renderTransportTracking();
+      } catch (e) {
+        console.log('Could not load transport requests:', e);
+      }
+    }
+
+    function renderTransportTracking() {
+      const section = document.getElementById('transport-tracking-section');
+      if (!section) return;
+
+      const active = transportRides.filter(r => !['completed', 'cancelled_member', 'cancelled_provider', 'cancelled_driver', 'cancelled_system', 'cancelled', 'dispatch_failed'].includes(r.status));
+      if (!active.length) { section.style.display = 'none'; return; }
+
+      const STATUS_LABELS = {
+        requested: 'Requested — finding a driver',
+        pending: 'Pending dispatch',
+        pending_dispatch: 'Dispatching driver...',
+        searching: 'Searching for drivers nearby',
+        dispatched: 'Driver dispatched',
+        driver_assigned: 'Driver assigned',
+        driver_accepted: 'Driver accepted',
+        driver_en_route: 'Driver is on the way',
+        driver_arrived: 'Driver has arrived',
+        in_progress: 'In progress',
+        accepted: 'Driver accepted'
+      };
+
+      const STATUS_COLOR = {
+        requested: 'var(--text-muted)',
+        pending: 'var(--text-muted)',
+        pending_dispatch: 'var(--accent-orange)',
+        searching: 'var(--accent-orange)',
+        dispatched: 'var(--accent-blue)',
+        driver_assigned: 'var(--accent-blue)',
+        driver_accepted: 'var(--accent-blue)',
+        driver_en_route: 'var(--accent-green)',
+        driver_arrived: 'var(--accent-green)',
+        in_progress: 'var(--accent-green)',
+        accepted: 'var(--accent-blue)'
+      };
+
+      const cards = active.map(r => {
+        const fare = r.base_rate > 0 ? `$${Number(r.base_rate).toFixed(2)}` : (r.estimated_fare ? `~$${Number(r.estimated_fare).toFixed(2)}` : '—');
+        const isTandem = r.tier === 'tier_3_vehicle_paired';
+        const label = STATUS_LABELS[r.status] || r.status;
+        const color = STATUS_COLOR[r.status] || 'var(--text-muted)';
+        const when = r.is_scheduled && r.scheduled_pickup_at
+          ? `Scheduled: ${new Date(r.scheduled_pickup_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+          : 'ASAP';
+        return `
+          <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;display:flex;gap:16px;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.75rem;color:${color};font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></span>${label}
+              </div>
+              <div style="font-size:0.9rem;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.pickup_address}</div>
+              <div style="font-size:0.8rem;color:var(--text-secondary);">→ ${r.dropoff_address}</div>
+              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${when}${isTandem ? ' · Tandem' : ''}</div>
+            </div>
+            <div style="text-align:right;flex-shrink:0;">
+              <div style="font-size:1rem;font-weight:700;color:var(--accent-gold);">${fare}</div>
+            </div>
+          </div>`;
+      }).join('');
+
+      section.style.display = 'block';
+      section.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+          <div style="font-weight:600;font-size:0.95rem;">Active Transport Requests</div>
+          <button class="btn btn-ghost btn-sm" onclick="openTransportModal()">+ New</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:10px;">${cards}</div>`;
+    }
+
+    // Fetch provider address helper used by acceptBid auto-transport
+    async function fetchProviderAddressForTransport(providerId) {
+      try {
+        const { data } = await supabaseClient.from('profiles')
+          .select('business_address, address, city, state, zip_code')
+          .eq('id', providerId).single();
+        if (!data) return null;
+        return data.business_address || [data.address, data.city, data.state, data.zip_code].filter(Boolean).join(', ') || null;
+      } catch { return null; }
+    }
+
+    // ========== END TRANSPORT REQUEST (MEMBER) ==========
