@@ -25,6 +25,14 @@
 //   7. checkFunnelDrop           — last-24h signups < 50% of trailing 7d
 //                                  daily avg → top-of-funnel anomaly.
 //
+// TRANSPORT CHECKS:
+//   8. checkTransportRidesStalled — rides stuck in 'searching' >20 min
+//                                   with no driver assignment → supply gap.
+//   9. checkDriverPayoutFailing  — driver_earnings rows with payout_status
+//                                  'failed' in last 6h → drivers not getting paid.
+//  10. checkDriverSupplyLow      — zero active drivers AND ≥1 ride in last 24h
+//                                  → transport platform has no supply.
+//
 // Daily digest at 11:00 UTC (~7am ET): one summary text + email even on
 // quiet days so silence is unambiguous ("3 leads, 1 provider approved,
 // 0 new members yesterday").
@@ -61,13 +69,17 @@ const DEFAULTS = {
   digest_hour_utc: 11,
   dedupe_repage_hours: 6,
   thresholds: {
-    gatekeeper_error_min_in_6h: 2,
-    promoter_drafts_pile_min:   5,
-    promoter_idle_days:         7,
-    hunter_unscored_min_2h:     1,
-    social_dry_window_h:        24,
-    matchmaker_unranked_min_h:  1,
-    signup_drop_pct:            50
+    gatekeeper_error_min_in_6h:    2,
+    promoter_drafts_pile_min:      5,
+    promoter_idle_days:            7,
+    hunter_unscored_min_2h:        1,
+    social_dry_window_h:           24,
+    matchmaker_unranked_min_h:     1,
+    signup_drop_pct:               50,
+    // Transport
+    ride_stalled_searching_min:    20,  // minutes a ride can sit in 'searching' before alert
+    driver_payout_fail_min_in_6h:  1,   // failed payout records in 6h before alert
+    driver_supply_min_rides_24h:   1    // min rides in 24h before "zero drivers" is alarming
   }
 };
 
@@ -307,6 +319,92 @@ async function checkFunnelDrop(supabase, t) {
 }
 
 // ---------------------------------------------------------------------------
+// Transport health checks
+// ---------------------------------------------------------------------------
+
+async function checkTransportRidesStalled(supabase, t) {
+  const stalledSince = new Date(Date.now() - t.ride_stalled_searching_min * 60 * 1000).toISOString();
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, status, created_at')
+      .in('status', ['searching', 'requested'])
+      .lte('created_at', stalledSince)
+      .limit(20);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+  if (!rides || rides.length === 0) return null;
+
+  return {
+    alert_key: 'transport_rides_stalled',
+    severity: 'critical',
+    title: `${rides.length} ride${rides.length === 1 ? '' : 's'} waiting ${t.ride_stalled_searching_min}+ min for a driver`,
+    body: `${rides.length} ride request${rides.length === 1 ? '' : 's'} ${rides.length === 1 ? 'has' : 'have'} been in "searching" status for over ${t.ride_stalled_searching_min} minutes without a driver assignment. Members are waiting. This usually means driver supply is too low for current demand, or dispatch is broken.`,
+    next_action: `Check driver availability at ${MCC_APP_URL}/admin (filter profiles by role=driver). If supply is low, share the Founding Driver Program link (mycarconcierge.com/drivers) immediately. If drivers are available but not being dispatched, check the ride dispatch function for errors.`,
+    payload: { stalled_count: rides.length, stalled_since_minutes: t.ride_stalled_searching_min, sample_ride_ids: rides.slice(0, 5).map(r => r.id) }
+  };
+}
+
+async function checkDriverPayoutFailing(supabase, t) {
+  let failCount = 0;
+  try {
+    const { count, error } = await supabase
+      .from('driver_earnings')
+      .select('id', { count: 'exact', head: true })
+      .eq('payout_status', 'failed')
+      .gte('created_at', isoMinusHours(6));
+    if (error) return null;
+    failCount = count || 0;
+  } catch { return null; }
+  if (failCount < t.driver_payout_fail_min_in_6h) return null;
+
+  return {
+    alert_key: 'driver_payout_failing',
+    severity: 'critical',
+    title: `${failCount} driver payout${failCount === 1 ? '' : 's'} failed in the last 6h`,
+    body: `${failCount} driver earnings record${failCount === 1 ? '' : 's'} show payout_status = 'failed' in the last 6 hours. Drivers completed real trips and are not getting paid — this is urgent. Failing to pay drivers erodes trust and will kill supply.`,
+    next_action: `Check driver_earnings in Supabase for failed rows. Verify the Stripe payout configuration and that driver Stripe Connect accounts are active. Retry failed payouts manually from the admin console and contact affected drivers directly.`,
+    payload: { failed_payout_count: failCount, window_hours: 6 }
+  };
+}
+
+async function checkDriverSupplyLow(supabase, t) {
+  // Only fire if rides have been requested (demand exists)
+  let recentRides = 0;
+  try {
+    const { count, error } = await supabase
+      .from('rides')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', isoMinusHours(24));
+    if (error) return null;
+    recentRides = count || 0;
+  } catch { return null; }
+  if (recentRides < t.driver_supply_min_rides_24h) return null;
+
+  let activeDrivers = 0;
+  try {
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'driver');
+    if (error) return null;
+    activeDrivers = count || 0;
+  } catch { return null; }
+  if (activeDrivers > 0) return null;
+
+  return {
+    alert_key: 'driver_supply_zero',
+    severity: 'warning',
+    title: 'Transport platform has zero registered drivers',
+    body: `${recentRides} ride request${recentRides === 1 ? '' : 's'} came in over the last 24h but there are 0 registered drivers on the platform. Every request is going unfulfilled. The Founding Driver Program needs to be actively promoted.`,
+    next_action: `Run a driver recruitment push immediately: share mycarconcierge.com/drivers on social, text current contacts who drive for Uber/Lyft, and trigger Promoter to draft a driver acquisition post for LinkedIn and Instagram.`,
+    payload: { active_driver_count: 0, recent_rides_24h: recentRides }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Daily digest — one always-fires summary at the morning slot so silence is
 // never ambiguous. Builds the same KPIs the operator would scan manually.
 // ---------------------------------------------------------------------------
@@ -325,27 +423,34 @@ async function buildDailyDigest(supabase) {
     } catch { return null; }
   }
 
-  const [signups, leads, gkReviews, mmRanks, completed, errors] = await Promise.all([
+  const [signups, leads, gkReviews, mmRanks, completed, errors,
+         newRides, completedRides, activeDrivers] = await Promise.all([
     safeCount('profiles',        { _gte: since24 }),
     safeCount('social_leads',    { _gte: since24 }),
     safeCount('agent_actions',   { _gte: since24, agent_slug: 'gatekeeper', action_type: 'review', status: 'proposed' }),
     safeCount('agent_actions',   { _gte: since24, agent_slug: 'matchmaker' }),
     safeCount('agent_actions',   { _gte: since24, status: 'completed' }),
-    safeCount('agent_actions',   { _gte: since24, status: 'error' })
+    safeCount('agent_actions',   { _gte: since24, status: 'error' }),
+    // Transport KPIs
+    safeCount('rides',           { _gte: since24 }),
+    safeCount('rides',           { _gte: since24, status: 'completed' }),
+    safeCount('profiles',        { role: 'driver' })
   ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const fmt = n => n == null ? '—' : String(n);
 
+  const transportLine = `• Transport: ${fmt(newRides)} ride${newRides === 1 ? '' : 's'} requested, ${fmt(completedRides)} completed, ${fmt(activeDrivers)} active driver${activeDrivers === 1 ? '' : 's'}`;
+
   return {
     alert_key: `daily_digest_${today}`,
     severity: 'digest',
     title: 'Good morning — your fleet + funnel digest',
-    body: `Last 24h:\n• ${fmt(signups)} new member${signups === 1 ? '' : 's'}\n• ${fmt(leads)} social leads found\n• ${fmt(gkReviews)} provider applications reviewed by Gatekeeper\n• ${fmt(mmRanks)} bid auctions evaluated by Matchmaker\n• ${fmt(completed)} total agent actions completed\n• ${fmt(errors)} agent error${errors === 1 ? '' : 's'} (open alerts will follow if any are still unresolved)`,
+    body: `Last 24h:\n• ${fmt(signups)} new member${signups === 1 ? '' : 's'}\n• ${fmt(leads)} social leads found\n• ${fmt(gkReviews)} provider applications reviewed by Gatekeeper\n• ${fmt(mmRanks)} bid auctions evaluated by Matchmaker\n• ${fmt(completed)} total agent actions completed\n• ${fmt(errors)} agent error${errors === 1 ? '' : 's'} (open alerts will follow if any are still unresolved)\n${transportLine}`,
     next_action: errors && errors > 0
       ? `Open ${MCC_APP_URL}/admin/agent-fleet.html to see which agents errored.`
       : null,
-    payload: { signups, leads, gatekeeper_reviews: gkReviews, matchmaker_ranks: mmRanks, completed_actions: completed, errors_24h: errors }
+    payload: { signups, leads, gatekeeper_reviews: gkReviews, matchmaker_ranks: mmRanks, completed_actions: completed, errors_24h: errors, transport: { new_rides: newRides, completed_rides: completedRides, active_drivers: activeDrivers } }
   };
 }
 
@@ -580,7 +685,11 @@ async function _runChecks(supabase, cfg) {
     checkHunterStalled,
     checkSocialMonitorDry,
     checkMatchmakerSilent,
-    checkFunnelDrop
+    checkFunnelDrop,
+    // Transport
+    checkTransportRidesStalled,
+    checkDriverPayoutFailing,
+    checkDriverSupplyLow
   ];
   const findings = [];
   const checkErrors = [];
