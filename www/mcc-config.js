@@ -48,7 +48,9 @@
     siteUrlWww: 'https://www.mycarconcierge.com',
     appName: 'My Car Concierge',
     supportEmail: 'support@mycarconcierge.com',
-    apiBaseUrl: apiBaseUrl
+    apiBaseUrl: apiBaseUrl,
+    // TNC permit not yet obtained. Set true only after permit is in hand.
+    RIDESHARE_ENABLED: false
   };
 
   window.MCC_CONFIG = defaultConfig;

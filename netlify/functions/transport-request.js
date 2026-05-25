@@ -13,6 +13,11 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
+// TNC permit not yet obtained — passenger rides disabled until further notice.
+// Flip to true only after regulatory approval is confirmed.
+const RIDESHARE_ENABLED = false;
+const VEHICLE_ONLY_TIERS = ['tier_2_vehicle_solo', 'tier_3_vehicle_paired'];
+
 function getServiceSupabase() {
   const url  = process.env.SUPABASE_URL;
   const key  = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -116,6 +121,14 @@ async function handleMemberRequest(event, supabase, body) {
   const tier     = isTandem ? 'tier_3_vehicle_paired' : 'tier_2_vehicle_solo';
   const scenario = isTandem ? 'paired_vehicle_pickup' : 'vehicle_pickup_solo';
 
+  // Defensive guard: block any ride that resolves to a non-vehicle tier
+  // while RIDESHARE_ENABLED is false. Tier is computed above from isTandem,
+  // so this should never fire in normal operation — it exists to catch future
+  // code paths that might introduce a rideshare tier inadvertently.
+  if (!RIDESHARE_ENABLED && !VEHICLE_ONLY_TIERS.includes(tier)) {
+    return jsonResponse(403, { error: 'Rideshare service is not available. MCC provides vehicle pickup & delivery only.' });
+  }
+
   // Return trips stay pending until the provider dispatches them
   const initialStatus = is_return_trip ? 'pending' : 'requested';
 
@@ -192,6 +205,10 @@ async function handleProviderRequest(event, supabase, body) {
   const vehicleInfo = await getVehicleInfo(supabase, vehicle_id);
   const tier     = isTandem ? 'tier_3_vehicle_paired' : 'tier_2_vehicle_solo';
   const scenario = isTandem ? 'paired_vehicle_pickup' : 'vehicle_pickup_solo';
+
+  if (!RIDESHARE_ENABLED && !VEHICLE_ONLY_TIERS.includes(tier)) {
+    return jsonResponse(403, { error: 'Rideshare service is not available. MCC provides vehicle pickup & delivery only.' });
+  }
 
   const { data, error } = await supabase.from('rides').insert({
     member_id,
