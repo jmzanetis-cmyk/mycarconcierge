@@ -284,6 +284,9 @@
     function showScreen(screenId) {
       document.getElementById('login-form-container').style.display = 'none';
       document.getElementById('pending-screen').style.display = 'none';
+      document.getElementById('pending-driver-screen').style.display = 'none';
+      document.getElementById('driver-approved-screen').style.display = 'none';
+      document.getElementById('rejected-driver-screen').style.display = 'none';
       document.getElementById('portal-selection-screen').style.display = 'none';
       document.getElementById('twofa-screen').style.display = 'none';
       document.getElementById('biometric-enroll-screen').style.display = 'none';
@@ -394,6 +397,21 @@
           }).catch(() => {});
         }
       }).catch(() => {});
+
+      if (profile.role === 'pending_driver') {
+        showScreen('pending-driver-screen');
+        return;
+      }
+
+      if (profile.role === 'driver') {
+        showScreen('driver-approved-screen');
+        return;
+      }
+
+      if (profile.role === 'rejected_driver') {
+        showScreen('rejected-driver-screen');
+        return;
+      }
 
       const isMember = profile.role === 'member' || profile.role === 'admin' || profile.is_also_member;
       const isProvider = profile.role === 'provider' || profile.is_also_provider;

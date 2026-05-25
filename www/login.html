@@ -763,6 +763,59 @@
         </div>
       </div>
 
+      <!-- Pending Driver Screen -->
+      <div id="pending-driver-screen" style="display:none;">
+        <div class="pending-screen">
+          <div class="pending-icon"><span class="icon-inline" data-icon="clock"></span></div>
+          <h2 class="pending-title">Driver Application Under Review</h2>
+          <p class="pending-text">
+            Your driver application is under review. We'll notify you by email when you're approved.
+          </p>
+          <div class="pending-status">Status: Pending Review</div>
+          <p style="color:var(--text-muted);font-size:0.85rem;margin-top:20px;">
+            This typically takes 1–2 business days. Questions? Email <a href="mailto:support@mycarconcierge.com" style="color:var(--accent-gold);">support@mycarconcierge.com</a>
+          </p>
+          <button class="btn btn-primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Approved Driver Screen -->
+      <div id="driver-approved-screen" style="display:none;">
+        <div class="pending-screen">
+          <div class="pending-icon" style="color:var(--accent-green);">✓</div>
+          <h2 class="pending-title" style="color:var(--accent-green);">You're Approved!</h2>
+          <p class="pending-text">
+            Download the MCC Driver app to start accepting rides and earning money on your schedule.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:12px;margin:24px 0;">
+            <a href="#" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 24px;background:#000;border-radius:12px;color:#fff;text-decoration:none;font-weight:600;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+              Download on the App Store
+            </a>
+            <a href="#" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 24px;background:#01875f;border-radius:12px;color:#fff;text-decoration:none;font-weight:600;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.18 23.76c.3.17.64.24.99.2l12.43-12.43L13.24 8l-10.06 15.76zm17.3-11.24L17.94 11 3.64.46A1.17 1.17 0 0 0 2 1.52v20.96c0 .47.26.88.64 1.06l14.3-10.54 3.54-1.02-2.3-1.5-.9 1.04zM20.8 9.1l-2.58-1.5L15.6 9.1l2.62 2.62 2.58-2.62zm-1.44 7.82L7.13 24l-.99-.29 11.71-7.08 1.51.29z"/></svg>
+              Get it on Google Play
+            </a>
+          </div>
+          <button class="btn btn-secondary" onclick="logout()" style="margin-top:8px;">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Rejected Driver Screen -->
+      <div id="rejected-driver-screen" style="display:none;">
+        <div class="pending-screen">
+          <div class="pending-icon" style="color:var(--accent-red, #f87171);">✕</div>
+          <h2 class="pending-title">Application Not Approved</h2>
+          <p class="pending-text">
+            Unfortunately your driver application was not approved at this time.
+          </p>
+          <p style="color:var(--text-muted);font-size:0.9rem;margin-top:16px;">
+            Contact <a href="mailto:support@mycarconcierge.com" style="color:var(--accent-gold);">support@mycarconcierge.com</a> for more information.
+          </p>
+          <button class="btn btn-primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
+        </div>
+      </div>
+
       <!-- Portal Selection Screen -->
       <div id="portal-selection-screen" style="display:none;">
         <div class="portal-selection">
