@@ -1118,6 +1118,7 @@
             <a id="prov-wefunder-btn" href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#0a0a0f;font-weight:700;font-size:0.85rem;border-radius:10px;text-decoration:none;">
               Back MCC on Wefunder →
             </a>
+            <button onclick="provDonate(500)" style="margin-top:10px;background:none;border:none;color:var(--accent-blue);font-size:0.82rem;font-family:inherit;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;">Buy the team a coffee ☕</button>
           </div>
         </div>
       </div>
@@ -1146,6 +1147,18 @@
           try { localStorage.setItem('mcc_prov_driver_fund_dismissed', '1'); } catch(_) {}
           var el = document.getElementById('prov-driver-fund-card');
           if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(function() { el.style.display = 'none'; }, 300); }
+        }
+        async function provDonate(amountCents) {
+          try {
+            var res = await fetch('/api/support-donation', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount_cents: amountCents })
+            });
+            var data = await res.json();
+            if (data.url) { window.location.href = data.url; return; }
+          } catch (e) { /* fall through */ }
+          alert('Could not start checkout. Please try again.');
         }
       </script>
 

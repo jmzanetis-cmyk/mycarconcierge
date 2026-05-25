@@ -2341,7 +2341,19 @@
               Learn More About MCC Driver →
             </a>
           </div>
-          <p style="text-align:center;font-size:0.78rem;color:#6b7280;margin-top:18px;line-height:1.5;">Vehicle transport service is in development. Full launch pending regulatory approval and insurance certification. Sign up now to be first in line when we go live.</p>
+
+          <!-- Direct donation row -->
+          <div style="margin-top:22px;text-align:center;">
+            <div style="font-size:0.78rem;color:#6b7280;margin-bottom:10px;">Or support us directly</div>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;" id="idx-donate-btns">
+              <button onclick="idxDonate(500)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$5</button>
+              <button onclick="idxDonate(1000)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$10</button>
+              <button onclick="idxDonate(2500)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$25</button>
+              <button onclick="idxDonate(5000)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$50</button>
+            </div>
+            <p style="font-size:0.72rem;color:#4b5563;margin-top:10px;line-height:1.5;">One-time support — not an investment. For equity, use Wefunder above.</p>
+          </div>
+          <p style="text-align:center;font-size:0.78rem;color:#6b7280;margin-top:14px;line-height:1.5;">Vehicle transport service is in development. Full launch pending regulatory approval and insurance certification. Sign up now to be first in line when we go live.</p>
         </div>
       </div>
     </section>
@@ -2364,6 +2376,24 @@
         if (window.MCC_CONFIG) { applyFundData(window.MCC_CONFIG); }
         window.addEventListener('mcc-config-loaded', function(e) { applyFundData(e.detail); });
       })();
+
+      async function idxDonate(amountCents) {
+        var btns = document.querySelectorAll('#idx-donate-btns button');
+        btns.forEach(function(b) { b.disabled = true; });
+        try {
+          var res = await fetch('/api/support-donation', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ amount_cents: amountCents })
+          });
+          var data = await res.json();
+          if (data.url) { window.location.href = data.url; return; }
+          alert('Could not start checkout. Please try again.');
+        } catch (e) {
+          alert('Could not connect to checkout. Please try again.');
+        }
+        btns.forEach(function(b) { b.disabled = false; });
+      }
     </script>
 
     <section class="cta-section">
