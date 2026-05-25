@@ -6866,7 +6866,7 @@
           held_at: new Date().toISOString()
         });
 
-        // Auto-create transport if provider included free pickup with their bid
+        // Auto-create transport (outbound + return) if provider included free pickup & delivery
         if (bid.include_free_pickup) {
           try {
             const { data: { session } } = await supabaseClient.auth.getSession();
@@ -6875,7 +6875,7 @@
             const providerAddr = await fetchProviderAddressForTransport(bid.provider_id);
             const pkg = packages.find(p => p.id === packageId);
             if (tok && memberAddr) {
-              fetch('/api/transport/request', {
+              const outboundRes = await fetch(`${transportApiBase()}/api/transport/request`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
                 body: JSON.stringify({
@@ -6883,13 +6883,31 @@
                   dropoff_address: providerAddr || 'Provider shop — address in job details',
                   vehicle_id: pkg?.vehicle_id || null,
                   provider_id: bid.provider_id,
-                  is_asap: false,
-                  is_tandem: false,
-                  estimated_distance_miles: 0,
+                  is_asap: false, is_tandem: false, estimated_distance_miles: 0,
                   provider_covers: true,
                   notes: 'Free pickup included with service bid — provider covers cost'
                 })
-              }).then(() => loadTransportRequests()).catch(() => {});
+              });
+              const outboundData = outboundRes.ok ? await outboundRes.json() : null;
+              const outboundId = outboundData?.ride?.id;
+              // Create pending return leg (shop → member) that activates when provider dispatches
+              fetch(`${transportApiBase()}/api/transport/request`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
+                body: JSON.stringify({
+                  pickup_address: providerAddr || 'Provider shop — address in job details',
+                  dropoff_address: memberAddr,
+                  vehicle_id: pkg?.vehicle_id || null,
+                  provider_id: bid.provider_id,
+                  is_asap: false, is_tandem: false, estimated_distance_miles: 0,
+                  provider_covers: true,
+                  is_return_trip: true,
+                  round_trip_parent_id: outboundId || null,
+                  notes: 'Return delivery — provider returns vehicle after service'
+                })
+              }).catch(() => {});
+              await loadTransportRequests();
+              startTransportPoll();
             }
           } catch (e) {
             console.log('Auto-transport creation failed (non-critical):', e);
@@ -18360,12 +18378,22 @@ See you there!`);
 
     // ========== TRANSPORT REQUEST (MEMBER) ==========
 
+    function transportApiBase() { return window.MCC_CONFIG?.apiBaseUrl || ''; }
+
     let transportIsAsap = true;
     let transportIsSolo = true;
     let transportPickupCoords = null;
     let transportDropoffCoords = null;
     let transportEstimateTimer = null;
-    let transportProviders = []; // providers from member's job history
+    let transportProviders = [];
+    let transportRides = [];
+    let currentTransportFare = 0;
+    let transportPollInterval = null;
+
+    let _trRideId = null;
+    let _trDrivers = [];
+    let _trStars = {};
+    let _trTips = {};
 
     function calcTransportFare(miles, isTandem) {
       const d = Number(miles) || 0;
@@ -18398,33 +18426,50 @@ See you there!`);
       return null;
     }
 
+    function initTransportAutocomplete() {
+      if (typeof google === 'undefined' || !google.maps?.places) return;
+      ['tr-pickup', 'tr-dropoff'].forEach(id => {
+        const el = document.getElementById(id);
+        if (!el) return;
+        const ac = new google.maps.places.Autocomplete(el, { types: ['address'], componentRestrictions: { country: 'us' } });
+        ac.addListener('place_changed', () => {
+          const place = ac.getPlace();
+          const loc = place.geometry?.location;
+          if (loc) {
+            if (id === 'tr-pickup') transportPickupCoords = { lat: loc.lat(), lng: loc.lng() };
+            else transportDropoffCoords = { lat: loc.lat(), lng: loc.lng() };
+            updateTransportEstimate();
+          }
+        });
+      });
+    }
+
     async function openTransportModal() {
       transportIsAsap = true;
       transportIsSolo = true;
       transportPickupCoords = null;
       transportDropoffCoords = null;
+      currentTransportFare = 0;
 
-      // Reset form
       document.getElementById('tr-pickup').value = '';
       document.getElementById('tr-dropoff').value = '';
       document.getElementById('tr-notes').value = '';
       document.getElementById('tr-estimate').style.display = 'none';
       document.getElementById('tr-geocoding-note').style.display = 'none';
+      const btn = document.getElementById('tr-submit-btn');
+      if (btn) btn.textContent = 'Request Pickup';
       setTransportTiming('asap');
       setTransportMode('solo');
 
-      // Populate vehicles
       const sel = document.getElementById('tr-vehicle');
       sel.innerHTML = '<option value="">Select a vehicle...</option>' +
         vehicles.map(v => `<option value="${v.id}">${v.nickname || `${v.year || ''} ${v.make} ${v.model}`.trim()}</option>`).join('');
 
-      // Pre-fill pickup from profile address
       const profileAddr = [userProfile?.address, userProfile?.city, userProfile?.state, userProfile?.zip_code].filter(Boolean).join(', ');
       if (profileAddr) document.getElementById('tr-pickup').value = profileAddr;
 
-      // Populate provider dropdown from completed/accepted packages
       await loadTransportProviderOptions();
-
+      initTransportAutocomplete();
       openModal('transport-modal');
     }
 
@@ -18496,17 +18541,19 @@ See you there!`);
       const dropoff = document.getElementById('tr-dropoff').value.trim();
       const estimateEl = document.getElementById('tr-estimate');
       const geocodingNote = document.getElementById('tr-geocoding-note');
+      const btn = document.getElementById('tr-submit-btn');
 
       if (!pickup || !dropoff) {
         estimateEl.style.display = 'none';
         geocodingNote.style.display = 'none';
+        currentTransportFare = 0;
+        if (btn) btn.textContent = 'Request Pickup';
         return;
       }
 
       geocodingNote.style.display = 'block';
       geocodingNote.textContent = 'Calculating distance estimate...';
 
-      // Geocode if not already done
       const [pCoords, dCoords] = await Promise.all([
         transportPickupCoords ? Promise.resolve(transportPickupCoords) : geocodeAddressNominatim(pickup),
         transportDropoffCoords ? Promise.resolve(transportDropoffCoords) : geocodeAddressNominatim(dropoff)
@@ -18518,13 +18565,17 @@ See you there!`);
       if (pCoords && dCoords) {
         const miles = haversineDistanceMiles(pCoords.lat, pCoords.lng, dCoords.lat, dCoords.lng);
         const fare = calcTransportFare(miles, !transportIsSolo);
+        currentTransportFare = fare;
         document.getElementById('tr-estimate-distance').textContent = `~${miles.toFixed(1)} miles`;
         document.getElementById('tr-estimate-fare').textContent = `Estimated: $${fare.toFixed(2)}`;
         estimateEl.style.display = 'block';
         geocodingNote.style.display = 'none';
+        if (btn) btn.textContent = `Request Pickup — $${fare.toFixed(2)}`;
       } else {
         estimateEl.style.display = 'none';
         geocodingNote.style.display = 'none';
+        currentTransportFare = 0;
+        if (btn) btn.textContent = 'Request Pickup';
       }
     }
 
@@ -18541,6 +18592,7 @@ See you there!`);
 
       const btn = document.getElementById('tr-submit-btn');
       btn.disabled = true;
+      const origText = btn.textContent;
       btn.textContent = 'Requesting...';
 
       try {
@@ -18567,7 +18619,7 @@ See you there!`);
           notes
         };
 
-        const res = await fetch('/api/transport/request', {
+        const res = await fetch(`${transportApiBase()}/api/transport/request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(body)
@@ -18578,16 +18630,15 @@ See you there!`);
         closeModal('transport-modal');
         showToast('Pickup requested! We\'ll notify you when a driver is assigned.', 'success');
         await loadTransportRequests();
+        startTransportPoll();
       } catch (e) {
         console.error('Transport request error:', e);
         showToast('Failed to request pickup: ' + e.message, 'error');
       } finally {
         btn.disabled = false;
-        btn.textContent = 'Request Pickup';
+        btn.textContent = origText;
       }
     }
-
-    let transportRides = [];
 
     async function loadTransportRequests() {
       try {
@@ -18595,73 +18646,132 @@ See you there!`);
         const token = session?.access_token;
         if (!token) return;
 
-        const res = await fetch('/api/transport/requests', {
+        const res = await fetch(`${transportApiBase()}/api/transport/requests`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (!res.ok) return;
         const data = await res.json();
         transportRides = data.rides || [];
         renderTransportTracking();
+
+        const TERMINAL = ['completed','cancelled_member','cancelled_provider','cancelled_driver','cancelled_system','cancelled','dispatch_failed'];
+        const active = transportRides.filter(r => !TERMINAL.includes(r.status));
+        if (!active.length) stopTransportPoll();
       } catch (e) {
         console.log('Could not load transport requests:', e);
       }
+    }
+
+    function startTransportPoll() {
+      if (transportPollInterval) return;
+      transportPollInterval = setInterval(loadTransportRequests, 30000);
+    }
+
+    function stopTransportPoll() {
+      if (transportPollInterval) { clearInterval(transportPollInterval); transportPollInterval = null; }
     }
 
     function renderTransportTracking() {
       const section = document.getElementById('transport-tracking-section');
       if (!section) return;
 
-      const active = transportRides.filter(r => !['completed', 'cancelled_member', 'cancelled_provider', 'cancelled_driver', 'cancelled_system', 'cancelled', 'dispatch_failed'].includes(r.status));
-      if (!active.length) { section.style.display = 'none'; return; }
+      const TERMINAL = ['completed','cancelled_member','cancelled_provider','cancelled_driver','cancelled_system','cancelled','dispatch_failed'];
+      const active = transportRides.filter(r => !TERMINAL.includes(r.status));
+      const recentCompleted = transportRides.filter(r =>
+        r.status === 'completed' &&
+        !localStorage.getItem(`transport_rated_${r.id}`) &&
+        new Date(r.updated_at || r.created_at) > new Date(Date.now() - 3600000)
+      );
 
+      if (!active.length && !recentCompleted.length) { section.style.display = 'none'; return; }
+
+      const STATUS_STEPS = ['requested','driver_assigned','driver_en_route','driver_arrived','in_progress','completed'];
+      const STEP_LABELS = ['Requested','Assigned','En Route','Arrived','In Progress','Done'];
       const STATUS_LABELS = {
-        requested: 'Requested — finding a driver',
-        pending: 'Pending dispatch',
-        pending_dispatch: 'Dispatching driver...',
-        searching: 'Searching for drivers nearby',
-        dispatched: 'Driver dispatched',
-        driver_assigned: 'Driver assigned',
-        driver_accepted: 'Driver accepted',
-        driver_en_route: 'Driver is on the way',
-        driver_arrived: 'Driver has arrived',
-        in_progress: 'In progress',
-        accepted: 'Driver accepted'
+        requested:'Finding a driver', pending:'Pending dispatch',
+        pending_dispatch:'Dispatching...', searching:'Searching nearby',
+        dispatched:'Driver dispatched', driver_assigned:'Driver assigned',
+        driver_accepted:'Driver accepted', driver_en_route:'Driver en route',
+        driver_arrived:'Driver has arrived', in_progress:'In progress',
+        accepted:'Driver accepted'
       };
-
       const STATUS_COLOR = {
-        requested: 'var(--text-muted)',
-        pending: 'var(--text-muted)',
-        pending_dispatch: 'var(--accent-orange)',
-        searching: 'var(--accent-orange)',
-        dispatched: 'var(--accent-blue)',
-        driver_assigned: 'var(--accent-blue)',
-        driver_accepted: 'var(--accent-blue)',
-        driver_en_route: 'var(--accent-green)',
-        driver_arrived: 'var(--accent-green)',
-        in_progress: 'var(--accent-green)',
-        accepted: 'var(--accent-blue)'
+        requested:'var(--text-muted)', pending:'var(--text-muted)',
+        pending_dispatch:'var(--accent-orange)', searching:'var(--accent-orange)',
+        dispatched:'var(--accent-blue)', driver_assigned:'var(--accent-blue)',
+        driver_accepted:'var(--accent-blue)', driver_en_route:'var(--accent-green)',
+        driver_arrived:'var(--accent-green)', in_progress:'var(--accent-green)',
+        accepted:'var(--accent-blue)'
       };
 
-      const cards = active.map(r => {
+      function driverInitials(name) {
+        if (!name) return '?';
+        return name.trim().split(/\s+/).map(w => w[0]).join('').toUpperCase().slice(0, 2);
+      }
+
+      function progressBar(status) {
+        const cur = Math.max(0, STATUS_STEPS.indexOf(status));
+        return `<div style="display:flex;gap:3px;margin:10px 0 6px;">
+          ${STEP_LABELS.map((lbl, i) => `
+            <div style="flex:1;text-align:center;">
+              <div style="height:4px;border-radius:2px;background:${i <= cur ? 'var(--accent-green)' : 'var(--border-subtle)'};margin-bottom:3px;"></div>
+              <div style="font-size:0.58rem;color:${i <= cur ? 'var(--accent-green)' : 'var(--text-muted)'};">${lbl}</div>
+            </div>`).join('')}
+        </div>`;
+      }
+
+      const allRides = [...active, ...recentCompleted.filter(r => !active.find(a => a.id === r.id))];
+
+      const cards = allRides.map(r => {
         const fare = r.base_rate > 0 ? `$${Number(r.base_rate).toFixed(2)}` : (r.estimated_fare ? `~$${Number(r.estimated_fare).toFixed(2)}` : '—');
         const isTandem = r.tier === 'tier_3_vehicle_paired';
         const label = STATUS_LABELS[r.status] || r.status;
         const color = STATUS_COLOR[r.status] || 'var(--text-muted)';
         const when = r.is_scheduled && r.scheduled_pickup_at
-          ? `Scheduled: ${new Date(r.scheduled_pickup_at).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}`
+          ? new Date(r.scheduled_pickup_at).toLocaleString([], { month:'short', day:'numeric', hour:'2-digit', minute:'2-digit' })
           : 'ASAP';
-        return `
-          <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;display:flex;gap:16px;align-items:flex-start;">
+        const isCompleted = r.status === 'completed';
+        const lateCancel = ['driver_en_route','driver_arrived'].includes(r.status);
+        const driversJson = r.drivers ? JSON.stringify(r.drivers).replace(/"/g, '&quot;') : '[]';
+        const rated = localStorage.getItem(`transport_rated_${r.id}`);
+
+        const driverHtml = r.driver_name ? `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 10px;background:var(--bg-input);border-radius:var(--radius-sm);margin:8px 0;">
+            <div style="width:36px;height:36px;border-radius:50%;background:var(--accent-blue);display:flex;align-items:center;justify-content:center;font-size:0.8rem;font-weight:700;color:#fff;flex-shrink:0;">${driverInitials(r.driver_name)}</div>
             <div style="flex:1;min-width:0;">
-              <div style="font-size:0.75rem;color:${color};font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
-                <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></span>${label}
-              </div>
-              <div style="font-size:0.9rem;font-weight:600;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.pickup_address}</div>
-              <div style="font-size:0.8rem;color:var(--text-secondary);">→ ${r.dropoff_address}</div>
-              <div style="font-size:0.75rem;color:var(--text-muted);margin-top:4px;">${when}${isTandem ? ' · Tandem' : ''}</div>
+              <div style="font-weight:600;font-size:0.9rem;">${r.driver_name}</div>
+              ${r.driver_phone ? `<a href="tel:${r.driver_phone}" style="font-size:0.8rem;color:var(--accent-blue);text-decoration:none;">${r.driver_phone}</a>` : ''}
             </div>
-            <div style="text-align:right;flex-shrink:0;">
-              <div style="font-size:1rem;font-weight:700;color:var(--accent-gold);">${fare}</div>
+          </div>` : '';
+
+        const cancelBtn = !isCompleted ? `
+          <button onclick="cancelTransportRide('${r.id}','${r.status}')" style="font-size:0.8rem;color:var(--text-muted);background:none;border:none;cursor:pointer;padding:0;text-decoration:underline;">
+            ${lateCancel ? 'Cancel (25% fee applies)' : 'Cancel pickup'}
+          </button>` : '';
+
+        const rateBtn = isCompleted && !rated
+          ? `<button class="btn btn-secondary btn-sm" onclick="openTransportRatingModal('${r.id}','${driversJson}')" style="margin-top:8px;">Rate &amp; Tip Driver</button>`
+          : (isCompleted && rated ? `<div style="font-size:0.8rem;color:var(--accent-green);margin-top:8px;">Rated — thank you!</div>` : '');
+
+        return `
+          <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:0.75rem;color:${color};font-weight:600;margin-bottom:4px;display:flex;align-items:center;gap:6px;">
+                  <span style="width:7px;height:7px;border-radius:50%;background:${color};flex-shrink:0;"></span>${label}
+                </div>
+                <div style="font-size:0.9rem;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.pickup_address}</div>
+                <div style="font-size:0.8rem;color:var(--text-secondary);">→ ${r.dropoff_address}</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);margin-top:2px;">${when}${isTandem ? ' · Tandem' : ''}</div>
+              </div>
+              <div style="text-align:right;flex-shrink:0;">
+                <div style="font-size:1rem;font-weight:700;color:var(--accent-gold);">${fare}</div>
+              </div>
+            </div>
+            ${progressBar(r.status)}
+            ${driverHtml}
+            <div style="margin-top:6px;display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+              ${cancelBtn}${rateBtn}
             </div>
           </div>`;
       }).join('');
@@ -18675,7 +18785,149 @@ See you there!`);
         <div style="display:flex;flex-direction:column;gap:10px;">${cards}</div>`;
     }
 
-    // Fetch provider address helper used by acceptBid auto-transport
+    async function cancelTransportRide(rideId, currentStatus) {
+      const lateCancel = ['driver_en_route','driver_arrived'].includes(currentStatus);
+      const msg = lateCancel
+        ? 'The driver is already on the way. A 25% cancellation fee applies. Cancel anyway?'
+        : 'Cancel this pickup request?';
+      if (!confirm(msg)) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch(`${transportApiBase()}/api/transport/cancel`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ ride_id: rideId })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Cancel failed');
+        showToast('Pickup cancelled.', 'success');
+        await loadTransportRequests();
+      } catch (e) {
+        showToast('Could not cancel: ' + e.message, 'error');
+      }
+    }
+
+    function openTransportRatingModal(rideId, driversJson) {
+      _trRideId = rideId;
+      try { _trDrivers = typeof driversJson === 'string' ? JSON.parse(driversJson) : driversJson; } catch { _trDrivers = []; }
+      if (!_trDrivers.length) _trDrivers = [{ id: 'unknown', name: 'Your Driver' }];
+      _trStars = {};
+      _trTips = {};
+
+      document.getElementById('transport-rating-modal')?.remove();
+
+      const driverSections = _trDrivers.map(d => `
+        <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border-subtle);">
+          <div style="font-weight:600;margin-bottom:8px;">${d.name || 'Driver'}</div>
+          <div style="display:flex;gap:8px;margin-bottom:12px;" id="stars-${d.id}">
+            ${[1,2,3,4,5].map(s => `<span onclick="setTransportStar('${d.id}',${s})" data-star="${s}" style="font-size:2rem;cursor:pointer;color:var(--text-muted);">&#9733;</span>`).join('')}
+          </div>
+          <div style="font-size:0.85rem;font-weight:600;margin-bottom:8px;color:var(--text-secondary);">Add a tip</div>
+          <div id="tips-${d.id}" style="display:flex;gap:8px;flex-wrap:wrap;">
+            ${[3,5,10,15].map(amt => `<button onclick="selectTipPreset('${d.id}',${amt})" class="btn btn-secondary btn-sm" data-tip="${amt}" style="min-width:52px;">$${amt}</button>`).join('')}
+            <button onclick="selectTipCustom('${d.id}')" class="btn btn-secondary btn-sm" id="tip-custom-btn-${d.id}">Custom</button>
+          </div>
+          <div id="tip-custom-field-${d.id}" style="display:none;margin-top:8px;">
+            <input type="number" min="1" max="200" placeholder="Enter amount" style="width:120px;padding:6px 10px;border:1px solid var(--border-subtle);border-radius:var(--radius-sm);background:var(--bg-input);color:var(--text-primary);font-size:0.9rem;" oninput="setCustomTip('${d.id}',this.value)">
+          </div>
+        </div>`).join('');
+
+      const modal = document.createElement('div');
+      modal.className = 'modal-backdrop active';
+      modal.id = 'transport-rating-modal';
+      modal.innerHTML = `
+        <div class="modal-dialog" style="max-width:420px;">
+          <div class="modal-header">
+            <h3 class="modal-title">Rate Your Driver</h3>
+            <button class="modal-close" onclick="document.getElementById('transport-rating-modal').remove()">×</button>
+          </div>
+          <div class="modal-body">
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:16px;">100% of tips go directly to your driver${_trDrivers.length > 1 ? 's' : ''}.</p>
+            ${driverSections}
+          </div>
+          <div class="modal-footer">
+            <button class="btn btn-secondary" onclick="document.getElementById('transport-rating-modal').remove()">Skip</button>
+            <button class="btn btn-primary" onclick="submitTransportRating()">Submit</button>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+    }
+
+    function setTransportStar(driverId, stars) {
+      _trStars[driverId] = stars;
+      const container = document.getElementById(`stars-${driverId}`);
+      if (!container) return;
+      container.querySelectorAll('[data-star]').forEach(el => {
+        el.style.color = parseInt(el.dataset.star) <= stars ? 'var(--accent-gold)' : 'var(--text-muted)';
+      });
+    }
+
+    function selectTipPreset(driverId, amount) {
+      _trTips[driverId] = amount;
+      const container = document.getElementById(`tips-${driverId}`);
+      if (!container) return;
+      container.querySelectorAll('[data-tip]').forEach(el => {
+        el.className = parseInt(el.dataset.tip) === amount ? 'btn btn-primary btn-sm' : 'btn btn-secondary btn-sm';
+        el.style.minWidth = '52px';
+      });
+      document.getElementById(`tip-custom-field-${driverId}`).style.display = 'none';
+      const customBtn = document.getElementById(`tip-custom-btn-${driverId}`);
+      if (customBtn) customBtn.className = 'btn btn-secondary btn-sm';
+    }
+
+    function selectTipCustom(driverId) {
+      document.getElementById(`tip-custom-field-${driverId}`).style.display = 'block';
+      const container = document.getElementById(`tips-${driverId}`);
+      if (container) container.querySelectorAll('[data-tip]').forEach(el => {
+        el.className = 'btn btn-secondary btn-sm';
+        el.style.minWidth = '52px';
+      });
+      const customBtn = document.getElementById(`tip-custom-btn-${driverId}`);
+      if (customBtn) customBtn.className = 'btn btn-primary btn-sm';
+    }
+
+    function setCustomTip(driverId, value) {
+      const v = parseFloat(value);
+      _trTips[driverId] = isNaN(v) || v <= 0 ? 0 : v;
+    }
+
+    async function submitTransportRating() {
+      if (!_trRideId) return;
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const token = session?.access_token;
+      if (!token) return;
+
+      for (const d of _trDrivers) {
+        const stars = _trStars[d.id];
+        const tipAmt = _trTips[d.id] || 0;
+        if (stars) {
+          try {
+            await fetch(`${transportApiBase()}/api/transport/rate`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ ride_id: _trRideId, driver_id: d.id, stars })
+            });
+          } catch (e) { console.log('Rate error:', e); }
+        }
+        if (tipAmt > 0) {
+          try {
+            await fetch(`${transportApiBase()}/api/transport/tip`, {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+              body: JSON.stringify({ ride_id: _trRideId, driver_id: d.id, amount_cents: Math.round(tipAmt * 100) })
+            });
+          } catch (e) { console.log('Tip error:', e); }
+        }
+      }
+
+      localStorage.setItem(`transport_rated_${_trRideId}`, '1');
+      document.getElementById('transport-rating-modal')?.remove();
+      showToast('Thank you for your rating!', 'success');
+      renderTransportTracking();
+    }
+
     async function fetchProviderAddressForTransport(providerId) {
       try {
         const { data } = await supabaseClient.from('profiles')

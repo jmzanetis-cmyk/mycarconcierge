@@ -1274,6 +1274,7 @@
           Request Driver
         </button>
       </div>
+      <div id="provider-transport-tracking" style="margin-bottom:18px;display:none;"></div>
       <div id="active-jobs"><div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="empty-state-title">No active jobs right now</div><div class="empty-state-desc">When a member accepts your bid, the job will appear here with all the details you need to get started.</div><button class="empty-state-cta" onclick="showSection('bids')">Check Your Bids</button></div></div>
     </section>
 
@@ -4456,8 +4457,8 @@
           <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
             <input type="checkbox" id="bid-include-pickup" style="width:20px;height:20px;margin-top:2px;flex-shrink:0;" onchange="updateBidPickupLabel()">
             <span style="font-size:0.9rem;line-height:1.5;">
-              <strong>Include free vehicle pickup</strong><br>
-              <span style="color:var(--text-secondary);font-size:0.85rem;" id="bid-pickup-label">I'll dispatch a driver to pick up the member's vehicle when my bid is accepted — I cover the transport cost.</span>
+              <strong>Include free vehicle pickup &amp; delivery</strong><br>
+              <span style="color:var(--text-secondary);font-size:0.85rem;" id="bid-pickup-label">I'll dispatch a driver to pick up the member's vehicle and return it when the job is done — I cover both trips.</span>
             </span>
           </label>
         </div>

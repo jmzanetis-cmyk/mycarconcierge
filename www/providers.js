@@ -191,7 +191,8 @@
         loadTeamManagementData(),
         loadLoyaltyNetwork(),
         loadStripeConnectStatus(),
-        (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve())
+        (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve()),
+        loadProviderTransportRequests()
       ]);
       
       // Check if returning from Stripe Connect onboarding
@@ -13282,11 +13283,14 @@
 
     // ========== TRANSPORT REQUEST (PROVIDER) ==========
 
+    function providerTransportApiBase() { return window.MCC_CONFIG?.apiBaseUrl || ''; }
+
     let providerTransportIsSolo = true;
     let providerTransportPickupCoords = null;
     let providerTransportDropoffCoords = null;
     let providerTransportEstimateTimer = null;
-    let providerTransportActiveMembers = []; // [{memberId, memberName, pickupAddress, vehicleId, vehicleName, packageId}]
+    let providerTransportActiveMembers = [];
+    let providerTransportRides = [];
 
     function calcProviderTransportFare(miles, isTandem) {
       const d = Number(miles) || 0;
@@ -13319,6 +13323,77 @@
       return null;
     }
 
+    async function loadProviderTransportRequests() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) return;
+        const res = await fetch(`${providerTransportApiBase()}/api/transport/provider-requests`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (!res.ok) return;
+        const data = await res.json();
+        providerTransportRides = data.rides || [];
+        renderProviderTransportTracking();
+      } catch (e) {
+        console.log('Could not load provider transport requests:', e);
+      }
+    }
+
+    function renderProviderTransportTracking() {
+      const section = document.getElementById('provider-transport-tracking');
+      if (!section) return;
+
+      const TERMINAL = ['completed','cancelled_member','cancelled_provider','cancelled_driver','cancelled_system','cancelled','dispatch_failed'];
+      const active = providerTransportRides.filter(r => !TERMINAL.includes(r.status));
+      if (!active.length) { section.style.display = 'none'; return; }
+
+      const STATUS_LABELS = {
+        requested:'Finding a driver', pending:'Pending dispatch',
+        pending_dispatch:'Dispatching...', searching:'Searching nearby',
+        dispatched:'Driver dispatched', driver_assigned:'Driver assigned',
+        driver_accepted:'Driver accepted', driver_en_route:'Driver en route',
+        driver_arrived:'Driver has arrived', in_progress:'In progress',
+        accepted:'Driver accepted'
+      };
+      const STATUS_COLOR = {
+        requested:'var(--text-muted)', pending:'var(--text-muted)',
+        pending_dispatch:'var(--accent-orange)', searching:'var(--accent-orange)',
+        dispatched:'var(--accent-blue)', driver_assigned:'var(--accent-blue)',
+        driver_accepted:'var(--accent-blue)', driver_en_route:'var(--accent-green)',
+        driver_arrived:'var(--accent-green)', in_progress:'var(--accent-green)',
+        accepted:'var(--accent-blue)'
+      };
+
+      const cards = active.map(r => {
+        const fare = r.base_rate > 0 ? `$${Number(r.base_rate).toFixed(2)}` : (r.estimated_fare ? `~$${Number(r.estimated_fare).toFixed(2)}` : '—');
+        const label = STATUS_LABELS[r.status] || r.status;
+        const color = STATUS_COLOR[r.status] || 'var(--text-muted)';
+        const memberName = r.member_name || 'Member';
+        const isReturn = r.is_round_trip;
+        return `
+          <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:0.75rem;color:${color};font-weight:600;margin-bottom:3px;display:flex;align-items:center;gap:5px;">
+                <span style="width:6px;height:6px;border-radius:50%;background:${color};flex-shrink:0;"></span>${label}${isReturn ? ' · Return leg' : ''}
+              </div>
+              <div style="font-size:0.85rem;font-weight:600;margin-bottom:1px;">${memberName}</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.pickup_address} → ${r.dropoff_address}</div>
+              ${r.driver_name ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">Driver: ${r.driver_name}${r.driver_phone ? ` · <a href="tel:${r.driver_phone}" style="color:var(--accent-blue);text-decoration:none;">${r.driver_phone}</a>` : ''}</div>` : ''}
+            </div>
+            <div style="text-align:right;flex-shrink:0;font-size:0.95rem;font-weight:700;color:var(--accent-gold);">${fare}</div>
+          </div>`;
+      }).join('');
+
+      section.style.display = 'block';
+      section.innerHTML = `
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
+          <div style="font-weight:600;font-size:0.9rem;">Active Transport Dispatches</div>
+          <button class="btn btn-ghost btn-sm" onclick="loadProviderTransportRequests()">Refresh</button>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
+    }
+
     async function openProviderTransportModal() {
       providerTransportIsSolo = true;
       providerTransportPickupCoords = null;
@@ -13331,18 +13406,14 @@
       document.getElementById('pt-estimate').style.display = 'none';
       setProviderTransportMode('solo');
 
-      // Build member list from active accepted bids
       providerTransportActiveMembers = [];
       try {
         const activeBids = myBids.filter(b => b.status === 'accepted');
         if (activeBids.length) {
           const memberIds = [...new Set(activeBids.map(b => b.maintenance_packages?.member_id).filter(Boolean))];
-          const vehicleIds = [...new Set(activeBids.map(b => b.maintenance_packages?.vehicles?.id || b.maintenance_packages?.vehicle_id).filter(Boolean))];
-
           const [{ data: memberProfiles }] = await Promise.all([
             supabaseClient.from('profiles').select('id, full_name, address, city, state, zip_code').in('id', memberIds)
           ]);
-
           activeBids.forEach(b => {
             const pkg = b.maintenance_packages;
             if (!pkg?.member_id) return;
@@ -13369,7 +13440,6 @@
           `<option value="${i}">${m.memberName}${m.vehicleName ? ' — ' + m.vehicleName : ''}</option>`
         ).join('');
 
-      // Pre-fill dropoff from provider's own business address
       const myAddr = [providerProfile?.business_address, providerProfile?.address, providerProfile?.city, providerProfile?.state, providerProfile?.zip_code].filter(Boolean).join(', ');
       document.getElementById('pt-dropoff').value = myAddr;
 
@@ -13483,7 +13553,7 @@
           notes
         };
 
-        const res = await fetch('/api/transport/provider-request', {
+        const res = await fetch(`${providerTransportApiBase()}/api/transport/provider-request`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(body)
@@ -13493,6 +13563,7 @@
 
         closeModal('provider-transport-modal');
         showToast('Driver requested! The member will be notified.', 'success');
+        await loadProviderTransportRequests();
       } catch (e) {
         console.error('Provider transport request error:', e);
         showToast('Failed to request driver: ' + e.message, 'error');
@@ -13507,8 +13578,8 @@
       const label = document.getElementById('bid-pickup-label');
       if (!label) return;
       label.textContent = checked
-        ? 'When accepted, a driver will be dispatched to pick up the member\'s vehicle. You cover the transport cost.'
-        : 'I\'ll dispatch a driver to pick up the member\'s vehicle when my bid is accepted — I cover the transport cost.';
+        ? 'When accepted, a driver will pick up the vehicle and return it after service. You cover both trips.'
+        : 'I\'ll dispatch a driver to pick up the member\'s vehicle and return it when the job is done — I cover both trips.';
     }
 
     // ========== END TRANSPORT REQUEST (PROVIDER) ==========
