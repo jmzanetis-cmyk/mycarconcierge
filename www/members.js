@@ -6875,7 +6875,7 @@
             const providerAddr = await fetchProviderAddressForTransport(bid.provider_id);
             const pkg = packages.find(p => p.id === packageId);
             if (tok && memberAddr) {
-              const outboundRes = await fetch(`${transportApiBase()}/api/transport/request`, {
+              const outboundRes = await fetch(`${transportApiBase()}/api/transport`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
                 body: JSON.stringify({
@@ -6891,7 +6891,7 @@
               const outboundData = outboundRes.ok ? await outboundRes.json() : null;
               const outboundId = outboundData?.ride?.id;
               // Create pending return leg (shop → member) that activates when provider dispatches
-              fetch(`${transportApiBase()}/api/transport/request`, {
+              fetch(`${transportApiBase()}/api/transport`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${tok}` },
                 body: JSON.stringify({
@@ -18619,7 +18619,7 @@ See you there!`);
           notes
         };
 
-        const res = await fetch(`${transportApiBase()}/api/transport/request`, {
+        const res = await fetch(`${transportApiBase()}/api/transport`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify(body)
