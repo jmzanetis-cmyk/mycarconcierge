@@ -1208,6 +1208,57 @@
       <!-- Transport Tracking -->
       <div id="transport-tracking-section" style="margin-bottom:24px;display:none;"></div>
 
+      <!-- Driver Launch Fundraising Card (dismissible) -->
+      <div id="driver-fund-card" class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(201,162,39,0.07),rgba(26,32,42,0.95));border:1px solid rgba(201,162,39,0.25);position:relative;">
+        <button onclick="dismissDriverFundCard()" title="Dismiss" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:4px 8px;">×</button>
+        <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:2rem;flex-shrink:0;">🚗</div>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:700;font-size:1rem;margin-bottom:4px;color:var(--text-primary);">Help us bring vehicle pickup to your neighborhood</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">We're raising $60,000 on Wefunder to fund TNC licensing, insurance, and driver onboarding. Backers get early access once we launch.</p>
+            <!-- Mini progress bar -->
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-muted);margin-bottom:5px;">
+                <span id="mem-fund-raised">$0 raised</span><span>of $60,000</span>
+              </div>
+              <div style="height:6px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;">
+                <div id="mem-fund-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#c9a227,#e6b84a);border-radius:999px;transition:width 1.2s ease;"></div>
+              </div>
+            </div>
+            <a id="mem-wefunder-btn" href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#0a0a0f;font-weight:700;font-size:0.85rem;border-radius:10px;text-decoration:none;">
+              Back MCC on Wefunder →
+            </a>
+          </div>
+        </div>
+      </div>
+      <script>
+        (function() {
+          if (localStorage.getItem('mcc_driver_fund_dismissed') === '1') {
+            var el = document.getElementById('driver-fund-card');
+            if (el) el.style.display = 'none';
+          }
+          function applyMemFund(cfg) {
+            var raised = cfg.DRIVER_FUND_RAISED || 0;
+            var goal   = cfg.DRIVER_FUND_GOAL   || 60000;
+            var wef    = cfg.WEFUNDER_URL       || 'https://wefunder.com/mycarconcierge';
+            var pct    = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+            var raEl   = document.getElementById('mem-fund-raised');
+            var barEl  = document.getElementById('mem-fund-bar');
+            var btnEl  = document.getElementById('mem-wefunder-btn');
+            if (raEl)  raEl.textContent = '$' + raised.toLocaleString() + ' raised';
+            if (btnEl) btnEl.href = wef;
+            if (barEl) setTimeout(function() { barEl.style.width = pct + '%'; }, 400);
+          }
+          if (window.MCC_CONFIG) { applyMemFund(window.MCC_CONFIG); }
+          window.addEventListener('mcc-config-loaded', function(e) { applyMemFund(e.detail); });
+        })();
+        function dismissDriverFundCard() {
+          try { localStorage.setItem('mcc_driver_fund_dismissed', '1'); } catch(_) {}
+          var el = document.getElementById('driver-fund-card');
+          if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(function() { el.style.display = 'none'; }, 300); }
+        }
+      </script>
+
       <!-- Onboarding Checklist - Shows for new users -->
       <div id="onboarding-checklist" class="card onboarding-card" style="margin-bottom: 32px; display: none;">
         <div class="card-header">

@@ -50,7 +50,11 @@
     supportEmail: 'support@mycarconcierge.com',
     apiBaseUrl: apiBaseUrl,
     // TNC permit not yet obtained. Set true only after permit is in hand.
-    RIDESHARE_ENABLED: false
+    RIDESHARE_ENABLED: false,
+    // Driver launch fundraising — update these to reflect live Wefunder numbers.
+    WEFUNDER_URL: 'https://wefunder.com/mycarconcierge',
+    DRIVER_FUND_GOAL: 60000,
+    DRIVER_FUND_RAISED: 0
   };
 
   window.MCC_CONFIG = defaultConfig;
