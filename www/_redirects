@@ -150,3 +150,6 @@
 # Feature: Member Founder earnings API
 /api/member-founder /.netlify/functions/member-founder-api 200
 /api/member-founder/* /.netlify/functions/member-founder-api 200
+
+# Feature: Receipt PDF
+/api/receipt/* /.netlify/functions/receipt-pdf/:splat 200

@@ -4521,6 +4521,28 @@
       setTimeout(() => printWindow.print(), 250);
     }
 
+    async function downloadReceiptPdf(packageId) {
+      const session = await supabaseClient.auth.getSession();
+      const token = session?.data?.session?.access_token;
+      if (!token) { showToast('Please log in to download your receipt.', 'error'); return; }
+      showToast('Generating receipt…', 'info');
+      try {
+        const res = await fetch(`/api/receipt/${packageId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        if (!res.ok) { showToast('Could not generate receipt. Please try again.', 'error'); return; }
+        const blob = await res.blob();
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `MCC_Receipt_${packageId.slice(0, 8)}.pdf`;
+        a.click();
+        URL.revokeObjectURL(url);
+      } catch (e) {
+        showToast('Receipt download failed. Please try again.', 'error');
+      }
+    }
+
     function renderServiceHistory() {
       const list = document.getElementById('history-list');
       const filter = document.getElementById('history-vehicle-filter').value;
@@ -6814,7 +6836,10 @@
             <div class="alert" style="background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);color:var(--accent-green);padding:16px;border-radius:var(--radius-md);margin-bottom:16px;">
               ${mccIcon('check-circle', 14)} This job was completed on ${new Date(pkg.member_confirmed_at || pkg.work_completed_at).toLocaleDateString()}
             </div>
-            <button class="btn btn-secondary" onclick="openReviewModal('${packageId}')">${mccIcon('star', 14)} Leave a Review</button>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <button class="btn btn-secondary" onclick="openReviewModal('${packageId}')">${mccIcon('star', 14)} Leave a Review</button>
+              <button class="btn btn-ghost btn-sm" onclick="downloadReceiptPdf('${packageId}')">${mccIcon('download', 14)} Download Receipt</button>
+            </div>
           </div>
         ` : ''}
       `;
