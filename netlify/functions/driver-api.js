@@ -1188,6 +1188,9 @@ async function handleUnclaimRide(event, supabase, driver, assignmentId) {
 
 async function handleAcceptRide(event, supabase, driver, assignmentId) {
   if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  if (!driver.stripe_connect_account_id || !driver.stripe_payouts_enabled) {
+    return errorResponse(400, 'NO_STRIPE_CONNECT', 'Complete Stripe Connect onboarding before accepting rides');
+  }
   const { data: a } = await supabase.from('driver_assignments')
     .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
   if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
