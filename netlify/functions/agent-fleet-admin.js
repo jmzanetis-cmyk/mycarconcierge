@@ -784,6 +784,64 @@ async function applyTreasurerReview(supabase, id, action) {
   /* unreachable */ return { error: 'unhandled recommendation', status: 500 };
 }
 
+// Grant 3 bid credits to a provider whose car club member returns for another service.
+// Idempotent: one bonus per provider+member pair per 30-day window.
+async function _maybeGrantCarClubReturnBonus(supabase, providerId, memberId) {
+  try {
+    // Check whether this provider has any active car clubs
+    const { data: clubs } = await supabase.from('car_clubs')
+      .select('id').eq('provider_id', providerId).eq('is_active', true);
+    if (!clubs?.length) return { granted: false, reason: 'no_clubs' };
+
+    // Check whether the member is enrolled in one of those clubs
+    const clubIds = clubs.map(c => c.id);
+    const { data: membership } = await supabase.from('club_memberships')
+      .select('club_id').eq('member_id', memberId).eq('is_active', true)
+      .in('club_id', clubIds).limit(1).maybeSingle();
+    if (!membership) return { granted: false, reason: 'not_a_member' };
+
+    // 30-day dedup
+    const windowStart = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
+    const { data: recent } = await supabase.from('car_club_return_bonuses')
+      .select('id').eq('provider_id', providerId).eq('member_id', memberId)
+      .gte('created_at', windowStart).limit(1).maybeSingle();
+    if (recent) return { granted: false, reason: 'already_granted_this_month' };
+
+    const BONUS_CREDITS = 3;
+    const clubId = membership.club_id;
+
+    await supabase.from('car_club_return_bonuses').insert({
+      provider_id: providerId, member_id: memberId, club_id: clubId,
+      credits_granted: BONUS_CREDITS,
+    });
+    await supabase.from('bid_credit_purchases').insert({
+      provider_id: providerId, bids_purchased: BONUS_CREDITS,
+      amount_paid: 0, status: 'granted',
+      stripe_session_id: `car_club_return_bonus_${providerId}_${memberId}`,
+    }).catch(() => {}); // non-fatal if duplicate
+
+    const { data: p } = await supabase.from('profiles')
+      .select('bid_credits').eq('id', providerId).single();
+    await supabase.from('profiles')
+      .update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS })
+      .eq('id', providerId);
+
+    await supabase.from('notifications').insert({
+      user_id:  providerId,
+      type:     'car_club_bonus',
+      title:    'You earned 3 bonus bid credits!',
+      body:     'A car club member returned to book your services.',
+      metadata: { member_id: memberId, club_id: clubId, credits: BONUS_CREDITS },
+    }).catch(() => {});
+
+    console.log(`[agent-fleet-admin] car club return bonus granted: provider ${providerId} member ${memberId}`);
+    return { granted: true, credits: BONUS_CREDITS };
+  } catch (e) {
+    console.warn('[agent-fleet-admin] car club return bonus error (non-fatal):', e.message);
+    return { granted: false, reason: 'error', error: e.message };
+  }
+}
+
 async function _treasurerCapture(supabase, stripe, id, action, payload) {
   const carePlanId = payload.care_plan_id;
   if (!carePlanId) return { error: 'payload.care_plan_id required for approve_capture', status: 400 };
@@ -854,15 +912,27 @@ async function _treasurerCapture(supabase, stripe, id, action, payload) {
     }
   }
 
+  // Car club return bonus (best-effort): if this member is enrolled in one of
+  // the provider's car clubs, grant 3 bid credits on completed payment.
+  let carClubResult = null;
+  if (cpc.provider_id) {
+    const { data: plan } = await supabase.from('care_plans')
+      .select('member_id').eq('id', cpc.care_plan_id).maybeSingle();
+    if (plan?.member_id) {
+      carClubResult = await _maybeGrantCarClubReturnBonus(supabase, cpc.provider_id, plan.member_id);
+    }
+  }
+
   const auditCap = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'approve_capture',
     completion_id: cpc.id,
     payment_intent_id: cpc.stripe_payment_intent_id,
     captured_amount: capturedAmount,
     commission: commissionResult,
-    _reasoning: `Treasurer apply: captured PI ${cpc.stripe_payment_intent_id} for $${capturedAmount}${commissionResult && commissionResult.transferId ? ` · founder commission ${commissionResult.transferId}` : ''}.`
+    car_club_bonus: carClubResult,
+    _reasoning: `Treasurer apply: captured PI ${cpc.stripe_payment_intent_id} for $${capturedAmount}${commissionResult && commissionResult.transferId ? ` · founder commission ${commissionResult.transferId}` : ''}${carClubResult?.granted ? ' · car club bonus granted' : ''}.`
   });
-  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult, audit_warning: auditCap.audit_warning };
+  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult, car_club_bonus: carClubResult, audit_warning: auditCap.audit_warning };
 }
 
 async function _treasurerRefund(supabase, stripe, id, action, payload) {

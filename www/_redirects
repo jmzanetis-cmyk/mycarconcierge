@@ -65,6 +65,7 @@
 /api/admin/audit-log /.netlify/functions/admin-audit-log 200
 /api/outreach/ref /.netlify/functions/outreach-ref 200
 /unsubscribe /.netlify/functions/outreach-unsubscribe 200
+/api/webhooks/stripe /.netlify/functions/stripe-webhook 200
 /api/webhooks/resend /.netlify/functions/outreach-resend-webhook 200
 /api/webhooks/background-check /.netlify/functions/background-check-webhook 200
 /api/provider/match-preferences/resume /.netlify/functions/provider-match-preferences/resume 200

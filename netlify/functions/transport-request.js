@@ -13,10 +13,17 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 
 // TNC permit not yet obtained — passenger rides disabled until further notice.
 // Flip to true only after regulatory approval is confirmed.
 const RIDESHARE_ENABLED = false;
+
+function getStripe() {
+  const key = process.env.STRIPE_SECRET_KEY;
+  if (!key) return null;
+  return require('stripe')(key, { apiVersion: STRIPE_API_VERSION });
+}
 const VEHICLE_ONLY_TIERS = ['tier_2_vehicle_solo', 'tier_3_vehicle_paired'];
 
 function getServiceSupabase() {
@@ -218,6 +225,29 @@ async function handleProviderRequest(event, supabase, body) {
   const memberPays   = Math.round(fare * (1 - subsidy / 100) * 100) / 100;
   const providerPays = Math.round(fare * (subsidy / 100) * 100) / 100;
 
+  // Guard: provider must have a saved payment method before creating a subsidised ride
+  let providerStripeCustomerId = null;
+  let providerDefaultPM        = null;
+  if (providerPays > 0) {
+    const stripe = getStripe();
+    if (!stripe) return jsonResponse(500, { error: 'Payment service not configured' });
+    const { data: provProfile } = await supabase.from('profiles')
+      .select('stripe_customer_id').eq('id', user.id).maybeSingle();
+    if (!provProfile?.stripe_customer_id) {
+      return jsonResponse(400, { error: 'Please add a payment method to offer subsidised rides' });
+    }
+    try {
+      const customer = await stripe.customers.retrieve(provProfile.stripe_customer_id);
+      providerDefaultPM = customer.invoice_settings?.default_payment_method;
+    } catch (e) {
+      return jsonResponse(400, { error: 'Could not retrieve payment method — please update your card' });
+    }
+    if (!providerDefaultPM) {
+      return jsonResponse(400, { error: 'Please add a payment method to offer subsidised rides' });
+    }
+    providerStripeCustomerId = provProfile.stripe_customer_id;
+  }
+
   const vehicleInfo = await getVehicleInfo(supabase, vehicle_id);
   const tier     = isTandem ? 'tier_3_vehicle_paired' : 'tier_2_vehicle_solo';
   const scenario = isTandem ? 'paired_vehicle_pickup' : 'vehicle_pickup_solo';
@@ -261,6 +291,26 @@ async function handleProviderRequest(event, supabase, body) {
   if (error) {
     console.error('[transport-request] provider insert error:', error);
     return jsonResponse(500, { error: error.message });
+  }
+
+  // Charge provider for their subsidised portion
+  if (providerPays > 0 && providerStripeCustomerId && providerDefaultPM) {
+    try {
+      await getStripe().paymentIntents.create({
+        amount:         Math.round(providerPays * 100),
+        currency:       'usd',
+        customer:       providerStripeCustomerId,
+        payment_method: providerDefaultPM,
+        confirm:        true,
+        off_session:    true,
+        description:    `MCC Provider Subsidy — Ride ${data.id}`,
+        metadata:       { ride_id: data.id, type: 'provider_subsidy', provider_id: user.id },
+      });
+    } catch (chargeErr) {
+      // Subsidy charge failed — roll back the ride to avoid an uncharged subsidy
+      await supabase.from('rides').delete().eq('id', data.id);
+      return jsonResponse(402, { error: 'Subsidy payment failed: ' + chargeErr.message });
+    }
   }
 
   // Auto-create pending return leg (shop→member) when include_return=true
@@ -460,15 +510,55 @@ async function handleTip(event, supabase, body) {
   const { data: ride } = await supabase.from('rides').select('member_id').eq('id', ride_id).single();
   if (!ride || ride.member_id !== user.id) return jsonResponse(403, { error: 'Unauthorized' });
 
-  const { error } = await supabase.from('driver_tips').insert({
+  // Guard: member must have a saved payment method to tip
+  const { data: memberProfile } = await supabase.from('profiles')
+    .select('stripe_customer_id').eq('id', user.id).maybeSingle();
+  if (!memberProfile?.stripe_customer_id) {
+    return jsonResponse(400, { error: 'Please add a payment method to tip your driver' });
+  }
+
+  const stripe = getStripe();
+  if (!stripe) return jsonResponse(500, { error: 'Payment service not configured' });
+
+  // Retrieve default payment method from Stripe customer
+  let defaultPM;
+  try {
+    const customer = await stripe.customers.retrieve(memberProfile.stripe_customer_id);
+    defaultPM = customer.invoice_settings?.default_payment_method;
+  } catch (e) {
+    return jsonResponse(400, { error: 'Could not retrieve payment method — please update your card' });
+  }
+  if (!defaultPM) {
+    return jsonResponse(400, { error: 'Please add a payment method to tip your driver' });
+  }
+
+  // Insert tip row first so there's a record even if charge fails
+  const { data: tip, error: tipInsertErr } = await supabase.from('driver_tips').insert({
     ride_id,
     driver_id,
     amount: amount_cents / 100,
-    status: 'pending'
-  });
+    status: 'pending',
+  }).select('id').single();
+  if (tipInsertErr) return jsonResponse(500, { error: tipInsertErr.message });
 
-  if (error) return jsonResponse(500, { error: error.message });
-  return jsonResponse(201, { tipped: true });
+  // Charge the member's saved card
+  try {
+    await stripe.paymentIntents.create({
+      amount:         amount_cents,
+      currency:       'usd',
+      customer:       memberProfile.stripe_customer_id,
+      payment_method: defaultPM,
+      confirm:        true,
+      off_session:    true,
+      description:    'MCC Driver Tip',
+      metadata:       { ride_id, driver_id, type: 'tip' },
+    });
+    await supabase.from('driver_tips').update({ status: 'charged' }).eq('id', tip.id);
+    return jsonResponse(201, { tipped: true });
+  } catch (e) {
+    await supabase.from('driver_tips').update({ status: 'failed' }).eq('id', tip.id);
+    return jsonResponse(402, { error: 'Payment failed: ' + e.message });
+  }
 }
 
 // ---------------------------------------------------------------------------
