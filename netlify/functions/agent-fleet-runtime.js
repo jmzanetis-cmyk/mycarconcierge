@@ -67,7 +67,12 @@ function authorizeAgentInvocation(event) {
                             || headers['x-admin-token']    || headers['X-Admin-Token']);
   if (hasAnyAdminHeader) return null; // bad credential -> reject
   // Unspoofable: a real Netlify scheduled invocation has no httpMethod.
-  if (!event.httpMethod && isScheduledInvocation(event)) return 'scheduled';
+  // httpMethod is injected by Netlify's HTTPS edge for every public HTTP request;
+  // a scheduled invocation bypasses the edge entirely, so httpMethod is absent.
+  // We no longer require next_run in the body because Netlify has silently changed
+  // their scheduled-function invocation body format in the past, and a failed
+  // body check was the root cause of the orchestrator going silent.
+  if (!event.httpMethod) return 'scheduled';
   return null;
 }
 

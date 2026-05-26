@@ -74,6 +74,158 @@ exports.handler = async function(event) {
   var supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
 
+  // ── Body-password-authenticated payout routes ───────────────────────────
+  // These routes are called from the admin UI with admin_password in the body
+  // (no Bearer token) because the payout confirmation prompt collects it inline.
+  var earlyBody = {};
+  if (event.body) { try { earlyBody = JSON.parse(event.body); } catch (e) { earlyBody = {}; } }
+  var bodyPassword = (earlyBody.admin_password || '').trim();
+  var envPassword  = (process.env.ADMIN_PASSWORD || '').trim();
+  var bodyAuthed   = envPassword && bodyPassword === envPassword;
+
+  if (bodyAuthed) {
+    var earlyPath   = parsePath(event);
+    var earlyMethod = event.httpMethod;
+
+    // ── POST /api/admin/process-founder-payout ──────────────────────────
+    if (earlyMethod === 'POST' && earlyPath === 'process-founder-payout') {
+      var payoutId   = earlyBody.payout_id;
+      var payoutType = earlyBody.payout_type || 'weekly';
+
+      if (!payoutId) return utils.errorResponse(400, 'payout_id required');
+
+      var payoutRow = await supabase.from('founder_payouts')
+        .select('id, founder_id, amount, net_amount, fee_amount, status, payout_type')
+        .eq('id', payoutId)
+        .maybeSingle();
+      if (payoutRow.error) return utils.errorResponse(500, payoutRow.error.message);
+      if (!payoutRow.data) return utils.errorResponse(404, 'Payout not found');
+      var payout = payoutRow.data;
+      if (payout.status === 'completed') return utils.errorResponse(409, 'Payout already completed');
+
+      var profileRow = await supabase.from('member_founder_profiles')
+        .select('stripe_connect_account_id, full_name')
+        .eq('id', payout.founder_id)
+        .maybeSingle();
+      if (profileRow.error) return utils.errorResponse(500, profileRow.error.message);
+      if (!profileRow.data || !profileRow.data.stripe_connect_account_id) {
+        return utils.errorResponse(422, 'Founder does not have a Stripe Connect account configured');
+      }
+      var stripeAccount = profileRow.data.stripe_connect_account_id;
+
+      var settings = await getPayoutSettings(supabase);
+      var grossAmount = parseFloat(payout.amount || 0);
+      var feeAmount = 0;
+      if (payoutType === 'instant') {
+        var feeRate = (settings.instant_payout_fee_percent || 1) / 100;
+        feeAmount = Math.min(
+          settings.instant_payout_fee_max || 10,
+          Math.max(settings.instant_payout_fee_min || 0.50, grossAmount * feeRate)
+        );
+      }
+      var netAmount = grossAmount - feeAmount;
+      if (netAmount < 0.50) return utils.errorResponse(422, 'Net payout amount is below minimum ($0.50)');
+
+      try {
+        var { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+        var Stripe = require('stripe');
+        var stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
+
+        var transfer = await stripe.transfers.create({
+          amount:      Math.round(netAmount * 100),
+          currency:    'usd',
+          destination: stripeAccount,
+          metadata:    { payout_id: payoutId, payout_type: payoutType, founder_id: payout.founder_id }
+        });
+
+        var now = new Date().toISOString();
+        await supabase.from('founder_payouts').update({
+          status:             'completed',
+          stripe_transfer_id: transfer.id,
+          processed_at:       now,
+          payout_type:        payoutType,
+          fee_amount:         feeAmount,
+          net_amount:         netAmount,
+          receipt_url:        transfer.metadata && transfer.metadata.receipt_url || null
+        }).eq('id', payoutId);
+
+        return utils.successResponse({ success: true, transfer_id: transfer.id, net_amount: netAmount, fee_amount: feeAmount });
+      } catch (stripeErr) {
+        await supabase.from('founder_payouts').update({ status: 'failed', notes: stripeErr.message }).eq('id', payoutId);
+        return utils.errorResponse(502, 'Stripe transfer failed: ' + stripeErr.message);
+      }
+    }
+
+    // ── POST /api/admin/process-bulk-payouts ────────────────────────────
+    if (earlyMethod === 'POST' && earlyPath === 'process-bulk-payouts') {
+      var threshold   = parseFloat(earlyBody.threshold || 10);
+      var bulkType    = earlyBody.payout_type || 'weekly';
+
+      var pendingResult = await supabase.from('founder_payouts')
+        .select('id, founder_id, amount')
+        .eq('status', 'pending')
+        .gte('amount', threshold);
+      if (pendingResult.error) return utils.errorResponse(500, pendingResult.error.message);
+      var pending = pendingResult.data || [];
+
+      if (pending.length === 0) return utils.successResponse({ summary: { succeeded: 0, failed: 0, total_amount: 0, results: [] } });
+
+      var settings = await getPayoutSettings(supabase);
+      var { STRIPE_API_VERSION: SV } = require('../../lib/stripe-api-version');
+      var StripeB = require('stripe');
+      var stripeB = new StripeB(process.env.STRIPE_SECRET_KEY, { apiVersion: SV });
+
+      var results = [];
+      for (var pi = 0; pi < pending.length; pi++) {
+        var p = pending[pi];
+        try {
+          var pRow = await supabase.from('member_founder_profiles')
+            .select('stripe_connect_account_id')
+            .eq('id', p.founder_id)
+            .maybeSingle();
+          if (!pRow.data || !pRow.data.stripe_connect_account_id) {
+            results.push({ payout_id: p.id, status: 'failed', error: 'No Stripe Connect account' });
+            continue;
+          }
+          var gross = parseFloat(p.amount || 0);
+          var fee   = 0;
+          if (bulkType === 'instant') {
+            var fr = (settings.instant_payout_fee_percent || 1) / 100;
+            fee = Math.min(settings.instant_payout_fee_max || 10, Math.max(settings.instant_payout_fee_min || 0.50, gross * fr));
+          }
+          var net = gross - fee;
+          if (net < 0.50) { results.push({ payout_id: p.id, status: 'failed', error: 'Net below minimum' }); continue; }
+
+          var txfer = await stripeB.transfers.create({
+            amount: Math.round(net * 100), currency: 'usd',
+            destination: pRow.data.stripe_connect_account_id,
+            metadata: { payout_id: p.id, payout_type: bulkType, founder_id: p.founder_id }
+          });
+          await supabase.from('founder_payouts').update({
+            status: 'completed', stripe_transfer_id: txfer.id,
+            processed_at: new Date().toISOString(), payout_type: bulkType, fee_amount: fee, net_amount: net
+          }).eq('id', p.id);
+          results.push({ payout_id: p.id, status: 'completed', transfer_id: txfer.id, net_amount: net });
+        } catch (e) {
+          await supabase.from('founder_payouts').update({ status: 'failed', notes: e.message }).eq('id', p.id);
+          results.push({ payout_id: p.id, status: 'failed', error: e.message });
+        }
+      }
+
+      var succeeded = results.filter(function(r) { return r.status === 'completed'; });
+      var failed    = results.filter(function(r) { return r.status === 'failed'; });
+      return utils.successResponse({
+        summary: {
+          succeeded:    succeeded.length,
+          failed:       failed.length,
+          total_amount: succeeded.reduce(function(s, r) { return s + (r.net_amount || 0); }, 0),
+          results
+        }
+      });
+    }
+  }
+  // ────────────────────────────────────────────────────────────────────────
+
   var user = await authenticateBearerAdmin(event, supabase);
   if (!user) return utils.errorResponse(401, 'Authentication required');
 

@@ -119,6 +119,36 @@
 /api/admin/hubspot/* /.netlify/functions/admin-hubspot/:splat 200
 /api/admin/marketing/* /.netlify/functions/admin-marketing/:splat 200
 
+# Founder payouts (body-password auth, not Bearer)
+/api/admin/process-founder-payout /.netlify/functions/admin-founders/process-founder-payout 200
+/api/admin/process-bulk-payouts /.netlify/functions/admin-founders/process-bulk-payouts 200
+
+# SMS Log
+/api/admin/sms-log /.netlify/functions/admin-sms-log 200
+/api/admin/sms-log/* /.netlify/functions/admin-sms-log/:splat 200
+
+# SaaS Subscriptions
+/api/admin/saas/subscriptions /.netlify/functions/admin-saas/subscriptions 200
+/api/admin/saas/* /.netlify/functions/admin-saas/:splat 200
+
+# White-label Tenants
+/api/admin/white-label/tenants /.netlify/functions/admin-white-label/tenants 200
+/api/admin/white-label/* /.netlify/functions/admin-white-label/:splat 200
+
+# AI API Usage & Keys
+/api/admin/api-usage /.netlify/functions/admin-api-usage 200
+/api/admin/api-keys/* /.netlify/functions/admin-api-usage/:splat 200
+
+# AI Chat Insights
+/api/admin/chat-insights /.netlify/functions/admin-chat-insights 200
+
+# Merch Manager — Design Library
+/api/admin/designs /.netlify/functions/admin-designs 200
+/api/admin/designs/* /.netlify/functions/admin-designs/:splat 200
+
+# Merch Manager — Printful
+/api/admin/printful/* /.netlify/functions/admin-printful/:splat 200
+
 # Feature: Recall Alerts
 /api/vehicle/*/recalls /.netlify/functions/vehicle-recalls 200
 
