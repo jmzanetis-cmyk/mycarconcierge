@@ -425,7 +425,7 @@
       'api-usage': async () => { await loadApiUsage(); },
       'survey-analytics': async () => { await loadSurveyAnalytics(); },
       'member-surveys': async () => { await loadMemberSurveyAnalytics(); },
-      'car-clubs': async () => { if (typeof loadCarClubs === 'function') await loadCarClubs(); }
+      'car-clubs': async () => { await loadCarClubs(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -12809,6 +12809,134 @@
       }
     }
     globalThis.loadPromoterDrafts = loadPromoterDrafts;
+
+    // ========== CAR CLUBS ==========
+
+    async function loadCarClubs() {
+      const tbody = document.querySelector('#car-clubs-table tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Loading…</td></tr>';
+      try {
+        const { data, error } = await supabaseClient
+          .from('car_clubs')
+          .select('id, name, description, is_active, provider_suspended, member_count, vehicle_make, vehicle_model, region, created_at, provider_id, provider:provider_id(full_name, email)')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const clubs = data || [];
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('car-club-total'))       dEl('car-club-total').textContent  = clubs.length;
+        if (dEl('car-club-active'))      dEl('car-club-active').textContent = clubs.filter(c => c.is_active && !c.provider_suspended).length;
+        if (dEl('car-club-members'))     dEl('car-club-members').textContent = clubs.reduce((s, c) => s + (c.member_count || 0), 0);
+        if (dEl('car-club-redemptions')) dEl('car-club-redemptions').textContent = '—';
+
+        if (!clubs.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px;">No car clubs yet — create one below</td></tr>';
+          renderCarClubCreateForm();
+          return;
+        }
+
+        tbody.innerHTML = clubs.map(c => {
+          const providerName = c.provider?.full_name || c.provider?.email || 'Platform';
+          const active = c.is_active && !c.provider_suspended;
+          const vehicleTag = [c.vehicle_make, c.vehicle_model].filter(Boolean).join(' ') || '—';
+          const statusC = active ? '#10b981' : '#6b7280';
+          return `<tr>
+            <td style="font-size:0.85rem;">${escapeHtml(providerName)}</td>
+            <td><strong>${escapeHtml(c.name || '—')}</strong>
+              ${c.region ? `<div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(c.region)}</div>` : ''}
+            </td>
+            <td style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(vehicleTag)}</td>
+            <td style="text-align:center;">${c.member_count || 0}</td>
+            <td>—</td>
+            <td><span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${statusC}22;color:${statusC};border:1px solid ${statusC}55;">${active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary btn-sm" onclick="viewCarClub('${c.id}')">View</button>
+                <button class="btn btn-${active ? 'danger' : 'success'} btn-sm" onclick="toggleCarClub('${c.id}', ${active})">${active ? 'Deactivate' : 'Activate'}</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+
+        // Update table header to include Actions col
+        const thead = document.querySelector('#car-clubs-table thead tr');
+        if (thead && thead.children.length < 7) {
+          const th = document.createElement('th');
+          th.textContent = 'Actions';
+          thead.appendChild(th);
+        }
+
+        renderCarClubCreateForm();
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--accent-red);padding:32px;">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function renderCarClubCreateForm() {
+      const section = document.getElementById('car-clubs');
+      if (!section || section.querySelector('#car-club-create-form')) return;
+      const div = document.createElement('div');
+      div.id = 'car-club-create-form';
+      div.className = 'card';
+      div.style.marginTop = '24px';
+      div.innerHTML = `
+        <div class="card-header"><h3>Create Platform Club</h3></div>
+        <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px;">
+          <input id="new-club-name" class="form-control" placeholder="Club name" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <input id="new-club-make" class="form-control" placeholder="Vehicle make (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <input id="new-club-model" class="form-control" placeholder="Vehicle model (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <input id="new-club-region" class="form-control" placeholder="Region (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <textarea id="new-club-desc" placeholder="Description" style="grid-column:1/-1;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);resize:vertical;min-height:70px;"></textarea>
+          <button class="btn btn-primary" onclick="createCarClub()" style="grid-column:1/-1;">Create Club</button>
+        </div>`;
+      section.appendChild(div);
+    }
+
+    async function createCarClub() {
+      const name    = document.getElementById('new-club-name')?.value.trim();
+      const make    = document.getElementById('new-club-make')?.value.trim();
+      const model   = document.getElementById('new-club-model')?.value.trim();
+      const region  = document.getElementById('new-club-region')?.value.trim();
+      const desc    = document.getElementById('new-club-desc')?.value.trim();
+      if (!name) return alert('Club name is required');
+      const { error } = await supabaseClient.from('car_clubs').insert({
+        name, description: desc || null, vehicle_make: make || null, vehicle_model: model || null,
+        region: region || null, is_active: true, member_count: 0
+      });
+      if (error) return alert('Error: ' + error.message);
+      ['new-club-name','new-club-make','new-club-model','new-club-region','new-club-desc'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      loadCarClubs();
+    }
+
+    async function viewCarClub(clubId) {
+      const { data: c } = await supabaseClient.from('car_clubs').select('*, provider:provider_id(full_name,email)').eq('id', clubId).maybeSingle();
+      if (!c) return alert('Club not found');
+      const html = `<div class="form-section"><div class="form-section-title">${escapeHtml(c.name)}</div><div class="detail-grid">
+        <span class="detail-label">Provider:</span><span class="detail-value">${escapeHtml(c.provider?.full_name || c.provider?.email || 'Platform')}</span>
+        <span class="detail-label">Description:</span><span class="detail-value">${escapeHtml(c.description || '—')}</span>
+        <span class="detail-label">Vehicle:</span><span class="detail-value">${escapeHtml([c.vehicle_make,c.vehicle_model].filter(Boolean).join(' ') || '—')}</span>
+        <span class="detail-label">Region:</span><span class="detail-value">${escapeHtml(c.region || '—')}</span>
+        <span class="detail-label">Members:</span><span class="detail-value">${c.member_count || 0}</span>
+        <span class="detail-label">Active:</span><span class="detail-value">${c.is_active ? 'Yes' : 'No'}</span>
+        <span class="detail-label">Rules:</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(c.rules_text || '—')}</span>
+        <span class="detail-label">Created:</span><span class="detail-value">${new Date(c.created_at).toLocaleDateString()}</span>
+      </div></div>`;
+      showModal('Car Club', html);
+    }
+
+    async function toggleCarClub(clubId, currentlyActive) {
+      const msg = currentlyActive ? 'Deactivate this car club?' : 'Reactivate this car club?';
+      if (!confirm(msg)) return;
+      const { error } = await supabaseClient.from('car_clubs').update({ is_active: !currentlyActive }).eq('id', clubId);
+      if (error) return alert('Error: ' + error.message);
+      loadCarClubs();
+    }
+
+    globalThis.loadCarClubs       = loadCarClubs;
+    globalThis.createCarClub      = createCarClub;
+    globalThis.viewCarClub        = viewCarClub;
+    globalThis.toggleCarClub      = toggleCarClub;
 
     async function reviewPromoterDraft(id, decision) {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
