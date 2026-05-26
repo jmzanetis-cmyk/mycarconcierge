@@ -2401,29 +2401,12 @@
             <p style="color:#a0a8b8;font-size:1rem;max-width:600px;margin:0 auto;line-height:1.7;">We're raising funds to cover licensing, insurance, and driver onboarding so MCC can pick up and deliver your car to the shop. Back us and be part of the future of vehicle care.</p>
           </div>
 
-          <!-- Progress bar -->
-          <div style="margin-bottom:28px;">
-            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:10px;">
-              <span id="idx-fund-raised" style="font-family:'Playfair Display',serif;font-size:1.5rem;font-weight:600;color:#c9a227;">$0 raised</span>
-              <span style="color:#6b7280;font-size:0.88rem;">of $60,000 goal</span>
-            </div>
-            <div style="height:10px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;">
-              <div id="idx-fund-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#c9a227,#e6b84a);border-radius:999px;transition:width 1.2s ease;"></div>
-            </div>
-            <div id="idx-fund-pct" style="font-size:0.78rem;color:#6b7280;margin-top:6px;text-align:right;">0% funded</div>
-          </div>
+          <!-- Milestone progress bars — populated by applyFundData() below -->
+          <div id="idx-milestones" style="display:grid;gap:12px;margin-bottom:20px;"></div>
 
-          <!-- Goal breakdown -->
-          <div style="background:rgba(20,26,36,0.7);border:1px solid rgba(160,168,184,0.1);border-radius:14px;padding:20px 24px;margin-bottom:32px;">
-            <div style="font-size:0.72rem;font-weight:700;text-transform:uppercase;letter-spacing:0.1em;color:#6b7280;margin-bottom:14px;">How funds will be used</div>
-            <div style="display:grid;gap:11px;">
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:#a0a8b8;">TNC Licensing &amp; Legal</span><span style="color:#f5f5f7;font-weight:600;">$25,000</span></div>
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:#a0a8b8;">Commercial Auto Insurance (Year&nbsp;1)</span><span style="color:#f5f5f7;font-weight:600;">$18,000</span></div>
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:#a0a8b8;">Driver Onboarding &amp; Training</span><span style="color:#f5f5f7;font-weight:600;">$10,000</span></div>
-              <div style="display:flex;justify-content:space-between;font-size:0.9rem;"><span style="color:#a0a8b8;">Marketing &amp; Launch</span><span style="color:#f5f5f7;font-weight:600;">$7,000</span></div>
-              <div style="height:1px;background:rgba(160,168,184,0.1);"></div>
-              <div style="display:flex;justify-content:space-between;font-size:0.95rem;font-weight:700;"><span style="color:#c9a227;">Total Goal</span><span style="color:#c9a227;">$60,000</span></div>
-            </div>
+          <!-- Overall total summary -->
+          <div style="text-align:center;padding:10px 0 24px;border-top:1px solid rgba(160,168,184,0.08);">
+            <span style="color:#6b7280;font-size:0.9rem;">Total: <strong id="idx-fund-raised" style="color:#c9a227;font-size:1.05rem;">$0 raised</strong> of $60,000 — <span id="idx-fund-pct">0%</span> to launch</span>
           </div>
 
           <!-- CTAs -->
@@ -2465,19 +2448,73 @@
     </section>
     <script>
       (function() {
+        var DEFAULT_MILESTONES = [
+          { name: 'TNC Licensing & Legal', goal: 25000, description: 'Covers state permits and transportation attorney fees so we can legally operate' },
+          { name: 'Commercial Auto Insurance', goal: 18000, description: 'Year 1 hired & non-owned auto policy with $1.5M liability coverage' },
+          { name: 'Driver Onboarding & Training', goal: 10000, description: 'Background checks, training content, and certification program for our first drivers' },
+          { name: 'Marketing & Launch', goal: 7000, description: 'Driver recruitment, provider outreach, and launch campaign' }
+        ];
+
+        function computeMilestones(raised, milestones) {
+          var remaining = raised;
+          return milestones.map(function(m) {
+            var mRaised = Math.min(remaining, m.goal);
+            remaining = Math.max(0, remaining - m.goal);
+            var mPct = m.goal > 0 ? Math.min(100, Math.round((mRaised / m.goal) * 100)) : 0;
+            var status = mRaised >= m.goal ? 'funded' : mRaised > 0 ? 'in_progress' : 'not_started';
+            return { name: m.name, goal: m.goal, raised: mRaised, pct: mPct, status: status, description: m.description || '' };
+          });
+        }
+
+        function renderMilestones(host, computed) {
+          host.innerHTML = computed.map(function(m) {
+            var isF = m.status === 'funded', isP = m.status === 'in_progress';
+            var statusLabel = isF ? '✓ Funded!' : isP ? 'In progress' : 'Not started';
+            var statusColor = isF ? '#4ade80' : isP ? '#c9a227' : '#6b7280';
+            var barGrad = isF ? 'linear-gradient(90deg,#4ade80,#22c55e)' : 'linear-gradient(90deg,#c9a227,#e6b84a)';
+            var borderCol = isF ? 'rgba(74,222,128,0.2)' : isP ? 'rgba(201,162,39,0.2)' : 'rgba(160,168,184,0.1)';
+            return '<div style="background:rgba(20,26,36,0.6);border:1px solid ' + borderCol + ';border-radius:12px;padding:15px 17px;">' +
+              '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:' + (m.description ? '4px' : '8px') + ';">' +
+                '<span style="font-weight:700;font-size:0.9rem;color:#f5f5f7;">' + m.name + '</span>' +
+                '<span style="font-size:0.75rem;font-weight:700;color:' + statusColor + ';white-space:nowrap;margin-left:10px;">' + statusLabel + '</span>' +
+              '</div>' +
+              (m.description ? '<div style="font-size:0.78rem;color:#6b7280;margin-bottom:9px;line-height:1.4;">' + m.description + '</div>' : '') +
+              '<div style="height:7px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;margin-bottom:5px;">' +
+                '<div style="height:100%;width:0%;background:' + barGrad + ';border-radius:999px;transition:width 1.2s ease;" data-target="' + m.pct + '"></div>' +
+              '</div>' +
+              '<div style="display:flex;justify-content:space-between;font-size:0.76rem;color:#6b7280;">' +
+                '<span>$' + m.raised.toLocaleString() + ' raised</span>' +
+                '<span>of $' + m.goal.toLocaleString() + '</span>' +
+              '</div>' +
+            '</div>';
+          }).join('');
+          setTimeout(function() {
+            host.querySelectorAll('[data-target]').forEach(function(el) {
+              el.style.width = el.getAttribute('data-target') + '%';
+            });
+          }, 150);
+        }
+
         function applyFundData(cfg) {
-          var raised  = cfg.DRIVER_FUND_RAISED || 0;
-          var goal    = cfg.DRIVER_FUND_GOAL   || 60000;
-          var wef     = cfg.WEFUNDER_URL       || 'https://wefunder.com/mycarconcierge';
+          var raised  = cfg.DRIVER_FUND_RAISED      || 0;
+          var goal    = cfg.DRIVER_FUND_GOAL        || 60000;
+          var wef     = cfg.WEFUNDER_URL            || 'https://wefunder.com/mycarconcierge';
+          var donors  = cfg.DRIVER_FUND_DONOR_COUNT || 0;
           var pct     = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
-          var raEl    = document.getElementById('idx-fund-raised');
-          var barEl   = document.getElementById('idx-fund-bar');
-          var pctEl   = document.getElementById('idx-fund-pct');
-          var btnEl   = document.getElementById('idx-wefunder-btn');
+          var milestones = cfg.DRIVER_FUND_MILESTONES || DEFAULT_MILESTONES;
+          var computed   = computeMilestones(raised, milestones);
+
+          var mHost = document.getElementById('idx-milestones');
+          if (mHost) renderMilestones(mHost, computed);
+
+          var raEl  = document.getElementById('idx-fund-raised');
+          var pctEl = document.getElementById('idx-fund-pct');
+          var btnEl = document.getElementById('idx-wefunder-btn');
+          var cntEl = document.getElementById('idx-supporter-count');
           if (raEl)  raEl.textContent  = '$' + raised.toLocaleString() + ' raised';
-          if (pctEl) pctEl.textContent = pct + '% funded';
+          if (pctEl) pctEl.textContent = pct + '%';
           if (btnEl) btnEl.href = wef;
-          if (barEl) setTimeout(function() { barEl.style.width = pct + '%'; }, 300);
+          if (cntEl) cntEl.textContent = donors.toLocaleString();
         }
         if (window.MCC_CONFIG) { applyFundData(window.MCC_CONFIG); }
         window.addEventListener('mcc-config-loaded', function(e) { applyFundData(e.detail); });

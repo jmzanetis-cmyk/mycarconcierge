@@ -54,7 +54,17 @@
     // Driver launch fundraising — update these to reflect live Wefunder numbers.
     WEFUNDER_URL: 'https://wefunder.com/mycarconcierge',
     DRIVER_FUND_GOAL: 60000,
-    DRIVER_FUND_RAISED: 0
+    DRIVER_FUND_RAISED: 0,
+    // Manual donor count — update when Stripe shows new completed donations.
+    DRIVER_FUND_DONOR_COUNT: 0,
+    // Milestones are funded in order: first $25K → licensing, next $18K → insurance, etc.
+    // JS computes per-milestone raised amounts from DRIVER_FUND_RAISED automatically.
+    DRIVER_FUND_MILESTONES: [
+      { name: 'TNC Licensing & Legal', goal: 25000, description: 'Covers state permits and transportation attorney fees so we can legally operate' },
+      { name: 'Commercial Auto Insurance', goal: 18000, description: 'Year 1 hired & non-owned auto policy with $1.5M liability coverage' },
+      { name: 'Driver Onboarding & Training', goal: 10000, description: 'Background checks, training content, and certification program for our first drivers' },
+      { name: 'Marketing & Launch', goal: 7000, description: 'Driver recruitment, provider outreach, and launch campaign' }
+    ]
   };
 
   window.MCC_CONFIG = defaultConfig;

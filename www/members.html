@@ -1217,10 +1217,16 @@
           <div style="flex:1;min-width:200px;">
             <div style="font-weight:700;font-size:1rem;margin-bottom:4px;color:var(--text-primary);">Help us bring vehicle pickup to your neighborhood</div>
             <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">We're raising $60,000 on Wefunder to fund TNC licensing, insurance, and driver onboarding. Backers get early access once we launch.</p>
-            <!-- Mini progress bar -->
+            <!-- Current milestone label -->
+            <div id="mem-fund-milestone" style="font-size:0.78rem;color:var(--accent-gold);font-weight:600;margin-bottom:5px;"></div>
+            <!-- Mini milestone progress bar -->
+            <div style="height:4px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;margin-bottom:10px;">
+              <div id="mem-milestone-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#c9a227,#e6b84a);border-radius:999px;transition:width 1.2s ease;"></div>
+            </div>
+            <!-- Overall progress bar -->
             <div style="margin-bottom:14px;">
-              <div style="display:flex;justify-content:space-between;font-size:0.78rem;color:var(--text-muted);margin-bottom:5px;">
-                <span id="mem-fund-raised">$0 raised</span><span>of $60,000</span>
+              <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">
+                <span id="mem-fund-raised">$0 of $60,000 raised</span><span id="mem-fund-pct">0%</span>
               </div>
               <div style="height:6px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;">
                 <div id="mem-fund-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#c9a227,#e6b84a);border-radius:999px;transition:width 1.2s ease;"></div>
@@ -1229,7 +1235,8 @@
             <a id="mem-wefunder-btn" href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#0a0a0f;font-weight:700;font-size:0.85rem;border-radius:10px;text-decoration:none;">
               Back MCC on Wefunder →
             </a>
-            <button onclick="memDonate(500)" style="margin-top:10px;background:none;border:none;color:var(--accent-blue);font-size:0.82rem;font-family:inherit;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;">Buy the team a coffee ☕</button>
+            <button onclick="memDonate(100)" style="margin-top:10px;background:none;border:none;color:var(--accent-blue);font-size:0.82rem;font-family:inherit;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;">Buy the team a coffee ☕ ($1)</button>
+            <div style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">Join <span id="mem-donor-count">0</span> backers supporting this launch</div>
           </div>
         </div>
       </div>
@@ -1240,16 +1247,44 @@
             if (el) el.style.display = 'none';
           }
           function applyMemFund(cfg) {
-            var raised = cfg.DRIVER_FUND_RAISED || 0;
-            var goal   = cfg.DRIVER_FUND_GOAL   || 60000;
-            var wef    = cfg.WEFUNDER_URL       || 'https://wefunder.com/mycarconcierge';
-            var pct    = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+            var raised  = cfg.DRIVER_FUND_RAISED      || 0;
+            var goal    = cfg.DRIVER_FUND_GOAL        || 60000;
+            var wef     = cfg.WEFUNDER_URL            || 'https://wefunder.com/mycarconcierge';
+            var donors  = cfg.DRIVER_FUND_DONOR_COUNT || 0;
+            var pct     = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+            var defM    = [
+              { name: 'TNC Licensing & Legal', goal: 25000 },
+              { name: 'Commercial Auto Insurance', goal: 18000 },
+              { name: 'Driver Onboarding & Training', goal: 10000 },
+              { name: 'Marketing & Launch', goal: 7000 }
+            ];
+            var milestones = cfg.DRIVER_FUND_MILESTONES || defM;
+            var remaining  = raised;
+            var computed   = milestones.map(function(m) {
+              var mR = Math.min(remaining, m.goal);
+              remaining = Math.max(0, remaining - m.goal);
+              return { name: m.name, goal: m.goal, raised: mR, status: mR >= m.goal ? 'funded' : mR > 0 ? 'in_progress' : 'not_started' };
+            });
+            var active  = computed.find(function(m) { return m.status !== 'funded'; }) || computed[computed.length - 1];
+            var mPct    = active && active.goal > 0 ? Math.min(100, Math.round((active.raised / active.goal) * 100)) : 0;
+            var mLabel  = active ? 'Currently funding: ' + active.name + ' — $' + active.raised.toLocaleString() + ' of $' + active.goal.toLocaleString() : '';
+
             var raEl   = document.getElementById('mem-fund-raised');
             var barEl  = document.getElementById('mem-fund-bar');
+            var pctEl  = document.getElementById('mem-fund-pct');
+            var mBar   = document.getElementById('mem-milestone-bar');
+            var mEl    = document.getElementById('mem-fund-milestone');
             var btnEl  = document.getElementById('mem-wefunder-btn');
-            if (raEl)  raEl.textContent = '$' + raised.toLocaleString() + ' raised';
-            if (btnEl) btnEl.href = wef;
-            if (barEl) setTimeout(function() { barEl.style.width = pct + '%'; }, 400);
+            var cntEl  = document.getElementById('mem-donor-count');
+            if (raEl)   raEl.textContent  = '$' + raised.toLocaleString() + ' of $60,000 raised';
+            if (pctEl)  pctEl.textContent = pct + '%';
+            if (mEl)    mEl.textContent   = mLabel;
+            if (btnEl)  btnEl.href = wef;
+            if (cntEl)  cntEl.textContent = donors.toLocaleString();
+            setTimeout(function() {
+              if (barEl) barEl.style.width = pct + '%';
+              if (mBar)  mBar.style.width  = mPct + '%';
+            }, 400);
           }
           if (window.MCC_CONFIG) { applyMemFund(window.MCC_CONFIG); }
           window.addEventListener('mcc-config-loaded', function(e) { applyMemFund(e.detail); });
