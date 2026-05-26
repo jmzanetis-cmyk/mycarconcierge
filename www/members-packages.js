@@ -1318,6 +1318,106 @@
       if (status) status.style.display = 'none';
     }
 
+    // ── AI Care Plan (care-plans section) ─────────────────────────────────────
+    let _aiCarePlanResult = null;
+
+    function toggleAiCarePlanPanel() {
+      const body = document.getElementById('ai-care-plan-body');
+      const chevron = document.getElementById('ai-care-plan-chevron');
+      if (!body) return;
+      const open = body.style.display === 'none';
+      body.style.display = open ? 'block' : 'none';
+      if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+      if (open) document.getElementById('ai-care-plan-input')?.focus();
+    }
+
+    async function aiCreateCarePlan() {
+      const input = document.getElementById('ai-care-plan-input');
+      const text = (input?.value || '').trim();
+      if (!text) { showToast('Please describe your car problem first.', 'error'); return; }
+
+      const btn = document.getElementById('ai-care-plan-btn');
+      const status = document.getElementById('ai-care-plan-status');
+      const result = document.getElementById('ai-care-plan-result');
+      btn.disabled = true;
+      btn.textContent = 'Thinking...';
+      if (status) { status.style.display = 'inline'; status.textContent = 'AI is analyzing...'; status.style.color = 'var(--accent-teal)'; }
+      if (result) result.style.display = 'none';
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const resp = await fetch(`${apiBase}/api/ai/create-care-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+          body: JSON.stringify({ description: text, member_id: session?.user?.id || null })
+        });
+        if (!resp.ok) {
+          let errMsg = 'Server error';
+          try { const d = await resp.json(); errMsg = d.error || errMsg; } catch (_) {}
+          throw new Error(errMsg);
+        }
+        const data = await resp.json();
+        _aiCarePlanResult = data.care_plan;
+
+        // Populate preview
+        const cp = _aiCarePlanResult;
+        const titleEl = document.getElementById('ai-care-plan-result-title');
+        const urgEl   = document.getElementById('ai-care-plan-result-urgency');
+        const descEl  = document.getElementById('ai-care-plan-result-desc');
+        const costEl  = document.getElementById('ai-care-plan-result-cost');
+        const safeEl  = document.getElementById('ai-care-plan-result-safety');
+
+        if (titleEl) titleEl.textContent = cp.title || '';
+        if (descEl)  descEl.textContent  = cp.detailed_description || '';
+        if (costEl)  costEl.textContent  = cp.estimated_cost_range || 'Est. unknown';
+        if (urgEl) {
+          const urgColor = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' }[cp.urgency] || 'var(--accent-teal)';
+          urgEl.textContent = cp.urgency?.toUpperCase() || '';
+          urgEl.style.background = urgColor + '22';
+          urgEl.style.color = urgColor;
+        }
+        if (safeEl) {
+          if (cp.safety_note) { safeEl.textContent = '⚠ ' + cp.safety_note; safeEl.style.display = 'block'; }
+          else { safeEl.style.display = 'none'; }
+        }
+        if (result) result.style.display = 'block';
+        if (status) { status.textContent = 'Care plan ready — review below.'; status.style.color = 'var(--accent-green)'; }
+      } catch (err) {
+        console.error('[ai-care-plan]', err);
+        if (status) { status.textContent = err.message || 'Could not process — please try again.'; status.style.color = 'var(--accent-red)'; }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> Create Care Plan with AI';
+      }
+    }
+
+    function aiCarePlanToModal() {
+      if (!_aiCarePlanResult) return;
+      const cp = _aiCarePlanResult;
+      openPackageModal();
+      setTimeout(() => {
+        const titleEl = document.getElementById('p-title');
+        const descEl  = document.getElementById('p-description');
+        const catEl   = document.getElementById('p-category');
+        if (titleEl) titleEl.value = cp.title || '';
+        if (descEl)  descEl.value  = cp.detailed_description || '';
+        if (catEl && cp.category) {
+          const match = Array.from(catEl.options).find(o => o.value === cp.category);
+          if (match) catEl.value = cp.category;
+        }
+        // Collapse the care plan panel
+        const body = document.getElementById('ai-care-plan-body');
+        const chevron = document.getElementById('ai-care-plan-chevron');
+        if (body) body.style.display = 'none';
+        if (chevron) chevron.style.transform = '';
+      }, 50);
+    }
+
+    window.toggleAiCarePlanPanel = toggleAiCarePlanPanel;
+    window.aiCreateCarePlan      = aiCreateCarePlan;
+    window.aiCarePlanToModal     = aiCarePlanToModal;
+
     async function savePackage() {
       const vehicleId = document.getElementById('p-vehicle').value;
       const title = document.getElementById('p-title').value.trim();
