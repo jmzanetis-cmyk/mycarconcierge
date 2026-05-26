@@ -109,3 +109,33 @@
 /api/admin/send-bulk-welcome-emails /.netlify/functions/admin-welcome-email 200
 /api/admin/hubspot/* /.netlify/functions/admin-hubspot/:splat 200
 /api/admin/marketing/* /.netlify/functions/admin-marketing/:splat 200
+
+# Feature: Recall Alerts
+/api/vehicle/*/recalls /.netlify/functions/vehicle-recalls 200
+
+# Feature: Vehicle Health Score
+/api/vehicles/*/compute-health /.netlify/functions/vehicle-health 200
+
+# Feature: OBD Diagnostics
+/api/obd/scan-ocr /.netlify/functions/obd-scan 200
+/api/obd/interpret /.netlify/functions/obd-scan 200
+
+# Feature: Community Board
+/api/community-board /.netlify/functions/community-board 200
+
+# Feature: Referral System
+/api/member/referral/apply /.netlify/functions/member-referral 200
+/api/member/*/referral-code /.netlify/functions/member-referral 200
+/api/member/*/referrals /.netlify/functions/member-referral 200
+/api/member/*/credits /.netlify/functions/member-referral 200
+
+# Feature: My Next Car (AI suggestions)
+/api/next-car/suggest /.netlify/functions/next-car 200
+
+# Feature: Booking / Scheduling
+/api/booking /.netlify/functions/booking 200
+/api/booking/* /.netlify/functions/booking 200
+
+# Feature: Car Clubs
+/api/car-clubs /.netlify/functions/car-clubs 200
+/api/car-clubs/* /.netlify/functions/car-clubs 200
