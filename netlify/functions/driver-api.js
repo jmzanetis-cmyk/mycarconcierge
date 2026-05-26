@@ -1285,6 +1285,43 @@ async function handleRideComplete(event, supabase, driver, assignmentId) {
   await supabase.from('driver_assignments').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', assignmentId);
   await supabase.from('rides').update({ status: 'completed', completed_at: now }).eq('id', a.ride_id);
   await emitEvent(supabase, 'transport.ride_completed', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+
+  // Charge any wait-time fees (pickup + dropoff wait + show-up fee) off-session
+  try {
+    const { data: ride } = await supabase.from('rides')
+      .select('member_id, pickup_wait_cents, dropoff_wait_cents, show_up_fee_cents')
+      .eq('id', a.ride_id).maybeSingle();
+    const waitTotal = (ride?.pickup_wait_cents || 0) + (ride?.dropoff_wait_cents || 0) + (ride?.show_up_fee_cents || 0);
+    if (waitTotal > 0 && ride?.member_id) {
+      const { data: mProfile } = await supabase.from('profiles')
+        .select('stripe_customer_id').eq('id', ride.member_id).maybeSingle();
+      if (mProfile?.stripe_customer_id) {
+        const stripe = getStripe();
+        if (stripe) {
+          const customer = await stripe.customers.retrieve(mProfile.stripe_customer_id).catch(() => null);
+          const defaultPM = customer?.invoice_settings?.default_payment_method ||
+            (await stripe.paymentMethods.list({ customer: mProfile.stripe_customer_id, type: 'card', limit: 1 }).catch(() => ({ data: [] }))).data[0]?.id || null;
+          if (defaultPM) {
+            const waitPI = await stripe.paymentIntents.create({
+              amount:         waitTotal,
+              currency:       'usd',
+              customer:       mProfile.stripe_customer_id,
+              payment_method: defaultPM,
+              confirm:        true,
+              off_session:    true,
+              description:    `MCC Wait Time — Ride ${a.ride_id}`,
+              metadata: { ride_id: a.ride_id, type: 'wait_time', driver_id: driver.id },
+            });
+            await supabase.from('rides').update({ wait_time_payment_intent_id: waitPI.id }).eq('id', a.ride_id).catch(() => {});
+          }
+        }
+      }
+    }
+  } catch (waitErr) {
+    // Non-fatal: log and continue — ride is already marked complete
+    console.error('[driver-api] wait-time charge error:', waitErr.message);
+  }
+
   return jsonResponse(200, { ok: true });
 }
 
