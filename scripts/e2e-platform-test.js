@@ -226,10 +226,9 @@ async function runCleanup() {
     const t0 = Date.now();
     const r = await api('GET', '/api/community-board', null, memberToken);
     const ms = Date.now() - t0;
-    // 502 = community board RPC schema issue (real bug, tracked separately)
-    assert([200, 502].includes(r.status),
-      'A-i community board GET (endpoint reachable)', ms,
-      r.status !== 200 ? `HTTP ${r.status} — see community-board RPC` : 'ok');
+    assert(r.status === 200,
+      'A-i community board GET', ms,
+      r.status !== 200 ? `HTTP ${r.status}: ${r.json?.error}` : `${r.json?.count ?? 0} posts`);
   }
 
   // ──────────────────────────────────────────────────────────────────────────
