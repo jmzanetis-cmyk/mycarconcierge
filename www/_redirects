@@ -16,6 +16,8 @@
 /api/stripe/connect/onboard/* /.netlify/functions/stripe-connect-onboard/:splat 200
 /api/stripe/connect/callback /.netlify/functions/stripe-connect-callback 200
 /api/stripe/connect/status/* /.netlify/functions/stripe-connect-status/:splat 200
+/api/ai/describe-to-package /.netlify/functions/ai-describe-to-package 200
+/api/ai/photo-diagnose /.netlify/functions/ai-photo-diagnose 200
 /api/ai/* /.netlify/functions/ai-member/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
 /api/create-bid-checkout-mobile /.netlify/functions/create-bid-checkout-mobile 200
@@ -141,8 +143,6 @@
 /api/booking/* /.netlify/functions/booking 200
 
 # Feature: Car Clubs
-/api/ai/describe-to-package /.netlify/functions/ai-describe-to-package 200
-/api/ai/photo-diagnose /.netlify/functions/ai-photo-diagnose 200
 /api/auto-bid/settings /.netlify/functions/auto-bid 200
 /api/auto-bid/* /.netlify/functions/auto-bid 200
 /api/car-clubs /.netlify/functions/car-clubs 200
