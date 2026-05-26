@@ -18689,6 +18689,8 @@ See you there!`);
       const STEP_LABELS = ['Requested','Assigned','En Route','Arrived','In Progress','Done'];
       const STATUS_LABELS = {
         requested:'Finding a driver', pending:'Pending dispatch',
+        scheduled:'Your pickup is scheduled — a driver will claim it before your pickup time',
+        reserved:'A driver has reserved your pickup',
         awaiting_vehicle_ready:'Your vehicle is being serviced — we\'ll dispatch a driver when ready',
         pending_dispatch:'Dispatching...', searching:'Searching nearby',
         dispatched:'Driver dispatched', driver_assigned:'Driver assigned',
@@ -18698,6 +18700,8 @@ See you there!`);
       };
       const STATUS_COLOR = {
         requested:'var(--text-muted)', pending:'var(--text-muted)',
+        scheduled:'var(--accent-blue)',
+        reserved:'var(--accent-green)',
         awaiting_vehicle_ready:'var(--accent-orange)',
         pending_dispatch:'var(--accent-orange)', searching:'var(--accent-orange)',
         dispatched:'var(--accent-blue)', driver_assigned:'var(--accent-blue)',

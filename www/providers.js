@@ -13350,6 +13350,8 @@
 
       const STATUS_LABELS = {
         requested:'Finding a driver', pending:'Pending dispatch',
+        scheduled:'Scheduled — awaiting driver claim',
+        reserved:'Driver reserved — confirmed for pickup',
         awaiting_vehicle_ready:'Vehicle in service — mark ready when done',
         pending_dispatch:'Dispatching...', searching:'Searching nearby',
         dispatched:'Driver dispatched', driver_assigned:'Driver assigned',
@@ -13359,6 +13361,8 @@
       };
       const STATUS_COLOR = {
         requested:'var(--text-muted)', pending:'var(--text-muted)',
+        scheduled:'var(--accent-blue)',
+        reserved:'var(--accent-green)',
         awaiting_vehicle_ready:'var(--accent-orange)',
         pending_dispatch:'var(--accent-orange)', searching:'var(--accent-orange)',
         dispatched:'var(--accent-blue)', driver_assigned:'var(--accent-blue)',

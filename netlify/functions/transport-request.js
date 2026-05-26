@@ -130,8 +130,12 @@ async function handleMemberRequest(event, supabase, body) {
     return jsonResponse(403, { error: 'Rideshare service is not available. MCC provides vehicle pickup & delivery only.' });
   }
 
-  // Return trips stay pending until the provider dispatches them
-  const initialStatus = is_return_trip ? 'pending' : 'requested';
+  // Scheduled rides >30 min in the future go into a browsable pool for drivers to claim.
+  // Within 30 min (or ASAP) they dispatch immediately via status='requested'.
+  const THIRTY_MIN_MS = 30 * 60 * 1000;
+  const isFutureScheduled = !is_return_trip && !is_asap && scheduled_at &&
+    (new Date(scheduled_at).getTime() - Date.now() > THIRTY_MIN_MS);
+  const initialStatus = is_return_trip ? 'pending' : isFutureScheduled ? 'scheduled' : 'requested';
 
   const { data, error } = await supabase.from('rides').insert({
     member_id:   user.id,
@@ -165,6 +169,15 @@ async function handleMemberRequest(event, supabase, body) {
     console.error('[transport-request] member insert error:', error);
     return jsonResponse(500, { error: error.message });
   }
+
+  if (isFutureScheduled) {
+    return jsonResponse(201, {
+      rideId: data.id,
+      status: 'scheduled',
+      scheduledAt: new Date(scheduled_at).toISOString(),
+      message: 'Your pickup is scheduled. A driver will claim or be assigned before your pickup time.',
+    });
+  }
   return jsonResponse(201, { ride: data });
 }
 
@@ -190,7 +203,9 @@ async function handleProviderRequest(event, supabase, body) {
     notes,
     service_request_id,
     include_return = false,   // also create a pending return leg
-    return_notes
+    return_notes,
+    scheduled_at,             // ISO timestamp for future scheduled pickup
+    is_asap = true
   } = body;
 
   if (!member_id)              return jsonResponse(400, { error: 'member_id required' });
@@ -211,6 +226,11 @@ async function handleProviderRequest(event, supabase, body) {
     return jsonResponse(403, { error: 'Rideshare service is not available. MCC provides vehicle pickup & delivery only.' });
   }
 
+  const THIRTY_MIN_MS = 30 * 60 * 1000;
+  const providerFutureScheduled = !is_asap && scheduled_at &&
+    (new Date(scheduled_at).getTime() - Date.now() > THIRTY_MIN_MS);
+  const providerInitialStatus = providerFutureScheduled ? 'scheduled' : 'requested';
+
   const { data, error } = await supabase.from('rides').insert({
     member_id,
     provider_id:    user.id,
@@ -218,7 +238,9 @@ async function handleProviderRequest(event, supabase, body) {
     channel:        'channel_b_provider',
     tier, scenario,
     phase:          'phase_2_manual_pilot',
-    status:         'requested',
+    status:         providerInitialStatus,
+    is_scheduled:   !is_asap,
+    scheduled_pickup_at: (!is_asap && scheduled_at) ? new Date(scheduled_at).toISOString() : null,
     pickup_address:  pickup_address.trim(),
     pickup_lat:  Number(pickup_lat)  || 0,
     pickup_lng:  Number(pickup_lng)  || 0,
@@ -270,6 +292,14 @@ async function handleProviderRequest(event, supabase, body) {
     }).select('id').single();
   }
 
+  if (providerFutureScheduled) {
+    return jsonResponse(201, {
+      rideId: data.id,
+      status: 'scheduled',
+      scheduledAt: new Date(scheduled_at).toISOString(),
+      message: 'Your pickup is scheduled. A driver will claim or be assigned before your pickup time.',
+    });
+  }
   return jsonResponse(201, { ride: data });
 }
 

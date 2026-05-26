@@ -1087,10 +1087,12 @@ async function handleEarnings(event, supabase, driver) {
 // POST /transport-rides/:id/complete      — vehicle delivered
 // ---------------------------------------------------------------------------
 
+const RIDE_SELECT = 'id, status, pickup_address, pickup_lat, pickup_lng, pickup_notes, dropoff_address, dropoff_lat, dropoff_lng, base_rate, estimated_fare, member_vehicle_make, member_vehicle_model, member_vehicle_year, member_vehicle_color, member_vehicle_plate, pickup_wait_cents, pickup_wait_minutes, dropoff_wait_cents, dropoff_wait_minutes, show_up_fee_cents, multiplier_rate, multiplier_label, is_round_trip, is_scheduled, scheduled_pickup_at';
+
 async function handleListTransportRides(event, supabase, driver) {
   const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-  const [{ data: active }, { data: completed }] = await Promise.all([
+  const [{ data: active }, { data: completed }, { data: scheduledRides }] = await Promise.all([
     supabase.from('driver_assignments')
       .select('id, ride_id, status, dispatched_at, response_deadline, accepted_at, en_route_at, arrived_at, started_at, completed_at, driver_payout_amount, drives_member_vehicle, member_vehicle_description, member_vehicle_plate')
       .eq('driver_id', driver.id)
@@ -1103,7 +1105,14 @@ async function handleListTransportRides(event, supabase, driver) {
       .eq('status', 'completed')
       .gte('completed_at', oneDayAgo)
       .order('completed_at', { ascending: false })
-      .limit(5)
+      .limit(5),
+    // Unclaimed scheduled rides browsable by any active driver
+    supabase.from('rides')
+      .select(RIDE_SELECT)
+      .eq('status', 'scheduled')
+      .gt('scheduled_pickup_at', new Date().toISOString())
+      .order('scheduled_pickup_at', { ascending: true })
+      .limit(20),
   ]);
 
   const all = [...(active || []), ...(completed || [])];
@@ -1112,14 +1121,69 @@ async function handleListTransportRides(event, supabase, driver) {
   let rideMap = {};
   if (rideIds.length) {
     const { data: rides } = await supabase.from('rides')
-      .select('id, status, pickup_address, pickup_lat, pickup_lng, pickup_notes, dropoff_address, dropoff_lat, dropoff_lng, base_rate, estimated_fare, member_vehicle_make, member_vehicle_model, member_vehicle_year, member_vehicle_color, member_vehicle_plate, pickup_wait_cents, pickup_wait_minutes, dropoff_wait_cents, dropoff_wait_minutes, show_up_fee_cents, multiplier_rate, multiplier_label, is_round_trip, is_scheduled, scheduled_pickup_at')
+      .select(RIDE_SELECT)
       .in('id', rideIds);
     (rides || []).forEach(r => { rideMap[r.id] = r; });
   }
 
   return jsonResponse(200, {
-    assignments: all.map(a => ({ ...a, ride: rideMap[a.ride_id] || null }))
+    assignments: all.map(a => ({ ...a, ride: rideMap[a.ride_id] || null })),
+    scheduledRides: scheduledRides || [],
   });
+}
+
+// Driver claims a scheduled future ride — ride → 'reserved', creates accepted assignment
+async function handleClaimRide(event, supabase, driver, rideId) {
+  if (!isUuid(rideId)) return errorResponse(400, 'BAD_REQUEST', 'invalid ride id');
+
+  const { data: ride } = await supabase.from('rides')
+    .select('id, status, scheduled_pickup_at').eq('id', rideId).maybeSingle();
+  if (!ride) return errorResponse(404, 'NOT_FOUND', 'Ride not found');
+  if (ride.status !== 'scheduled') return errorResponse(409, 'STATE_CHANGED', `Ride is ${ride.status}, not claimable`);
+
+  // Ensure the ride is still in the future
+  if (ride.scheduled_pickup_at && new Date(ride.scheduled_pickup_at) <= new Date()) {
+    return errorResponse(409, 'TOO_LATE', 'Pickup time has passed — ride will be dispatched normally');
+  }
+
+  const now = new Date().toISOString();
+  const { data: assignment, error } = await supabase.from('driver_assignments').insert({
+    ride_id:      rideId,
+    driver_id:    driver.id,
+    status:       'accepted',
+    dispatched_at: now,
+    accepted_at:  now,
+    updated_at:   now,
+  }).select('id').single();
+
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  await supabase.from('rides').update({ status: 'reserved' }).eq('id', rideId).eq('status', 'scheduled');
+  await emitEvent(supabase, 'transport.ride_claimed', { assignment_id: assignment.id, ride_id: rideId, driver_id: driver.id });
+
+  return jsonResponse(200, { ok: true, assignment_id: assignment.id });
+}
+
+// Driver cancels their reservation on a future ride — ride returns to 'scheduled' pool
+async function handleUnclaimRide(event, supabase, driver, assignmentId) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (!['accepted'].includes(a.status)) return errorResponse(409, 'STATE_CHANGED', `Cannot unclaim assignment in state ${a.status}`);
+
+  // Only allow unclaim if the ride is still reserved (not yet dispatched normally)
+  const { data: ride } = await supabase.from('rides').select('status').eq('id', a.ride_id).single();
+  if (ride?.status !== 'reserved') return errorResponse(409, 'STATE_CHANGED', 'Ride is no longer reserved');
+
+  const now = new Date().toISOString();
+  await supabase.from('driver_assignments')
+    .update({ status: 'cancelled', updated_at: now }).eq('id', assignmentId);
+  await supabase.from('rides').update({ status: 'scheduled' }).eq('id', a.ride_id).eq('status', 'reserved');
+  await emitEvent(supabase, 'transport.ride_unclaimed', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+
+  return jsonResponse(200, { ok: true });
 }
 
 async function handleAcceptRide(event, supabase, driver, assignmentId) {
@@ -1153,8 +1217,10 @@ async function handleRejectRide(event, supabase, driver, assignmentId, body) {
   await supabase.from('driver_assignments')
     .update({ status: 'rejected', rejected_at: now, updated_at: now })
     .eq('id', assignmentId).eq('status', 'pending');
-  // Return ride to requested so dispatch can reassign.
-  await supabase.from('rides').update({ status: 'requested' }).eq('id', a.ride_id);
+  // Reserved rides return to the scheduled pool; dispatched rides return to requested.
+  const { data: rideRow } = await supabase.from('rides').select('status').eq('id', a.ride_id).single();
+  const returnStatus = rideRow?.status === 'reserved' ? 'scheduled' : 'requested';
+  await supabase.from('rides').update({ status: returnStatus }).eq('id', a.ride_id);
   await emitEvent(supabase, 'transport.ride_rejected', {
     assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id,
     reason: (body?.reason || 'Driver declined').slice(0, 200)
@@ -1293,6 +1359,10 @@ exports.handler = async function(event) {
     if (m && method === 'POST') return await handleRideStart(event, supabase, driver, m[1]);
     m = route.match(/^transport-rides\/([^/]+)\/complete$/);
     if (m && method === 'POST') return await handleRideComplete(event, supabase, driver, m[1]);
+    m = route.match(/^transport-rides\/([^/]+)\/claim$/);
+    if (m && method === 'POST') return await handleClaimRide(event, supabase, driver, m[1]);
+    m = route.match(/^transport-rides\/([^/]+)\/unclaim$/);
+    if (m && method === 'POST') return await handleUnclaimRide(event, supabase, driver, m[1]);
 
     return errorResponse(404, 'NOT_FOUND', 'Unknown route', { route, method });
   } catch (e) {

@@ -162,6 +162,10 @@
 [functions."bid-credit-reconciler-scheduled"]
   schedule = "30 3 * * *"
 
+# Promotes scheduled rides to 'requested' 30 min before pickup so dispatch fires on time.
+[functions."transport-scheduled-dispatch"]
+  schedule = "*/15 * * * *"
+
 
 [[headers]]
   for = "/sw.js"
