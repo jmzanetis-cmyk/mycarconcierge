@@ -112,10 +112,27 @@ exports.handler = async function(event) {
 
       var currentResult = await supabase
         .from('member_founder_profiles')
-        .select('commission_rate')
+        .select('commission_rate, user_id')
         .eq('id', fId)
         .single();
-      var oldRate = currentResult.data ? currentResult.data.commission_rate : 0.50;
+      if (!currentResult.data) return utils.errorResponse(404, 'Founder not found');
+      var oldRate = currentResult.data.commission_rate || 0.50;
+      var founderUserId = currentResult.data.user_id;
+
+      // Agreement-lock: if the founder has a signed agreement with an agreement_date,
+      // their rate is contractually locked. Require admin_override: true to proceed.
+      if (founderUserId) {
+        var agreementResult = await supabase
+          .from('signed_agreements')
+          .select('id, agreement_date, commission_rate')
+          .eq('user_id', founderUserId)
+          .not('agreement_date', 'is', null)
+          .limit(1);
+        var hasAgreement = agreementResult.data && agreementResult.data.length > 0;
+        if (hasAgreement && !body.admin_override) {
+          return utils.errorResponse(403, 'This founder has a signed agreement locking their commission rate. Pass admin_override: true to override.');
+        }
+      }
 
       var updateResult = await supabase
         .from('member_founder_profiles')
@@ -128,21 +145,23 @@ exports.handler = async function(event) {
 
       // fire-and-forget audit log
       supabase.from('commission_rate_history').insert({
-        founder_id:  fId,
-        admin_id:    user.id,
-        admin_email: user.email,
-        old_rate:    oldRate,
-        new_rate:    rate,
-        reason:      body.reason || null
+        founder_id:   fId,
+        admin_id:     user.id,
+        admin_email:  user.email,
+        old_rate:     oldRate,
+        new_rate:     rate,
+        reason:       body.reason || null,
+        admin_override: body.admin_override ? true : false
       }).then(function(r) {
         if (r.error) console.error('[admin-founders] commission history log failed:', r.error.message);
       });
 
       return utils.successResponse({
         success: true,
-        founder_id:    fId,
-        old_rate:      oldRate,
+        founder_id:     fId,
+        old_rate:       oldRate,
         commission_rate: rate,
+        admin_override:  body.admin_override ? true : false,
         message: 'Commission rate updated from ' + Math.round(oldRate * 100) + '% to ' + Math.round(rate * 100) + '%'
       });
     }
