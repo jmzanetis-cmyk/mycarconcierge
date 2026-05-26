@@ -778,6 +778,51 @@ async function checkReservedRidesReadyForConfirmation(supabase) {
 }
 
 // ---------------------------------------------------------------------------
+// checkRidesStuckInPendingDispatch — transition stale pending_dispatch rides
+// Return legs sit in pending_dispatch until the provider calls vehicle-ready.
+// If a ride has been there >15 min it may mean the event was missed; move it
+// to requested so dispatch can retry assignment.
+// ---------------------------------------------------------------------------
+async function checkRidesStuckInPendingDispatch(supabase) {
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, updated_at, pickup_address, dropoff_address')
+      .eq('status', 'pending_dispatch')
+      .lte('updated_at', fifteenMinAgo);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+
+  if (!rides || rides.length === 0) return null;
+
+  const transitioned = [];
+  for (const ride of rides) {
+    const { error: updateError } = await supabase
+      .from('rides')
+      .update({ status: 'requested', updated_at: now })
+      .eq('id', ride.id)
+      .eq('status', 'pending_dispatch');
+    if (!updateError) transitioned.push(ride.id);
+  }
+
+  if (transitioned.length === 0) return null;
+
+  return {
+    alert_key: `pending_dispatch_recovery_${now.slice(0, 10)}_${Date.now()}`,
+    severity: 'medium',
+    title: `${transitioned.length} return leg${transitioned.length === 1 ? '' : 's'} recovered from pending_dispatch`,
+    body: `${transitioned.length} ride${transitioned.length === 1 ? '' : 's'} stuck in pending_dispatch >15 min ${transitioned.length === 1 ? 'was' : 'were'} moved to requested for driver re-assignment: ${transitioned.map(id => id.slice(0, 8)).join(', ')}.`,
+    next_action: 'check_vehicle_ready_events',
+    payload: { ride_ids: transitioned, count: transitioned.length }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // checkPaymentAutoRelease — capture Stripe PIs for payments past auto_release_date
 // ---------------------------------------------------------------------------
 async function checkPaymentAutoRelease(supabase) {
@@ -850,6 +895,8 @@ async function _runChecks(supabase, cfg) {
     // Scheduled ride auto-dispatch
     checkScheduledRidesReadyForDispatch,
     checkReservedRidesReadyForConfirmation,
+    // Return leg recovery
+    checkRidesStuckInPendingDispatch,
     // Payment auto-release
     checkPaymentAutoRelease
   ];
