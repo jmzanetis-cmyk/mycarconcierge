@@ -560,6 +560,7 @@
       <div class="nav-label">Founder Management</div>
       <div class="nav-item" data-section="pilot-applications"><span class="icon-inline" data-icon="star"></span> Provider Founders <span class="nav-badge orange" id="pilot-count">0</span></div>
       <div class="nav-item" data-section="driver-applications"><span class="icon-inline" data-icon="truck"></span> Driver Applications <span class="nav-badge orange" id="driver-apps-badge" style="display:none;">0</span></div>
+      <div class="nav-item" data-section="active-drivers"><span class="icon-inline" data-icon="user-check"></span> Active Drivers</div>
       <div class="nav-item" data-section="member-founders"><span class="icon-inline" data-icon="users"></span> Member Founders <span class="nav-badge orange" id="member-founder-count">0</span></div>
       <div class="nav-item" data-section="commission-payouts"><span class="icon-inline" data-icon="dollar-sign"></span> Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
 
@@ -2115,6 +2116,46 @@
           </thead>
           <tbody id="driver-applications-table">
             <tr><td colspan="6" class="empty-state">No pending driver applications</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Member Founder Applications Section -->
+    <!-- Active Drivers Section -->
+    <section id="active-drivers" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="user-check"></span> Active Drivers</h1>
+        <p class="page-subtitle">Approved MCC Driver profiles — status, BGC, Stripe Connect, and ride history</p>
+      </div>
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-value" id="active-drivers-total">0</div><div class="stat-label">Total Drivers</div></div>
+        <div class="stat-card"><div class="stat-value" id="active-drivers-stripe-ok">0</div><div class="stat-label">Stripe Connected</div></div>
+        <div class="stat-card"><div class="stat-value" id="active-drivers-bgc-ok">0</div><div class="stat-label">BGC Passed</div></div>
+        <div class="stat-card"><div class="stat-value" id="active-drivers-rides">0</div><div class="stat-label">Total Rides</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="card-header" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;">
+          <h2 class="card-title">Driver Roster</h2>
+          <button class="btn btn-secondary btn-sm" onclick="loadActiveDrivers()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Name</th>
+              <th>Email</th>
+              <th>Status</th>
+              <th>BGC</th>
+              <th>Stripe</th>
+              <th>Rides</th>
+              <th>Rating</th>
+              <th>Joined</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="active-drivers-table">
+            <tr><td colspan="9" class="empty-state">Loading…</td></tr>
           </tbody>
         </table>
       </div>

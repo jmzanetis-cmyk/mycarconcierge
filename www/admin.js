@@ -394,6 +394,7 @@
       'car-reviews': async () => { await loadPendingCARs(); },
       'pilot-applications': async () => { await loadPilotApplications(); },
       'driver-applications': async () => { await loadDriverApplications(); },
+      'active-drivers': async () => { await loadActiveDrivers(); },
       'member-founders': async () => { await loadMemberFounderApplications(); },
       'commission-payouts': async () => { await loadFounderPayouts(); },
       packages: async () => { await loadAllPackages(); },
@@ -5797,6 +5798,114 @@
 
     // ========== MEMBER FOUNDER APPLICATIONS ==========
     let memberFounderApplications = [];
+    // ========== ACTIVE DRIVERS ==========
+
+    async function loadActiveDrivers() {
+      const tbody = document.getElementById('active-drivers-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Loading…</td></tr>';
+      try {
+        const { data, error } = await supabaseClient
+          .from('drivers')
+          .select('id, profile_id, full_name, phone, email, status, bgc_status, bgc_checked_at, stripe_connect_account_id, stripe_payouts_enabled, total_rides_completed, average_rating, created_at, vehicle_class, hourly_rate_cents')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const rows = data || [];
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('active-drivers-total'))    dEl('active-drivers-total').textContent   = rows.length;
+        if (dEl('active-drivers-stripe-ok')) dEl('active-drivers-stripe-ok').textContent = rows.filter(r => r.stripe_payouts_enabled).length;
+        if (dEl('active-drivers-bgc-ok'))   dEl('active-drivers-bgc-ok').textContent  = rows.filter(r => r.bgc_status === 'passed').length;
+        if (dEl('active-drivers-rides'))    dEl('active-drivers-rides').textContent   = rows.reduce((s, r) => s + (r.total_rides_completed || 0), 0);
+
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No approved drivers yet</td></tr>';
+          return;
+        }
+
+        const bgcBadge = s => {
+          const map = { passed: ['#10b981','Passed'], pending_check: ['#f59e0b','Pending'], consider: ['#f59e0b','Review'], failed: ['#ef4444','Failed'], not_started: ['#6b7280','—'] };
+          const [c, l] = map[s] || ['#6b7280', s || '—'];
+          return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${l}</span>`;
+        };
+        const stripeBadge = (acct, enabled) => enabled
+          ? `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#10b98122;color:#10b981;border:1px solid #10b98155;">Connected</span>`
+          : acct
+            ? `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;">Pending</span>`
+            : `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#6b728022;color:#6b7280;border:1px solid #6b728055;">Not linked</span>`;
+        const statusBadge = s => {
+          const map = { active: '#10b981', inactive: '#6b7280', suspended: '#ef4444' };
+          const c = map[s] || '#6b7280';
+          return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${s || 'unknown'}</span>`;
+        };
+
+        tbody.innerHTML = rows.map(d => `
+          <tr>
+            <td>
+              <div><strong>${escapeHtml(d.full_name || 'No name')}</strong></div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(d.phone || '')}</div>
+            </td>
+            <td style="font-size:0.85rem;">${escapeHtml(d.email || '—')}</td>
+            <td>${statusBadge(d.status)}</td>
+            <td>${bgcBadge(d.bgc_status)}</td>
+            <td>${stripeBadge(d.stripe_connect_account_id, d.stripe_payouts_enabled)}</td>
+            <td style="text-align:center;">${d.total_rides_completed || 0}</td>
+            <td style="text-align:center;">${d.average_rating ? Number(d.average_rating).toFixed(1) + ' ★' : '—'}</td>
+            <td style="font-size:0.82rem;color:var(--text-muted);">${new Date(d.created_at).toLocaleDateString()}</td>
+            <td>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="viewActiveDriver('${d.id}')">View</button>
+                ${d.status !== 'suspended' ? `<button class="btn btn-danger btn-sm" onclick="suspendDriver('${d.id}')">Suspend</button>` : `<button class="btn btn-success btn-sm" onclick="reactivateDriver('${d.id}')">Reactivate</button>`}
+              </div>
+            </td>
+          </tr>`).join('');
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="color:var(--accent-red);">Error loading drivers: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function viewActiveDriver(driverId) {
+      const { data: d } = await supabaseClient.from('drivers').select('*').eq('id', driverId).maybeSingle();
+      if (!d) return alert('Driver not found');
+      const html = `<div class="form-section">
+        <div class="form-section-title">Driver Profile</div>
+        <div class="detail-grid">
+          <span class="detail-label">Name:</span><span class="detail-value">${escapeHtml(d.full_name || '—')}</span>
+          <span class="detail-label">Email:</span><span class="detail-value">${escapeHtml(d.email || '—')}</span>
+          <span class="detail-label">Phone:</span><span class="detail-value">${escapeHtml(d.phone || '—')}</span>
+          <span class="detail-label">Status:</span><span class="detail-value">${escapeHtml(d.status || '—')}</span>
+          <span class="detail-label">Vehicle Class:</span><span class="detail-value">${escapeHtml(d.vehicle_class || '—')}</span>
+          <span class="detail-label">BGC Status:</span><span class="detail-value">${escapeHtml(d.bgc_status || 'not_started')}</span>
+          <span class="detail-label">BGC Checked:</span><span class="detail-value">${d.bgc_checked_at ? new Date(d.bgc_checked_at).toLocaleDateString() : '—'}</span>
+          <span class="detail-label">Stripe Account:</span><span class="detail-value">${escapeHtml(d.stripe_connect_account_id || 'Not linked')}</span>
+          <span class="detail-label">Payouts Enabled:</span><span class="detail-value">${d.stripe_payouts_enabled ? 'Yes' : 'No'}</span>
+          <span class="detail-label">Hourly Rate:</span><span class="detail-value">${d.hourly_rate_cents ? '$' + (d.hourly_rate_cents / 100).toFixed(2) : '—'}</span>
+          <span class="detail-label">Total Rides:</span><span class="detail-value">${d.total_rides_completed || 0}</span>
+          <span class="detail-label">Avg Rating:</span><span class="detail-value">${d.average_rating ? Number(d.average_rating).toFixed(2) + ' / 5' : '—'}</span>
+          <span class="detail-label">Joined:</span><span class="detail-value">${new Date(d.created_at).toLocaleDateString()}</span>
+        </div></div>`;
+      showModal('Driver Details', html);
+    }
+
+    async function suspendDriver(driverId) {
+      if (!confirm('Suspend this driver? They will not receive new ride requests.')) return;
+      const { error } = await supabaseClient.from('drivers').update({ status: 'suspended' }).eq('id', driverId);
+      if (error) return alert('Error: ' + error.message);
+      loadActiveDrivers();
+    }
+
+    async function reactivateDriver(driverId) {
+      if (!confirm('Reactivate this driver?')) return;
+      const { error } = await supabaseClient.from('drivers').update({ status: 'active' }).eq('id', driverId);
+      if (error) return alert('Error: ' + error.message);
+      loadActiveDrivers();
+    }
+
+    globalThis.loadActiveDrivers  = loadActiveDrivers;
+    globalThis.viewActiveDriver   = viewActiveDriver;
+    globalThis.suspendDriver      = suspendDriver;
+    globalThis.reactivateDriver   = reactivateDriver;
+
     let currentMFFilter = 'pending';
 
     async function loadMemberFounderApplications() {
