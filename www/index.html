@@ -2766,7 +2766,9 @@
       try {
         const { count } = await supabaseClient
           .from('profiles')
-          .select('id', { count: 'exact', head: true });
+          .select('id', { count: 'exact', head: true })
+          .not('email', 'ilike', '%@test.mcc%')
+          .not('full_name', 'ilike', 'E2E %');
         const bar = document.getElementById('social-proof-bar');
         const txt = document.getElementById('social-proof-text');
         if (bar && txt && count !== null) {
