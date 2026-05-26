@@ -693,6 +693,14 @@
             <span style="font-size:1.5rem;"><span class="icon-inline" data-icon="settings"></span></span>
             <span>Settings</span>
           </button>
+          <button class="btn btn-secondary" onclick="navigateToSection('driver-applications')" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:16px;">
+            <span style="font-size:1.5rem;"><span class="icon-inline" data-icon="truck"></span></span>
+            <span>Driver Applications</span>
+          </button>
+          <button class="btn btn-secondary" onclick="navigateToSection('transport')" style="display:flex;align-items:center;gap:8px;justify-content:flex-start;padding:16px;">
+            <span style="font-size:1.5rem;"><span class="icon-inline" data-icon="map-pin"></span></span>
+            <span>Transport Rides</span>
+          </button>
         </div>
       </div>
 
@@ -727,6 +735,31 @@
             <div class="stat-icon" style="background:var(--accent-gold-soft);color:var(--accent-gold);"><span class="icon-inline" data-icon="dollar-sign"></span></div>
             <div class="stat-value" id="dash-total-revenue">$0</div>
             <div class="stat-label">Total Revenue</div>
+          </div>
+          <div class="stat-card stat-card-clickable" onclick="navigateToSection('transport')" role="button" tabindex="0">
+            <div class="stat-icon" style="background:var(--accent-blue-soft);color:var(--accent-blue);"><span class="icon-inline" data-icon="map-pin"></span></div>
+            <div class="stat-value" id="dash-total-rides">0</div>
+            <div class="stat-label">Total Rides</div>
+          </div>
+          <div class="stat-card stat-card-clickable" onclick="navigateToSection('transport')" role="button" tabindex="0">
+            <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);"><span class="icon-inline" data-icon="check-circle"></span></div>
+            <div class="stat-value" id="dash-completed-rides">0</div>
+            <div class="stat-label">Completed Rides</div>
+          </div>
+          <div class="stat-card stat-card-clickable" onclick="navigateToSection('active-drivers')" role="button" tabindex="0">
+            <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);"><span class="icon-inline" data-icon="truck"></span></div>
+            <div class="stat-value" id="dash-active-drivers">0</div>
+            <div class="stat-label">Active Drivers</div>
+          </div>
+          <div class="stat-card stat-card-clickable" onclick="navigateToSection('transport')" role="button" tabindex="0">
+            <div class="stat-icon" style="background:var(--accent-green-soft);color:var(--accent-green);"><span class="icon-inline" data-icon="dollar-sign"></span></div>
+            <div class="stat-value" id="dash-transport-revenue">$0</div>
+            <div class="stat-label">Transport Revenue</div>
+          </div>
+          <div class="stat-card stat-card-clickable" onclick="navigateToSection('driver-applications')" role="button" tabindex="0">
+            <div class="stat-icon" style="background:var(--accent-orange-soft);color:var(--accent-orange);"><span class="icon-inline" data-icon="user-plus"></span></div>
+            <div class="stat-value" id="dash-driver-apps">0</div>
+            <div class="stat-label">Driver Apps Pending</div>
           </div>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));gap:20px;">

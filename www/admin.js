@@ -846,7 +846,8 @@
           { count: memberFounderCount },
           { count: payoutCount },
           { count: memberCount },
-          { count: registrationCount }
+          { count: registrationCount },
+          { count: driverAppsCount }
         ] = await Promise.all([
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
@@ -858,7 +859,8 @@
           supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member'),
-          supabaseClient.from('registration_verifications').select('*', { count: 'exact', head: true }).in('status', ['pending', 'manual_review'])
+          supabaseClient.from('registration_verifications').select('*', { count: 'exact', head: true }).in('status', ['pending', 'manual_review']),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'pending_driver')
         ]);
 
         document.getElementById('app-count').textContent = appCount || 0;
@@ -870,6 +872,8 @@
         document.getElementById('member-founder-count').textContent = memberFounderCount || 0;
         document.getElementById('payout-count').textContent = payoutCount || 0;
         document.getElementById('registration-count').textContent = registrationCount || 0;
+        const driverAppsEl = document.getElementById('dash-driver-apps');
+        if (driverAppsEl) driverAppsEl.textContent = (driverAppsCount || 0).toLocaleString();
 
         const statApps = document.getElementById('stat-pending-apps');
         const statProviders = document.getElementById('stat-providers');
@@ -1252,6 +1256,12 @@
           document.getElementById('dash-total-providers').textContent = (overview.data.totalProviders || 0).toLocaleString();
           document.getElementById('dash-active-packages').textContent = (overview.data.activePackages || 0).toLocaleString();
           document.getElementById('dash-total-revenue').textContent = '$' + (overview.data.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const t = overview.data.transport || {};
+          const dEl = id => document.getElementById(id);
+          if (dEl('dash-total-rides'))       dEl('dash-total-rides').textContent       = (t.totalRides       || 0).toLocaleString();
+          if (dEl('dash-completed-rides'))   dEl('dash-completed-rides').textContent   = (t.completedRides   || 0).toLocaleString();
+          if (dEl('dash-active-drivers'))    dEl('dash-active-drivers').textContent    = (t.activeDrivers    || 0).toLocaleString();
+          if (dEl('dash-transport-revenue')) dEl('dash-transport-revenue').textContent = '$' + (t.transportRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         if (revenue.success) {
