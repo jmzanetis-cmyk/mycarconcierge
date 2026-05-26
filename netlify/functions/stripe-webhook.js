@@ -5,7 +5,10 @@
 //   checkout.session.completed  — grant bid credits immediately; record founder commission
 //   payment_intent.succeeded    — update tip/subsidy status
 //   payment_intent.payment_failed — update tip/subsidy status; alert admin
-//   transfer.paid               — mark driver_cashouts row completed
+//   payout.paid                 — mark driver_cashouts row completed
+//   payout.failed               — mark driver_cashouts row failed; alert admin
+//   payout.canceled             — mark driver_cashouts row cancelled
+//   transfer.paid               — mark driver_cashouts + tip row paid
 //   transfer.failed             — mark driver_cashouts row failed; alert admin
 //   account.updated             — sync driver Stripe Connect status
 //
@@ -224,6 +227,41 @@ async function handleTransferFailed(transfer, supabase) {
   );
 }
 
+// ── payout.paid ────────────────────────────────────────────────────────────
+
+async function handlePayoutPaid(payout, supabase) {
+  const now = new Date().toISOString();
+  await supabase.from('driver_cashouts')
+    .update({ status: 'completed', completed_at: now })
+    .eq('stripe_payout_id', payout.id)
+    .in('status', ['processing', 'pending']);
+}
+
+// ── payout.failed ──────────────────────────────────────────────────────────
+
+async function handlePayoutFailed(payout, supabase) {
+  const reason = payout.failure_message || payout.failure_code || 'Payout failed';
+  await supabase.from('driver_cashouts')
+    .update({ status: 'failed', error: reason })
+    .eq('stripe_payout_id', payout.id);
+
+  await adminEmail(
+    `[MCC] Payout failed: ${payout.id}`,
+    `<h2>Stripe Payout Failed</h2>
+     <p><strong>Payout:</strong> ${payout.id}</p>
+     <p><strong>Amount:</strong> $${((payout.amount || 0) / 100).toFixed(2)}</p>
+     <p><strong>Reason:</strong> ${reason}</p>`
+  );
+}
+
+// ── payout.canceled ────────────────────────────────────────────────────────
+
+async function handlePayoutCanceled(payout, supabase) {
+  await supabase.from('driver_cashouts')
+    .update({ status: 'cancelled' })
+    .eq('stripe_payout_id', payout.id);
+}
+
 // ── account.updated ────────────────────────────────────────────────────────
 
 async function handleAccountUpdated(account, supabase) {
@@ -285,6 +323,15 @@ exports.handler = async function(event) {
         break;
       case 'payment_intent.payment_failed':
         await handlePaymentIntentFailed(stripeEvent.data.object, supabase);
+        break;
+      case 'payout.paid':
+        await handlePayoutPaid(stripeEvent.data.object, supabase);
+        break;
+      case 'payout.failed':
+        await handlePayoutFailed(stripeEvent.data.object, supabase);
+        break;
+      case 'payout.canceled':
+        await handlePayoutCanceled(stripeEvent.data.object, supabase);
         break;
       case 'transfer.paid':
         await handleTransferPaid(stripeEvent.data.object, supabase);
