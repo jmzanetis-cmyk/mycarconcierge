@@ -6624,6 +6624,19 @@
         applications?.forEach(app => providerApplications[app.user_id] = app);
       }
 
+      // Load BGC compliance badges for all bidding providers
+      const providerBgcCompliance = {};
+      if (bids?.length) {
+        try {
+          const ids = bids.map(b => b.provider_id).join(',');
+          const bgcResp = await fetch(`/api/provider-bgc-compliance?provider_ids=${ids}`);
+          if (bgcResp.ok) {
+            const { compliance } = await bgcResp.json();
+            compliance?.forEach(c => { providerBgcCompliance[c.provider_id] = c; });
+          }
+        } catch { /* non-fatal — badge just won't show */ }
+      }
+
       const vehicle = pkg.vehicles;
       const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
 
@@ -6658,7 +6671,13 @@
                 const brands = appData.brand_specializations || [];
                 const specialties = [...services.slice(0, 2), ...brands.slice(0, 1)].slice(0, 3);
                 const bidPrice = bid.price || 0;
-                
+                const bgc = providerBgcCompliance[bid.provider_id];
+                const bgcBadge = bgc?.badge === 'all'
+                  ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:linear-gradient(135deg,rgba(16,185,129,0.15),rgba(16,185,129,0.05));color:#10b981;border:1px solid rgba(16,185,129,0.3);" title="${bgc.verified} of ${bgc.total} team members have a current background check">${mccIcon('shield', 12)} All Staff Verified ✓</span>`
+                  : bgc?.badge === 'partial'
+                  ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:rgba(245,158,11,0.12);color:#f59e0b;border:1px solid rgba(245,158,11,0.3);" title="${bgc.verified} of ${bgc.total} team members have a current background check">${mccIcon('shield', 12)} Partial Verification</span>`
+                  : '';
+
                 // Performance data
                 const tier = perf?.tier || 'bronze';
                 const tierIcon = {'platinum': mccIcon('star', 14), 'gold': mccIcon('star', 14), 'silver': mccIcon('star', 14), 'bronze': mccIcon('star', 14)}[tier] || mccIcon('star', 14);
@@ -6678,6 +6697,7 @@
                             <h4 style="margin:0;font-size:1rem;">${providerName}</h4>
                             ${perf ? `<span style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:${tierColors[tier]}20;color:${tierColors[tier]};border:1px solid ${tierColors[tier]}40;">${tierIcon} ${tier.charAt(0).toUpperCase() + tier.slice(1)}</span>` : ''}
                             ${carClubProviderIds.has(bid.provider_id) ? `<span class="car-club-badge" style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.7rem;font-weight:600;background:linear-gradient(135deg,rgba(212,168,85,0.15),rgba(212,168,85,0.08));color:var(--accent-gold);border:1px solid rgba(212,168,85,0.25);"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg> Car Club</span>` : ''}
+                            ${bgcBadge}
                           </div>
                           <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">
                             ${businessName && businessName !== providerName ? `${businessName}` : ''}
@@ -6719,6 +6739,7 @@
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 14)} Availability: ${bid.available_dates}</div>` : ''}
                     ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                      <button class="btn btn-ghost btn-sm" onclick="viewProviderBgcProfile('${bid.provider_id}')" style="font-size:0.78rem;">${mccIcon('user', 13)} View Profile</button>
                       <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 14)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check-circle', 14)} Accept Bid</button>` : ''}
                     </div>
@@ -7322,6 +7343,80 @@
       input.value = '';
       await openMessageWithProvider(currentViewPackage, currentMessageProvider);
     }
+
+    // ========== PROVIDER BGC PROFILE VIEW ==========
+    async function viewProviderBgcProfile(providerId) {
+      let modal = document.getElementById('provider-bgc-profile-modal');
+      if (!modal) {
+        modal = document.createElement('div');
+        modal.id = 'provider-bgc-profile-modal';
+        modal.className = 'modal';
+        modal.innerHTML = `
+          <div class="modal-content" style="max-width:480px;">
+            <div class="modal-header">
+              <h3 class="modal-title" id="provider-bgc-modal-title">Provider Profile</h3>
+              <button class="modal-close" onclick="document.getElementById('provider-bgc-profile-modal').classList.remove('active')">✕</button>
+            </div>
+            <div class="modal-body" id="provider-bgc-modal-body" style="padding:20px;">
+              <div style="color:var(--text-muted);text-align:center;padding:24px 0;">Loading…</div>
+            </div>
+          </div>`;
+        document.body.appendChild(modal);
+      }
+      modal.classList.add('active');
+      document.getElementById('provider-bgc-modal-body').innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px 0;">Loading…</div>';
+
+      try {
+        const [profileRes, bgcRes] = await Promise.all([
+          supabaseClient.from('profiles').select('provider_alias, business_name').eq('id', providerId).maybeSingle(),
+          fetch(`/api/provider-bgc-compliance?provider_ids=${providerId}`)
+        ]);
+
+        const profile = profileRes.data;
+        const providerName = profile?.provider_alias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
+        document.getElementById('provider-bgc-modal-title').textContent = providerName;
+
+        let bgc = null;
+        if (bgcRes.ok) {
+          const j = await bgcRes.json();
+          bgc = j.compliance?.[0] || null;
+        }
+
+        const total = bgc?.total || 0;
+        const verified = bgc?.verified || 0;
+        const pct = total > 0 ? Math.round((verified / total) * 100) : 0;
+        const lastChecked = bgc?.last_checked_at ? new Date(bgc.last_checked_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : null;
+
+        const barColor = pct === 100 ? '#10b981' : pct > 0 ? '#f59e0b' : '#888';
+        const barBg = pct === 100 ? 'rgba(16,185,129,0.15)' : pct > 0 ? 'rgba(245,158,11,0.12)' : 'rgba(100,100,120,0.15)';
+
+        document.getElementById('provider-bgc-modal-body').innerHTML = `
+          <div class="form-section" style="padding:0;border:none;">
+            <div class="form-section-title" style="margin-bottom:12px;">${mccIcon('shield', 16)} Background Check Status</div>
+            ${total === 0 ? `
+              <p style="color:var(--text-muted);font-size:0.9rem;">This provider has not submitted team members for background check verification yet.</p>
+            ` : `
+              <div style="margin-bottom:16px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
+                  <span style="font-weight:600;">${verified} of ${total} team member${total !== 1 ? 's' : ''} verified</span>
+                  <span style="font-weight:700;color:${barColor};">${pct}%</span>
+                </div>
+                <div style="height:8px;border-radius:4px;background:${barBg};overflow:hidden;">
+                  <div style="height:100%;width:${pct}%;background:${barColor};border-radius:4px;transition:width 0.4s ease;"></div>
+                </div>
+              </div>
+              ${lastChecked ? `<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Last verified: ${lastChecked}</div>` : ''}
+              <div style="font-size:0.82rem;color:var(--text-muted);padding:10px 12px;background:var(--bg-input);border-radius:var(--radius-sm);">
+                ${mccIcon('refresh-cw', 13)} Background checks are renewed annually to ensure your service team stays up-to-date.
+              </div>
+            `}
+          </div>`;
+      } catch (err) {
+        console.error('viewProviderBgcProfile error:', err);
+        document.getElementById('provider-bgc-modal-body').innerHTML = '<div style="color:var(--text-muted);text-align:center;padding:24px 0;">Could not load profile.</div>';
+      }
+    }
+    window.viewProviderBgcProfile = viewProviderBgcProfile;
 
     // ========== VEHICLE DETAILS ==========
     async function viewVehicleDetails(vehicleId) {
