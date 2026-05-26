@@ -93,14 +93,16 @@ async function probeModel(client, model) {
 // runHealthCheck: probe every model in MODELS_IN_USE in parallel, aggregate.
 // ---------------------------------------------------------------------------
 async function runHealthCheck() {
-  let apiKey = process.env.ANTHROPIC_API_KEY;
+  // Use MCC_FLEET1 first — that's what the outreach engine uses (outreach-engine-core.js:11).
+  // ANTHROPIC_API_KEY is the fallback so a dead fleet key surfaces here, not just in the engine.
+  let apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       ok: false,
       reason: 'no_api_key',
       results: [],
       failed: MODELS_IN_USE.map(function (m) {
-        return { model: m, ok: false, status: 0, code: 'no_api_key', message: 'ANTHROPIC_API_KEY not set' };
+        return { model: m, ok: false, status: 0, code: 'no_api_key', message: 'ANTHROPIC_API_KEY / ANTHROPIC_API_KEY_MCC_FLEET1 not set' };
       }),
       checked_at: new Date().toISOString()
     };

@@ -38,7 +38,7 @@ async function callAI(prompt, maxTokens = 4000) {
       aiCircuitBreaker.failures = 0;
       return { text: response.content[0]?.type === 'text' ? response.content[0].text : '', provider: 'anthropic' };
     } catch (err) {
-      const isCreditsOrRate = err.message?.includes('credit balance') || err.message?.includes('rate_limit') || err.status === 429 || err.status === 400;
+      const isCreditsOrRate = err.message?.includes('credit balance') || err.message?.includes('rate_limit') || err.status === 429 || err.status === 400 || err.status === 401;
       if (isCreditsOrRate) {
         console.log('[OutreachEngine] Anthropic unavailable, trying Gemini fallback...');
       } else {
@@ -1376,7 +1376,14 @@ async function runEngineCycle(supabase) {
       }
 
       const result = await draftMessageWithAI(lead, opp.recommended_channel || 'email', 1);
-      if (!result) break;
+      if (!result) {
+        await supabase.from('outreach_activity_log').insert({
+          lead_id: opp.lead_id,
+          event_type: 'draft_failed',
+          metadata: { channel: opp.recommended_channel || 'email', lead_type: lead.type }
+        }).catch(() => {});
+        continue;
+      }
       {
         const isInvestor = lead.type === 'investor';
         const shouldAutoSend = state.auto_send && !isInvestor;
@@ -2679,6 +2686,11 @@ async function runApolloDiscoveryCycle(supabase) {
         const domain = website ? website.replace(/^https?:\/\/(www\.)?/, '').split('/')[0] : null;
         const apolloPersonId = person.id || null;
         const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId, apollo_profile: profile.name };
+
+        // Angel Investor profiles on Apollo are personal profiles — Apollo never enriches
+        // email addresses for them. Skip no-email investor leads immediately; they pollute
+        // the pipeline and can never be contacted.
+        if (leadType === 'investor' && !email) continue;
 
         const baseScore = leadType === 'investor' ? (email ? 85 : 40) : (email ? 72 : 32);
 
