@@ -1,7 +1,7 @@
 const utils = require('./utils');
 const Stripe = require('stripe');
 
-const MIN_CENTS = 500;   // $5
+const MIN_CENTS = 100;   // $1
 const MAX_CENTS = 50000; // $500
 
 exports.handler = async function(event) {
@@ -26,7 +26,7 @@ exports.handler = async function(event) {
     return utils.errorResponse(400, 'amount_cents must be an integer');
   }
   if (amount_cents < MIN_CENTS) {
-    return utils.errorResponse(400, 'Minimum donation is $5');
+    return utils.errorResponse(400, 'Minimum donation is $1');
   }
   if (amount_cents > MAX_CENTS) {
     return utils.errorResponse(400, 'Maximum donation is $500');

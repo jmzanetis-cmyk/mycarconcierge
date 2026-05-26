@@ -245,6 +245,82 @@
       color: var(--bg-deep);
     }
 
+    nav a.support-mcc-link {
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c !important;
+      font-weight: 700;
+      padding: 6px 16px;
+      border-radius: 100px;
+      white-space: nowrap;
+      border: none;
+    }
+    nav a.support-mcc-link:hover {
+      opacity: 0.9;
+      background: linear-gradient(135deg, #c9a227, #e6b84a);
+      color: #12161c !important;
+      transform: translateY(-1px);
+    }
+    .mobile-nav a.support-mcc-link {
+      color: #c9a227 !important;
+      font-weight: 700;
+    }
+
+    .fundraising-banner {
+      position: sticky;
+      top: 0;
+      z-index: 200;
+      background: linear-gradient(90deg, #c9a227, #e6b84a);
+      color: #12161c;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 9px 20px;
+      font-size: 0.85rem;
+      font-weight: 600;
+      flex-wrap: wrap;
+    }
+    .fundraising-banner a {
+      color: #12161c;
+      text-decoration: none;
+    }
+    .fundraising-banner .fb-donate-btn {
+      display: inline-flex;
+      align-items: center;
+      padding: 5px 14px;
+      background: #12161c;
+      color: #e6b84a !important;
+      border-radius: 100px;
+      font-weight: 700;
+      font-size: 0.82rem;
+      white-space: nowrap;
+      transition: opacity 0.15s;
+    }
+    .fundraising-banner .fb-donate-btn:hover { opacity: 0.85; }
+    .fundraising-banner .fb-wef-link {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+      white-space: nowrap;
+      opacity: 0.85;
+    }
+    .fundraising-banner .fb-wef-link:hover { opacity: 1; }
+    .fundraising-banner .fb-dismiss {
+      background: none;
+      border: none;
+      color: #12161c;
+      font-size: 1rem;
+      line-height: 1;
+      cursor: pointer;
+      padding: 2px 4px;
+      opacity: 0.6;
+      flex-shrink: 0;
+    }
+    .fundraising-banner .fb-dismiss:hover { opacity: 1; }
+    @media (max-width: 600px) {
+      .fundraising-banner { font-size: 0.78rem; padding: 8px 14px; gap: 8px; }
+      .fundraising-banner .fb-text { display: none; }
+    }
+
     nav .btn-login {
       background: var(--bg-elevated);
       color: var(--text-primary);
@@ -1944,6 +2020,22 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
+  <!-- Fundraising sticky banner -->
+  <div class="fundraising-banner" id="fundraisingBanner">
+    <span class="fb-text">Help us launch vehicle pickup &amp; delivery — Back MCC from just $1</span>
+    <span style="display:none;" class="fb-mobile-text" aria-hidden="true">Back MCC from $1 ✦</span>
+    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
+      <a href="#driver-fund-section" class="fb-donate-btn">Donate</a>
+      <a href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" class="fb-wef-link">Invest on Wefunder</a>
+      <button class="fb-dismiss" onclick="document.getElementById('fundraisingBanner').style.display='none';localStorage.setItem('fundraisingBannerDismissed','1');" aria-label="Dismiss fundraising banner">&times;</button>
+    </div>
+  </div>
+  <script>
+    if (localStorage.getItem('fundraisingBannerDismissed')) {
+      document.getElementById('fundraisingBanner').style.display = 'none';
+    }
+  </script>
+
   <div class="onboarding-banner" id="onboardingBanner" style="display:none;" aria-live="polite">
     <span class="open-banner-dot" aria-hidden="true"></span>
     <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Now Live</span>
@@ -1973,6 +2065,7 @@
         <a href="#features" data-i18n="nav.features">Features</a>
         <a href="#" onclick="openFounderModal(); return false;" class="founder-link" data-i18n="nav.ourStory">About</a>
         <a href="/contact.html">Contact</a>
+        <a href="#driver-fund-section" class="support-mcc-link">Support MCC</a>
         <div id="language-switcher"></div>
         <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme" aria-label="Toggle light/dark theme">
           <span class="theme-icon-sun"><span class="icon-inline" data-icon="sun"></span> Day</span>
@@ -1996,6 +2089,7 @@
       <a href="#features" onclick="closeMobileMenu()" data-i18n="nav.features">Features</a>
       <a href="#" onclick="openFounderModal(); closeMobileMenu(); return false;" class="founder-link" data-i18n="nav.ourStory">About</a>
       <a href="/contact.html" onclick="closeMobileMenu()">Contact</a>
+      <a href="#driver-fund-section" onclick="closeMobileMenu()" class="support-mcc-link">Support MCC ✦</a>
       <div class="mobile-lang-switcher" id="mobile-language-switcher"></div>
       <button class="header-theme-toggle" onclick="toggleTheme(); closeMobileMenu();" title="Toggle theme" aria-label="Toggle light/dark theme">
         <span class="theme-icon-sun"><span class="icon-inline" data-icon="sun"></span> Day</span>
@@ -2344,15 +2438,26 @@
           </div>
 
           <!-- Direct donation row -->
-          <div style="margin-top:22px;text-align:center;">
-            <div style="font-size:0.78rem;color:#6b7280;margin-bottom:10px;">Or support us directly</div>
-            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;" id="idx-donate-btns">
-              <button onclick="idxDonate(500)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$5</button>
-              <button onclick="idxDonate(1000)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$10</button>
-              <button onclick="idxDonate(2500)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$25</button>
-              <button onclick="idxDonate(5000)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$50</button>
+          <div style="margin-top:22px;text-align:center;" id="driver-fund-section-donate">
+            <div style="font-size:0.78rem;color:#6b7280;margin-bottom:8px;">Or support us directly</div>
+            <p style="font-size:0.88rem;color:#a0a8b8;margin:0 auto 14px;max-width:480px;line-height:1.6;">Every dollar helps. Even $1 brings us closer to launching vehicle pickup in your neighborhood.</p>
+            <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;margin-bottom:14px;" id="idx-donate-btns">
+              <button onclick="idxDonate(100)"   style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$1</button>
+              <button onclick="idxDonate(500)"   style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$5</button>
+              <button onclick="idxDonate(1000)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$10</button>
+              <button onclick="idxDonate(2500)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$25</button>
+              <button onclick="idxDonate(5000)"  style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$50</button>
+              <button onclick="idxDonate(10000)" style="padding:8px 18px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:999px;color:#f5f5f7;font-size:0.85rem;font-weight:600;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.borderColor='rgba(201,162,39,0.5)';this.style.background='rgba(201,162,39,0.1)';" onmouseout="this.style.borderColor='rgba(160,168,184,0.2)';this.style.background='rgba(160,168,184,0.1)';">$100</button>
             </div>
-            <p style="font-size:0.72rem;color:#4b5563;margin-top:10px;line-height:1.5;">One-time support — not an investment. For equity, use Wefunder above.</p>
+            <div style="display:flex;align-items:center;justify-content:center;gap:8px;margin-bottom:12px;">
+              <label for="idx-custom-amount" style="font-size:0.82rem;color:#a0a8b8;white-space:nowrap;">Other: $</label>
+              <input type="number" id="idx-custom-amount" min="1" step="0.01" placeholder="Amount" style="width:88px;padding:7px 10px;background:rgba(160,168,184,0.1);border:1px solid rgba(160,168,184,0.2);border-radius:8px;color:#f5f5f7;font-size:0.85rem;outline:none;" onfocus="this.style.borderColor='rgba(201,162,39,0.5)';" onblur="this.style.borderColor='rgba(160,168,184,0.2)';" onkeydown="if(event.key==='Enter')idxDonateCustom();">
+              <button onclick="idxDonateCustom()" style="padding:7px 16px;background:rgba(201,162,39,0.15);border:1px solid rgba(201,162,39,0.4);border-radius:8px;color:#c9a227;font-size:0.82rem;font-weight:700;cursor:pointer;transition:all 0.15s;" onmouseover="this.style.background='rgba(201,162,39,0.25)';" onmouseout="this.style.background='rgba(201,162,39,0.15)';">Donate</button>
+            </div>
+            <div style="font-size:0.8rem;color:#6b7280;margin-bottom:10px;">
+              Join <span id="idx-supporter-count">0</span> supporters backing this launch
+            </div>
+            <p style="font-size:0.72rem;color:#4b5563;margin-top:4px;line-height:1.5;">One-time support — not an investment. For equity, use Wefunder above.</p>
           </div>
           <p style="text-align:center;font-size:0.78rem;color:#6b7280;margin-top:14px;line-height:1.5;">Vehicle transport service is in development. Full launch pending regulatory approval and insurance certification. Sign up now to be first in line when we go live.</p>
         </div>
@@ -2380,7 +2485,9 @@
 
       async function idxDonate(amountCents) {
         var btns = document.querySelectorAll('#idx-donate-btns button');
+        var customBtn = document.querySelector('#driver-fund-section-donate button[onclick="idxDonateCustom()"]');
         btns.forEach(function(b) { b.disabled = true; });
+        if (customBtn) customBtn.disabled = true;
         try {
           var res = await fetch('/api/support-donation', {
             method: 'POST',
@@ -2394,6 +2501,14 @@
           alert('Could not connect to checkout. Please try again.');
         }
         btns.forEach(function(b) { b.disabled = false; });
+        if (customBtn) customBtn.disabled = false;
+      }
+
+      function idxDonateCustom() {
+        var input = document.getElementById('idx-custom-amount');
+        var val = parseFloat(input ? input.value : '');
+        if (!val || val < 1) { alert('Minimum donation is $1'); if (input) input.focus(); return; }
+        idxDonate(Math.round(val * 100));
       }
     </script>
 
