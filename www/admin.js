@@ -6039,8 +6039,14 @@
     globalThis.cancelTransportRide  = cancelTransportRide;
 
     let currentMFFilter = 'pending';
+    let _mfActiveProfiles = [];
 
     async function loadMemberFounderApplications() {
+      // If the active-profiles tab is selected, delegate to the profiles loader.
+      if (currentMFFilter === 'active-profiles') {
+        await loadMemberFounderActiveProfiles();
+        return;
+      }
       try {
         const { data, error } = await supabaseClient
           .from('member_founder_applications')
@@ -6055,6 +6061,7 @@
         }
 
         updateMFStats();
+        loadMemberFounderActiveProfilesCount();
         renderMemberFounderApplications();
         // Task #139 — Concierge + Advocate touch member-founder onboarding.
         if (typeof globalThis.renderAgentActivityPanel === 'function') {
@@ -6133,6 +6140,36 @@
           </tr>
         `;
       }).join('');
+    }
+
+    async function loadMemberFounderActiveProfilesCount() {
+      const { count } = await supabaseClient.from('member_founder_profiles').select('*', { count: 'exact', head: true }).eq('status', 'active');
+      const badge = document.getElementById('mf-active-badge');
+      if (badge) badge.textContent = count || 0;
+    }
+
+    async function loadMemberFounderActiveProfiles() {
+      const tbody = document.getElementById('member-founders-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading active founders…</td></tr>';
+      const { data, error } = await supabaseClient
+        .from('member_founder_profiles')
+        .select('id, full_name, email, phone, location, referral_code, status, total_provider_referrals, total_member_referrals, total_commissions_earned')
+        .eq('status', 'active')
+        .order('total_commissions_earned', { ascending: false });
+      if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--accent-red);">Error: ${escapeHtml(error.message)}</td></tr>`; return; }
+      const rows = data || [];
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No active member founders</td></tr>'; return; }
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td><strong>${escapeHtml(r.full_name || '—')}</strong><div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(r.phone||'')}</div></td>
+          <td>${escapeHtml(r.email||'—')}</td>
+          <td>${escapeHtml(r.location||'—')}</td>
+          <td><code style="font-size:0.82rem;">${escapeHtml(r.referral_code||'—')}</code></td>
+          <td style="text-align:center;">${r.total_provider_referrals||0} prov / ${r.total_member_referrals||0} mem</td>
+          <td style="font-weight:600;color:#10b981;">$${Number(r.total_commissions_earned||0).toFixed(2)}</td>
+          <td><span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#10b98122;color:#10b981;border:1px solid #10b98155;">active</span></td>
+        </tr>`).join('');
     }
 
     function viewMemberFounder(id) {
@@ -6470,7 +6507,11 @@
         document.querySelectorAll('#mf-tabs .tab').forEach(t => t.classList.remove('active'));
         e.target.classList.add('active');
         currentMFFilter = e.target.dataset.filter;
-        renderMemberFounderApplications();
+        if (currentMFFilter === 'active-profiles') {
+          loadMemberFounderActiveProfiles();
+        } else {
+          renderMemberFounderApplications();
+        }
       }
     });
 
