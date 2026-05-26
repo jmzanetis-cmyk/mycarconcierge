@@ -139,3 +139,7 @@
 # Feature: Car Clubs
 /api/car-clubs /.netlify/functions/car-clubs 200
 /api/car-clubs/* /.netlify/functions/car-clubs 200
+
+# Feature: Member Founder earnings API
+/api/member-founder /.netlify/functions/member-founder-api 200
+/api/member-founder/* /.netlify/functions/member-founder-api 200

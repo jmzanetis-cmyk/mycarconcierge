@@ -153,7 +153,115 @@ async function runReconcilerImpl({ supabase, stripe, now = Date.now() }) {
   };
 }
 
+// ---------------------------------------------------------------------------
+// Bid-pack founder commission recording
+// Runs after the main reconciler. For every confirmed bid-pack purchase
+// (payment_status=paid + bid_credit_grants row exists), checks whether the
+// purchasing provider was referred by a founding member. If so, inserts a
+// pending founder_commissions row + commission_reconciliation_queue entry.
+// Idempotent: skips sessions that already have a founder_commissions row.
+// ---------------------------------------------------------------------------
+async function recordBidPackCommissions({ supabase, stripe, now = Date.now() }) {
+  const since   = Math.floor((now - LOOKBACK_MS) / 1000);
+  const cutoff  = Math.floor((now - GRACE_MS)    / 1000);
+  let recorded  = 0;
+  let skipped   = 0;
+
+  let startingAfter;
+  for (let page = 0; page < 20; page++) {
+    const params = { limit: 100, created: { gte: since } };
+    if (startingAfter) params.starting_after = startingAfter;
+    const list = await stripe.checkout.sessions.list(params);
+
+    for (const s of list.data) {
+      const meta      = s.metadata || {};
+      const totalBids = parseInt(meta.bids || '0', 10) + parseInt(meta.bonus_bids || '0', 10);
+      if (!meta.provider_id || !(totalBids > 0)) continue;
+      if (meta.type && meta.type !== 'bid_pack')  continue;
+      if (s.payment_status !== 'paid')             continue;
+      if (!s.payment_intent)                       continue;
+      if ((s.created || 0) > cutoff)               continue;
+
+      // Only process confirmed grants (not missing ones — those are the reconciler's job)
+      const { data: grant } = await supabase.from('bid_credit_grants')
+        .select('id').eq('transaction_id', s.payment_intent).limit(1).maybeSingle();
+      if (!grant) continue;
+
+      // Idempotency: skip if commission row already exists for this transaction
+      const { data: existingComm } = await supabase.from('founder_commissions')
+        .select('id').eq('source_transaction_id', s.payment_intent).limit(1).maybeSingle();
+      if (existingComm) { skipped++; continue; }
+
+      // Look up whether this provider was referred by a founding member
+      const { data: profile } = await supabase.from('profiles')
+        .select('referred_by_founder_id').eq('id', meta.provider_id).maybeSingle();
+      if (!profile?.referred_by_founder_id) continue;
+
+      const { data: founder } = await supabase.from('member_founder_profiles')
+        .select('id, commission_rate, total_commissions_earned, pending_balance, status')
+        .eq('user_id', profile.referred_by_founder_id)
+        .maybeSingle();
+      if (!founder || founder.status !== 'active') continue;
+
+      const purchaseAmount  = (s.amount_total || 0) / 100;
+      const commissionRate  = parseFloat(founder.commission_rate || 0.50);
+      const commissionAmt   = parseFloat((purchaseAmount * commissionRate).toFixed(2));
+      if (commissionAmt <= 0) continue;
+
+      const { data: inserted, error: insErr } = await supabase
+        .from('founder_commissions')
+        .insert({
+          founder_id:            founder.id,
+          referred_provider_id:  meta.provider_id,
+          commission_type:       'bid_pack',
+          source_transaction_id: s.payment_intent,
+          original_amount:       purchaseAmount,
+          commission_rate:       commissionRate,
+          commission_amount:     commissionAmt,
+          purchase_amount:       purchaseAmount,
+          description:           `Bid pack purchase commission (${(commissionRate * 100).toFixed(0)}%)`,
+          status:                'pending',
+          created_at:            new Date().toISOString(),
+          updated_at:            new Date().toISOString(),
+        })
+        .select('id')
+        .single();
+
+      if (insErr) {
+        if (insErr.code === '23505') { skipped++; continue; } // race — already inserted
+        console.error('[BidCreditReconciler] commission insert error:', insErr.message);
+        continue;
+      }
+
+      // Enqueue for admin payout review
+      await supabase.from('commission_reconciliation_queue').insert({
+        commission_id: inserted.id,
+        founder_id:    founder.id,
+        amount:        commissionAmt,
+        status:        'pending',
+        created_at:    new Date().toISOString(),
+      }).catch(e => console.warn('[BidCreditReconciler] recon queue insert skipped:', e.message));
+
+      // Update running totals on the founder profile
+      await supabase.from('member_founder_profiles').update({
+        total_commissions_earned: parseFloat((founder.total_commissions_earned || 0)) + commissionAmt,
+        pending_balance:          parseFloat((founder.pending_balance || 0)) + commissionAmt,
+        updated_at:               new Date().toISOString(),
+      }).eq('id', founder.id);
+
+      recorded++;
+    }
+
+    if (!list.has_more) break;
+    startingAfter = list.data[list.data.length - 1]?.id;
+    if (!startingAfter) break;
+  }
+
+  return { recorded, skipped };
+}
+
 exports.runReconcilerImpl = runReconcilerImpl;
+exports.recordBidPackCommissions = recordBidPackCommissions;
 
 exports.handler = async function() {
   const supabase = getSupabase();
@@ -165,9 +273,10 @@ exports.handler = async function() {
     return { statusCode: 200, body: JSON.stringify({ skipped: true, reason: 'no_stripe_key' }) };
   }
   try {
-    const result = await runReconcilerImpl({ supabase, stripe });
-    console.log('[BidCreditReconciler] Done:', JSON.stringify({ scanned: result.scanned, missing: result.missing_count }));
-    return { statusCode: 200, body: JSON.stringify(result) };
+    const result      = await runReconcilerImpl({ supabase, stripe });
+    const commResult  = await recordBidPackCommissions({ supabase, stripe }).catch(e => ({ recorded: 0, skipped: 0, error: e.message }));
+    console.log('[BidCreditReconciler] Done:', JSON.stringify({ scanned: result.scanned, missing: result.missing_count, commissions: commResult }));
+    return { statusCode: 200, body: JSON.stringify({ ...result, commissions: commResult }) };
   } catch (err) {
     console.error('[BidCreditReconciler] Error:', err.message);
     await logAiAction(supabase, {

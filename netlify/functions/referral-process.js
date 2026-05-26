@@ -42,8 +42,10 @@ exports.handler = async function(event) {
       provider_referral_type: referralCodeData.code_type
     };
 
+    // referred_by_founder_id links the new provider to their referrer so that
+    // _processCarePlanFounderCommission can find the founder on payment capture.
     if (referralCodeData.provider_id) {
-      profileUpdate.referred_by_provider_id = referralCodeData.provider_id;
+      profileUpdate.referred_by_founder_id = referralCodeData.provider_id;
     }
 
     if (referralCodeData.code_type === 'loyal_customer') {
@@ -76,6 +78,36 @@ exports.handler = async function(event) {
 
     if (insertResult.error) {
       console.error('Referral insert error:', insertResult.error);
+    }
+
+    // If the code owner has a member_founder_profiles row, record in founder_referrals
+    // so the commission dashboard and reconciler can join on it.
+    if (referralCodeData.provider_id) {
+      try {
+        var founderRes = await supabase
+          .from('member_founder_profiles')
+          .select('id, total_provider_referrals')
+          .eq('user_id', referralCodeData.provider_id)
+          .eq('status', 'active')
+          .maybeSingle();
+
+        if (founderRes.data) {
+          var fp = founderRes.data;
+          await supabase.from('founder_referrals').insert({
+            founder_id:       fp.id,
+            referral_code:    upperCode,
+            referred_type:    'provider',
+            referred_user_id: user_id,
+            status:           'pending',
+            created_at:       new Date().toISOString()
+          });
+          await supabase.from('member_founder_profiles')
+            .update({ total_provider_referrals: (fp.total_provider_referrals || 0) + 1 })
+            .eq('id', fp.id);
+        }
+      } catch (founderErr) {
+        console.warn('[referral-process] founder_referrals insert skipped:', founderErr.message);
+      }
     }
 
     try {
