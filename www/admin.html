@@ -4372,6 +4372,17 @@
         </div>
       </div>
 
+      <!-- Promoter Drafts pending admin review -->
+      <div class="card" style="margin-bottom:16px;" id="promoter-drafts-card">
+        <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+          <h2 class="card-title"><span class="icon-inline" data-icon="edit-3"></span> Promoter Drafts <span id="promoter-drafts-count-badge" style="display:none;background:#b8942d;color:#fff;border-radius:10px;font-size:0.78rem;padding:1px 8px;margin-left:6px;">0</span></h2>
+          <button class="btn btn-secondary btn-sm" onclick="loadPromoterDrafts()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+        </div>
+        <div id="promoter-drafts-list" style="padding:8px 0;">
+          <div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>
+        </div>
+      </div>
+
       <!-- Recent agent activity (last 25 across all agents) -->
       <div class="card">
         <div class="card-header">

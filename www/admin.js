@@ -12492,6 +12492,8 @@
         if (summaryEl) summaryEl.innerHTML =
           `<div style="grid-column:1/-1;padding:14px;color:var(--accent-red);font-size:0.85rem;">Failed to load summary: ${escapeHtml(e.message)}</div>`;
       }
+      // Load promoter drafts panel.
+      loadPromoterDrafts();
       // Render last 25 across all agents using the shared helper.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         globalThis.renderAgentActivityPanel('agent-fleet-recent', {
@@ -12501,6 +12503,87 @@
       }
     }
     globalThis.loadAgentFleetSection = loadAgentFleetSection;
+
+    async function loadPromoterDrafts() {
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('promoter-drafts-list');
+      const badgeEl = document.getElementById('promoter-drafts-count-badge');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?agent=promoter&review_only=1&limit=50`, { headers: getAiOpsHeaders() });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const drafts = j.actions || [];
+        if (badgeEl) {
+          if (drafts.length > 0) {
+            badgeEl.textContent = String(drafts.length);
+            badgeEl.style.display = 'inline-block';
+          } else {
+            badgeEl.style.display = 'none';
+          }
+        }
+        if (drafts.length === 0) {
+          listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">No promoter drafts pending review.</div>';
+          return;
+        }
+        const platformColor = p => ({ reddit:'#ff4500', twitter:'#1da1f2', x:'#000', linkedin:'#0077b5', facebook:'#1877f2', instagram:'#e1306c' })[(p||'').toLowerCase()] || '#6b7280';
+        listEl.innerHTML = drafts.map(a => {
+          const d = a.decision || {};
+          const platform = d.platform || a.action_type || '—';
+          const audience = d.audience || '—';
+          const body = d.body || d.content || '(no content)';
+          const cta = d.call_to_action || '';
+          const media = d.suggested_media || '';
+          const ts = new Date(a.created_at).toLocaleDateString() + ' ' + new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+          return `<div data-draft-id="${escapeHtml(String(a.id))}" style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span style="background:${platformColor(platform)};color:#fff;padding:2px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;text-transform:capitalize;">${escapeHtml(platform)}</span>
+                <span style="background:var(--bg-elevated);color:var(--text-secondary);padding:2px 8px;border-radius:6px;font-size:0.78rem;">audience: ${escapeHtml(audience)}</span>
+                <span style="color:var(--text-muted);font-size:0.78rem;">${ts}</span>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-sm" onclick="reviewPromoterDraft(${a.id},'approved')" style="background:#10b981;color:#fff;border-color:#10b981;">Approve &amp; Post</button>
+                <button class="btn btn-sm" onclick="reviewPromoterDraft(${a.id},'rejected')" style="background:var(--accent-red);color:#fff;border-color:var(--accent-red);">Reject</button>
+              </div>
+            </div>
+            <div style="background:var(--bg-elevated);border-radius:8px;padding:12px;font-size:0.88rem;line-height:1.55;white-space:pre-wrap;margin-bottom:${cta||media?'10px':'0'};">${escapeHtml(body)}</div>
+            ${cta ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:${media?'6px':'0'};"><strong>CTA:</strong> ${escapeHtml(cta)}</div>` : ''}
+            ${media ? `<div style="font-size:0.82rem;color:var(--text-secondary);"><strong>Suggested media:</strong> ${escapeHtml(media)}</div>` : ''}
+          </div>`;
+        }).join('');
+      } catch (e) {
+        listEl.innerHTML = `<div style="padding:24px;color:var(--accent-red);font-size:0.85rem;">Failed to load promoter drafts: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    globalThis.loadPromoterDrafts = loadPromoterDrafts;
+
+    async function reviewPromoterDraft(id, decision) {
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const card = document.querySelector(`[data-draft-id="${id}"]`);
+      if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+      try {
+        const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions/${id}/review`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        if (card) {
+          card.style.opacity = '0.4';
+          card.style.transition = 'opacity 0.3s';
+          setTimeout(() => { loadPromoterDrafts(); loadAgentFleetBadge(); }, 400);
+        } else {
+          loadPromoterDrafts(); loadAgentFleetBadge();
+        }
+      } catch (e) {
+        if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
+        alert(`Failed to ${decision === 'approved' ? 'approve' : 'reject'} draft: ${e.message}`);
+      }
+    }
+    globalThis.reviewPromoterDraft = reviewPromoterDraft;
 
     async function loadDashboardAgentTile() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
