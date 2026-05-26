@@ -404,6 +404,7 @@
       disputes: async () => { await loadDisputes(); },
       refunds: async () => { await loadRefunds(); },
       'registration-verifications': async () => { await loadRegistrationVerifications(); },
+      'bgc-dashboard': async () => { await loadBgcDashboard(); },
       tickets: async () => { await loadTickets(); },
       members: async () => { await loadMembers(); },
       'user-roles': async () => { await loadUserRoles(); },
@@ -12978,6 +12979,114 @@
     globalThis.createCarClub      = createCarClub;
     globalThis.viewCarClub        = viewCarClub;
     globalThis.toggleCarClub      = toggleCarClub;
+
+    // ========== BGC UNIFIED DASHBOARD ==========
+
+    let _bgcTab = 'providers';
+
+    document.getElementById('bgc-tabs')?.addEventListener('click', e => {
+      const tab = e.target.closest('[data-bgc-tab]');
+      if (!tab) return;
+      document.querySelectorAll('#bgc-tabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      _bgcTab = tab.dataset.bgcTab;
+      const title = document.getElementById('bgc-tab-title');
+      if (title) title.textContent = _bgcTab === 'providers' ? 'Provider Employee Checks' : 'Driver Checks';
+      renderBgcContent();
+    });
+
+    let _bgcProviderRows = [];
+    let _bgcDriverRows   = [];
+
+    async function loadBgcDashboard() {
+      const content = document.getElementById('bgc-content');
+      if (content) content.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = { 'Authorization': `Bearer ${session?.access_token}` };
+
+        const [provRes, driverRes] = await Promise.all([
+          fetch(`${apiBase}/api/admin/bgc/providers`, { headers }),
+          supabaseClient.from('drivers').select('id, full_name, email, bgc_status, bgc_report_id, bgc_checked_at, status').order('bgc_checked_at', { ascending: false })
+        ]);
+
+        _bgcProviderRows = provRes.ok ? (await provRes.json()).providers || [] : [];
+        _bgcDriverRows   = driverRes.data || [];
+
+        const allRows = [..._bgcProviderRows, ..._bgcDriverRows];
+        const passed  = allRows.filter(r => (r.bgc_status || r.status) === 'passed' || r.bgc_status === 'passed').length;
+        const pending = allRows.filter(r => ['pending_check','consider','in_progress'].includes(r.bgc_status)).length;
+        const failed  = allRows.filter(r => r.bgc_status === 'failed').length;
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('bgc-provider-total')) dEl('bgc-provider-total').textContent = _bgcProviderRows.length;
+        if (dEl('bgc-driver-total'))   dEl('bgc-driver-total').textContent   = _bgcDriverRows.length;
+        if (dEl('bgc-passed-total'))   dEl('bgc-passed-total').textContent   = _bgcDriverRows.filter(r => r.bgc_status === 'passed').length + _bgcProviderRows.filter(r => r.bgc_status === 'passed').length;
+        if (dEl('bgc-pending-total'))  dEl('bgc-pending-total').textContent  = pending;
+        if (dEl('bgc-failed-total'))   dEl('bgc-failed-total').textContent   = failed;
+
+        renderBgcContent();
+      } catch (err) {
+        const content = document.getElementById('bgc-content');
+        if (content) content.innerHTML = `<div style="padding:32px;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderBgcContent() {
+      const content = document.getElementById('bgc-content');
+      if (!content) return;
+
+      const bgcBadge = s => {
+        const map = { passed: ['#10b981','Passed'], pending_check: ['#f59e0b','Pending'], consider: ['#f59e0b','Consider'], failed: ['#ef4444','Failed'], not_started: ['#6b7280','—'], in_progress: ['#3b82f6','In Progress'] };
+        const [c, l] = map[s] || ['#6b7280', s || 'Unknown'];
+        return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${l}</span>`;
+      };
+
+      if (_bgcTab === 'providers') {
+        if (!_bgcProviderRows.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No provider employee background checks on record.</div>';
+          return;
+        }
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Provider ID</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">BGC Status</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Live Mode</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Pending</th>
+          </tr></thead><tbody>
+          ${_bgcProviderRows.map(r => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 14px;font-family:monospace;font-size:0.8rem;">${escapeHtml(String(r.provider_id||'').slice(0,12))}…</td>
+            <td style="padding:10px 14px;">${bgcBadge(r.bgc_status)}</td>
+            <td style="padding:10px 14px;">${r.live_mode ? '🟢 Live' : '🟡 Mock'}</td>
+            <td style="padding:10px 14px;">${r.pending_count || 0}</td>
+          </tr>`).join('')}
+          </tbody></table>`;
+      } else {
+        if (!_bgcDriverRows.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No drivers in the system yet.</div>';
+          return;
+        }
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Driver</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Email</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">BGC Status</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Last Checked</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Driver Status</th>
+          </tr></thead><tbody>
+          ${_bgcDriverRows.map(r => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 14px;"><strong>${escapeHtml(r.full_name||'—')}</strong></td>
+            <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.email||'—')}</td>
+            <td style="padding:10px 14px;">${bgcBadge(r.bgc_status)}</td>
+            <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.bgc_checked_at ? new Date(r.bgc_checked_at).toLocaleDateString() : '—'}</td>
+            <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.status||'—')}</td>
+          </tr>`).join('')}
+          </tbody></table>`;
+      }
+    }
+
+    globalThis.loadBgcDashboard = loadBgcDashboard;
 
     async function reviewPromoterDraft(id, decision) {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';

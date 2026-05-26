@@ -572,6 +572,7 @@
       <div class="nav-item" data-section="disputes"><span class="icon-inline" data-icon="alert-triangle"></span> Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
       <div class="nav-item" data-section="refunds"><span class="icon-inline" data-icon="receipt"></span> Refunds <span class="nav-badge orange" id="refund-count">0</span></div>
       <div class="nav-item" data-section="registration-verifications"><span class="icon-inline" data-icon="search"></span> Registration Reviews <span class="nav-badge orange" id="registration-count">0</span></div>
+      <div class="nav-item" data-section="bgc-dashboard"><span class="icon-inline" data-icon="shield"></span> BGC Dashboard</div>
 
       <div class="nav-label">Support</div>
       <div class="nav-item" data-section="tickets"><span class="icon-inline" data-icon="ticket"></span> Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
@@ -3518,6 +3519,35 @@
               <tr><td colspan="6" class="empty-state">Loading verifications...</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- BGC Unified Dashboard -->
+    <section id="bgc-dashboard" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="shield"></span> BGC Dashboard</h1>
+        <p class="page-subtitle">Unified background check status for providers and drivers</p>
+      </div>
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-value" id="bgc-provider-total">0</div><div class="stat-label">Provider Checks</div></div>
+        <div class="stat-card"><div class="stat-value" id="bgc-driver-total">0</div><div class="stat-label">Driver Checks</div></div>
+        <div class="stat-card"><div class="stat-value" id="bgc-passed-total">0</div><div class="stat-label">Passed</div></div>
+        <div class="stat-card"><div class="stat-value" id="bgc-pending-total">0</div><div class="stat-label">Pending / Review</div></div>
+        <div class="stat-card"><div class="stat-value" id="bgc-failed-total">0</div><div class="stat-label">Failed</div></div>
+      </div>
+      <div class="tabs" id="bgc-tabs" style="margin-bottom:0;">
+        <div class="tab active" data-bgc-tab="providers">Provider Employee Checks</div>
+        <div class="tab" data-bgc-tab="drivers">Driver Checks</div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="card-header" style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
+          <h2 class="card-title" id="bgc-tab-title">Provider Employee Checks</h2>
+          <button class="btn btn-secondary btn-sm" onclick="loadBgcDashboard()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+        </div>
+        <div id="bgc-content">
+          <div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>
         </div>
       </div>
     </section>
