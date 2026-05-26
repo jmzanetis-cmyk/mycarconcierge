@@ -395,6 +395,7 @@
       'pilot-applications': async () => { await loadPilotApplications(); },
       'driver-applications': async () => { await loadDriverApplications(); },
       'active-drivers': async () => { await loadActiveDrivers(); },
+      'transport': async () => { await loadTransportRides(); },
       'member-founders': async () => { await loadMemberFounderApplications(); },
       'commission-payouts': async () => { await loadFounderPayouts(); },
       packages: async () => { await loadAllPackages(); },
@@ -5905,6 +5906,137 @@
     globalThis.viewActiveDriver   = viewActiveDriver;
     globalThis.suspendDriver      = suspendDriver;
     globalThis.reactivateDriver   = reactivateDriver;
+
+    // ========== TRANSPORT MANAGEMENT ==========
+
+    let _transportAllRides = [];
+
+    async function loadTransportRides() {
+      const tbody = document.getElementById('transport-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+      try {
+        // Fetch rides with member and driver profile joins
+        const { data, error } = await supabaseClient
+          .from('rides')
+          .select(`id, status, pickup_address, dropoff_address, estimated_fare, actual_fare, gross_fare, tip_amount,
+                   base_rate, multiplier_rate, multiplier_label, pickup_wait_cents, dropoff_wait_cents,
+                   payment_status, cancellation_reason, member_rating, requested_at, completed_at, cancelled_at, created_at,
+                   member:member_id(full_name, email),
+                   provider:provider_id(full_name)`)
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        _transportAllRides = data || [];
+        renderTransportRides();
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--accent-red);">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function filterTransportRides() { renderTransportRides(); }
+
+    function renderTransportRides() {
+      const tbody = document.getElementById('transport-table');
+      if (!tbody) return;
+      const filter = document.getElementById('transport-status-filter')?.value || '';
+      const rows = filter ? _transportAllRides.filter(r => r.status === filter) : _transportAllRides;
+
+      const total     = _transportAllRides.length;
+      const completed = _transportAllRides.filter(r => r.status === 'completed').length;
+      const cancelled = _transportAllRides.filter(r => r.status === 'cancelled').length;
+      const fares     = _transportAllRides.filter(r => r.status === 'completed').map(r => r.actual_fare || r.estimated_fare || 0);
+      const avgFare   = fares.length ? fares.reduce((s, v) => s + v, 0) / fares.length : 0;
+      const completion = total ? Math.round((completed / (total - (total - completed - cancelled > 0 ? total - completed - cancelled : 0))) * 100) : 0;
+
+      const dEl = id => document.getElementById(id);
+      if (dEl('transport-total'))          dEl('transport-total').textContent          = total;
+      if (dEl('transport-completed'))      dEl('transport-completed').textContent      = completed;
+      if (dEl('transport-cancelled'))      dEl('transport-cancelled').textContent      = cancelled;
+      if (dEl('transport-avg-fare'))       dEl('transport-avg-fare').textContent       = '$' + avgFare.toFixed(2);
+      if (dEl('transport-completion-rate')) dEl('transport-completion-rate').textContent = completed + '/' + total;
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No rides${filter ? ' matching filter' : ''}</td></tr>`;
+        return;
+      }
+
+      const statusColor = s => ({
+        completed: '#10b981', cancelled: '#ef4444', in_progress: '#3b82f6',
+        driver_en_route: '#f59e0b', accepted: '#6366f1', requested: '#6b7280', dispatched: '#f59e0b', driver_arrived: '#3b82f6'
+      })[s] || '#6b7280';
+
+      tbody.innerHTML = rows.map(r => {
+        const fare = r.actual_fare || r.estimated_fare || 0;
+        const memberName = r.member?.full_name || r.member?.email || '—';
+        const driverName = r.provider?.full_name || '—';
+        const date = new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        const c = statusColor(r.status);
+        return `<tr>
+          <td><span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${escapeHtml(r.status || '—')}</span></td>
+          <td style="font-size:0.85rem;">${escapeHtml(memberName)}</td>
+          <td style="font-size:0.85rem;">${escapeHtml(driverName)}</td>
+          <td style="font-size:0.82rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(r.pickup_address||'')}">${escapeHtml(r.pickup_address||'—')}</td>
+          <td style="font-size:0.82rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(r.dropoff_address||'')}">${escapeHtml(r.dropoff_address||'—')}</td>
+          <td style="font-weight:600;">$${Number(fare).toFixed(2)}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted);">${date}</td>
+          <td>
+            <div style="display:flex;gap:4px;">
+              <button class="btn btn-secondary btn-sm" onclick="viewTransportRide('${r.id}')">Detail</button>
+              ${['requested','dispatched','accepted','driver_en_route','driver_arrived'].includes(r.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelTransportRide('${r.id}')">Cancel</button>` : ''}
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+    }
+
+    async function viewTransportRide(rideId) {
+      const r = _transportAllRides.find(x => x.id === rideId);
+      if (!r) return;
+      const fare = r.actual_fare || r.estimated_fare || 0;
+      const html = `<div class="form-section">
+        <div class="form-section-title">Ride Details — ${escapeHtml(r.id)}</div>
+        <div class="detail-grid">
+          <span class="detail-label">Status:</span><span class="detail-value">${escapeHtml(r.status)}</span>
+          <span class="detail-label">Member:</span><span class="detail-value">${escapeHtml(r.member?.full_name || r.member?.email || '—')}</span>
+          <span class="detail-label">Driver:</span><span class="detail-value">${escapeHtml(r.provider?.full_name || '—')}</span>
+          <span class="detail-label">Pickup:</span><span class="detail-value">${escapeHtml(r.pickup_address||'—')}</span>
+          <span class="detail-label">Dropoff:</span><span class="detail-value">${escapeHtml(r.dropoff_address||'—')}</span>
+          <span class="detail-label">Base Rate:</span><span class="detail-value">$${Number(r.base_rate||0).toFixed(2)}</span>
+          ${r.multiplier_rate && r.multiplier_rate !== 1 ? `<span class="detail-label">Multiplier:</span><span class="detail-value">${r.multiplier_label || ''} ×${r.multiplier_rate}</span>` : ''}
+          <span class="detail-label">Estimated Fare:</span><span class="detail-value">$${Number(r.estimated_fare||0).toFixed(2)}</span>
+          <span class="detail-label">Actual Fare:</span><span class="detail-value">$${Number(r.actual_fare||0).toFixed(2)}</span>
+          ${r.tip_amount ? `<span class="detail-label">Tip:</span><span class="detail-value">$${Number(r.tip_amount).toFixed(2)}</span>` : ''}
+          ${r.pickup_wait_cents ? `<span class="detail-label">Pickup Wait:</span><span class="detail-value">$${(r.pickup_wait_cents/100).toFixed(2)}</span>` : ''}
+          ${r.dropoff_wait_cents ? `<span class="detail-label">Dropoff Wait:</span><span class="detail-value">$${(r.dropoff_wait_cents/100).toFixed(2)}</span>` : ''}
+          <span class="detail-label">Payment:</span><span class="detail-value">${escapeHtml(r.payment_status||'—')}</span>
+          ${r.member_rating ? `<span class="detail-label">Member Rating:</span><span class="detail-value">${r.member_rating} ★</span>` : ''}
+          ${r.cancellation_reason ? `<span class="detail-label">Cancel Reason:</span><span class="detail-value">${escapeHtml(r.cancellation_reason)}</span>` : ''}
+          <span class="detail-label">Requested:</span><span class="detail-value">${r.requested_at ? new Date(r.requested_at).toLocaleString() : new Date(r.created_at).toLocaleString()}</span>
+          ${r.completed_at ? `<span class="detail-label">Completed:</span><span class="detail-value">${new Date(r.completed_at).toLocaleString()}</span>` : ''}
+        </div>
+      </div>`;
+      showModal('Ride Detail', html);
+    }
+
+    async function cancelTransportRide(rideId) {
+      if (!confirm('Cancel this ride? This cannot be undone.')) return;
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const r = await fetch(`${apiBase}/api/transport/cancel`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ride_id: rideId, reason: 'Admin cancellation' })
+      });
+      const j = await r.json();
+      if (!r.ok) return alert('Cancel failed: ' + (j.error || r.status));
+      loadTransportRides();
+    }
+
+    globalThis.loadTransportRides   = loadTransportRides;
+    globalThis.filterTransportRides = filterTransportRides;
+    globalThis.viewTransportRide    = viewTransportRide;
+    globalThis.cancelTransportRide  = cancelTransportRide;
 
     let currentMFFilter = 'pending';
 

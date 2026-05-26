@@ -565,6 +565,7 @@
       <div class="nav-item" data-section="commission-payouts"><span class="icon-inline" data-icon="dollar-sign"></span> Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
 
       <div class="nav-label">Operations</div>
+      <div class="nav-item" data-section="transport"><span class="icon-inline" data-icon="map-pin"></span> Transport Rides</div>
       <div class="nav-item" data-section="packages"><span class="icon-inline" data-icon="package"></span> All Packages</div>
       <div class="nav-item" data-section="payments"><span class="icon-inline" data-icon="credit-card"></span> Payments</div>
       <div class="nav-item" data-section="driver-payouts"><span class="icon-inline" data-icon="truck"></span> Driver Payouts <span class="nav-badge orange" id="driver-payouts-badge" style="display:none;">0</span></div>
@@ -2156,6 +2157,58 @@
           </thead>
           <tbody id="active-drivers-table">
             <tr><td colspan="9" class="empty-state">Loading…</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- Transport Management Section -->
+    <section id="transport" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="map-pin"></span> Transport Rides</h1>
+        <p class="page-subtitle">All ride requests — status, driver, member, fares, and actions</p>
+      </div>
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-value" id="transport-total">0</div><div class="stat-label">Total Rides</div></div>
+        <div class="stat-card"><div class="stat-value" id="transport-completed">0</div><div class="stat-label">Completed</div></div>
+        <div class="stat-card"><div class="stat-value" id="transport-cancelled">0</div><div class="stat-label">Cancelled</div></div>
+        <div class="stat-card"><div class="stat-value" id="transport-avg-fare">$0</div><div class="stat-label">Avg Fare</div></div>
+        <div class="stat-card"><div class="stat-value" id="transport-completion-rate">0%</div><div class="stat-label">Completion Rate</div></div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;">
+        <div class="card-header" style="padding:16px 20px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+          <h2 class="card-title">Rides</h2>
+          <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            <select id="transport-status-filter" onchange="filterTransportRides()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);font-size:0.85rem;">
+              <option value="">All Statuses</option>
+              <option value="requested">Requested</option>
+              <option value="dispatched">Dispatched</option>
+              <option value="accepted">Accepted</option>
+              <option value="driver_en_route">Driver En Route</option>
+              <option value="driver_arrived">Driver Arrived</option>
+              <option value="in_progress">In Progress</option>
+              <option value="completed">Completed</option>
+              <option value="cancelled">Cancelled</option>
+            </select>
+            <button class="btn btn-secondary btn-sm" onclick="loadTransportRides()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+          </div>
+        </div>
+        <table>
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Member</th>
+              <th>Driver</th>
+              <th>Pickup</th>
+              <th>Dropoff</th>
+              <th>Fare</th>
+              <th>Date</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="transport-table">
+            <tr><td colspan="8" class="empty-state">Loading…</td></tr>
           </tbody>
         </table>
       </div>
