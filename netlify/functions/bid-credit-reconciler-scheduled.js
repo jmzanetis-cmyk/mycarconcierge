@@ -107,8 +107,9 @@ async function runReconcilerImpl({ supabase, stripe, now = Date.now() }) {
       if ((s.created || 0) > cutoff) continue; // still within grace window
 
       scanned++;
-      const { data: row } = await supabase.from('bid_credit_grants')
-        .select('id').eq('transaction_id', s.payment_intent).limit(1).maybeSingle();
+      // bid_credit_grants table does not exist — use bid_credit_purchases for idempotency
+      const { data: row } = await supabase.from('bid_credit_purchases')
+        .select('id').eq('stripe_payment_id', s.payment_intent).limit(1).maybeSingle();
       if (row) continue;
 
       if (await alreadyAlerted(supabase, s.payment_intent)) continue;
