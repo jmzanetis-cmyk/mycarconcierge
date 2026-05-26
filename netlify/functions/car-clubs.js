@@ -40,7 +40,7 @@ async function getUser(event, sb) {
 
 async function listClubs(sb, user, query) {
   let q = sb.from('car_clubs')
-    .select('id, name, description, vehicle_make, vehicle_model, region, member_count, logo_url, created_at, provider_id')
+    .select('id, name, description, vehicle_make, vehicle_model, region, member_count, logo_url, banner_url, theme_color, welcome_message, rules_text, created_at, provider_id')
     .eq('is_active', true)
     .order('member_count', { ascending: false });
 

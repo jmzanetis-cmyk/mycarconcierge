@@ -114,8 +114,8 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         try { body = await parseBody(req); } catch(e) { json(res, 400, { error: 'Invalid request body' }); return; }
         if (!body.name) { json(res, 400, { error: 'Club name is required' }); return; }
         const result = await db.query(
-          'INSERT INTO car_clubs (provider_id, name, description, welcome_message) VALUES ($1, $2, $3, $4) RETURNING *',
-          [user.id, body.name, body.description || null, body.welcome_message || null]
+          'INSERT INTO car_clubs (provider_id, name, description, welcome_message, theme_color, rules_text) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
+          [user.id, body.name, body.description || null, body.welcome_message || null, body.theme_color || '#C9A84C', body.rules_text || null]
         );
         json(res, 201, { club: result.rows[0] });
         return;
@@ -129,6 +129,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         let body;
         try { body = await parseBody(req); } catch(e) { json(res, 400, { error: 'Invalid request body' }); return; }
         if (body.logo_url !== undefined && body.logo_url !== '' && !/^https?:\/\/.+/.test(body.logo_url)) { json(res, 400, { error: 'Invalid logo URL' }); return; }
+        if (body.banner_url !== undefined && body.banner_url !== '' && !/^https?:\/\/.+/.test(body.banner_url)) { json(res, 400, { error: 'Invalid banner URL' }); return; }
         const fields = [];
         const values = [];
         let idx = 1;
@@ -137,6 +138,9 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         if (body.welcome_message !== undefined) { fields.push(`welcome_message = $${idx++}`); values.push(body.welcome_message); }
         if (body.is_active !== undefined) { fields.push(`is_active = $${idx++}`); values.push(body.is_active); }
         if (body.logo_url !== undefined) { fields.push(`logo_url = $${idx++}`); values.push(body.logo_url); }
+        if (body.banner_url !== undefined) { fields.push(`banner_url = $${idx++}`); values.push(body.banner_url || null); }
+        if (body.theme_color !== undefined) { fields.push(`theme_color = $${idx++}`); values.push(body.theme_color || '#C9A84C'); }
+        if (body.rules_text !== undefined) { fields.push(`rules_text = $${idx++}`); values.push(body.rules_text || null); }
         if (fields.length === 0) { json(res, 400, { error: 'No fields to update' }); return; }
         fields.push(`updated_at = NOW()`);
         values.push(club.id);
@@ -181,6 +185,29 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         const publicUrl = urlData.publicUrl;
         const updateResult = await db.query('UPDATE car_clubs SET logo_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *', [publicUrl, club.id]);
         json(res, 200, { club: updateResult.rows[0], logo_url: publicUrl });
+        return;
+      }
+
+      if (method === 'POST' && url === '/api/car-club/upload-banner') {
+        const user = await authenticate(req, res, getSupabaseClient);
+        if (!user) return;
+        const club = await getProviderClub(db, user.id);
+        if (!club) { json(res, 404, { error: 'No club found' }); return; }
+        let upload;
+        try { upload = await parseMultipartUpload(req); } catch(e) { json(res, 400, { error: e.message || 'Upload failed' }); return; }
+        const allowedTypes = ['image/png', 'image/jpeg', 'image/jpg', 'image/webp'];
+        if (!allowedTypes.includes(upload.contentType)) { json(res, 400, { error: 'Invalid file type. Allowed: PNG, JPEG, WebP' }); return; }
+        const supabase = getSupabaseClient();
+        if (!supabase) { json(res, 500, { error: 'Storage service unavailable' }); return; }
+        try { await supabase.storage.createBucket('club-banners', { public: true, fileSizeLimit: 3145728 }); } catch(e) {}
+        const safeName = upload.filename.replace(/[^a-zA-Z0-9._-]/g, '_');
+        const filePath = `${club.id}/${Date.now()}-${safeName}`;
+        const { error: uploadError } = await supabase.storage.from('club-banners').upload(filePath, upload.file, { contentType: upload.contentType, upsert: true });
+        if (uploadError) { json(res, 500, { error: 'Failed to upload file: ' + uploadError.message }); return; }
+        const { data: urlData } = supabase.storage.from('club-banners').getPublicUrl(filePath);
+        const publicUrl = urlData.publicUrl;
+        const updateResult = await db.query('UPDATE car_clubs SET banner_url = $1, updated_at = NOW() WHERE id = $2 RETURNING *', [publicUrl, club.id]);
+        json(res, 200, { club: updateResult.rows[0], banner_url: publicUrl });
         return;
       }
 
@@ -318,7 +345,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
 
       if (method === 'GET' && url === '/api/car-club/browse') {
         const result = await db.query(
-          `SELECT c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.welcome_message, c.created_at,
+          `SELECT c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.theme_color, c.welcome_message, c.rules_text, c.created_at,
            p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_verified_at,
            (SELECT COUNT(*) FROM club_memberships WHERE club_id = c.id AND is_active = true) as member_count,
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
@@ -372,7 +399,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         if (!user) return;
         const result = await db.query(
           `SELECT cm.id as membership_id, cm.joined_at, cm.is_active,
-           c.id as club_id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended,
+           c.id as club_id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.theme_color, c.rules_text, c.provider_suspended,
            p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_verified_at,
            COALESCE(json_agg(json_build_object(
              'reward_rule_id', mcb.reward_rule_id,

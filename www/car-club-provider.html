@@ -654,6 +654,17 @@
               <label class="form-label">Welcome Message</label>
               <textarea class="form-textarea" id="create-welcome" placeholder="Message shown when members join" rows="2"></textarea>
             </div>
+            <div class="form-group">
+              <label class="form-label">Theme Color</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="color" id="create-theme-color" value="#C9A84C" style="width:44px;height:36px;padding:2px 4px;border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;background:var(--bg-input);" />
+                <span style="font-size:0.85rem;color:var(--text-secondary);">Club header accent colour</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rules &amp; Terms</label>
+              <textarea class="form-textarea" id="create-rules" placeholder="Earning conditions, redemption terms, expiry rules…" rows="3"></textarea>
+            </div>
             <button class="btn btn-metallic" style="width:100%" onclick="createClub()" id="create-btn">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
               Create Car Club
@@ -698,6 +709,38 @@
             <div class="upload-progress-bar"><div class="upload-progress-fill" id="logo-progress-fill"></div></div>
             <span class="upload-progress-text" id="logo-progress-text">Uploading...</span>
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Club Banner</label>
+          <div id="banner-upload-area" class="logo-upload-area" style="height:100px;" onclick="document.getElementById('banner-file-input').click()">
+            <div id="banner-preview" style="display:none;position:relative;height:100%;">
+              <img id="banner-preview-img" src="" alt="Club banner" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" />
+              <button type="button" class="logo-remove-btn" onclick="event.stopPropagation();removeBanner()" style="top:6px;right:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div id="banner-upload-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Click to upload banner</span>
+              <span class="upload-hint">PNG, JPG or WebP · 4:1 ratio recommended · max 3MB</span>
+            </div>
+            <input type="file" id="banner-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleBannerUpload(this)" />
+          </div>
+          <div id="banner-upload-progress" style="display:none;margin-top:8px;">
+            <div class="upload-progress-bar"><div class="upload-progress-fill" id="banner-progress-fill"></div></div>
+            <span class="upload-progress-text" id="banner-progress-text">Uploading…</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Theme Color</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="color" id="edit-theme-color" value="#C9A84C" style="width:44px;height:36px;padding:2px 4px;border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;background:var(--bg-input);" />
+            <span style="font-size:0.85rem;color:var(--text-secondary);">Club header accent colour</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rules &amp; Terms</label>
+          <textarea class="form-textarea" id="edit-rules" rows="3" placeholder="Earning conditions, redemption terms, expiry rules…"></textarea>
         </div>
         <div class="form-group">
           <label class="form-check" style="cursor:pointer;">
@@ -1328,7 +1371,10 @@
           document.getElementById('edit-name').value = clubData.name || '';
           document.getElementById('edit-description').value = clubData.description || '';
           document.getElementById('edit-welcome').value = clubData.welcome_message || '';
+          document.getElementById('edit-theme-color').value = clubData.theme_color || '#C9A84C';
+          document.getElementById('edit-rules').value = clubData.rules_text || '';
           window.currentLogoUrl = clubData.logo_url || '';
+          window.currentBannerUrl = clubData.banner_url || '';
           const logoPreview = document.getElementById('logo-preview');
           const logoImg = document.getElementById('logo-preview-img');
           const logoPlaceholder = document.getElementById('logo-upload-placeholder');
@@ -1339,6 +1385,17 @@
           } else {
             logoPreview.style.display = 'none';
             logoPlaceholder.style.display = '';
+          }
+          const bannerPreview = document.getElementById('banner-preview');
+          const bannerImg = document.getElementById('banner-preview-img');
+          const bannerPlaceholder = document.getElementById('banner-upload-placeholder');
+          if (clubData.banner_url) {
+            bannerImg.src = clubData.banner_url;
+            bannerPreview.style.display = '';
+            bannerPlaceholder.style.display = 'none';
+          } else {
+            bannerPreview.style.display = 'none';
+            bannerPlaceholder.style.display = '';
           }
           document.getElementById('edit-active').checked = clubData.is_active !== false;
           const badge = document.getElementById('club-status-badge');
@@ -1368,7 +1425,9 @@
           body: JSON.stringify({
             name,
             description: document.getElementById('create-description').value.trim(),
-            welcome_message: document.getElementById('create-welcome').value.trim()
+            welcome_message: document.getElementById('create-welcome').value.trim(),
+            theme_color: document.getElementById('create-theme-color').value || '#C9A84C',
+            rules_text: document.getElementById('create-rules').value.trim()
           })
         });
         showToast('Car Club created!', 'success');
@@ -1393,6 +1452,9 @@
             description: document.getElementById('edit-description').value.trim(),
             welcome_message: document.getElementById('edit-welcome').value.trim(),
             logo_url: window.currentLogoUrl || '',
+            banner_url: window.currentBannerUrl || '',
+            theme_color: document.getElementById('edit-theme-color').value || '#C9A84C',
+            rules_text: document.getElementById('edit-rules').value.trim(),
             is_active: document.getElementById('edit-active').checked
           })
         });
@@ -1473,6 +1535,64 @@
       } catch(e) {
         showToast(e.message || 'Failed to remove logo', 'error');
       }
+    }
+
+    async function handleBannerUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Invalid file type. Use PNG, JPG, or WebP.', 'error');
+        input.value = '';
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        showToast('File too large. Maximum size is 3MB.', 'error');
+        input.value = '';
+        return;
+      }
+      const progressEl = document.getElementById('banner-upload-progress');
+      const progressFill = document.getElementById('banner-progress-fill');
+      const progressText = document.getElementById('banner-progress-text');
+      progressEl.style.display = '';
+      progressFill.style.width = '30%';
+      progressText.textContent = 'Uploading…';
+      try {
+        const token = await getToken();
+        if (!token) { showToast('Session expired', 'error'); return; }
+        const formData = new FormData();
+        formData.append('file', file);
+        progressFill.style.width = '60%';
+        const base = getApiBase();
+        const res = await fetch(`${base}/api/car-club/upload-banner`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        progressFill.style.width = '100%';
+        progressText.textContent = 'Upload complete!';
+        window.currentBannerUrl = data.banner_url || '';
+        document.getElementById('banner-preview-img').src = data.banner_url;
+        document.getElementById('banner-preview').style.display = '';
+        document.getElementById('banner-upload-placeholder').style.display = 'none';
+        showToast('Banner uploaded successfully', 'success');
+        setTimeout(() => { progressEl.style.display = 'none'; progressFill.style.width = '0%'; }, 2000);
+      } catch(e) {
+        showToast(e.message || 'Upload failed', 'error');
+        progressFill.style.width = '0%';
+        progressEl.style.display = 'none';
+      }
+      input.value = '';
+    }
+
+    async function removeBanner() {
+      window.currentBannerUrl = '';
+      document.getElementById('banner-preview').style.display = 'none';
+      document.getElementById('banner-upload-placeholder').style.display = '';
+      document.getElementById('banner-file-input').value = '';
+      showToast('Banner removed — save to apply', 'success');
     }
 
     async function loadTemplates() {

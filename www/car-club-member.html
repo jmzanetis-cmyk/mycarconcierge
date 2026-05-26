@@ -905,12 +905,15 @@
                 ${result.isEarned ? '<div style="margin-top:8px;"><span class="reward-earned-badge">✨ Reward Available!</span></div>' : ''}
               </div>`;
             });
-            return `<div class="club-card">
-              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
-              <div class="club-card-name">${escHtml(club.name)}</div>
+            const accentMy = escHtml(club.theme_color || '#C9A84C');
+            return `<div class="club-card" style="overflow:hidden;">
+              ${club.banner_url ? `<div style="margin:-16px -16px 12px;height:80px;background:url('${escHtml(club.banner_url)}') center/cover no-repeat;border-radius:var(--radius-md) var(--radius-md) 0 0;"></div>` : ''}
+              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;${club.banner_url ? 'margin-top:-28px;border:2px solid var(--bg-card);' : ''}" />` : ''}
+              <div class="club-card-name" style="color:${accentMy};">${escHtml(club.name)}</div>
               <div class="club-card-provider">Provider: ${escHtml((club.provider_id || club.club_id || '').substring(0, 8))}...</div>
               ${window.MCC_BGC ? `<div style="margin:6px 0 10px;">${club.bgc_badge_verified ? window.MCC_BGC.renderBadge({ verified: true, variant: 'full', compliantEmployees: club.bgc_compliant_employees, totalEmployees: club.bgc_total_employees }) : window.MCC_BGC.renderListingNeutral()}</div>` : ''}
               ${club.welcome_message ? `<div class="club-card-welcome">${escHtml(club.welcome_message)}</div>` : ''}
+              ${club.rules_text ? `<details style="margin-bottom:12px;font-size:0.82rem;color:var(--text-secondary);"><summary style="cursor:pointer;color:var(--text-primary);font-weight:500;">Club Rules &amp; Terms</summary><div style="margin-top:6px;white-space:pre-wrap;">${escHtml(club.rules_text)}</div></details>` : ''}
               ${progressHtml || '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;">No reward rules set up yet</div>'}
               <div class="club-card-footer" style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-secondary btn-sm" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>
@@ -997,10 +1000,12 @@
           document.getElementById('recommended-list').innerHTML = recommended.map(club => {
             const isJoined = joinedClubIds.has(club.id);
             const tSummary = buildTestimonialSummary(testimonialMap[club.id]);
-            return `<div class="club-card">
+            const accent = escHtml(club.theme_color || '#C9A84C');
+            return `<div class="club-card" style="overflow:hidden;">
+              ${club.banner_url ? `<div style="margin:-16px -16px 12px;height:80px;background:url('${escHtml(club.banner_url)}') center/cover no-repeat;border-radius:var(--radius-md) var(--radius-md) 0 0;"></div>` : ''}
               <span class="recommended-badge">⭐ Recommended</span>
-              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
-              <div class="club-card-name">${escHtml(club.name)}</div>
+              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;${club.banner_url ? 'margin-top:-28px;border:2px solid var(--bg-card);' : ''}" />` : ''}
+              <div class="club-card-name" style="color:${accent};">${escHtml(club.name)}</div>
               ${window.MCC_BGC ? `<div style="margin:4px 0 8px;">${club.bgc_badge_verified ? window.MCC_BGC.renderBadge({ verified: true, variant: 'full', compliantEmployees: club.bgc_compliant_employees, totalEmployees: club.bgc_total_employees }) : window.MCC_BGC.renderListingNeutral()}</div>` : ''}
               <div class="club-card-desc">${escHtml(club.description || 'Join this club to start earning rewards!')}</div>
               <div class="club-card-meta">
@@ -1034,9 +1039,11 @@
           document.getElementById('browse-list').innerHTML = browseData.map(club => {
             const isJoined = joinedClubIds.has(club.id);
             const tSummary = buildTestimonialSummary(testimonialMap[club.id]);
-            return `<div class="club-card">
-              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;" />` : ''}
-              <div class="club-card-name">${escHtml(club.name)}</div>
+            const accent2 = escHtml(club.theme_color || '#C9A84C');
+            return `<div class="club-card" style="overflow:hidden;">
+              ${club.banner_url ? `<div style="margin:-16px -16px 12px;height:80px;background:url('${escHtml(club.banner_url)}') center/cover no-repeat;border-radius:var(--radius-md) var(--radius-md) 0 0;"></div>` : ''}
+              ${club.logo_url ? `<img src="${escHtml(club.logo_url)}" alt="" style="width:48px;height:48px;border-radius:var(--radius-md);object-fit:cover;margin-bottom:10px;${club.banner_url ? 'margin-top:-28px;border:2px solid var(--bg-card);' : ''}" />` : ''}
+              <div class="club-card-name" style="color:${accent2};">${escHtml(club.name)}</div>
               ${window.MCC_BGC ? `<div style="margin:4px 0 8px;">${club.bgc_badge_verified ? window.MCC_BGC.renderBadge({ verified: true, variant: 'full', compliantEmployees: club.bgc_compliant_employees, totalEmployees: club.bgc_total_employees }) : window.MCC_BGC.renderListingNeutral()}</div>` : ''}
               <div class="club-card-desc">${escHtml(club.description || 'Join this club to start earning rewards!')}</div>
               <div class="club-card-meta">
