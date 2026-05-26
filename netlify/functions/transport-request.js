@@ -283,7 +283,7 @@ async function handleGetRequests(event, supabase) {
 
   const { data: rides, error } = await supabase
     .from('rides')
-    .select('id, status, pickup_address, dropoff_address, estimated_fare, base_rate, is_scheduled, scheduled_pickup_at, requested_at, completed_at, tier, tier, shuttle_premium_amount, is_round_trip, round_trip_parent_id')
+    .select('id, status, pickup_address, dropoff_address, estimated_fare, base_rate, is_scheduled, scheduled_pickup_at, requested_at, completed_at, tier, shuttle_premium_amount, is_round_trip, round_trip_parent_id, multiplier_rate, multiplier_label, pickup_wait_minutes, pickup_wait_cents, dropoff_wait_minutes, dropoff_wait_cents, show_up_fee_cents')
     .eq('member_id', user.id)
     .order('requested_at', { ascending: false })
     .limit(20);
@@ -337,7 +337,7 @@ async function handleGetProviderRequests(event, supabase) {
 
   const { data: rides, error } = await supabase
     .from('rides')
-    .select('id, status, pickup_address, dropoff_address, estimated_fare, base_rate, provider_discount_amount, member_id, is_scheduled, scheduled_pickup_at, requested_at, tier, is_round_trip, round_trip_parent_id')
+    .select('id, status, pickup_address, dropoff_address, estimated_fare, base_rate, provider_discount_amount, member_id, is_scheduled, scheduled_pickup_at, requested_at, tier, is_round_trip, round_trip_parent_id, multiplier_rate, multiplier_label, pickup_wait_minutes, pickup_wait_cents, dropoff_wait_minutes, dropoff_wait_cents, show_up_fee_cents')
     .eq('provider_id', user.id)
     .order('requested_at', { ascending: false })
     .limit(30);

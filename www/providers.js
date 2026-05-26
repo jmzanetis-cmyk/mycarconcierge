@@ -13367,8 +13367,30 @@
         accepted:'var(--accent-blue)'
       };
 
+      function buildFareBreakdown(r) {
+        const base = Number(r.base_rate) || 0;
+        const pickupWait = Number(r.pickup_wait_cents) || 0;
+        const dropoffWait = Number(r.dropoff_wait_cents) || 0;
+        const showUp = Number(r.show_up_fee_cents) || 0;
+        if (!base || !(pickupWait || dropoffWait || showUp)) return '';
+        const mult = Number(r.multiplier_rate) || 1;
+        let baseLabel = 'Base fare';
+        if (mult > 1) baseLabel = r.multiplier_label ? `Base fare (${r.multiplier_label} ${mult.toFixed(1)}×)` : `Base fare (${mult.toFixed(1)}×)`;
+        const rows = [[baseLabel, `$${base.toFixed(2)}`]];
+        if (pickupWait > 0) rows.push([`Pickup wait (${r.pickup_wait_minutes || 0} min)`, `+$${(pickupWait/100).toFixed(2)}`]);
+        if (dropoffWait > 0) rows.push([`Dropoff wait (${r.dropoff_wait_minutes || 0} min)`, `+$${(dropoffWait/100).toFixed(2)}`]);
+        if (showUp > 0) rows.push(['Show-up fee', `+$${(showUp/100).toFixed(2)}`]);
+        return rows.map(([lbl, val]) =>
+          `<div style="display:flex;justify-content:space-between;font-size:0.72rem;color:var(--text-secondary);line-height:1.7;"><span>${lbl}</span><span style="font-variant-numeric:tabular-nums;">${val}</span></div>`
+        ).join('');
+      }
+
       const cards = active.map(r => {
-        const fare = r.base_rate > 0 ? `$${Number(r.base_rate).toFixed(2)}` : (r.estimated_fare ? `~$${Number(r.estimated_fare).toFixed(2)}` : '—');
+        const base = Number(r.base_rate) || 0;
+        const extras = (Number(r.pickup_wait_cents) + Number(r.dropoff_wait_cents) + Number(r.show_up_fee_cents)) / 100;
+        const total = base > 0 ? base + extras : 0;
+        const fare = total > 0 ? `$${total.toFixed(2)}` : (r.estimated_fare ? `~$${Number(r.estimated_fare).toFixed(2)}` : '—');
+        const breakdownHtml = buildFareBreakdown(r);
         const label = STATUS_LABELS[r.status] || r.status;
         const color = STATUS_COLOR[r.status] || 'var(--text-muted)';
         const memberName = r.member_name || 'Member';
@@ -13385,6 +13407,7 @@
               <div style="font-size:0.85rem;font-weight:600;margin-bottom:1px;">${memberName}</div>
               <div style="font-size:0.78rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.pickup_address} → ${r.dropoff_address}</div>
               ${r.driver_name ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">Driver: ${r.driver_name}${r.driver_phone ? ` · <a href="tel:${r.driver_phone}" style="color:var(--accent-blue);text-decoration:none;">${r.driver_phone}</a>` : ''}</div>` : ''}
+              ${breakdownHtml ? `<div style="margin-top:6px;padding-top:6px;border-top:1px solid var(--border-subtle);">${breakdownHtml}</div>` : ''}
               ${readyBtn}
             </div>
             <div style="text-align:right;flex-shrink:0;font-size:0.95rem;font-weight:700;color:var(--accent-gold);">${fare}</div>
