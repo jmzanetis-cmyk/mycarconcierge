@@ -162,6 +162,11 @@
 [functions."bid-credit-reconciler-scheduled"]
   schedule = "30 3 * * *"
 
+# Auto-bid engine: scans open care plans hourly and places bids for providers
+# with auto-bid enabled (settings saved in provider_auto_bid_settings table).
+[functions."auto-bid-engine-scheduled"]
+  schedule = "0 * * * *"
+
 # Promotes scheduled rides to 'requested' 30 min before pickup so dispatch fires on time.
 [functions."transport-scheduled-dispatch"]
   schedule = "*/15 * * * *"

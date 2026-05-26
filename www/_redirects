@@ -140,6 +140,8 @@
 /api/booking/* /.netlify/functions/booking 200
 
 # Feature: Car Clubs
+/api/auto-bid/settings /.netlify/functions/auto-bid 200
+/api/auto-bid/* /.netlify/functions/auto-bid 200
 /api/car-clubs /.netlify/functions/car-clubs 200
 /api/car-clubs/* /.netlify/functions/car-clubs 200
 
