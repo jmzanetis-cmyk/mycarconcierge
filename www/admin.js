@@ -3719,6 +3719,7 @@
     let filteredPayments = [];
 
     function renderPayments() {
+      if (currentFilters.payments === 'transport') { renderTransportPayments(); return; }
       const filtered = payments.filter(p => p.status === currentFilters.payments || currentFilters.payments === 'all');
       filteredPayments = filtered;
       const tbody = document.getElementById('payments-table');
@@ -3755,6 +3756,47 @@
           </td>
         </tr>
       `).join('');
+    }
+
+    let _transportPaymentCache = null;
+
+    async function renderTransportPayments() {
+      const tbody = document.getElementById('payments-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading transport fares…</td></tr>';
+      try {
+        if (!_transportPaymentCache) {
+          const { data } = await supabaseClient
+            .from('rides')
+            .select('id, status, actual_fare, estimated_fare, tip_amount, pickup_wait_cents, dropoff_wait_cents, payment_status, stripe_payment_intent_id, total_charged, created_at, member:member_id(full_name, email), provider:provider_id(full_name)')
+            .not('stripe_payment_intent_id', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(100);
+          _transportPaymentCache = data || [];
+        }
+        const rows = _transportPaymentCache;
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No transport payments with Stripe charge yet</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => {
+          const fare = r.actual_fare || r.estimated_fare || 0;
+          const tip = r.tip_amount || 0;
+          const wait = ((r.pickup_wait_cents || 0) + (r.dropoff_wait_cents || 0)) / 100;
+          const total = r.total_charged || (fare + tip + wait);
+          return `<tr>
+            <td style="font-size:0.8rem;font-family:monospace;">${escapeHtml(String(r.id).slice(0,12))}…</td>
+            <td>${escapeHtml(r.member?.full_name || r.member?.email || '—')}</td>
+            <td>${escapeHtml(r.provider?.full_name || 'Driver')}</td>
+            <td>$${Number(fare).toFixed(2)}${tip ? ` + $${tip.toFixed(2)} tip` : ''}${wait ? ` + $${wait.toFixed(2)} wait` : ''}</td>
+            <td>$${Number(total).toFixed(2)}</td>
+            <td><span class="status-badge ${r.payment_status || 'pending'}">${escapeHtml(r.payment_status || 'pending')}</span></td>
+            <td style="font-size:0.8rem;color:var(--text-muted);">${new Date(r.created_at).toLocaleDateString()}</td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--accent-red);">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
     }
 
     let allRefunds = [];
