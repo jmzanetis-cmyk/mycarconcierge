@@ -153,11 +153,13 @@ async function _recordBidPackFounderCommission(session, meta, supabase) {
 async function handlePaymentIntentSucceeded(pi, supabase) {
   const meta = pi.metadata || {};
   if (meta.type === 'tip' && meta.ride_id && meta.driver_id) {
+    // transport-request.js sets 'charged' synchronously after PI creation,
+    // so by the time this webhook fires the status is 'charged', not 'pending'.
     await supabase.from('driver_tips')
-      .update({ status: 'charged' })
+      .update({ status: 'paid' })
       .eq('ride_id', meta.ride_id)
       .eq('driver_id', meta.driver_id)
-      .eq('status', 'pending');
+      .eq('status', 'charged');
   }
   if (meta.type === 'provider_subsidy' && meta.ride_id) {
     await supabase.from('rides')
