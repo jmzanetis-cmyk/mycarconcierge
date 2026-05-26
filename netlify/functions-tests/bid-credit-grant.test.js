@@ -55,9 +55,10 @@ const { grantBidCredits, FAILURE_MODULE } = require(path.resolve(__dirname, '../
 const reconciler = require(path.resolve(__dirname, '../functions/bid-credit-reconciler-scheduled'));
 
 // ---------- supabase stub ----------
-function makeSupabase({ grantInsertError = null, fetchError = null, updateError = null, existingGrants = [], existingProfile = { id: 'prov-1', bid_credits: 5 } } = {}) {
+function makeSupabase({ grantInsertError = null, fetchError = null, updateError = null, existingGrants = [], existingPurchases = [], existingProfile = { id: 'prov-1', bid_credits: 5 } } = {}) {
   const tables = {
     bid_credit_grants: [...existingGrants],
+    bid_credit_purchases: [...existingPurchases],
     profiles: [existingProfile],
     ai_action_log: [],
   };
@@ -224,8 +225,8 @@ async function main() {
     eq(result.missing_count, 0);
   });
 
-  await run('reconciler: skips when bid_credit_grants row already exists', async () => {
-    const sb = makeSupabase({ existingGrants: [{ transaction_id: 'pi_ok', provider_id: 'prov-1', total_bids: 5 }] });
+  await run('reconciler: skips when bid_credit_purchases row already exists', async () => {
+    const sb = makeSupabase({ existingPurchases: [{ stripe_payment_id: 'pi_ok', provider_id: 'prov-1', total_bids: 5 }] });
     const stripe = makeStripe([
       { id: 'cs_3', payment_intent: 'pi_ok', payment_status: 'paid', amount_total: 1000, created: oldSec,
         metadata: { provider_id: 'prov-1', bids: '5' } }

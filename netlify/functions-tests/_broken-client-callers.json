@@ -22,7 +22,6 @@
     {"url": "/api/connect/create-account",                             "caller": "stripeutils.js:216",         "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#455"},
     {"url": "/api/connect/onboarding-link",                            "caller": "stripeutils.js:232",         "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#455"},
     {"url": "/api/connect/transfer",                                   "caller": "stripeutils.js:247",         "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#455"},
-    {"url": "/api/create-bid-checkout-mobile",                         "caller": "providers-bids.js:1129",     "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#455"},
     {"url": "/api/discount/:param/accept",                             "caller": "members-packages.js:3158",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/discounts/:param",                                   "caller": "members-packages.js:2548",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/dream-car/run-search",                               "caller": "members-extras.js:6010",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
