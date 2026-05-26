@@ -167,6 +167,11 @@
 [functions."auto-bid-engine-scheduled"]
   schedule = "0 * * * *"
 
+# Maintenance reminders: checks vehicles due for service and sends email/SMS
+# to members based on their notification preferences. Runs daily at 08:00 UTC.
+[functions."maintenance-reminders-scheduled"]
+  schedule = "0 8 * * *"
+
 # Promotes scheduled rides to 'requested' 30 min before pickup so dispatch fires on time.
 [functions."transport-scheduled-dispatch"]
   schedule = "*/15 * * * *"
