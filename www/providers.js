@@ -5518,6 +5518,7 @@
 
         teamMembers = data || [];
         await loadTeamMemberBgcStatus();
+        await renderTeamVerificationCard();
         renderTeamMembers();
       } catch (err) {
         console.log('loadTeamMembers error:', err);
@@ -5548,6 +5549,58 @@
       } catch (err) {
         console.log('loadTeamMemberBgcStatus error:', err);
       }
+    }
+
+    async function renderTeamVerificationCard() {
+      const host = document.getElementById('team-verification-card');
+      if (!host) return;
+
+      const now = new Date();
+      const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+
+      const { data: checks } = await supabaseClient
+        .from('employee_background_checks')
+        .select('id, status, expires_at, completed_at')
+        .eq('provider_id', currentUser.id)
+        .eq('is_current', true);
+
+      const all = checks || [];
+      const total = all.length;
+      const verified = all.filter(c => (c.status === 'clear' || c.status === 'passed') && c.expires_at && c.expires_at > now.toISOString()).length;
+      const expiringSoon = all.filter(c => (c.status === 'clear' || c.status === 'passed') && c.expires_at && c.expires_at > now.toISOString() && c.expires_at < in30).length;
+      const pct = total > 0 ? Math.round((verified / total) * 100) : 0;
+
+      const barColor = pct === 100 ? '#10b981' : pct > 0 ? '#f59e0b' : '#ef4444';
+      const statusLabel = pct === 100 ? 'All Staff Verified ✓' : pct > 0 ? 'Partially Verified' : total === 0 ? 'No checks on file' : 'No verified checks';
+      const statusColor = pct === 100 ? '#10b981' : pct > 0 ? '#f59e0b' : 'var(--text-muted)';
+
+      host.innerHTML = `
+        <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:20px;">
+          <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+            <div>
+              <div style="font-weight:600;font-size:1rem;margin-bottom:4px;">${mccIcon('shield', 16)} Team Verification</div>
+              <div style="font-size:0.85rem;font-weight:600;color:${statusColor};">${statusLabel}</div>
+            </div>
+            <span style="display:inline-flex;align-items:center;gap:4px;padding:4px 12px;border-radius:100px;font-size:0.75rem;font-weight:700;background:${pct === 100 ? 'rgba(16,185,129,0.12)' : 'rgba(245,158,11,0.12)'};color:${barColor};border:1px solid ${barColor}33;">${verified}/${total} verified</span>
+          </div>
+          ${total > 0 ? `
+            <div style="height:8px;border-radius:4px;background:var(--bg-input);overflow:hidden;margin-bottom:12px;">
+              <div style="height:100%;width:${pct}%;background:${barColor};border-radius:4px;transition:width 0.4s ease;"></div>
+            </div>
+          ` : ''}
+          ${expiringSoon > 0 ? `
+            <div style="padding:10px 12px;background:rgba(245,158,11,0.1);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.85rem;color:#f59e0b;">
+              ${mccIcon('alert-triangle', 14)} ${expiringSoon} employee BGC${expiringSoon > 1 ? 's' : ''} expiring within 30 days — renew to keep your <strong>All Staff Verified</strong> badge shown to members.
+            </div>
+          ` : ''}
+          ${pct === 100 ? `
+            <div style="padding:10px 12px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.2);border-radius:var(--radius-sm);margin-bottom:12px;font-size:0.85rem;color:#10b981;">
+              ${mccIcon('check-circle', 14)} Your team displays the <strong>All Staff Verified ✓</strong> badge on all member-facing bids.
+            </div>
+          ` : ''}
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:12px;">Background checks renew annually. Add employees via your team page to initiate a check.</div>
+          <button class="btn btn-secondary btn-sm" onclick="openTeamMemberModal()">${mccIcon('user-plus', 14)} Add Employee for Background Check</button>
+        </div>`;
     }
 
     function getTeamMemberBgcBadge(memberId) {
