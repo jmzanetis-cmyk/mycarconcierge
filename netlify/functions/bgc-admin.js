@@ -78,9 +78,20 @@ exports.handler = async function(event) {
   // starts with 'mock_'). Admin needs a true picture of live activity.
   const { data: checks } = await supabase
     .from('employee_background_checks')
-    .select('provider_id, status, bgc_report_id')
+    .select('provider_id, status, bgc_report_id, expires_at')
     .eq('is_current', true)
     .not('bgc_report_id', 'like', 'mock_%');
+
+  // Pre-compute expiring-within-30-days per provider
+  const now = new Date();
+  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const nowIso = now.toISOString();
+  const expiringIn30 = {};
+  (checks || []).forEach(c => {
+    if ((c.status === 'clear' || c.status === 'passed') && c.expires_at && c.expires_at > nowIso && c.expires_at < in30) {
+      expiringIn30[c.provider_id] = (expiringIn30[c.provider_id] || 0) + 1;
+    }
+  });
 
   const acctById = {};
   (accounts || []).forEach(a => { acctById[a.provider_id] = a; });
@@ -141,6 +152,7 @@ exports.handler = async function(event) {
       pending_count: c.pending,
       completed_count: c.clear + c.consider,
       failed_count: c.failed,
+      expiring_within_30_days: expiringIn30[id] || 0,
       account_updated_at: a ? a.updated_at : null
     };
   }).sort((a, b) => (b.pending_count + b.completed_count) - (a.pending_count + a.completed_count));

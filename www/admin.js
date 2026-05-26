@@ -3265,6 +3265,7 @@
                   <th style="text-align:left;">Reason</th>
                   <th style="text-align:right;">Pending</th>
                   <th style="text-align:right;">Completed</th>
+                  <th style="text-align:right;">Expiring ≤30d</th>
                   <th style="text-align:left;">BGC account ID</th>
                 </tr>
               </thead>
@@ -3279,6 +3280,10 @@
                   const acct = r.bgchecks_account_id
                     ? `<code style="font-size:0.78rem;">${escapeHtml(String(r.bgchecks_account_id))}</code>`
                     : '<span style="color:var(--text-muted);">—</span>';
+                  const expiring = r.expiring_within_30_days || 0;
+                  const expiringCell = expiring > 0
+                    ? `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.4);">⚠ ${expiring}</span>`
+                    : `<span style="color:var(--text-muted);">—</span>`;
                   return `
                     <tr>
                       <td><div><strong>${name}</strong></div>${email}</td>
@@ -3286,6 +3291,7 @@
                       <td style="font-size:0.82rem;color:var(--text-muted);">${reason}</td>
                       <td style="text-align:right;">${r.pending_count || 0}</td>
                       <td style="text-align:right;">${r.completed_count || 0}</td>
+                      <td style="text-align:right;">${expiringCell}</td>
                       <td>${acct}</td>
                     </tr>`;
                 }).join('')}
