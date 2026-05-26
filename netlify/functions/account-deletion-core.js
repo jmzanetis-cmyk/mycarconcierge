@@ -32,7 +32,17 @@ async function _deleteProviderTables(supabase, userId) {
   await supabase.from('clover_connections').delete().eq('provider_id', userId);
   await supabase.from('square_connections').delete().eq('provider_id', userId);
   await supabase.from('provider_referral_codes').delete().eq('provider_id', userId);
-  await supabase.from('founder_commissions').delete().eq('founder_id', userId);
+  // founder_commissions.founder_id references member_founder_profiles.id (not profiles.id),
+  // so we must look up the profile row first before deleting dependent rows.
+  const { data: founderProfile } = await supabase
+    .from('member_founder_profiles')
+    .select('id')
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (founderProfile) {
+    await supabase.from('commission_reconciliation_queue').delete().eq('founder_id', founderProfile.id);
+    await supabase.from('founder_commissions').delete().eq('founder_id', founderProfile.id);
+  }
   await supabase.from('founder_referrals').delete().eq('referring_provider_id', userId);
   await supabase
     .from('bid_pack_purchases')
@@ -45,7 +55,7 @@ async function _deleteProviderTables(supabase, userId) {
 }
 
 async function _deleteMemberTables(supabase, userId) {
-  await supabase.from('member_founder_profiles').delete().eq('member_id', userId);
+  await supabase.from('member_founder_profiles').delete().eq('user_id', userId);
 
   let vehiclesRes = await supabase
     .from('vehicles')
