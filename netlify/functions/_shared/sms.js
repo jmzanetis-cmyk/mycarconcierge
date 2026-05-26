@@ -111,6 +111,17 @@ async function isOptedOut({ supabase, userId, phone }) {
  *   - 'twilio_error:NNN' — Twilio returned a non-2xx
  *   - 'exception'        — fetch threw
  */
+// Exported so health-check routes can surface Twilio config status without
+// actually sending. Returns { configured: bool, missing: string[] }.
+function twilioHealthCheck(env = process.env) {
+  const required = { TWILIO_ACCOUNT_SID: env.TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN: env.TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER: env.TWILIO_PHONE_NUMBER };
+  const missing = Object.entries(required).filter(([, v]) => !v).map(([k]) => k);
+  if (missing.length > 0) {
+    console.warn('[sms] Twilio not fully configured — missing env vars:', missing.join(', '));
+  }
+  return { configured: missing.length === 0, missing };
+}
+
 async function sendSms({ supabase, toPhone, body, userId = null, env = process.env }) {
   if (await isOptedOut({ supabase, userId, phone: toPhone })) {
     return { sent: false, reason: 'sms_opt_out' };
@@ -119,7 +130,11 @@ async function sendSms({ supabase, toPhone, body, userId = null, env = process.e
   const sid   = env.TWILIO_ACCOUNT_SID;
   const token = env.TWILIO_AUTH_TOKEN;
   const from  = env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from) return { sent: false, reason: 'not_configured' };
+  if (!sid || !token || !from) {
+    const { missing } = twilioHealthCheck(env);
+    console.warn('[sms] sendSms skipped — missing env vars:', missing.join(', '));
+    return { sent: false, reason: 'not_configured', missing };
+  }
 
   const to = normalizePhone(toPhone);
   if (!to) return { sent: false, reason: 'invalid_phone' };
@@ -146,4 +161,4 @@ async function sendSms({ supabase, toPhone, body, userId = null, env = process.e
   }
 }
 
-module.exports = { sendSms, isOptedOut, normalizePhone };
+module.exports = { sendSms, isOptedOut, normalizePhone, twilioHealthCheck };

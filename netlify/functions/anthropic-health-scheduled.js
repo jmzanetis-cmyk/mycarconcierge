@@ -241,6 +241,15 @@ exports.handler = async function (event) {
   }
 
   let summary = await runHealthCheck();
+
+  // Twilio health check: surface missing env vars in the same run
+  const { twilioHealthCheck } = require('./_shared/sms');
+  const twilioStatus = twilioHealthCheck();
+  if (!twilioStatus.configured) {
+    console.warn('[anthropic-health] Twilio not configured — missing:', twilioStatus.missing.join(', '));
+  }
+  summary.twilio = twilioStatus;
+
   let supabase = getSupabase();
   await logToAiActionLog(supabase, summary, auth);
 
