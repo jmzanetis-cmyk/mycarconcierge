@@ -94,7 +94,13 @@ async function handleOverview(supabase) {
     supabase.from('vehicles').select('*', { count: 'exact', head: true }),
     supabase.from('maintenance_packages').select('*', { count: 'exact', head: true }),
     supabase.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
-    supabase.from('payments').select('amount_total, mcc_fee, status').eq('status', 'released')
+    supabase.from('payments').select('amount_total, mcc_fee, status').eq('status', 'released'),
+    // Transport stats
+    supabase.from('rides').select('*', { count: 'exact', head: true }),
+    supabase.from('rides').select('*', { count: 'exact', head: true }).eq('status', 'completed'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'driver'),
+    supabase.from('rides').select('estimated_fare').eq('status', 'completed'),
+    supabase.from('driver_earnings').select('amount_cents').eq('payout_status', 'paid')
   ]);
 
   var totalMembers   = results[0].count;
@@ -103,9 +109,17 @@ async function handleOverview(supabase) {
   var totalPackages  = results[3].count;
   var activePackages = results[4].count;
   var paymentsData   = results[5].data || [];
+  var totalRides     = results[6].count;
+  var completedRides = results[7].count;
+  var activeDrivers  = results[8].count;
+  var completedFares = results[9].data || [];
+  var paidEarnings   = results[10].data || [];
 
   var totalRevenue           = paymentsData.reduce(function(s, p) { return s + (p.mcc_fee     || 0); }, 0);
   var totalTransactionVolume = paymentsData.reduce(function(s, p) { return s + (p.amount_total || 0); }, 0);
+  var transportRevenue       = completedFares.reduce(function(s, r) { return s + (r.estimated_fare || 0); }, 0);
+  var avgFare                = completedFares.length ? transportRevenue / completedFares.length : 0;
+  var driverPayoutTotal      = paidEarnings.reduce(function(s, e) { return s + ((e.amount_cents || 0) / 100); }, 0);
 
   return {
     totalMembers:           totalMembers   || 0,
@@ -115,7 +129,15 @@ async function handleOverview(supabase) {
     activePackages:         activePackages || 0,
     totalRevenue,
     totalTransactionVolume,
-    totalOrders:            paymentsData.length
+    totalOrders:            paymentsData.length,
+    transport: {
+      totalRides:       totalRides     || 0,
+      completedRides:   completedRides || 0,
+      activeDrivers:    activeDrivers  || 0,
+      transportRevenue: Math.round(transportRevenue * 100) / 100,
+      avgFare:          Math.round(avgFare * 100) / 100,
+      driverPayoutTotal: Math.round(driverPayoutTotal * 100) / 100
+    }
   };
 }
 
