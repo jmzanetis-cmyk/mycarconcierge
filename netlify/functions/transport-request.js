@@ -177,6 +177,59 @@ async function handleMemberRequest(event, supabase, body) {
     return jsonResponse(500, { error: error.message });
   }
 
+  // Charge the member's fare (hold via manual capture — released when ride completes)
+  if (memberRate > 0) {
+    const stripe = getStripe();
+    if (!stripe) {
+      await supabase.from('rides').delete().eq('id', data.id);
+      return jsonResponse(500, { error: 'Payment service unavailable' });
+    }
+
+    const { data: memberProfile } = await supabase.from('profiles')
+      .select('stripe_customer_id').eq('id', user.id).maybeSingle();
+
+    if (!memberProfile?.stripe_customer_id) {
+      await supabase.from('rides').delete().eq('id', data.id);
+      return jsonResponse(400, { error: 'Please add a payment method before requesting a pickup' });
+    }
+
+    let defaultPM = null;
+    try {
+      const customer = await stripe.customers.retrieve(memberProfile.stripe_customer_id);
+      defaultPM = customer.invoice_settings?.default_payment_method || null;
+      if (!defaultPM) {
+        const pms = await stripe.paymentMethods.list({ customer: memberProfile.stripe_customer_id, type: 'card', limit: 1 });
+        defaultPM = pms.data[0]?.id || null;
+      }
+    } catch (pmErr) {
+      console.error('[transport-request] member PM lookup error:', pmErr.message);
+    }
+
+    if (!defaultPM) {
+      await supabase.from('rides').delete().eq('id', data.id);
+      return jsonResponse(400, { error: 'No saved payment method found. Please add a card before requesting a pickup.' });
+    }
+
+    try {
+      const pi = await stripe.paymentIntents.create({
+        amount:         Math.round(memberRate * 100),
+        currency:       'usd',
+        customer:       memberProfile.stripe_customer_id,
+        payment_method: defaultPM,
+        capture_method: 'manual',
+        confirm:        true,
+        off_session:    true,
+        description:    `MCC Member Pickup — Ride ${data.id}`,
+        metadata: { ride_id: data.id, type: 'member_pickup', member_id: user.id },
+      });
+      await supabase.from('rides').update({ stripe_payment_intent_id: pi.id }).eq('id', data.id);
+    } catch (chargeErr) {
+      console.error('[transport-request] member charge error:', chargeErr.message);
+      await supabase.from('rides').delete().eq('id', data.id);
+      return jsonResponse(402, { error: 'Payment authorisation failed: ' + chargeErr.message });
+    }
+  }
+
   if (isFutureScheduled) {
     return jsonResponse(201, {
       rideId: data.id,
