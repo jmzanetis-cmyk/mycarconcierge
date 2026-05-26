@@ -574,6 +574,8 @@
       <div class="nav-item" data-section="registration-verifications"><span class="icon-inline" data-icon="search"></span> Registration Reviews <span class="nav-badge orange" id="registration-count">0</span></div>
       <div class="nav-item" data-section="bgc-dashboard"><span class="icon-inline" data-icon="shield"></span> BGC Dashboard</div>
 
+      <div class="nav-item" data-section="referrals"><span class="icon-inline" data-icon="link"></span> Referrals</div>
+
       <div class="nav-label">Support</div>
       <div class="nav-item" data-section="tickets"><span class="icon-inline" data-icon="ticket"></span> Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
       <div class="nav-item" data-section="ai-chat-insights"><span class="icon-inline" data-icon="message-circle"></span> AI Chat Insights</div>
@@ -3520,6 +3522,34 @@
               <tr><td colspan="6" class="empty-state">Loading verifications...</td></tr>
             </tbody>
           </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Referrals Dashboard -->
+    <section id="referrals" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="link"></span> Referrals</h1>
+        <p class="page-subtitle">Provider referral codes and member founder referral activity</p>
+      </div>
+      <div class="stats-grid" style="margin-bottom:20px;">
+        <div class="stat-card"><div class="stat-value" id="ref-provider-codes">0</div><div class="stat-label">Provider Codes</div></div>
+        <div class="stat-card"><div class="stat-value" id="ref-total-uses">0</div><div class="stat-label">Total Code Uses</div></div>
+        <div class="stat-card"><div class="stat-value" id="ref-member-founders">0</div><div class="stat-label">Member Founders w/ Codes</div></div>
+        <div class="stat-card"><div class="stat-value" id="ref-total-commissions">$0</div><div class="stat-label">Total Commissions</div></div>
+      </div>
+      <div class="tabs" id="referrals-tabs">
+        <div class="tab active" data-ref-tab="provider-codes">Provider Referral Codes</div>
+        <div class="tab" data-ref-tab="member-founders">Member Founder Activity</div>
+      </div>
+      <div class="card" style="padding:0;overflow:hidden;margin-top:0;">
+        <div class="card-header" style="padding:14px 20px;display:flex;justify-content:space-between;align-items:center;">
+          <h2 class="card-title" id="ref-tab-title">Provider Referral Codes</h2>
+          <button class="btn btn-secondary btn-sm" onclick="loadReferralDashboard()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+        </div>
+        <div id="referrals-content">
+          <div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>
         </div>
       </div>
     </section>

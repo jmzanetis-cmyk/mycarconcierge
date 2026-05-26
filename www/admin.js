@@ -426,7 +426,8 @@
       'api-usage': async () => { await loadApiUsage(); },
       'survey-analytics': async () => { await loadSurveyAnalytics(); },
       'member-surveys': async () => { await loadMemberSurveyAnalytics(); },
-      'car-clubs': async () => { await loadCarClubs(); }
+      'car-clubs': async () => { await loadCarClubs(); },
+      referrals: async () => { await loadReferralDashboard(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -13129,6 +13130,127 @@
     }
 
     globalThis.loadBgcDashboard = loadBgcDashboard;
+
+    // ── Referral Tracking Dashboard ──────────────────────────────────────────
+    let _refTab = 'provider-codes';
+    let _refProviderCodes = [];
+    let _refFounderProfiles = [];
+
+    document.addEventListener('click', e => {
+      const tab = e.target.closest('[data-ref-tab]');
+      if (!tab) return;
+      _refTab = tab.dataset.refTab;
+      document.querySelectorAll('[data-ref-tab]').forEach(t => t.classList.toggle('active', t === tab));
+      const titleEl = document.getElementById('ref-tab-title');
+      if (titleEl) titleEl.textContent = _refTab === 'provider-codes' ? 'Provider Referral Codes' : 'Member Founder Activity';
+      renderReferralContent();
+    });
+
+    async function loadReferralDashboard() {
+      const content = document.getElementById('referrals-content');
+      if (content) content.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const [codesRes, foundersRes] = await Promise.all([
+          supabaseClient
+            .from('provider_referral_codes')
+            .select('id, code, provider_id, type, uses_count, fee_exempt, skip_identity_verification, is_active, created_at, profiles!provider_referral_codes_provider_id_fkey(full_name, email)')
+            .order('created_at', { ascending: false }),
+          supabaseClient
+            .from('member_founder_profiles')
+            .select('id, full_name, email, referral_code, total_provider_referrals, total_member_referrals, total_commissions_earned, status')
+            .eq('status', 'active')
+            .order('total_provider_referrals', { ascending: false })
+        ]);
+
+        _refProviderCodes   = codesRes.data   || [];
+        _refFounderProfiles = foundersRes.data || [];
+
+        const totalUses        = _refProviderCodes.reduce((s, r) => s + (r.uses_count || 0), 0);
+        const foundersWithCode = _refFounderProfiles.filter(f => f.referral_code).length;
+        const totalCommissions = _refFounderProfiles.reduce((s, f) => s + (f.total_commissions_earned || 0), 0);
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('ref-provider-codes'))   dEl('ref-provider-codes').textContent   = _refProviderCodes.length;
+        if (dEl('ref-total-uses'))        dEl('ref-total-uses').textContent        = totalUses;
+        if (dEl('ref-member-founders'))   dEl('ref-member-founders').textContent   = foundersWithCode;
+        if (dEl('ref-total-commissions')) dEl('ref-total-commissions').textContent = `$${(totalCommissions/100).toFixed(0)}`;
+
+        renderReferralContent();
+      } catch (err) {
+        const content = document.getElementById('referrals-content');
+        if (content) content.innerHTML = `<div style="padding:32px;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderReferralContent() {
+      const content = document.getElementById('referrals-content');
+      if (!content) return;
+
+      const badge = (val, trueColor = '#10b981', falseColor = '#6b7280') => {
+        const on = val === true;
+        return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${on?trueColor:falseColor}22;color:${on?trueColor:falseColor};border:1px solid ${on?trueColor:falseColor}55;">${on?'Yes':'No'}</span>`;
+      };
+
+      if (_refTab === 'provider-codes') {
+        if (!_refProviderCodes.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No provider referral codes on record.</div>';
+          return;
+        }
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Code</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Provider</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Type</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Uses</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Fee Exempt</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Skip ID</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Active</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Created</th>
+          </tr></thead><tbody>
+          ${_refProviderCodes.map(r => {
+            const p = r.profiles || {};
+            return `<tr style="border-bottom:1px solid var(--border-subtle);">
+              <td style="padding:10px 14px;font-family:monospace;font-weight:600;">${escapeHtml(r.code||'—')}</td>
+              <td style="padding:10px 14px;">
+                <div style="font-weight:500;">${escapeHtml(p.full_name||'—')}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email||'')}</div>
+              </td>
+              <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.type||'—')}</td>
+              <td style="padding:10px 14px;text-align:center;font-weight:600;">${r.uses_count||0}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.fee_exempt)}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.skip_identity_verification)}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.is_active)}</td>
+              <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
+            </tr>`;
+          }).join('')}
+          </tbody></table>`;
+      } else {
+        if (!_refFounderProfiles.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No active member founder profiles on record.</div>';
+          return;
+        }
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Name</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Email</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Referral Code</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Provider Refs</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Member Refs</th>
+            <th style="padding:10px 14px;text-align:right;color:var(--text-muted);">Commissions</th>
+          </tr></thead><tbody>
+          ${_refFounderProfiles.map(f => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 14px;font-weight:500;">${escapeHtml(f.full_name||'—')}</td>
+            <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(f.email||'—')}</td>
+            <td style="padding:10px 14px;font-family:monospace;font-size:0.82rem;">${f.referral_code ? escapeHtml(f.referral_code) : '<span style="color:var(--text-muted);">—</span>'}</td>
+            <td style="padding:10px 14px;text-align:center;">${f.total_provider_referrals||0}</td>
+            <td style="padding:10px 14px;text-align:center;">${f.total_member_referrals||0}</td>
+            <td style="padding:10px 14px;text-align:right;font-weight:600;">$${((f.total_commissions_earned||0)/100).toFixed(2)}</td>
+          </tr>`).join('')}
+          </tbody></table>`;
+      }
+    }
+
+    globalThis.loadReferralDashboard = loadReferralDashboard;
 
     async function reviewPromoterDraft(id, decision) {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
