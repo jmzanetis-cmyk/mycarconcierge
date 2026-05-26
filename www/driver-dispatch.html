@@ -18,6 +18,7 @@
     --green: #22c55e;
     --red: #ef4444;
     --orange: #f97316;
+    --purple: #818cf8;
     --text: #f1f5f9;
     --text2: #94a3b8;
     --text3: #64748b;
@@ -64,9 +65,10 @@
 
   /* ── Cards ── */
   .ride-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
-  .ride-card.card-pending { border-color: rgba(201,162,39,0.35); }
-  .ride-card.card-active  { border-color: rgba(59,130,246,0.4); }
-  .ride-card.card-done    { opacity: 0.65; }
+  .ride-card.card-pending    { border-color: rgba(201,162,39,0.35); }
+  .ride-card.card-active     { border-color: rgba(59,130,246,0.4); }
+  .ride-card.card-scheduled  { border-color: rgba(129,140,248,0.4); }
+  .ride-card.card-done       { opacity: 0.65; }
 
   .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; margin-bottom: 10px; }
   .badge-gold   { background: rgba(201,162,39,0.15); color: var(--gold); }
@@ -74,6 +76,7 @@
   .badge-green  { background: rgba(34,197,94,0.15);  color: var(--green); }
   .badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
   .badge-grey   { background: rgba(100,116,139,0.2); color: var(--text2); }
+  .badge-purple { background: rgba(129,140,248,0.15); color: var(--purple); }
   .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
 
   .route-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
@@ -378,8 +381,8 @@ async function loadRides() {
   try {
     const res = await apiFetch('/transport-rides');
     if (!res.ok) { console.error('load rides', res.status); return; }
-    const { assignments } = await res.json();
-    renderAssignments(assignments || []);
+    const { assignments, scheduledRides } = await res.json();
+    renderAssignments(assignments || [], scheduledRides || []);
   } catch (e) {
     if (e.message !== 'Session expired') console.error(e);
   }
@@ -449,14 +452,14 @@ function fareHtml(r, a) {
   return `<div class="fare-breakdown">${lines.join('')}</div>`;
 }
 
-function renderAssignments(assignments) {
+function renderAssignments(assignments, scheduledRides) {
   const main = document.getElementById('dispatch-main');
-  const pending  = assignments.filter(a => a.status === 'pending');
-  const active   = assignments.filter(a => ['accepted','en_route','arrived','in_progress'].includes(a.status));
+  const pending   = assignments.filter(a => a.status === 'pending');
+  const active    = assignments.filter(a => ['accepted','en_route','arrived','in_progress'].includes(a.status));
   const completed = assignments.filter(a => a.status === 'completed');
 
-  if (!pending.length && !active.length && !completed.length) {
-    main.innerHTML = `<div class="empty"><div class="empty-icon">🟢</div><h3>Ready for dispatch</h3><p>You'll see incoming rides here. This page refreshes every ${REFRESH_SECS} seconds.</p></div>`;
+  if (!pending.length && !active.length && !completed.length && !scheduledRides.length) {
+    main.innerHTML = `<div class="empty"><div class="empty-icon">🟢</div><h3>Ready for dispatch</h3><p>You'll see incoming rides and upcoming scheduled pickups here. This page refreshes every ${REFRESH_SECS} seconds.</p></div>`;
     return;
   }
 
@@ -470,6 +473,11 @@ function renderAssignments(assignments) {
   if (pending.length) {
     html += `<div class="section-label" style="margin-top:${active.length ? 16 : 4}px;">New dispatch</div>`;
     html += pending.map(renderPendingCard).join('');
+  }
+
+  if (scheduledRides.length) {
+    html += `<div class="section-label" style="margin-top:${(active.length || pending.length) ? 16 : 4}px;">Upcoming pickups</div>`;
+    html += scheduledRides.map(renderScheduledCard).join('');
   }
 
   if (completed.length) {
@@ -564,6 +572,56 @@ function renderCompletedCard(a) {
     </div>`;
 }
 
+function renderScheduledCard(r) {
+  const pickupDt = r.scheduled_pickup_at ? new Date(r.scheduled_pickup_at) : null;
+  const pickupDate = pickupDt
+    ? pickupDt.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })
+    : '—';
+  const pickupTime = pickupDt
+    ? pickupDt.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+    : '';
+  const minsUntil = pickupDt ? Math.round((pickupDt - Date.now()) / 60000) : null;
+  const timeChip = minsUntil !== null
+    ? (minsUntil >= 60
+        ? `in ${Math.floor(minsUntil / 60)}h ${minsUntil % 60 > 0 ? (minsUntil % 60) + 'm' : ''}`.trim()
+        : `in ${minsUntil}m`)
+    : '';
+
+  const veh = [r.member_vehicle_year, r.member_vehicle_color, r.member_vehicle_make, r.member_vehicle_model].filter(Boolean).join(' ');
+  const plate = r.member_vehicle_plate;
+  const vehHtml = (veh || plate)
+    ? `<div class="vehicle-row">🚗 <b>${veh || 'Vehicle'}</b>${plate ? ` · Plate <b>${plate}</b>` : ''}</div>`
+    : '';
+
+  const base = Number(r.base_rate) || 0;
+  const est  = Number(r.estimated_fare) || 0;
+  const fareDisplay = base > 0 ? `$${base.toFixed(2)}` : est > 0 ? `~$${est.toFixed(2)}` : null;
+  const fareHtmlStr = fareDisplay
+    ? `<div class="fare-row"><span class="fare-label">Estimated earnings</span><span class="fare-value">${fareDisplay}</span></div>`
+    : '';
+
+  return `
+    <div class="ride-card card-scheduled">
+      <div class="badge badge-purple"><span class="badge-dot"></span>Scheduled${timeChip ? ' · ' + timeChip : ''}</div>
+      <div style="font-size:0.8rem;color:var(--text2);margin-bottom:10px;">📅 ${pickupDate}${pickupTime ? ' at ' + pickupTime : ''}</div>
+      <div class="route-row">
+        <div class="route-icons">
+          <div class="route-dot"></div>
+          <div class="route-line"></div>
+          <div class="route-dot end"></div>
+        </div>
+        <div class="route-addrs">
+          <div class="route-addr"><b>Pickup:</b> ${r.pickup_address || '—'}${navLink(r.pickup_address)}</div>
+          <div class="route-addr"><b>Dropoff:</b> ${r.dropoff_address || '—'}${navLink(r.dropoff_address)}</div>
+        </div>
+      </div>
+      ${vehHtml}
+      ${r.pickup_notes ? `<div class="notes-row">${r.pickup_notes}</div>` : ''}
+      ${fareHtmlStr}
+      <button class="btn btn-blue" onclick="claimRide('${r.id}', this)">Claim This Ride</button>
+    </div>`;
+}
+
 // ── Action handlers ────────────────────────────────────────────────────────
 
 async function acceptRide(id) {
@@ -588,6 +646,16 @@ async function startTrip(id) {
 async function completeRide(id) {
   if (!confirm('Confirm vehicle has been delivered?')) return;
   await doAction(id, 'complete', '✓ Delivery complete!');
+}
+
+async function claimRide(rideId, btn) {
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = 'Claiming…';
+  try {
+    const res = await apiPost(`/transport-rides/${rideId}/claim`);
+    if (res.ok) { toast('Ride claimed — it\'s yours!'); await loadRides(); }
+    else { const d = await res.json(); toast(d?.error?.message || 'Could not claim ride', true); btn.disabled = false; btn.textContent = origText; }
+  } catch (e) { toast('Network error', true); btn.disabled = false; btn.textContent = origText; }
 }
 
 async function doAction(id, action, successMsg) {
