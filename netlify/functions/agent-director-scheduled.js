@@ -876,6 +876,63 @@ async function checkPaymentAutoRelease(supabase) {
 }
 
 // ---------------------------------------------------------------------------
+// checkCommissionReconciliation — drain commission_reconciliation_queue.
+//
+// bid-credit-reconciler-scheduled.js inserts a pending row here whenever it
+// records a founder commission. We consume those rows: verify the matching
+// founder_commissions row exists with the expected amount, then mark the
+// queue entry 'verified' or 'mismatch'. Returns a finding only when at least
+// one mismatch is found so the admin is alerted.
+// ---------------------------------------------------------------------------
+async function checkCommissionReconciliation(supabase) {
+  let pending;
+  try {
+    const { data, error } = await supabase
+      .from('commission_reconciliation_queue')
+      .select('id, commission_id, founder_id, amount')
+      .eq('status', 'pending')
+      .limit(50);
+    if (error) return null;
+    pending = data || [];
+  } catch { return null; }
+
+  if (pending.length === 0) return null;
+
+  const mismatches = [];
+  for (const row of pending) {
+    let verified = false;
+    try {
+      const { data: comm } = await supabase
+        .from('founder_commissions')
+        .select('id, commission_amount')
+        .eq('id', row.commission_id)
+        .maybeSingle();
+      verified = comm != null && Math.abs((comm.commission_amount || 0) - (row.amount || 0)) < 0.01;
+    } catch { /* treat as mismatch */ }
+
+    const newStatus = verified ? 'verified' : 'mismatch';
+    await supabase
+      .from('commission_reconciliation_queue')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .catch(() => {});
+
+    if (!verified) mismatches.push({ queue_id: row.id, commission_id: row.commission_id, founder_id: row.founder_id, amount: row.amount });
+  }
+
+  if (mismatches.length === 0) return null;
+
+  return {
+    alert_key: 'commission_reconciliation_mismatch',
+    severity: 'high',
+    title: `${mismatches.length} founder commission reconciliation mismatch${mismatches.length === 1 ? '' : 'es'}`,
+    body: `${mismatches.length} queue row${mismatches.length === 1 ? '' : 's'} in commission_reconciliation_queue could not be matched to a valid founder_commissions record. This means a Stripe checkout completed but the commission row is missing or has the wrong amount — founders may be underpaid.`,
+    next_action: 'Review commission_reconciliation_queue for mismatch rows and cross-check against Stripe sessions in founder_commissions. Reconcile manually and re-run bid-credit-reconciler-scheduled if needed.',
+    payload: { mismatches, processed: pending.length }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Handler phases (extracted from the main handler so each phase has a single
 // responsibility — see Task #262).
 // ---------------------------------------------------------------------------
@@ -898,7 +955,9 @@ async function _runChecks(supabase, cfg) {
     // Return leg recovery
     checkRidesStuckInPendingDispatch,
     // Payment auto-release
-    checkPaymentAutoRelease
+    checkPaymentAutoRelease,
+    // Commission reconciliation queue consumer
+    checkCommissionReconciliation
   ];
   const findings = [];
   const checkErrors = [];
