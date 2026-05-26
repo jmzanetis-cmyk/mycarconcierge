@@ -5526,7 +5526,7 @@
         if (profileIds.length) {
           const { data: driversData } = await supabaseClient
             .from('drivers')
-            .select('profile_id, notes, status')
+            .select('profile_id, notes, status, bgc_status, bgc_report_id, bgc_invite_url')
             .in('profile_id', profileIds);
           driverRows = driversData || [];
         }
@@ -5561,21 +5561,46 @@
         try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
         const vehicle = [notes.vehicle_year, notes.vehicle_make, notes.vehicle_model].filter(Boolean).join(' ') || 'Not provided';
         const location = [profile.city, profile.state].filter(Boolean).join(', ') || 'N/A';
+        const bgcStatus = driver?.bgc_status || 'not_started';
+
+        const bgcBadgeMap = {
+          not_started: ['#888', 'BGC: Not Started'],
+          pending_check: ['#f59e0b', 'BGC: Pending'],
+          passed: ['#10b981', 'BGC: Passed'],
+          consider: ['#f59e0b', 'BGC: Review Required'],
+          failed: ['#ef4444', 'BGC: Failed'],
+        };
+        const [bgcColor, bgcLabel] = bgcBadgeMap[bgcStatus] || ['#888', bgcStatus];
+        const bgcBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${bgcColor}22;color:${bgcColor};border:1px solid ${bgcColor}55;">${bgcLabel}</span>`;
+
+        const canApprove = bgcStatus === 'passed' || bgcStatus === 'consider';
+        const approveBtn = canApprove
+          ? `<button class="btn btn-success btn-sm" onclick="approveDriver('${profile.id}')" title="Approve">${mccIcon('check', 16)}</button>`
+          : `<button class="btn btn-secondary btn-sm" disabled title="BGC required before approval" style="opacity:0.4;cursor:not-allowed;">${mccIcon('check', 16)}</button>`;
+
+        let bgcActionBtn = '';
+        if (bgcStatus === 'not_started') {
+          bgcActionBtn = `<button class="btn btn-secondary btn-sm" onclick="runDriverBgc('${profile.id}')" title="Initiate Background Check">Run BGC</button>`;
+        } else if (bgcStatus === 'pending_check') {
+          bgcActionBtn = `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.5;cursor:not-allowed;">BGC Pending…</button>`;
+        }
 
         return `
           <tr>
             <td>
               <div><strong>${escapeHtml(profile.full_name || 'No name')}</strong></div>
               <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(profile.email || '')}</div>
+              <div style="margin-top:4px;">${bgcBadge}</div>
             </td>
             <td>${escapeHtml(profile.phone || 'N/A')}</td>
             <td>${escapeHtml(location)}</td>
             <td>${escapeHtml(vehicle)}</td>
             <td>${new Date(profile.created_at).toLocaleDateString()}</td>
             <td>
-              <div style="display:flex;gap:4px;">
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
                 <button class="btn btn-secondary btn-sm" onclick="viewDriverApplication('${profile.id}')">View</button>
-                <button class="btn btn-success btn-sm" onclick="approveDriver('${profile.id}')" title="Approve">${mccIcon('check', 16)}</button>
+                ${bgcActionBtn}
+                ${approveBtn}
                 <button class="btn btn-danger btn-sm" onclick="rejectDriver('${profile.id}')" title="Reject">${mccIcon('x', 16)}</button>
               </div>
             </td>
@@ -5624,18 +5649,58 @@
       document.getElementById('application-modal-body').innerHTML = modalContent;
       const modalFooter = document.querySelector('#application-modal .modal-footer');
       if (modalFooter) {
+        const bgcStatus = driver?.bgc_status || 'not_started';
+        const canApprove = bgcStatus === 'passed' || bgcStatus === 'consider';
+        const approveModalBtn = canApprove
+          ? `<button class="btn btn-success" onclick="approveDriver('${profile.id}'); closeModal('application-modal');">Approve Driver</button>`
+          : `<button class="btn btn-secondary" disabled style="opacity:0.5;cursor:not-allowed;">BGC Required</button>`;
+        const bgcModalBtn = bgcStatus === 'not_started'
+          ? `<button class="btn btn-secondary" onclick="runDriverBgc('${profile.id}')">Run BGC</button>`
+          : '';
         modalFooter.innerHTML = `
           <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
+          ${bgcModalBtn}
           <button class="btn btn-danger" onclick="rejectDriver('${profile.id}'); closeModal('application-modal');">Reject</button>
-          <button class="btn btn-success" onclick="approveDriver('${profile.id}'); closeModal('application-modal');">Approve Driver</button>
+          ${approveModalBtn}
         `;
       }
       document.getElementById('application-modal').classList.add('active');
     }
 
+    async function runDriverBgc(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+      if (!confirm(`Initiate background check for ${profile.full_name || profile.email}?`)) return;
+
+      try {
+        const res = await fetch('/api/admin/driver-bgc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
+          body: JSON.stringify({ profile_id: profileId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.error || 'BGC initiation failed', 'error');
+          return;
+        }
+        showToast(data.mocked ? 'BGC ordered (mock mode)' : 'Background check ordered — awaiting results', 'success');
+        await loadDriverApplications();
+      } catch (err) {
+        console.error('runDriverBgc error:', err);
+        showToast('Error initiating background check', 'error');
+      }
+    }
+
     async function approveDriver(profileId) {
       const profile = driverApplications.find(p => p.id === profileId);
       if (!profile) return;
+
+      const bgcStatus = profile._driver?.bgc_status || 'not_started';
+      if (bgcStatus !== 'passed' && bgcStatus !== 'consider') {
+        showToast('Background check must pass before approving this driver', 'error');
+        return;
+      }
+
       if (!confirm(`Approve ${profile.full_name || profile.email} as an MCC Driver?`)) return;
 
       try {
@@ -5712,6 +5777,7 @@
     globalThis.approveDriver = approveDriver;
     globalThis.rejectDriver = rejectDriver;
     globalThis.viewDriverApplication = viewDriverApplication;
+    globalThis.runDriverBgc = runDriverBgc;
 
     // ========== MEMBER FOUNDER APPLICATIONS ==========
     let memberFounderApplications = [];
