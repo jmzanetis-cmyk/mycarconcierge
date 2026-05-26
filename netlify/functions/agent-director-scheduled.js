@@ -778,6 +778,59 @@ async function checkReservedRidesReadyForConfirmation(supabase) {
 }
 
 // ---------------------------------------------------------------------------
+// checkPaymentAutoRelease — capture Stripe PIs for payments past auto_release_date
+// ---------------------------------------------------------------------------
+async function checkPaymentAutoRelease(supabase) {
+  const now = new Date().toISOString();
+  let payments;
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('id, package_id, member_id, stripe_payment_intent_id, stripe_payment_intent, stripe_payment_id')
+      .not('auto_release_date', 'is', null)
+      .lte('auto_release_date', now)
+      .not('status', 'eq', 'released');
+    if (error) return null;
+    payments = data;
+  } catch { return null; }
+
+  if (!payments || payments.length === 0) return null;
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripe = stripeKey ? require('stripe')(stripeKey, { apiVersion: require('../../lib/stripe-api-version').STRIPE_API_VERSION }) : null;
+
+  const captured = [];
+  const failed   = [];
+
+  for (const pmt of payments) {
+    const piId = pmt.stripe_payment_intent_id || pmt.stripe_payment_intent || pmt.stripe_payment_id;
+    if (piId && stripe) {
+      try {
+        await stripe.paymentIntents.capture(piId);
+      } catch (e) {
+        if (e?.code !== 'payment_intent_unexpected_state') {
+          failed.push({ payment_id: pmt.id, error: e.message });
+          continue;
+        }
+      }
+    }
+    await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+    captured.push(pmt.id);
+  }
+
+  if (captured.length === 0 && failed.length === 0) return null;
+
+  return {
+    alert_key: `payment_auto_release_${now.slice(0, 10)}`,
+    severity: failed.length > 0 ? 'high' : 'info',
+    title: `Payment auto-release: ${captured.length} captured, ${failed.length} failed`,
+    body: `${captured.length} overdue payment${captured.length === 1 ? '' : 's'} auto-released via Stripe capture.${failed.length > 0 ? ` ${failed.length} capture${failed.length === 1 ? '' : 's'} failed — manual review required.` : ''}`,
+    next_action: failed.length > 0 ? 'review_failed_captures' : null,
+    payload: { captured, failed }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Handler phases (extracted from the main handler so each phase has a single
 // responsibility — see Task #262).
 // ---------------------------------------------------------------------------
@@ -796,7 +849,9 @@ async function _runChecks(supabase, cfg) {
     checkDriverSupplyLow,
     // Scheduled ride auto-dispatch
     checkScheduledRidesReadyForDispatch,
-    checkReservedRidesReadyForConfirmation
+    checkReservedRidesReadyForConfirmation,
+    // Payment auto-release
+    checkPaymentAutoRelease
   ];
   const findings = [];
   const checkErrors = [];

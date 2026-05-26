@@ -3972,8 +3972,17 @@
           member_confirmed_at: new Date().toISOString()
         }).eq('id', packageId);
 
-        // Release payment
-        await supabaseClient.rpc('member_release_payment', { p_package_id: packageId });
+        // Capture Stripe PaymentIntent and mark released
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const releaseResp = await fetch('/api/payment/release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ packageId }),
+        });
+        if (!releaseResp.ok) {
+          const releaseErr = await releaseResp.json().catch(() => ({}));
+          throw new Error(releaseErr.error || 'Payment release failed');
+        }
 
         // Record commission for member founder (if member was referred)
         // The RPC function fetches the actual platform fee from the database for security

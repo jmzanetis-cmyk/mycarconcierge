@@ -19,6 +19,7 @@
 /api/ai/* /.netlify/functions/ai-member/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
 /api/create-bid-checkout-mobile /.netlify/functions/create-bid-checkout-mobile 200
+/api/payment/release /.netlify/functions/member-release-payment 200
 /api/support-donation /.netlify/functions/support-donation 200
 /api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
 /api/helpdesk /.netlify/functions/helpdesk 200
