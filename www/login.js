@@ -400,6 +400,32 @@
 
       if (profile.role === 'pending_driver') {
         showScreen('pending-driver-screen');
+        // Fetch BGC status to show the right message
+        supabaseClient
+          .from('drivers')
+          .select('bgc_status, bgc_invite_url')
+          .eq('profile_id', profile.id)
+          .maybeSingle()
+          .then(({ data: driverRow }) => {
+            const bgcStatus = driverRow?.bgc_status || 'not_started';
+            const statusEl = document.getElementById('pending-driver-status-text');
+            const inviteEl = document.getElementById('pending-driver-bgc-invite');
+            if (statusEl) {
+              const messages = {
+                not_started: 'Status: Application Received — Background check not yet initiated',
+                pending_check: 'Status: Background Check In Progress',
+                passed: 'Status: Background Check Passed — Pending final review',
+                consider: 'Status: Background Check Under Review',
+                failed: 'Status: Background Check Not Passed — Contact support for details',
+              };
+              statusEl.textContent = messages[bgcStatus] || 'Status: Pending Review';
+            }
+            if (inviteEl && driverRow?.bgc_invite_url && bgcStatus === 'pending_check') {
+              inviteEl.innerHTML = `<a href="${driverRow.bgc_invite_url}" target="_blank" rel="noopener" style="color:var(--accent-gold);">Complete your background check application →</a>`;
+              inviteEl.style.display = 'block';
+            }
+          })
+          .catch(() => {});
         return;
       }
 
