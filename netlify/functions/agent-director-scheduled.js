@@ -32,6 +32,17 @@
 //                                  'failed' in last 6h → drivers not getting paid.
 //  10. checkDriverSupplyLow      — zero active drivers AND ≥1 ride in last 24h
 //                                  → transport platform has no supply.
+//  11. checkScheduledRidesReadyForDispatch   — scheduled rides within 30 min
+//                                  of pickup time are transitioned to
+//                                  'requested' so the normal dispatch
+//                                  pipeline picks them up. Complements
+//                                  transport-scheduled-dispatch (belt-and-
+//                                  suspenders).
+//  12. checkReservedRidesReadyForConfirmation — reserved rides within 30 min
+//                                  of pickup time (driver already claimed)
+//                                  are moved to 'driver_accepted' to enter
+//                                  the standard en-route / arrived / trip
+//                                  progression.
 //
 // Daily digest at 11:00 UTC (~7am ET): one summary text + email even on
 // quiet days so silence is unambiguous ("3 leads, 1 provider approved,
@@ -674,6 +685,99 @@ async function loadConfig(supabase) {
 }
 
 // ---------------------------------------------------------------------------
+// Scheduled-ride dispatch checks — run alongside the transport health checks.
+// ---------------------------------------------------------------------------
+
+async function checkScheduledRidesReadyForDispatch(supabase) {
+  const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, scheduled_pickup_at, status, pickup_address, dropoff_address, estimated_fare')
+      .in('status', ['scheduled'])
+      .lte('scheduled_pickup_at', thirtyMinFromNow)
+      .gte('scheduled_pickup_at', now);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+
+  if (!rides || rides.length === 0) return null;
+
+  const transitioned = [];
+  for (const ride of rides) {
+    const { error: updateError } = await supabase
+      .from('rides')
+      .update({ status: 'requested', updated_at: now })
+      .eq('id', ride.id)
+      .eq('status', 'scheduled'); // optimistic lock
+    if (!updateError) transitioned.push(ride.id);
+  }
+
+  if (transitioned.length === 0) return null;
+
+  return {
+    alert_key: `scheduled_dispatch_${now.slice(0, 10)}_${Date.now()}`,
+    severity: 'info',
+    title: `${transitioned.length} scheduled ride${transitioned.length === 1 ? '' : 's'} moved to dispatch`,
+    body: `${transitioned.length} ride${transitioned.length === 1 ? '' : 's'} approaching ${transitioned.length === 1 ? 'its' : 'their'} scheduled pickup time ${transitioned.length === 1 ? 'was' : 'were'} transitioned from 'scheduled' to 'requested' for driver assignment: ${transitioned.map(id => id.slice(0, 8)).join(', ')}.`,
+    next_action: null,
+    payload: { ride_ids: transitioned, count: transitioned.length }
+  };
+}
+
+async function checkReservedRidesReadyForConfirmation(supabase) {
+  const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, scheduled_pickup_at')
+      .eq('status', 'reserved')
+      .lte('scheduled_pickup_at', thirtyMinFromNow)
+      .gte('scheduled_pickup_at', now);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+
+  if (!rides || rides.length === 0) return null;
+
+  const activated = [];
+  for (const ride of rides) {
+    const { error: rideErr } = await supabase
+      .from('rides')
+      .update({ status: 'driver_accepted', updated_at: now })
+      .eq('id', ride.id)
+      .eq('status', 'reserved');
+
+    if (!rideErr) {
+      activated.push(ride.id);
+      // Assignment was already set to 'accepted' at claim time; this is a
+      // no-op guard in case the assignment was somehow left in 'reserved'.
+      await supabase.from('driver_assignments')
+        .update({ status: 'accepted', accepted_at: now, updated_at: now })
+        .eq('ride_id', ride.id)
+        .eq('status', 'reserved');
+    }
+  }
+
+  if (activated.length === 0) return null;
+
+  return {
+    alert_key: `reserved_confirm_${now.slice(0, 10)}_${Date.now()}`,
+    severity: 'info',
+    title: `${activated.length} reserved ride${activated.length === 1 ? '' : 's'} activated for pickup`,
+    body: `${activated.length} driver${activated.length === 1 ? '' : 's'} with reserved rides approaching their pickup time ${activated.length === 1 ? 'has been moved' : 'have been moved'} to 'driver_accepted' status.`,
+    next_action: null,
+    payload: { ride_ids: activated, count: activated.length }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Handler phases (extracted from the main handler so each phase has a single
 // responsibility — see Task #262).
 // ---------------------------------------------------------------------------
@@ -689,7 +793,10 @@ async function _runChecks(supabase, cfg) {
     // Transport
     checkTransportRidesStalled,
     checkDriverPayoutFailing,
-    checkDriverSupplyLow
+    checkDriverSupplyLow,
+    // Scheduled ride auto-dispatch
+    checkScheduledRidesReadyForDispatch,
+    checkReservedRidesReadyForConfirmation
   ];
   const findings = [];
   const checkErrors = [];
