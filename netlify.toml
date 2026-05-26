@@ -125,6 +125,9 @@
 [functions."anthropic-health-scheduled"]
   schedule = "0 4 * * *"
 
+[functions."integration-health-scheduled"]
+  schedule = "15 4 * * *"
+
 # Director agent — acquisition-focused chief-of-staff. Runs every 15 minutes,
 # checks whether the other agents are actually pulling customers through the
 # funnel, and pages the admin (SMS via Twilio + email via Resend) with the
