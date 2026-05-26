@@ -1077,6 +1077,149 @@ async function handleEarnings(event, supabase, driver) {
 }
 
 // ---------------------------------------------------------------------------
+// Transport ride dispatch routes
+// GET  /transport-rides                   — pending + active + recent completed
+// POST /transport-rides/:id/accept        — accept assignment
+// POST /transport-rides/:id/reject        — reject assignment (ride re-queues)
+// POST /transport-rides/:id/en-route      — driver leaving for pickup
+// POST /transport-rides/:id/arrive        — driver at pickup location
+// POST /transport-rides/:id/start         — driver picked up vehicle, en route to destination
+// POST /transport-rides/:id/complete      — vehicle delivered
+// ---------------------------------------------------------------------------
+
+async function handleListTransportRides(event, supabase, driver) {
+  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
+
+  const [{ data: active }, { data: completed }] = await Promise.all([
+    supabase.from('driver_assignments')
+      .select('id, ride_id, status, dispatched_at, response_deadline, accepted_at, en_route_at, arrived_at, started_at, completed_at, driver_payout_amount, drives_member_vehicle, member_vehicle_description, member_vehicle_plate')
+      .eq('driver_id', driver.id)
+      .in('status', ['pending', 'accepted', 'en_route', 'arrived', 'in_progress'])
+      .order('dispatched_at', { ascending: false })
+      .limit(10),
+    supabase.from('driver_assignments')
+      .select('id, ride_id, status, completed_at, dispatched_at, driver_payout_amount')
+      .eq('driver_id', driver.id)
+      .eq('status', 'completed')
+      .gte('completed_at', oneDayAgo)
+      .order('completed_at', { ascending: false })
+      .limit(5)
+  ]);
+
+  const all = [...(active || []), ...(completed || [])];
+  const rideIds = [...new Set(all.map(a => a.ride_id).filter(Boolean))];
+
+  let rideMap = {};
+  if (rideIds.length) {
+    const { data: rides } = await supabase.from('rides')
+      .select('id, status, pickup_address, pickup_lat, pickup_lng, pickup_notes, dropoff_address, dropoff_lat, dropoff_lng, base_rate, estimated_fare, member_vehicle_make, member_vehicle_model, member_vehicle_year, member_vehicle_color, member_vehicle_plate, pickup_wait_cents, pickup_wait_minutes, dropoff_wait_cents, dropoff_wait_minutes, show_up_fee_cents, multiplier_rate, multiplier_label, is_round_trip, is_scheduled, scheduled_pickup_at')
+      .in('id', rideIds);
+    (rides || []).forEach(r => { rideMap[r.id] = r; });
+  }
+
+  return jsonResponse(200, {
+    assignments: all.map(a => ({ ...a, ride: rideMap[a.ride_id] || null }))
+  });
+}
+
+async function handleAcceptRide(event, supabase, driver, assignmentId) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (a.status === 'accepted') return jsonResponse(200, { ok: true, already_accepted: true });
+  if (a.status !== 'pending')  return errorResponse(409, 'STATE_CHANGED', `Assignment is already ${a.status}`);
+
+  const now = new Date().toISOString();
+  const { error } = await supabase.from('driver_assignments')
+    .update({ status: 'accepted', accepted_at: now, updated_at: now })
+    .eq('id', assignmentId).eq('status', 'pending');
+  if (error) return errorResponse(500, 'DB_ERROR', error.message);
+
+  await supabase.from('rides').update({ status: 'driver_accepted', accepted_at: now }).eq('id', a.ride_id);
+  await emitEvent(supabase, 'transport.ride_accepted', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleRejectRide(event, supabase, driver, assignmentId, body) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (a.status === 'rejected') return jsonResponse(200, { ok: true, already_rejected: true });
+  if (a.status !== 'pending')  return errorResponse(409, 'STATE_CHANGED', `Assignment is already ${a.status}`);
+
+  const now = new Date().toISOString();
+  await supabase.from('driver_assignments')
+    .update({ status: 'rejected', rejected_at: now, updated_at: now })
+    .eq('id', assignmentId).eq('status', 'pending');
+  // Return ride to requested so dispatch can reassign.
+  await supabase.from('rides').update({ status: 'requested' }).eq('id', a.ride_id);
+  await emitEvent(supabase, 'transport.ride_rejected', {
+    assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id,
+    reason: (body?.reason || 'Driver declined').slice(0, 200)
+  });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleRideEnRoute(event, supabase, driver, assignmentId) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (a.status !== 'accepted') return errorResponse(409, 'STATE_CHANGED', `Expected accepted, got ${a.status}`);
+
+  const now = new Date().toISOString();
+  await supabase.from('driver_assignments').update({ status: 'en_route', en_route_at: now, updated_at: now }).eq('id', assignmentId);
+  await supabase.from('rides').update({ status: 'driver_en_route', driver_en_route_at: now }).eq('id', a.ride_id);
+  await emitEvent(supabase, 'transport.driver_en_route', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleRideArrive(event, supabase, driver, assignmentId) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (a.status !== 'en_route') return errorResponse(409, 'STATE_CHANGED', `Expected en_route, got ${a.status}`);
+
+  const now = new Date().toISOString();
+  await supabase.from('driver_assignments').update({ status: 'arrived', arrived_at: now, updated_at: now }).eq('id', assignmentId);
+  await supabase.from('rides').update({ status: 'driver_arrived', driver_arrived_at: now }).eq('id', a.ride_id);
+  await emitEvent(supabase, 'transport.driver_arrived', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleRideStart(event, supabase, driver, assignmentId) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (a.status !== 'arrived') return errorResponse(409, 'STATE_CHANGED', `Expected arrived, got ${a.status}`);
+
+  const now = new Date().toISOString();
+  await supabase.from('driver_assignments').update({ status: 'in_progress', started_at: now, updated_at: now }).eq('id', assignmentId);
+  await supabase.from('rides').update({ status: 'in_progress', started_at: now }).eq('id', a.ride_id);
+  await emitEvent(supabase, 'transport.trip_started', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+async function handleRideComplete(event, supabase, driver, assignmentId) {
+  if (!isUuid(assignmentId)) return errorResponse(400, 'BAD_REQUEST', 'invalid assignment id');
+  const { data: a } = await supabase.from('driver_assignments')
+    .select('id, ride_id, status').eq('id', assignmentId).eq('driver_id', driver.id).maybeSingle();
+  if (!a) return errorResponse(404, 'NOT_FOUND', 'Assignment not found');
+  if (a.status === 'completed') return jsonResponse(200, { ok: true, already_completed: true });
+  if (a.status !== 'in_progress') return errorResponse(409, 'STATE_CHANGED', `Expected in_progress, got ${a.status}`);
+
+  const now = new Date().toISOString();
+  await supabase.from('driver_assignments').update({ status: 'completed', completed_at: now, updated_at: now }).eq('id', assignmentId);
+  await supabase.from('rides').update({ status: 'completed', completed_at: now }).eq('id', a.ride_id);
+  await emitEvent(supabase, 'transport.ride_completed', { assignment_id: assignmentId, ride_id: a.ride_id, driver_id: driver.id });
+  return jsonResponse(200, { ok: true });
+}
+
+// ---------------------------------------------------------------------------
 // Dispatcher
 // ---------------------------------------------------------------------------
 function stripPrefix(p) {
@@ -1135,6 +1278,21 @@ exports.handler = async function(event) {
 
     m = route.match(/^jobs\/([^/]+)\/legs\/([^/]+)\/location$/);
     if (m && method === 'POST') return await handleLocation(event, supabase, driver, m[1], m[2], body);
+
+    // Transport ride dispatch routes ----------------------------------------
+    if (method === 'GET'  && route === 'transport-rides')               return await handleListTransportRides(event, supabase, driver);
+    m = route.match(/^transport-rides\/([^/]+)\/accept$/);
+    if (m && method === 'POST') return await handleAcceptRide(event, supabase, driver, m[1]);
+    m = route.match(/^transport-rides\/([^/]+)\/reject$/);
+    if (m && method === 'POST') return await handleRejectRide(event, supabase, driver, m[1], body);
+    m = route.match(/^transport-rides\/([^/]+)\/en-route$/);
+    if (m && method === 'POST') return await handleRideEnRoute(event, supabase, driver, m[1]);
+    m = route.match(/^transport-rides\/([^/]+)\/arrive$/);
+    if (m && method === 'POST') return await handleRideArrive(event, supabase, driver, m[1]);
+    m = route.match(/^transport-rides\/([^/]+)\/start$/);
+    if (m && method === 'POST') return await handleRideStart(event, supabase, driver, m[1]);
+    m = route.match(/^transport-rides\/([^/]+)\/complete$/);
+    if (m && method === 'POST') return await handleRideComplete(event, supabase, driver, m[1]);
 
     return errorResponse(404, 'NOT_FOUND', 'Unknown route', { route, method });
   } catch (e) {

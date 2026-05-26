@@ -1,0 +1,662 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
+<meta name="robots" content="noindex,nofollow">
+<title>MCC Driver Dispatch</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --navy: #0a0f1e;
+    --navy2: #111827;
+    --card: #141c2e;
+    --border: rgba(255,255,255,0.08);
+    --gold: #c9a227;
+    --gold2: #e6b84a;
+    --blue: #3b82f6;
+    --green: #22c55e;
+    --red: #ef4444;
+    --orange: #f97316;
+    --text: #f1f5f9;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --radius: 14px;
+  }
+  html, body { height: 100%; background: var(--navy); color: var(--text); font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; font-size: 15px; }
+  #app { max-width: 480px; margin: 0 auto; min-height: 100%; display: flex; flex-direction: column; }
+
+  /* ── Login ── */
+  #screen-login { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 32px 24px; gap: 24px; }
+  .login-logo { font-size: 1.6rem; font-weight: 800; color: var(--gold); letter-spacing: -0.5px; }
+  .login-logo span { color: var(--text2); font-weight: 400; font-size: 0.9rem; display: block; margin-top: 2px; text-align: center; letter-spacing: 0; }
+  .login-card { width: 100%; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; }
+  .login-card h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 6px; }
+  .login-card p { font-size: 0.85rem; color: var(--text2); margin-bottom: 20px; }
+  .field { margin-bottom: 14px; }
+  .field label { display: block; font-size: 0.78rem; color: var(--text2); margin-bottom: 5px; font-weight: 500; }
+  .field input { width: 100%; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; color: var(--text); font-size: 1rem; font-family: inherit; outline: none; }
+  .field input:focus { border-color: var(--blue); }
+  .field input::placeholder { color: var(--text3); }
+  .btn { width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 700; font-family: inherit; cursor: pointer; transition: opacity 0.15s; }
+  .btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold2)); color: #0a0a0f; }
+  .btn-blue { background: var(--blue); color: #fff; }
+  .btn-green { background: var(--green); color: #fff; }
+  .btn-red { background: var(--red); color: #fff; }
+  .btn-orange { background: var(--orange); color: #fff; }
+  .btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); }
+  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  .login-error { font-size: 0.82rem; color: var(--red); margin-top: 10px; min-height: 20px; }
+  .login-back { background: none; border: none; color: var(--text2); font-size: 0.85rem; font-family: inherit; cursor: pointer; text-decoration: underline; margin-top: 8px; }
+
+  /* ── Dispatch screen ── */
+  #screen-dispatch { flex: 1; display: none; flex-direction: column; }
+  .topbar { display: flex; justify-content: space-between; align-items: center; padding: 14px 16px; background: var(--navy2); border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 10; }
+  .topbar-left { display: flex; align-items: center; gap: 10px; }
+  .topbar-brand { font-weight: 800; color: var(--gold); font-size: 1rem; }
+  .status-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--green); flex-shrink: 0; }
+  .topbar-name { font-size: 0.85rem; color: var(--text2); }
+  .signout-btn { background: none; border: 1px solid var(--border); color: var(--text2); padding: 6px 12px; border-radius: 8px; font-size: 0.78rem; font-family: inherit; cursor: pointer; }
+
+  #dispatch-main { flex: 1; padding: 16px; overflow-y: auto; }
+  .section-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--text3); margin: 4px 0 10px; }
+
+  /* ── Cards ── */
+  .ride-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; margin-bottom: 12px; }
+  .ride-card.card-pending { border-color: rgba(201,162,39,0.35); }
+  .ride-card.card-active  { border-color: rgba(59,130,246,0.4); }
+  .ride-card.card-done    { opacity: 0.65; }
+
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 0.7rem; font-weight: 700; letter-spacing: 0.04em; text-transform: uppercase; padding: 3px 9px; border-radius: 999px; margin-bottom: 10px; }
+  .badge-gold   { background: rgba(201,162,39,0.15); color: var(--gold); }
+  .badge-blue   { background: rgba(59,130,246,0.15); color: var(--blue); }
+  .badge-green  { background: rgba(34,197,94,0.15);  color: var(--green); }
+  .badge-orange { background: rgba(249,115,22,0.15); color: var(--orange); }
+  .badge-grey   { background: rgba(100,116,139,0.2); color: var(--text2); }
+  .badge-dot { width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+
+  .route-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; }
+  .route-icons { display: flex; flex-direction: column; align-items: center; padding-top: 3px; gap: 0; }
+  .route-dot { width: 8px; height: 8px; border-radius: 50%; border: 2px solid var(--blue); flex-shrink: 0; }
+  .route-dot.end { border-color: var(--green); background: var(--green); }
+  .route-line { width: 2px; height: 22px; background: var(--border); margin: 2px auto; }
+  .route-addrs { flex: 1; min-width: 0; }
+  .route-addr { font-size: 0.85rem; line-height: 1.35; color: var(--text); }
+  .route-addr + .route-addr { margin-top: 10px; color: var(--text2); }
+  .nav-link { display: inline-flex; align-items: center; gap: 3px; font-size: 0.72rem; color: var(--blue); text-decoration: none; margin-top: 2px; }
+
+  .vehicle-row { background: rgba(255,255,255,0.04); border-radius: 8px; padding: 8px 10px; margin-bottom: 10px; font-size: 0.82rem; color: var(--text2); display: flex; align-items: center; gap: 6px; }
+  .vehicle-row b { color: var(--text); }
+
+  .notes-row { font-size: 0.8rem; color: var(--text3); margin-bottom: 10px; padding: 6px 8px; border-left: 2px solid var(--border); }
+
+  .fare-row { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 12px; }
+  .fare-label { font-size: 0.82rem; color: var(--text2); }
+  .fare-value { font-size: 1.1rem; font-weight: 700; color: var(--gold); }
+  .fare-breakdown { margin-bottom: 12px; }
+  .fare-line { display: flex; justify-content: space-between; font-size: 0.75rem; color: var(--text2); line-height: 1.8; }
+  .fare-line.total { font-weight: 700; color: var(--gold); font-size: 0.88rem; border-top: 1px solid var(--border); margin-top: 3px; padding-top: 4px; }
+
+  /* Progress bar */
+  .progress-steps { display: flex; gap: 3px; margin-bottom: 14px; }
+  .step { flex: 1; }
+  .step-bar { height: 3px; border-radius: 2px; margin-bottom: 3px; }
+  .step-label { font-size: 0.58rem; text-align: center; color: var(--text3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .step.done .step-bar   { background: var(--green); }
+  .step.done .step-label { color: var(--green); }
+  .step.active .step-bar   { background: var(--blue); }
+  .step.active .step-label { color: var(--blue); font-weight: 700; }
+  .step.todo .step-bar { background: var(--border); }
+
+  .action-row { display: flex; gap: 8px; }
+  .action-row .btn { flex: 1; }
+
+  /* Decline modal */
+  #decline-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.7); z-index: 100; align-items: flex-end; }
+  #decline-overlay.open { display: flex; }
+  #decline-sheet { background: var(--card); border-radius: var(--radius) var(--radius) 0 0; padding: 24px 20px; width: 100%; max-width: 480px; margin: 0 auto; }
+  #decline-sheet h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+  #decline-sheet p { font-size: 0.82rem; color: var(--text2); margin-bottom: 16px; }
+  .reason-options { display: flex; flex-direction: column; gap: 8px; margin-bottom: 16px; }
+  .reason-opt { display: flex; align-items: center; gap: 10px; padding: 10px 12px; background: rgba(255,255,255,0.05); border: 1px solid var(--border); border-radius: 8px; cursor: pointer; }
+  .reason-opt.selected { border-color: var(--blue); background: rgba(59,130,246,0.1); }
+  .reason-opt span { font-size: 0.85rem; }
+
+  /* Refresh bar */
+  #refresh-bar { padding: 10px 16px; text-align: center; font-size: 0.75rem; color: var(--text3); background: var(--navy2); border-top: 1px solid var(--border); }
+
+  /* Empty state */
+  .empty { text-align: center; padding: 48px 24px; }
+  .empty-icon { font-size: 2.5rem; margin-bottom: 12px; }
+  .empty h3 { font-size: 1rem; font-weight: 700; margin-bottom: 6px; }
+  .empty p { font-size: 0.85rem; color: var(--text2); line-height: 1.5; }
+
+  .toast { position: fixed; bottom: 60px; left: 50%; transform: translateX(-50%); background: var(--card); border: 1px solid var(--border); padding: 10px 18px; border-radius: 999px; font-size: 0.85rem; font-weight: 600; white-space: nowrap; z-index: 200; opacity: 0; transition: opacity 0.25s; pointer-events: none; }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+<div id="app">
+
+  <!-- ── Login screen ── -->
+  <div id="screen-login">
+    <div class="login-logo">MCC Driver <span>Dispatch Portal</span></div>
+
+    <div class="login-card" id="login-phone-panel">
+      <h2>Sign in</h2>
+      <p>Enter the phone number on your driver account. We'll text you a verification code.</p>
+      <div class="field">
+        <label>Phone number</label>
+        <input id="login-phone" type="tel" placeholder="+1 (555) 000-0000" autocomplete="tel" inputmode="tel">
+      </div>
+      <button class="btn btn-gold" id="send-code-btn" onclick="sendCode()">Send verification code</button>
+      <div class="login-error" id="login-phone-err"></div>
+    </div>
+
+    <div class="login-card" id="login-otp-panel" style="display:none;">
+      <h2>Enter your code</h2>
+      <p id="otp-hint">We sent a 6-digit code to your phone.</p>
+      <div class="field">
+        <label>Verification code</label>
+        <input id="login-otp" type="text" placeholder="123456" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code">
+      </div>
+      <button class="btn btn-gold" id="verify-btn" onclick="verifyCode()">Verify &amp; Sign In</button>
+      <div class="login-error" id="login-otp-err"></div>
+      <button class="login-back" onclick="backToPhone()">← Use a different number</button>
+    </div>
+  </div>
+
+  <!-- ── Dispatch screen ── -->
+  <div id="screen-dispatch">
+    <div class="topbar">
+      <div class="topbar-left">
+        <span class="topbar-brand">MCC Driver</span>
+        <span class="status-dot"></span>
+        <span class="topbar-name" id="driver-name-label">—</span>
+      </div>
+      <button class="signout-btn" onclick="signOut()">Sign out</button>
+    </div>
+
+    <div id="dispatch-main"></div>
+    <div id="refresh-bar">Refreshing in <span id="countdown">30</span>s · <button onclick="loadRides()" style="background:none;border:none;color:var(--blue);font-family:inherit;font-size:inherit;cursor:pointer;">Refresh now</button></div>
+  </div>
+
+  <!-- ── Decline sheet ── -->
+  <div id="decline-overlay" onclick="closeDecline(event)">
+    <div id="decline-sheet">
+      <h3>Decline this dispatch?</h3>
+      <p>The ride will return to the dispatch queue for reassignment.</p>
+      <div class="reason-options" id="reason-list">
+        <div class="reason-opt selected" data-reason="No capacity right now" onclick="selectReason(this)"><span>No capacity right now</span></div>
+        <div class="reason-opt" data-reason="Too far from pickup" onclick="selectReason(this)"><span>Too far from pickup</span></div>
+        <div class="reason-opt" data-reason="Vehicle type not suitable" onclick="selectReason(this)"><span>Vehicle type not suitable</span></div>
+        <div class="reason-opt" data-reason="Personal emergency" onclick="selectReason(this)"><span>Personal emergency</span></div>
+      </div>
+      <div style="display:flex;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="closeDecline()">Cancel</button>
+        <button class="btn btn-red btn-sm" style="flex:1;" onclick="confirmDecline()">Confirm Decline</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast"></div>
+</div>
+
+<script>
+const API = '/api/driver/v1';
+const REFRESH_SECS = 30;
+
+let currentPhone = '';
+let pendingDeclineId = null;
+let refreshInterval = null;
+let countdownInterval = null;
+let countdownVal = REFRESH_SECS;
+
+// ── Token helpers ──────────────────────────────────────────────────────────
+
+function saveSession(data) {
+  localStorage.setItem('dd_token', data.access_token);
+  localStorage.setItem('dd_refresh', data.refresh_token || '');
+  if (data.driver?.full_name) localStorage.setItem('dd_name', data.driver.full_name);
+}
+function clearSession() {
+  ['dd_token','dd_refresh','dd_name'].forEach(k => localStorage.removeItem(k));
+}
+function getToken()   { return localStorage.getItem('dd_token') || ''; }
+function getRefresh() { return localStorage.getItem('dd_refresh') || ''; }
+function getDriverName() { return localStorage.getItem('dd_name') || 'Driver'; }
+
+// ── API fetch with auto-refresh ────────────────────────────────────────────
+
+async function apiFetch(path, opts = {}) {
+  const headers = { 'Content-Type': 'application/json', 'Authorization': `Bearer ${getToken()}`, ...(opts.headers || {}) };
+  let res = await fetch(`${API}${path}`, { ...opts, headers });
+
+  if (res.status === 401 && getRefresh()) {
+    const ref = await fetch(`${API}/auth/refresh`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: getRefresh() })
+    });
+    if (ref.ok) {
+      const d = await ref.json();
+      saveSession(d);
+      headers['Authorization'] = `Bearer ${getToken()}`;
+      res = await fetch(`${API}${path}`, { ...opts, headers });
+    } else {
+      clearSession();
+      showLogin();
+      throw new Error('Session expired');
+    }
+  }
+  return res;
+}
+
+async function apiPost(path, body) {
+  return apiFetch(path, { method: 'POST', body: JSON.stringify(body || {}) });
+}
+
+// ── Login flow ─────────────────────────────────────────────────────────────
+
+function showLogin() {
+  document.getElementById('screen-login').style.display = 'flex';
+  document.getElementById('screen-dispatch').style.display = 'none';
+  stopAutoRefresh();
+}
+
+function showDispatch() {
+  document.getElementById('screen-login').style.display = 'none';
+  document.getElementById('screen-dispatch').style.display = 'flex';
+  document.getElementById('driver-name-label').textContent = getDriverName();
+  loadRides();
+  startAutoRefresh();
+}
+
+function backToPhone() {
+  document.getElementById('login-phone-panel').style.display = '';
+  document.getElementById('login-otp-panel').style.display = 'none';
+  document.getElementById('login-otp-err').textContent = '';
+}
+
+async function sendCode() {
+  const raw = document.getElementById('login-phone').value.trim();
+  const phone = raw.startsWith('+') ? raw : '+1' + raw.replace(/\D/g, '');
+  if (!/^\+[1-9]\d{7,14}$/.test(phone)) {
+    document.getElementById('login-phone-err').textContent = 'Enter a valid US phone number.';
+    return;
+  }
+  const btn = document.getElementById('send-code-btn');
+  btn.disabled = true; btn.textContent = 'Sending…';
+  document.getElementById('login-phone-err').textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/send-code`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone })
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      document.getElementById('login-phone-err').textContent = d?.error?.message || 'Could not send code. Check your number.';
+      return;
+    }
+    currentPhone = phone;
+    document.getElementById('otp-hint').textContent = `We sent a 6-digit code to ${phone}.`;
+    document.getElementById('login-phone-panel').style.display = 'none';
+    document.getElementById('login-otp-panel').style.display = '';
+    document.getElementById('login-otp').focus();
+  } catch (e) {
+    document.getElementById('login-phone-err').textContent = 'Network error — try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Send verification code';
+  }
+}
+
+async function verifyCode() {
+  const code = document.getElementById('login-otp').value.trim();
+  if (!/^\d{4,10}$/.test(code)) {
+    document.getElementById('login-otp-err').textContent = 'Enter the code from your text message.';
+    return;
+  }
+  const btn = document.getElementById('verify-btn');
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  document.getElementById('login-otp-err').textContent = '';
+  try {
+    const res = await fetch(`${API}/auth/verify-code`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ phone: currentPhone, code })
+    });
+    const d = await res.json();
+    if (!res.ok) {
+      document.getElementById('login-otp-err').textContent = d?.error?.message || 'Invalid code — try again.';
+      return;
+    }
+    saveSession(d);
+    showDispatch();
+  } catch (e) {
+    document.getElementById('login-otp-err').textContent = 'Network error — try again.';
+  } finally {
+    btn.disabled = false; btn.textContent = 'Verify & Sign In';
+  }
+}
+
+function signOut() {
+  clearSession();
+  showLogin();
+  backToPhone();
+}
+
+// ── Auto-refresh ───────────────────────────────────────────────────────────
+
+function startAutoRefresh() {
+  stopAutoRefresh();
+  countdownVal = REFRESH_SECS;
+  refreshInterval = setInterval(loadRides, REFRESH_SECS * 1000);
+  countdownInterval = setInterval(() => {
+    countdownVal = Math.max(0, countdownVal - 1);
+    const el = document.getElementById('countdown');
+    if (el) el.textContent = countdownVal;
+    if (countdownVal === 0) countdownVal = REFRESH_SECS;
+  }, 1000);
+}
+
+function stopAutoRefresh() {
+  if (refreshInterval)  { clearInterval(refreshInterval);  refreshInterval  = null; }
+  if (countdownInterval){ clearInterval(countdownInterval); countdownInterval = null; }
+}
+
+function resetCountdown() {
+  countdownVal = REFRESH_SECS;
+  const el = document.getElementById('countdown');
+  if (el) el.textContent = REFRESH_SECS;
+}
+
+// ── Load & render ──────────────────────────────────────────────────────────
+
+async function loadRides() {
+  resetCountdown();
+  const main = document.getElementById('dispatch-main');
+  try {
+    const res = await apiFetch('/transport-rides');
+    if (!res.ok) { console.error('load rides', res.status); return; }
+    const { assignments } = await res.json();
+    renderAssignments(assignments || []);
+  } catch (e) {
+    if (e.message !== 'Session expired') console.error(e);
+  }
+}
+
+const STEP_CONFIG = [
+  { key: 'accepted',    label: 'Accepted' },
+  { key: 'en_route',    label: 'En Route' },
+  { key: 'arrived',     label: 'Arrived' },
+  { key: 'in_progress', label: 'In Trip' },
+  { key: 'completed',   label: 'Done' }
+];
+
+function stepIndex(status) {
+  return STEP_CONFIG.findIndex(s => s.key === status);
+}
+
+function progressBar(status) {
+  const cur = stepIndex(status);
+  return `<div class="progress-steps">${STEP_CONFIG.map((s, i) => {
+    const cls = i < cur ? 'done' : i === cur ? 'active' : 'todo';
+    return `<div class="step ${cls}"><div class="step-bar"></div><div class="step-label">${s.label}</div></div>`;
+  }).join('')}</div>`;
+}
+
+function vehicleHtml(r, a) {
+  const veh = [r.member_vehicle_year, r.member_vehicle_color, r.member_vehicle_make, r.member_vehicle_model].filter(Boolean).join(' ');
+  const plate = a.member_vehicle_plate || r.member_vehicle_plate;
+  if (!veh && !plate) return '';
+  return `<div class="vehicle-row">🚗 <b>${veh || 'Vehicle'}</b>${plate ? ` · Plate <b>${plate}</b>` : ''}</div>`;
+}
+
+function navLink(addr) {
+  if (!addr) return '';
+  const q = encodeURIComponent(addr);
+  return `<a class="nav-link" href="https://maps.google.com/?q=${q}" target="_blank">Navigate →</a>`;
+}
+
+function fareHtml(r, a) {
+  const payout = Number(a.driver_payout_amount);
+  if (payout > 0) {
+    return `<div class="fare-row"><span class="fare-label">Your earnings</span><span class="fare-value">$${payout.toFixed(2)}</span></div>`;
+  }
+  const base = Number(r.base_rate) || 0;
+  const pickupWait = Number(r.pickup_wait_cents) || 0;
+  const dropoffWait = Number(r.dropoff_wait_cents) || 0;
+  const showUp = Number(r.show_up_fee_cents) || 0;
+  const extras = pickupWait + dropoffWait + showUp;
+  const total = base + extras / 100;
+
+  if (!base && !r.estimated_fare) return '';
+
+  if (!extras) {
+    const display = base > 0 ? `$${base.toFixed(2)}` : `~$${Number(r.estimated_fare).toFixed(2)}`;
+    return `<div class="fare-row"><span class="fare-label">Ride fare</span><span class="fare-value">${display}</span></div>`;
+  }
+
+  const mult = Number(r.multiplier_rate) || 1;
+  let baseLabel = 'Base fare';
+  if (mult > 1) baseLabel = r.multiplier_label ? `Base (${r.multiplier_label} ${mult.toFixed(1)}×)` : `Base (${mult.toFixed(1)}×)`;
+
+  const lines = [`<div class="fare-line"><span>${baseLabel}</span><span>$${base.toFixed(2)}</span></div>`];
+  if (pickupWait > 0) lines.push(`<div class="fare-line"><span>Pickup wait (${r.pickup_wait_minutes || 0} min)</span><span>+$${(pickupWait/100).toFixed(2)}</span></div>`);
+  if (dropoffWait > 0) lines.push(`<div class="fare-line"><span>Dropoff wait (${r.dropoff_wait_minutes || 0} min)</span><span>+$${(dropoffWait/100).toFixed(2)}</span></div>`);
+  if (showUp > 0) lines.push(`<div class="fare-line"><span>Show-up fee</span><span>+$${(showUp/100).toFixed(2)}</span></div>`);
+  lines.push(`<div class="fare-line total"><span>Total</span><span>$${total.toFixed(2)}</span></div>`);
+  return `<div class="fare-breakdown">${lines.join('')}</div>`;
+}
+
+function renderAssignments(assignments) {
+  const main = document.getElementById('dispatch-main');
+  const pending  = assignments.filter(a => a.status === 'pending');
+  const active   = assignments.filter(a => ['accepted','en_route','arrived','in_progress'].includes(a.status));
+  const completed = assignments.filter(a => a.status === 'completed');
+
+  if (!pending.length && !active.length && !completed.length) {
+    main.innerHTML = `<div class="empty"><div class="empty-icon">🟢</div><h3>Ready for dispatch</h3><p>You'll see incoming rides here. This page refreshes every ${REFRESH_SECS} seconds.</p></div>`;
+    return;
+  }
+
+  let html = '';
+
+  if (active.length) {
+    html += `<div class="section-label">Active ride</div>`;
+    html += active.map(renderActiveCard).join('');
+  }
+
+  if (pending.length) {
+    html += `<div class="section-label" style="margin-top:${active.length ? 16 : 4}px;">New dispatch</div>`;
+    html += pending.map(renderPendingCard).join('');
+  }
+
+  if (completed.length) {
+    html += `<div class="section-label" style="margin-top:16px;">Completed today</div>`;
+    html += completed.map(renderCompletedCard).join('');
+  }
+
+  main.innerHTML = html;
+}
+
+function renderPendingCard(a) {
+  const r = a.ride || {};
+  const deadline = a.response_deadline ? new Date(a.response_deadline) : null;
+  const timeLeft = deadline ? Math.max(0, Math.round((deadline - Date.now()) / 1000)) : null;
+  const timerHtml = timeLeft !== null
+    ? `<div style="font-size:0.75rem;color:${timeLeft < 60 ? 'var(--red)' : 'var(--text2)'};margin-bottom:10px;">⏱ Respond within ${timeLeft > 60 ? Math.ceil(timeLeft/60) + ' min' : timeLeft + 's'}</div>`
+    : '';
+
+  return `
+    <div class="ride-card card-pending">
+      <div class="badge badge-gold"><span class="badge-dot"></span>New Dispatch</div>
+      ${timerHtml}
+      <div class="route-row">
+        <div class="route-icons">
+          <div class="route-dot"></div>
+          <div class="route-line"></div>
+          <div class="route-dot end"></div>
+        </div>
+        <div class="route-addrs">
+          <div class="route-addr"><b>Pickup:</b> ${r.pickup_address || '—'}${navLink(r.pickup_address)}</div>
+          <div class="route-addr"><b>Dropoff:</b> ${r.dropoff_address || '—'}${navLink(r.dropoff_address)}</div>
+        </div>
+      </div>
+      ${vehicleHtml(r, a)}
+      ${r.pickup_notes ? `<div class="notes-row">${r.pickup_notes}</div>` : ''}
+      ${fareHtml(r, a)}
+      <div class="action-row">
+        <button class="btn btn-red" onclick="openDecline('${a.id}')">Decline</button>
+        <button class="btn btn-green" onclick="acceptRide('${a.id}')">Accept</button>
+      </div>
+    </div>`;
+}
+
+function renderActiveCard(a) {
+  const r = a.ride || {};
+  const badges = {
+    accepted:    ['badge-blue',   '✓ Accepted — Head to pickup'],
+    en_route:    ['badge-blue',   '🚗 En route to pickup'],
+    arrived:     ['badge-orange', '📍 Arrived at pickup'],
+    in_progress: ['badge-orange', '🔄 Delivering vehicle']
+  };
+  const [badgeCls, badgeLabel] = badges[a.status] || ['badge-grey', a.status];
+
+  const actions = {
+    accepted:    { label: "I'm En Route",     cls: 'btn-blue',   fn: `markEnRoute('${a.id}')` },
+    en_route:    { label: "I've Arrived",      cls: 'btn-orange', fn: `markArrived('${a.id}')` },
+    arrived:     { label: "Start Trip",        cls: 'btn-orange', fn: `startTrip('${a.id}')` },
+    in_progress: { label: "Complete Delivery", cls: 'btn-green',  fn: `completeRide('${a.id}')` }
+  };
+  const action = actions[a.status];
+
+  return `
+    <div class="ride-card card-active">
+      <div class="badge ${badgeCls}"><span class="badge-dot"></span>${badgeLabel}</div>
+      ${progressBar(a.status)}
+      <div class="route-row">
+        <div class="route-icons">
+          <div class="route-dot"></div>
+          <div class="route-line"></div>
+          <div class="route-dot end"></div>
+        </div>
+        <div class="route-addrs">
+          <div class="route-addr"><b>Pickup:</b> ${r.pickup_address || '—'}${navLink(r.pickup_address)}</div>
+          <div class="route-addr"><b>Dropoff:</b> ${r.dropoff_address || '—'}${navLink(r.dropoff_address)}</div>
+        </div>
+      </div>
+      ${vehicleHtml(r, a)}
+      ${r.pickup_notes ? `<div class="notes-row">${r.pickup_notes}</div>` : ''}
+      ${fareHtml(r, a)}
+      ${action ? `<button class="btn ${action.cls}" onclick="${action.fn}">${action.label}</button>` : ''}
+    </div>`;
+}
+
+function renderCompletedCard(a) {
+  const r = a.ride || {};
+  const when = a.completed_at ? new Date(a.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  return `
+    <div class="ride-card card-done">
+      <div class="badge badge-green"><span class="badge-dot"></span>Delivered${when ? ' · ' + when : ''}</div>
+      <div style="font-size:0.82rem;color:var(--text2);">${r.pickup_address || '—'} → ${r.dropoff_address || '—'}</div>
+      ${fareHtml(r, a)}
+    </div>`;
+}
+
+// ── Action handlers ────────────────────────────────────────────────────────
+
+async function acceptRide(id) {
+  const btn = event.currentTarget;
+  btn.disabled = true; btn.textContent = 'Accepting…';
+  try {
+    const res = await apiPost(`/transport-rides/${id}/accept`);
+    if (res.ok) { toast('Ride accepted!'); await loadRides(); }
+    else { const d = await res.json(); toast(d?.error?.message || 'Could not accept', true); btn.disabled = false; btn.textContent = 'Accept'; }
+  } catch (e) { toast('Network error', true); btn.disabled = false; btn.textContent = 'Accept'; }
+}
+
+async function markEnRoute(id) {
+  await doAction(id, 'en-route', 'En Route!');
+}
+async function markArrived(id) {
+  await doAction(id, 'arrive', 'Marked arrived');
+}
+async function startTrip(id) {
+  await doAction(id, 'start', 'Trip started');
+}
+async function completeRide(id) {
+  if (!confirm('Confirm vehicle has been delivered?')) return;
+  await doAction(id, 'complete', '✓ Delivery complete!');
+}
+
+async function doAction(id, action, successMsg) {
+  const btn = event.currentTarget;
+  const origText = btn.textContent;
+  btn.disabled = true; btn.textContent = '…';
+  try {
+    const res = await apiPost(`/transport-rides/${id}/${action}`);
+    if (res.ok) { toast(successMsg); await loadRides(); }
+    else { const d = await res.json(); toast(d?.error?.message || 'Error', true); btn.disabled = false; btn.textContent = origText; }
+  } catch (e) { toast('Network error', true); btn.disabled = false; btn.textContent = origText; }
+}
+
+// ── Decline sheet ──────────────────────────────────────────────────────────
+
+function openDecline(id) {
+  pendingDeclineId = id;
+  document.querySelectorAll('.reason-opt').forEach((el, i) => el.classList.toggle('selected', i === 0));
+  document.getElementById('decline-overlay').classList.add('open');
+}
+
+function closeDecline(e) {
+  if (e && e.target !== document.getElementById('decline-overlay')) return;
+  document.getElementById('decline-overlay').classList.remove('open');
+  pendingDeclineId = null;
+}
+
+function selectReason(el) {
+  document.querySelectorAll('.reason-opt').forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+}
+
+async function confirmDecline() {
+  const selected = document.querySelector('.reason-opt.selected');
+  const reason = selected ? selected.dataset.reason : 'Driver declined';
+  document.getElementById('decline-overlay').classList.remove('open');
+  try {
+    const res = await apiPost(`/transport-rides/${pendingDeclineId}/reject`, { reason });
+    if (res.ok) { toast('Dispatch declined'); await loadRides(); }
+    else { const d = await res.json(); toast(d?.error?.message || 'Could not decline', true); }
+  } catch (e) { toast('Network error', true); }
+  pendingDeclineId = null;
+}
+
+// ── Toast ──────────────────────────────────────────────────────────────────
+
+let toastTimer;
+function toast(msg, isError = false) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.style.background = isError ? 'var(--red)' : 'var(--card)';
+  el.style.color = isError ? '#fff' : 'var(--text)';
+  el.classList.add('show');
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2800);
+}
+
+// ── Keyboard shortcuts ─────────────────────────────────────────────────────
+
+document.getElementById('login-phone').addEventListener('keydown', e => { if (e.key === 'Enter') sendCode(); });
+document.getElementById('login-otp').addEventListener('keydown', e => { if (e.key === 'Enter') verifyCode(); });
+
+// ── Init ───────────────────────────────────────────────────────────────────
+
+if (getToken()) {
+  showDispatch();
+} else {
+  showLogin();
+}
+</script>
+</body>
+</html>
