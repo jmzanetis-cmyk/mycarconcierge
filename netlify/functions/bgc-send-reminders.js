@@ -86,10 +86,10 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
   const dayWord = days === 1 ? 'day' : 'days';
   const subject = `${urgency}Background check for ${employeeName} expires in ${days} ${dayWord}`;
   const intro = days <= 7
-    ? `<strong style="color:#c0392b;">Your team member's background check expires in ${days} ${dayWord}.</strong> Falling out of compliance will remove your MCC Verified badge.`
+    ? `<strong style="color:#c0392b;">Your team member's background check expires in ${days} ${dayWord}.</strong> Renewing immediately keeps your <strong>All Staff Verified ✓</strong> badge visible to members comparing bids.`
     : days <= 14
-      ? `Your team member's background check expires in ${days} ${dayWord}. Renew now to keep your MCC Verified badge.`
-      : `Heads up — a background check on your team will expire in ${days} ${dayWord}.`;
+      ? `Your team member's background check expires in ${days} ${dayWord}. Renew now to keep your <strong>All Staff Verified ✓</strong> badge — members can see this on every bid you submit.`
+      : `Heads up — a background check on your team will expire in ${days} ${dayWord}. Renewing keeps your <strong>All Staff Verified ✓</strong> badge shown to members.`;
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;color:#222;">
       <h2 style="color:#1e3a5f;">Background Check Expiring</h2>
@@ -99,6 +99,9 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
         <tr><td style="padding:6px 12px 6px 0;color:#666;">Employee:</td><td style="padding:6px 0;"><strong>${escapeHtml(employeeName)}</strong></td></tr>
         <tr><td style="padding:6px 12px 6px 0;color:#666;">Expires:</td><td style="padding:6px 0;"><strong>${escapeHtml(fmtDate(expiresAt))}</strong></td></tr>
       </table>
+      <p style="background:#fff8e6;border-left:4px solid #b8942d;padding:10px 14px;margin:16px 0;font-size:0.9rem;">
+        The <strong>All Staff Verified ✓</strong> badge is displayed next to your name on every bid card members see. Providers with this badge stand out and are more likely to be selected.
+      </p>
       <p style="margin:24px 0;">
         <a href="${renewUrl}" style="display:inline-block;background:#b8942d;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;">Renew background check →</a>
       </p>
@@ -109,14 +112,17 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
 
 function expiredEmail({ providerName, employeeName, expiresAt, renewUrl, badgeLost }) {
   const subject = badgeLost
-    ? `MCC Verified badge removed — ${employeeName}'s background check expired`
+    ? `All Staff Verified badge removed — ${employeeName}'s background check expired`
     : `Background check for ${employeeName} has expired`;
   const lostBadgeBlock = badgeLost
     ? `<p style="background:#fdecea;border-left:4px solid #c0392b;padding:12px 16px;margin:16px 0;">
-         <strong>Your MCC Verified badge has been removed.</strong>
-         Renew this background check to bring your team back above 90% coverage and reinstate the badge.
+         <strong>Your "All Staff Verified ✓" badge has been removed from your bid cards.</strong>
+         Members comparing bids can no longer see this trust signal for your team.
+         Renew this background check to reinstate the badge.
        </p>`
-    : '';
+    : `<p style="background:#fff8e6;border-left:4px solid #b8942d;padding:10px 14px;margin:16px 0;font-size:0.9rem;">
+         Renew promptly to maintain your <strong>All Staff Verified ✓</strong> badge shown to members on every bid.
+       </p>`;
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;color:#222;">
       <h2 style="color:#c0392b;">Background Check Expired</h2>
