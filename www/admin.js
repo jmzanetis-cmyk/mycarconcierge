@@ -13196,6 +13196,7 @@
           content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No provider referral codes on record.</div>';
           return;
         }
+        const siteUrl = 'https://www.mycarconcierge.com';
         content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
           <thead><tr style="border-bottom:2px solid var(--border-subtle);">
             <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Code</th>
@@ -13206,9 +13207,11 @@
             <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Skip ID</th>
             <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Active</th>
             <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Created</th>
+            <th style="padding:10px 14px;"></th>
           </tr></thead><tbody>
           ${_refProviderCodes.map(r => {
             const p = r.profiles || {};
+            const qrUrl = `${siteUrl}/signup-provider.html?ref=${encodeURIComponent(r.code||'')}`;
             return `<tr style="border-bottom:1px solid var(--border-subtle);">
               <td style="padding:10px 14px;font-family:monospace;font-weight:600;">${escapeHtml(r.code||'—')}</td>
               <td style="padding:10px 14px;">
@@ -13221,6 +13224,7 @@
               <td style="padding:10px 14px;text-align:center;">${badge(r.skip_identity_verification)}</td>
               <td style="padding:10px 14px;text-align:center;">${badge(r.is_active)}</td>
               <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
+              <td style="padding:10px 14px;"><button class="btn btn-secondary btn-sm" onclick="showAdminQr(${JSON.stringify(qrUrl)},${JSON.stringify(r.code||'')},${JSON.stringify(p.full_name||'Provider')})">QR</button></td>
             </tr>`;
           }).join('')}
           </tbody></table>`;
@@ -13229,6 +13233,7 @@
           content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No active member founder profiles on record.</div>';
           return;
         }
+        const siteUrl2 = 'https://www.mycarconcierge.com';
         content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
           <thead><tr style="border-bottom:2px solid var(--border-subtle);">
             <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Name</th>
@@ -13237,18 +13242,62 @@
             <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Provider Refs</th>
             <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Member Refs</th>
             <th style="padding:10px 14px;text-align:right;color:var(--text-muted);">Commissions</th>
+            <th style="padding:10px 14px;"></th>
           </tr></thead><tbody>
-          ${_refFounderProfiles.map(f => `<tr style="border-bottom:1px solid var(--border-subtle);">
-            <td style="padding:10px 14px;font-weight:500;">${escapeHtml(f.full_name||'—')}</td>
-            <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(f.email||'—')}</td>
-            <td style="padding:10px 14px;font-family:monospace;font-size:0.82rem;">${f.referral_code ? escapeHtml(f.referral_code) : '<span style="color:var(--text-muted);">—</span>'}</td>
-            <td style="padding:10px 14px;text-align:center;">${f.total_provider_referrals||0}</td>
-            <td style="padding:10px 14px;text-align:center;">${f.total_member_referrals||0}</td>
-            <td style="padding:10px 14px;text-align:right;font-weight:600;">$${((f.total_commissions_earned||0)/100).toFixed(2)}</td>
-          </tr>`).join('')}
+          ${_refFounderProfiles.map(f => {
+            const qrUrl = f.referral_code ? `${siteUrl2}/signup-provider.html?ref=${encodeURIComponent(f.referral_code)}` : '';
+            return `<tr style="border-bottom:1px solid var(--border-subtle);">
+              <td style="padding:10px 14px;font-weight:500;">${escapeHtml(f.full_name||'—')}</td>
+              <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(f.email||'—')}</td>
+              <td style="padding:10px 14px;font-family:monospace;font-size:0.82rem;">${f.referral_code ? escapeHtml(f.referral_code) : '<span style="color:var(--text-muted);">—</span>'}</td>
+              <td style="padding:10px 14px;text-align:center;">${f.total_provider_referrals||0}</td>
+              <td style="padding:10px 14px;text-align:center;">${f.total_member_referrals||0}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:600;">$${((f.total_commissions_earned||0)/100).toFixed(2)}</td>
+              <td style="padding:10px 14px;">${qrUrl ? `<button class="btn btn-secondary btn-sm" onclick="showAdminQr(${JSON.stringify(qrUrl)},${JSON.stringify(f.referral_code||'')},${JSON.stringify(f.full_name||'Founder')})">QR</button>` : ''}</td>
+            </tr>`;
+          }).join('')}
           </tbody></table>`;
       }
     }
+
+    // ── Admin QR Modal ──────────────────────────────────────────────────────
+    let _adminQrCurrentLink = '';
+
+    async function showAdminQr(url, code, name) {
+      _adminQrCurrentLink = url;
+      const modal = document.getElementById('admin-qr-modal');
+      const titleEl = document.getElementById('admin-qr-modal-title');
+      const nameEl  = document.getElementById('admin-qr-modal-name');
+      const linkEl  = document.getElementById('admin-qr-modal-link');
+      if (titleEl) titleEl.textContent = `QR — ${code}`;
+      if (nameEl)  nameEl.textContent  = name;
+      if (linkEl)  linkEl.textContent  = url;
+      if (modal)   modal.style.display = 'flex';
+      const canvas = document.getElementById('admin-qr-canvas');
+      if (canvas && typeof QRCode !== 'undefined') {
+        try { await QRCode.toCanvas(canvas, url, { width: 200, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } }); } catch {}
+      }
+    }
+    function closeAdminQrModal() {
+      const modal = document.getElementById('admin-qr-modal');
+      if (modal) modal.style.display = 'none';
+    }
+    function downloadAdminQr() {
+      const canvas = document.getElementById('admin-qr-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = 'mcc-referral-qr.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+    function copyAdminQrLink() {
+      if (!_adminQrCurrentLink) return;
+      navigator.clipboard.writeText(_adminQrCurrentLink).then(() => showToast('Link copied!', 'success')).catch(() => {});
+    }
+    globalThis.showAdminQr      = showAdminQr;
+    globalThis.closeAdminQrModal = closeAdminQrModal;
+    globalThis.downloadAdminQr  = downloadAdminQr;
+    globalThis.copyAdminQrLink  = copyAdminQrLink;
 
     globalThis.loadReferralDashboard = loadReferralDashboard;
 

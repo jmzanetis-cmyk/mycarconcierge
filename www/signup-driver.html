@@ -164,8 +164,35 @@
     }
 
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
+    .referral-banner { background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(52,211,153,0.08)); border: 1px solid rgba(56,189,248,0.35); border-radius: 12px; padding: 14px 20px; text-align: center; margin-bottom: 20px; display: none; }
+    .referral-banner.show { display: block; }
+    .referral-banner .referred-text { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
+    .referral-banner .referrer-name { font-size: 1.1rem; color: var(--accent-blue); font-weight: 600; }
   </style>
   <script src="/auth-theme-toggle.js" defer></script>
+  <script>
+    (function() {
+      const params = new URLSearchParams(window.location.search);
+      const refCode = params.get('ref');
+      if (!refCode) return;
+      document.addEventListener('DOMContentLoaded', function() {
+        fetch('/api/provider-referral/lookup/' + encodeURIComponent(refCode))
+          .then(r => r.json())
+          .then(data => {
+            if (!data.success) return;
+            const banner = document.getElementById('driver-referral-banner');
+            const nameEl = document.getElementById('driver-referrer-name');
+            if (banner && nameEl) {
+              nameEl.textContent = data.provider_name || 'a member';
+              banner.classList.add('show');
+            }
+            const hiddenRef = document.getElementById('driver-referral-code-hidden');
+            if (hiddenRef) hiddenRef.value = refCode.toUpperCase();
+          })
+          .catch(() => {});
+      });
+    })();
+  </script>
 </head>
 <body>
   <div class="container">
@@ -176,6 +203,12 @@
       <h1>Apply to Drive with MCC</h1>
       <p>Join our founding driver roster — earn more per trip, keep more of it, and set your own schedule.</p>
     </div>
+
+    <div class="referral-banner" id="driver-referral-banner">
+      <div class="referred-text">You were referred by</div>
+      <div class="referrer-name" id="driver-referrer-name"></div>
+    </div>
+    <input type="hidden" id="driver-referral-code-hidden" value="">
 
     <div class="perks">
       <div class="perk">

@@ -518,6 +518,7 @@
     }
   </style>
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/admin.html" />
   <meta name="robots" content="noindex, nofollow" />
@@ -5929,5 +5930,26 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       if (svg) el.innerHTML = svg;
     });
   </script>
+
+  <!-- Referral QR Modal (admin) -->
+  <div id="admin-qr-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.75);z-index:9000;align-items:center;justify-content:center;">
+    <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:20px;padding:32px 28px;max-width:360px;width:90%;text-align:center;position:relative;">
+      <button onclick="closeAdminQrModal()" style="position:absolute;top:14px;right:14px;background:none;border:none;cursor:pointer;color:var(--text-muted);font-size:1.4rem;line-height:1;">×</button>
+      <h3 id="admin-qr-modal-title" style="margin-bottom:6px;font-size:1.1rem;">Referral QR Code</h3>
+      <p id="admin-qr-modal-name" style="color:var(--text-muted);font-size:0.85rem;margin-bottom:18px;"></p>
+      <div style="display:inline-block;background:#fff;padding:14px;border-radius:12px;border:2px solid var(--accent-gold);">
+        <canvas id="admin-qr-canvas" width="200" height="200"></canvas>
+      </div>
+      <div id="admin-qr-modal-link" style="margin-top:14px;font-size:0.75rem;color:var(--text-muted);word-break:break-all;font-family:monospace;"></div>
+      <div style="margin-top:16px;display:flex;gap:10px;justify-content:center;">
+        <button class="btn btn-secondary btn-sm" onclick="downloadAdminQr()">
+          <span class="icon-inline" data-icon="download"></span> Download
+        </button>
+        <button class="btn btn-secondary btn-sm" onclick="copyAdminQrLink()">
+          <span class="icon-inline" data-icon="copy"></span> Copy Link
+        </button>
+      </div>
+    </div>
+  </div>
 </body>
 </html>

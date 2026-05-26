@@ -9265,7 +9265,7 @@
       if (!canvas) return;
 
       const siteUrl = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
-      const referralUrl = `${siteUrl}/provider-pilot.html?ref=${providerFounderProfile.referral_code}`;
+      const referralUrl = `${siteUrl}/signup-provider.html?ref=${providerFounderProfile.referral_code}`;
 
       try {
         if (typeof QrCreator !== 'undefined') {
@@ -9314,7 +9314,7 @@
       if (!providerFounderProfile?.referral_code) return;
 
       const siteUrl = (window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com';
-      const referralUrl = `${siteUrl}/provider-pilot.html?ref=${providerFounderProfile.referral_code}`;
+      const referralUrl = `${siteUrl}/signup-provider.html?ref=${providerFounderProfile.referral_code}`;
       const message = `Join My Car Concierge as a founding provider! Use my referral code ${providerFounderProfile.referral_code} to get started: ${referralUrl}`;
 
       if (method === 'sms') {
@@ -9546,7 +9546,7 @@
         };
         referralCodesData.referProvider = {
           code: data.refer_provider?.code || (providerFounderProfile?.referral_code || generateReferralCode()),
-          url: data.refer_provider?.url || `${siteUrl}/provider-pilot.html?ref=${providerFounderProfile?.referral_code || currentUser?.id}`
+          url: data.refer_provider?.url || `${siteUrl}/signup-provider.html?ref=${providerFounderProfile?.referral_code || currentUser?.id}`
         };
         
         generateAllReferralQRCodes();
@@ -9565,7 +9565,7 @@
         };
         referralCodesData.referProvider = {
           code: providerFounderProfile?.referral_code || generateReferralCode(),
-          url: `${siteUrl}/provider-pilot.html?ref=${providerFounderProfile?.referral_code || currentUser?.id}`
+          url: `${siteUrl}/signup-provider.html?ref=${providerFounderProfile?.referral_code || currentUser?.id}`
         };
         generateAllReferralQRCodes();
         updateReferralCodeDisplays();
