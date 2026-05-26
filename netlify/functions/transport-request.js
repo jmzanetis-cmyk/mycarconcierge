@@ -9,6 +9,7 @@
 //   POST /api/transport/cancel             — member cancels a ride
 //   POST /api/transport/rate               — member rates a driver
 //   POST /api/transport/tip                — member tips a driver
+//   POST /api/transport/vehicle-ready      — provider marks return leg ready for dispatch
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
@@ -249,7 +250,7 @@ async function handleProviderRequest(event, supabase, body) {
       channel:        'channel_b_provider',
       tier, scenario,
       phase:          'phase_2_manual_pilot',
-      status:         'pending',
+      status:         'awaiting_vehicle_ready',
       pickup_address:  dropoff_address.trim(),
       pickup_lat:  Number(dropoff_lat) || 0,
       pickup_lng:  Number(dropoff_lng) || 0,
@@ -441,6 +442,34 @@ async function handleTip(event, supabase, body) {
 }
 
 // ---------------------------------------------------------------------------
+// POST /api/transport/vehicle-ready — provider marks return leg ready for dispatch
+// ---------------------------------------------------------------------------
+async function handleVehicleReady(event, supabase, body) {
+  const auth = await authenticate(event, supabase);
+  if (auth.error) return auth.error;
+  const { user } = auth;
+
+  const { ride_id } = body;
+  if (!ride_id) return jsonResponse(400, { error: 'ride_id required' });
+
+  const { data: ride } = await supabase.from('rides')
+    .select('id, status, provider_id')
+    .eq('id', ride_id)
+    .single();
+
+  if (!ride) return jsonResponse(404, { error: 'Ride not found' });
+  if (ride.provider_id !== user.id) return jsonResponse(403, { error: 'Not your ride' });
+  if (ride.status !== 'awaiting_vehicle_ready') return jsonResponse(400, { error: 'Ride is not awaiting vehicle readiness' });
+
+  const { error } = await supabase.from('rides')
+    .update({ status: 'requested' })
+    .eq('id', ride_id);
+
+  if (error) return jsonResponse(500, { error: error.message });
+  return jsonResponse(200, { ready: true });
+}
+
+// ---------------------------------------------------------------------------
 // Dispatcher
 // ---------------------------------------------------------------------------
 exports.handler = async function(event) {
@@ -466,6 +495,7 @@ exports.handler = async function(event) {
     if (method === 'POST' && route === 'cancel')                return await handleCancel(event, supabase, body);
     if (method === 'POST' && route === 'rate')                  return await handleRate(event, supabase, body);
     if (method === 'POST' && route === 'tip')                   return await handleTip(event, supabase, body);
+    if (method === 'POST' && route === 'vehicle-ready')         return await handleVehicleReady(event, supabase, body);
     return jsonResponse(404, { error: 'Not found', route, method });
   } catch (e) {
     console.error('[transport-request] error:', e);

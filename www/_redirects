@@ -78,6 +78,7 @@
 /api/admin/facebook/* /.netlify/functions/admin-facebook 200
 /api/admin/concierge-jobs/* /.netlify/functions/concierge-jobs-admin/:splat 200
 /api/admin/concierge-jobs /.netlify/functions/concierge-jobs-admin 200
+/api/transport/vehicle-ready /.netlify/functions/transport-request/vehicle-ready 200
 /api/transport/cancel /.netlify/functions/transport-request/cancel 200
 /api/transport/rate /.netlify/functions/transport-request/rate 200
 /api/transport/tip /.netlify/functions/transport-request/tip 200

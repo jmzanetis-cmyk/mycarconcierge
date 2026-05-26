@@ -13350,6 +13350,7 @@
 
       const STATUS_LABELS = {
         requested:'Finding a driver', pending:'Pending dispatch',
+        awaiting_vehicle_ready:'Vehicle in service — mark ready when done',
         pending_dispatch:'Dispatching...', searching:'Searching nearby',
         dispatched:'Driver dispatched', driver_assigned:'Driver assigned',
         driver_accepted:'Driver accepted', driver_en_route:'Driver en route',
@@ -13358,6 +13359,7 @@
       };
       const STATUS_COLOR = {
         requested:'var(--text-muted)', pending:'var(--text-muted)',
+        awaiting_vehicle_ready:'var(--accent-orange)',
         pending_dispatch:'var(--accent-orange)', searching:'var(--accent-orange)',
         dispatched:'var(--accent-blue)', driver_assigned:'var(--accent-blue)',
         driver_accepted:'var(--accent-blue)', driver_en_route:'var(--accent-green)',
@@ -13371,6 +13373,9 @@
         const color = STATUS_COLOR[r.status] || 'var(--text-muted)';
         const memberName = r.member_name || 'Member';
         const isReturn = r.is_round_trip;
+        const readyBtn = r.status === 'awaiting_vehicle_ready'
+          ? `<div style="margin-top:10px;"><button onclick="markVehicleReady('${r.id}')" style="padding:7px 14px;background:var(--accent-green);color:#fff;border:none;border-radius:var(--radius-sm);font-size:0.8rem;font-weight:600;cursor:pointer;">✓ Mark Vehicle Ready</button></div>`
+          : '';
         return `
           <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px 14px;display:flex;gap:12px;align-items:flex-start;">
             <div style="flex:1;min-width:0;">
@@ -13380,6 +13385,7 @@
               <div style="font-size:0.85rem;font-weight:600;margin-bottom:1px;">${memberName}</div>
               <div style="font-size:0.78rem;color:var(--text-secondary);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;">${r.pickup_address} → ${r.dropoff_address}</div>
               ${r.driver_name ? `<div style="font-size:0.75rem;color:var(--text-muted);margin-top:3px;">Driver: ${r.driver_name}${r.driver_phone ? ` · <a href="tel:${r.driver_phone}" style="color:var(--accent-blue);text-decoration:none;">${r.driver_phone}</a>` : ''}</div>` : ''}
+              ${readyBtn}
             </div>
             <div style="text-align:right;flex-shrink:0;font-size:0.95rem;font-weight:700;color:var(--accent-gold);">${fare}</div>
           </div>`;
@@ -13392,6 +13398,23 @@
           <button class="btn btn-ghost btn-sm" onclick="loadProviderTransportRequests()">Refresh</button>
         </div>
         <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>`;
+    }
+
+    async function markVehicleReady(rideId) {
+      if (!confirm('Mark the vehicle as ready and request a return driver?')) return;
+      try {
+        const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
+        const res = await fetch('/api/transport/vehicle-ready', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({ ride_id: rideId })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(data.error || 'Could not update ride'); return; }
+        await loadProviderTransportRequests();
+      } catch (e) {
+        alert('Error updating ride. Please try again.');
+      }
     }
 
     async function openProviderTransportModal() {
