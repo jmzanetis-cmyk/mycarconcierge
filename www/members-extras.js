@@ -8084,16 +8084,18 @@ See you there!`);
       const drvUrl  = _driverReferralUrl();
       const provLinkEl = document.getElementById('ref-provider-link');
       const drvLinkEl  = document.getElementById('ref-driver-link');
+      const settingsLinkEl = document.getElementById('settings-ref-link');
       if (provLinkEl) provLinkEl.textContent = provUrl;
       if (drvLinkEl)  drvLinkEl.textContent  = drvUrl;
+      if (settingsLinkEl) settingsLinkEl.textContent = provUrl;
       const opts = { width: 160, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } };
-      const provCanvas = document.getElementById('ref-provider-qr-canvas');
-      const drvCanvas  = document.getElementById('ref-driver-qr-canvas');
-      if (provCanvas && typeof QRCode !== 'undefined') {
-        try { await QRCode.toCanvas(provCanvas, provUrl, opts); } catch {}
-      }
-      if (drvCanvas && typeof QRCode !== 'undefined') {
-        try { await QRCode.toCanvas(drvCanvas, drvUrl, opts); } catch {}
+      const provCanvas     = document.getElementById('ref-provider-qr-canvas');
+      const drvCanvas      = document.getElementById('ref-driver-qr-canvas');
+      const settingsCanvas = document.getElementById('settings-ref-qr-canvas');
+      if (typeof QRCode !== 'undefined') {
+        if (provCanvas)     try { await QRCode.toCanvas(provCanvas, provUrl, opts); } catch {}
+        if (drvCanvas)      try { await QRCode.toCanvas(drvCanvas, drvUrl, opts); } catch {}
+        if (settingsCanvas) try { await QRCode.toCanvas(settingsCanvas, provUrl, opts); } catch {}
       }
     }
 
