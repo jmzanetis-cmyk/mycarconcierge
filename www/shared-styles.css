@@ -164,140 +164,88 @@ body {
   cursor: not-allowed;
 }
 
-/* --- Primary (gold) — aliases removed after migration ---
-   Alias selectors: .btn--primary .btn--primary .btn--primary .btn--primary
-                    .btn--primary .btn--primary .btn--primary       */
-.btn--primary,
-.btn--primary,
-.btn--primary,
-.btn--primary,
-.btn--primary,
-.btn--primary,
-.btn--primary,
+/* --- Primary (gold) --- */
 .btn--primary {
   background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
   color: #12161c;
   box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3);
 }
-.btn--primary:hover:not(:disabled),
-.btn--primary:hover:not(:disabled),
-.btn--primary:hover:not(:disabled),
-.btn--primary:hover:not(:disabled),
-.btn--primary:hover:not(:disabled),
-.btn--primary:hover:not(:disabled),
-.btn--primary:hover:not(:disabled),
 .btn--primary:hover:not(:disabled) {
   transform: translateY(-1px);
   box-shadow: 0 4px 16px rgba(201, 162, 39, 0.4);
 }
 
-/* --- Secondary (elevated/neutral) — aliases: .btn--secondary .btn--secondary .btn--secondary --- */
-.btn--secondary,
-.btn--secondary,
-.btn--secondary,
+/* --- Secondary (elevated/neutral) --- */
 .btn--secondary {
   background: var(--bg-elevated);
   color: var(--text-primary);
   border: 1px solid var(--border-subtle);
 }
-.btn--secondary:hover:not(:disabled),
-.btn--secondary:hover:not(:disabled),
-.btn--secondary:hover:not(:disabled),
 .btn--secondary:hover:not(:disabled) {
   border-color: var(--border-medium);
 }
 
 /* --- Success (green) --- */
-.btn--success,
 .btn--success {
   background: linear-gradient(135deg, var(--accent-green), #4ade80);
   box-shadow: 0 2px 12px rgba(52, 211, 153, 0.3);
   color: #022c22;
 }
-.btn--success:hover:not(:disabled),
 .btn--success:hover:not(:disabled) {
   transform: translateY(-1px);
 }
 
 /* --- Danger (red) --- */
-.btn--danger,
 .btn--danger {
   background: rgba(239, 95, 95, 0.15);
   color: var(--accent-red);
   border: 1px solid rgba(239, 95, 95, 0.3);
 }
-.btn--danger:hover:not(:disabled),
 .btn--danger:hover:not(:disabled) {
   background: rgba(239, 95, 95, 0.25);
 }
 
-/* --- Ghost (transparent) — alias: .btn--ghost .btn--ghost --- */
-.btn--ghost,
-.btn--ghost,
+/* --- Ghost (transparent) --- */
 .btn--ghost {
   background: transparent;
   color: var(--text-secondary);
   padding: 8px 12px;
   box-shadow: none;
 }
-.btn--ghost:hover:not(:disabled),
-.btn--ghost:hover:not(:disabled),
 .btn--ghost:hover:not(:disabled) {
   color: var(--text-primary);
   background: var(--bg-input);
 }
 
 /* --- Size modifiers --- */
-.btn--small,
 .btn--small {
   padding: 6px 12px;
   font-size: 0.82rem;
 }
 
-.btn--large,
 .btn--large {
   padding: 14px 28px;
   font-size: 1rem;
 }
 
 /* Light mode button overrides — deeper gold for higher contrast */
-[data-theme="light"] .btn--primary,
-[data-theme="light"] .btn--primary,
-[data-theme="light"] .btn--primary,
-[data-theme="light"] .btn--primary,
-[data-theme="light"] .btn--primary,
-[data-theme="light"] .btn--primary,
-[data-theme="light"] .btn--primary,
 [data-theme="light"] .btn--primary {
   background: linear-gradient(135deg, #b8942d, #d4a63a);
   box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
   color: #ffffff;
   font-weight: 600;
 }
-[data-theme="light"] .btn--primary:hover:not(:disabled),
-[data-theme="light"] .btn--primary:hover:not(:disabled),
-[data-theme="light"] .btn--primary:hover:not(:disabled),
-[data-theme="light"] .btn--primary:hover:not(:disabled),
-[data-theme="light"] .btn--primary:hover:not(:disabled),
-[data-theme="light"] .btn--primary:hover:not(:disabled),
-[data-theme="light"] .btn--primary:hover:not(:disabled),
 [data-theme="light"] .btn--primary:hover:not(:disabled) {
   background: linear-gradient(135deg, #a6852a, #c49a35);
   box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
 }
 
-[data-theme="light"] .btn--secondary,
-[data-theme="light"] .btn--secondary,
-[data-theme="light"] .btn--secondary,
 [data-theme="light"] .btn--secondary {
   background: #ffffff;
   color: #1e3a5f;
   border: 2px solid #1e3a5f;
   font-weight: 500;
 }
-[data-theme="light"] .btn--secondary:hover:not(:disabled),
-[data-theme="light"] .btn--secondary:hover:not(:disabled),
-[data-theme="light"] .btn--secondary:hover:not(:disabled),
 [data-theme="light"] .btn--secondary:hover:not(:disabled) {
   background: #1e3a5f;
   color: #ffffff;
