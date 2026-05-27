@@ -92,6 +92,7 @@
       -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
     }
     .hero-section p { max-width: 600px; margin: 0 auto; color: var(--text-secondary); font-size: 1.05rem; }
+    .provider-count-badge { display: inline-block; margin-top: 14px; padding: 5px 16px; background: var(--accent-gold-soft, rgba(201,162,39,0.15)); color: var(--accent-gold, #c9a227); border-radius: 20px; font-size: 0.82rem; font-weight: 500; }
     .filters-bar {
       display: flex; gap: 12px; justify-content: center; flex-wrap: wrap;
       padding: 20px 0 30px;
@@ -226,7 +227,8 @@
   <div class="container">
     <div class="hero-section">
       <h1>Find <span class="highlight">Trusted Providers</span> Near You</h1>
-      <p>Browse vetted automotive service professionals. Request a quote and get competitive bids with escrow payment protection.</p>
+      <p>Background-checked automotive pros near you. Post your job, compare bids side-by-side — and pay in escrow. Funds release only after you confirm the work is done.</p>
+      <div id="provider-count-badge" class="provider-count-badge" style="display:none;"></div>
     </div>
 
     <div class="filters-bar">
@@ -434,6 +436,17 @@
         totalProviders = data.total || 0;
         const countEl = document.getElementById('results-count');
         countEl.textContent = totalProviders + ' provider' + (totalProviders !== 1 ? 's' : '') + ' found';
+        if (currentPage === 1) {
+          const heroBadge = document.getElementById('provider-count-badge');
+          if (heroBadge) {
+            if (totalProviders > 0) {
+              heroBadge.textContent = totalProviders + ' background-checked provider' + (totalProviders !== 1 ? 's' : '') + ' accepting service requests';
+              heroBadge.style.display = 'inline-block';
+            } else {
+              heroBadge.style.display = 'none';
+            }
+          }
+        }
 
         if (currentPage === 1 && data.providers.length === 0) {
           container.innerHTML = '<div class="empty-state"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg><h3>No providers found</h3><p>Try adjusting your filters or check back soon.</p></div>';
