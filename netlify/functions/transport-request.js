@@ -120,6 +120,40 @@ async function handleMemberRequest(event, supabase, body) {
   if (!pickup_address?.trim())  return jsonResponse(400, { error: 'pickup_address required' });
   if (!dropoff_address?.trim()) return jsonResponse(400, { error: 'dropoff_address required' });
 
+  // ── Vehicle ownership verification gate ────────────────────────────────────
+  // Transport = highest-risk action (driver physically takes the car).
+  // Require registration_verified = true with no exceptions.
+  // If name_match_score < 80 on the approved verification, hold for admin review.
+  let pendingNameReview = false;
+  if (vehicle_id) {
+    const { data: vehRow } = await supabase
+      .from('vehicles')
+      .select('registration_verified, registration_verification_id, owner_id')
+      .eq('id', vehicle_id)
+      .eq('owner_id', user.id)
+      .single();
+
+    if (!vehRow?.registration_verified) {
+      return jsonResponse(403, {
+        error: 'Vehicle registration must be verified before requesting a pickup.',
+        code:  'REGISTRATION_REQUIRED',
+        vehicle_id,
+      });
+    }
+
+    if (vehRow.registration_verification_id) {
+      const { data: regVerif } = await supabase
+        .from('registration_verifications')
+        .select('name_match_score')
+        .eq('id', vehRow.registration_verification_id)
+        .single();
+      if (regVerif?.name_match_score != null && regVerif.name_match_score < 80) {
+        pendingNameReview = true;
+      }
+    }
+  }
+  // ── End verification gate ──────────────────────────────────────────────────
+
   const isTandem = Boolean(is_tandem);
   const fare     = estimateFare(estimated_distance_miles, isTandem);
   const memberRate     = provider_covers ? 0 : fare;
@@ -142,7 +176,10 @@ async function handleMemberRequest(event, supabase, body) {
   const THIRTY_MIN_MS = 30 * 60 * 1000;
   const isFutureScheduled = !is_return_trip && !is_asap && scheduled_at &&
     (new Date(scheduled_at).getTime() - Date.now() > THIRTY_MIN_MS);
-  const initialStatus = is_return_trip ? 'pending' : isFutureScheduled ? 'scheduled' : 'requested';
+  const initialStatus = pendingNameReview ? 'pending_name_review'
+    : is_return_trip    ? 'pending'
+    : isFutureScheduled ? 'scheduled'
+    : 'requested';
 
   const { data, error } = await supabase.from('rides').insert({
     member_id:   user.id,
@@ -230,12 +267,20 @@ async function handleMemberRequest(event, supabase, body) {
     }
   }
 
+  if (pendingNameReview) {
+    return jsonResponse(201, {
+      rideId:        data.id,
+      status:        'pending_name_review',
+      pending_review: true,
+      message:       'Your pickup is pending a quick identity review — we\'ll notify you shortly.',
+    });
+  }
   if (isFutureScheduled) {
     return jsonResponse(201, {
-      rideId: data.id,
-      status: 'scheduled',
+      rideId:      data.id,
+      status:      'scheduled',
       scheduledAt: new Date(scheduled_at).toISOString(),
-      message: 'Your pickup is scheduled. A driver will claim or be assigned before your pickup time.',
+      message:     'Your pickup is scheduled. A driver will claim or be assigned before your pickup time.',
     });
   }
   return jsonResponse(201, { ride: data });
@@ -503,7 +548,7 @@ async function handleCancel(event, supabase, body) {
   if (!ride) return jsonResponse(404, { error: 'Ride not found' });
   if (ride.member_id !== user.id) return jsonResponse(403, { error: 'Not your ride' });
 
-  const CANCELLABLE = ['requested','pending','pending_dispatch','searching','dispatched','driver_assigned','driver_accepted'];
+  const CANCELLABLE = ['requested','pending','pending_name_review','pending_dispatch','searching','dispatched','driver_assigned','driver_accepted'];
   const LATE_CANCEL  = ['driver_en_route','driver_arrived'];
   if (![...CANCELLABLE, ...LATE_CANCEL].includes(ride.status)) {
     return jsonResponse(400, { error: 'Ride cannot be cancelled at this stage' });

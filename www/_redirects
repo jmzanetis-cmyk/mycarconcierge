@@ -185,5 +185,13 @@
 /api/member-founder /.netlify/functions/member-founder-api 200
 /api/member-founder/* /.netlify/functions/member-founder-api 200
 
+# Feature: Vehicle Ownership Verification (VIN decode + registration AI verify)
+/api/vehicle/decode-vin /.netlify/functions/vehicle-verify/decode-vin 200
+/api/registration/held-rides/*/approve /.netlify/functions/vehicle-verify 200
+/api/registration/held-rides/*/reject /.netlify/functions/vehicle-verify 200
+/api/registration/held-rides /.netlify/functions/vehicle-verify/held-rides 200
+/api/registration/verifications /.netlify/functions/vehicle-verify/verifications 200
+/api/registration/verify /.netlify/functions/vehicle-verify/verify 200
+
 # Feature: Receipt PDF
 /api/receipt/* /.netlify/functions/receipt-pdf/:splat 200

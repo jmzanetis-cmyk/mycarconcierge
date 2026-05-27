@@ -8980,7 +8980,9 @@
     }
 
     function updateRegistrationBadge() {
-      const needsReview = registrationVerifications.filter(v => v.status === 'needs_review').length;
+      const needsReview = registrationVerifications.filter(v =>
+        ['needs_review', 'manual_review', 'pending'].includes(v.status)
+      ).length;
       const badgeEl = document.getElementById('registration-count');
       if (badgeEl) {
         badgeEl.textContent = needsReview;
@@ -8998,20 +9000,23 @@
       }
 
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No verification requests found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No verification requests found</td></tr>';
         return;
       }
 
       tbody.innerHTML = filtered.map(v => {
         const userName = v.user?.full_name || v.user?.email || 'Unknown User';
         const vehicleInfo = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : 'Unknown Vehicle';
-        const matchScore = v.name_match_score !== null && v.name_match_score !== undefined 
-          ? Math.round(v.name_match_score) 
+        const matchScore = v.name_match_score !== null && v.name_match_score !== undefined
+          ? Math.round(v.name_match_score)
           : '--';
-        const scoreColor = matchScore === '--' ? 'var(--text-muted)' : 
-          matchScore >= 80 ? 'var(--accent-green)' : 
-          matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const scoreColor = matchScore === '--' ? 'var(--text-muted)'
+          : matchScore >= 80 ? 'var(--accent-green)'
+          : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
         const submittedDate = v.created_at ? new Date(v.created_at).toLocaleDateString() : 'N/A';
+        const contextNote = v.context_note
+          ? `<span style="font-size:0.8rem;color:var(--text-secondary);font-style:italic;" title="${v.context_note}">${v.context_note.length > 40 ? v.context_note.slice(0, 40) + '…' : v.context_note}</span>`
+          : '<span style="color:var(--text-muted);font-size:0.8rem;">—</span>';
 
         return `
           <tr style="cursor:pointer;" onclick="openVerificationDetail('${v.id}')">
@@ -9020,8 +9025,9 @@
               <div style="font-size:0.8rem;color:var(--text-muted);">${v.user?.email || ''}</div>
             </td>
             <td>${vehicleInfo}</td>
-            <td><span class="status-badge ${v.status === 'needs_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${v.status?.replace('_', ' ') || 'unknown'}</span></td>
+            <td><span class="status-badge ${v.status === 'needs_review' || v.status === 'manual_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${(v.status || 'unknown').replace(/_/g, ' ')}</span></td>
             <td><span style="color:${scoreColor};font-weight:600;">${matchScore}${matchScore !== '--' ? '%' : ''}</span></td>
+            <td>${contextNote}</td>
             <td>${submittedDate}</td>
             <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openVerificationDetail('${v.id}')">Review</button></td>
           </tr>
@@ -9116,6 +9122,13 @@
             <span class="detail-value" style="font-family:monospace;">${v.extracted_plate || 'Not detected'}</span>
           </div>
         </div>
+
+        ${v.context_note ? `
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('message-circle', 24)} Member Context Note</div>
+          <div style="background:var(--accent-gold-soft);border:1px solid rgba(201,168,76,0.3);padding:14px 16px;border-radius:var(--radius-md);font-style:italic;color:var(--text-primary);">"${v.context_note}"</div>
+        </div>
+        ` : ''}
 
         ${v.status !== 'approved' && v.status !== 'rejected' ? `
         <div class="form-section" style="border-bottom:none;">
@@ -9247,6 +9260,133 @@
         renderRegistrationVerifications();
       }
     });
+
+    // ── Top-level view switcher: Registration Docs ↔ Held Pickups ────────────
+    document.getElementById('reg-view-tabs')?.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-reg-view]');
+      if (!tab) return;
+      document.querySelectorAll('#reg-view-tabs [data-reg-view]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const view = tab.dataset.regView;
+      document.getElementById('reg-panel-verifications').style.display = view === 'verifications' ? '' : 'none';
+      document.getElementById('reg-panel-held-rides').style.display   = view === 'held-rides'    ? '' : 'none';
+      if (view === 'held-rides') loadHeldRides();
+    });
+
+    // ── Held Pickups (pending_name_review rides) ──────────────────────────────
+    let heldRides = [];
+
+    async function loadHeldRides() {
+      const tbody = document.getElementById('held-rides-table');
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Not signed in</td></tr>'; return; }
+        const res = await fetch('/api/registration/held-rides', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) { if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load</td></tr>'; return; }
+        const data = await res.json();
+        heldRides = data.rides || [];
+        renderHeldRides();
+        updateHeldRidesBadge();
+      } catch (err) {
+        console.error('[admin] held-rides error:', err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error loading held pickups</td></tr>';
+      }
+    }
+
+    function updateHeldRidesBadge() {
+      const badge = document.getElementById('held-rides-badge');
+      const regCount = document.getElementById('registration-count');
+      if (badge) { badge.textContent = heldRides.length; badge.style.display = heldRides.length ? 'inline-block' : 'none'; }
+      // Roll held ride count into the nav badge so it's visible from any section
+      if (regCount) {
+        const verifPending = registrationVerifications.filter(v => ['pending','manual_review','needs_review'].includes(v.status)).length;
+        const total = verifPending + heldRides.length;
+        regCount.textContent = total;
+        regCount.style.display = total ? 'inline-block' : 'none';
+      }
+    }
+
+    function renderHeldRides() {
+      const tbody = document.getElementById('held-rides-table');
+      if (!tbody) return;
+      if (!heldRides.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No held pickups — all clear.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = heldRides.map(r => {
+        const member = r.member?.full_name || r.member?.email || 'Unknown';
+        const vehicleStr = `${r.member_vehicle_year || ''} ${r.member_vehicle_make || ''} ${r.member_vehicle_model || ''}`.trim() || 'Unknown vehicle';
+        // Dig into nested verif — server returns vehicle.verif as array or object
+        const verifArr = Array.isArray(r.vehicle?.verif) ? r.vehicle.verif : (r.vehicle?.verif ? [r.vehicle.verif] : []);
+        const verif = verifArr[0] || {};
+        const score = verif.name_match_score != null ? Math.round(verif.name_match_score) : '--';
+        const scoreColor = score === '--' ? 'var(--text-muted)' : score >= 80 ? 'var(--accent-green)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const extractedOwner = verif.extracted_owner_name || '—';
+        const contextNote = verif.context_note
+          ? `<span style="font-size:0.78rem;font-style:italic;color:var(--text-secondary);" title="${verif.context_note}">${verif.context_note.length > 35 ? verif.context_note.slice(0, 35) + '…' : verif.context_note}</span>`
+          : '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+        const fare = r.estimated_fare != null ? `$${Number(r.estimated_fare).toFixed(2)}` : '—';
+        const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '—';
+        return `
+          <tr>
+            <td><strong>${member}</strong><div style="font-size:0.78rem;color:var(--text-muted);">${r.member?.email || ''}</div></td>
+            <td style="font-size:0.88rem;">${vehicleStr}</td>
+            <td style="font-size:0.88rem;">${extractedOwner}</td>
+            <td><span style="color:${scoreColor};font-weight:600;">${score}${score !== '--' ? '%' : ''}</span></td>
+            <td>${contextNote}</td>
+            <td>${fare}</td>
+            <td style="font-size:0.82rem;">${date}</td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-sm" style="background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" onclick="approveHeldRide('${r.id}')">Approve</button>
+                <button class="btn btn-sm" style="background:var(--accent-red-soft);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="rejectHeldRide('${r.id}')">Reject</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function approveHeldRide(rideId) {
+      if (!confirm('Approve this pickup? The ride will enter the driver dispatch queue immediately.')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/registration/held-rides/${rideId}/approve`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Pickup approved — ride queued for dispatch.', 'success');
+        await loadHeldRides();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+    globalThis.approveHeldRide = approveHeldRide;
+
+    async function rejectHeldRide(rideId) {
+      if (!confirm('Reject and cancel this pickup? The payment hold will be released.')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/registration/held-rides/${rideId}/reject`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Pickup rejected and payment voided.', 'success');
+        await loadHeldRides();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+    globalThis.rejectHeldRide = rejectHeldRide;
+
+    // Also load held rides count when the section first loads (for badge)
+    const _origLoadRegVerif = loadRegistrationVerifications;
+    loadRegistrationVerifications = async function(status = null) {
+      await _origLoadRegVerif(status);
+      // Fire held rides count fetch in background for badge accuracy
+      loadHeldRides().catch(() => {});
+    };
+    // ── End Held Pickups ──────────────────────────────────────────────────────
 
     globalThis.loadRefunds = loadRefunds;
     globalThis.changeRefundsPage = changeRefundsPage;

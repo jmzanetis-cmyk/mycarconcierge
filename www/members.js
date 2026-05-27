@@ -2606,12 +2606,14 @@
     
     async function verifyRegistration(registrationUrl, vehicleId) {
       try {
+        const contextNote = document.getElementById('registration-context-note')?.value?.trim() || null;
         const response = await fetch('/api/registration/verify', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
             registrationUrl: registrationUrl,
-            vehicleId: vehicleId
+            vehicleId: vehicleId,
+            contextNote,
           })
         });
         
@@ -2665,7 +2667,7 @@
     function openRegistrationModal(vehicleId) {
       currentRegistrationVehicleId = vehicleId;
       document.getElementById('registration-vehicle-id').value = vehicleId;
-      
+
       pendingRegistrationFile = null;
       document.getElementById('registration-upload-area').style.display = 'none';
       document.getElementById('registration-upload-buttons').style.display = 'grid';
@@ -2675,6 +2677,8 @@
       document.getElementById('registration-loading').style.display = 'none';
       document.getElementById('registration-result').style.display = 'none';
       document.getElementById('verify-registration-btn').disabled = true;
+      const ctxNote = document.getElementById('registration-context-note');
+      if (ctxNote) ctxNote.value = '';
       
       const status = vehicleRegistrationStatus[vehicleId];
       const statusContainer = document.getElementById('registration-current-status');
@@ -6157,6 +6161,19 @@
       await loadVehicles();
       await loadReminders();
       updateStats();
+
+      // Non-blocking VIN decode — warns if VIN doesn't match entered details
+      const newVehicleId = data?.[0]?.id;
+      if (vehicleData.vin && newVehicleId) {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        fetch('/api/vehicle/decode-vin', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ vehicle_id: newVehicleId, vin: vehicleData.vin, year, make: vehicleData.make, model: vehicleData.model }),
+        }).then(r => r.json()).then(result => {
+          if (result.warning) showToast(result.warning, 'warning');
+        }).catch(() => {});
+      }
     }
 
     async function savePackage() {
@@ -6169,6 +6186,18 @@
         showToast('Please set your ZIP code in Settings first so providers can find your request.', 'error');
         showSection('settings');
         return;
+      }
+
+      // Vehicle ownership gate — require VIN decoded OR registration verified
+      if (vehicleId) {
+        const { data: vehCheck } = await supabaseClient
+          .from('vehicles').select('registration_verified, vin_decoded')
+          .eq('id', vehicleId).single();
+        if (vehCheck && !vehCheck.registration_verified && !vehCheck.vin_decoded) {
+          showToast('Please verify this vehicle before requesting service.', 'warning');
+          openRegistrationModal(vehicleId);
+          return;
+        }
       }
 
       // Validate destination service fields if selected
