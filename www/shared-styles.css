@@ -1591,6 +1591,144 @@ button, a, input, select, textarea, [role="button"] {
 }
 
 /* ==========================================================================
+   Shared Components (consolidated from page-specific snowflakes)
+   See docs/snowflake-consolidation-map.md for full audit.
+   ========================================================================== */
+
+/* --- Activity Feed --------------------------------------------------------
+   Used by: car-club-member.html, car-club-provider.html
+   .activity-icon modifiers: .punch .visit .reward .spend
+   -------------------------------------------------------------------- */
+.activity-item {
+  display: flex;
+  gap: 16px;
+  padding: 16px 20px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-md);
+  margin-bottom: 8px;
+  align-items: flex-start;
+  transition: all 0.2s;
+}
+.activity-item:hover { border-color: var(--border-medium); }
+.activity-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-size: 16px;
+}
+.activity-icon.punch  { background: var(--accent-gold-soft);  color: var(--accent-gold); }
+.activity-icon.visit  { background: var(--accent-blue-soft);  color: var(--accent-blue); }
+.activity-icon.reward { background: var(--accent-green-soft); color: var(--accent-green); }
+.activity-icon.spend  { background: var(--accent-teal-soft);  color: var(--accent-teal); }
+.activity-content { flex: 1; }
+.activity-title { font-weight: 500; font-size: var(--text-base); margin-bottom: 2px; }
+.activity-desc  { font-size: var(--text-sm); color: var(--text-secondary); }
+.activity-time  { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+
+/* --- Back-Link (simple text variant) -------------------------------------
+   Used by: car-club-member.html, car-club-provider.html, p.html
+   Card-style and pill variants remain page-local where they differ.
+   -------------------------------------------------------------------- */
+.back-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  text-decoration: none;
+  font-size: var(--text-base);
+  margin-bottom: 20px;
+  transition: color 0.2s;
+}
+.back-link:hover { color: var(--accent-gold); }
+
+/* --- FAQ Accordion --------------------------------------------------------
+   Card-style accordion used by: faq.html, provider-faq.html
+   Border-bottom accordion (founders.html, member-founder.html) stays local.
+   -------------------------------------------------------------------- */
+.faq-list {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+.faq-item {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+.faq-question {
+  width: 100%;
+  padding: 24px 32px;
+  background: transparent;
+  border: none;
+  text-align: left;
+  cursor: pointer;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+  font-family: inherit;
+  font-size: var(--text-lg);
+  font-weight: 500;
+  color: var(--text-primary);
+  transition: all 0.2s ease;
+}
+.faq-question:hover { background: var(--bg-elevated); }
+.faq-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: var(--accent-gold-soft);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-gold);
+  font-weight: bold;
+  transition: transform 0.3s ease;
+}
+.faq-item.active .faq-icon { transform: rotate(45deg); }
+.faq-answer {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.3s ease;
+}
+.faq-item.active .faq-answer { max-height: 500px; }
+.faq-answer-content {
+  padding: 0 32px 24px;
+  color: var(--text-secondary);
+  line-height: 1.7;
+}
+.faq-answer-content p { margin-bottom: 12px; }
+.faq-answer-content p:last-child { margin-bottom: 0; }
+@media (max-width: 640px) {
+  .faq-question { padding: 20px 24px; font-size: var(--text-md); }
+  .faq-answer-content { padding: 0 24px 20px; }
+}
+
+/* --- Alert / Notice Banner ------------------------------------------------
+   Used by: fleet-join.html, fleet-signup.html, fleet-driver.html, fleet.html
+   These are standalone pages — component added here so future shared-styles.css
+   links on those pages will pick it up without further CSS changes.
+   -------------------------------------------------------------------- */
+.alert {
+  padding: 14px 18px;
+  border-radius: var(--radius-md);
+  margin-bottom: 20px;
+  font-size: var(--text-base);
+  text-align: left;
+}
+.alert-success { background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--accent-green); }
+.alert-error   { background: rgba(248, 113, 113, 0.12); border: 1px solid rgba(248,113,113,0.3); color: var(--accent-red); }
+.alert-info    { background: var(--accent-gold-soft); border: 1px solid rgba(201,162,39,0.3); color: var(--accent-gold); }
+.alert-warning { background: var(--accent-orange-soft); border: 1px solid rgba(245,158,11,0.3); color: var(--accent-orange); }
+
+/* ==========================================================================
    Utility Classes
    ========================================================================== */
 .text-center { text-align: center; }
