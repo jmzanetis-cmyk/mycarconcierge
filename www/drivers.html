@@ -125,7 +125,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -165,7 +165,7 @@
       background: var(--accent-gold-soft);
       border: 1px solid rgba(201, 162, 39, 0.3);
       border-radius: 100px;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--accent-gold);
       margin-bottom: 24px;
     }
@@ -188,7 +188,7 @@
 
     .hero-section p {
       color: var(--text-secondary);
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       max-width: 650px;
       margin: 0 auto 32px;
       line-height: 1.7;
@@ -215,13 +215,13 @@
     }
 
     .earnings-pill .amount {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 700;
       color: var(--accent-green);
     }
 
     .earnings-pill .label {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
       text-align: center;
     }
@@ -233,7 +233,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -301,18 +301,18 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.4rem;
+      font-size: var(--text-2xl);
       margin-bottom: 16px;
     }
 
     .benefit-card h3 {
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin-bottom: 8px;
     }
 
     .benefit-card p {
-      font-size: 0.875rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       line-height: 1.6;
     }
@@ -332,7 +332,7 @@
 
     .section-title p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
     }
 
     .comparison-wrap {
@@ -356,7 +356,7 @@
 
     .comparison-table th {
       padding: 18px 24px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       font-weight: 600;
       text-align: left;
     }
@@ -375,7 +375,7 @@
 
     .comparison-table td {
       padding: 16px 24px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       border-top: 1px solid var(--border-subtle);
     }
 
@@ -430,20 +430,20 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 700;
       color: var(--accent-gold);
       margin: 0 auto 16px;
     }
 
     .step-card h3 {
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 600;
       margin-bottom: 8px;
     }
 
     .step-card p {
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--text-secondary);
       line-height: 1.55;
     }
@@ -467,7 +467,7 @@
 
     .founding-banner p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       max-width: 560px;
       margin: 0 auto 28px;
       line-height: 1.65;
@@ -489,7 +489,7 @@
       background: var(--bg-card);
       border: 1px solid var(--border-medium);
       border-radius: 100px;
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-primary);
     }
 
@@ -509,7 +509,7 @@
 
     footer p {
       color: var(--text-muted);
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
     }
 
     footer a {
@@ -523,7 +523,7 @@
       .earnings-band { gap: 12px; }
       .earnings-pill { padding: 16px 20px; }
       .founding-banner { padding: 32px 20px; }
-      nav a { padding: 8px 12px; font-size: 0.82rem; }
+      nav a { padding: 8px 12px; font-size: var(--text-sm); }
     }
   </style>
 </head>
@@ -570,7 +570,7 @@
         <a href="#compare" class="btn btn--secondary">See How We Compare</a>
       </div>
       <img src="/assets/wefunder-cover.png" alt="My Car Concierge + MCC Driver — Three-sided automotive marketplace" style="width:100%;max-width:760px;border-radius:14px;margin-top:28px;display:block;margin-left:auto;margin-right:auto;">
-      <p style="font-size:0.78rem;color:var(--text-muted,#6b7280);margin-top:14px;text-align:center;line-height:1.5;">Driver applications are being accepted now. Active driving will begin once MCC obtains all required state licensing and commercial insurance. Founding Drivers who apply early lock in zero platform fees for their first 90 days once we launch.</p>
+      <p style="font-size:var(--text-sm);color:var(--text-muted,#6b7280);margin-top:14px;text-align:center;line-height:1.5;">Driver applications are being accepted now. Active driving will begin once MCC obtains all required state licensing and commercial insurance. Founding Drivers who apply early lock in zero platform fees for their first 90 days once we launch.</p>
     </div>
 
     <!-- Benefits -->
@@ -687,7 +687,7 @@
         <span class="perk-chip"><span class="dot"></span> Direct line to our team</span>
       </div>
       <a href="/signup-driver.html" class="btn btn--primary">Claim Your Spot</a>
-      <p style="font-size:0.78rem;color:rgba(255,255,255,0.5);margin-top:14px;line-height:1.5;">Driver applications are being accepted now. Active driving will begin once MCC obtains all required state licensing and commercial insurance. Founding Drivers who apply early lock in zero platform fees for their first 90 days once we launch.</p>
+      <p style="font-size:var(--text-sm);color:rgba(255,255,255,0.5);margin-top:14px;line-height:1.5;">Driver applications are being accepted now. Active driving will begin once MCC obtains all required state licensing and commercial insurance. Founding Drivers who apply early lock in zero platform fees for their first 90 days once we launch.</p>
     </div>
 
   </main>

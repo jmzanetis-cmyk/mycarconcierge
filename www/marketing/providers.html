@@ -145,7 +145,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -200,7 +200,7 @@
     .hero-subtitle {
       max-width: 620px;
       margin: 0 auto 40px;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
       line-height: 1.7;
     }
@@ -218,7 +218,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -317,7 +317,7 @@
 
     .section-label {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: var(--accent-blue);
@@ -368,14 +368,14 @@
     }
 
     .benefit-card h3 {
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 10px;
     }
 
     .benefit-card p {
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       line-height: 1.6;
     }
 
@@ -420,7 +420,7 @@
     }
 
     .earnings-stat .label {
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
     }
 
@@ -446,19 +446,19 @@
       justify-content: center;
       margin: 0 auto 20px;
       font-weight: 700;
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       color: var(--accent-blue);
     }
 
     .process-step h3 {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 10px;
     }
 
     .process-step p {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       line-height: 1.6;
     }
 
@@ -474,7 +474,7 @@
       display: flex;
       align-items: center;
       gap: 12px;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--accent-green);
       margin-bottom: 16px;
     }
@@ -490,7 +490,7 @@
       display: flex;
       align-items: center;
       gap: 10px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
     }
 
@@ -521,7 +521,7 @@
 
     .cta-box p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       margin-bottom: 32px;
       max-width: 500px;
       margin-left: auto;
@@ -553,7 +553,7 @@
     }
 
     .footer-links a {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s;
@@ -564,7 +564,7 @@
     }
 
     .footer-copy {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -593,7 +593,7 @@
       color: #0a0a0f;
       text-align: center;
       padding: 10px 48px 10px 20px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 500;
       line-height: 1.4;
     }
@@ -612,7 +612,7 @@
       background: none;
       border: none;
       color: #0a0a0f;
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       cursor: pointer;
       padding: 4px 8px;
       line-height: 1;
@@ -627,7 +627,7 @@
     [data-theme="light"] .onboarding-banner a { color: #ffffff; }
     [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
     @media (max-width: 600px) {
-      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
+      .onboarding-banner { font-size: var(--text-sm); padding: 8px 40px 8px 12px; }
     }
   </style>
 </head>
@@ -759,7 +759,7 @@
             <li>Service capabilities</li>
             <li>Location verification</li>
           </ul>
-          <p style="margin-top: 12px; font-size: 0.9rem; opacity: 0.8;">Optional: Complete voluntary background checks for yourself and your team to earn the "Background Verified" badge and stand out to members.</p>
+          <p style="margin-top: 12px; font-size: var(--text-base); opacity: 0.8;">Optional: Complete voluntary background checks for yourself and your team to earn the "Background Verified" badge and stand out to members.</p>
         </div>
       </div>
     </section>
@@ -775,29 +775,29 @@
           <span class="section-label">MCC Verified</span>
           <h2>Verified providers book more jobs</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           The MCC Verified badge tells customers your team is background-checked and trustworthy. It&rsquo;s the fastest way to build credibility on the platform &mdash; and verified providers see higher bid acceptance rates and more repeat customers.
         </p>
         <!-- NOSONAR S7924 — colored card backgrounds use brand-spec rgba tints; text-secondary maintains hierarchy. Manual contrast check confirms ≥ 3:1 for normal-weight body text at this size. -->
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Comprehensive Screening</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Comprehensive Screening</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               National criminal records, sex offender registry, and identity verification &mdash; handled by our accredited partner.
             </p>
           </div>
           <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Always Current</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Always Current</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Annual renewals keep your badge up to date. We send reminders at 60, 30, 14, and 7 days before expiration &mdash; you&rsquo;ll never be caught off guard.
             </p>
           </div>
           <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Simple Compliance</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Simple Compliance</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Your provider dashboard shows exactly where you stand: who&rsquo;s verified, who&rsquo;s expiring, and what to do next.
             </p>
           </div>
@@ -814,28 +814,28 @@
           <span class="section-label">MCC Verificado</span>
           <h2>Los proveedores verificados consiguen más trabajos</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 32px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           La insignia MCC Verificado les indica a los clientes que tu equipo cuenta con verificación de antecedentes y es de confianza. Es la forma más rápida de generar credibilidad en la plataforma &mdash; y los proveedores verificados obtienen más ofertas aceptadas y más clientes recurrentes.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div style="padding:24px;background:rgba(76,175,80,0.06);border:1px solid rgba(76,175,80,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#10003;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Verificación integral</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#4CAF50;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#10003;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Verificación integral</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Antecedentes penales a nivel nacional, registro de delincuentes sexuales y verificación de identidad &mdash; gestionados por nuestro socio acreditado.
             </p>
           </div>
           <div style="padding:24px;background:rgba(212,168,85,0.06);border:1px solid rgba(212,168,85,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#x21BB;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Siempre vigente</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#d4a855;color:#1a1f29;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#x21BB;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Siempre vigente</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Las renovaciones anuales mantienen tu insignia al día. Te enviamos recordatorios 60, 30, 14 y 7 días antes del vencimiento &mdash; nunca te tomarán por sorpresa.
             </p>
           </div>
           <div style="padding:24px;background:rgba(70,140,220,0.06);border:1px solid rgba(70,140,220,0.2);border-radius:14px;">
-            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:1.2rem;font-weight:700;margin-bottom:14px;">&#9776;</div>
-            <h3 style="margin:0 0 8px;font-size:1.15rem;">Cumplimiento sencillo</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <div style="display:inline-flex;align-items:center;justify-content:center;width:42px;height:42px;border-radius:10px;background:#468cdc;color:#fff;font-size:var(--text-xl);font-weight:700;margin-bottom:14px;">&#9776;</div>
+            <h3 style="margin:0 0 8px;font-size:var(--text-lg);">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Tu panel de proveedor muestra exactamente cuál es tu situación: quién está verificado, a quién le va a vencer y qué hacer a continuación.
             </p>
           </div>
@@ -860,36 +860,36 @@
           <span class="section-label">Earn the Badge</span>
           <h2>Earn the badge customers trust</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           MCC Verified providers get more visibility, more bids, and more repeat customers. Background checks are fast, affordable, and handled right inside your dashboard.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Stand out in search</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Stand out in search</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Verified providers are highlighted in search results and recommended first to customers in your area.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Build instant trust</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Build instant trust</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               78% of vehicle owners say they&rsquo;re more likely to choose a provider with verified background checks.*
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Simple compliance</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Simple compliance</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Add your team, initiate checks with one click, and we handle the rest &mdash; including renewal reminders so you never lose your badge.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Affordable</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Affordable</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Background checks start at <span data-bgc-price>$70</span> per employee, per year. A small investment that pays for itself with your first extra booking.
             </p>
           </div>
         </div>
-        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Placeholder stat &mdash; replace with actual survey/data when available</p>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:var(--text-sm);">*Placeholder stat &mdash; replace with actual survey/data when available</p>
       </div>
     </section>
     <section class="section" id="mcc-verified-pitch-es" data-mcc-lang="es" hidden style="background:rgba(0,0,0,0.04);">
@@ -898,36 +898,36 @@
           <span class="section-label">Obtén la insignia</span>
           <h2>Obtén la insignia en la que los clientes confían</h2>
         </div>
-        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:1.05rem;line-height:1.65;">
+        <p style="text-align:center;max-width:760px;margin:0 auto 28px;color:var(--text-secondary);font-size:var(--text-md);line-height:1.65;">
           Los proveedores MCC Verificados tienen más visibilidad, más ofertas y más clientes recurrentes. Las verificaciones de antecedentes son rápidas, accesibles y se gestionan directamente desde tu panel.
         </p>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:20px;max-width:1080px;margin:0 auto;">
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Destácate en las búsquedas</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Destácate en las búsquedas</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Los proveedores verificados se destacan en los resultados de búsqueda y se recomiendan primero a los clientes de tu zona.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Genera confianza al instante</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Genera confianza al instante</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               El 78 % de los propietarios de vehículos dice que es más probable que elija a un proveedor con verificación de antecedentes.*
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Cumplimiento sencillo</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Cumplimiento sencillo</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Agrega a tu equipo, inicia las verificaciones con un clic y nosotros nos encargamos del resto &mdash; incluyendo los recordatorios de renovación para que nunca pierdas tu insignia.
             </p>
           </div>
           <div>
-            <h3 style="margin:0 0 6px;font-size:1.1rem;">Accesible</h3>
-            <p style="margin:0;color:var(--text-secondary);font-size:0.95rem;line-height:1.55;">
+            <h3 style="margin:0 0 6px;font-size:var(--text-lg);">Accesible</h3>
+            <p style="margin:0;color:var(--text-secondary);font-size:var(--text-base);line-height:1.55;">
               Las verificaciones de antecedentes empiezan en <span data-bgc-price>$70</span> por empleado al año. Una pequeña inversión que se paga sola con tu primera reserva adicional.
             </p>
           </div>
         </div>
-        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:0.78rem;">*Estadística provisional &mdash; se reemplazará con datos de encuesta reales cuando estén disponibles</p>
+        <p style="text-align:center;margin-top:18px;color:var(--text-muted);font-size:var(--text-sm);">*Estadística provisional &mdash; se reemplazará con datos de encuesta reales cuando estén disponibles</p>
       </div>
     </section>
 

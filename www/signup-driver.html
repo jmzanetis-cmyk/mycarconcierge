@@ -84,14 +84,14 @@
     .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
     .header-brand img { height: 100px; border-radius: var(--radius-md); filter: drop-shadow(0 6px 24px rgba(201, 162, 39, 0.25)); transition: all 0.3s ease; }
     .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(201, 162, 39, 0.5)); transform: scale(1.03); }
-    .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 10px; }
-    .header p { color: var(--text-secondary); font-size: 1rem; max-width: 480px; margin: 0 auto; }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: var(--text-4xl); margin-bottom: 10px; }
+    .header p { color: var(--text-secondary); font-size: var(--text-md); max-width: 480px; margin: 0 auto; }
 
     .perks { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 28px; }
     .perk { background: linear-gradient(135deg, var(--bg-card), rgba(201, 162, 39, 0.04)); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; gap: 10px; }
     .perk-icon { font-size: 20px; flex-shrink: 0; }
-    .perk-title { font-weight: 600; font-size: 0.88rem; color: var(--text-primary); line-height: 1.2; }
-    .perk-desc { font-size: 0.75rem; color: var(--text-muted); margin-top: 2px; }
+    .perk-title { font-weight: 600; font-size: var(--text-base); color: var(--text-primary); line-height: 1.2; }
+    .perk-desc { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
 
     .form-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 40px; }
 
@@ -103,17 +103,17 @@
     .step-dot.active { background: var(--accent-gold); border-color: var(--accent-gold); }
     .step-dot.completed { background: var(--accent-green); border-color: var(--accent-green); }
 
-    .step-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 8px; }
-    .step-subtitle { color: var(--text-secondary); margin-bottom: 28px; font-size: 0.95rem; }
+    .step-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 8px; }
+    .step-subtitle { color: var(--text-secondary); margin-bottom: 28px; font-size: var(--text-base); }
 
     .form-group { margin-bottom: 20px; }
-    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
     .form-label .required { color: var(--accent-gold); }
     .form-input, .form-select, .form-textarea {
       width: 100%; padding: 14px 16px;
       background: var(--bg-input); border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md); color: var(--text-primary);
-      font-family: inherit; font-size: 0.95rem; transition: all 0.15s;
+      font-family: inherit; font-size: var(--text-base); transition: all 0.15s;
     }
     .form-input:focus, .form-select:focus, .form-textarea:focus {
       outline: none; border-color: var(--border-focus);
@@ -123,12 +123,12 @@
     .form-select option { background: #1e2630; color: var(--text-primary); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
-    .form-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; }
+    .form-hint { font-size: var(--text-sm); color: var(--text-muted); margin-top: 6px; }
 
     .btn {
       display: inline-flex; align-items: center; justify-content: center;
       gap: 8px; padding: 14px 28px; font-family: inherit;
-      font-size: 0.95rem; font-weight: 600; border: none;
+      font-size: var(--text-base); font-weight: 600; border: none;
       border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s;
     }
     .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
@@ -139,7 +139,7 @@
 
     .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
 
-    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; display: none; }
+    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: var(--text-base); display: none; }
     .message.show { display: block; }
     .message.error { background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); color: #ef5f5f; }
     .message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
@@ -147,15 +147,15 @@
 
     .success-screen { text-align: center; padding: 40px 20px; }
     .success-icon { font-size: 64px; margin-bottom: 24px; }
-    .success-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 16px; }
+    .success-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); margin-bottom: 16px; }
     .success-text { color: var(--text-secondary); margin-bottom: 32px; max-width: 400px; margin-left: auto; margin-right: auto; line-height: 1.6; }
 
-    .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
+    .footer { text-align: center; margin-top: 32px; font-size: var(--text-base); color: var(--text-muted); }
     .footer a { color: var(--text-secondary); }
 
-    .disclaimer { font-size: 0.78rem; color: var(--text-muted); line-height: 1.6; padding: 14px 16px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: var(--radius-md); margin-bottom: 20px; }
+    .disclaimer { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.6; padding: 14px 16px; background: rgba(56, 189, 248, 0.05); border: 1px solid rgba(56, 189, 248, 0.15); border-radius: var(--radius-md); margin-bottom: 20px; }
 
-    .section-label { display: block; font-size: 0.72rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
+    .section-label { display: block; font-size: var(--text-xs); font-weight: 700; text-transform: uppercase; letter-spacing: 0.1em; color: var(--text-muted); margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
 
     @media (max-width: 600px) {
       .form-row, .form-row.three { grid-template-columns: 1fr; }
@@ -166,8 +166,8 @@
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
     .referral-banner { background: linear-gradient(135deg, rgba(56,189,248,0.15), rgba(52,211,153,0.08)); border: 1px solid rgba(56,189,248,0.35); border-radius: 12px; padding: 14px 20px; text-align: center; margin-bottom: 20px; display: none; }
     .referral-banner.show { display: block; }
-    .referral-banner .referred-text { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px; }
-    .referral-banner .referrer-name { font-size: 1.1rem; color: var(--accent-blue); font-weight: 600; }
+    .referral-banner .referred-text { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 4px; }
+    .referral-banner .referrer-name { font-size: var(--text-lg); color: var(--accent-blue); font-weight: 600; }
   </style>
   <script src="/auth-theme-toggle.js" defer></script>
   <script>
@@ -406,7 +406,7 @@
           <p class="success-text">
             You're on the founding driver waitlist. We'll review your application and notify you at <strong id="success-email"></strong> when MCC Driver launches in your area.
           </p>
-          <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:28px;">Founding Drivers who apply now lock in zero platform fees for their first 90 days once we go live.</p>
+          <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:28px;">Founding Drivers who apply now lock in zero platform fees for their first 90 days once we go live.</p>
           <a href="drivers.html" class="btn btn--secondary" style="margin-right:12px;">Back to Driver Info</a>
           <a href="index.html" class="btn btn--ghost">Return Home</a>
         </div>

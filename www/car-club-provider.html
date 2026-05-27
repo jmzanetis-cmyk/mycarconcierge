@@ -107,7 +107,7 @@
       border-radius: 10px;
       cursor: pointer;
       font-family: inherit;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       transition: all 0.3s ease;
     }
@@ -118,7 +118,7 @@
       transform: scale(1.02);
       box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
     }
-    .theme-icon-dark, .theme-icon-light { font-size: 1.2rem; transition: transform 0.3s ease; }
+    .theme-icon-dark, .theme-icon-light { font-size: var(--text-xl); transition: transform 0.3s ease; }
     [data-theme="dark"] .theme-icon-light { display: none; }
     [data-theme="light"] .theme-icon-dark { display: none; }
 
@@ -135,19 +135,19 @@
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
     .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
     .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
-    .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
+    .nav-label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
     .nav-label:first-of-type { margin-top: 0; padding-top: 0; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: var(--text-base); color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
     .nav-item:hover { background: rgba(74, 124, 255, 0.08); color: var(--text-primary); border-color: rgba(74, 124, 255, 0.12); }
     .nav-item.active { background: linear-gradient(135deg, rgba(74, 124, 255, 0.15), rgba(74, 124, 255, 0.08)); color: var(--accent-blue); border-color: rgba(74, 124, 255, 0.25); font-weight: 500; }
     .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid rgba(148, 148, 168, 0.08); background: linear-gradient(180deg, transparent, rgba(18, 18, 28, 0.5)); }
 
     .main { flex: 1; margin-left: 260px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .page-header { margin-bottom: 32px; }
-    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
-    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: var(--text-base); }
 
-    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.88rem; margin-bottom: 20px; transition: color 0.2s; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); text-decoration: none; font-size: var(--text-base); margin-bottom: 20px; transition: color 0.2s; }
     .back-link:hover { color: var(--accent-gold); }
 
     .section { display: none; }
@@ -166,19 +166,19 @@
     .reward-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 12px; transition: all 0.2s; }
     .reward-card:hover { border-color: var(--border-medium); }
     .reward-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .reward-card-name { font-size: 1rem; font-weight: 600; }
+    .reward-card-name { font-size: var(--text-md); font-weight: 600; }
     .reward-card-actions { display: flex; gap: 8px; align-items: center; }
-    .reward-card-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary); }
+    .reward-card-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--text-sm); color: var(--text-secondary); }
     .reward-card-meta span { display: flex; align-items: center; gap: 5px; }
 
-    .member-row { display: grid; grid-template-columns: 1fr 120px 140px 120px 80px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.9rem; transition: all 0.2s; }
+    .member-row { display: grid; grid-template-columns: 1fr 120px 140px 120px 80px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: var(--text-base); transition: all 0.2s; }
     .member-row:hover { border-color: var(--border-medium); }
     .member-name { font-weight: 500; }
-    .member-date { color: var(--text-secondary); font-size: 0.82rem; }
+    .member-date { color: var(--text-secondary); font-size: var(--text-sm); }
     .member-progress { display: flex; align-items: center; gap: 8px; }
     .punch-bar { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
     .punch-fill { height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-green)); border-radius: 3px; transition: width 0.3s; }
-    .punch-text { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
+    .punch-text { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
 
     .activity-item { display: flex; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; align-items: flex-start; transition: all 0.2s; }
     .activity-item:hover { border-color: var(--border-medium); }
@@ -188,14 +188,14 @@
     .activity-icon.reward { background: var(--accent-green-soft); color: var(--accent-green); }
     .activity-icon.spend { background: var(--accent-teal-soft); color: var(--accent-teal); }
     .activity-content { flex: 1; }
-    .activity-title { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
-    .activity-desc { font-size: 0.82rem; color: var(--text-secondary); }
-    .activity-time { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .activity-title { font-weight: 500; font-size: var(--text-base); margin-bottom: 2px; }
+    .activity-desc { font-size: var(--text-sm); color: var(--text-secondary); }
+    .activity-time { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 
     .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
-    .filter-bar .form-input { max-width: 180px; padding: 8px 12px; font-size: 0.85rem; }
+    .filter-bar .form-input { max-width: 180px; padding: 8px 12px; font-size: var(--text-sm); }
 
-    .credit-batch { display: grid; grid-template-columns: 1fr 1fr 100px 120px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.88rem; transition: all 0.2s; }
+    .credit-batch { display: grid; grid-template-columns: 1fr 1fr 100px 120px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: var(--text-base); transition: all 0.2s; }
     .credit-batch:hover { border-color: var(--border-medium); }
 
     .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
@@ -205,23 +205,23 @@
     #authLoadingOverlay.hidden { display: none; }
     .auth-loading-content { text-align: center; }
     .auth-loading-spinner { width: 48px; height: 48px; border: 3px solid rgba(201, 162, 39, 0.2); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
-    .auth-loading-text { color: var(--text-secondary); font-size: 0.95rem; }
+    .auth-loading-text { color: var(--text-secondary); font-size: var(--text-base); }
 
     .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 49; }
     .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle); z-index: 48; padding: 0 16px; align-items: center; gap: 12px; }
     .hamburger { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; }
 
-    .note-text { font-size: 0.82rem; color: var(--text-muted); margin-top: 8px; }
+    .note-text { font-size: var(--text-sm); color: var(--text-muted); margin-top: 8px; }
 
     .how-it-works { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 24px; overflow: hidden; }
-    .how-it-works-toggle { width: 100%; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: transparent; border: none; color: var(--accent-gold); font-family: inherit; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .how-it-works-toggle { width: 100%; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: transparent; border: none; color: var(--accent-gold); font-family: inherit; font-size: var(--text-base); font-weight: 500; cursor: pointer; transition: background 0.2s; }
     .how-it-works-toggle:hover { background: var(--accent-gold-soft); }
     .how-it-works-body { padding: 0 20px 20px; display: none; }
     .how-it-works-body.open { display: block; }
     .how-it-works-section { margin-bottom: 16px; }
     .how-it-works-section:last-child { margin-bottom: 0; }
-    .how-it-works-section h3 { font-size: 0.9rem; font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
-    .how-it-works-section p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+    .how-it-works-section h3 { font-size: var(--text-base); font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .how-it-works-section p { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; }
 
     .logo-upload-area {
       position: relative;
@@ -330,19 +330,19 @@
     }
     .product-card-name {
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       margin-bottom: 4px;
     }
     .product-card-price {
       color: var(--accent-gold);
       font-weight: 600;
-      font-size: 1rem;
+      font-size: var(--text-md);
     }
     .product-card-price .compare-price {
       color: var(--text-muted);
       text-decoration: line-through;
       font-weight: 400;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       margin-left: 8px;
     }
     .product-card-meta {
@@ -417,7 +417,7 @@
       gap: 8px;
     }
     .order-items-list {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       margin-bottom: 12px;
     }
@@ -457,7 +457,7 @@
       border-radius: var(--radius-md);
       color: var(--text-secondary);
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       cursor: pointer;
       transition: all 0.2s;
     }
@@ -481,9 +481,9 @@
 
     .empty-state-circle { width: 80px; height: 80px; border-radius: 50%; background: var(--accent-gold-soft); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
     .empty-state-circle svg { width: 36px; height: 36px; color: var(--accent-gold); stroke: var(--accent-gold); opacity: 0.8; }
-    .empty-state-title { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-    .empty-state-desc { font-size: 0.88rem; color: var(--text-muted); max-width: 360px; margin: 0 auto 16px; line-height: 1.5; }
-    .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: 0.85rem; cursor: pointer; border: none; transition: all 0.2s; }
+    .empty-state-title { font-size: var(--text-md); font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+    .empty-state-desc { font-size: var(--text-base); color: var(--text-muted); max-width: 360px; margin: 0 auto 16px; line-height: 1.5; }
+    .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: var(--text-sm); cursor: pointer; border: none; transition: all 0.2s; }
     .empty-state-cta:hover { opacity: 0.9; transform: translateY(-1px); }
 
     @media (max-width: 900px) {
@@ -524,7 +524,7 @@
     <button class="hamburger" onclick="toggleSidebar()">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <span style="font-weight:600;font-size:1rem;">Car Club</span>
+    <span style="font-weight:600;font-size:var(--text-md);">Car Club</span>
   </div>
 
   <aside class="sidebar" id="sidebar">
@@ -639,8 +639,8 @@
       <div id="setup-create" class="card" style="display:none;">
         <div style="text-align:center;padding:40px 20px;">
           <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">🏁</div>
-          <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:8px;">Create Your Car Club</h2>
-          <p style="color:var(--text-secondary);font-size:0.92rem;margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto;">Start a loyalty program to reward your customers and grow your business.</p>
+          <h2 style="font-size:var(--text-xl);font-weight:600;margin-bottom:8px;">Create Your Car Club</h2>
+          <p style="color:var(--text-secondary);font-size:var(--text-base);margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto;">Start a loyalty program to reward your customers and grow your business.</p>
           <div style="max-width:500px;margin:0 auto;text-align:left;">
             <div class="form-group">
               <label class="form-label">Club Name</label>
@@ -658,7 +658,7 @@
               <label class="form-label">Theme Color</label>
               <div style="display:flex;align-items:center;gap:10px;">
                 <input type="color" id="create-theme-color" value="#C9A84C" style="width:44px;height:36px;padding:2px 4px;border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;background:var(--bg-input);" />
-                <span style="font-size:0.85rem;color:var(--text-secondary);">Club header accent colour</span>
+                <span style="font-size:var(--text-sm);color:var(--text-secondary);">Club header accent colour</span>
               </div>
             </div>
             <div class="form-group">
@@ -735,7 +735,7 @@
           <label class="form-label">Theme Color</label>
           <div style="display:flex;align-items:center;gap:10px;">
             <input type="color" id="edit-theme-color" value="#C9A84C" style="width:44px;height:36px;padding:2px 4px;border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;background:var(--bg-input);" />
-            <span style="font-size:0.85rem;color:var(--text-secondary);">Club header accent colour</span>
+            <span style="font-size:var(--text-sm);color:var(--text-secondary);">Club header accent colour</span>
           </div>
         </div>
         <div class="form-group">
@@ -791,9 +791,9 @@
       <div id="members-content" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
           <h2 class="card-title">Club Members</h2>
-          <span id="member-count" style="color:var(--text-muted);font-size:0.88rem;"></span>
+          <span id="member-count" style="color:var(--text-muted);font-size:var(--text-base);"></span>
         </div>
-        <div id="members-header" class="member-row" style="background:transparent;border:none;font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;padding:8px 20px;margin-bottom:4px;">
+        <div id="members-header" class="member-row" style="background:transparent;border:none;font-size:var(--text-sm);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;padding:8px 20px;margin-bottom:4px;">
           <span>Member</span><span>Joined</span><span>Punch Progress</span><span>Last Activity</span><span></span>
         </div>
         <div id="members-list"></div>
@@ -937,7 +937,7 @@
       <div id="orders-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title" style="margin-bottom:0;">Orders</h2>
-          <select id="orders-filter" class="form-input" style="width:auto;padding:8px 12px;font-size:0.85rem;" onchange="loadOrders()">
+          <select id="orders-filter" class="form-input" style="width:auto;padding:8px 12px;font-size:var(--text-sm);" onchange="loadOrders()">
             <option value="">All Orders</option>
             <option value="paid">Paid</option>
             <option value="processing">Processing</option>
@@ -969,11 +969,11 @@
         <h2 class="card-title" style="margin-bottom:20px;">Club Analytics</h2>
         <div class="stats-grid" id="analytics-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;"></div>
         <div class="card" style="margin-bottom:24px;">
-          <h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;">Retention & Growth</h3>
+          <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Retention & Growth</h3>
           <div id="analytics-retention" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;"></div>
         </div>
         <div class="card">
-          <h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;">Monthly Activity Trend</h3>
+          <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Monthly Activity Trend</h3>
           <div id="analytics-trend"></div>
           <div id="analytics-trend-empty" class="empty-state" style="display:none;">
             <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
@@ -986,7 +986,7 @@
     <div id="product-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:560px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 id="product-modal-title" style="font-family:'Playfair Display',serif;font-size:1.2rem;">Add Product</h3>
+          <h3 id="product-modal-title" style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Add Product</h3>
           <button class="btn-icon" onclick="closeProductModal()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -1036,7 +1036,7 @@
           <div class="logo-upload-area" style="padding:16px;" onclick="document.getElementById('product-image-input').click()">
             <div style="display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text-secondary);">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span style="font-size:0.85rem;">Click to add images</span>
+              <span style="font-size:var(--text-sm);">Click to add images</span>
             </div>
             <input type="file" id="product-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleProductImageUpload(this)" multiple />
           </div>
@@ -1103,7 +1103,7 @@
         <button class="modal-close" onclick="closeAdjustModal()">×</button>
       </div>
       <div class="modal-body">
-        <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;" id="adjust-member-name"></p>
+        <p style="color:var(--text-secondary);font-size:var(--text-base);margin-bottom:16px;" id="adjust-member-name"></p>
         <div class="form-group">
           <label class="form-label">Reward Rule</label>
           <select class="form-input" id="adjust-rule"></select>
@@ -1258,7 +1258,7 @@
           sessionExpiredShown = true;
           const msg = document.createElement('div');
           msg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border-medium);border-radius:var(--radius-md);padding:32px;text-align:center;z-index:101;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5);';
-          msg.innerHTML = `<div style="font-size:1.1rem;font-weight:600;margin-bottom:12px;">Session Expired</div><p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:24px;">Your session has expired. Please log in again to continue.</p><a href="/login.html" class="btn btn-metallic" style="display:inline-block;padding:10px 24px;text-decoration:none;border-radius:var(--radius-sm);">Log In</a>`;
+          msg.innerHTML = `<div style="font-size:1.1rem;font-weight:600;margin-bottom:12px;">Session Expired</div><p style="color:var(--text-secondary);font-size:var(--text-base);margin-bottom:24px;">Your session has expired. Please log in again to continue.</p><a href="/login.html" class="btn btn-metallic" style="display:inline-block;padding:10px 24px;text-decoration:none;border-radius:var(--radius-sm);">Log In</a>`;
           document.body.appendChild(msg);
         }
         return null;
@@ -1963,20 +1963,20 @@
             <table style="width:100%;border-collapse:collapse;">
               <thead>
                 <tr style="text-align:left;border-bottom:2px solid var(--border-color);">
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Rank</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Member</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Punches</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Visits</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Joined</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Rank</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Member</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Punches</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Visits</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Joined</th>
                 </tr>
               </thead>
               <tbody>
                 ${list.map((m, i) => `<tr style="border-bottom:1px solid var(--border-color);">
-                  <td style="padding:10px 12px;font-size:1.1rem;">${i < 3 ? medals[i] : (i + 1)}</td>
-                  <td style="padding:10px 12px;font-family:monospace;font-size:0.85rem;">${escHtml((m.member_id || '').substring(0, 8))}</td>
+                  <td style="padding:10px 12px;font-size:var(--text-lg);">${i < 3 ? medals[i] : (i + 1)}</td>
+                  <td style="padding:10px 12px;font-family:monospace;font-size:var(--text-sm);">${escHtml((m.member_id || '').substring(0, 8))}</td>
                   <td style="padding:10px 12px;font-weight:600;">${parseInt(m.total_punches) || 0}</td>
                   <td style="padding:10px 12px;">${parseInt(m.total_visits) || 0}</td>
-                  <td style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                  <td style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
                 </tr>`).join('')}
               </tbody>
             </table>
@@ -2220,16 +2220,16 @@
           </div>`;
         document.getElementById('analytics-retention').innerHTML = `
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-green);">${a.new_members_30d}</div>
-            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">New Members (30d)</div>
+            <div style="font-size:var(--text-2xl);font-weight:700;color:var(--accent-green);">${a.new_members_30d}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;">New Members (30d)</div>
           </div>
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-teal);">${a.retention_rate}%</div>
-            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Retention Rate</div>
+            <div style="font-size:var(--text-2xl);font-weight:700;color:var(--accent-teal);">${a.retention_rate}%</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;">Retention Rate</div>
           </div>
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);">${a.avg_punches_per_member}</div>
-            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Avg Punches / Member</div>
+            <div style="font-size:var(--text-2xl);font-weight:700;color:var(--accent-gold);">${a.avg_punches_per_member}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;">Avg Punches / Member</div>
           </div>`;
         const trend = a.monthly_trend || [];
         if (trend.length === 0) {
@@ -2245,11 +2245,11 @@
             const parts = t.month.split('-');
             const label = monthNames[parseInt(parts[1]) - 1] + ' ' + parts[0];
             return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-              <div style="width:70px;font-size:0.82rem;color:var(--text-secondary);text-align:right;flex-shrink:0;">${escHtml(label)}</div>
+              <div style="width:70px;font-size:var(--text-sm);color:var(--text-secondary);text-align:right;flex-shrink:0;">${escHtml(label)}</div>
               <div style="flex:1;height:28px;background:var(--bg-input);border-radius:6px;overflow:hidden;">
                 <div style="height:100%;width:${pct}%;background:linear-gradient(90deg, var(--accent-gold), var(--accent-bronze));border-radius:6px;transition:width 0.5s ease;"></div>
               </div>
-              <div style="width:40px;font-size:0.85rem;font-weight:600;color:var(--text-primary);flex-shrink:0;">${count}</div>
+              <div style="width:40px;font-size:var(--text-sm);font-weight:600;color:var(--text-primary);flex-shrink:0;">${count}</div>
             </div>`;
           }).join('');
         }
@@ -2563,7 +2563,7 @@
           if (o.status === 'paid') {
             actionsHtml = '<button class="btn btn-metallic btn--small" onclick="updateOrderStatus(\'' + o.id + '\', \'processing\')">Mark Processing</button>';
           } else if (o.status === 'processing') {
-            actionsHtml = '<input type="text" class="form-input" id="tracking-' + o.id + '" placeholder="Tracking number" style="width:160px;padding:6px 10px;font-size:0.82rem;" />' +
+            actionsHtml = '<input type="text" class="form-input" id="tracking-' + o.id + '" placeholder="Tracking number" style="width:160px;padding:6px 10px;font-size:var(--text-sm);" />' +
               '<button class="btn btn-metallic btn--small" onclick="shipOrder(\'' + o.id + '\')">Mark Shipped</button>';
           } else if (o.status === 'shipped') {
             actionsHtml = '<button class="btn btn-metallic btn--small" onclick="updateOrderStatus(\'' + o.id + '\', \'delivered\')">Mark Delivered</button>';
@@ -2574,12 +2574,12 @@
 
           return '<div class="order-card">' +
             '<div class="order-card-header">' +
-              '<div><strong>Order #' + o.id.substring(0, 8) + '</strong> <span style="font-size:0.82rem;color:var(--text-muted);">' + date + '</span></div>' +
+              '<div><strong>Order #' + o.id.substring(0, 8) + '</strong> <span style="font-size:var(--text-sm);color:var(--text-muted);">' + date + '</span></div>' +
               '<div style="display:flex;align-items:center;gap:8px;"><span class="badge ' + statusClass + '">' + o.status + '</span><span style="font-weight:600;">' + total + '</span></div>' +
             '</div>' +
             '<div class="order-items-list">' + itemsHtml + '</div>' +
-            (o.shipping_name ? '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">Ship to: ' + escHtml(o.shipping_name) + (o.shipping_city ? ', ' + escHtml(o.shipping_city) : '') + (o.shipping_state ? ', ' + escHtml(o.shipping_state) : '') + '</div>' : '') +
-            '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;">Platform fee: ' + fee + '</div>' +
+            (o.shipping_name ? '<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px;">Ship to: ' + escHtml(o.shipping_name) + (o.shipping_city ? ', ' + escHtml(o.shipping_city) : '') + (o.shipping_state ? ', ' + escHtml(o.shipping_state) : '') + '</div>' : '') +
+            '<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px;">Platform fee: ' + fee + '</div>' +
             '<div class="order-actions">' + actionsHtml + '</div>' +
           '</div>';
         }).join('');

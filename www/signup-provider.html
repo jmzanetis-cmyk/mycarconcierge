@@ -88,15 +88,15 @@
     .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
     .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: auto; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
     .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
-    .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 12px; }
-    .header p { color: var(--text-secondary); font-size: 1rem; max-width: 500px; margin: 0 auto; }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: var(--text-4xl); margin-bottom: 12px; }
+    .header p { color: var(--text-secondary); font-size: var(--text-md); max-width: 500px; margin: 0 auto; }
 
     .benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
     .benefit { background: linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 168, 85, 0.05) 100%); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; gap: 10px; text-align: left; transition: all 0.3s ease; }
     .benefit:hover { border-color: var(--accent-gold); }
     .benefit-icon { font-size: 20px; flex-shrink: 0; }
-    .benefit-title { font-weight: 600; font-size: 0.88rem; color: var(--text-primary); line-height: 1.2; }
-    .benefit-desc { font-size: 0.75rem; color: var(--text-muted); }
+    .benefit-title { font-weight: 600; font-size: var(--text-base); color: var(--text-primary); line-height: 1.2; }
+    .benefit-desc { font-size: var(--text-xs); color: var(--text-muted); }
     .benefit-link:hover .benefit { border-color: var(--accent-gold); }
 
     .form-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 40px; }
@@ -109,22 +109,22 @@
     .step-dot.active { background: var(--accent-gold); border-color: var(--accent-gold); }
     .step-dot.completed { background: var(--accent-green); border-color: var(--accent-green); }
 
-    .step-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 8px; }
+    .step-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 8px; }
     .step-subtitle { color: var(--text-secondary); margin-bottom: 28px; }
 
     .form-section { margin-bottom: 28px; }
     .form-section-title { font-weight: 600; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
 
     .form-group { margin-bottom: 20px; }
-    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
     .form-label .required { color: var(--accent-gold); }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; transition: all 0.15s; }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: var(--text-base); transition: all 0.15s; }
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(212, 168, 85, 0.1); }
     .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
     .form-textarea { min-height: 100px; resize: vertical; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
-    .form-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; }
+    .form-hint { font-size: var(--text-sm); color: var(--text-muted); margin-top: 6px; }
 
     .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
     .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); cursor: pointer; transition: all 0.15s; }
@@ -135,11 +135,11 @@
     .file-upload { border: 2px dashed var(--border-subtle); border-radius: var(--radius-md); padding: 24px; text-align: center; cursor: pointer; transition: all 0.15s; }
     .file-upload:hover { border-color: var(--accent-gold); background: var(--accent-gold-soft); }
     .file-upload-icon { font-size: 32px; margin-bottom: 8px; }
-    .file-upload-text { color: var(--text-secondary); font-size: 0.9rem; }
+    .file-upload-text { color: var(--text-secondary); font-size: var(--text-base); }
     .file-upload input { display: none; }
 
     .uploaded-files { margin-top: 12px; }
-    .uploaded-file { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-elevated); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.88rem; }
+    .uploaded-file { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-elevated); border-radius: var(--radius-md); margin-bottom: 8px; font-size: var(--text-base); }
     .uploaded-file button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; }
 
     .reference-card { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; }
@@ -150,7 +150,7 @@
     .review-link { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px; }
     .review-link .form-row { margin-bottom: 0; }
 
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 28px; font-family: inherit; font-size: 0.95rem; font-weight: 600; border: none; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 28px; font-family: inherit; font-size: var(--text-base); font-weight: 600; border: none; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
     .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
     .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
     .btn--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
@@ -159,7 +159,7 @@
 
     .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
 
-    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; display: none; }
+    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: var(--text-base); display: none; }
     .message.show { display: block; }
     .message.error { background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); color: #ef5f5f; }
     .message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
@@ -167,16 +167,16 @@
 
     .success-screen { text-align: center; padding: 40px 20px; }
     .success-icon { font-size: 64px; margin-bottom: 24px; }
-    .success-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 16px; }
+    .success-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); margin-bottom: 16px; }
     .success-text { color: var(--text-secondary); margin-bottom: 32px; max-width: 400px; margin-left: auto; margin-right: auto; }
 
-    .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
+    .footer { text-align: center; margin-top: 32px; font-size: var(--text-base); color: var(--text-muted); }
     .footer a { color: var(--text-secondary); }
 
     .referral-banner { background: linear-gradient(135deg, rgba(201, 162, 39, 0.15), rgba(205, 127, 50, 0.1)); border: 1px solid rgba(201, 162, 39, 0.3); border-radius: var(--radius-lg); padding: 16px 20px; text-align: center; margin-bottom: 24px; display: none; }
     .referral-banner.show { display: block; }
-    .referral-banner .referred-text { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; }
-    .referral-banner .provider-name { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--accent-gold); font-weight: 600; }
+    .referral-banner .referred-text { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 6px; }
+    .referral-banner .provider-name { font-family: 'Playfair Display', serif; font-size: var(--text-xl); color: var(--accent-gold); font-weight: 600; }
 
     @media (max-width: 600px) {
       .form-row, .form-row.three { grid-template-columns: 1fr; }
@@ -254,10 +254,10 @@
         <div class="benefit" style="background:linear-gradient(135deg, rgba(52,211,153,0.08) 0%, rgba(201,162,39,0.1) 100%);border-color:rgba(52,211,153,0.3);padding:16px 20px;">
           <div class="benefit-icon" style="font-size:24px;">🏆</div>
           <div style="flex:1;">
-            <div class="benefit-title" style="font-size:0.95rem;color:var(--accent-green);">Your Customers Stay YOUR Customers</div>
+            <div class="benefit-title" style="font-size:var(--text-base);color:var(--accent-green);">Your Customers Stay YOUR Customers</div>
             <div class="benefit-desc" style="font-size:0.8rem;margin-top:2px;">Car Club loyalty program — build loyalty programs, earn free bids, keep your regulars. Your existing clients stay connected to you.</div>
           </div>
-          <div style="font-size:0.75rem;color:var(--accent-gold);font-weight:600;white-space:nowrap;">Learn More →</div>
+          <div style="font-size:var(--text-xs);color:var(--accent-gold);font-weight:600;white-space:nowrap;">Learn More →</div>
         </div>
       </a>
     </div>
@@ -286,14 +286,14 @@
              offered, so any future social login on this surface must
              also be added here. -->
         <button type="button" id="apple-signup-btn" onclick="signUpWithAppleProvider()"
-                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#000;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:12px;">
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#000;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:12px;">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0;">
             <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
           </svg>
           <span>Sign in with Apple</span>
         </button>
         <button type="button" id="google-signup-btn" onclick="signUpWithGoogleProvider()"
-                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#fff;border:1.5px solid #dadce0;border-radius:14px;color:#3c4043;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:12px;">
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#fff;border:1.5px solid #dadce0;border-radius:14px;color:#3c4043;font-family:inherit;font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:12px;">
           <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
             <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
@@ -305,13 +305,13 @@
         <!-- Facebook OAuth shortcut. Sets mcc_signup_intent='provider'
              so login.js routes the callback to the provider survey. -->
         <button type="button" id="facebook-signup-btn" onclick="signUpWithFacebookProvider()"
-                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#1877F2;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:16px;">
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#1877F2;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:16px;">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0;">
             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
           </svg>
           <span>Continue with Facebook</span>
         </button>
-        <div style="display:flex;align-items:center;gap:12px;margin:0 0 18px;color:#9ca3af;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;">
+        <div style="display:flex;align-items:center;gap:12px;margin:0 0 18px;color:#9ca3af;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.08em;">
           <span style="flex:1;height:1px;background:rgba(156,163,175,0.35);"></span>
           <span>or</span>
           <span style="flex:1;height:1px;background:rgba(156,163,175,0.35);"></span>
@@ -522,7 +522,7 @@
 
         <div class="form-section">
           <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Loaner Vehicle Program</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
           
           <div class="form-group">
             <label class="form-label">Google Maps Link</label>
@@ -572,7 +572,7 @@
 
         <div class="form-section">
           <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Pickup & Delivery Services</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
           
           <div class="form-group">
             <label class="form-label">Yelp Profile</label>
@@ -615,7 +615,7 @@
           <div class="form-section-title">Insurance Acknowledgment <span class="required">*</span></div>
           <label class="checkbox-item" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:16px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);">
             <input type="checkbox" id="insurance-acknowledgment" style="margin-top:4px;min-width:18px;min-height:18px;accent-color:var(--accent-gold);">
-            <span style="font-size:0.92rem;line-height:1.5;color:var(--text-secondary);">I confirm that I maintain sufficient liability insurance coverage to conduct regular business operations for the services I provide. I understand that I am responsible for keeping my insurance current and adequate at all times while active on the My Car Concierge platform.</span>
+            <span style="font-size:var(--text-base);line-height:1.5;color:var(--text-secondary);">I confirm that I maintain sufficient liability insurance coverage to conduct regular business operations for the services I provide. I understand that I am responsible for keeping my insurance current and adequate at all times while active on the My Car Concierge platform.</span>
           </label>
         </div>
 
@@ -642,7 +642,7 @@
 
         <div class="form-section" style="background:var(--bg-input);padding:24px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
           <div class="form-section-title" style="border:none;margin-bottom:12px;">The Provider Pledge</div>
-          <ul style="font-size:0.9rem;color:var(--text-secondary);margin-left:20px;margin-bottom:20px;display:grid;gap:8px;">
+          <ul style="font-size:var(--text-base);color:var(--text-secondary);margin-left:20px;margin-bottom:20px;display:grid;gap:8px;">
             <li>I will provide honest, professional service to all members.</li>
             <li>I will honor the bids I place on the platform.</li>
             <li>I will maintain active liability insurance.</li>
@@ -661,7 +661,7 @@
 
         <div class="form-section">
           <div class="form-section-title">External Reviews</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Link to your business profiles so we can verify your ratings.</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Link to your business profiles so we can verify your ratings.</p>
           
           <div class="review-link">
             <div class="form-row">
@@ -691,7 +691,7 @@
 
         <div class="form-section">
           <div class="form-section-title">References</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Provide 2-3 references we can contact (customers, suppliers, partners).</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Provide 2-3 references we can contact (customers, suppliers, partners).</p>
           
           <div id="references-container">
             <div class="reference-card">
@@ -737,7 +737,7 @@
         <h2 class="step-title">Provider Partnership Agreement</h2>
         <p class="step-subtitle">Review our partnership terms — we're here to help you grow your business.</p>
 
-        <div class="agreement-container" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:24px;max-height:400px;overflow-y:auto;margin-bottom:24px;font-size:0.9rem;line-height:1.7;">
+        <div class="agreement-container" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:24px;max-height:400px;overflow-y:auto;margin-bottom:24px;font-size:var(--text-base);line-height:1.7;">
           <h3 style="margin-bottom:16px;color:var(--accent-gold);">MY CAR CONCIERGE PROVIDER PARTNERSHIP AGREEMENT</h3>
           
           <p style="margin-bottom:16px;"><strong>Effective Date:</strong> Upon acceptance of this agreement</p>
@@ -822,12 +822,12 @@
 
           <div class="form-group">
             <label class="form-label">Sign Below <span class="required">*</span></label>
-            <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Use your mouse or finger to sign in the box below</p>
+            <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:12px;">Use your mouse or finger to sign in the box below</p>
             <div style="position:relative;border:2px solid var(--border-subtle);border-radius:var(--radius-md);background:#fff;">
               <canvas id="signature-pad" width="500" height="150" style="width:100%;height:150px;cursor:crosshair;touch-action:none;"></canvas>
               <button type="button" onclick="clearSignature()" style="position:absolute;top:8px;right:8px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:4px 12px;font-size:0.8rem;cursor:pointer;color:var(--text-secondary);">Clear</button>
             </div>
-            <p id="signature-error" style="display:none;color:var(--accent-red);font-size:0.85rem;margin-top:8px;">Please sign above to continue</p>
+            <p id="signature-error" style="display:none;color:var(--accent-red);font-size:var(--text-sm);margin-top:8px;">Please sign above to continue</p>
           </div>
 
           <div class="agreement-checkboxes" style="margin-top:20px;">
@@ -875,8 +875,8 @@
           <h3 style="color:var(--accent-gold);margin-bottom:16px;">You're Approved!</h3>
           <p class="success-text">Congratulations! Your provider account is now active.</p>
           <div style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:center;">
-            <p style="font-size:1.1rem;margin-bottom:8px;"><strong><span class="icon-inline" data-icon="ticket"></span> You have 3 FREE bids to get started!</strong></p>
-            <p style="color:var(--text-secondary);font-size:0.9rem;">Use them to bid on service requests and win your first jobs.</p>
+            <p style="font-size:var(--text-lg);margin-bottom:8px;"><strong><span class="icon-inline" data-icon="ticket"></span> You have 3 FREE bids to get started!</strong></p>
+            <p style="color:var(--text-secondary);font-size:var(--text-base);">Use them to bid on service requests and win your first jobs.</p>
           </div>
           <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:left;">
             <p style="margin-bottom:12px;"><strong>What's next?</strong></p>

@@ -57,7 +57,7 @@
       margin: 0 auto 20px;
     }
     h1 { font-family: 'Playfair Display', serif; font-size: 1.7rem; margin-bottom: 8px; }
-    .subtitle { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 28px; }
+    .subtitle { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.5; margin-bottom: 28px; }
     .invite-detail {
       background: var(--bg-input);
       border: 1px solid var(--border-subtle);
@@ -66,7 +66,7 @@
       margin-bottom: 24px;
       text-align: left;
     }
-    .invite-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9rem; }
+    .invite-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: var(--text-base); }
     .invite-row:last-child { margin-bottom: 0; }
     .invite-label { color: var(--text-muted); }
     .invite-value { font-weight: 500; color: var(--text-primary); }
@@ -74,7 +74,7 @@
       display: inline-block;
       background: var(--accent-blue);
       color: white;
-      font-size: 0.78rem;
+      font-size: var(--text-sm);
       padding: 3px 10px;
       border-radius: 10px;
       font-weight: 500;
@@ -84,7 +84,7 @@
       width: 100%;
       padding: 14px;
       border-radius: var(--radius-md);
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       cursor: pointer;
       border: none;
@@ -99,7 +99,7 @@
       padding: 14px 18px;
       border-radius: var(--radius-md);
       margin-bottom: 20px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       text-align: left;
     }
     .alert-success { background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--accent-green); }
@@ -117,7 +117,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .divider { border-top: 1px solid var(--border-subtle); margin: 20px 0; }
-    .small-link { font-size: 0.85rem; color: var(--text-muted); text-decoration: none; }
+    .small-link { font-size: var(--text-sm); color: var(--text-muted); text-decoration: none; }
     .small-link:hover { color: var(--accent-gold); }
     #loading-state, #error-state, #invite-state, #accepted-state { display: none; }
     #loading-state.active, #error-state.active, #invite-state.active, #accepted-state.active { display: block; }

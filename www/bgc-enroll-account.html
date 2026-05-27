@@ -10,13 +10,13 @@
     * { box-sizing: border-box; }
     body { background:#0d1117; color:#f0f4fa; font-family: 'Outfit', system-ui, sans-serif; line-height:1.6; margin:0; padding:32px 16px; }
     .wrap { max-width: 720px; margin: 0 auto; }
-    h1 { font-size: 1.6rem; font-weight: 700; margin: 0 0 16px; }
+    h1 { font-size: var(--text-3xl); font-weight: 700; margin: 0 0 16px; }
     p { color: #c8ccd6; }
     .card { background:#161c26; border:1px solid rgba(148,148,168,0.12); border-radius: 14px; padding: 24px 28px; margin-top: 18px; }
-    .btn { padding:12px 22px; border-radius:10px; border:none; cursor:pointer; font-weight:600; font-size:0.95rem; }
+    .btn { padding:12px 22px; border-radius:10px; border:none; cursor:pointer; font-weight:600; font-size:var(--text-base); }
     .btn--primary { background: linear-gradient(135deg,#d4a855,#b88c2c); color:#1a1f29; }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-    #bgc-status { margin-top: 14px; font-size: 0.92rem; min-height: 1.4em; }
+    #bgc-status { margin-top: 14px; font-size: var(--text-base); min-height: 1.4em; }
     .ok { color:#2eb88a; } .err { color:#dc5050; }
     code { background: rgba(255,255,255,0.06); padding: 2px 6px; border-radius: 4px; }
   </style>
@@ -37,7 +37,7 @@
     <div id="bgc-status">Initialising&hellip;</div>
   </div>
 
-  <p style="margin-top:22px;font-size:0.85rem;color:#8b95a5;">
+  <p style="margin-top:22px;font-size:var(--text-sm);color:#8b95a5;">
     Need help? Email <a style="color:#d4a855;" href="mailto:providers@mycarconcierge.com">providers@mycarconcierge.com</a>.
   </p>
 </div>

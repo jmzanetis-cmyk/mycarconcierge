@@ -126,7 +126,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -159,7 +159,7 @@
       background: var(--accent-blue-soft);
       border: 1px solid rgba(74, 124, 255, 0.2);
       border-radius: 100px;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--accent-blue);
       margin-bottom: 24px;
     }
@@ -181,7 +181,7 @@
 
     .hero-section p {
       color: var(--text-secondary);
-      font-size: 1.15rem;
+      font-size: var(--text-lg);
       max-width: 650px;
       margin: 0 auto 32px;
       line-height: 1.7;
@@ -193,7 +193,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -241,19 +241,19 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       margin-bottom: 20px;
     }
 
     .benefit-card h3 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       margin-bottom: 12px;
     }
 
     .benefit-card p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       line-height: 1.7;
     }
 
@@ -264,7 +264,7 @@
 
     .section-title h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
+      font-size: var(--text-3xl);
       margin-bottom: 12px;
     }
 
@@ -293,7 +293,7 @@
       background: var(--bg-elevated);
       border-radius: var(--radius-md);
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       display: flex;
       align-items: center;
       gap: 12px;
@@ -322,7 +322,7 @@
 
     .resource-card h3 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       margin-bottom: 16px;
       color: var(--accent-blue);
     }
@@ -335,7 +335,7 @@
     .resource-card li {
       padding: 8px 0;
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       border-bottom: 1px solid var(--border-subtle);
     }
 
@@ -358,7 +358,7 @@
       padding-left: 40px;
       position: relative;
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       border-bottom: 1px solid var(--border-subtle);
       line-height: 1.7;
     }
@@ -369,7 +369,7 @@
       content: '<span class="icon-inline" data-icon="lightbulb"></span>';
       position: absolute;
       left: 0;
-      font-size: 1.25rem;
+      font-size: var(--text-xl);
     }
 
     .tip-list li strong {
@@ -468,46 +468,46 @@
           <h3 style="color: var(--accent-gold); margin-bottom: 20px; font-family: 'Playfair Display', serif;">Weekly Earnings</h3>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="dollar-sign"></span> Gross Weekly Earnings ($)</label>
-            <input type="number" id="calc-gross-weekly" value="1000" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="dollar-sign"></span> Gross Weekly Earnings ($)</label>
+            <input type="number" id="calc-gross-weekly" value="1000" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="car"></span> Miles Driven Per Week</label>
-            <input type="number" id="calc-miles-weekly" value="500" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="car"></span> Miles Driven Per Week</label>
+            <input type="number" id="calc-miles-weekly" value="500" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="clock"></span> Hours Worked Per Week</label>
-            <input type="number" id="calc-hours-weekly" value="40" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="clock"></span> Hours Worked Per Week</label>
+            <input type="number" id="calc-hours-weekly" value="40" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <h3 style="color: var(--accent-gold); margin: 24px 0 20px; font-family: 'Playfair Display', serif;">Vehicle Costs</h3>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="fuel"></span> Fuel Cost Per Gallon ($)</label>
-            <input type="number" id="calc-fuel-cost" value="3.50" step="0.01" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="fuel"></span> Fuel Cost Per Gallon ($)</label>
+            <input type="number" id="calc-fuel-cost" value="3.50" step="0.01" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="bar-chart"></span> Your Vehicle's MPG</label>
-            <input type="number" id="calc-mpg" value="30" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="bar-chart"></span> Your Vehicle's MPG</label>
+            <input type="number" id="calc-mpg" value="30" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="wrench"></span> Monthly Maintenance Budget ($)</label>
-            <input type="number" id="calc-maintenance" value="150" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="wrench"></span> Monthly Maintenance Budget ($)</label>
+            <input type="number" id="calc-maintenance" value="150" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="shield"></span> Monthly Insurance ($)</label>
-            <input type="number" id="calc-insurance" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="shield"></span> Monthly Insurance ($)</label>
+            <input type="number" id="calc-insurance" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
           </div>
           
           <div style="margin-bottom: 16px;">
-            <label style="display: block; font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="trending-up"></span> Monthly Depreciation ($)</label>
-            <input type="number" id="calc-depreciation" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 1rem;">
-            <small style="color: var(--text-muted); font-size: 0.75rem;">Tip: Divide your car's value by 60-100 for monthly estimate</small>
+            <label style="display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 6px;"><span class="icon-inline" data-icon="trending-up"></span> Monthly Depreciation ($)</label>
+            <input type="number" id="calc-depreciation" value="200" style="width: 100%; padding: 14px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-md);">
+            <small style="color: var(--text-muted); font-size: var(--text-xs);">Tip: Divide your car's value by 60-100 for monthly estimate</small>
           </div>
           
           <button onclick="calculateProfit()" class="btn btn--primary" style="width: 100%; margin-top: 16px;">Calculate My True Profit</button>
@@ -517,22 +517,22 @@
           <h3 style="color: var(--accent-gold); margin-bottom: 24px; font-family: 'Playfair Display', serif; text-align: center;"><span class="icon-inline" data-icon="bar-chart"></span> Your Results</h3>
           
           <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Weekly Profit</div>
+            <div style="font-size: var(--text-base); color: var(--text-muted); margin-bottom: 8px;">TRUE Weekly Profit</div>
             <div id="result-weekly-profit" style="font-size: 2.5rem; font-weight: 700; color: var(--accent-green);">$--</div>
           </div>
           
           <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">TRUE Hourly Rate</div>
-            <div id="result-hourly-rate" style="font-size: 2rem; font-weight: 600; color: var(--accent-blue);">$--/hr</div>
+            <div style="font-size: var(--text-base); color: var(--text-muted); margin-bottom: 8px;">TRUE Hourly Rate</div>
+            <div id="result-hourly-rate" style="font-size: var(--text-4xl); font-weight: 600; color: var(--accent-blue);">$--/hr</div>
           </div>
           
           <div style="text-align: center; padding: 24px 0; border-bottom: 1px solid var(--border-subtle);">
-            <div style="font-size: 0.9rem; color: var(--text-muted); margin-bottom: 8px;">Projected Annual Profit</div>
-            <div id="result-annual-profit" style="font-size: 1.8rem; font-weight: 600; color: var(--text-primary);">$--</div>
+            <div style="font-size: var(--text-base); color: var(--text-muted); margin-bottom: 8px;">Projected Annual Profit</div>
+            <div id="result-annual-profit" style="font-size: var(--text-3xl); font-weight: 600; color: var(--text-primary);">$--</div>
           </div>
           
           <div style="margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--border-subtle);">
-            <h4 style="font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 16px;">Weekly Cost Breakdown</h4>
+            <h4 style="font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 16px;">Weekly Cost Breakdown</h4>
             <div style="display: grid; gap: 12px;">
               <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="fuel"></span> Fuel</span><span id="cost-fuel" style="color: var(--accent-red);">$--</span></div>
               <div style="display: flex; justify-content: space-between;"><span style="color: var(--text-muted);"><span class="icon-inline" data-icon="wrench"></span> Maintenance</span><span id="cost-maintenance" style="color: var(--accent-orange);">$--</span></div>
@@ -543,7 +543,7 @@
           </div>
           
           <div id="calc-warning" style="display: none; margin-top: 24px; padding: 16px; background: rgba(248, 113, 113, 0.1); border: 1px solid rgba(248, 113, 113, 0.3); border-radius: var(--radius-md);">
-            <p style="color: var(--accent-red); font-size: 0.9rem; margin: 0;"><span class="icon-inline" data-icon="alert-triangle"></span> Warning: Your costs may be higher than your earnings. Consider driving more miles per hour or reducing expenses.</p>
+            <p style="color: var(--accent-red); font-size: var(--text-base); margin: 0;"><span class="icon-inline" data-icon="alert-triangle"></span> Warning: Your costs may be higher than your earnings. Consider driving more miles per hour or reducing expenses.</p>
           </div>
         </div>
       </div>

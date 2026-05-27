@@ -32,49 +32,49 @@
     nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 1px solid var(--border-subtle); background: rgba(18,22,28,0.95); }
     .nav-logo { display: flex; align-items: center; gap: 10px; }
     .nav-logo img { height: 36px; border-radius: 8px; }
-    .nav-logo-text { font-family: 'Playfair Display', serif; font-size: 1rem; }
-    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
+    .nav-logo-text { font-family: 'Playfair Display', serif; font-size: var(--text-md); }
+    .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: var(--text-base); font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
     .btn--primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
     .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
     .btn--secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
     .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; font-weight: 600; }
 
     .hero-banner { background: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(201,162,39,0.1) 0%, transparent 70%); padding: 60px 32px 40px; text-align: center; }
-    .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
-    .shop-name { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 8px; }
-    .shop-location { color: var(--text-secondary); font-size: 0.95rem; margin-bottom: 16px; }
+    .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: var(--text-4xl); font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
+    .shop-name { font-family: 'Playfair Display', serif; font-size: var(--text-4xl); margin-bottom: 8px; }
+    .shop-location { color: var(--text-secondary); font-size: var(--text-base); margin-bottom: 16px; }
     .shop-badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
-    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 100px; font-size: 0.78rem; font-weight: 600; }
+    .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 100px; font-size: var(--text-sm); font-weight: 600; }
     .badge-gold { background: rgba(201,162,39,0.15); color: var(--accent-gold); border: 1px solid rgba(201,162,39,0.3); }
     .badge-green { background: rgba(52,211,153,0.12); color: var(--accent-green); border: 1px solid rgba(52,211,153,0.3); }
     .badge-teal { background: rgba(34,211,238,0.12); color: var(--accent-teal); border: 1px solid rgba(34,211,238,0.3); }
     .rating-row { display: flex; align-items: center; gap: 8px; justify-content: center; margin-bottom: 8px; }
-    .stars { color: var(--accent-gold); font-size: 1rem; letter-spacing: 1px; }
-    .rating-number { font-size: 1.1rem; font-weight: 700; }
-    .rating-count { color: var(--text-muted); font-size: 0.85rem; }
+    .stars { color: var(--accent-gold); font-size: var(--text-md); letter-spacing: 1px; }
+    .rating-number { font-size: var(--text-lg); font-weight: 700; }
+    .rating-count { color: var(--text-muted); font-size: var(--text-sm); }
 
     .main { max-width: 900px; margin: 0 auto; padding: 32px 24px 80px; }
     .layout { display: grid; grid-template-columns: 1fr 360px; gap: 24px; align-items: start; }
     @media (max-width: 768px) { .layout { grid-template-columns: 1fr; } }
 
     .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 20px; }
-    .card-title { font-size: 1.05rem; font-weight: 600; margin-bottom: 16px; }
+    .card-title { font-size: var(--text-md); font-weight: 600; margin-bottom: 16px; }
     .category-tags { display: flex; gap: 8px; flex-wrap: wrap; }
-    .category-tag { padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 100px; font-size: 0.82rem; color: var(--text-secondary); }
+    .category-tag { padding: 5px 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: 100px; font-size: var(--text-sm); color: var(--text-secondary); }
     .review-item { padding: 16px 0; border-bottom: 1px solid var(--border-subtle); }
     .review-item:last-child { border-bottom: none; }
     .review-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
-    .reviewer-name { font-weight: 600; font-size: 0.9rem; }
+    .reviewer-name { font-weight: 600; font-size: var(--text-base); }
     .review-date { font-size: 0.8rem; color: var(--text-muted); }
-    .review-text { font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+    .review-text { font-size: var(--text-base); color: var(--text-secondary); line-height: 1.6; }
 
     /* BOOKING FORM */
     .booking-card { background: linear-gradient(145deg, rgba(201,162,39,0.1), var(--bg-card)); border: 1px solid rgba(201,162,39,0.3); border-radius: var(--radius-xl); padding: 28px; position: sticky; top: 80px; }
-    .booking-card h3 { font-size: 1.15rem; font-weight: 700; margin-bottom: 6px; }
-    .booking-card p { font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 20px; }
+    .booking-card h3 { font-size: var(--text-lg); font-weight: 700; margin-bottom: 6px; }
+    .booking-card p { font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 20px; }
     .form-group { margin-bottom: 16px; }
-    .form-label { display: block; font-size: 0.83rem; font-weight: 500; margin-bottom: 6px; color: var(--text-secondary); }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: 0.9rem; }
+    .form-label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 6px; color: var(--text-secondary); }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 10px 14px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: 10px; color: var(--text-primary); font-family: inherit; font-size: var(--text-base); }
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: rgba(201,162,39,0.5); }
     .form-textarea { min-height: 80px; resize: vertical; }
     .form-select { appearance: none; }
@@ -114,14 +114,14 @@
     <span class="nav-logo-text">My Car Concierge</span>
   </a>
   <div style="display:flex; gap:10px;">
-    <a href="/" class="btn btn--secondary" style="padding:8px 16px; font-size:0.83rem;">Find More Shops</a>
-    <a href="/signup-member.html" class="btn btn--primary" style="padding:8px 16px; font-size:0.83rem;">Join Free</a>
+    <a href="/" class="btn btn--secondary" style="padding:8px 16px; font-size:var(--text-sm);">Find More Shops</a>
+    <a href="/signup-member.html" class="btn btn--primary" style="padding:8px 16px; font-size:var(--text-sm);">Join Free</a>
   </div>
 </nav>
 
 <div id="loading-state" class="loading">Loading shop profile…</div>
 <div id="not-found-state" class="error-state" style="display:none;">
-  <div style="font-size:3rem; margin-bottom:16px;">🔍</div>
+  <div style="font-size:var(--text-display); margin-bottom:16px;">🔍</div>
   <h2>Shop not found</h2>
   <p style="color:var(--text-muted); margin-top:8px;">This shop profile doesn't exist or isn't publicly listed.</p>
   <a href="/providers-directory.html" class="btn btn--primary" style="margin-top:24px;">Browse All Shops</a>
@@ -146,7 +146,7 @@
         <!-- About -->
         <div class="card" id="about-card" style="display:none;">
           <div class="card-title">About This Shop</div>
-          <p id="shop-bio" style="color:var(--text-secondary); font-size:0.95rem; line-height:1.7;"></p>
+          <p id="shop-bio" style="color:var(--text-secondary); font-size:var(--text-base); line-height:1.7;"></p>
         </div>
 
         <!-- Services -->
@@ -171,7 +171,7 @@
         <div class="card">
           <div class="card-title">Customer Reviews <span id="review-count-label" style="font-weight:400; color:var(--text-muted);"></span></div>
           <div id="shop-reviews">
-            <p style="color:var(--text-muted); font-size:0.9rem;">No reviews yet. Be the first to book!</p>
+            <p style="color:var(--text-muted); font-size:var(--text-base);">No reviews yet. Be the first to book!</p>
           </div>
         </div>
       </div>
@@ -222,12 +222,12 @@
               Request Service
             </button>
           </form>
-          <p style="font-size:0.78rem; color:var(--text-muted); margin-top:12px; text-align:center;">
+          <p style="font-size:var(--text-sm); color:var(--text-muted); margin-top:12px; text-align:center;">
             By submitting, you agree to our <a href="/terms.html">Terms</a>. The shop will follow up to confirm.
           </p>
         </div>
         <div style="text-align:center; margin-top:12px;">
-          <a href="/providers-directory.html" style="font-size:0.83rem; color:var(--text-muted);">← Browse more shops</a>
+          <a href="/providers-directory.html" style="font-size:var(--text-sm); color:var(--text-muted);">← Browse more shops</a>
         </div>
       </div>
     </div>
@@ -343,10 +343,10 @@
 
     const infoEl = document.getElementById('shop-info');
     let info = '';
-    if (shop.phone) info += `<div style="font-size:0.9rem;"><strong>📞</strong> <a href="tel:${escHtml(shop.phone)}" style="color:var(--text-secondary);">${escHtml(shop.phone)}</a></div>`;
+    if (shop.phone) info += `<div style="font-size:var(--text-base);"><strong>📞</strong> <a href="tel:${escHtml(shop.phone)}" style="color:var(--text-secondary);">${escHtml(shop.phone)}</a></div>`;
     const addrParts = [shop.address, shop.city, shop.state].filter(Boolean).map(escHtml).join(', ');
-    if (addrParts) info += `<div style="font-size:0.9rem;"><strong>📍</strong> <span style="color:var(--text-secondary);">${addrParts}</span></div>`;
-    if (shop.hourly_rate) info += `<div style="font-size:0.9rem;"><strong>💰</strong> <span style="color:var(--text-secondary);">Starting at $${escHtml(String(shop.hourly_rate))}/hr</span></div>`;
+    if (addrParts) info += `<div style="font-size:var(--text-base);"><strong>📍</strong> <span style="color:var(--text-secondary);">${addrParts}</span></div>`;
+    if (shop.hourly_rate) info += `<div style="font-size:var(--text-base);"><strong>💰</strong> <span style="color:var(--text-secondary);">Starting at $${escHtml(String(shop.hourly_rate))}/hr</span></div>`;
 
     // Render business hours if available
     const hoursEl = document.getElementById('shop-hours-section');
@@ -381,7 +381,7 @@
           <div class="review-header">
             <span class="reviewer-name">${escHtml(r.member_name || 'Customer')}</span>
             <div>
-              <span style="color:var(--accent-gold);font-size:0.85rem;">${'★'.repeat(Math.min(5, Math.max(0, r.rating || 5)))}</span>
+              <span style="color:var(--accent-gold);font-size:var(--text-sm);">${'★'.repeat(Math.min(5, Math.max(0, r.rating || 5)))}</span>
               <span class="review-date" style="margin-left:8px;">${escHtml(new Date(r.created_at).toLocaleDateString())}</span>
             </div>
           </div>
