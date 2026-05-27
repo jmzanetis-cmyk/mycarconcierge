@@ -147,9 +147,6 @@
     .page-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
     .page-subtitle { color: var(--text-secondary); font-size: var(--text-base); }
 
-    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); text-decoration: none; font-size: var(--text-base); margin-bottom: 20px; transition: color 0.2s; }
-    .back-link:hover { color: var(--accent-gold); }
-
     .section { display: none; }
     .section.active { display: block; }
 
@@ -179,18 +176,6 @@
     .punch-bar { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
     .punch-fill { height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-green)); border-radius: 3px; transition: width 0.3s; }
     .punch-text { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
-
-    .activity-item { display: flex; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; align-items: flex-start; transition: all 0.2s; }
-    .activity-item:hover { border-color: var(--border-medium); }
-    .activity-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
-    .activity-icon.punch { background: var(--accent-gold-soft); color: var(--accent-gold); }
-    .activity-icon.visit { background: var(--accent-blue-soft); color: var(--accent-blue); }
-    .activity-icon.reward { background: var(--accent-green-soft); color: var(--accent-green); }
-    .activity-icon.spend { background: var(--accent-teal-soft); color: var(--accent-teal); }
-    .activity-content { flex: 1; }
-    .activity-title { font-weight: 500; font-size: var(--text-base); margin-bottom: 2px; }
-    .activity-desc { font-size: var(--text-sm); color: var(--text-secondary); }
-    .activity-time { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
 
     .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
     .filter-bar .form-input { max-width: 180px; padding: 8px 12px; font-size: var(--text-sm); }
