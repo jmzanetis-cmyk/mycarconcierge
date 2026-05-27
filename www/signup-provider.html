@@ -151,11 +151,11 @@
     .review-link .form-row { margin-bottom: 0; }
 
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 28px; font-family: inherit; font-size: 0.95rem; font-weight: 600; border: none; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
-    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
-    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-ghost { background: transparent; color: var(--text-secondary); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
+    .btn--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--ghost { background: transparent; color: var(--text-secondary); }
+    .btn--primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
     .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
 
@@ -466,7 +466,7 @@
 
         <div class="form-nav">
           <div></div>
-          <button class="btn btn-primary" onclick="nextStep(1)">Continue →</button>
+          <button class="btn btn--primary" onclick="nextStep(1)">Continue →</button>
         </div>
       </div>
 
@@ -586,8 +586,8 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-secondary" onclick="prevStep(2)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(2)">Continue →</button>
+          <button class="btn btn--secondary" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(2)">Continue →</button>
         </div>
       </div>
 
@@ -649,8 +649,8 @@
             <li>I will communicate promptly with members regarding their vehicles.</li>
           </ul>
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(4)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(4)">Continue →</button>
+          <button class="btn btn--ghost" onclick="prevStep(4)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(4)">Continue →</button>
         </div>
       </div>
 
@@ -723,12 +723,12 @@
             </div>
           </div>
           
-          <button class="btn btn-secondary" onclick="addReference()" style="margin-top:8px;">+ Add Another Reference</button>
+          <button class="btn btn--secondary" onclick="addReference()" style="margin-top:8px;">+ Add Another Reference</button>
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(2)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(2)">Continue to Agreement →</button>
+          <button class="btn btn--ghost" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(2)">Continue to Agreement →</button>
         </div>
       </div>
 
@@ -863,8 +863,8 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-secondary" onclick="prevStep(3)">← Back</button>
-          <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
+          <button class="btn btn--secondary" onclick="prevStep(3)">← Back</button>
+          <button class="btn btn--primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
         </div>
       </div>
 
@@ -888,8 +888,8 @@
               <li><strong style="color:var(--accent-gold);">Maintain a 4+ star rating to stay active on the platform</strong></li>
             </ul>
           </div>
-          <a href="login.html" class="btn btn-primary" style="margin-right:12px;">Log In Now</a>
-          <a href="index.html" class="btn btn-ghost">Return Home</a>
+          <a href="login.html" class="btn btn--primary" style="margin-right:12px;">Log In Now</a>
+          <a href="index.html" class="btn btn--ghost">Return Home</a>
       </div>
     </div>
 

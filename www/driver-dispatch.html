@@ -41,13 +41,13 @@
   .field input::placeholder { color: var(--text3); }
   .btn { width: 100%; padding: 13px; border: none; border-radius: 10px; font-size: 0.95rem; font-weight: 700; font-family: inherit; cursor: pointer; transition: opacity 0.15s; }
   .btn:disabled { opacity: 0.5; cursor: not-allowed; }
-  .btn-gold { background: linear-gradient(135deg, var(--gold), var(--gold2)); color: #0a0a0f; }
+  .btn--primary { background: linear-gradient(135deg, var(--gold), var(--gold2)); color: #0a0a0f; }
   .btn-blue { background: var(--blue); color: #fff; }
   .btn-green { background: var(--green); color: #fff; }
   .btn-red { background: var(--red); color: #fff; }
   .btn-orange { background: var(--orange); color: #fff; }
-  .btn-ghost { background: rgba(255,255,255,0.07); color: var(--text); }
-  .btn-sm { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
+  .btn--ghost { background: rgba(255,255,255,0.07); color: var(--text); }
+  .btn--small { padding: 9px 14px; font-size: 0.85rem; border-radius: 8px; width: auto; }
   .login-error { font-size: 0.82rem; color: var(--red); margin-top: 10px; min-height: 20px; }
   .login-back { background: none; border: none; color: var(--text2); font-size: 0.85rem; font-family: inherit; cursor: pointer; text-decoration: underline; margin-top: 8px; }
 
@@ -153,7 +153,7 @@
         <label>Phone number</label>
         <input id="login-phone" type="tel" placeholder="+1 (555) 000-0000" autocomplete="tel" inputmode="tel">
       </div>
-      <button class="btn btn-gold" id="send-code-btn" onclick="sendCode()">Send verification code</button>
+      <button class="btn btn--primary" id="send-code-btn" onclick="sendCode()">Send verification code</button>
       <div class="login-error" id="login-phone-err"></div>
     </div>
 
@@ -164,7 +164,7 @@
         <label>Verification code</label>
         <input id="login-otp" type="text" placeholder="123456" inputmode="numeric" pattern="[0-9]*" maxlength="6" autocomplete="one-time-code">
       </div>
-      <button class="btn btn-gold" id="verify-btn" onclick="verifyCode()">Verify &amp; Sign In</button>
+      <button class="btn btn--primary" id="verify-btn" onclick="verifyCode()">Verify &amp; Sign In</button>
       <div class="login-error" id="login-otp-err"></div>
       <button class="login-back" onclick="backToPhone()">← Use a different number</button>
     </div>
@@ -197,8 +197,8 @@
         <div class="reason-opt" data-reason="Personal emergency" onclick="selectReason(this)"><span>Personal emergency</span></div>
       </div>
       <div style="display:flex;gap:8px;">
-        <button class="btn btn-ghost btn-sm" onclick="closeDecline()">Cancel</button>
-        <button class="btn btn-red btn-sm" style="flex:1;" onclick="confirmDecline()">Confirm Decline</button>
+        <button class="btn btn--ghost btn--small" onclick="closeDecline()">Cancel</button>
+        <button class="btn btn-red btn--small" style="flex:1;" onclick="confirmDecline()">Confirm Decline</button>
       </div>
     </div>
   </div>

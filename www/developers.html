@@ -28,10 +28,10 @@
     .dev-hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 700; line-height: 1.15; margin: 0 0 16px; background: linear-gradient(135deg, #e6c88a 0%, #c9a84c 50%, #f0d080 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
     .dev-hero p { font-size: 1.15rem; color: var(--dev-muted); max-width: 600px; margin: 0 auto 32px; line-height: 1.7; }
     .dev-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .btn-gold { background: linear-gradient(135deg, #c9a84c, #b8942d); color: #0a0a0f; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
-    .btn-outline { background: transparent; color: var(--dev-teal); border: 1.5px solid var(--dev-teal); padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .btn-outline:hover { background: rgba(77,182,172,0.1); }
+    .btn--primary { background: linear-gradient(135deg, #c9a84c, #b8942d); color: #0a0a0f; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
+    .btn--secondary { background: transparent; color: var(--dev-teal); border: 1.5px solid var(--dev-teal); padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn--secondary:hover { background: rgba(77,182,172,0.1); }
 
     /* ── Endpoint Badges ── */
     .endpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 1100px; margin: 48px auto 0; }
@@ -100,9 +100,9 @@
     .badge-pro { background: rgba(201,168,76,0.1); color: var(--dev-gold); }
     .badge-business { background: rgba(139,91,223,0.1); color: #c084fc; }
     .key-actions { display: flex; gap: 8px; }
-    .btn-sm { padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; border: none; cursor: pointer; }
-    .btn-danger { background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .btn-danger:hover { background: rgba(248,81,73,0.2); }
+    .btn--small { padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; border: none; cursor: pointer; }
+    .btn--danger { background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .btn--danger:hover { background: rgba(248,81,73,0.2); }
     .btn-teal { background: rgba(77,182,172,0.1); color: var(--dev-teal); border: 1px solid rgba(77,182,172,0.3); }
     .btn-teal:hover { background: rgba(77,182,172,0.2); }
     #new-key-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9000; align-items: center; justify-content: center; }
@@ -178,8 +178,8 @@
   <h1>Build smarter<br>auto experiences</h1>
   <p>AI-powered VIN decode, recall alerts, OBD diagnostics, vehicle health scoring, and fair price intelligence — one API, every automotive need.</p>
   <div class="dev-hero-actions">
-    <a href="#keys" class="btn-gold">Get API Key</a>
-    <a href="#endpoints" class="btn-outline">View Docs →</a>
+    <a href="#keys" class="btn--primary">Get API Key</a>
+    <a href="#endpoints" class="btn--secondary">View Docs →</a>
   </div>
 
   <div class="endpoint-grid" style="padding:0 24px;" id="endpoints">
@@ -351,7 +351,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           <li>Maintenance forecast</li>
           <li>Basic rate limiting</li>
         </ul>
-        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=starter" class="btn-outline" style="width:100%;justify-content:center;">Get Started</a></div>
+        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=starter" class="btn--secondary" style="width:100%;justify-content:center;">Get Started</a></div>
       </div>
       <div class="pricing-card featured">
         <div class="featured-badge">POPULAR</div>
@@ -366,7 +366,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           <li>Webhook support</li>
           <li>Priority support</li>
         </ul>
-        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=pro" class="btn-gold" style="width:100%;justify-content:center;">Upgrade to Pro</a></div>
+        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=pro" class="btn--primary" style="width:100%;justify-content:center;">Upgrade to Pro</a></div>
       </div>
       <div class="pricing-card">
         <div class="plan-name">AI Business</div>
@@ -380,7 +380,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           <li>99.9% SLA</li>
           <li>White-glove onboarding</li>
         </ul>
-        <div class="plan-cta"><a href="mailto:developers@mycarconcierge.com?subject=AI%20Business%20API" class="btn-outline" style="width:100%;justify-content:center;">Contact Sales</a></div>
+        <div class="plan-cta"><a href="mailto:developers@mycarconcierge.com?subject=AI%20Business%20API" class="btn--secondary" style="width:100%;justify-content:center;">Contact Sales</a></div>
       </div>
     </div>
   </div>
@@ -401,16 +401,16 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
       <div style="font-size:2.5rem;margin-bottom:16px;">🔑</div>
       <div style="font-size:1.15rem;font-weight:600;margin-bottom:8px;">Sign in to manage your keys</div>
       <div style="color:var(--dev-muted);margin-bottom:24px;">Your API keys are tied to your MCC account and billing plan.</div>
-      <a href="/login.html?redirect=/developers%23keys" class="btn-gold">Sign In</a>
+      <a href="/login.html?redirect=/developers%23keys" class="btn--primary">Sign In</a>
       <span style="color:var(--dev-muted);margin:0 12px;">or</span>
-      <a href="/signup-member.html" class="btn-outline">Create Account</a>
+      <a href="/signup-member.html" class="btn--secondary">Create Account</a>
     </div>
 
     <!-- Logged in -->
     <div id="dev-key-panel" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
         <div id="dev-usage-summary" style="font-size:0.88rem;color:var(--dev-muted);"></div>
-        <button class="btn-gold btn-sm" onclick="openNewKeyModal()" style="padding:10px 20px;">+ Generate Key</button>
+        <button class="btn--primary btn--small" onclick="openNewKeyModal()" style="padding:10px 20px;">+ Generate Key</button>
       </div>
       <div id="dev-key-list"><div style="padding:32px;text-align:center;color:var(--dev-muted);">Loading keys…</div></div>
     </div>
@@ -425,16 +425,16 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
       <label for="key-name-input">Key Name (optional)</label>
       <input type="text" id="key-name-input" placeholder="e.g. Production, My App" style="margin-bottom:20px;">
       <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button class="btn-sm btn-danger" onclick="closeNewKeyModal()">Cancel</button>
-        <button class="btn-gold btn-sm" onclick="generateApiKey()" style="padding:8px 20px;">Generate</button>
+        <button class="btn--small btn--danger" onclick="closeNewKeyModal()">Cancel</button>
+        <button class="btn--primary btn--small" onclick="generateApiKey()" style="padding:8px 20px;">Generate</button>
       </div>
     </div>
     <div id="new-key-result" style="display:none;">
       <div style="font-size:0.9rem;color:var(--dev-muted);margin-bottom:8px;">⚠️ Save this key now — it will never be shown again.</div>
       <div class="raw-key-box" id="raw-key-display"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-        <button class="btn-teal btn-sm" onclick="copyRawKey()">Copy Key</button>
-        <button class="btn-gold btn-sm" onclick="closeNewKeyModal()">Done</button>
+        <button class="btn-teal btn--small" onclick="copyRawKey()">Copy Key</button>
+        <button class="btn--primary btn--small" onclick="closeNewKeyModal()">Done</button>
       </div>
     </div>
   </div>
@@ -509,7 +509,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
         listEl.innerHTML = `<div style="background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:32px;text-align:center;">
           <div style="font-size:1.05rem;font-weight:600;margin-bottom:8px;">AI API Subscription Required</div>
           <div style="color:var(--dev-muted);margin-bottom:20px;">Subscribe to a plan to generate API keys and access the endpoints.</div>
-          <a href="/members.html?section=settings&tab=billing" class="btn-gold">View Plans</a>
+          <a href="/members.html?section=settings&tab=billing" class="btn--primary">View Plans</a>
         </div>`;
       } else {
         listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#f87171;">Failed to load keys. Please try again.</div>';
@@ -535,7 +535,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           ${k.calls_limit > 0 ? `<div class="usage-bar-wrap"><div class="usage-bar" style="width:${pct}%"></div></div><div class="key-meta">${(k.calls_made||0).toLocaleString()} / ${k.calls_limit.toLocaleString()} calls (${pct}%)</div>` : `<div class="key-meta">${(k.calls_made||0).toLocaleString()} calls · Unlimited</div>`}
         </div>
         <div class="key-actions">
-          <button class="btn-sm btn-danger" onclick="revokeKey('${k.id}')">Revoke</button>
+          <button class="btn--small btn--danger" onclick="revokeKey('${k.id}')">Revoke</button>
         </div>
       </div>`;
     }).join('');

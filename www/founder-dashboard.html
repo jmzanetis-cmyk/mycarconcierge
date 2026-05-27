@@ -115,38 +115,38 @@
       text-decoration: none;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #c49a45);
       color: #0a0a0f;
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 16px rgba(212, 168, 85, 0.3);
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       border-color: var(--border-medium);
     }
 
-    .btn-danger {
+    .btn--danger {
       background: var(--accent-red-soft);
       color: var(--accent-red);
       border: 1px solid rgba(239, 95, 95, 0.3);
     }
 
-    .btn-sm {
+    .btn--small {
       padding: 6px 12px;
       font-size: 0.82rem;
     }
 
-    .btn-ghost {
+    .btn--ghost {
       background: transparent;
       color: var(--text-secondary);
       padding: 8px 12px;
@@ -1070,8 +1070,8 @@
     </a>
     <nav class="header-nav">
       <div id="language-switcher"></div>
-      <a href="members.html" class="btn btn-secondary" data-i18n="founderDashboard.memberPortal"><span class="icon-inline" data-icon="home"></span> Member Portal</a>
-      <button class="btn btn-danger" onclick="logout()" data-i18n="founderDashboard.logOut"><span class="icon-inline" data-icon="log-out"></span> Log Out</button>
+      <a href="members.html" class="btn btn--secondary" data-i18n="founderDashboard.memberPortal"><span class="icon-inline" data-icon="home"></span> Member Portal</a>
+      <button class="btn btn--danger" onclick="logout()" data-i18n="founderDashboard.logOut"><span class="icon-inline" data-icon="log-out"></span> Log Out</button>
     </nav>
   </header>
 
@@ -1485,8 +1485,8 @@
     <h2 data-i18n="founderDashboard.founderAccessRequired"><span class="icon-inline" data-icon="lock"></span> Founder Access Required</h2>
     <p data-i18n="founderDashboard.dashboardOnlyForFounders">This dashboard is only available to approved Member Founders.</p>
     <p data-i18n="founderDashboard.waitForApproval">If you've applied to become a founder, please wait for approval.</p>
-    <a href="member-founder.html" class="btn btn-primary" data-i18n="founderDashboard.applyToBecomeFounder">Apply to Become a Founder</a>
-    <a href="members.html" class="btn btn-secondary" style="margin-left: 12px;" data-i18n="founderDashboard.goToMemberPortal">Go to Member Portal</a>
+    <a href="member-founder.html" class="btn btn--primary" data-i18n="founderDashboard.applyToBecomeFounder">Apply to Become a Founder</a>
+    <a href="members.html" class="btn btn--secondary" style="margin-left: 12px;" data-i18n="founderDashboard.goToMemberPortal">Go to Member Portal</a>
   </div>
 
   <div class="toast" id="toast">

@@ -284,13 +284,13 @@
     .card-title { font-size: 1.1rem; font-weight: 600; }
 
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; box-shadow: 0 2px 8px rgba(0,0,0,0.2); }
-    .btn-primary { background: linear-gradient(135deg, var(--accent-blue), #5eb8f7); color: #fff; box-shadow: 0 2px 12px rgba(56, 189, 248, 0.3); }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4); }
-    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-ghost { background: transparent; color: var(--text-secondary); padding: 8px 12px; }
-    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
-    .btn-gold { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3); }
-    .btn-success { background: linear-gradient(135deg, var(--accent-green), #4ade80); color: #fff; box-shadow: 0 2px 12px rgba(52, 211, 153, 0.3); }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-blue), #5eb8f7); color: #fff; box-shadow: 0 2px 12px rgba(56, 189, 248, 0.3); }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(56, 189, 248, 0.4); }
+    .btn--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--ghost { background: transparent; color: var(--text-secondary); padding: 8px 12px; }
+    .btn--small { padding: 6px 12px; font-size: 0.82rem; }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3); }
+    .btn--success { background: linear-gradient(135deg, var(--accent-green), #4ade80); color: #fff; box-shadow: 0 2px 12px rgba(52, 211, 153, 0.3); }
 
     .package-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 16px; }
     .package-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
@@ -651,14 +651,14 @@
     .pos-input-lg { font-size: 1.6rem; padding: 26px; text-align: center; letter-spacing: 4px; min-height: 80px; }
     .pos-input-hint { font-size: 0.9rem; color: var(--text-muted); margin-top: 10px; text-align: center; }
     .pos-btn { display: inline-flex; align-items: center; justify-content: center; gap: 10px; padding: 20px 40px; font-family: inherit; font-size: 1.15rem; font-weight: 600; border: none; border-radius: var(--radius-md); cursor: pointer; transition: all 0.2s ease; min-height: 56px; position: relative; }
-    .pos-btn-primary { background: linear-gradient(135deg, #c9a227, #d4a855); color: #0a0a0f; }
-    .pos-btn-primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201, 162, 39, 0.35); }
-    .pos-btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
-    .pos-btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 2px solid var(--border-subtle); min-height: 56px; }
-    .pos-btn-secondary:hover { border-color: #c9a227; }
-    .pos-btn-success { background: linear-gradient(135deg, var(--accent-green), #5fd9a0); color: #0a0a0f; }
-    .pos-btn-ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-subtle); min-height: 48px; padding: 12px 20px; font-size: 0.95rem; }
-    .pos-btn-ghost:hover { border-color: #c9a227; color: #c9a227; }
+    .pos-btn--primary { background: linear-gradient(135deg, #c9a227, #d4a855); color: #0a0a0f; }
+    .pos-btn--primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201, 162, 39, 0.35); }
+    .pos-btn--primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .pos-btn--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 2px solid var(--border-subtle); min-height: 56px; }
+    .pos-btn--secondary:hover { border-color: #c9a227; }
+    .pos-btn--success { background: linear-gradient(135deg, var(--accent-green), #5fd9a0); color: #0a0a0f; }
+    .pos-btn--ghost { background: transparent; color: var(--text-secondary); border: 1px solid var(--border-subtle); min-height: 48px; padding: 12px 20px; font-size: 0.95rem; }
+    .pos-btn--ghost:hover { border-color: #c9a227; color: #c9a227; }
     .pos-label { display: block; font-size: 1.05rem; font-weight: 500; margin-bottom: 12px; color: var(--text-secondary); }
     .pos-form-group { margin-bottom: 24px; }
     .pos-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; }
@@ -973,7 +973,7 @@
         </button>
         <div style="font-size:0.72rem;color:var(--text-muted);margin-top:6px;text-align:center;">You have dual access</div>
       </div>
-      <button class="btn btn-secondary" onclick="logout()" style="width:100%;padding:14px 20px;font-size:0.95rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg></span> Log Out</button>
+      <button class="btn btn--secondary" onclick="logout()" style="width:100%;padding:14px 20px;font-size:0.95rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" x2="9" y1="12" y2="12"/></svg></span> Log Out</button>
     </div>
   </aside>
 
@@ -1014,7 +1014,7 @@
               <div id="match-pause-banner-detail" style="font-size:0.85rem;color:var(--text-secondary);margin-top:2px;">You won't receive new match invitations right now.</div>
             </div>
           </div>
-          <button type="button" class="btn btn-secondary" onclick="resumeMatchesFromBanner()" style="white-space:nowrap;">Resume matches</button>
+          <button type="button" class="btn btn--secondary" onclick="resumeMatchesFromBanner()" style="white-space:nowrap;">Resume matches</button>
         </div>
       </div>
 
@@ -1054,7 +1054,7 @@
             <p style="font-size:0.9rem;color:var(--text-secondary);margin:0 0 8px 0;line-height:1.5;">
               <strong>How it works:</strong> Each bid costs 1 credit. Members see your bid and choose based on price, ratings, and reviews. Win jobs to grow your business!
             </p>
-            <button class="btn btn-primary" onclick="showSection('subscription')" style="padding:10px 20px;font-size:0.9rem;">Buy More Credits →</button>
+            <button class="btn btn--primary" onclick="showSection('subscription')" style="padding:10px 20px;font-size:0.9rem;">Buy More Credits →</button>
           </div>
         </div>
       </div>
@@ -1205,7 +1205,7 @@
             <div style="font-weight:600;font-size:1rem;">Background Verification</div>
             <div style="font-size:0.78rem;color:var(--text-muted);">Trust badge for your profile and bids</div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="showSection('background-checks')" title="View full details" style="flex-shrink:0;font-size:0.8rem;">View →</button>
+          <button class="btn btn--ghost btn--small" onclick="showSection('background-checks')" title="View full details" style="flex-shrink:0;font-size:0.8rem;">View →</button>
         </div>
         <div id="bg-check-dashboard-status">
           <div style="color:var(--text-muted);font-size:0.85rem;">Loading…</div>
@@ -1232,7 +1232,7 @@
       </div>
 
       <div class="card">
-        <div class="card-header"><h2 class="card-title">Recent Opportunities</h2><button class="btn btn-ghost" onclick="showSection('browse')">View All →</button></div>
+        <div class="card-header"><h2 class="card-title">Recent Opportunities</h2><button class="btn btn--ghost" onclick="showSection('browse')">View All →</button></div>
         <div id="recent-packages"><div class="empty-state"><div class="empty-state-icon"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span></div><p>Loading packages...</p></div></div>
       </div>
     </section>
@@ -1249,7 +1249,7 @@
             <span style="font-size:1.2rem;font-weight:700;color:var(--accent-gold);margin-inline-start:8px;" id="browse-credits-count">0</span>
           </div>
         </div>
-        <button class="btn btn-primary btn-sm" onclick="showSection('subscription')" style="padding:10px 18px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span> Buy More Credits</button>
+        <button class="btn btn--primary btn--small" onclick="showSection('subscription')" style="padding:10px 18px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span> Buy More Credits</button>
       </div>
 
       <!-- Filter Bar -->
@@ -1303,16 +1303,16 @@
           </select>
         </div>
         <div class="filter-group" style="display:flex;align-items:flex-end;">
-          <button class="btn btn-secondary btn-sm" onclick="clearFilters()">Clear Filters</button>
+          <button class="btn btn--secondary btn--small" onclick="clearFilters()">Clear Filters</button>
         </div>
       </div>
 
       <!-- Service Type Quick Filters -->
       <div style="display:flex;gap:8px;margin-bottom:16px;flex-wrap:wrap;align-items:center;">
         <span style="font-size:0.85rem;color:var(--text-muted);margin-inline-end:4px;">Quick Filters:</span>
-        <button class="btn btn-ghost btn-sm service-type-filter active" data-service-type="all" onclick="filterByServiceType('all')" style="font-size:0.82rem;padding:6px 12px;">All Packages</button>
+        <button class="btn btn--ghost btn--small service-type-filter active" data-service-type="all" onclick="filterByServiceType('all')" style="font-size:0.82rem;padding:6px 12px;">All Packages</button>
 
-        <button class="btn btn-ghost btn-sm service-type-filter" data-service-type="standard" onclick="filterByServiceType('standard')" style="font-size:0.82rem;padding:6px 12px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Standard</button>
+        <button class="btn btn--ghost btn--small service-type-filter" data-service-type="standard" onclick="filterByServiceType('standard')" style="font-size:0.82rem;padding:6px 12px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Standard</button>
       </div>
 
       <div id="location-warning" style="display:none;background:var(--accent-orange-soft);border:1px solid rgba(245,158,11,0.3);color:var(--accent-orange);padding:14px 16px;border-radius:var(--radius-md);margin-bottom:16px;">
@@ -1341,7 +1341,7 @@
             Bid Insights
             <span style="font-size:0.7rem;padding:3px 8px;background:linear-gradient(135deg,rgba(56,189,248,0.15),rgba(139,92,246,0.15));border:1px solid rgba(56,189,248,0.3);border-radius:100px;color:var(--accent-blue);font-weight:600;letter-spacing:0.03em;">AI-POWERED</span>
           </h2>
-          <button class="btn btn-ghost btn-sm" onclick="loadBidInsights(true)" title="Refresh insights">
+          <button class="btn btn--ghost btn--small" onclick="loadBidInsights(true)" title="Refresh insights">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
           </button>
         </div>
@@ -1366,10 +1366,10 @@
           <h1 class="page-title">Active Jobs</h1>
           <p class="page-subtitle">Packages where your bid was accepted.</p>
         </div>
-        <button class="btn btn-primary" onclick="openQrScannerModal()" style="display:flex;align-items:center;gap:8px;">
+        <button class="btn btn--primary" onclick="openQrScannerModal()" style="display:flex;align-items:center;gap:8px;">
           <span style="font-size:1.2rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span></span> Scan Member Check-in
         </button>
-        <button class="btn btn-secondary" onclick="openProviderTransportModal()" style="display:flex;align-items:center;gap:8px;border:1px solid var(--border-subtle);">
+        <button class="btn btn--secondary" onclick="openProviderTransportModal()" style="display:flex;align-items:center;gap:8px;border:1px solid var(--border-subtle);">
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
           Request Driver
         </button>
@@ -1426,7 +1426,7 @@
           </div>
           <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
             <select class="form-select" id="earnings-year-filter" style="min-width:100px;"></select>
-            <button class="btn btn-secondary btn-sm" onclick="downloadEarningsCSV()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download CSV</button>
+            <button class="btn btn--secondary btn--small" onclick="downloadEarningsCSV()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download CSV</button>
           </div>
         </div>
         <div style="position:relative;height:350px;margin-top:20px;">
@@ -1668,7 +1668,7 @@
           </div>
 
           <div style="display:flex;justify-content:flex-end;gap:12px;padding-top:16px;border-top:1px solid var(--border-subtle);">
-            <button type="submit" id="car-submit-btn" class="btn btn-primary">
+            <button type="submit" id="car-submit-btn" class="btn btn--primary">
               <span><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span></span> Submit Corrective Action Response
             </button>
           </div>
@@ -1775,7 +1775,7 @@
               <span id="perf-tier-text">Bronze</span>
             </div>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="refreshPerformance()" style="margin-top:16px;">↻ Refresh</button>
+          <button class="btn btn--ghost btn--small" onclick="refreshPerformance()" style="margin-top:16px;">↻ Refresh</button>
         </div>
 
         <div class="card">
@@ -1981,7 +1981,7 @@
             <h1 class="page-title">Notifications</h1>
             <p class="page-subtitle">Stay updated on bids and jobs.</p>
           </div>
-          <button class="btn btn-secondary" onclick="markAllNotificationsRead()">Mark All Read</button>
+          <button class="btn btn--secondary" onclick="markAllNotificationsRead()">Mark All Read</button>
         </div>
       </div>
       <div id="notifications-list">
@@ -2008,7 +2008,7 @@
           </div>
           <div style="display:flex;align-items:center;gap:10px;">
             <span id="shop-sub-status" style="font-size:0.82rem;font-weight:600;"></span>
-            <button class="btn btn-sm btn-secondary" onclick="openShopUpgradeModal()">Manage Plan</button>
+            <button class="btn btn--small btn--secondary" onclick="openShopUpgradeModal()">Manage Plan</button>
           </div>
         </div>
         <!-- Seat usage bar -->
@@ -2040,7 +2040,7 @@
               <div style="font-weight:600;color:var(--accent-gold);font-size:0.9rem;">Unlock Pro Features</div>
               <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:2px;">SMS reminders, advanced analytics &amp; Car Club loyalty programs.</div>
             </div>
-            <button class="btn btn-sm btn-primary" onclick="openShopUpgradeModal()">Upgrade to Team →</button>
+            <button class="btn btn--small btn--primary" onclick="openShopUpgradeModal()">Upgrade to Team →</button>
           </div>
         </div>
       </div>
@@ -2088,11 +2088,11 @@
         </div>
         <div id="low-credits-warning" style="display:none;margin-top:16px;padding:14px;background:var(--accent-orange-soft);border:1px solid rgba(245,158,11,0.3);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <span style="color:var(--accent-orange);"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> <strong>Low on credits!</strong> Purchase more to keep bidding on packages.</span>
-          <button class="btn btn-sm" onclick="document.getElementById('bid-packs-grid').scrollIntoView({behavior:'smooth',block:'center'})" style="background:var(--accent-orange);color:#0a0a0f;font-weight:600;">Buy Now →</button>
+          <button class="btn btn--small" onclick="document.getElementById('bid-packs-grid').scrollIntoView({behavior:'smooth',block:'center'})" style="background:var(--accent-orange);color:#0a0a0f;font-weight:600;">Buy Now →</button>
         </div>
         <div id="no-credits-warning" style="display:none;margin-top:16px;padding:14px;background:var(--accent-red-soft);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">
           <span style="color:var(--accent-red);"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span> <strong>No credits remaining.</strong> Purchase a service credit pack to continue submitting bids.</span>
-          <button class="btn btn-sm" onclick="document.getElementById('bid-packs-grid').scrollIntoView({behavior:'smooth',block:'center'})" style="background:var(--accent-red);color:#fff;font-weight:600;">Buy Credits →</button>
+          <button class="btn btn--small" onclick="document.getElementById('bid-packs-grid').scrollIntoView({behavior:'smooth',block:'center'})" style="background:var(--accent-red);color:#fff;font-weight:600;">Buy Credits →</button>
         </div>
       </div>
 
@@ -2281,7 +2281,7 @@
               <div style="flex:1;">
                 <div style="font-weight:600;margin-bottom:6px;">Connect Stripe to Get Paid</div>
                 <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">Connect your Stripe account to receive payments for completed jobs. Funds are transferred directly to your bank account.</p>
-                <button class="btn btn-primary" onclick="startStripeConnect()" id="stripe-connect-btn">
+                <button class="btn btn--primary" onclick="startStripeConnect()" id="stripe-connect-btn">
                   <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Connect Stripe Account
                 </button>
               </div>
@@ -2295,7 +2295,7 @@
               <div style="flex:1;">
                 <div style="font-weight:600;margin-bottom:6px;color:var(--accent-gold);">Stripe Onboarding Incomplete</div>
                 <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;">You started the Stripe setup but haven't completed it yet. Please finish your onboarding to start receiving payments.</p>
-                <button class="btn btn-primary" onclick="startStripeConnect()" id="stripe-resume-btn">
+                <button class="btn btn--primary" onclick="startStripeConnect()" id="stripe-resume-btn">
                   <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Complete Stripe Setup
                 </button>
               </div>
@@ -2344,10 +2344,10 @@
               </div>
               <div style="display:flex;gap:8px;align-items:center;">
                 <input type="file" id="license-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('license')">
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('license-file-input').click()">
+                <button class="btn btn--secondary btn--small" onclick="document.getElementById('license-file-input').click()">
                   <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
                 </button>
-                <a id="license-view-btn" href="#" target="_blank" class="btn btn-ghost btn-sm" style="display:none;">View</a>
+                <a id="license-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
               </div>
             </div>
           </div>
@@ -2362,10 +2362,10 @@
               </div>
               <div style="display:flex;gap:8px;align-items:center;">
                 <input type="file" id="insurance-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('insurance')">
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('insurance-file-input').click()">
+                <button class="btn btn--secondary btn--small" onclick="document.getElementById('insurance-file-input').click()">
                   <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
                 </button>
-                <a id="insurance-view-btn" href="#" target="_blank" class="btn btn-ghost btn-sm" style="display:none;">View</a>
+                <a id="insurance-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
               </div>
             </div>
           </div>
@@ -2380,10 +2380,10 @@
               </div>
               <div style="display:flex;gap:8px;align-items:center;">
                 <input type="file" id="certifications-file-input" accept=".pdf,.jpg,.jpeg,.png" style="display:none;" onchange="uploadVerificationDoc('certifications')">
-                <button class="btn btn-secondary btn-sm" onclick="document.getElementById('certifications-file-input').click()">
+                <button class="btn btn--secondary btn--small" onclick="document.getElementById('certifications-file-input').click()">
                   <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg></span> Upload
                 </button>
-                <a id="certifications-view-btn" href="#" target="_blank" class="btn btn-ghost btn-sm" style="display:none;">View</a>
+                <a id="certifications-view-btn" href="#" target="_blank" class="btn btn--ghost btn--small" style="display:none;">View</a>
               </div>
             </div>
           </div>
@@ -2774,7 +2774,7 @@
               <label class="form-label" style="font-size:0.8rem;">Reason (optional)</label>
               <input type="text" class="form-input" id="block-reason" placeholder="e.g., Vacation" style="padding:8px;">
             </div>
-            <button class="btn btn-secondary" onclick="addBlockedDate()">+ Add</button>
+            <button class="btn btn--secondary" onclick="addBlockedDate()">+ Add</button>
           </div>
           <div id="blocked-dates-list" style="margin-top:16px;"></div>
         </div>
@@ -2824,7 +2824,7 @@
 
         <div id="match-prefs-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:0.85rem;"></div>
 
-        <button class="btn btn-primary" onclick="saveMatchPreferences()">Save Match Preferences</button>
+        <button class="btn btn--primary" onclick="saveMatchPreferences()">Save Match Preferences</button>
       </div>
 
       <!-- Emergency Services Settings -->
@@ -3006,7 +3006,7 @@
           <span id="provider-native-push-badge" class="package-badge" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Off</span>
         </div>
         <div id="provider-native-push-enable-section">
-          <button class="btn btn-primary" id="provider-native-push-enable-btn" onclick="requestNativePushPermission('provider')">
+          <button class="btn btn--primary" id="provider-native-push-enable-btn" onclick="requestNativePushPermission('provider')">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             Enable Notifications
           </button>
@@ -3016,7 +3016,7 @@
             <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">Push Notifications Active</div>
             <div style="font-size:0.85rem;color:var(--text-secondary);">You'll receive alerts on this device for new bids, messages, job updates, and payment notifications.</div>
           </div>
-          <button class="btn btn-secondary" onclick="disableNativePush('provider')">
+          <button class="btn btn--secondary" onclick="disableNativePush('provider')">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
             Disable Notifications
           </button>
@@ -3051,7 +3051,7 @@
           </div>
           
           <div id="provider-push-enable-section">
-            <button class="btn btn-primary" id="provider-push-enable-btn" onclick="enableProviderPushNotifications()">
+            <button class="btn btn--primary" id="provider-push-enable-btn" onclick="enableProviderPushNotifications()">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Enable Push Notifications
             </button>
           </div>
@@ -3117,7 +3117,7 @@
               </label>
             </div>
             
-            <button class="btn btn-secondary" style="margin-top:16px;" onclick="disableProviderPushNotifications()">
+            <button class="btn btn--secondary" style="margin-top:16px;" onclick="disableProviderPushNotifications()">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Disable Push Notifications
             </button>
           </div>
@@ -3156,7 +3156,7 @@
               <label class="form-label">Phone Number for 2FA</label>
               <div style="display:flex;gap:12px;align-items:flex-start;">
                 <input type="tel" class="form-input" id="2fa-phone-input" placeholder="(555) 555-5555" style="max-width:200px;" oninput="format2FAPhoneInput(this)">
-                <button class="btn btn-primary" id="2fa-enable-btn" onclick="initiate2FAEnable()">
+                <button class="btn btn--primary" id="2fa-enable-btn" onclick="initiate2FAEnable()">
                   <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Enable 2FA
                 </button>
               </div>
@@ -3174,7 +3174,7 @@
               </div>
             </div>
             
-            <button class="btn btn-danger" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="open2FADisableModal()">
+            <button class="btn btn--danger" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="open2FADisableModal()">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Disable 2FA
             </button>
             <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;">
@@ -3202,7 +3202,7 @@
             <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Your shareable profile link:</div>
             <div style="display:flex;gap:8px;align-items:center;">
               <input type="text" class="form-input" id="public-profile-url" readonly style="flex:1;font-size:0.9rem;background:var(--bg-input);cursor:text;">
-              <button class="btn btn-primary" onclick="copyProfileLink()" style="white-space:nowrap;padding:10px 20px;">
+              <button class="btn btn--primary" onclick="copyProfileLink()" style="white-space:nowrap;padding:10px 20px;">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg></span> Copy Link
               </button>
             </div>
@@ -3251,7 +3251,7 @@
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
           <h2 class="card-title"><span style="margin-inline-end:8px;">🕐</span>Business Hours</h2>
-          <button class="btn btn-primary btn-sm" onclick="saveBusinessHours()">Save Hours</button>
+          <button class="btn btn--primary btn--small" onclick="saveBusinessHours()">Save Hours</button>
         </div>
         <div style="padding:4px 0;">
           <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">Set your shop hours. These display on your public shop profile so customers know when you're open.</p>
@@ -3273,7 +3273,7 @@
           <div style="display:flex;gap:10px;margin-bottom:8px;">
             <input type="tel" id="walkin-phone-input" class="form-input" placeholder="Phone number…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByPhone()">
             <input type="text" id="walkin-name-search-input" class="form-input" placeholder="Or search by name…" style="flex:1;" onkeydown="if(event.key==='Enter')walkinLookupByName()">
-            <button class="btn btn-primary" onclick="document.getElementById('walkin-phone-input').value?walkinLookupByPhone():walkinLookupByName()" style="white-space:nowrap;">Look Up</button>
+            <button class="btn btn--primary" onclick="document.getElementById('walkin-phone-input').value?walkinLookupByPhone():walkinLookupByName()" style="white-space:nowrap;">Look Up</button>
           </div>
           <div id="walkin-lookup-result"></div>
           <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
@@ -3282,7 +3282,7 @@
               <input type="text" id="walkin-name-field" class="form-input" placeholder="Customer name" />
               <input type="text" id="walkin-vehicle-field" class="form-input" placeholder="Vehicle (e.g. 2019 Toyota)" />
             </div>
-            <button class="btn btn-secondary" style="width:100%;" onclick="(async()=>{const ph=document.getElementById('walkin-phone-input').value.trim();const nm=document.getElementById('walkin-name-field').value.trim();const vh=document.getElementById('walkin-vehicle-field').value.trim();if(!ph)return;await saveWalkinCustomer(ph,nm,vh,'');if(typeof showToast==='function')showToast('Customer visit saved','success');})()">Save Visit Record</button>
+            <button class="btn btn--secondary" style="width:100%;" onclick="(async()=>{const ph=document.getElementById('walkin-phone-input').value.trim();const nm=document.getElementById('walkin-name-field').value.trim();const vh=document.getElementById('walkin-vehicle-field').value.trim();if(!ph)return;await saveWalkinCustomer(ph,nm,vh,'');if(typeof showToast==='function')showToast('Customer visit saved','success');})()">Save Visit Record</button>
           </div>
         </div>
       </div>
@@ -3306,8 +3306,8 @@
       </div>
 
       <div style="display:flex;gap:12px;justify-content:flex-end;margin-top:24px;">
-        <button class="btn btn-secondary" onclick="loadProviderProfile()">Cancel Changes</button>
-        <button class="btn btn-primary" onclick="saveProviderProfile()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Save Profile</button>
+        <button class="btn btn--secondary" onclick="loadProviderProfile()">Cancel Changes</button>
+        <button class="btn btn--primary" onclick="saveProviderProfile()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Save Profile</button>
       </div>
     </section>
 
@@ -3416,7 +3416,7 @@
           </div>
         </div>
         <div style="display:flex;justify-content:flex-end;margin-top:16px;">
-          <button class="btn btn-primary" onclick="saveWorkingHours()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Save Working Hours</button>
+          <button class="btn btn--primary" onclick="saveWorkingHours()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Save Working Hours</button>
         </div>
       </div>
 
@@ -3442,7 +3442,7 @@
             <label style="font-size:0.8rem;color:var(--text-muted);display:block;margin-bottom:4px;">Reason</label>
             <input type="text" id="block-reason" placeholder="e.g. Lunch break" style="padding:6px 10px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;min-width:160px;">
           </div>
-          <button class="btn btn-primary" onclick="addBlockedTime()" style="height:36px;">Add Block</button>
+          <button class="btn btn--primary" onclick="addBlockedTime()" style="height:36px;">Add Block</button>
         </div>
         <div id="blocked-time-list"></div>
       </div>
@@ -3475,7 +3475,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Team Members</h2>
-          <button class="btn btn-primary" onclick="openTeamMemberModal()">+ Add Team Member</button>
+          <button class="btn btn--primary" onclick="openTeamMemberModal()">+ Add Team Member</button>
         </div>
         <div id="team-members-grid" class="team-grid">
           <div class="empty-state">
@@ -3496,7 +3496,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Team Members</h2>
-          <button class="btn btn-primary" onclick="openInviteTeamModal()">+ Invite Team Member</button>
+          <button class="btn btn--primary" onclick="openInviteTeamModal()">+ Invite Team Member</button>
         </div>
         <div id="team-management-table">
           <div style="overflow-x:auto;">
@@ -3580,7 +3580,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Customer-Facing Employees</h2>
-          <button class="btn btn-primary" onclick="window.bgcCompliance && window.bgcCompliance.openAddEmployee()">+ Add Employee</button>
+          <button class="btn btn--primary" onclick="window.bgcCompliance && window.bgcCompliance.openAddEmployee()">+ Add Employee</button>
         </div>
         <div style="overflow-x:auto;">
           <table style="width:100%;border-collapse:collapse;">
@@ -3671,7 +3671,7 @@
               <canvas id="provider-qr-code" style="display:block;"></canvas>
             </div>
             <div style="margin-top:12px;">
-              <button onclick="downloadProviderQRCode()" class="btn btn-secondary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download QR Code</button>
+              <button onclick="downloadProviderQRCode()" class="btn btn--secondary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download QR Code</button>
             </div>
           </div>
         </div>
@@ -3680,7 +3680,7 @@
         <div class="card" style="margin-bottom:24px;">
           <div class="card-header">
             <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2Z"/><path d="M13 5v2"/><path d="M13 17v2"/><path d="M13 11v2"/></svg></span> Referral Codes</h2>
-            <button onclick="loadReferralCodes()" class="btn btn-secondary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+            <button onclick="loadReferralCodes()" class="btn btn--secondary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
           </div>
           <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:20px;text-align:center;">
             Share these unique QR codes to grow your network and earn rewards
@@ -3706,8 +3706,8 @@
               </div>
               <div id="loyal-customer-code" style="font-family:monospace;font-size:0.85rem;color:var(--accent-gold);margin-bottom:12px;font-weight:600;">---</div>
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                <button onclick="downloadReferralQR('loyal-customer')" class="btn btn-secondary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download</button>
-                <button onclick="copyReferralLink('loyal-customer')" class="btn btn-gold btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
+                <button onclick="downloadReferralQR('loyal-customer')" class="btn btn--secondary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download</button>
+                <button onclick="copyReferralLink('loyal-customer')" class="btn btn--primary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
               </div>
             </div>
 
@@ -3727,8 +3727,8 @@
               </div>
               <div id="new-member-code" style="font-family:monospace;font-size:0.85rem;color:var(--accent-blue);margin-bottom:12px;font-weight:600;">---</div>
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                <button onclick="downloadReferralQR('new-member')" class="btn btn-secondary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download</button>
-                <button onclick="copyReferralLink('new-member')" class="btn btn-primary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
+                <button onclick="downloadReferralQR('new-member')" class="btn btn--secondary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download</button>
+                <button onclick="copyReferralLink('new-member')" class="btn btn--primary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
               </div>
             </div>
 
@@ -3748,8 +3748,8 @@
               </div>
               <div id="refer-provider-code" style="font-family:monospace;font-size:0.85rem;color:var(--accent-green);margin-bottom:12px;font-weight:600;">---</div>
               <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap;">
-                <button onclick="downloadReferralQR('refer-provider')" class="btn btn-secondary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download</button>
-                <button onclick="copyReferralLink('refer-provider')" class="btn btn-success btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
+                <button onclick="downloadReferralQR('refer-provider')" class="btn btn--secondary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Download</button>
+                <button onclick="copyReferralLink('refer-provider')" class="btn btn--success btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
               </div>
             </div>
           </div>
@@ -3782,7 +3782,7 @@
           <p style="color:var(--text-secondary);margin-bottom:16px;">
             View detailed earnings, payout history, and more on your full Founder Dashboard
           </p>
-          <a href="founder-dashboard.html" class="btn btn-primary"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></span> Open Founder Dashboard</a>
+          <a href="founder-dashboard.html" class="btn btn--primary"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></span> Open Founder Dashboard</a>
         </div>
       </div>
     </section>
@@ -3840,7 +3840,7 @@
         <div class="card" style="margin-bottom:24px;">
           <div class="card-header">
             <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg></span> QR Code Usage</h2>
-            <button onclick="loadLoyaltyNetwork()" class="btn btn-secondary btn-sm"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+            <button onclick="loadLoyaltyNetwork()" class="btn btn--secondary btn--small"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
           </div>
           <div class="loyalty-qr-stats" id="loyalty-qr-usage">
             <div class="loyalty-qr-stat">
@@ -3875,7 +3875,7 @@
             <div class="empty-state" style="padding:32px;text-align:center;">
               <div style="font-size:2rem;margin-bottom:12px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></div>
               <p style="color:var(--text-muted);">No referrals yet. Share your QR codes to grow your network!</p>
-              <button onclick="showSection('refer-providers')" class="btn btn-primary" style="margin-top:16px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Get Your QR Codes</button>
+              <button onclick="showSection('refer-providers')" class="btn btn--primary" style="margin-top:16px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Get Your QR Codes</button>
             </div>
           </div>
         </div>
@@ -3897,7 +3897,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span> Nearby Emergencies</h2>
-          <button class="btn btn-secondary btn-sm" onclick="refreshEmergencies()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+          <button class="btn btn--secondary btn--small" onclick="refreshEmergencies()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
         </div>
         <div id="emergency-queue">
           <div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div><div class="empty-state-title">No emergencies nearby</div><div class="empty-state-desc">When members in your area request emergency roadside help, you'll see them here first.</div></div>
@@ -3965,7 +3965,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg></span> Fleet Job Queue</h2>
-            <button class="btn btn-secondary btn-sm" onclick="loadFleetJobQueue()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+            <button class="btn btn--secondary btn--small" onclick="loadFleetJobQueue()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
           </div>
           
           <!-- Fleet Account Benefits Info -->
@@ -3990,7 +3990,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> Active Bulk Service Batches</h2>
-            <button class="btn btn-secondary btn-sm" onclick="loadFleetBatches()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+            <button class="btn btn--secondary btn--small" onclick="loadFleetBatches()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
           </div>
 
           <div id="fleet-batches-list">
@@ -4049,7 +4049,7 @@
           <h2 class="card-title" style="display:flex;align-items:center;gap:10px;">
             <span style="font-size:1.5rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span></span> Team Member Checks
           </h2>
-          <button class="btn btn-primary btn-sm" onclick="openBackgroundCheckModal('team_member')">
+          <button class="btn btn--primary btn--small" onclick="openBackgroundCheckModal('team_member')">
             <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span> Add Team Member Check
           </button>
         </div>
@@ -4182,13 +4182,13 @@
           </div>
 
           <div class="pos-card-actions">
-            <button id="clover-connect-btn" class="btn btn-primary" onclick="connectClover()">
+            <button id="clover-connect-btn" class="btn btn--primary" onclick="connectClover()">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Connect Clover
             </button>
-            <button id="clover-disconnect-btn" class="btn btn-secondary" onclick="disconnectClover()" style="display:none">
+            <button id="clover-disconnect-btn" class="btn btn--secondary" onclick="disconnectClover()" style="display:none">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span> Disconnect
             </button>
-            <button id="clover-sync-btn" class="btn btn-secondary" onclick="syncClover()" style="display:none">
+            <button id="clover-sync-btn" class="btn btn--secondary" onclick="syncClover()" style="display:none">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Sync Now
             </button>
           </div>
@@ -4234,13 +4234,13 @@
           </div>
 
           <div class="pos-card-actions">
-            <button id="square-connect-btn" class="btn btn-primary" onclick="connectSquare()">
+            <button id="square-connect-btn" class="btn btn--primary" onclick="connectSquare()">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> Connect Square
             </button>
-            <button id="square-disconnect-btn" class="btn btn-secondary" onclick="disconnectSquare()" style="display:none">
+            <button id="square-disconnect-btn" class="btn btn--secondary" onclick="disconnectSquare()" style="display:none">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span> Disconnect
             </button>
-            <button id="square-sync-btn" class="btn btn-secondary" onclick="syncSquareTransactions()" style="display:none">
+            <button id="square-sync-btn" class="btn btn--secondary" onclick="syncSquareTransactions()" style="display:none">
               <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Sync Now
             </button>
           </div>
@@ -4266,7 +4266,7 @@
       <div class="all-pos-transactions" id="all-pos-transactions-section">
         <div class="card-header">
           <h3 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></span> All POS Transactions</h3>
-          <button class="btn btn-secondary btn-sm" onclick="loadAllPosTransactions()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh All</button>
+          <button class="btn btn--secondary btn--small" onclick="loadAllPosTransactions()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh All</button>
         </div>
         <table class="transactions-table">
           <thead>
@@ -4535,7 +4535,7 @@
           <label class="form-label">Notes for Member</label>
           <textarea class="form-textarea" id="bid-notes" placeholder="Describe your approach, experience with this type of work, etc."></textarea>
           <div style="display:flex;align-items:center;gap:8px;margin-top:8px;">
-            <button type="button" class="btn btn-secondary btn-sm" id="draft-pitch-btn" onclick="draftBidPitch()" style="font-size:0.82rem;padding:6px 14px;border:1px solid var(--accent-teal);color:var(--accent-teal);background:transparent;">
+            <button type="button" class="btn btn--secondary btn--small" id="draft-pitch-btn" onclick="draftBidPitch()" style="font-size:0.82rem;padding:6px 14px;border:1px solid var(--accent-teal);color:var(--accent-teal);background:transparent;">
               <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-inline-end:4px;"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
               Draft my pitch
             </button>
@@ -4587,7 +4587,7 @@
           </div>
         </div>
       </div>
-      <div class="modal-footer"><button class="btn btn-secondary" onclick="closeModal('bid-modal')">Cancel</button><button class="btn btn-primary" onclick="submitBid()">Submit Bid</button></div>
+      <div class="modal-footer"><button class="btn btn--secondary" onclick="closeModal('bid-modal')">Cancel</button><button class="btn btn--primary" onclick="submitBid()">Submit Bid</button></div>
     </div>
   </div>
 
@@ -4607,7 +4607,7 @@
         <div class="messages-container" id="message-thread"></div>
         <div class="message-input-row">
           <input type="text" class="form-input" id="message-input" placeholder="Type your message...">
-          <button class="btn btn-primary" onclick="sendMessage()">Send</button>
+          <button class="btn btn--primary" onclick="sendMessage()">Send</button>
         </div>
       </div>
     </div>
@@ -4629,7 +4629,7 @@
         <div id="qr-reader" style="width:100%;border-radius:var(--radius-md);overflow:hidden;background:var(--bg-input);min-height:280px;"></div>
         <div id="qr-scanner-status" style="margin-top:16px;padding:12px;border-radius:var(--radius-md);display:none;"></div>
         <div style="margin-top:16px;display:flex;gap:12px;justify-content:flex-end;">
-          <button class="btn btn-secondary" onclick="closeQrScannerModal()">Cancel</button>
+          <button class="btn btn--secondary" onclick="closeQrScannerModal()">Cancel</button>
         </div>
       </div>
     </div>
@@ -4723,8 +4723,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('upsell-modal')">Cancel</button>
-        <button class="btn btn-primary" id="send-update-btn" onclick="submitUpsellRequest()">Send to Member</button>
+        <button class="btn btn--secondary" onclick="closeModal('upsell-modal')">Cancel</button>
+        <button class="btn btn--primary" id="send-update-btn" onclick="submitUpsellRequest()">Send to Member</button>
       </div>
     </div>
   </div>
@@ -4773,8 +4773,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('provider-schedule-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitProviderScheduleProposal()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span> Send Proposal</button>
+        <button class="btn btn--secondary" onclick="closeModal('provider-schedule-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="submitProviderScheduleProposal()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4"/><path d="M16 2v4"/><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M3 10h18"/></svg></span> Send Proposal</button>
       </div>
     </div>
   </div>
@@ -4812,8 +4812,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('provider-counter-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitProviderCounterProposal()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Propose New Time</button>
+        <button class="btn btn--secondary" onclick="closeModal('provider-counter-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="submitProviderCounterProposal()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Propose New Time</button>
       </div>
     </div>
   </div>
@@ -4847,8 +4847,8 @@
         <div id="location-status" style="display:none;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-top:16px;"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('provider-location-modal')">Cancel</button>
-        <button class="btn btn-primary" id="share-location-btn" onclick="executeProviderLocationShare()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span> Share Location</button>
+        <button class="btn btn--secondary" onclick="closeModal('provider-location-modal')">Cancel</button>
+        <button class="btn btn--primary" id="share-location-btn" onclick="executeProviderLocationShare()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span> Share Location</button>
       </div>
     </div>
   </div>
@@ -4868,7 +4868,7 @@
           <label class="form-label">Photos (up to 10) *</label>
           <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;" id="evidence-photo-preview"></div>
           <input type="file" id="evidence-photos" accept="image/*" multiple onchange="previewEvidencePhotos()" style="display:none;">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('evidence-photos').click()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Add Photos</button>
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('evidence-photos').click()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Add Photos</button>
           <p class="form-hint">Take photos of vehicle condition, odometer, fuel gauge</p>
         </div>
 
@@ -4908,8 +4908,8 @@
         <div id="evidence-upload-status" style="display:none;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-top:16px;"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('evidence-modal')">Cancel</button>
-        <button class="btn btn-primary" id="submit-evidence-btn" onclick="submitEvidence()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Save Evidence</button>
+        <button class="btn btn--secondary" onclick="closeModal('evidence-modal')">Cancel</button>
+        <button class="btn btn--primary" id="submit-evidence-btn" onclick="submitEvidence()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Save Evidence</button>
       </div>
     </div>
   </div>
@@ -4933,7 +4933,7 @@
           <label class="form-label">Driver ID Photo *</label>
           <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;" id="key-exchange-id-preview"></div>
           <input type="file" id="key-exchange-id-photo" accept="image/*" onchange="previewKeyExchangeIdPhoto()" style="display:none;">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('key-exchange-id-photo').click()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Capture ID Photo</button>
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('key-exchange-id-photo').click()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Capture ID Photo</button>
           <p class="form-hint">Take a photo of the driver's ID for verification</p>
         </div>
 
@@ -4941,7 +4941,7 @@
           <label class="form-label">Key Handoff Photos (up to 3) *</label>
           <div style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:12px;" id="key-exchange-photos-preview"></div>
           <input type="file" id="key-exchange-key-photos" accept="image/*" multiple onchange="previewKeyExchangePhotos()" style="display:none;">
-          <button type="button" class="btn btn-secondary" onclick="document.getElementById('key-exchange-key-photos').click()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Add Key Photos</button>
+          <button type="button" class="btn btn--secondary" onclick="document.getElementById('key-exchange-key-photos').click()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Add Key Photos</button>
           <p class="form-hint">Photograph keys being handed over, with vehicle visible if possible</p>
         </div>
 
@@ -4953,8 +4953,8 @@
         <div id="key-exchange-upload-status" style="display:none;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);margin-top:16px;"></div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('key-exchange-modal')">Cancel</button>
-        <button class="btn btn-primary" id="submit-key-exchange-btn" onclick="submitKeyExchange()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></span> Verify Key Exchange</button>
+        <button class="btn btn--secondary" onclick="closeModal('key-exchange-modal')">Cancel</button>
+        <button class="btn btn--primary" id="submit-key-exchange-btn" onclick="submitKeyExchange()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15.5 7.5 2.3 2.3a1 1 0 0 0 1.4 0l2.1-2.1a1 1 0 0 0 0-1.4L19 4"/><path d="m21 2-9.6 9.6"/><circle cx="7.5" cy="15.5" r="5.5"/></svg></span> Verify Key Exchange</button>
       </div>
     </div>
   </div>
@@ -4983,8 +4983,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('dest-driver-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="assignDestDriver()">Assign Driver</button>
+        <button class="btn btn--secondary" onclick="closeModal('dest-driver-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="assignDestDriver()">Assign Driver</button>
       </div>
     </div>
   </div>
@@ -5002,7 +5002,7 @@
           <div class="team-photo-upload-text">Upload Photo</div>
         </div>
         <input type="file" id="team-photo-input" accept="image/*" style="display:none;" onchange="handleTeamPhotoSelect(event)">
-        <button type="button" class="btn btn-ghost btn-sm" id="remove-team-photo-btn" onclick="removeTeamPhoto()" style="display:none;margin:0 auto 16px;width:auto;">Remove Photo</button>
+        <button type="button" class="btn btn--ghost btn--small" id="remove-team-photo-btn" onclick="removeTeamPhoto()" style="display:none;margin:0 auto 16px;width:auto;">Remove Photo</button>
 
         <div class="form-group">
           <label class="form-label">Name *</label>
@@ -5066,8 +5066,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('team-member-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveTeamMember()">Save Team Member</button>
+        <button class="btn btn--secondary" onclick="closeModal('team-member-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="saveTeamMember()">Save Team Member</button>
       </div>
     </div>
   </div>
@@ -5126,7 +5126,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('emergency-accept-modal')">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeModal('emergency-accept-modal')">Cancel</button>
         <button class="btn btn-emergency" onclick="confirmAcceptEmergency()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></span> Claim & Go!</button>
       </div>
     </div>
@@ -5170,8 +5170,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('emergency-complete-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="confirmCompleteEmergency()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Submit Invoice</button>
+        <button class="btn btn--secondary" onclick="closeModal('emergency-complete-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="confirmCompleteEmergency()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Submit Invoice</button>
       </div>
     </div>
   </div>
@@ -5604,8 +5604,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('inspection-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="saveInspectionReport()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Save Inspection Report</button>
+        <button class="btn btn--secondary" onclick="closeModal('inspection-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="saveInspectionReport()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Save Inspection Report</button>
       </div>
     </div>
   </div>
@@ -5621,7 +5621,7 @@
         <div class="empty-state"><p>Loading batch details...</p></div>
       </div>
       <div class="modal-footer" id="fleet-batch-modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('fleet-batch-modal')">Close</button>
+        <button class="btn btn--secondary" onclick="closeModal('fleet-batch-modal')">Close</button>
       </div>
     </div>
   </div>
@@ -5705,8 +5705,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('fleet-bulk-bid-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitFleetBulkBid()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg></span> Submit Bulk Bid</button>
+        <button class="btn btn--secondary" onclick="closeModal('fleet-bulk-bid-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="submitFleetBulkBid()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 20V4a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/><rect width="20" height="14" x="2" y="6" rx="2"/></svg></span> Submit Bulk Bid</button>
       </div>
     </div>
   </div>
@@ -5722,7 +5722,7 @@
         <div class="empty-state"><p>Loading request details...</p></div>
       </div>
       <div class="modal-footer" id="fleet-request-modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('fleet-request-modal')">Close</button>
+        <button class="btn btn--secondary" onclick="closeModal('fleet-request-modal')">Close</button>
       </div>
     </div>
   </div>
@@ -5808,8 +5808,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('background-check-modal')">Cancel</button>
-        <button class="btn btn-primary" id="bg-check-submit-btn" onclick="submitBackgroundCheck()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Initiate Check</button>
+        <button class="btn btn--secondary" onclick="closeModal('background-check-modal')">Cancel</button>
+        <button class="btn btn--primary" id="bg-check-submit-btn" onclick="submitBackgroundCheck()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Initiate Check</button>
       </div>
     </div>
   </div>
@@ -5860,7 +5860,7 @@
             
             <!-- QR Scan Button -->
             <div style="text-align:center;margin-bottom:24px;">
-              <button class="pos-btn pos-btn-primary" onclick="openPosQrScanner()" style="padding:16px 32px;font-size:1.1rem;background:linear-gradient(135deg, var(--accent-blue), #3a6bdb);">
+              <button class="pos-btn pos-btn--primary" onclick="openPosQrScanner()" style="padding:16px 32px;font-size:1.1rem;background:linear-gradient(135deg, var(--accent-blue), #3a6bdb);">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Scan QR Code
               </button>
               <p style="color:var(--text-muted);font-size:0.85rem;margin-top:8px;">Fastest check-in method</p>
@@ -5878,7 +5878,7 @@
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;">
-              <button class="pos-btn pos-btn-secondary" onclick="posLookupCustomer()" id="pos-lookup-btn">
+              <button class="pos-btn pos-btn--secondary" onclick="posLookupCustomer()" id="pos-lookup-btn">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Look Up by Phone
               </button>
             </div>
@@ -5894,7 +5894,7 @@
             <h3 style="color:#fff;text-align:center;margin-bottom:16px;font-size:1.2rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span> Scan Customer QR Code</h3>
             <div id="pos-qr-reader" style="width:100%;border-radius:12px;overflow:hidden;"></div>
             <p id="pos-qr-scanner-status" style="color:#fff;text-align:center;margin-top:16px;font-size:0.95rem;">Point camera at customer's QR code</p>
-            <button onclick="closePosQrScanner()" class="pos-btn pos-btn-secondary" style="width:100%;margin-top:20px;">Cancel & Use Phone Number</button>
+            <button onclick="closePosQrScanner()" class="pos-btn pos-btn--secondary" style="width:100%;margin-top:20px;">Cancel & Use Phone Number</button>
           </div>
         </div>
 
@@ -5911,7 +5911,7 @@
                 <div class="pos-otp-code" id="pos-otp-display">------</div>
                 <div class="pos-otp-hint"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></span> Code expires in 5 minutes</div>
                 <div class="pos-otp-resend">
-                  <button class="pos-btn-ghost" onclick="posResendOtp()" id="pos-resend-btn"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Resend Code</button>
+                  <button class="pos-btn--ghost" onclick="posResendOtp()" id="pos-resend-btn"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Resend Code</button>
                 </div>
               </div>
               
@@ -5950,8 +5950,8 @@
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;margin-top:24px;">
-              <button class="pos-btn pos-btn-secondary" onclick="posGoToStep(1)">← Back</button>
-              <button class="pos-btn pos-btn-primary" onclick="posVerifyOtp()" id="pos-verify-btn">Verify & Continue →</button>
+              <button class="pos-btn pos-btn--secondary" onclick="posGoToStep(1)">← Back</button>
+              <button class="pos-btn pos-btn--primary" onclick="posVerifyOtp()" id="pos-verify-btn">Verify & Continue →</button>
             </div>
             
             <div id="pos-otp-error" style="color:var(--accent-red);text-align:center;margin-top:16px;display:none;"></div>
@@ -5967,7 +5967,7 @@
             <div id="pos-existing-vehicles"></div>
             
             <div style="text-align:center;margin:20px 0;">
-              <button class="pos-btn pos-btn-secondary" onclick="posShowNewVehicleForm()" id="pos-add-vehicle-btn">
+              <button class="pos-btn pos-btn--secondary" onclick="posShowNewVehicleForm()" id="pos-add-vehicle-btn">
                 + Add New Vehicle
               </button>
             </div>
@@ -6012,8 +6012,8 @@
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;margin-top:24px;">
-              <button class="pos-btn pos-btn-secondary" onclick="posGoToStep(2)">← Back</button>
-              <button class="pos-btn pos-btn-primary" onclick="posSelectVehicle()" id="pos-vehicle-btn">Continue →</button>
+              <button class="pos-btn pos-btn--secondary" onclick="posGoToStep(2)">← Back</button>
+              <button class="pos-btn pos-btn--primary" onclick="posSelectVehicle()" id="pos-vehicle-btn">Continue →</button>
             </div>
             
             <div id="pos-vehicle-error" style="color:var(--accent-red);text-align:center;margin-top:16px;display:none;"></div>
@@ -6153,8 +6153,8 @@
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;margin-top:24px;">
-              <button class="pos-btn pos-btn-secondary" onclick="posGoToStep(3)">← Back</button>
-              <button class="pos-btn pos-btn-primary" onclick="posAddService()" id="pos-service-btn">Continue to Authorization →</button>
+              <button class="pos-btn pos-btn--secondary" onclick="posGoToStep(3)">← Back</button>
+              <button class="pos-btn pos-btn--primary" onclick="posAddService()" id="pos-service-btn">Continue to Authorization →</button>
             </div>
             
             <div id="pos-service-error" style="color:var(--accent-red);text-align:center;margin-top:16px;display:none;"></div>
@@ -6205,13 +6205,13 @@
                 <canvas class="pos-signature-canvas" id="pos-signature-canvas"></canvas>
               </div>
               <div class="pos-signature-actions">
-                <button class="pos-btn pos-btn-secondary" onclick="posClearSignature()" style="flex:1;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span> Clear Signature</button>
+                <button class="pos-btn pos-btn--secondary" onclick="posClearSignature()" style="flex:1;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></span> Clear Signature</button>
               </div>
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;margin-top:24px;">
-              <button class="pos-btn pos-btn-secondary" onclick="posGoToStep(4)">← Back</button>
-              <button class="pos-btn pos-btn-primary" onclick="posSubmitAuthorization()" id="pos-auth-btn" style="min-width:200px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Sign and Authorize</button>
+              <button class="pos-btn pos-btn--secondary" onclick="posGoToStep(4)">← Back</button>
+              <button class="pos-btn pos-btn--primary" onclick="posSubmitAuthorization()" id="pos-auth-btn" style="min-width:200px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Sign and Authorize</button>
             </div>
             
             <div id="pos-auth-error" style="color:var(--accent-red);text-align:center;margin-top:16px;display:none;"></div>
@@ -6265,8 +6265,8 @@
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;margin-top:24px;">
-              <button class="pos-btn pos-btn-secondary" onclick="posGoToStep(5)">← Back</button>
-              <button class="pos-btn pos-btn-success" onclick="posProcessPayment()" id="pos-pay-btn" style="min-width:200px;">
+              <button class="pos-btn pos-btn--secondary" onclick="posGoToStep(5)">← Back</button>
+              <button class="pos-btn pos-btn--success" onclick="posProcessPayment()" id="pos-pay-btn" style="min-width:200px;">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="5" rx="2"/><line x1="2" x2="22" y1="10" y2="10"/></svg></span> Process Payment
               </button>
             </div>
@@ -6285,7 +6285,7 @@
             
             <div style="border-top:1px solid var(--border-subtle);padding-top:20px;text-align:center;">
               <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:12px;">Or create a new walk-in transaction:</p>
-              <button class="pos-btn pos-btn-secondary" onclick="posChooseNewWalkin()" style="min-width:200px;">
+              <button class="pos-btn pos-btn--secondary" onclick="posChooseNewWalkin()" style="min-width:200px;">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5v14"/></svg></span> New Walk-In Service
               </button>
             </div>
@@ -6373,10 +6373,10 @@
             </div>
             
             <div style="display:flex;gap:16px;justify-content:center;flex-wrap:wrap;">
-              <button class="pos-btn pos-btn-success" onclick="posSendReceipt()" id="pos-send-receipt-btn" style="min-width:220px;">
+              <button class="pos-btn pos-btn--success" onclick="posSendReceipt()" id="pos-send-receipt-btn" style="min-width:220px;">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span> Send Receipt
               </button>
-              <button class="pos-btn pos-btn-primary" onclick="posStartNewSession()" style="min-width:250px;">
+              <button class="pos-btn pos-btn--primary" onclick="posStartNewSession()" style="min-width:250px;">
                 <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span> Start New Transaction
               </button>
             </div>
@@ -6417,9 +6417,9 @@
                 </div>
                 
                 <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                  <button type="button" class="pos-btn pos-btn-secondary" onclick="posSetReminderQuick(3)" style="padding:8px 14px;font-size:0.82rem;">3 Months</button>
-                  <button type="button" class="pos-btn pos-btn-secondary" onclick="posSetReminderQuick(6)" style="padding:8px 14px;font-size:0.82rem;">6 Months</button>
-                  <button type="button" class="pos-btn pos-btn-secondary" onclick="posSetReminderQuick(12)" style="padding:8px 14px;font-size:0.82rem;">1 Year</button>
+                  <button type="button" class="pos-btn pos-btn--secondary" onclick="posSetReminderQuick(3)" style="padding:8px 14px;font-size:0.82rem;">3 Months</button>
+                  <button type="button" class="pos-btn pos-btn--secondary" onclick="posSetReminderQuick(6)" style="padding:8px 14px;font-size:0.82rem;">6 Months</button>
+                  <button type="button" class="pos-btn pos-btn--secondary" onclick="posSetReminderQuick(12)" style="padding:8px 14px;font-size:0.82rem;">1 Year</button>
                 </div>
                 
                 <div>
@@ -6428,7 +6428,7 @@
                 </div>
                 
                 <div style="display:flex;gap:12px;align-items:center;">
-                  <button type="button" class="pos-btn pos-btn-primary" onclick="posAddMaintenanceReminder()" id="pos-add-reminder-btn" style="flex:1;">
+                  <button type="button" class="pos-btn pos-btn--primary" onclick="posAddMaintenanceReminder()" id="pos-add-reminder-btn" style="flex:1;">
                     <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Add Reminder
                   </button>
                 </div>
@@ -6445,7 +6445,7 @@
       <div class="card" style="margin-top:32px;">
         <div class="card-header">
           <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7Z"/><path d="M14 2v4a2 2 0 0 0 2 2h4"/><path d="M10 9H8"/><path d="M16 13H8"/><path d="M16 17H8"/></svg></span> Recent POS Sessions</h2>
-          <button class="btn btn-ghost" onclick="posLoadHistory()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+          <button class="btn btn--ghost" onclick="posLoadHistory()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
         </div>
         <div id="pos-history-list">
           <div class="empty-state" style="padding:32px;">
@@ -6561,7 +6561,7 @@
           <div class="empty-state-icon"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="20" y2="10"/><line x1="18" x2="18" y1="20" y2="4"/><line x1="6" x2="6" y1="20" y2="16"/></svg></span></div>
           <h3>No POS Data Yet</h3>
           <p>Complete your first walk-in transaction to start seeing analytics.</p>
-          <button class="btn btn-primary" onclick="showSection('walkin-pos')" style="margin-top:16px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span> Go to Walk-In POS</button>
+          <button class="btn btn--primary" onclick="showSection('walkin-pos')" style="margin-top:16px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="21" r="1"/><circle cx="19" cy="21" r="1"/><path d="M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12"/></svg></span> Go to Walk-In POS</button>
         </div>
       </div>
     </section>
@@ -6601,15 +6601,15 @@
         </div>
         <div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
           <div id="kiosk-url-display" style="flex:1;min-width:200px;padding:12px 16px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);font-family:monospace;font-size:0.85rem;color:var(--accent-blue);word-break:break-all;">Loading...</div>
-          <button class="btn btn-primary" onclick="copyKioskLink()" style="white-space:nowrap;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
-          <button class="btn btn-secondary" onclick="showKioskQR()" style="white-space:nowrap;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span> Show QR Code</button>
+          <button class="btn btn--primary" onclick="copyKioskLink()" style="white-space:nowrap;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="8" height="4" x="8" y="2" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M12 11h4"/><path d="M12 16h4"/><path d="M8 11h.01"/><path d="M8 16h.01"/></svg></span> Copy Link</button>
+          <button class="btn btn--secondary" onclick="showKioskQR()" style="white-space:nowrap;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></span> Show QR Code</button>
         </div>
       </div>
 
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Customer Queue</h2>
-          <button class="btn btn-ghost" onclick="loadCustomerQueue()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
+          <button class="btn btn--ghost" onclick="loadCustomerQueue()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
         </div>
         <div id="customer-queue-list">
           <div class="empty-state" style="padding:48px 24px;">
@@ -6652,8 +6652,8 @@
           <div class="form-group" style="margin:0;flex:1;min-width:140px;">
             <label class="form-label">Driver Mode</label>
             <div style="display:flex;gap:6px;">
-              <button class="btn btn-primary btn-sm" id="pt-solo-btn" onclick="setProviderTransportMode('solo')" style="flex:1;">Solo</button>
-              <button class="btn btn-secondary btn-sm" id="pt-tandem-btn" onclick="setProviderTransportMode('tandem')" style="flex:1;">Tandem</button>
+              <button class="btn btn--primary btn--small" id="pt-solo-btn" onclick="setProviderTransportMode('solo')" style="flex:1;">Solo</button>
+              <button class="btn btn--secondary btn--small" id="pt-tandem-btn" onclick="setProviderTransportMode('tandem')" style="flex:1;">Tandem</button>
             </div>
           </div>
         </div>
@@ -6687,8 +6687,8 @@
 
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('provider-transport-modal')">Cancel</button>
-        <button class="btn btn-primary" id="pt-submit-btn" onclick="submitProviderTransportRequest()">Request Driver</button>
+        <button class="btn btn--secondary" onclick="closeModal('provider-transport-modal')">Cancel</button>
+        <button class="btn btn--primary" id="pt-submit-btn" onclick="submitProviderTransportRequest()">Request Driver</button>
       </div>
     </div>
   </div>
@@ -6721,7 +6721,7 @@
         
         <div id="2fa-verify-error" style="display:none;color:var(--accent-red);margin-bottom:16px;font-size:0.9rem;"></div>
         
-        <button class="btn btn-primary" id="2fa-verify-btn" onclick="verify2FACode()" style="width:100%;margin-bottom:16px;" disabled>
+        <button class="btn btn--primary" id="2fa-verify-btn" onclick="verify2FACode()" style="width:100%;margin-bottom:16px;" disabled>
           Verify & Enable 2FA
         </button>
         
@@ -6749,7 +6749,7 @@
         </p>
         
         <div style="display:flex;gap:12px;justify-content:center;">
-          <button class="btn btn-secondary" onclick="close2FADisableModal()">Cancel</button>
+          <button class="btn btn--secondary" onclick="close2FADisableModal()">Cancel</button>
           <button class="btn" style="background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="confirm2FADisable()">Yes, Disable 2FA</button>
         </div>
       </div>
@@ -6781,8 +6781,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('team-invite-modal')">Cancel</button>
-        <button class="btn btn-primary" id="team-invite-submit-btn" onclick="submitTeamInvitation()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span> Send Invitation</button>
+        <button class="btn btn--secondary" onclick="closeModal('team-invite-modal')">Cancel</button>
+        <button class="btn btn--primary" id="team-invite-submit-btn" onclick="submitTeamInvitation()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg></span> Send Invitation</button>
       </div>
     </div>
   </div>
@@ -6828,8 +6828,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('additional-work-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitAdditionalWorkRequest()">Submit Request</button>
+        <button class="btn btn--secondary" onclick="closeModal('additional-work-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="submitAdditionalWorkRequest()">Submit Request</button>
       </div>
     </div>
   </div>
@@ -6865,8 +6865,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('discount-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="submitDiscountOffer()">Offer Discount</button>
+        <button class="btn btn--secondary" onclick="closeModal('discount-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="submitDiscountOffer()">Offer Discount</button>
       </div>
     </div>
   </div>
@@ -6923,7 +6923,7 @@
         </div>
       </div>
       <div class="modal-footer" style="border-top-color:rgba(239,95,95,0.3);">
-        <button class="btn btn-secondary" onclick="closeModal('delete-account-modal')">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeModal('delete-account-modal')">Cancel</button>
         <button class="btn" id="confirm-delete-btn" style="background:var(--accent-red);color:white;" onclick="confirmDeleteAccount()" disabled>Delete My Account</button>
       </div>
     </div>

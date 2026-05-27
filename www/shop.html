@@ -34,10 +34,10 @@
     .nav-logo img { height: 36px; border-radius: 8px; }
     .nav-logo-text { font-family: 'Playfair Display', serif; font-size: 1rem; }
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: 0.88rem; font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
-    .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-gold { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; font-weight: 600; }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
+    .btn--secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #e6b84a); color: #12161c; font-weight: 600; }
 
     .hero-banner { background: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(201,162,39,0.1) 0%, transparent 70%); padding: 60px 32px 40px; text-align: center; }
     .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
@@ -114,8 +114,8 @@
     <span class="nav-logo-text">My Car Concierge</span>
   </a>
   <div style="display:flex; gap:10px;">
-    <a href="/" class="btn btn-outline" style="padding:8px 16px; font-size:0.83rem;">Find More Shops</a>
-    <a href="/signup-member.html" class="btn btn-primary" style="padding:8px 16px; font-size:0.83rem;">Join Free</a>
+    <a href="/" class="btn btn--secondary" style="padding:8px 16px; font-size:0.83rem;">Find More Shops</a>
+    <a href="/signup-member.html" class="btn btn--primary" style="padding:8px 16px; font-size:0.83rem;">Join Free</a>
   </div>
 </nav>
 
@@ -124,7 +124,7 @@
   <div style="font-size:3rem; margin-bottom:16px;">🔍</div>
   <h2>Shop not found</h2>
   <p style="color:var(--text-muted); margin-top:8px;">This shop profile doesn't exist or isn't publicly listed.</p>
-  <a href="/providers-directory.html" class="btn btn-primary" style="margin-top:24px;">Browse All Shops</a>
+  <a href="/providers-directory.html" class="btn btn--primary" style="margin-top:24px;">Browse All Shops</a>
 </div>
 
 <div id="shop-content" style="display:none;">
@@ -218,7 +218,7 @@
               <label class="form-label">Details (optional)</label>
               <textarea class="form-textarea" id="book-details" placeholder="Describe the issue or any additional details…"></textarea>
             </div>
-            <button type="submit" class="btn btn-gold" id="book-submit-btn" style="width:100%; justify-content:center; padding:13px;">
+            <button type="submit" class="btn btn--primary" id="book-submit-btn" style="width:100%; justify-content:center; padding:13px;">
               Request Service
             </button>
           </form>

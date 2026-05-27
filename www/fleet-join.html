@@ -91,9 +91,9 @@
       margin-bottom: 12px;
       transition: all 0.15s;
     }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
+    .btn--primary:hover { opacity: 0.9; }
+    .btn--secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .alert {
       padding: 14px 18px;
@@ -144,7 +144,7 @@
       <div class="fleet-icon" style="border-color:var(--accent-red);background:rgba(248,113,113,0.12);">❌</div>
       <h1>Invitation Issue</h1>
       <div id="error-message" class="alert alert-error" style="margin-top:16px;"></div>
-      <a href="/members.html" class="btn btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">Go to Dashboard</a>
+      <a href="/members.html" class="btn btn--secondary" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">Go to Dashboard</a>
     </div>
 
     <!-- Valid Invite -->
@@ -161,7 +161,7 @@
         You'll need to sign in (or create a free account) to accept this invitation.
       </div>
 
-      <button id="accept-btn" class="btn btn-primary" onclick="acceptInvite()">
+      <button id="accept-btn" class="btn btn--primary" onclick="acceptInvite()">
         Accept &amp; Join Fleet
       </button>
       <a href="/members.html" class="small-link">Already have an account? Sign in first</a>
@@ -173,7 +173,7 @@
       <h1>Welcome to the Fleet!</h1>
       <p class="subtitle" id="accepted-subtitle">You've successfully joined the fleet.</p>
       <div class="alert alert-success" id="accepted-detail"></div>
-      <a href="/members.html?section=fleet" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:16px;">
+      <a href="/members.html?section=fleet" class="btn btn--primary" style="display:block;text-align:center;text-decoration:none;margin-top:16px;">
         Go to Fleet Dashboard →
       </a>
     </div>

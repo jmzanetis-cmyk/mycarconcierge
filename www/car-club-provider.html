@@ -358,7 +358,7 @@
       gap: 8px;
       padding: 0 14px 14px;
     }
-    .product-card-actions .btn-sm {
+    .product-card-actions .btn--small {
       padding: 6px 12px;
       font-size: 0.8rem;
     }
@@ -450,7 +450,7 @@
       max-height: 90vh;
       overflow-y: auto;
     }
-    .btn-outline {
+    .btn--secondary {
       padding: 10px 20px;
       background: transparent;
       border: 1px solid var(--border-subtle);
@@ -461,7 +461,7 @@
       cursor: pointer;
       transition: all 0.2s;
     }
-    .btn-outline:hover {
+    .btn--secondary:hover {
       border-color: var(--text-primary);
       color: var(--text-primary);
     }
@@ -815,7 +815,7 @@
       <div id="activity-content" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title">Activity Log</h2>
-          <button class="btn btn-metallic btn-sm" onclick="openLogActivityModal()">
+          <button class="btn btn-metallic btn--small" onclick="openLogActivityModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Log Activity
           </button>
@@ -913,7 +913,7 @@
       <div id="store-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title" style="margin-bottom:0;">Club Store</h2>
-          <button class="btn btn-metallic btn-sm" onclick="showAddProductModal()">
+          <button class="btn btn-metallic btn--small" onclick="showAddProductModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Product
           </button>
@@ -1043,7 +1043,7 @@
         </div>
         <div style="display:flex;gap:12px;margin-top:24px;">
           <button class="btn btn-metallic" id="product-save-btn" onclick="saveProduct()" style="flex:1;">Save Product</button>
-          <button class="btn btn-outline" onclick="closeProductModal()" style="flex:0 0 auto;">Cancel</button>
+          <button class="btn btn--secondary" onclick="closeProductModal()" style="flex:0 0 auto;">Cancel</button>
         </div>
       </div>
     </div>
@@ -1090,7 +1090,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeRewardModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeRewardModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="saveReward()" id="reward-save-btn">Save Reward</button>
       </div>
     </div>
@@ -1118,7 +1118,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeAdjustModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeAdjustModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="submitAdjust()" id="adjust-save-btn">Apply</button>
       </div>
     </div>
@@ -1163,7 +1163,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeLogActivityModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeLogActivityModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="submitLogActivity()" id="log-save-btn">Log Activity</button>
       </div>
     </div>
@@ -1203,7 +1203,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closePromoModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closePromoModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="savePromo()" id="promo-save-btn">Save Promotion</button>
       </div>
     </div>
@@ -1647,11 +1647,11 @@
                   <span class="badge ${r.is_active ? 'badge-success' : 'badge-warning'}" style="margin-top:4px;">${r.is_active ? 'Active' : 'Inactive'}</span>
                 </div>
                 <div class="reward-card-actions">
-                  <button class="btn btn-secondary btn-sm" onclick="editReward('${r.id}')">
+                  <button class="btn btn--secondary btn--small" onclick="editReward('${r.id}')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Edit
                   </button>
-                  <button class="btn ${r.is_active ? 'btn-danger' : 'btn-success'} btn-sm" onclick="toggleReward('${r.id}', ${r.is_active})">
+                  <button class="btn ${r.is_active ? 'btn--danger' : 'btn--success'} btn--small" onclick="toggleReward('${r.id}', ${r.is_active})">
                     ${r.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                 </div>
@@ -1801,7 +1801,7 @@
               <div class="member-date">${formatDate(m.joined_at)}</div>
               <div class="member-progress"><div class="punch-bar"><div class="punch-fill" style="width:${pct}%"></div></div><span class="punch-text">${punchCount}/${punchesReq}</span></div>
               <div class="member-date">${lastAct ? formatDate(lastAct) : '—'}</div>
-              <div><button class="btn btn-secondary btn-sm" onclick="openAdjustModal('${m.member_id}')">Adjust</button></div>
+              <div><button class="btn btn--secondary btn--small" onclick="openAdjustModal('${m.member_id}')">Adjust</button></div>
             </div>`;
           }).join('');
         }
@@ -2087,11 +2087,11 @@
                   <div style="margin-top:4px;">${statusBadge}</div>
                 </div>
                 <div class="reward-card-actions">
-                  <button class="btn btn-secondary btn-sm" onclick="editPromo('${p.id}')">
+                  <button class="btn btn--secondary btn--small" onclick="editPromo('${p.id}')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Edit
                   </button>
-                  ${p.is_active ? `<button class="btn btn-danger btn-sm" onclick="deletePromo('${p.id}')">Deactivate</button>` : ''}
+                  ${p.is_active ? `<button class="btn btn--danger btn--small" onclick="deletePromo('${p.id}')">Deactivate</button>` : ''}
                 </div>
               </div>
               <div class="reward-card-meta">
@@ -2360,8 +2360,8 @@
               '<div class="product-card-meta"><span>' + escHtml(cat) + '</span><span>' + inv + '</span></div>' +
             '</div>' +
             '<div class="product-card-actions">' +
-              '<button class="btn btn-metallic btn-sm" onclick="editProduct(\'' + p.id + '\')">Edit</button>' +
-              '<button class="btn btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red-soft);" onclick="deleteProduct(\'' + p.id + '\',\'' + escHtml(p.name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+              '<button class="btn btn-metallic btn--small" onclick="editProduct(\'' + p.id + '\')">Edit</button>' +
+              '<button class="btn btn--secondary btn--small" style="color:var(--accent-red);border-color:var(--accent-red-soft);" onclick="deleteProduct(\'' + p.id + '\',\'' + escHtml(p.name).replace(/'/g, "\\'") + '\')">Delete</button>' +
             '</div>' +
           '</div>';
         }).join('');
@@ -2561,12 +2561,12 @@
 
           let actionsHtml = '';
           if (o.status === 'paid') {
-            actionsHtml = '<button class="btn btn-metallic btn-sm" onclick="updateOrderStatus(\'' + o.id + '\', \'processing\')">Mark Processing</button>';
+            actionsHtml = '<button class="btn btn-metallic btn--small" onclick="updateOrderStatus(\'' + o.id + '\', \'processing\')">Mark Processing</button>';
           } else if (o.status === 'processing') {
             actionsHtml = '<input type="text" class="form-input" id="tracking-' + o.id + '" placeholder="Tracking number" style="width:160px;padding:6px 10px;font-size:0.82rem;" />' +
-              '<button class="btn btn-metallic btn-sm" onclick="shipOrder(\'' + o.id + '\')">Mark Shipped</button>';
+              '<button class="btn btn-metallic btn--small" onclick="shipOrder(\'' + o.id + '\')">Mark Shipped</button>';
           } else if (o.status === 'shipped') {
-            actionsHtml = '<button class="btn btn-metallic btn-sm" onclick="updateOrderStatus(\'' + o.id + '\', \'delivered\')">Mark Delivered</button>';
+            actionsHtml = '<button class="btn btn-metallic btn--small" onclick="updateOrderStatus(\'' + o.id + '\', \'delivered\')">Mark Delivered</button>';
           }
           if (o.tracking_number) {
             actionsHtml += '<span style="font-size:0.8rem;color:var(--text-muted);">Tracking: ' + escHtml(o.tracking_number) + '</span>';

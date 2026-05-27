@@ -165,9 +165,9 @@
       transition: all 0.2s ease;
       margin-top: 8px;
     }
-    .btn-primary { background: #C9A84C; color: #0F1923; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201, 168, 76, 0.35); }
-    .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .btn--primary { background: #C9A84C; color: #0F1923; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201, 168, 76, 0.35); }
+    .btn--primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
     .login-message {
       margin-top: 16px;
@@ -526,7 +526,7 @@
     .biometric-enroll-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 12px; }
     .biometric-enroll-text { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; margin-bottom: 24px; }
     .biometric-enroll-actions { display: flex; flex-direction: column; gap: 12px; }
-    .btn-secondary {
+    .btn--secondary {
       width: 100%;
       padding: 14px 24px;
       font-family: inherit;
@@ -539,7 +539,7 @@
       cursor: pointer;
       transition: all 0.2s ease;
     }
-    .btn-secondary:hover { border-color: var(--text-primary); color: var(--text-primary); }
+    .btn--secondary:hover { border-color: var(--text-primary); color: var(--text-primary); }
 
     @media (max-width: 480px) {
       .login-card { padding: 32px 24px; }
@@ -716,8 +716,8 @@
             <input type="password" class="form-input" id="password" placeholder="••••••••" data-i18n="auth.passwordPlaceholder" data-i18n-attr="placeholder" required autocomplete="current-password">
           </div>
           <div style="text-align:right;margin:-4px 0 4px;"><a href="forgot-password.html" style="font-size:0.82rem;color:var(--text-muted);text-decoration:none;">Forgot password?</a></div>
-          <button type="submit" class="btn btn-primary" id="login-btn" data-i18n="auth.signInButton">Sign In</button>
-          <button type="button" class="btn btn-primary" id="magic-link-btn" style="display:none;" onclick="sendMagicLink()">Send Magic Link</button>
+          <button type="submit" class="btn btn--primary" id="login-btn" data-i18n="auth.signInButton">Sign In</button>
+          <button type="button" class="btn btn--primary" id="magic-link-btn" style="display:none;" onclick="sendMagicLink()">Send Magic Link</button>
         </form>
 
         <div class="login-message" id="message"></div>
@@ -764,7 +764,7 @@
           </div>
           <div class="magic-link-countdown" id="magic-resend-countdown"></div>
           <div class="magic-link-sent-actions">
-            <button class="btn-secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+            <button class="btn--secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
           </div>
         </div>
       </div>
@@ -783,7 +783,7 @@
           </div>
           <div class="magic-link-countdown" id="magic-resend-countdown"></div>
           <div class="magic-link-sent-actions">
-            <button class="btn-secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+            <button class="btn--secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
           </div>
         </div>
       </div>
@@ -800,7 +800,7 @@
           <p style="color:var(--text-muted);font-size:0.85rem;margin-top:20px;">
             This typically takes 2-3 business days. You'll receive an email once approved.
           </p>
-          <button class="btn btn-primary" onclick="logout()" style="margin-top:24px;" data-i18n="common.signOut">Sign Out</button>
+          <button class="btn btn--primary" onclick="logout()" style="margin-top:24px;" data-i18n="common.signOut">Sign Out</button>
         </div>
       </div>
 
@@ -817,7 +817,7 @@
           <p style="color:var(--text-muted);font-size:0.85rem;margin-top:20px;">
             This typically takes 1–2 business days. Questions? Email <a href="mailto:support@mycarconcierge.com" style="color:var(--accent-gold);">support@mycarconcierge.com</a>
           </p>
-          <button class="btn btn-primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
+          <button class="btn btn--primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
         </div>
       </div>
 
@@ -839,7 +839,7 @@
               Get it on Google Play
             </a>
           </div>
-          <button class="btn btn-secondary" onclick="logout()" style="margin-top:8px;">Sign Out</button>
+          <button class="btn btn--secondary" onclick="logout()" style="margin-top:8px;">Sign Out</button>
         </div>
       </div>
 
@@ -854,7 +854,7 @@
           <p style="color:var(--text-muted);font-size:0.9rem;margin-top:16px;">
             Contact <a href="mailto:support@mycarconcierge.com" style="color:var(--accent-gold);">support@mycarconcierge.com</a> for more information.
           </p>
-          <button class="btn btn-primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
+          <button class="btn btn--primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
         </div>
       </div>
 
@@ -900,10 +900,10 @@
           </p>
           
           <div class="biometric-enroll-actions">
-            <button class="btn btn-primary" id="enable-biometric-btn" onclick="enableBiometric()">
+            <button class="btn btn--primary" id="enable-biometric-btn" onclick="enableBiometric()">
               Enable Biometric Sign In
             </button>
-            <button class="btn-secondary" onclick="skipBiometricEnrollment()">
+            <button class="btn--secondary" onclick="skipBiometricEnrollment()">
               Not Now
             </button>
           </div>
@@ -932,7 +932,7 @@
           <div class="login-message" id="twofa-message"></div>
           
           <div class="twofa-actions">
-            <button class="btn btn-primary" id="verify-btn" onclick="verify2faCode()">Verify Code</button>
+            <button class="btn btn--primary" id="verify-btn" onclick="verify2faCode()">Verify Code</button>
           </div>
           
           <div class="twofa-resend">

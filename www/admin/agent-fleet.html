@@ -49,9 +49,9 @@
     .input { width:100%; padding:12px 14px; background:var(--slate-surface-2); border:1px solid var(--slate-border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; box-sizing:border-box; }
     .btn { background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer; font-family:inherit; font-size:14px; }
     .btn:hover { filter:brightness(1.07); }
-    .btn-ghost { background:transparent; color:var(--text); border:1px solid var(--slate-border); }
-    .btn-ghost:hover { border-color:var(--gold); color:var(--gold); }
-    .btn-danger { background:transparent; color:var(--bad); border:1px solid rgba(239,68,68,0.4); }
+    .btn--ghost { background:transparent; color:var(--text); border:1px solid var(--slate-border); }
+    .btn--ghost:hover { border-color:var(--gold); color:var(--gold); }
+    .btn--danger { background:transparent; color:var(--bad); border:1px solid rgba(239,68,68,0.4); }
     .grid { display:grid; gap:18px; }
     .grid-3 { grid-template-columns:repeat(3, 1fr); }
     .grid-2 { grid-template-columns: 2fr 1fr; }
@@ -112,7 +112,7 @@
     <input id="pwInput" class="input" type="password" placeholder="Admin password" autocomplete="current-password" />
     <div style="margin-top:14px; display:flex; gap:10px;">
       <button class="btn" id="pwSubmit">Sign in</button>
-      <a href="/admin.html" class="btn btn-ghost" style="text-decoration:none; line-height:1.6;">← Main admin</a>
+      <a href="/admin.html" class="btn btn--ghost" style="text-decoration:none; line-height:1.6;">← Main admin</a>
     </div>
     <div id="pwError" style="color:var(--bad); font-size:13px; margin-top:10px; display:none;"></div>
   </div>
@@ -162,8 +162,8 @@
           <div id="eventsTotal" style="font-size:32px; font-weight:700; line-height:1.1; margin-top:4px;">—</div>
         </div>
         <div style="margin-left:auto; display:flex; gap:8px;">
-          <button class="btn btn-ghost" id="eventsReload">Reload</button>
-          <button class="btn btn-ghost" id="refreshAll">Refresh all</button>
+          <button class="btn btn--ghost" id="eventsReload">Reload</button>
+          <button class="btn btn--ghost" id="refreshAll">Refresh all</button>
         </div>
       </div>
     </div>
@@ -180,8 +180,8 @@
       </div>
       <div style="border-top:1px solid var(--slate-border); margin:14px 0;"></div>
       <div class="row">
-        <button class="btn btn-ghost" id="runOrchestrator">Run orchestrator now</button>
-        <button class="btn btn-ghost" id="runAnalyst">Run analyst now</button>
+        <button class="btn btn--ghost" id="runOrchestrator">Run orchestrator now</button>
+        <button class="btn btn--ghost" id="runAnalyst">Run analyst now</button>
       </div>
       <div style="margin-top:18px; font-size:12px; color:var(--muted);">
         Scheduled cadence: orchestrator <code class="kbd">* * * * *</code> · analyst <code class="kbd">0 5 * * *</code> · gatekeeper-smoke <code class="kbd">0 9 * * *</code> · matchmaker-smoke <code class="kbd">15 9 * * *</code> · treasurer-smoke <code class="kbd">30 9 * * *</code> (UTC).
@@ -196,7 +196,7 @@
             Daily synthetic events confirm each agent's trigger → bus → orchestrator → handler → DB pipeline is healthy. A failure pages the admin via the same email path as the spend-cap alerts. Synthetic rows are tagged with a <span class="badge" style="background:rgba(184,148,45,0.18); color:#d4a93b; border:1px solid rgba(184,148,45,0.35);">Smoke</span> badge in each agent's activity feed so they're easy to dismiss.
           </div>
         </div>
-        <button class="btn btn-ghost" id="reloadSmokeBtn" style="min-width:120px;">Reload all</button>
+        <button class="btn btn--ghost" id="reloadSmokeBtn" style="min-width:120px;">Reload all</button>
       </div>
       <div id="smokeAgentList" style="display:flex; flex-direction:column; gap:14px; margin-top:8px;">
         <!-- one block per agent injected by loadAllSmokeStatuses -->
@@ -228,8 +228,8 @@
         </div>
         <div style="display:flex; flex-direction:column; gap:8px; min-width:170px;">
           <button class="btn" id="runDirectorBtn">Run Director now</button>
-          <button class="btn btn-ghost" id="reloadDirectorBtn">Reload alerts</button>
-          <button class="btn btn-ghost" id="toggleDirSettingsBtn">Thresholds…</button>
+          <button class="btn btn--ghost" id="reloadDirectorBtn">Reload alerts</button>
+          <button class="btn btn--ghost" id="toggleDirSettingsBtn">Thresholds…</button>
         </div>
       </div>
 
@@ -301,7 +301,7 @@
         </div>
         <div class="row" style="margin-top:14px; gap:8px;">
           <button class="btn" id="dirCfgSaveBtn">Save thresholds</button>
-          <button class="btn btn-ghost" id="dirCfgResetBtn">Reset (reload from server)</button>
+          <button class="btn btn--ghost" id="dirCfgResetBtn">Reset (reload from server)</button>
         </div>
       </div>
     </div>
@@ -316,7 +316,7 @@
           <label for="dlqOpenOnly" style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:6px;">
             <input type="checkbox" id="dlqOpenOnly" checked /> Open only
           </label>
-          <button class="btn btn-ghost" id="dlqReload" style="margin-left:auto;">Reload</button>
+          <button class="btn btn--ghost" id="dlqReload" style="margin-left:auto;">Reload</button>
         </div>
         <div style="max-height:340px; overflow-y:auto;">
           <table>
@@ -346,14 +346,14 @@
             <option value="30">Last 30 days</option>
             <option value="90">Last 90 days</option>
           </select>
-          <button class="btn btn-ghost" id="alertsReload" style="margin-left:auto;">Reload</button>
+          <button class="btn btn--ghost" id="alertsReload" style="margin-left:auto;">Reload</button>
         </div>
         <div class="row" style="margin-bottom:12px; padding:10px; background:var(--slate-surface-2); border-radius:8px;">
           <span style="font-size:12px; color:var(--muted);">Force test alert:</span>
           <select id="testAlertAgent" class="input" style="flex:1; min-width:120px; max-width:200px;">
             <option value="">Pick agent…</option>
           </select>
-          <button class="btn btn-ghost" id="testAlertBtn" style="font-size:12px; padding:6px 12px;">Send test email</button>
+          <button class="btn btn--ghost" id="testAlertBtn" style="font-size:12px; padding:6px 12px;">Send test email</button>
         </div>
         <div style="max-height:340px; overflow-y:auto;">
           <table>
@@ -439,7 +439,7 @@
               <option value="published">Published</option>
               <option value="rejected">Rejected</option>
             </select>
-            <button class="btn btn-ghost" id="postsReload" style="margin-left:auto;">Reload</button>
+            <button class="btn btn--ghost" id="postsReload" style="margin-left:auto;">Reload</button>
           </div>
           <div style="max-height:420px; overflow-y:auto;">
             <table>
@@ -461,7 +461,7 @@
               <option value="rejected">Rejected</option>
               <option value="pending">Pending</option>
             </select>
-            <button class="btn btn-ghost" id="leadsReload" style="margin-left:auto;">Reload</button>
+            <button class="btn btn--ghost" id="leadsReload" style="margin-left:auto;">Reload</button>
           </div>
           <div style="max-height:420px; overflow-y:auto;">
             <table>
@@ -588,7 +588,7 @@ async function loadRegistry() {
           <div style="font-size:11px; color:var(--muted);">${a.today_spend?.call_count || 0} calls</div>
         </td>
         <td class="right">
-          <a class="btn btn-ghost" href="/admin/agent-fleet-detail.html?slug=${encodeURIComponent(a.slug)}" style="text-decoration:none; padding:5px 12px; font-size:12px;">Open →</a>
+          <a class="btn btn--ghost" href="/admin/agent-fleet-detail.html?slug=${encodeURIComponent(a.slug)}" style="text-decoration:none; padding:5px 12px; font-size:12px;">Open →</a>
         </td>
       `;
       body.appendChild(tr);
@@ -653,7 +653,7 @@ async function loadDLQ() {
       const errPreview = e.final_error ? `<div style="font-size:11px; color:var(--bad); margin-top:3px; max-width:340px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="${escapeHtml(e.final_error)}">${escapeHtml(e.final_error)}</div>` : '';
       const replayedBadge = e.replayed_at
         ? `<span class="badge badge-on" title="Replayed as event #${e.replay_event_id || ''} at ${fmtTime(e.replayed_at)}">replayed</span>`
-        : `<button class="btn btn-ghost" data-dlq-replay="${e.id}" style="padding:4px 10px; font-size:12px;">Replay</button>`;
+        : `<button class="btn btn--ghost" data-dlq-replay="${e.id}" style="padding:4px 10px; font-size:12px;">Replay</button>`;
       tr.innerHTML = `
         <td>
           <div style="font-weight:600;">${escapeHtml(e.event_type)}</div>
@@ -712,7 +712,7 @@ async function loadSpendAlerts() {
         <td class="right num">${fmt$(a.estimate_usd)}</td>
         <td>${emailCell}</td>
         <td class="right">
-          <button class="btn btn-ghost" data-resend-slug="${escapeHtml(a.agent_slug)}" data-resend-day="${escapeHtml(a.day)}" style="padding:4px 10px; font-size:12px;">${a.email_sent ? 'Resend' : 'Send'}</button>
+          <button class="btn btn--ghost" data-resend-slug="${escapeHtml(a.agent_slug)}" data-resend-day="${escapeHtml(a.day)}" style="padding:4px 10px; font-size:12px;">${a.email_sent ? 'Resend' : 'Send'}</button>
         </td>
       `;
       body.appendChild(tr);
@@ -825,7 +825,7 @@ async function loadDirector() {
         <td class="right">${a.fire_count}×</td>
         <td>${dirRelTime(a.last_fired_at)}</td>
         <td class="right">
-          <button class="btn btn-ghost" data-resolve-id="${a.id}" style="padding:6px 12px; font-size:12px;">Resolve</button>
+          <button class="btn btn--ghost" data-resolve-id="${a.id}" style="padding:6px 12px; font-size:12px;">Resolve</button>
         </td>
       </tr>`;
     }).join('');
@@ -1092,7 +1092,7 @@ async function loadChannels() {
           <td><input class="input" data-edit-keywords="${c.id}" value="${escapeHtml(kw)}" placeholder="comma-sep" style="font-size:12px; padding:5px 8px;"></td>
           <td colspan="2" class="right">
             <button class="btn"        data-chan-save="${c.id}" style="font-size:11px; padding:4px 10px;">Save</button>
-            <button class="btn btn-ghost" data-chan-cancel="${c.id}" style="font-size:11px; padding:4px 10px;">Cancel</button>
+            <button class="btn btn--ghost" data-chan-cancel="${c.id}" style="font-size:11px; padding:4px 10px;">Cancel</button>
           </td>`;
       } else {
         const recentErrs = Array.isArray(cfg.recent_errors) ? cfg.recent_errors : [];
@@ -1116,9 +1116,9 @@ async function loadChannels() {
               <input type="checkbox" data-chan-id="${c.id}" ${c.enabled ? 'checked' : ''}>
               <span class="slider"></span>
             </label>
-            <button class="btn btn-ghost" data-chan-run="${c.id}"    title="Run monitor now (single channel)" style="font-size:11px; padding:4px 8px; margin-left:6px;">Run</button>
-            <button class="btn btn-ghost" data-chan-edit="${c.id}"   title="Edit keywords / audience / handle" style="font-size:11px; padding:4px 8px;">Edit</button>
-            <button class="btn btn-danger" data-chan-delete="${c.id}" title="Delete channel" style="font-size:11px; padding:4px 8px;">×</button>
+            <button class="btn btn--ghost" data-chan-run="${c.id}"    title="Run monitor now (single channel)" style="font-size:11px; padding:4px 8px; margin-left:6px;">Run</button>
+            <button class="btn btn--ghost" data-chan-edit="${c.id}"   title="Edit keywords / audience / handle" style="font-size:11px; padding:4px 8px;">Edit</button>
+            <button class="btn btn--danger" data-chan-delete="${c.id}" title="Delete channel" style="font-size:11px; padding:4px 8px;">×</button>
           </td>`;
       }
       body.appendChild(tr);
@@ -1201,10 +1201,10 @@ function renderPostDrawer(p) {
         </div>
         <div style="flex:1; min-width:180px; display:flex; flex-direction:column; gap:6px;">
           ${editable ? `<button class="btn" data-post-act="save" data-post-id="${p.id}">Save edits</button>` : ''}
-          ${canApprove ? `<button class="btn btn-ghost" data-post-act="approve" data-post-id="${p.id}">Approve</button>` : ''}
+          ${canApprove ? `<button class="btn btn--ghost" data-post-act="approve" data-post-id="${p.id}">Approve</button>` : ''}
           ${canApprove ? `<button class="btn"        data-post-act="save-approve" data-post-id="${p.id}">Save &amp; approve</button>` : ''}
           ${canPublish ? `<button class="btn"        data-post-act="publish" data-post-id="${p.id}">Publish</button>` : ''}
-          ${canReject  ? `<button class="btn btn-ghost" data-post-act="reject"  data-post-id="${p.id}">Reject</button>` : ''}
+          ${canReject  ? `<button class="btn btn--ghost" data-post-act="reject"  data-post-id="${p.id}">Reject</button>` : ''}
         </div>
       </div>
     </td>`;
@@ -1366,8 +1366,8 @@ function renderLeadDrawer(l, hunterAction) {
         </div>
         <div style="flex:1; min-width:160px; display:flex; flex-direction:column; gap:6px;">
           ${canApprove   ? `<button class="btn"        data-lead-act="approve"   data-lead-id="${l.id}">Approve</button>` : ''}
-          ${canContacted ? `<button class="btn btn-ghost" data-lead-act="contacted" data-lead-id="${l.id}">Mark contacted</button>` : ''}
-          ${canReject    ? `<button class="btn btn-ghost" data-lead-act="reject"    data-lead-id="${l.id}">Reject</button>` : ''}
+          ${canContacted ? `<button class="btn btn--ghost" data-lead-act="contacted" data-lead-id="${l.id}">Mark contacted</button>` : ''}
+          ${canReject    ? `<button class="btn btn--ghost" data-lead-act="reject"    data-lead-id="${l.id}">Reject</button>` : ''}
         </div>
       </div>
     </td>`;

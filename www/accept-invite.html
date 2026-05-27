@@ -157,11 +157,11 @@
       transition: all 0.2s ease;
       margin-top: 8px;
     }
-    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #e6b85a); color: #1a1a2e; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
-    .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
-    .btn-secondary { background: var(--bg-input); border: 1px solid var(--border-subtle); color: var(--text-primary); }
-    .btn-secondary:hover { border-color: var(--accent-blue); }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #e6b85a); color: #1a1a2e; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
+    .btn--primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .btn--secondary { background: var(--bg-input); border: 1px solid var(--border-subtle); color: var(--text-primary); }
+    .btn--secondary:hover { border-color: var(--accent-blue); }
 
     .message {
       margin-top: 16px;
@@ -273,14 +273,14 @@
         <div class="error-icon"><span class="icon-inline" data-icon="alert-triangle"></span></div>
         <h2>Invalid Invitation</h2>
         <p id="error-message">This invitation link is invalid or has already been used.</p>
-        <a href="login.html" class="btn btn-secondary">Go to Login</a>
+        <a href="login.html" class="btn btn--secondary">Go to Login</a>
       </div>
 
       <div id="expired-state" class="expired-state" style="display: none;">
         <div class="expired-icon"><span class="icon-inline" data-icon="clock"></span></div>
         <h2>Invitation Expired</h2>
         <p>This invitation has expired. Please contact the team administrator to request a new invitation.</p>
-        <a href="login.html" class="btn btn-secondary">Go to Login</a>
+        <a href="login.html" class="btn btn--secondary">Go to Login</a>
       </div>
 
       <div id="invite-content">
@@ -308,8 +308,8 @@
           <p style="text-align: center; color: var(--text-secondary); margin-bottom: 20px;">
             To accept this invitation, please sign in or create an account.
           </p>
-          <button class="btn btn-primary" onclick="showLoginForm()">Sign In</button>
-          <button class="btn btn-secondary" onclick="showSignupForm()" style="margin-top: 12px;">Create Account</button>
+          <button class="btn btn--primary" onclick="showLoginForm()">Sign In</button>
+          <button class="btn btn--secondary" onclick="showSignupForm()" style="margin-top: 12px;">Create Account</button>
         </div>
 
         <div id="login-form">
@@ -325,12 +325,12 @@
               <label class="form-label">Password</label>
               <input type="password" id="login-password" class="form-input" placeholder="Your password" required autocomplete="current-password" />
             </div>
-            <button type="submit" id="login-btn" class="btn btn-primary">Sign In & Accept</button>
+            <button type="submit" id="login-btn" class="btn btn--primary">Sign In & Accept</button>
             <div id="login-message" class="message"></div>
           </form>
           <div class="divider">or</div>
-          <button class="btn btn-secondary" onclick="showSignupForm()">Create New Account</button>
-          <button class="btn btn-secondary" onclick="showAuthChoice()" style="margin-top: 8px;">Back</button>
+          <button class="btn btn--secondary" onclick="showSignupForm()">Create New Account</button>
+          <button class="btn btn--secondary" onclick="showAuthChoice()" style="margin-top: 8px;">Back</button>
         </div>
 
         <div id="signup-form">
@@ -358,12 +358,12 @@
               <label class="form-label">Confirm Password</label>
               <input type="password" id="signup-confirm" class="form-input" placeholder="Confirm password" required autocomplete="new-password" />
             </div>
-            <button type="submit" id="signup-btn" class="btn btn-primary">Create Account & Accept</button>
+            <button type="submit" id="signup-btn" class="btn btn--primary">Create Account & Accept</button>
             <div id="signup-message" class="message"></div>
           </form>
           <div class="divider">or</div>
-          <button class="btn btn-secondary" onclick="showLoginForm()">Already Have Account</button>
-          <button class="btn btn-secondary" onclick="showAuthChoice()" style="margin-top: 8px;">Back</button>
+          <button class="btn btn--secondary" onclick="showLoginForm()">Already Have Account</button>
+          <button class="btn btn--secondary" onclick="showAuthChoice()" style="margin-top: 8px;">Back</button>
         </div>
       </div>
 
@@ -371,7 +371,7 @@
         <div class="success-icon"><span class="icon-inline" data-icon="party-popper"></span></div>
         <h2>Welcome to the Team!</h2>
         <p>You've successfully joined the team. You can now access the provider dashboard.</p>
-        <a href="providers.html" class="btn btn-primary">Go to Dashboard</a>
+        <a href="providers.html" class="btn btn--primary">Go to Dashboard</a>
       </div>
     </div>
 

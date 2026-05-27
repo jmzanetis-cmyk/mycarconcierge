@@ -121,14 +121,14 @@
 
     /* Buttons */
     .btn { padding: 10px 20px; border-radius: var(--radius-md); font-size: 0.88rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-primary { background: var(--accent-blue); color: white; }
-    .btn-primary:hover { background: #5d8aff; }
-    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
-    .btn-secondary:hover { background: rgba(255,255,255,0.08); }
-    .btn-success { background: var(--accent-green); color: white; }
-    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
-    .btn-ghost { background: transparent; color: var(--text-secondary); }
-    .btn-ghost:hover { color: var(--text-primary); }
+    .btn--primary { background: var(--accent-blue); color: white; }
+    .btn--primary:hover { background: #5d8aff; }
+    .btn--secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
+    .btn--secondary:hover { background: rgba(255,255,255,0.08); }
+    .btn--success { background: var(--accent-green); color: white; }
+    .btn--small { padding: 6px 12px; font-size: 0.82rem; }
+    .btn--ghost { background: transparent; color: var(--text-secondary); }
+    .btn--ghost:hover { color: var(--text-primary); }
 
     /* Forms */
     .form-group { margin-bottom: 20px; }
@@ -271,7 +271,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">Upcoming Maintenance</h2>
-            <button class="btn btn-ghost" onclick="showSection('maintenance')">View All →</button>
+            <button class="btn btn--ghost" onclick="showSection('maintenance')">View All →</button>
           </div>
           <div id="upcoming-maintenance">
             <div class="empty-state">
@@ -315,7 +315,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Pending Approvals</h2>
-          <button class="btn btn-ghost" onclick="showSection('approvals')">View All →</button>
+          <button class="btn btn--ghost" onclick="showSection('approvals')">View All →</button>
         </div>
         <div id="pending-approvals-preview">
           <div class="empty-state">
@@ -334,8 +334,8 @@
       </div>
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
-        <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary" onclick="openFleetCsvImport()"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
+        <button class="btn btn--primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
+        <button class="btn btn--secondary" onclick="openFleetCsvImport()"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
       </div>
 
       <div class="card">
@@ -367,7 +367,7 @@
       </div>
 
       <div style="margin-bottom:24px;">
-        <button class="btn btn-primary" onclick="openAddDriverModal()">+ Add Driver</button>
+        <button class="btn btn--primary" onclick="openAddDriverModal()">+ Add Driver</button>
       </div>
 
       <div class="card">
@@ -449,7 +449,7 @@
             <option value="all">All Time</option>
           </select>
         </div>
-        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export CSV</button>
+        <button class="btn btn--secondary"><span class="icon-inline" data-icon="upload"></span> Export CSV</button>
       </div>
 
       <div class="card">
@@ -488,7 +488,7 @@
             <option value="year">This Year</option>
           </select>
         </div>
-        <button class="btn btn-secondary"><span class="icon-inline" data-icon="upload"></span> Export Report</button>
+        <button class="btn btn--secondary"><span class="icon-inline" data-icon="upload"></span> Export Report</button>
       </div>
 
       <div class="stats-grid">
@@ -661,8 +661,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('add-vehicle-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="addFleetVehicle()">Add Vehicle</button>
+        <button class="btn btn--secondary" onclick="closeModal('add-vehicle-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="addFleetVehicle()">Add Vehicle</button>
       </div>
     </div>
   </div>
@@ -704,8 +704,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('add-driver-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="addDriver()">Add Driver</button>
+        <button class="btn btn--secondary" onclick="closeModal('add-driver-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="addDriver()">Add Driver</button>
       </div>
     </div>
   </div>
@@ -721,8 +721,8 @@
         <!-- Dynamic content -->
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="rejectApproval()">Reject</button>
-        <button class="btn btn-success" onclick="confirmApproval()">Approve</button>
+        <button class="btn btn--secondary" onclick="rejectApproval()">Reject</button>
+        <button class="btn btn--success" onclick="confirmApproval()">Approve</button>
       </div>
     </div>
   </div>
@@ -804,7 +804,7 @@
           <div style="font-size:32px;margin-bottom:10px;">📄</div>
           <div style="font-weight:500;margin-bottom:6px;">Drop your CSV file here</div>
           <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:14px;">or</div>
-          <button class="btn btn-secondary" style="font-size:0.85rem;padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
+          <button class="btn btn--secondary" style="font-size:0.85rem;padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
           <input type="file" id="csv-file-input" aria-label="Upload CSV file" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
         </div>
         <div id="csv-preview" style="display:none;margin-top:16px;">
@@ -828,8 +828,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-ghost" onclick="closeFleetCsvImport()">Cancel</button>
-        <button class="btn btn-primary" id="csv-import-btn" onclick="runCsvImport()" disabled>Import Vehicles</button>
+        <button class="btn btn--ghost" onclick="closeFleetCsvImport()">Cancel</button>
+        <button class="btn btn--primary" id="csv-import-btn" onclick="runCsvImport()" disabled>Import Vehicles</button>
       </div>
     </div>
   </div>

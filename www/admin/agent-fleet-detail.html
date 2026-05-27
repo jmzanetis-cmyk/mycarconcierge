@@ -43,9 +43,9 @@
     .input { width:100%; padding:12px 14px; background:var(--slate-surface-2); border:1px solid var(--slate-border); border-radius:8px; color:var(--text); font-family:inherit; font-size:14px; box-sizing:border-box; }
     .btn { background:linear-gradient(135deg,var(--gold),var(--gold-2)); color:#12161c; border:none; padding:10px 18px; border-radius:8px; font-weight:600; cursor:pointer; font-family:inherit; font-size:14px; }
     .btn:hover { filter:brightness(1.07); }
-    .btn-ghost { background:transparent; color:var(--text); border:1px solid var(--slate-border); }
-    .btn-ghost:hover { border-color:var(--gold); color:var(--gold); }
-    .btn-danger { background:transparent; color:var(--bad); border:1px solid rgba(239,68,68,0.4); }
+    .btn--ghost { background:transparent; color:var(--text); border:1px solid var(--slate-border); }
+    .btn--ghost:hover { border-color:var(--gold); color:var(--gold); }
+    .btn--danger { background:transparent; color:var(--bad); border:1px solid rgba(239,68,68,0.4); }
     .grid { display:grid; gap:18px; }
     .grid-3 { grid-template-columns:repeat(3, 1fr); }
     .grid-2 { grid-template-columns: 2fr 1fr; }
@@ -142,7 +142,7 @@
     <input id="pwInput" class="input" type="password" placeholder="Admin password" autocomplete="current-password" />
     <div style="margin-top:14px; display:flex; gap:10px;">
       <button class="btn" id="pwSubmit">Sign in</button>
-      <a href="/admin/agent-fleet.html" class="btn btn-ghost" style="text-decoration:none; line-height:1.6;">← Fleet console</a>
+      <a href="/admin/agent-fleet.html" class="btn btn--ghost" style="text-decoration:none; line-height:1.6;">← Fleet console</a>
     </div>
     <div id="pwError" style="color:var(--bad); font-size:13px; margin-top:10px; display:none;"></div>
   </div>
@@ -214,7 +214,7 @@
       <div class="row" style="margin-top:10px;">
         <input id="promptNotes" class="input" placeholder="Changelog note (optional, max 500 chars)" style="flex:2;">
         <button class="btn" id="promptSave">Save new version</button>
-        <button class="btn btn-ghost" id="promptReload">Reload</button>
+        <button class="btn btn--ghost" id="promptReload">Reload</button>
       </div>
       <div style="margin-top:14px;">
         <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px; flex-wrap:wrap;">
@@ -224,7 +224,7 @@
             <select id="diffLeft" class="cell" title="Older version (shown on the left)" style="min-width:90px;"></select>
             <span style="font-size:12px; color:var(--muted);">→</span>
             <select id="diffRight" class="cell" title="Newer version (shown on the right)" style="min-width:90px;"></select>
-            <button class="btn btn-ghost" id="diffCompare" style="padding:3px 9px; font-size:12px;">Compare</button>
+            <button class="btn btn--ghost" id="diffCompare" style="padding:3px 9px; font-size:12px;">Compare</button>
           </div>
         </div>
         <div style="font-size:12px; color:var(--muted); margin-bottom:6px;" id="diffHint" hidden>
@@ -234,7 +234,7 @@
         <div id="diffPanel" style="display:none; margin-top:12px;">
           <div style="display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:6px;">
             <div id="diffSummary" style="font-size:13px; color:var(--text);"></div>
-            <button class="btn btn-ghost" id="diffClose" style="padding:3px 9px; font-size:12px;">Close diff</button>
+            <button class="btn btn--ghost" id="diffClose" style="padding:3px 9px; font-size:12px;">Close diff</button>
           </div>
           <div id="diffBody"></div>
         </div>
@@ -255,7 +255,7 @@
     <div class="card" id="reviewQueueCard" style="margin-bottom:20px; display:none;">
       <div class="row" style="justify-content:space-between; align-items:flex-start;">
         <h3 style="margin:0;">Review queue (proposals from this agent)</h3>
-        <button class="btn btn-ghost" id="auditMismatchCheckBtn" style="font-size:12px; padding:4px 10px;" title="Scan for Treasurer apply rows where Stripe shows the money moved but the action is still pending in the queue (audit-write failed)">Find stuck audit rows</button>
+        <button class="btn btn--ghost" id="auditMismatchCheckBtn" style="font-size:12px; padding:4px 10px;" title="Scan for Treasurer apply rows where Stripe shows the money moved but the action is still pending in the queue (audit-write failed)">Find stuck audit rows</button>
       </div>
       <div style="font-size:13px; color:var(--muted); margin:8px 0 10px 0;" id="reviewQueueHelp">
         Items the agent flagged for human review. Approve or reject inline; full proposal context is in the action row below.
@@ -280,13 +280,13 @@
           <label style="font-size:13px; color:var(--muted); display:flex; align-items:center; gap:4px;">
             <input type="checkbox" id="reviewOnly" /> Needs review only
           </label>
-          <button class="btn btn-ghost" id="reloadActions">Reload</button>
+          <button class="btn btn--ghost" id="reloadActions">Reload</button>
         </div>
         <div id="actionsList" class="actions-list"><div class="empty">Loading…</div></div>
         <div class="row" style="margin-top:10px; justify-content:space-between; align-items:center;">
-          <button class="btn btn-ghost" id="actionsPrev" disabled>← Prev</button>
+          <button class="btn btn--ghost" id="actionsPrev" disabled>← Prev</button>
           <span id="actionsPageInfo" style="font-size:12px; color:var(--muted);"></span>
-          <button class="btn btn-ghost" id="actionsNext" disabled>Next →</button>
+          <button class="btn btn--ghost" id="actionsNext" disabled>Next →</button>
         </div>
       </div>
 
@@ -307,7 +307,7 @@
   <div class="msg" id="auditBannerMsg"></div>
   <div class="row">
     <button class="btn" id="auditBannerCheck">Find stuck rows</button>
-    <button class="btn btn-ghost" id="auditBannerDismiss">Dismiss</button>
+    <button class="btn btn--ghost" id="auditBannerDismiss">Dismiss</button>
   </div>
   <div id="auditBannerResults" style="margin-top:10px; font-size:12px;"></div>
 </div>
@@ -578,7 +578,7 @@ async function loadActions() {
           ${a.cost_usd ? ` · <span class="num">${fmt$(a.cost_usd)}</span>` : ''}
           ${a.tokens_in || a.tokens_out ? ` · ${a.tokens_in}+${a.tokens_out} tok` : ''}
           ${a.duration_ms ? ` · ${a.duration_ms}ms` : ''}
-          ${a.needs_review && !a.reviewed_at ? ` · <button class="btn btn-ghost" data-review="${a.id}" data-decision="approved" style="padding:3px 9px; font-size:12px;">Approve</button> <button class="btn btn-danger" data-review="${a.id}" data-decision="rejected" style="padding:3px 9px; font-size:12px;">Reject</button>` : ''}
+          ${a.needs_review && !a.reviewed_at ? ` · <button class="btn btn--ghost" data-review="${a.id}" data-decision="approved" style="padding:3px 9px; font-size:12px;">Approve</button> <button class="btn btn--danger" data-review="${a.id}" data-decision="rejected" style="padding:3px 9px; font-size:12px;">Reject</button>` : ''}
           ${a.review_status ? ` · <span class="badge badge-${a.review_status === 'approved' || a.review_status === 'executed' ? 'on' : 'off'}">${escapeHtml(a.review_status)}</span>` : ''}
         </div>
       `;
@@ -692,7 +692,7 @@ async function loadReviewQueue() {
           applyBtn = `<button class="btn" data-q-apply="${a.id}" data-q-kind="gatekeeper" style="padding:4px 10px; font-size:12px;" title="Execute the recommendation (sets provider role to ${rec === 'approve' ? 'provider' : 'member'})">Apply (${escapeHtml(rec)})</button>`;
         }
         if (providerId && !isSmokeRow) {
-          extraBtn = `<button class="btn btn-danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`;
+          extraBtn = `<button class="btn btn--danger" data-q-suspend="${escapeHtml(providerId)}" style="padding:4px 10px; font-size:12px;" title="Suspend this provider">Suspend</button>`;
         }
       } else if (agentSlug === 'treasurer') {
         // Task #319: Treasurer Apply paths. The recommendation drives the
@@ -767,8 +767,8 @@ async function loadReviewQueue() {
           <div><span class="action-agent">${escapeHtml(a.action_type)}</span>${smokeBadge}${dismissHint}${recPill} <span class="action-time">· ${fmtTime(a.created_at)}</span></div>
           <div class="row">
             ${applyBtn}
-            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Mark approved</button>
-            <button class="btn btn-ghost" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Reject</button>
+            <button class="btn btn--ghost" data-q-review="${a.id}" data-decision="approved" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Mark approved</button>
+            <button class="btn btn--ghost" data-q-review="${a.id}" data-decision="rejected" style="padding:4px 10px; font-size:12px;" title="Mark reviewed without applying">Reject</button>
             ${extraBtn}
           </div>
         </div>
@@ -1101,8 +1101,8 @@ async function loadPromptHistory() {
       div.dataset.version = String(v.version);
       div.title = 'Click to diff against the currently active version';
       const activeBadge = v.is_active ? '<span class="badge badge-on">active</span>' : '';
-      const loadBtn = `<button class="btn btn-ghost" data-load="${v.version}" style="padding:3px 9px; font-size:12px;" title="Pull this version's body into the editor textarea — does not change what's running in production">Load into editor</button>`;
-      const rollbackBtn = v.is_active ? '' : `<button class="btn btn-ghost" data-activate="${v.version}" style="padding:3px 9px; font-size:12px;">Roll back</button>`;
+      const loadBtn = `<button class="btn btn--ghost" data-load="${v.version}" style="padding:3px 9px; font-size:12px;" title="Pull this version's body into the editor textarea — does not change what's running in production">Load into editor</button>`;
+      const rollbackBtn = v.is_active ? '' : `<button class="btn btn--ghost" data-activate="${v.version}" style="padding:3px 9px; font-size:12px;">Roll back</button>`;
       div.innerHTML = `
         <div class="memory-head">
           <div><span class="memory-kind">v${v.version}</span> ${activeBadge} ${v.notes ? `· <span style="color:var(--text); font-size:13px;">${escapeHtml(v.notes)}</span>` : ''}</div>

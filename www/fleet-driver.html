@@ -128,8 +128,8 @@
       transition: all 0.15s;
       text-decoration: none;
     }
-    .btn-primary { background: var(--accent-gold); color: #12161c; }
-    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
+    .btn--primary { background: var(--accent-gold); color: #12161c; }
+    .btn--secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
     .btn-block { width: 100%; justify-content: center; padding: 14px 20px; }
     .alert-banner {
       padding: 14px 18px;
@@ -201,7 +201,7 @@
         <div class="header-sub" id="driver-name-sub">Loading...</div>
       </div>
     </div>
-    <button class="btn btn-secondary" style="padding:8px 14px;font-size:0.82rem;" onclick="logout()">Sign Out</button>
+    <button class="btn btn--secondary" style="padding:8px 14px;font-size:0.82rem;" onclick="logout()">Sign Out</button>
   </header>
 
   <main class="main">
@@ -255,7 +255,7 @@
               style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.92rem;font-family:inherit;">
           </div>
           <div style="display:flex;gap:10px;align-items:center;">
-            <button class="btn btn-primary" onclick="submitMileage()" style="flex:1;">Save Mileage</button>
+            <button class="btn btn--primary" onclick="submitMileage()" style="flex:1;">Save Mileage</button>
             <span id="mileage-status" style="font-size:0.85rem;color:var(--text-muted);"></span>
           </div>
         </div>
@@ -297,7 +297,7 @@
             <label style="display:block;font-size:0.85rem;color:var(--text-secondary);margin-bottom:6px;">Description</label>
             <textarea id="report-description" placeholder="Describe the issue..." rows="4" style="width:100%;padding:10px 14px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);font-size:0.92rem;font-family:inherit;resize:vertical;"></textarea>
           </div>
-          <button class="btn btn-primary btn-block" onclick="submitReport()">Submit Report</button>
+          <button class="btn btn--primary btn-block" onclick="submitReport()">Submit Report</button>
         </div>
 
         <div class="card">
@@ -318,8 +318,8 @@
         <div class="card">
           <div class="card-title">Quick Links</div>
           <div style="display:flex;flex-direction:column;gap:10px;">
-            <a href="/fleet/driver" class="btn btn-secondary btn-block" onclick="showSection('vehicle');return false;">View My Vehicle</a>
-            <a href="/fleet/driver" class="btn btn-secondary btn-block" onclick="showSection('profile');return false;">My Profile</a>
+            <a href="/fleet/driver" class="btn btn--secondary btn-block" onclick="showSection('vehicle');return false;">View My Vehicle</a>
+            <a href="/fleet/driver" class="btn btn--secondary btn-block" onclick="showSection('profile');return false;">My Profile</a>
           </div>
         </div>
       </div>

@@ -650,7 +650,7 @@
       <div id="notif-content" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title">Notifications</h2>
-          <button class="btn btn-secondary btn-sm" onclick="markAllRead()" id="mark-all-btn" style="display:none;">Mark All Read</button>
+          <button class="btn btn--secondary btn--small" onclick="markAllRead()" id="mark-all-btn" style="display:none;">Mark All Read</button>
         </div>
         <div id="notif-list"></div>
         <div id="notif-empty" class="empty-state" style="display:none;">
@@ -916,13 +916,13 @@
               ${club.rules_text ? `<details style="margin-bottom:12px;font-size:0.82rem;color:var(--text-secondary);"><summary style="cursor:pointer;color:var(--text-primary);font-weight:500;">Club Rules &amp; Terms</summary><div style="margin-top:6px;white-space:pre-wrap;">${escHtml(club.rules_text)}</div></details>` : ''}
               ${progressHtml || '<div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:16px;">No reward rules set up yet</div>'}
               <div class="club-card-footer" style="display:flex;gap:8px;flex-wrap:wrap;">
-                <button class="btn btn-secondary btn-sm" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>
-                <button class="btn btn-danger btn-sm" onclick="leaveClub('${club.club_id}', '${escHtml(club.name)}')">Leave Club</button>
+                <button class="btn btn--secondary btn--small" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>
+                <button class="btn btn--danger btn--small" onclick="leaveClub('${club.club_id}', '${escHtml(club.name)}')">Leave Club</button>
               </div>
               <div class="review-form" id="review-form-${club.club_id}" style="display:none;">
                 ${buildStarRating(club.club_id, 0)}
                 <textarea id="review-text-${club.club_id}" placeholder="Share your experience..."></textarea>
-                <button class="btn btn-metallic btn-sm" onclick="submitReview('${club.club_id}')">Submit Review</button>
+                <button class="btn btn-metallic btn--small" onclick="submitReview('${club.club_id}')">Submit Review</button>
               </div>
             </div>`;
           }).join('');
@@ -1022,7 +1022,7 @@
               <div class="club-card-footer">
                 ${isJoined
                   ? '<span class="joined-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Joined</span>'
-                  : `<button class="btn btn-metallic btn-sm" onclick="joinClub('${club.id}', '${escHtml(club.name)}')">Join</button>`
+                  : `<button class="btn btn-metallic btn--small" onclick="joinClub('${club.id}', '${escHtml(club.name)}')">Join</button>`
                 }
               </div>
             </div>`;
@@ -1060,7 +1060,7 @@
               <div class="club-card-footer">
                 ${isJoined
                   ? '<span class="joined-badge"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><polyline points="20 6 9 17 4 12"/></svg> Joined</span>'
-                  : `<button class="btn btn-metallic btn-sm" onclick="joinClub('${club.id}', '${escHtml(club.name)}')">Join</button>`
+                  : `<button class="btn btn-metallic btn--small" onclick="joinClub('${club.id}', '${escHtml(club.name)}')">Join</button>`
                 }
               </div>
             </div>`;
@@ -1218,7 +1218,7 @@
                 <div class="notif-time">${formatDate(n.created_at)}</div>
               </div>
               <div class="notif-actions">
-                <button class="btn btn-secondary btn-sm" onclick="markRead('${n.id}')">Mark Read</button>
+                <button class="btn btn--secondary btn--small" onclick="markRead('${n.id}')">Mark Read</button>
               </div>
             </div>`;
           }).join('');

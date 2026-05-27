@@ -189,15 +189,15 @@
       width: 100%;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, #c9a227 0%, #dbb84a 100%);
       color: #12161c;
     }
 
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(201, 162, 39, 0.4); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(201, 162, 39, 0.4); }
+    .btn--primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -306,7 +306,7 @@
       <div id="login-state" style="display:none;">
         <div class="login-prompt">
           <p style="font-size:1.1rem;margin-bottom:16px;">Please log in to pay your share</p>
-          <a href="/members.html" class="btn btn-primary">Log In</a>
+          <a href="/members.html" class="btn btn--primary">Log In</a>
         </div>
       </div>
 
@@ -338,7 +338,7 @@
         <div id="card-element"></div>
         <div id="card-errors"></div>
 
-        <button id="pay-btn" class="btn btn-primary" onclick="handlePay()">
+        <button id="pay-btn" class="btn btn--primary" onclick="handlePay()">
           <span class="icon-inline" data-icon="credit-card"></span> Pay Now
         </button>
       </div>
@@ -349,7 +349,7 @@
           <h2>Payment Complete!</h2>
           <p id="success-message">Your share has been paid successfully.</p>
           <div style="margin-top:24px;">
-            <a href="/" class="btn btn-secondary" id="success-link">Go to Dashboard</a>
+            <a href="/" class="btn btn--secondary" id="success-link">Go to Dashboard</a>
           </div>
         </div>
       </div>
@@ -360,7 +360,7 @@
           <h2>Already Paid</h2>
           <p>You have already paid your share for this split payment.</p>
           <div style="margin-top:24px;">
-            <a href="/members.html" class="btn btn-secondary">Go to Dashboard</a>
+            <a href="/members.html" class="btn btn--secondary">Go to Dashboard</a>
           </div>
         </div>
       </div>
@@ -370,7 +370,7 @@
           <p style="font-size:2rem;margin-bottom:12px;"><span class="icon-inline" data-icon="alert-triangle"></span></p>
           <p id="error-message">Something went wrong.</p>
           <div style="margin-top:24px;">
-            <a href="/members.html" class="btn btn-secondary">Go to Dashboard</a>
+            <a href="/members.html" class="btn btn--secondary">Go to Dashboard</a>
           </div>
         </div>
       </div>

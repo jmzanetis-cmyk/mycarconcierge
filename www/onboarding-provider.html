@@ -247,7 +247,7 @@
       display: none;
     }
 
-    .btn-next {
+    .btn--primary {
       width: 100%;
       padding: 16px 24px;
       background: #C9A84C;
@@ -266,11 +266,11 @@
       margin-top: 8px;
     }
 
-    .btn-next:hover { background: #b8942d; transform: translateY(-1px); }
-    .btn-next:active { transform: translateY(0); }
-    .btn-next:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .btn--primary:hover { background: #b8942d; transform: translateY(-1px); }
+    .btn--primary:active { transform: translateY(0); }
+    .btn--primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
-    .btn-next svg {
+    .btn--primary svg {
       width: 20px;
       height: 20px;
       stroke: currentColor;
@@ -280,7 +280,7 @@
       stroke-linejoin: round;
     }
 
-    .btn-skip {
+    .btn--secondary {
       width: 100%;
       padding: 14px 24px;
       background: transparent;
@@ -295,7 +295,7 @@
       transition: color 0.2s ease;
     }
 
-    .btn-skip:hover { color: #ffffff; }
+    .btn--secondary:hover { color: #ffffff; }
 
     /* ─── BGC onboarding panels (Task #115) ─── */
     .bgc-detail-block { margin: 18px 0; }
@@ -997,7 +997,7 @@
       .step { padding: 70px 20px 20px; }
       .step-question { font-size: 1.4rem; }
       .input-field, .select-field, .textarea-field { padding: 14px 16px; font-size: 1rem; }
-      .btn-next { padding: 14px 20px; }
+      .btn--primary { padding: 14px 20px; }
       .type-grid { grid-template-columns: repeat(2, 1fr); gap: 8px; }
       .type-card { padding: 12px; }
       .services-grid { grid-template-columns: 1fr 1fr; }
@@ -1045,7 +1045,7 @@
             <input type="text" class="input-field" id="input-contact-name" placeholder="Your full name" autocomplete="name" aria-label="Your full name" autofocus>
             <div class="input-error" id="error-contact-name">Please enter your name</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <div class="oauth-divider">or</div>
           <button type="button" class="btn-apple-signup" id="apple-signup-btn" onclick="signUpWithApple()">
             <svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
@@ -1074,7 +1074,7 @@
             <input type="email" class="input-field" id="input-email" placeholder="you@yourbusiness.com" autocomplete="email" aria-label="Email address">
             <div class="input-error" id="error-email">Please enter a valid email address</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1089,7 +1089,7 @@
             <input type="tel" class="input-field" id="input-phone" placeholder="(555) 123-4567" autocomplete="tel" aria-label="Phone number">
             <div class="input-error" id="error-phone">Please enter a phone number</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1111,7 +1111,7 @@
             <div class="password-rule" id="rule-length"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> At least 6 characters</div>
             <div class="password-rule" id="rule-match"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg> Passwords match</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1126,7 +1126,7 @@
             <input type="text" class="input-field" id="input-business" placeholder="Business name (e.g. Elite Auto Care)" autocomplete="organization" aria-label="Business name">
             <div class="input-error" id="error-business">Please enter your business name</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1172,7 +1172,7 @@
             </div>
           </div>
           <div class="input-error" id="error-type">Please select your business type</div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1187,7 +1187,7 @@
             <input type="text" class="input-field" id="input-location" placeholder="Start typing your city..." autocomplete="off" aria-label="Business location">
             <div class="input-error" id="error-location">Please enter your city and state (e.g. Chicago, IL)</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1201,7 +1201,7 @@
           <div class="services-grid" id="services-grid">
           </div>
           <div class="input-error" id="error-services">Please select at least one service</div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1216,7 +1216,7 @@
             <input type="number" class="input-field" id="input-years" placeholder="Years in business" min="0" max="100" inputmode="numeric" aria-label="Years in business">
             <div class="input-error" id="error-years">Please enter your years of experience</div>
           </div>
-          <button class="btn-next" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="nextStep()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1242,7 +1242,7 @@
               <input type="text" class="input-field" id="input-referral" placeholder="e.g. MCC-PROVIDER123" autocomplete="off" aria-label="Referral code">
             </div>
           </div>
-          <button class="btn-next" id="btn-submit" onclick="submitSignup()">Create Provider Account <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" id="btn-submit" onclick="submitSignup()">Create Provider Account <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <div class="input-error" id="error-terms" style="text-align:center">Please agree to the Terms and Provider Agreement</div>
         </div>
       </div>
@@ -1265,8 +1265,8 @@
             <input type="text" class="input-field" id="input-vehicle-model" placeholder="Model (e.g. Camry)" aria-label="Vehicle model">
             <div class="input-error" id="error-vehicle">Please enter your vehicle's year, make, and model</div>
           </div>
-          <button class="btn-next" onclick="saveVehicleAndContinue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" onclick="skipVehicle()">I'll add my car later</button>
+          <button class="btn--primary" onclick="saveVehicleAndContinue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--secondary" onclick="skipVehicle()">I'll add my car later</button>
         </div>
       </div>
 
@@ -1303,8 +1303,8 @@
               <div class="category-card-label">Other</div>
             </div>
           </div>
-          <button class="btn-next" id="btn-category-next" onclick="categoryNext()" style="opacity:0.5;pointer-events:none">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" onclick="skipRequest()">I'll create a request later</button>
+          <button class="btn--primary" id="btn-category-next" onclick="categoryNext()" style="opacity:0.5;pointer-events:none">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--secondary" onclick="skipRequest()">I'll create a request later</button>
         </div>
       </div>
 
@@ -1322,7 +1322,7 @@
             <textarea class="textarea-field" id="input-request-desc" placeholder="Any additional details — mileage, symptoms, preferred timing, etc." rows="4" aria-label="Request description"></textarea>
             <div class="input-error" id="error-request">Please enter a title for your request</div>
           </div>
-          <button class="btn-next" onclick="submitRequest()">Submit Request <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" onclick="submitRequest()">Submit Request <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1348,8 +1348,8 @@
             <div class="bgc-detail-label" id="bgc-s1-need-label"></div>
             <div class="bgc-detail-text" id="bgc-s1-need-text"></div>
           </div>
-          <button class="btn-next" id="bgc-s1-cta" onclick="bgcStep1Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" id="bgc-s1-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn--primary" id="bgc-s1-cta" onclick="bgcStep1Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--secondary" id="bgc-s1-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1365,8 +1365,8 @@
           <div id="bgc-employee-rows"></div>
           <button type="button" class="bgc-add-row-btn" id="bgc-s2-add-row" onclick="bgcAddRow()">+ Add another employee</button>
           <div class="bgc-row-error" id="bgc-s2-error">Please complete at least one employee row (name, date of birth, email, and address) before continuing.</div>
-          <button class="btn-next" id="bgc-s2-cta" onclick="bgcStep2Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" id="bgc-s2-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn--primary" id="bgc-s2-cta" onclick="bgcStep2Continue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--secondary" id="bgc-s2-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1380,8 +1380,8 @@
           <p class="step-subtitle" id="bgc-s3-body"></p>
           <div class="bgc-authorize-box" id="bgc-s3-authorize"></div>
           <p class="bgc-helper-text" id="bgc-s3-summary">You're about to start checks for <span id="bgc-s3-count">0</span> employee(s).</p>
-          <button class="btn-next" id="bgc-s3-cta" onclick="bgcStep3Confirm()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" id="bgc-s3-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn--primary" id="bgc-s3-cta" onclick="bgcStep3Confirm()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--secondary" id="bgc-s3-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1397,10 +1397,10 @@
           <p class="step-subtitle" id="bgc-s4-body"></p>
           <div class="bgc-detail-label" id="bgc-s4-next-label"></div>
           <ul class="bgc-bullets" id="bgc-s4-bullets"></ul>
-          <button class="btn-next" id="bgc-s4-cta" onclick="bgcFinish()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--primary" id="bgc-s4-cta" onclick="bgcFinish()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <!-- T001 acceptance: every BGC panel ships with Continue + Skip.
                On step 4 both routes land on the same success screen. -->
-          <button class="btn-skip" id="bgc-s4-skip" onclick="bgcSkip()">Skip for now</button>
+          <button class="btn--secondary" id="bgc-s4-skip" onclick="bgcSkip()">Skip for now</button>
         </div>
       </div>
 
@@ -1435,8 +1435,8 @@
               <div class="next-step-text" data-mcc-lang="es" hidden><strong>Obtén la Verificación MCC</strong> — realiza verificaciones de antecedentes a tus empleados con contacto con clientes y obtén la insignia MCC Verificado en tu ficha y en tu Car Club. Los miembros pueden filtrar para ver solo proveedores verificados, así que la insignia te trae más trabajos.</div>
             </div>
           </div>
-          <button class="btn-next" onclick="window.location.href='login.html?returnTo=/providers.html'">Log In &amp; Start Bidding <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn-skip" onclick="window.location.href='login.html'" style="margin-top:8px;">Just go to login</button>
+          <button class="btn--primary" onclick="window.location.href='login.html?returnTo=/providers.html'">Log In &amp; Start Bidding <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
+          <button class="btn--secondary" onclick="window.location.href='login.html'" style="margin-top:8px;">Just go to login</button>
         </div>
       </div>
 

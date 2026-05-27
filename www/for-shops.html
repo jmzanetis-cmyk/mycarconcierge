@@ -33,11 +33,11 @@
     .nav-logo-text { font-family: 'Playfair Display', serif; font-size: 1.1rem; }
     .nav-ctas { display: flex; align-items: center; gap: 12px; }
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 22px; font-family: inherit; font-size: 0.9rem; font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; text-decoration: none; }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.4); }
-    .btn-outline { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-outline:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
-    .btn-lg { padding: 14px 32px; font-size: 1rem; border-radius: 12px; }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 6px 20px rgba(201,162,39,0.4); }
+    .btn--secondary { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--secondary:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+    .btn--large { padding: 14px 32px; font-size: 1rem; border-radius: 12px; }
 
     /* HERO */
     .hero { text-align: center; padding: 100px 24px 80px; background: radial-gradient(ellipse 120% 80% at 50% -10%, rgba(201,162,39,0.12) 0%, transparent 70%); }
@@ -151,8 +151,8 @@
     <span class="nav-logo-text">My Car Concierge</span>
   </a>
   <div class="nav-ctas">
-    <a href="/providers.html" class="btn btn-outline" style="display:none;" id="nav-signin">Sign In</a>
-    <a href="/providers.html" class="btn btn-primary">Start Free Trial</a>
+    <a href="/providers.html" class="btn btn--secondary" style="display:none;" id="nav-signin">Sign In</a>
+    <a href="/providers.html" class="btn btn--primary">Start Free Trial</a>
   </div>
 </nav>
 
@@ -162,8 +162,8 @@
   <h1>Run your whole shop<br/><span>from one app.</span></h1>
   <p>Kiosk check-in, job tracking, team management, POS integration, analytics, and loyalty programs — everything your shop needs, nothing you don't.</p>
   <div class="hero-ctas">
-    <a href="/providers.html" class="btn btn-primary btn-lg">Start Free 14-Day Trial</a>
-    <a href="#features" class="btn btn-outline btn-lg">See Features</a>
+    <a href="/providers.html" class="btn btn--primary btn--large">Start Free 14-Day Trial</a>
+    <a href="#features" class="btn btn--secondary btn--large">See Features</a>
   </div>
   <div class="hero-social-proof">
     Trusted by independent auto shops. <strong>No contracts. Cancel anytime.</strong>
@@ -311,7 +311,7 @@
           <li class="locked">Car Club Loyalty</li>
           <li class="locked">Advanced analytics</li>
         </ul>
-        <a href="/providers.html" class="btn btn-outline" style="width:100%; justify-content:center;">Get Started</a>
+        <a href="/providers.html" class="btn btn--secondary" style="width:100%; justify-content:center;">Get Started</a>
       </div>
       <div class="pricing-card popular">
         <div class="popular-badge">Most Popular</div>
@@ -328,7 +328,7 @@
           <li>AI bid strategy insights</li>
           <li>Priority support</li>
         </ul>
-        <a href="/providers.html" class="btn btn-primary" style="width:100%; justify-content:center;">Start Free Trial</a>
+        <a href="/providers.html" class="btn btn--primary" style="width:100%; justify-content:center;">Start Free Trial</a>
       </div>
       <div class="pricing-card">
         <h3>Shop</h3>
@@ -343,7 +343,7 @@
           <li>API access</li>
           <li>Dedicated support</li>
         </ul>
-        <a href="/providers.html" class="btn btn-outline" style="width:100%; justify-content:center;">Get Started</a>
+        <a href="/providers.html" class="btn btn--secondary" style="width:100%; justify-content:center;">Get Started</a>
       </div>
     </div>
     <p style="text-align:center; margin-top:24px; font-size:0.85rem; color:var(--text-muted);">All plans include a 14-day free trial. No credit card required to start.</p>
@@ -367,7 +367,7 @@
     <div class="cta-banner">
       <h2>Ready to level up your shop?</h2>
       <p>Join auto shops that are running smarter with My Car Concierge. 14 days free — no credit card needed.</p>
-      <a href="/providers.html" class="btn btn-primary btn-lg">Start Free Trial →</a>
+      <a href="/providers.html" class="btn btn--primary btn--large">Start Free Trial →</a>
     </div>
   </div>
 </section>

@@ -109,15 +109,15 @@
 
     /* ===== BUTTONS ===== */
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 26px; border-radius: 12px; font-family: inherit; font-size: 0.97rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; }
-    .btn-gold { background: linear-gradient(135deg, var(--gold), #e8c56a); color: var(--navy); box-shadow: 0 4px 14px rgba(201,168,76,0.35); width: 100%; max-width: 380px; }
-    .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201,168,76,0.45); }
-    .btn-gold:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
-    .btn-ghost { background: transparent; color: var(--text-muted); font-weight: 500; font-size: 0.88rem; padding: 9px 18px; border: none; cursor: pointer; font-family: inherit; }
-    .btn-ghost:hover { color: var(--navy); }
+    .btn--primary { background: linear-gradient(135deg, var(--gold), #e8c56a); color: var(--navy); box-shadow: 0 4px 14px rgba(201,168,76,0.35); width: 100%; max-width: 380px; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201,168,76,0.45); }
+    .btn--primary:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
+    .btn--ghost { background: transparent; color: var(--text-muted); font-weight: 500; font-size: 0.88rem; padding: 9px 18px; border: none; cursor: pointer; font-family: inherit; }
+    .btn--ghost:hover { color: var(--navy); }
     .btn-navy { background: var(--navy); color: var(--white); box-shadow: 0 4px 14px rgba(27,42,74,0.22); width: 100%; max-width: 380px; }
     .btn-navy:hover { background: var(--navy-light); transform: translateY(-2px); }
-    .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); font-size: 0.92rem; padding: 11px 22px; width: 100%; max-width: 380px; }
-    .btn-outline:hover { background: var(--navy); color: var(--white); }
+    .btn--secondary { background: transparent; border: 2px solid var(--navy); color: var(--navy); font-size: 0.92rem; padding: 11px 22px; width: 100%; max-width: 380px; }
+    .btn--secondary:hover { background: var(--navy); color: var(--white); }
 
     /* ===== FORM STYLES ===== */
     .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
@@ -264,7 +264,7 @@
         <div class="msg error" id="q1-error">Please select at least one option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ1()">Next &rarr;</button>
+          <button class="btn btn--primary" onclick="nextFromQ1()">Next &rarr;</button>
           <p class="cta-note">No account needed &bull; About 90 seconds</p>
         </div>
       </div>
@@ -296,8 +296,8 @@
         <div class="msg error" id="q2-error">Please select an option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ2()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q1')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromQ2()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q1')">&#8592; Back</button>
         </div>
       </div>
 
@@ -322,8 +322,8 @@
         <div class="msg error" id="q3-error">Please select an option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ3()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q2')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromQ3()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q2')">&#8592; Back</button>
         </div>
       </div>
 
@@ -360,8 +360,8 @@
         <div class="msg error" id="q4-error">Please select at least one option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ4()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q3')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromQ4()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q3')">&#8592; Back</button>
         </div>
       </div>
 
@@ -395,8 +395,8 @@
         <div class="msg error" id="q5-error">Please select at least one option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" id="btn-finish-discovery" onclick="nextFromQ5()">See What We Found &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q4')">&#8592; Back</button>
+          <button class="btn btn--primary" id="btn-finish-discovery" onclick="nextFromQ5()">See What We Found &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q4')">&#8592; Back</button>
         </div>
       </div>
 
@@ -426,10 +426,10 @@
           </div>
 
           <div class="reveal-cta">
-            <button class="btn btn-gold" onclick="goToStep('ob1')">
+            <button class="btn btn--primary" onclick="goToStep('ob1')">
               I want in &rarr; Create my free profile
             </button>
-            <button class="btn-ghost" onclick="goToStep('ni')">
+            <button class="btn--ghost" onclick="goToStep('ni')">
               Just notify me when it launches near me
             </button>
           </div>
@@ -449,8 +449,8 @@
         <div class="msg error" id="ob1-error">Please enter your first name.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromOb1()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('reveal')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromOb1()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('reveal')">&#8592; Back</button>
         </div>
         <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Your answers are kept private. We never sell your data.</p>
       </div>
@@ -484,8 +484,8 @@
         <div class="msg error" id="ob2-error">Please enter a valid email address.</div>
 
         <div class="cta-area" style="margin-top:20px;">
-          <button class="btn btn-gold" onclick="nextFromOb2()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('ob1')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromOb2()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('ob1')">&#8592; Back</button>
         </div>
         <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>We use your email only to notify you when MCC launches near you. We never sell or share your personal information. <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--gold-dark);text-decoration:underline;">Privacy Policy</a>.</p>
       </div>
@@ -514,9 +514,9 @@
         <div class="msg error" id="ob3-error"></div>
 
         <div class="cta-area" style="margin-top:20px;">
-          <button class="btn btn-gold" id="btn-create-profile" onclick="createProfile()">Create My Free Profile &rarr;</button>
+          <button class="btn btn--primary" id="btn-create-profile" onclick="createProfile()">Create My Free Profile &rarr;</button>
           <span class="skip-link" onclick="createProfile()">Skip for now</span>
-          <button class="btn-ghost" onclick="goToStep('ob2')">&#8592; Back</button>
+          <button class="btn--ghost" onclick="goToStep('ob2')">&#8592; Back</button>
         </div>
         <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vehicle info is optional and stored privately in your profile. You can add or update it anytime.</p>
       </div>
@@ -570,7 +570,7 @@
             </button>
           </div>
 
-          <button class="btn-ghost" id="ni-back-btn" onclick="goToStep('reveal')" style="margin-top:6px;">
+          <button class="btn--ghost" id="ni-back-btn" onclick="goToStep('reveal')" style="margin-top:6px;">
             &#8592; Actually, tell me more
           </button>
         </div>
@@ -931,7 +931,7 @@
       const d = await r.json();
       if (bodyEl) bodyEl.textContent = 'Your profile is set up. ' + d.message;
       if (ctaArea && d.live) {
-        ctaArea.innerHTML = '<a href="/signup-member.html" class="btn btn-gold" style="text-decoration:none; display:inline-flex;">Join the Platform Now &rarr;</a>';
+        ctaArea.innerHTML = '<a href="/signup-member.html" class="btn btn--primary" style="text-decoration:none; display:inline-flex;">Join the Platform Now &rarr;</a>';
       }
     } catch (e) {
       if (bodyEl) bodyEl.textContent = 'Your profile is set up. We\'ll notify you the moment My Car Concierge launches near you.';

@@ -321,7 +321,7 @@
       .fundraising-banner .fb-text { display: none; }
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -556,7 +556,7 @@
       animation: fadeInUp 0.6s ease 0.3s both;
     }
     
-    .btn-lg {
+    .btn--large {
       padding: 18px 36px;
       font-size: 1.1rem;
     }
@@ -641,66 +641,66 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
       color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
       box-shadow: 0 2px 12px rgba(201, 162, 39, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 16px rgba(0,0,0,0.25);
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-medium);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       background: rgba(38, 38, 52, 0.9);
       border-color: var(--accent-blue);
     }
     
     /* Light mode buttons - deeper gold for higher contrast (23% more clicks) */
-    [data-theme="light"] .btn-primary {
+    [data-theme="light"] .btn--primary {
       background: linear-gradient(135deg, #b8942d, #d4a63a);
       color: #ffffff; /* Intentionally hardcoded: white text on gold for contrast */
       box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
       font-weight: 600;
     }
-    [data-theme="light"] .btn-primary:hover {
+    [data-theme="light"] .btn--primary:hover {
       background: linear-gradient(135deg, #a6852a, #c49a35);
       box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
     }
-    [data-theme="light"] .btn-secondary {
+    [data-theme="light"] .btn--secondary {
       background: #ffffff;
       color: var(--accent-blue);
       border: 2px solid var(--accent-blue);
       font-weight: 500;
     }
-    [data-theme="light"] .btn-secondary:hover {
+    [data-theme="light"] .btn--secondary:hover {
       background: var(--accent-blue);
       color: #ffffff; /* Intentionally hardcoded: white text on dark background for contrast */
       border-color: var(--accent-blue);
     }
 
-    .btn-outline-gold {
+    .btn--ghost {
       background: transparent;
       color: var(--accent-gold);
       border: 2px solid var(--accent-gold);
       font-weight: 600;
     }
-    .btn-outline-gold:hover {
+    .btn--ghost:hover {
       background: var(--accent-gold);
       color: #1a1a2e;
     }
-    [data-theme="light"] .btn-outline-gold {
+    [data-theme="light"] .btn--ghost {
       color: #b8942d;
       border-color: #b8942d;
     }
-    [data-theme="light"] .btn-outline-gold:hover {
+    [data-theme="light"] .btn--ghost:hover {
       background: #b8942d;
       color: #ffffff;
     }
@@ -776,7 +776,7 @@
       color: var(--text-muted);
     }
 
-    .btn-login-hero {
+    .btn--primary {
       background: #C9A84C;
       color: #0F1923;
       padding: 14px 28px;
@@ -784,7 +784,7 @@
       box-shadow: 0 2px 12px rgba(201, 168, 76, 0.3);
     }
 
-    .btn-login-hero:hover {
+    .btn--primary:hover {
       transform: translateY(-1px);
       box-shadow: 0 4px 16px rgba(201, 168, 76, 0.35);
     }
@@ -1015,7 +1015,7 @@
     [data-theme="light"] .mobile-nav a:hover {
       color: var(--accent-gold);
     }
-    [data-theme="light"] .mobile-nav .btn-login {
+    [data-theme="light"] .mobile-nav .btn--primary {
       color: #ffffff;
     }
     [data-theme="light"] .mobile-menu-btn span {
@@ -1264,23 +1264,23 @@
       transition: all 0.3s ease;
     }
 
-    .founder-card .btn-gold {
+    .founder-card .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #c49a45);
       color: #12161c;
     }
 
-    .founder-card .btn-gold:hover {
+    .founder-card .btn--primary:hover {
       filter: brightness(1.1);
       transform: translateY(-1px);
     }
 
-    .founder-card .btn-outline-gold {
+    .founder-card .btn--ghost {
       border: 2px solid var(--accent-gold);
       color: var(--accent-gold);
       background: transparent;
     }
 
-    .founder-card .btn-outline-gold:hover {
+    .founder-card .btn--ghost:hover {
       background: rgba(201, 169, 98, 0.1);
     }
 
@@ -1308,11 +1308,11 @@
     [data-theme="light"] .founder-urgency {
       color: #b8942d;
     }
-    [data-theme="light"] .founder-card .btn-gold {
+    [data-theme="light"] .founder-card .btn--primary {
       background: linear-gradient(135deg, #b8942d, #a0812a);
       color: #ffffff;
     }
-    [data-theme="light"] .founder-card .btn-outline-gold {
+    [data-theme="light"] .founder-card .btn--ghost {
       border-color: #b8942d;
       color: #b8942d;
     }
@@ -1819,7 +1819,7 @@
       color: var(--accent-gold);
     }
     
-    .mobile-nav .btn-login {
+    .mobile-nav .btn--primary {
       margin-top: 16px;
       background: linear-gradient(135deg, var(--accent-gold), #c49a4a);
       color: #0a0a0f; /* Intentionally hardcoded: dark text on gold for contrast */
@@ -1875,7 +1875,7 @@
         min-height: 48px; /* Ensure 44px+ touch target */
       }
       
-      .btn-lg {
+      .btn--large {
         padding: 16px 28px;
         font-size: 1rem;
       }
@@ -1934,7 +1934,7 @@
         width: 100%;
       }
 
-      .btn-login-hero {
+      .btn--primary {
         width: 100%;
         max-width: 300px;
         justify-content: center;
@@ -2162,13 +2162,13 @@
         </p>
         <p class="hero-nudge" data-i18n="landing.heroNudge">Setup takes 30 seconds. You never pay until you confirm the job is done.</p>
         <div class="hero-actions">
-          <a href="onboarding-member.html" class="btn btn-primary btn-lg" data-i18n="landing.getStartedFree">
+          <a href="onboarding-member.html" class="btn btn--primary btn--large" data-i18n="landing.getStartedFree">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
               <path stroke-linecap="round" stroke-linejoin="round" d="M12 4v16m8-8H4"/>
             </svg>
             Create Your Free Profile
           </a>
-          <a href="onboarding-provider.html" class="btn btn-secondary" data-i18n="landing.joinAsProviderFree">
+          <a href="onboarding-provider.html" class="btn btn--secondary" data-i18n="landing.joinAsProviderFree">
             I'm a Shop or Pro
           </a>
         </div>
@@ -2238,7 +2238,7 @@
             <div class="hero-login-row">
               <input type="email" id="hero-email" class="hero-input" placeholder="Email" data-i18n="auth.emailPlaceholder" data-i18n-attr="placeholder" required>
               <input type="password" id="hero-password" class="hero-input" placeholder="Password" data-i18n="auth.passwordPlaceholder" data-i18n-attr="placeholder" required autocomplete="current-password">
-              <button type="submit" class="btn btn-login-hero" data-i18n="common.login">Log In</button>
+              <button type="submit" class="btn btn--primary" data-i18n="common.login">Log In</button>
             </div>
             <div id="hero-login-error" class="hero-login-error" style="display:none;"></div>
             <div class="hero-login-links">
@@ -2260,7 +2260,7 @@
           <p data-i18n="landing.verifiedTrustBody" style="color:var(--text-secondary,#c8ccd6);font-size:1rem;line-height:1.6;margin:0 0 20px;">
             Every MCC Verified provider has passed comprehensive background screening for their team. Look for the &#10003; badge when browsing providers &mdash; it means their employees are screened, verified, and current.
           </p>
-          <a href="/providers-directory.html?verified=true" data-i18n="landing.verifiedTrustCta" class="btn btn-primary" style="display:inline-block;padding:12px 24px;text-decoration:none;border-radius:10px;background:#2e7d32;color:#fff;font-weight:600;">
+          <a href="/providers-directory.html?verified=true" data-i18n="landing.verifiedTrustCta" class="btn btn--primary" style="display:inline-block;padding:12px 24px;text-decoration:none;border-radius:10px;background:#2e7d32;color:#fff;font-weight:600;">
             Browse Verified Providers &rarr;
           </a>
         </div>
@@ -2414,12 +2414,12 @@
           <div class="founder-card">
             <h3>Member Founders</h3>
             <p>Refer providers to the platform and earn lifetime commissions on their bid credit purchases. Free to join — just sign up and start sharing your referral link.</p>
-            <a href="member-founder.html" class="btn btn-gold">Join as Member Founder</a>
+            <a href="member-founder.html" class="btn btn--primary">Join as Member Founder</a>
           </div>
           <div class="founder-card">
             <h3>Founding Providers</h3>
             <p>Be among the first providers on the platform. Build your reputation from day one, get early access to new features, and earn referral commissions by bringing other providers on board.</p>
-            <a href="provider-pilot.html" class="btn btn-outline-gold">Apply as Founding Provider</a>
+            <a href="provider-pilot.html" class="btn btn--ghost">Apply as Founding Provider</a>
           </div>
         </div>
         <div style="text-align:center;margin-top:24px;">
@@ -2634,8 +2634,8 @@
             Join auto owners who manage everything—service, maintenance, learning, and shopping—in one place.
           </p>
           <div class="cta-buttons">
-            <a href="onboarding-member.html" class="btn btn-primary" data-i18n="landing.getStartedFree">Get Started Free</a>
-            <a href="how-it-works.html" class="btn btn-secondary" data-i18n="common.learnMore">Learn More</a>
+            <a href="onboarding-member.html" class="btn btn--primary" data-i18n="landing.getStartedFree">Get Started Free</a>
+            <a href="how-it-works.html" class="btn btn--secondary" data-i18n="common.learnMore">Learn More</a>
           </div>
         </div>
       </div>

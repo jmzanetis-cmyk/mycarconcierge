@@ -138,23 +138,23 @@
     .provider-badges { display: flex; gap: 12px; flex-wrap: wrap; margin-bottom: 16px; }
     .badge-item { display: flex; align-items: center; gap: 4px; font-size: 0.78rem; color: var(--text-muted); }
     .badge-item svg { width: 14px; height: 14px; stroke: var(--accent-gold); }
-    .btn-quote {
+    .btn--primary {
       width: 100%; padding: 12px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
       color: #0a0a0f; border: none; border-radius: var(--radius-md); font-family: inherit;
       font-size: 0.9rem; font-weight: 600; cursor: pointer; transition: all 0.2s;
     }
-    .btn-quote:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
-    [data-theme="light"] .btn-quote { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
+    [data-theme="light"] .btn--primary { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
     .empty-state { text-align: center; padding: 80px 20px; color: var(--text-muted); }
     .empty-state svg { width: 64px; height: 64px; margin-bottom: 16px; stroke: var(--border-medium); }
     .empty-state h3 { font-size: 1.2rem; margin-bottom: 8px; color: var(--text-secondary); }
     .load-more { display: flex; justify-content: center; padding: 20px 0 60px; }
-    .btn-load-more {
+    .btn--secondary {
       padding: 12px 32px; background: var(--bg-elevated); color: var(--text-primary);
       border: 1px solid var(--border-subtle); border-radius: var(--radius-md);
       font-family: inherit; font-size: 0.9rem; cursor: pointer; transition: all 0.2s;
     }
-    .btn-load-more:hover { border-color: var(--accent-gold); }
+    .btn--secondary:hover { border-color: var(--accent-gold); }
     .results-count { text-align: center; color: var(--text-muted); font-size: 0.88rem; margin-bottom: 20px; }
     .loading-spinner { display: flex; justify-content: center; padding: 60px; }
     .spinner { width: 40px; height: 40px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; }
@@ -166,13 +166,13 @@
     @media (max-width: 768px) {
       .providers-grid { grid-template-columns: 1fr; }
       .filter-input { min-width: 0; flex: 1; }
-      nav a:not(.btn-cta) { display: none; }
+      nav a:not(.btn--primary) { display: none; }
     }
-    .btn-cta {
+    .btn--primary {
       padding: 8px 18px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
       color: #0a0a0f; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.88rem;
     }
-    [data-theme="light"] .btn-cta { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+    [data-theme="light"] .btn--primary { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
     .theme-toggle-pill {
       display: inline-flex; align-items: center; gap: 6px; padding: 6px 14px;
       background: var(--bg-elevated); border: 1px solid var(--border-subtle);
@@ -219,7 +219,7 @@
           <span id="theme-icon">&#9790;</span>
           <span id="theme-label">Night</span>
         </span>
-        <a href="/login.html" class="btn-cta">Log In</a>
+        <a href="/login.html" class="btn--primary">Log In</a>
       </nav>
     </div>
   </header>
@@ -270,7 +270,7 @@
     <div class="results-count" id="results-count"></div>
     <div id="providers-container"></div>
     <div class="load-more" id="load-more" style="display:none;">
-      <button class="btn-load-more" onclick="loadMore()">Load More Providers</button>
+      <button class="btn--secondary" onclick="loadMore()">Load More Providers</button>
     </div>
   </div>
 
@@ -392,7 +392,7 @@
         (p.description ? '<div class="provider-bio">' + escapeHtml(p.description) + '</div>' : '') +
         badgesHtml +
         mccSubtitleHtml +
-        '<button class="btn-quote" onclick="event.stopPropagation(); requestQuote(\'' + escapeHtml(p.slug) + '\')">Request a Quote</button>' +
+        '<button class="btn--primary" onclick="event.stopPropagation(); requestQuote(\'' + escapeHtml(p.slug) + '\')">Request a Quote</button>' +
       '</div>';
     }
 

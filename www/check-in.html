@@ -231,39 +231,39 @@
       touch-action: manipulation;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #c49a45);
       color: #0a0a0f;
     }
 
-    .btn-primary:hover:not(:disabled) {
+    .btn--primary:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
     }
 
-    .btn-primary:disabled {
+    .btn--primary:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 2px solid var(--border-subtle);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       border-color: var(--accent-gold);
     }
 
-    .btn-ghost {
+    .btn--ghost {
       background: transparent;
       color: var(--text-secondary);
       min-height: auto;
       padding: 12px;
     }
 
-    .btn-ghost:hover {
+    .btn--ghost:hover {
       color: var(--text-primary);
     }
 
@@ -550,7 +550,7 @@
         <p class="screen-subtitle">Tap below to start your check-in</p>
         <div class="screen-content"></div>
         <div class="screen-footer">
-          <button class="btn btn-primary" onclick="startCheckin()">
+          <button class="btn btn--primary" onclick="startCheckin()">
             Begin Check-In
           </button>
         </div>
@@ -566,7 +566,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="phone-next-btn" onclick="submitPhone()" disabled>
+          <button class="btn btn--primary" id="phone-next-btn" onclick="submitPhone()" disabled>
             Next
           </button>
           <div class="restart-link">
@@ -595,7 +595,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="otp-verify-btn" onclick="verifyOtp()" disabled>
+          <button class="btn btn--primary" id="otp-verify-btn" onclick="verifyOtp()" disabled>
             Verify
           </button>
           <div class="restart-link">
@@ -609,7 +609,7 @@
         <p class="screen-subtitle">Choose a vehicle or add a new one</p>
         <div class="screen-content">
           <div class="vehicle-list" id="vehicle-list"></div>
-          <button class="btn btn-secondary" id="add-vehicle-btn" onclick="toggleAddVehicle()">
+          <button class="btn btn--secondary" id="add-vehicle-btn" onclick="toggleAddVehicle()">
             + Add New Vehicle
           </button>
           <div class="add-vehicle-form" id="add-vehicle-form" style="display: none;">
@@ -634,7 +634,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="vehicle-next-btn" onclick="submitVehicle()" disabled>
+          <button class="btn btn--primary" id="vehicle-next-btn" onclick="submitVehicle()" disabled>
             Next
           </button>
           <div class="restart-link">
@@ -667,7 +667,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="service-next-btn" onclick="submitService()" disabled>
+          <button class="btn btn--primary" id="service-next-btn" onclick="submitService()" disabled>
             Next
           </button>
           <div class="restart-link">
@@ -704,7 +704,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="complete-btn" onclick="completeCheckin()">
+          <button class="btn btn--primary" id="complete-btn" onclick="completeCheckin()">
             Complete Check-In
           </button>
           <div class="restart-link">
@@ -724,7 +724,7 @@
         </div>
         <p class="screen-subtitle">Please have a seat. We'll call you when it's your turn.</p>
         <div class="screen-footer">
-          <button class="btn btn-secondary" onclick="resetKiosk()">
+          <button class="btn btn--secondary" onclick="resetKiosk()">
             Done
           </button>
         </div>

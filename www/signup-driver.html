@@ -131,11 +131,11 @@
       font-size: 0.95rem; font-weight: 600; border: none;
       border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s;
     }
-    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201, 162, 39, 0.35); }
-    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-ghost { background: transparent; color: var(--text-secondary); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201, 162, 39, 0.35); }
+    .btn--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--ghost { background: transparent; color: var(--text-secondary); }
+    .btn--primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
     .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
 
@@ -305,7 +305,7 @@
 
         <div class="form-nav">
           <span></span>
-          <button class="btn btn-primary" onclick="goToStep(2)">Next →</button>
+          <button class="btn btn--primary" onclick="goToStep(2)">Next →</button>
         </div>
       </div>
 
@@ -365,8 +365,8 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-secondary" onclick="goToStep(1)">← Back</button>
-          <button class="btn btn-primary" onclick="goToStep(3)">Next →</button>
+          <button class="btn btn--secondary" onclick="goToStep(1)">← Back</button>
+          <button class="btn btn--primary" onclick="goToStep(3)">Next →</button>
         </div>
       </div>
 
@@ -393,8 +393,8 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-secondary" onclick="goToStep(2)">← Back</button>
-          <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
+          <button class="btn btn--secondary" onclick="goToStep(2)">← Back</button>
+          <button class="btn btn--primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
         </div>
       </div>
 
@@ -407,8 +407,8 @@
             You're on the founding driver waitlist. We'll review your application and notify you at <strong id="success-email"></strong> when MCC Driver launches in your area.
           </p>
           <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:28px;">Founding Drivers who apply now lock in zero platform fees for their first 90 days once we go live.</p>
-          <a href="drivers.html" class="btn btn-secondary" style="margin-right:12px;">Back to Driver Info</a>
-          <a href="index.html" class="btn btn-ghost">Return Home</a>
+          <a href="drivers.html" class="btn btn--secondary" style="margin-right:12px;">Back to Driver Info</a>
+          <a href="index.html" class="btn btn--ghost">Return Home</a>
         </div>
       </div>
     </div>
