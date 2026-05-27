@@ -14,9 +14,9 @@
 | DUPLICATES migrated | 4 component groups | Moved to shared-styles.css, removed from pages |
 | AMBIENT-BG redundant copies removed | 4 pages | Already in shared-styles.css |
 | Pages linked to shared-styles.css | +2 (faq.html, provider-faq.html) | |
-| Approx. CSS lines removed from pages | ~198 | |
-| CSS lines added to shared-styles.css | ~60 | |
-| Net reduction | ~138 lines | |
+| CSS lines removed from pages | 277 (git-diffed) | |
+| CSS lines added to shared-styles.css | 138 | |
+| Net reduction | 139 lines | |
 
 ---
 
@@ -143,11 +143,11 @@ These patterns have meaningful duplication but would require adding `shared-styl
 | `p.html` | 2 | back-link |
 | `faq.html` | ~85 | ambient-bg (10) + noise (8) + faq-* (67) |
 | `provider-faq.html` | ~85 | ambient-bg (10) + noise (8) + faq-* (67) |
-| `index.html` | ~10 | ambient-bg |
-| `terms.html` | ~10 | ambient-bg |
-| `data-deletion.html` | ~18 | ambient-bg (10) + noise (8) |
-| `privacy.html` | ~10 | ambient-bg |
-| **Total** | **~246** | |
+| `index.html` | ~10 | ambient-bg + noise |
+| `terms.html` | ~19 | ambient-bg + noise |
+| `data-deletion.html` | ~12 | ambient-bg + noise (single-line format) |
+| `privacy.html` | ~19 | ambient-bg + noise |
+| **Total** | **277** (confirmed by git diff) | |
 
 ---
 
