@@ -854,7 +854,7 @@
           { count: driverAppsCount }
         ] = await Promise.all([
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 })),
           Promise.resolve(supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
@@ -862,7 +862,7 @@
           supabaseClient.from('pilot_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member').is('suspended_at', null),
           supabaseClient.from('registration_verifications').select('*', { count: 'exact', head: true }).in('status', ['pending', 'manual_review']),
           supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'pending_driver')
         ]);
@@ -2827,7 +2827,7 @@
           { count: openTicketsCount }
         ] = await Promise.all([
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
           supabaseClient.from('payments').select('amount_total').eq('status', 'held'),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           supabaseClient.from('payments').select('amount_mcc_fee').eq('status', 'released'),
