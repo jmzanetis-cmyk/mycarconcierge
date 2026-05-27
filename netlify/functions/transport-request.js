@@ -152,7 +152,20 @@ async function handleMemberRequest(event, supabase, body) {
       }
     }
   }
-  // ── End verification gate ──────────────────────────────────────────────────
+  // ── Identity (KYC) gate ────────────────────────────────────────────────────
+  // Stripe Identity must be verified before a driver physically takes the car.
+  const { data: memberProfile } = await supabase.from('profiles')
+    .select('identity_verified, stripe_customer_id')
+    .eq('id', user.id)
+    .maybeSingle();
+
+  if (!memberProfile?.identity_verified) {
+    return jsonResponse(403, {
+      error: 'Identity verification required before requesting a vehicle pickup.',
+      code:  'IDENTITY_REQUIRED',
+    });
+  }
+  // ── End identity gate ──────────────────────────────────────────────────────
 
   const isTandem = Boolean(is_tandem);
   const fare     = estimateFare(estimated_distance_miles, isTandem);
@@ -221,9 +234,6 @@ async function handleMemberRequest(event, supabase, body) {
       await supabase.from('rides').delete().eq('id', data.id);
       return jsonResponse(500, { error: 'Payment service unavailable' });
     }
-
-    const { data: memberProfile } = await supabase.from('profiles')
-      .select('stripe_customer_id').eq('id', user.id).maybeSingle();
 
     if (!memberProfile?.stripe_customer_id) {
       await supabase.from('rides').delete().eq('id', data.id);

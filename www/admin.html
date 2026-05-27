@@ -3226,17 +3226,34 @@
               <th>Account Type</th>
               <th>Vehicles</th>
               <th>Packages</th>
+              <th>Identity</th>
               <th>Joined</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody id="members-table">
-            <tr><td colspan="7" class="empty-state">No members</td></tr>
+            <tr><td colspan="8" class="empty-state">No members</td></tr>
           </tbody>
         </table>
         <div id="members-pagination"></div>
       </div>
     </section>
+
+    <!-- Member Detail Modal -->
+    <div class="modal-overlay" id="member-detail-modal" style="display:none;">
+      <div class="modal" style="max-width:560px;width:100%;">
+        <div class="modal-header">
+          <h3 class="modal-title">Member Details</h3>
+          <button class="modal-close" onclick="closeModal('member-detail-modal')">&times;</button>
+        </div>
+        <div class="modal-body" id="member-detail-body">
+          <p class="text-muted">Loading...</p>
+        </div>
+        <div class="modal-footer">
+          <button class="btn btn-secondary" onclick="closeModal('member-detail-modal')">Close</button>
+        </div>
+      </div>
+    </div>
 
     <section id="user-roles" class="section">
       <div class="page-header">

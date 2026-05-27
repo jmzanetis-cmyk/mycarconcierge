@@ -195,3 +195,7 @@
 
 # Feature: Receipt PDF
 /api/receipt/* /.netlify/functions/receipt-pdf/:splat 200
+
+# Feature: Stripe Identity KYC
+/api/identity/session /.netlify/functions/identity-verify/session 200
+/api/identity/status  /.netlify/functions/identity-verify/status 200

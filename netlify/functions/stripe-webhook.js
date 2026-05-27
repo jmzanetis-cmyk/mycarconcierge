@@ -2,15 +2,17 @@
 // stripe-webhook — handles real-time Stripe events
 //
 // Events handled:
-//   checkout.session.completed  — grant bid credits immediately; record founder commission
-//   payment_intent.succeeded    — update tip/subsidy status
-//   payment_intent.payment_failed — update tip/subsidy status; alert admin
-//   payout.paid                 — mark driver_cashouts row completed
-//   payout.failed               — mark driver_cashouts row failed; alert admin
-//   payout.canceled             — mark driver_cashouts row cancelled
-//   transfer.paid               — mark driver_cashouts + tip row paid
-//   transfer.failed             — mark driver_cashouts row failed; alert admin
-//   account.updated             — sync driver Stripe Connect status
+//   checkout.session.completed                     — grant bid credits; record founder commission
+//   payment_intent.succeeded                       — update tip/subsidy status
+//   payment_intent.payment_failed                  — update tip/subsidy status; alert admin
+//   payout.paid                                    — mark driver_cashouts row completed
+//   payout.failed                                  — mark driver_cashouts row failed; alert admin
+//   payout.canceled                                — mark driver_cashouts row cancelled
+//   transfer.paid                                  — mark driver_cashouts + tip row paid
+//   transfer.failed                                — mark driver_cashouts row failed; alert admin
+//   account.updated                                — sync driver Stripe Connect status
+//   identity.verification_session.verified         — set identity_verified=true on profile
+//   identity.verification_session.requires_input   — log/update session id
 //
 // Env: STRIPE_SECRET_KEY, STRIPE_WEBHOOK_SECRET, SUPABASE_URL,
 //      SUPABASE_SERVICE_ROLE_KEY, RESEND_API_KEY, ADMIN_EMAIL, MCC_FROM_EMAIL
@@ -264,6 +266,40 @@ async function handlePayoutCanceled(payout, supabase) {
     .eq('stripe_payout_id', payout.id);
 }
 
+// ── identity.verification_session.verified ─────────────────────────────────
+
+async function handleIdentityVerified(session, supabase) {
+  const userId = session.metadata?.user_id;
+  if (!userId) {
+    console.warn('[stripe-webhook] identity session missing user_id metadata:', session.id);
+    return;
+  }
+
+  await supabase.from('profiles').update({
+    identity_verified:          true,
+    stripe_identity_session_id: session.id,
+    identity_verified_at:       new Date().toISOString(),
+    updated_at:                 new Date().toISOString(),
+  }).eq('id', userId);
+
+  console.log(`[stripe-webhook] identity verified for user ${userId} via session ${session.id}`);
+}
+
+// ── identity.verification_session.requires_input ──────────────────────────
+
+async function handleIdentityRequiresInput(session, supabase) {
+  const userId = session.metadata?.user_id;
+  const reason = session.last_error?.reason || 'unknown';
+  console.warn(`[stripe-webhook] identity requires_input user=${userId} session=${session.id} reason=${reason}`);
+
+  // Keep stripe_identity_session_id current so status endpoint can report the right state
+  if (userId) {
+    await supabase.from('profiles')
+      .update({ stripe_identity_session_id: session.id, updated_at: new Date().toISOString() })
+      .eq('id', userId);
+  }
+}
+
 // ── account.updated ────────────────────────────────────────────────────────
 
 async function handleAccountUpdated(account, supabase) {
@@ -343,6 +379,12 @@ exports.handler = async function(event) {
         break;
       case 'account.updated':
         await handleAccountUpdated(stripeEvent.data.object, supabase);
+        break;
+      case 'identity.verification_session.verified':
+        await handleIdentityVerified(stripeEvent.data.object, supabase);
+        break;
+      case 'identity.verification_session.requires_input':
+        await handleIdentityRequiresInput(stripeEvent.data.object, supabase);
         break;
       default:
         // Ignore other event types — Stripe sends many; only handle what we act on

@@ -18728,6 +18728,76 @@ See you there!`);
       }
     }
 
+    async function ensureIdentityVerified(token) {
+      // Check current status first
+      const statusRes = await fetch('/api/identity/status', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (statusRes.ok) {
+        const statusData = await statusRes.json();
+        if (statusData.identity_verified) return true;
+      }
+
+      // Need to verify — create a session and launch the Stripe Identity modal
+      const sessRes = await fetch('/api/identity/session', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` }
+      });
+      if (!sessRes.ok) {
+        showToast('Could not start identity verification. Please try again.', 'error');
+        return false;
+      }
+      const sessData = await sessRes.json();
+      if (sessData.already_verified) return true;
+
+      if (!sessData.client_secret) {
+        showToast('Identity verification unavailable. Please contact support.', 'error');
+        return false;
+      }
+
+      // Ensure Stripe is initialised
+      if (typeof initStripe === 'function' && !window.stripe) await initStripe();
+      const stripeInstance = window.stripe;
+      if (!stripeInstance) {
+        showToast('Payment library not loaded. Please refresh and try again.', 'error');
+        return false;
+      }
+
+      showToast('We need to verify your identity before your first pickup. A verification window will open.', 'info', 5000);
+
+      const { error } = await stripeInstance.verifyIdentity(sessData.client_secret);
+      if (error) {
+        if (error.code === 'session_cancelled') {
+          showToast('Identity verification was cancelled. Required before requesting a pickup.', 'warning');
+        } else {
+          showToast('Identity verification failed: ' + (error.message || 'Unknown error'), 'error');
+        }
+        return false;
+      }
+
+      // Poll for webhook to land (up to 15 s)
+      for (let i = 0; i < 10; i++) {
+        await new Promise(r => setTimeout(r, 1500));
+        const poll = await fetch('/api/identity/status', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (poll.ok) {
+          const pollData = await poll.json();
+          if (pollData.identity_verified) {
+            showToast('Identity verified! Submitting your pickup request...', 'success');
+            return true;
+          }
+          if (pollData.session_status === 'processing') {
+            showToast('Identity is being reviewed — we\'ll notify you once confirmed.', 'info', 6000);
+            return false;
+          }
+        }
+      }
+
+      showToast('Identity verification is still processing. Please try again in a moment.', 'warning', 6000);
+      return false;
+    }
+
     async function submitTransportRequest() {
       const pickup = document.getElementById('tr-pickup').value.trim();
       const dropoff = document.getElementById('tr-dropoff').value.trim();
@@ -18748,6 +18818,16 @@ See you there!`);
         const { data: { session } } = await supabaseClient.auth.getSession();
         const token = session?.access_token;
         if (!token) throw new Error('Not authenticated');
+
+        // Identity check — launches Stripe modal if not yet verified
+        btn.textContent = 'Verifying identity...';
+        const identityOk = await ensureIdentityVerified(token);
+        if (!identityOk) {
+          btn.disabled = false;
+          btn.textContent = origText;
+          return;
+        }
+        btn.textContent = 'Requesting...';
 
         const miles = (transportPickupCoords && transportDropoffCoords)
           ? haversineDistanceMiles(transportPickupCoords.lat, transportPickupCoords.lng, transportDropoffCoords.lat, transportDropoffCoords.lng)

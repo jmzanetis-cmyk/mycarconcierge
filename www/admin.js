@@ -4080,16 +4080,14 @@
 
     function renderMembers() {
       const tbody = document.getElementById('members-table');
-      // Task #281 — show load error before falling through to "No members".
       if (loadErrors.members) {
-        renderTableLoadErrorRow('members-table', 7, 'members', 'loadMembers()');
+        renderTableLoadErrorRow('members-table', 8, 'members', 'loadMembers()');
         const paginationContainer = document.getElementById('members-pagination');
         if (paginationContainer) paginationContainer.innerHTML = '';
         return;
       }
       if (!members.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No members</td></tr>';
-        // Still show pagination if there's state
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No members</td></tr>';
         const paginationContainer = document.getElementById('members-pagination');
         if (paginationContainer) {
           paginationContainer.innerHTML = renderPaginationControls(paginationState.members, 'changeMembersPage');
@@ -4097,24 +4095,57 @@
         return;
       }
 
-      tbody.innerHTML = members.map(m => `
-        <tr>
-          <td>${m.full_name || 'N/A'}</td>
-          <td>${m.email || 'N/A'}</td>
-          <td>${m.account_type || 'individual'}</td>
-          <td>-</td>
-          <td>-</td>
-          <td>${new Date(m.created_at).toLocaleDateString()}</td>
-          <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
-        </tr>
-      `).join('');
-      
-      // Add pagination controls
+      tbody.innerHTML = members.map(m => {
+        const identityBadge = m.identity_verified
+          ? '<span class="badge badge-success" title="Stripe Identity verified">Verified</span>'
+          : '<span class="badge badge-warning" title="Identity not yet verified">Unverified</span>';
+        return `
+          <tr>
+            <td>${m.full_name || 'N/A'}</td>
+            <td>${m.email || 'N/A'}</td>
+            <td>${m.account_type || 'individual'}</td>
+            <td>-</td>
+            <td>-</td>
+            <td>${identityBadge}</td>
+            <td>${new Date(m.created_at).toLocaleDateString()}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
+          </tr>`;
+      }).join('');
+
       const paginationContainer = document.getElementById('members-pagination');
       if (paginationContainer) {
         paginationContainer.innerHTML = renderPaginationControls(paginationState.members, 'changeMembersPage');
       }
     }
+
+    globalThis.viewMember = function viewMember(memberId) {
+      const m = members.find(x => x.id === memberId);
+      if (!m) return;
+
+      const identityHtml = m.identity_verified
+        ? `<span class="badge badge-success">Verified</span>${m.identity_verified_at ? ` <small style="color:var(--text-muted);">on ${new Date(m.identity_verified_at).toLocaleDateString()}</small>` : ''}`
+        : '<span class="badge badge-warning">Not Verified</span>';
+
+      const sessionHtml = m.stripe_identity_session_id
+        ? `<a href="https://dashboard.stripe.com/identity/verification-sessions/${m.stripe_identity_session_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_identity_session_id}</a>`
+        : '<span style="color:var(--text-muted);">None</span>';
+
+      document.getElementById('member-detail-body').innerHTML = `
+        <div class="detail-grid" style="row-gap:12px;">
+          <span class="detail-label">Name</span><span class="detail-value">${m.full_name || 'N/A'}</span>
+          <span class="detail-label">Email</span><span class="detail-value">${m.email || 'N/A'}</span>
+          <span class="detail-label">Phone</span><span class="detail-value">${m.phone || 'N/A'}</span>
+          <span class="detail-label">Account Type</span><span class="detail-value">${m.account_type || 'individual'}</span>
+          <span class="detail-label">Joined</span><span class="detail-value">${new Date(m.created_at).toLocaleDateString()}</span>
+          <span class="detail-label" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">Identity (KYC)</span><span class="detail-value" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">${identityHtml}</span>
+          <span class="detail-label">Stripe Session</span><span class="detail-value">${sessionHtml}</span>
+          <span class="detail-label">Stripe Customer</span><span class="detail-value">${m.stripe_customer_id
+            ? `<a href="https://dashboard.stripe.com/customers/${m.stripe_customer_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_customer_id}</a>`
+            : '<span style="color:var(--text-muted);">None</span>'}</span>
+        </div>`;
+
+      openModal('member-detail-modal');
+    };
 
     // ========== APPLICATION REVIEW ==========
     async function viewApplication(appId) {
