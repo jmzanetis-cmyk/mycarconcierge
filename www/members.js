@@ -2221,14 +2221,18 @@
           : '';
         const registrationStatus = vehicleRegistrationStatus[v.id];
         const registrationVerified = v.registration_verified || (registrationStatus && registrationStatus.verified);
+        const insuranceVerified = v.insurance_verified;
         const registrationBadge = registrationVerified
           ? `<span class="registration-verified-badge">${mccIcon('file-text', 14)} Registration Verified</span>`
+          : '';
+        const insuranceBadge = insuranceVerified
+          ? `<span class="registration-verified-badge" style="background:rgba(34,211,238,0.15);border-color:rgba(34,211,238,0.4);color:var(--accent-teal);">${mccIcon('shield', 14)} Insurance Verified</span>`
           : '';
         return `
           <div class="vehicle-card">
             <div class="vehicle-card-photo">
               ${photoContent}
-              ${registrationBadge || recallBadge}
+              ${registrationBadge || insuranceBadge || recallBadge}
               <span class="vehicle-card-badge ${healthClass}" onclick="event.stopPropagation(); viewVehicleDetails('${v.id}'); setTimeout(()=>showVehicleTab('health','${v.id}'),300)" style="cursor:pointer;" title="Health Score: ${v.health_score || 100}/100">${v.health_score || 100} ${healthLabel}</span>
             </div>
             <div class="vehicle-card-body">
@@ -2243,6 +2247,7 @@
                 <button class="btn btn-secondary btn-sm" onclick="viewVehicleDetails('${v.id}')" style="flex: 1;">View Details</button>
                 <button class="btn btn-primary btn-sm" onclick="createPackageForVehicle('${v.id}')" style="flex: 1;">+ Service</button>
                 ${!registrationVerified ? `<button class="btn btn-ghost btn-sm" onclick="openRegistrationModal('${v.id}')" title="Verify Registration" style="padding: 8px;color:var(--accent-gold);">${mccIcon('file-text', 14)}</button>` : ''}
+                ${!insuranceVerified ? `<button class="btn btn-ghost btn-sm" onclick="openInsuranceModal('${v.id}')" title="Verify Insurance" style="padding: 8px;color:var(--accent-teal);">${mccIcon('shield', 14)}</button>` : ''}
                 <button class="btn btn-ghost btn-sm" onclick="generateHealthReportPDF('${v.id}')" title="Download Health Report" style="padding: 8px;">${mccIcon('file-text', 14)}</button>
                 <button class="btn btn-ghost btn-sm" onclick="deleteVehicle('${v.id}')" title="Delete" style="padding: 8px;">${mccIcon('trash-2', 14)}</button>
               </div>
@@ -2699,7 +2704,172 @@
       
       openModal('registration-modal');
     }
-    
+
+    // ── Insurance Card Verification ─────────────────────────────────────────
+
+    let pendingInsuranceFile = null;
+    let currentInsuranceVehicleId = null;
+    let vehicleInsuranceStatus = {};
+
+    function openInsuranceModal(vehicleId) {
+      currentInsuranceVehicleId = vehicleId;
+      document.getElementById('insurance-vehicle-id').value = vehicleId;
+
+      pendingInsuranceFile = null;
+      document.getElementById('insurance-upload-area').style.display = 'none';
+      document.getElementById('insurance-upload-buttons').style.display = 'grid';
+      document.getElementById('insurance-drop-zone').style.display = 'block';
+      document.getElementById('insurance-preview-img').src = '';
+      document.getElementById('insurance-file-info').style.display = 'none';
+      document.getElementById('insurance-loading').style.display = 'none';
+      document.getElementById('insurance-result').style.display = 'none';
+      document.getElementById('verify-insurance-btn').disabled = true;
+      const ctxNote = document.getElementById('insurance-context-note');
+      if (ctxNote) ctxNote.value = '';
+
+      const status = vehicleInsuranceStatus[vehicleId];
+      const statusContainer = document.getElementById('insurance-current-status');
+      if (status) {
+        statusContainer.style.display = 'block';
+        const labels = {
+          approved: mccIcon('check-circle', 14) + ' Verified',
+          expired:  mccIcon('alert-triangle', 14) + ' Expired',
+          manual_review: mccIcon('clock', 14) + ' Pending Review',
+          rejected: mccIcon('x', 14) + ' Rejected',
+        };
+        document.getElementById('insurance-status-display').innerHTML =
+          `<span class="registration-status-badge ${status.status}">${labels[status.status] || status.status}</span>`;
+      } else {
+        statusContainer.style.display = 'none';
+      }
+
+      openModal('insurance-modal');
+    }
+
+    function handleInsuranceFileSelect(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+      pendingInsuranceFile = file;
+      const reader = new FileReader();
+      reader.onload = e => {
+        document.getElementById('insurance-preview-img').src = e.target.result;
+        document.getElementById('insurance-upload-area').style.display = 'block';
+        document.getElementById('insurance-file-info').style.display = 'flex';
+        document.getElementById('insurance-file-name').textContent = file.name;
+        document.getElementById('insurance-file-size').textContent = (file.size / 1024).toFixed(1) + ' KB';
+        document.getElementById('verify-insurance-btn').disabled = false;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function handleInsuranceDragOver(e) { e.preventDefault(); e.currentTarget.style.borderColor = 'var(--accent-teal)'; }
+    function handleInsuranceDragLeave(e) { e.currentTarget.style.borderColor = 'var(--border-medium)'; }
+    function handleInsuranceDrop(e) {
+      e.preventDefault();
+      e.currentTarget.style.borderColor = 'var(--border-medium)';
+      const file = e.dataTransfer?.files?.[0];
+      if (file) handleInsuranceFileSelect({ target: { files: [file] } });
+    }
+
+    function removeInsuranceFile() {
+      pendingInsuranceFile = null;
+      document.getElementById('insurance-preview-img').src = '';
+      document.getElementById('insurance-upload-area').style.display = 'none';
+      document.getElementById('insurance-file-info').style.display = 'none';
+      document.getElementById('verify-insurance-btn').disabled = true;
+    }
+
+    async function submitInsuranceVerification() {
+      if (!pendingInsuranceFile || !currentInsuranceVehicleId) return;
+
+      const vehicleId = currentInsuranceVehicleId;
+      const contextNote = document.getElementById('insurance-context-note')?.value?.trim() || null;
+      const submitBtn = document.getElementById('verify-insurance-btn');
+      const loadingEl = document.getElementById('insurance-loading');
+      const progressBar = document.getElementById('insurance-progress-bar');
+      const resultEl = document.getElementById('insurance-result');
+
+      submitBtn.disabled = true;
+      loadingEl.style.display = 'block';
+      resultEl.style.display = 'none';
+      document.getElementById('insurance-loading-text').textContent = 'Uploading insurance card...';
+      document.getElementById('insurance-loading-subtext').textContent = 'Our AI is reading your card';
+      progressBar.style.width = '20%';
+
+      try {
+        // Upload to Supabase storage
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) throw new Error('Not authenticated');
+
+        const ext  = pendingInsuranceFile.name.split('.').pop() || 'jpg';
+        const path = `${session.user.id}/${vehicleId}/insurance_${Date.now()}.${ext}`;
+        const { error: uploadErr } = await supabaseClient.storage
+          .from('vehicle-documents')
+          .upload(path, pendingInsuranceFile, { upsert: true });
+        if (uploadErr) throw new Error('Upload failed: ' + uploadErr.message);
+
+        progressBar.style.width = '50%';
+        document.getElementById('insurance-loading-text').textContent = 'AI extracting card details...';
+
+        const { data: { publicUrl } } = supabaseClient.storage
+          .from('vehicle-documents')
+          .getPublicUrl(path);
+
+        progressBar.style.width = '75%';
+
+        const res = await fetch('/api/insurance/verify', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ imageUrl: publicUrl, vehicleId, contextNote }),
+        });
+        const data = await res.json();
+        progressBar.style.width = '100%';
+
+        loadingEl.style.display = 'none';
+        resultEl.style.display = 'block';
+
+        if (data.success) {
+          vehicleInsuranceStatus[vehicleId] = { status: data.status };
+          const isApproved = data.status === 'approved';
+          const isExpired  = data.status === 'expired';
+          const color = isApproved ? 'var(--accent-green)' : isExpired ? 'var(--accent-red)' : 'var(--accent-gold)';
+          const icon  = isApproved ? mccIcon('check-circle', 16) : isExpired ? mccIcon('alert-triangle', 16) : mccIcon('clock', 16);
+
+          resultEl.innerHTML = `
+            <div style="text-align:center;padding:20px;background:var(--bg-elevated);border-radius:var(--radius-md);">
+              <div style="font-size:32px;margin-bottom:12px;color:${color};">${icon}</div>
+              <div style="font-weight:600;font-size:1.1rem;margin-bottom:8px;color:${color};">
+                ${isApproved ? 'Insurance Verified!' : isExpired ? 'Insurance Expired' : 'Sent for Review'}
+              </div>
+              <div style="font-size:0.9rem;color:var(--text-secondary);">${data.details}</div>
+              ${data.carrier ? `<div style="margin-top:12px;font-size:0.85rem;color:var(--text-muted);">Carrier: ${data.carrier}</div>` : ''}
+              ${data.expiration_date ? `<div style="font-size:0.85rem;color:var(--text-muted);">Expires: ${data.expiration_date}</div>` : ''}
+              ${data.name_match_score != null ? `<div style="font-size:0.85rem;color:var(--text-muted);">Name match: ${data.name_match_score}%</div>` : ''}
+            </div>`;
+
+          if (isApproved) {
+            const veh = vehicles.find(v => v.id === vehicleId);
+            if (veh) {
+              veh.insurance_verified = true;
+              veh.insurance_carrier  = data.carrier;
+            }
+            setTimeout(() => { renderVehicles(); closeModal('insurance-modal'); }, 2000);
+          }
+        } else {
+          resultEl.innerHTML = `<div style="color:var(--accent-red);text-align:center;padding:16px;">${data.error || 'Verification failed'}</div>`;
+          submitBtn.disabled = false;
+        }
+      } catch (err) {
+        console.error('Insurance verification error:', err);
+        loadingEl.style.display = 'none';
+        resultEl.style.display = 'block';
+        resultEl.innerHTML = `<div style="color:var(--accent-red);text-align:center;padding:16px;">Error: ${err.message}</div>`;
+        submitBtn.disabled = false;
+      }
+    }
+
+    // ── End Insurance Card Verification ─────────────────────────────────────
+
     function handleRegistrationFileSelect(event) {
       const file = event.target.files[0];
       if (!file) return;

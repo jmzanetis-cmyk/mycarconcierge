@@ -3515,10 +3515,11 @@
         </div>
       </div>
 
-      <!-- Top-level view switcher: Registration Docs vs Held Pickups -->
+      <!-- Top-level view switcher: Registration Docs | Held Pickups | Insurance Reviews -->
       <div class="tabs" id="reg-view-tabs" style="margin-bottom:0;">
         <div class="tab active" data-reg-view="verifications">Registration Docs</div>
         <div class="tab" data-reg-view="held-rides">Held Pickups <span class="nav-badge orange" id="held-rides-badge" style="display:none;">0</span></div>
+        <div class="tab" data-reg-view="insurance">Insurance Reviews <span class="nav-badge orange" id="insurance-reviews-badge" style="display:none;">0</span></div>
       </div>
 
       <!-- ── Registration Verifications panel ─────────────────────── -->
@@ -3576,7 +3577,56 @@
           </div>
         </div>
       </div>
+
+      <!-- ── Insurance Reviews panel ────────────────────────────────── -->
+      <div id="reg-panel-insurance" style="display:none;">
+        <div class="tabs" id="insurance-tabs" style="margin-top:0;border-top:none;">
+          <div class="tab active" data-ins-filter="all">All</div>
+          <div class="tab" data-ins-filter="manual_review">Pending Review</div>
+          <div class="tab" data-ins-filter="expired">Expired</div>
+          <div class="tab" data-ins-filter="approved">Approved</div>
+          <div class="tab" data-ins-filter="rejected">Rejected</div>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden;margin-top:0;">
+          <div style="overflow-x:auto;">
+            <table>
+              <thead>
+                <tr>
+                  <th>Member</th>
+                  <th>Vehicle</th>
+                  <th>Carrier</th>
+                  <th>Expiry</th>
+                  <th>Score</th>
+                  <th>Status</th>
+                  <th>Context Note</th>
+                  <th>Submitted</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody id="insurance-verifications-table">
+                <tr><td colspan="9" class="empty-state">Loading insurance verifications...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
     </section>
+
+    <!-- Insurance Verification Detail Modal -->
+    <div class="modal-overlay" id="insurance-detail-modal" style="display:none;">
+      <div class="modal" style="max-width:640px;width:100%;">
+        <div class="modal-header">
+          <h3 class="modal-title">Insurance Verification Detail</h3>
+          <button class="modal-close" onclick="closeModal('insurance-detail-modal')">&times;</button>
+        </div>
+        <div class="modal-body" id="insurance-detail-body">
+          <p class="text-muted">Loading...</p>
+        </div>
+        <div class="modal-footer" id="insurance-detail-footer">
+          <button class="btn btn-secondary" onclick="closeModal('insurance-detail-modal')">Close</button>
+        </div>
+      </div>
+    </div>
 
     <!-- Referrals Dashboard -->
     <section id="referrals" class="section">

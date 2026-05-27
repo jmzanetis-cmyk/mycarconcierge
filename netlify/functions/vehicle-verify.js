@@ -8,6 +8,10 @@
 //   GET  /api/registration/held-rides                 — admin: rides in pending_name_review
 //   POST /api/registration/held-rides/:id/approve     — admin: approve held ride → dispatch
 //   POST /api/registration/held-rides/:id/reject      — admin: reject held ride → cancel + refund
+//   POST /api/insurance/verify                        — upload insurance card → Claude vision → name/expiry/VIN check
+//   GET  /api/insurance/verifications                 — list insurance verifications (admin or member own)
+//   PUT  /api/insurance/verifications/:id             — admin approve / reject insurance verification
+//   GET  /api/insurance/name-cross-ref/:vehicleId     — admin: three-way name cross-reference
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
@@ -53,7 +57,7 @@ function getBearerToken(event) {
 function parsePath(event) {
   return (event.path || '')
     .replace(/^\/?\.netlify\/functions\/vehicle-verify\/?/, '')
-    .replace(/^\/?api\/(?:vehicle|registration)\/?/, '')
+    .replace(/^\/?api\/(?:vehicle|registration|insurance)\/?/, '')
     .replace(/^\/+/, '');
 }
 
@@ -239,7 +243,6 @@ async function handleVerify(event, supabase) {
   const score = nameMatchScore(profileName, extractedOwnerName);
 
   // ≥80 = auto-approve; <80 = manual_review
-  const AUTO_THRESHOLD = 80;
   const status = score >= AUTO_THRESHOLD ? 'approved' : 'manual_review';
 
   // Insert verification record
@@ -443,6 +446,356 @@ async function handleRejectHeldRide(event, supabase, rideId) {
 }
 
 // ---------------------------------------------------------------------------
+// Insurance handlers
+// ---------------------------------------------------------------------------
+
+const AUTO_THRESHOLD = 80;
+
+// Shared Claude vision fetch helper
+async function fetchImageBase64(url) {
+  const res = await fetch(url, { signal: AbortSignal.timeout(15000) });
+  if (!res.ok) throw new Error(`Image fetch ${res.status}`);
+  const buf = await res.arrayBuffer();
+  const b64 = Buffer.from(buf).toString('base64');
+  const ct  = res.headers.get('content-type') || 'image/jpeg';
+  const mediaType = ct.startsWith('image/png') ? 'image/png' : 'image/jpeg';
+  return { b64, mediaType };
+}
+
+// POST /insurance/verify
+async function handleInsuranceVerify(event, supabase) {
+  const auth = await getUser(event, supabase);
+  if (auth.error) return auth.error;
+  const { user } = auth;
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const { imageUrl, vehicleId, contextNote } = body;
+
+  if (!imageUrl)   return json(400, { error: 'imageUrl required' });
+  if (!vehicleId)  return json(400, { error: 'vehicleId required' });
+
+  // Confirm vehicle belongs to this user; fetch existing VIN
+  const { data: veh } = await supabase.from('vehicles')
+    .select('owner_id, vin').eq('id', vehicleId).single();
+  if (!veh || veh.owner_id !== user.id) return json(403, { error: 'Vehicle not found' });
+
+  // Fetch member profile name
+  const { data: profile } = await supabase.from('profiles')
+    .select('full_name').eq('id', user.id).single();
+  const profileName = profile?.full_name || '';
+
+  // Fetch image
+  let b64, mediaType;
+  try {
+    ({ b64, mediaType } = await fetchImageBase64(imageUrl));
+  } catch (err) {
+    console.error('[vehicle-verify] insurance image fetch error:', err.message);
+    return json(502, { error: 'Failed to fetch insurance card image' });
+  }
+
+  // Claude vision extraction
+  const ANTHROPIC_KEY = process.env.ANTHROPIC_API_KEY;
+  if (!ANTHROPIC_KEY) return json(500, { error: 'AI service not configured' });
+
+  let extracted = {};
+  try {
+    const aiRes = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST',
+      headers: {
+        'x-api-key': ANTHROPIC_KEY,
+        'anthropic-version': '2023-06-01',
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        model: 'claude-haiku-4-5-20251001',
+        max_tokens: 500,
+        messages: [{
+          role: 'user',
+          content: [
+            { type: 'image', source: { type: 'base64', media_type: mediaType, data: b64 } },
+            { type: 'text', text:
+              'This is an auto insurance card. Extract ONLY these fields and return valid JSON:\n' +
+              '{"policyholder_name":"<name exactly as printed>","carrier":"<insurance company name>","policy_number":"<policy number>","vin":"<VIN if shown, else null>","effective_date":"<YYYY-MM-DD or null>","expiration_date":"<YYYY-MM-DD or null>"}\n' +
+              'If a field is not visible, use null. Return only the JSON object, no other text.'
+            },
+          ],
+        }],
+      }),
+    });
+    const aiData = await aiRes.json();
+    const rawText = aiData?.content?.[0]?.text || '';
+    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
+    if (jsonMatch) extracted = JSON.parse(jsonMatch[0]);
+  } catch (err) {
+    console.error('[vehicle-verify] Claude insurance error:', err.message);
+    return json(502, { error: 'AI extraction failed — please try again' });
+  }
+
+  const policyholderName  = (extracted.policyholder_name || '').trim();
+  const carrier           = (extracted.carrier || '').trim() || null;
+  const policyNumber      = (extracted.policy_number || '').trim() || null;
+  const extractedVin      = (extracted.vin || '').trim() || null;
+  const effectiveDate     = extracted.effective_date || null;
+  const expirationDate    = extracted.expiration_date || null;
+
+  // Expiry check: lapsed insurance = not valid
+  let isExpired = false;
+  if (expirationDate) {
+    const expTs = new Date(expirationDate + 'T00:00:00Z').getTime();
+    isExpired = expTs < Date.now();
+  }
+
+  // VIN cross-check: if both present, they must match
+  let vinMismatch = false;
+  if (extractedVin && veh.vin) {
+    const norm = s => (s || '').replace(/\s/g, '').toUpperCase();
+    vinMismatch = norm(extractedVin) !== norm(veh.vin);
+  }
+
+  const score = nameMatchScore(profileName, policyholderName);
+
+  // Determine status
+  let status;
+  if (isExpired) {
+    status = 'expired';
+  } else if (score >= AUTO_THRESHOLD && !vinMismatch) {
+    status = 'approved';
+  } else {
+    status = 'manual_review';
+  }
+
+  // Insert verification record
+  const { data: verif, error: verifErr } = await supabase
+    .from('insurance_verifications')
+    .insert({
+      user_id:          user.id,
+      vehicle_id:       vehicleId,
+      image_url:        imageUrl,
+      policyholder_name: policyholderName || null,
+      carrier,
+      policy_number:    policyNumber,
+      vin:              extractedVin,
+      effective_date:   effectiveDate,
+      expiration_date:  expirationDate,
+      profile_name:     profileName,
+      name_match_score: score,
+      status,
+      context_note:     contextNote || null,
+    })
+    .select()
+    .single();
+
+  if (verifErr) {
+    console.error('[vehicle-verify] insurance insert error:', verifErr.message);
+    return json(500, { error: 'Failed to save verification' });
+  }
+
+  // Auto-approve: flip insurance_verified on the vehicle + populate carrier/policy fields
+  if (status === 'approved') {
+    await supabase.from('vehicles').update({
+      insurance_verified:        true,
+      insurance_verification_id: verif.id,
+      insurance_carrier:         carrier,
+      insurance_policy_number:   policyNumber,
+      updated_at:                new Date().toISOString(),
+    }).eq('id', vehicleId).eq('owner_id', user.id);
+  } else if (carrier || policyNumber) {
+    // Still populate carrier/policy for reference even if not auto-approved
+    await supabase.from('vehicles').update({
+      insurance_carrier:       carrier || undefined,
+      insurance_policy_number: policyNumber || undefined,
+      updated_at:              new Date().toISOString(),
+    }).eq('id', vehicleId).eq('owner_id', user.id);
+  }
+
+  const detailMsg = isExpired
+    ? 'Your insurance card has expired — please upload a current policy card.'
+    : vinMismatch
+      ? 'The VIN on your insurance card does not match your vehicle. We\'ll review it manually within 24 hours.'
+      : status === 'approved'
+        ? 'Insurance verified — your vehicle is now covered for all services.'
+        : 'We need to manually review your insurance card. You\'ll be notified within 24 hours.';
+
+  return json(200, {
+    success: true,
+    status,
+    name_match_score:   score,
+    policyholder_name:  policyholderName,
+    carrier,
+    expiration_date:    expirationDate,
+    vin_mismatch:       vinMismatch,
+    details:            detailMsg,
+  });
+}
+
+// GET /insurance/verifications
+async function handleGetInsuranceVerifications(event, supabase) {
+  const token = getBearerToken(event);
+  if (!token) return json(401, { error: 'Missing bearer token' });
+  const { data: { user } } = await supabase.auth.getUser(token);
+  if (!user) return json(401, { error: 'Invalid token' });
+
+  const { data: prof } = await supabase.from('profiles')
+    .select('role').eq('id', user.id).single();
+  const isAdmin = prof?.role === 'admin';
+  const qs = event.queryStringParameters || {};
+
+  if (isAdmin) {
+    let q = supabase.from('insurance_verifications')
+      .select(`*, user:profiles!insurance_verifications_user_id_fkey(full_name, email), vehicle:vehicles(year,make,model,vin)`)
+      .order('created_at', { ascending: false })
+      .limit(200);
+    if (qs.status && qs.status !== 'all') q = q.eq('status', qs.status);
+    const { data, error } = await q;
+    if (error) return json(500, { error: error.message });
+    return json(200, { success: true, verifications: data || [] });
+  }
+
+  const { vehicleId } = qs;
+  if (!vehicleId) return json(400, { error: 'vehicleId required' });
+  const { data, error } = await supabase
+    .from('insurance_verifications')
+    .select('id, status, name_match_score, policyholder_name, carrier, expiration_date, created_at')
+    .eq('user_id', user.id)
+    .eq('vehicle_id', vehicleId)
+    .order('created_at', { ascending: false })
+    .limit(5);
+  if (error) return json(500, { error: error.message });
+  return json(200, { success: true, verifications: data || [] });
+}
+
+// PUT /insurance/verifications/:id — admin approve/reject
+async function handleUpdateInsuranceVerification(event, supabase, verifId) {
+  const auth = await getAdminUser(event, supabase);
+  if (auth.error) return auth.error;
+  const { user } = auth;
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const { status, admin_notes } = body;
+  if (!['approved', 'rejected'].includes(status)) return json(400, { error: 'status must be approved or rejected' });
+
+  const { data: verif } = await supabase.from('insurance_verifications')
+    .select('vehicle_id, user_id, carrier, policy_number').eq('id', verifId).single();
+  if (!verif) return json(404, { error: 'Verification not found' });
+
+  await supabase.from('insurance_verifications').update({
+    status,
+    reviewed_by:  user.id,
+    reviewed_at:  new Date().toISOString(),
+    review_notes: admin_notes || null,
+  }).eq('id', verifId);
+
+  if (status === 'approved') {
+    await supabase.from('vehicles').update({
+      insurance_verified:        true,
+      insurance_verification_id: verifId,
+      insurance_carrier:         verif.carrier,
+      insurance_policy_number:   verif.policy_number,
+      updated_at:                new Date().toISOString(),
+    }).eq('id', verif.vehicle_id);
+  }
+
+  return json(200, { success: true, status });
+}
+
+// GET /insurance/name-cross-ref/:vehicleId — admin: three-way name cross-reference
+async function handleNameCrossRef(event, supabase, vehicleId) {
+  const auth = await getAdminUser(event, supabase);
+  if (auth.error) return auth.error;
+
+  // Load vehicle + owner profile
+  const { data: veh } = await supabase.from('vehicles')
+    .select('owner_id, vin, registration_verification_id, insurance_verification_id')
+    .eq('id', vehicleId).single();
+  if (!veh) return json(404, { error: 'Vehicle not found' });
+
+  const { data: profile } = await supabase.from('profiles')
+    .select('full_name, stripe_customer_id').eq('id', veh.owner_id).single();
+  const accountName = profile?.full_name || null;
+
+  // Latest registration owner name
+  let regOwnerName = null;
+  if (veh.registration_verification_id) {
+    const { data: rv } = await supabase.from('registration_verifications')
+      .select('extracted_owner_name').eq('id', veh.registration_verification_id).single();
+    regOwnerName = rv?.extracted_owner_name || null;
+  } else {
+    const { data: rv } = await supabase.from('registration_verifications')
+      .select('extracted_owner_name').eq('vehicle_id', vehicleId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    regOwnerName = rv?.extracted_owner_name || null;
+  }
+
+  // Latest insurance policyholder name
+  let insuranceName = null;
+  if (veh.insurance_verification_id) {
+    const { data: iv } = await supabase.from('insurance_verifications')
+      .select('policyholder_name').eq('id', veh.insurance_verification_id).single();
+    insuranceName = iv?.policyholder_name || null;
+  } else {
+    const { data: iv } = await supabase.from('insurance_verifications')
+      .select('policyholder_name').eq('vehicle_id', vehicleId)
+      .order('created_at', { ascending: false }).limit(1).maybeSingle();
+    insuranceName = iv?.policyholder_name || null;
+  }
+
+  // Stripe billing name (best-effort)
+  let stripeBillingName = null;
+  if (profile?.stripe_customer_id) {
+    try {
+      const stripe = getStripe();
+      if (stripe) {
+        const cust = await stripe.customers.retrieve(profile.stripe_customer_id);
+        stripeBillingName = cust.name || null;
+      }
+    } catch (e) {
+      console.warn('[vehicle-verify] cross-ref Stripe fetch error:', e.message);
+    }
+  }
+
+  // Compute pairwise scores between all available sources
+  const sources = {
+    account:      accountName,
+    stripe_card:  stripeBillingName,
+    registration: regOwnerName,
+    insurance:    insuranceName,
+  };
+
+  const pairs = [];
+  const keys = Object.keys(sources).filter(k => sources[k]);
+  for (let i = 0; i < keys.length; i++) {
+    for (let j = i + 1; j < keys.length; j++) {
+      const a = keys[i], b = keys[j];
+      const score = nameMatchScore(sources[a], sources[b]);
+      pairs.push({ source_a: a, name_a: sources[a], source_b: b, name_b: sources[b], score });
+    }
+  }
+
+  // Overall confidence: all pairs ≥80 → high; any pair <50 → low; else medium
+  let confidence = 'high';
+  if (pairs.length === 0) {
+    confidence = 'insufficient_data';
+  } else {
+    const scores = pairs.map(p => p.score);
+    const minScore = Math.min(...scores);
+    if (minScore < 50)      confidence = 'low';
+    else if (minScore < 80) confidence = 'medium';
+  }
+
+  const mismatches = pairs.filter(p => p.score < 80);
+
+  return json(200, {
+    success: true,
+    sources,
+    pairs,
+    confidence,
+    mismatches,
+  });
+}
+
+// ---------------------------------------------------------------------------
 // Router
 // ---------------------------------------------------------------------------
 
@@ -479,6 +832,20 @@ exports.handler = async (event) => {
     // POST /held-rides/:id/reject
     const rejectMatch = path.match(/^held-rides\/([a-f0-9-]{36})\/reject$/);
     if (method === 'POST' && rejectMatch) return handleRejectHeldRide(event, supabase, rejectMatch[1]);
+
+    // POST /insurance/verify
+    if (method === 'POST' && path === 'insurance/verify') return handleInsuranceVerify(event, supabase);
+
+    // GET /insurance/verifications
+    if (method === 'GET' && path === 'insurance/verifications') return handleGetInsuranceVerifications(event, supabase);
+
+    // PUT /insurance/verifications/:id
+    const insVerifMatch = path.match(/^insurance\/verifications\/([a-f0-9-]{36})$/);
+    if (method === 'PUT' && insVerifMatch) return handleUpdateInsuranceVerification(event, supabase, insVerifMatch[1]);
+
+    // GET /insurance/name-cross-ref/:vehicleId
+    const crossRefMatch = path.match(/^insurance\/name-cross-ref\/([a-f0-9-]{36})$/);
+    if (method === 'GET' && crossRefMatch) return handleNameCrossRef(event, supabase, crossRefMatch[1]);
 
     return json(404, { error: 'Route not found' });
   } catch (err) {

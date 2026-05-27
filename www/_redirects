@@ -199,3 +199,9 @@
 # Feature: Stripe Identity KYC
 /api/identity/session /.netlify/functions/identity-verify/session 200
 /api/identity/status  /.netlify/functions/identity-verify/status 200
+
+# Feature: Insurance Card Verification
+/api/insurance/verify                /.netlify/functions/vehicle-verify/insurance/verify 200
+/api/insurance/verifications         /.netlify/functions/vehicle-verify/insurance/verifications 200
+/api/insurance/verifications/*       /.netlify/functions/vehicle-verify/insurance/verifications/:splat 200
+/api/insurance/name-cross-ref/*      /.netlify/functions/vehicle-verify/insurance/name-cross-ref/:splat 200

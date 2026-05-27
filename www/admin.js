@@ -4118,7 +4118,7 @@
       }
     }
 
-    globalThis.viewMember = function viewMember(memberId) {
+    globalThis.viewMember = async function viewMember(memberId) {
       const m = members.find(x => x.id === memberId);
       if (!m) return;
 
@@ -4142,9 +4142,60 @@
           <span class="detail-label">Stripe Customer</span><span class="detail-value">${m.stripe_customer_id
             ? `<a href="https://dashboard.stripe.com/customers/${m.stripe_customer_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_customer_id}</a>`
             : '<span style="color:var(--text-muted);">None</span>'}</span>
+        </div>
+        <div id="member-vehicles-panel" style="margin-top:20px;">
+          <div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>
+          <div style="color:var(--text-muted);font-size:0.85rem;">Loading...</div>
         </div>`;
 
       openModal('member-detail-modal');
+
+      // Load vehicles with verification status + cross-ref
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const { data: vehs } = await supabaseClient.from('vehicles')
+          .select('id,year,make,model,vin,registration_verified,insurance_verified,insurance_carrier,insurance_policy_number,insurance_verification_id')
+          .eq('owner_id', memberId)
+          .order('created_at');
+
+        if (!vehs || !vehs.length) {
+          document.getElementById('member-vehicles-panel').innerHTML =
+            '<div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div><div style="color:var(--text-muted);font-size:0.85rem;">No vehicles.</div>';
+          return;
+        }
+
+        // For each vehicle, fetch cross-ref
+        const crossRefs = await Promise.all(vehs.map(v =>
+          fetch(`/api/insurance/name-cross-ref/${v.id}`, { headers: { 'Authorization': `Bearer ${session?.access_token}` } })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+        ));
+
+        const vehHtml = vehs.map((v, i) => {
+          const cr = crossRefs[i];
+          const confColor = !cr ? 'var(--text-muted)' : cr.confidence === 'high' ? 'var(--accent-green)' : cr.confidence === 'medium' ? 'var(--accent-gold)' : 'var(--accent-red)';
+          const confLabel = cr?.confidence?.replace('_', ' ') || 'N/A';
+          const mismatchCount = cr?.mismatches?.length || 0;
+          return `
+            <div style="background:var(--bg-elevated);border-radius:8px;padding:14px;margin-bottom:10px;border:1px solid var(--border-subtle);">
+              <div style="font-weight:600;margin-bottom:8px;">${v.year || ''} ${v.make || ''} ${v.model || ''}${v.vin ? ` <small style="color:var(--text-muted)">VIN: ${v.vin}</small>` : ''}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span class="badge ${v.registration_verified ? 'badge-success' : 'badge-warning'}">${v.registration_verified ? 'Reg ✓' : 'Reg —'}</span>
+                <span class="badge ${v.insurance_verified ? 'badge-success' : 'badge-warning'}">${v.insurance_verified ? 'Ins ✓' : 'Ins —'}</span>
+              </div>
+              ${v.insurance_verified ? `<div style="font-size:0.82rem;color:var(--text-muted);">Carrier: ${v.insurance_carrier || '—'} &nbsp; Policy: ${v.insurance_policy_number || '—'}</div>` : ''}
+              <div style="margin-top:8px;font-size:0.82rem;">
+                <span style="color:var(--text-muted);">Name cross-ref: </span>
+                <span style="color:${confColor};font-weight:600;">${confLabel}</span>
+                ${mismatchCount ? `<span style="color:var(--accent-red);margin-left:8px;">${mismatchCount} mismatch${mismatchCount > 1 ? 'es' : ''}</span>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('member-vehicles-panel').innerHTML =
+          `<div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>${vehHtml}`;
+      } catch (e) {
+        console.warn('[admin] viewMember vehicles error:', e.message);
+      }
     };
 
     // ========== APPLICATION REVIEW ==========
@@ -9300,8 +9351,10 @@
       tab.classList.add('active');
       const view = tab.dataset.regView;
       document.getElementById('reg-panel-verifications').style.display = view === 'verifications' ? '' : 'none';
-      document.getElementById('reg-panel-held-rides').style.display   = view === 'held-rides'    ? '' : 'none';
+      document.getElementById('reg-panel-held-rides').style.display    = view === 'held-rides'    ? '' : 'none';
+      document.getElementById('reg-panel-insurance').style.display     = view === 'insurance'     ? '' : 'none';
       if (view === 'held-rides') loadHeldRides();
+      if (view === 'insurance')  loadInsuranceVerifications();
     });
 
     // ── Held Pickups (pending_name_review rides) ──────────────────────────────
@@ -9330,10 +9383,10 @@
       const badge = document.getElementById('held-rides-badge');
       const regCount = document.getElementById('registration-count');
       if (badge) { badge.textContent = heldRides.length; badge.style.display = heldRides.length ? 'inline-block' : 'none'; }
-      // Roll held ride count into the nav badge so it's visible from any section
       if (regCount) {
         const verifPending = registrationVerifications.filter(v => ['pending','manual_review','needs_review'].includes(v.status)).length;
-        const total = verifPending + heldRides.length;
+        const insPending   = insuranceVerificationsList.filter(v => v.status === 'manual_review').length;
+        const total = verifPending + heldRides.length + insPending;
         regCount.textContent = total;
         regCount.style.display = total ? 'inline-block' : 'none';
       }
@@ -9410,12 +9463,199 @@
     }
     globalThis.rejectHeldRide = rejectHeldRide;
 
+    // ── Insurance Verification Admin ──────────────────────────────────────────
+    let insuranceVerificationsList = [];
+    let currentInsuranceVerifFilter = 'all';
+
+    async function loadInsuranceVerifications(status = null) {
+      const tbody = document.getElementById('insurance-verifications-table');
+      const filter = status || currentInsuranceVerifFilter;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Not signed in</td></tr>'; return; }
+        let insVerifUrl = '/api/insurance/verifications';
+        if (filter && filter !== 'all') insVerifUrl += `?status=${filter}`;
+        const res = await fetch(insVerifUrl, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) { if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Failed to load</td></tr>'; return; }
+        const data = await res.json();
+        insuranceVerificationsList = data.verifications || [];
+        renderInsuranceVerifications();
+        updateInsuranceBadge();
+        updateHeldRidesBadge();
+      } catch (err) {
+        console.error('[admin] insurance verifications error:', err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Error loading</td></tr>';
+      }
+    }
+    globalThis.loadInsuranceVerifications = loadInsuranceVerifications;
+
+    function updateInsuranceBadge() {
+      const badge = document.getElementById('insurance-reviews-badge');
+      const count = insuranceVerificationsList.filter(v => v.status === 'manual_review').length;
+      if (badge) { badge.textContent = count; badge.style.display = count ? 'inline-block' : 'none'; }
+    }
+
+    function renderInsuranceVerifications() {
+      const tbody = document.getElementById('insurance-verifications-table');
+      if (!tbody) return;
+      if (!insuranceVerificationsList.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No insurance verifications.</td></tr>';
+        return;
+      }
+      const statusColors = { approved: 'badge-success', manual_review: 'badge-warning', expired: 'badge-danger', rejected: 'badge-secondary' };
+      const statusLabels = { approved: 'Approved', manual_review: 'Pending Review', expired: 'Expired', rejected: 'Rejected' };
+      tbody.innerHTML = insuranceVerificationsList.map(v => {
+        const member  = v.user?.full_name || v.user?.email || 'Unknown';
+        const vehicle = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : '—';
+        const score   = v.name_match_score != null ? v.name_match_score : '—';
+        const scoreColor = score === '—' ? 'var(--text-muted)' : score >= 80 ? 'var(--accent-green)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const expiry  = v.expiration_date ? new Date(v.expiration_date + 'T00:00:00Z').toLocaleDateString() : '—';
+        const isExpiredDate = v.expiration_date && new Date(v.expiration_date + 'T00:00:00Z') < new Date();
+        const expiryHtml = `<span style="color:${isExpiredDate ? 'var(--accent-red)' : 'inherit'}">${expiry}</span>`;
+        const contextNote = v.context_note
+          ? `<span title="${v.context_note}" style="font-size:0.78rem;font-style:italic;">${v.context_note.length > 30 ? v.context_note.slice(0,30)+'…' : v.context_note}</span>`
+          : '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+        return `
+          <tr>
+            <td><strong>${member}</strong><div style="font-size:0.78rem;color:var(--text-muted);">${v.user?.email || ''}</div></td>
+            <td style="font-size:0.88rem;">${vehicle}</td>
+            <td style="font-size:0.88rem;">${v.carrier || '—'}</td>
+            <td>${expiryHtml}</td>
+            <td><span style="color:${scoreColor};font-weight:600;">${score}${score !== '—' ? '%' : ''}</span></td>
+            <td><span class="badge ${statusColors[v.status] || 'badge-secondary'}">${statusLabels[v.status] || v.status}</span></td>
+            <td>${contextNote}</td>
+            <td style="font-size:0.82rem;">${new Date(v.created_at).toLocaleDateString()}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="openInsuranceVerificationDetail('${v.id}')">Review</button></td>
+          </tr>`;
+      }).join('');
+    }
+
+    // Insurance filter tabs
+    document.getElementById('insurance-tabs')?.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-ins-filter]');
+      if (!tab) return;
+      document.querySelectorAll('#insurance-tabs [data-ins-filter]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentInsuranceVerifFilter = tab.dataset.insFilter;
+      loadInsuranceVerifications(currentInsuranceVerifFilter);
+    });
+
+    globalThis.openInsuranceVerificationDetail = async function(verifId) {
+      const v = insuranceVerificationsList.find(x => x.id === verifId);
+      if (!v) return;
+
+      const statusColors = { approved: 'var(--accent-green)', manual_review: 'var(--accent-gold)', expired: 'var(--accent-red)', rejected: 'var(--accent-red)' };
+      const statusLabels = { approved: 'Approved', manual_review: 'Pending Review', expired: 'Expired', rejected: 'Rejected' };
+      const isExpiredDate = v.expiration_date && new Date(v.expiration_date + 'T00:00:00Z') < new Date();
+      const score = v.name_match_score != null ? v.name_match_score : null;
+      const scoreColor = score == null ? 'var(--text-muted)' : score >= 80 ? 'var(--accent-green)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+      let crossRefHtml = '<div style="color:var(--text-muted);font-size:0.85rem;">Loading cross-reference...</div>';
+
+      document.getElementById('insurance-detail-body').innerHTML = `
+        <div class="detail-grid" style="row-gap:10px;margin-bottom:20px;">
+          <span class="detail-label">Member</span><span class="detail-value">${v.user?.full_name || '—'} <small style="color:var(--text-muted)">${v.user?.email || ''}</small></span>
+          <span class="detail-label">Vehicle</span><span class="detail-value">${v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : '—'}${v.vehicle?.vin ? ` <small style="color:var(--text-muted)">VIN: ${v.vehicle.vin}</small>` : ''}</span>
+          <span class="detail-label">Status</span><span class="detail-value" style="color:${statusColors[v.status] || 'inherit'};font-weight:600;">${statusLabels[v.status] || v.status}</span>
+          <span class="detail-label">Policyholder</span><span class="detail-value">${v.policyholder_name || '—'}</span>
+          <span class="detail-label">Account Name</span><span class="detail-value">${v.profile_name || '—'}</span>
+          <span class="detail-label">Name Match</span><span class="detail-value"><span style="color:${scoreColor};font-weight:600;">${score != null ? score + '%' : '—'}</span></span>
+          <span class="detail-label">Carrier</span><span class="detail-value">${v.carrier || '—'}</span>
+          <span class="detail-label">Policy #</span><span class="detail-value">${v.policy_number || '—'}</span>
+          <span class="detail-label">Effective</span><span class="detail-value">${v.effective_date || '—'}</span>
+          <span class="detail-label">Expires</span><span class="detail-value" style="color:${isExpiredDate ? 'var(--accent-red)' : 'inherit'}">${v.expiration_date || '—'}${isExpiredDate ? ' ⚠ Expired' : ''}</span>
+          <span class="detail-label">VIN on Card</span><span class="detail-value">${v.vin || '—'}</span>
+          ${v.context_note ? `<span class="detail-label">Context Note</span><span class="detail-value" style="background:var(--accent-gold-soft);border:1px solid rgba(201,162,71,0.3);padding:8px;border-radius:6px;">${v.context_note}</span>` : ''}
+        </div>
+        ${v.image_url ? `<div style="margin-bottom:20px;"><a href="${v.image_url}" target="_blank"><img src="${v.image_url}" alt="Insurance card" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid var(--border-color);"></a></div>` : ''}
+        <div id="ins-cross-ref-panel" style="margin-bottom:16px;">${crossRefHtml}</div>`;
+
+      document.getElementById('insurance-detail-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal('insurance-detail-modal')">Close</button>
+        ${['manual_review','expired'].includes(v.status) ? `
+          <button class="btn btn-danger" onclick="rejectInsuranceVerification('${v.id}')">Reject</button>
+          <button class="btn btn-success" onclick="approveInsuranceVerification('${v.id}')">Approve</button>` : ''}`;
+
+      openModal('insurance-detail-modal');
+
+      // Load three-way cross-ref asynchronously
+      if (v.vehicle_id) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          const res = await fetch(`/api/insurance/name-cross-ref/${v.vehicle_id}`, {
+            headers: { 'Authorization': `Bearer ${session?.access_token}` }
+          });
+          if (res.ok) {
+            const cr = await res.json();
+            const confColor = cr.confidence === 'high' ? 'var(--accent-green)' : cr.confidence === 'medium' ? 'var(--accent-gold)' : 'var(--accent-red)';
+            const sourcesHtml = Object.entries(cr.sources || {})
+              .filter(([,v]) => v)
+              .map(([k, val]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--text-muted);text-transform:capitalize;">${k.replace('_', ' ')}</span><span style="font-weight:500;">${val}</span></div>`)
+              .join('');
+            const mismatchesHtml = cr.mismatches?.length
+              ? cr.mismatches.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;"><span style="color:var(--accent-red);">${p.source_a} ↔ ${p.source_b}: ${p.score}%</span><div style="color:var(--text-muted);">"${p.name_a}" vs "${p.name_b}"</div></div>`).join('')
+              : '<div style="color:var(--accent-green);font-size:0.85rem;">All sources align.</div>';
+            document.getElementById('ins-cross-ref-panel').innerHTML = `
+              <div style="background:var(--bg-elevated);border-radius:8px;padding:16px;border:1px solid var(--border-subtle);">
+                <div style="font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                  Name Cross-Reference
+                  <span style="font-size:0.82rem;padding:2px 8px;border-radius:20px;background:${confColor}22;color:${confColor};border:1px solid ${confColor}44;">${cr.confidence?.replace('_', ' ') || '—'} confidence</span>
+                </div>
+                <div style="margin-bottom:12px;">${sourcesHtml}</div>
+                <div style="font-weight:500;margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);">Mismatches (&lt;80%)</div>
+                ${mismatchesHtml}
+              </div>`;
+          }
+        } catch (e) {
+          document.getElementById('ins-cross-ref-panel').innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Cross-reference unavailable.</div>';
+        }
+      }
+    };
+
+    globalThis.approveInsuranceVerification = async function(verifId) {
+      if (!confirm('Approve this insurance verification? This will mark the vehicle insurance as verified.')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/insurance/verifications/${verifId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ status: 'approved' }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Insurance verification approved.', 'success');
+        closeModal('insurance-detail-modal');
+        await loadInsuranceVerifications();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    };
+
+    globalThis.rejectInsuranceVerification = async function(verifId) {
+      if (!confirm('Reject this insurance verification?')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/insurance/verifications/${verifId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ status: 'rejected' }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Insurance verification rejected.', 'success');
+        closeModal('insurance-detail-modal');
+        await loadInsuranceVerifications();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    };
+    // ── End Insurance Verification Admin ──────────────────────────────────────
+
     // Also load held rides count when the section first loads (for badge)
     const _origLoadRegVerif = loadRegistrationVerifications;
     loadRegistrationVerifications = async function(status = null) {
       await _origLoadRegVerif(status);
-      // Fire held rides count fetch in background for badge accuracy
+      // Fire background fetches for badge accuracy
       loadHeldRides().catch(() => {});
+      loadInsuranceVerifications().catch(() => {});
     };
     // ── End Held Pickups ──────────────────────────────────────────────────────
 
