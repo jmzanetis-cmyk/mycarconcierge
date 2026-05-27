@@ -72,6 +72,7 @@ function renderMCCFooter() {
           <img src="/logo.png" alt="My Car Concierge" class="footer-logo">
           <span class="footer-brand-name">My Car Concierge</span>
         </div>
+        <p class="footer-business-info">Zanetis Holdings LLC &middot; Flemington, NJ &middot; Founded 2025 &middot; <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a></p>
         <p class="footer-copyright">Copyright &copy; ${new Date().getFullYear()} Zanetis Holdings LLC. All rights reserved.</p>
       </div>
     </div>
@@ -181,6 +182,21 @@ function renderMCCFooter() {
         font-family: 'Playfair Display', serif;
         font-weight: 600;
         font-size: 1.25rem;
+        color: #f4f4f6;
+      }
+
+      .footer-business-info {
+        color: #6b6b7a;
+        font-size: 0.8rem;
+        text-align: center;
+      }
+
+      .footer-business-info a {
+        color: #9898a8;
+        text-decoration: none;
+      }
+
+      .footer-business-info a:hover {
         color: #f4f4f6;
       }
 
