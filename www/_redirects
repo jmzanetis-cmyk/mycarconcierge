@@ -119,6 +119,9 @@
 /api/admin/hubspot/* /.netlify/functions/admin-hubspot/:splat 200
 /api/admin/marketing/* /.netlify/functions/admin-marketing/:splat 200
 
+# Account deletion (App Store Guideline 5.1.1(v))
+/api/account/delete /.netlify/functions/account-delete 200
+
 # Founder payouts (body-password auth, not Bearer)
 /api/admin/process-founder-payout /.netlify/functions/admin-founders/process-founder-payout 200
 /api/admin/process-bulk-payouts /.netlify/functions/admin-founders/process-bulk-payouts 200
