@@ -246,6 +246,8 @@
     .tab:hover { color: var(--text-primary); }
     .tab.active { color: var(--accent-blue); border-bottom-color: var(--accent-blue); }
 
+    .admin-table-wrap { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+
     table { width: 100%; border-collapse: collapse; }
     th, td { text-align: left; padding: 14px 16px; border-bottom: 1px solid var(--border-subtle); }
     th { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
@@ -2145,24 +2147,26 @@
           <h2 class="card-title">Driver Roster</h2>
           <button class="btn btn-secondary btn-sm" onclick="loadActiveDrivers()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Status</th>
-              <th>BGC</th>
-              <th>Stripe</th>
-              <th>Rides</th>
-              <th>Rating</th>
-              <th>Joined</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="active-drivers-table">
-            <tr><td colspan="9" class="empty-state">Loading…</td></tr>
-          </tbody>
-        </table>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Status</th>
+                <th>BGC</th>
+                <th>Stripe</th>
+                <th>Rides</th>
+                <th>Rating</th>
+                <th>Joined</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="active-drivers-table">
+              <tr><td colspan="9" class="empty-state">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -2198,23 +2202,25 @@
             <button class="btn btn-secondary btn-sm" onclick="loadTransportRides()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
           </div>
         </div>
-        <table>
-          <thead>
-            <tr>
-              <th>Status</th>
-              <th>Member</th>
-              <th>Driver</th>
-              <th>Pickup</th>
-              <th>Dropoff</th>
-              <th>Fare</th>
-              <th>Date</th>
-              <th>Actions</th>
-            </tr>
-          </thead>
-          <tbody id="transport-table">
-            <tr><td colspan="8" class="empty-state">Loading…</td></tr>
-          </tbody>
-        </table>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Status</th>
+                <th>Member</th>
+                <th>Driver</th>
+                <th>Pickup</th>
+                <th>Dropoff</th>
+                <th>Fare</th>
+                <th>Date</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="transport-table">
+              <tr><td colspan="8" class="empty-state">Loading…</td></tr>
+            </tbody>
+          </table>
+        </div>
       </div>
     </section>
 
@@ -2791,27 +2797,29 @@
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
-        <table>
-          <thead>
-            <tr>
-              <th style="width:40px;"><input type="checkbox" id="select-all-providers" onchange="toggleSelectAll(this)"></th>
-              <th>Business</th>
-              <th>Credits</th>
-              <th>Rating</th>
-              <th>Jobs</th>
-              <th>Earnings</th>
-              <th>Bg Check</th>
-              <!-- Task #249 — outreach attribution mirrors the Source column on the Applications tab.
-                   Click-through to the originating outreach lead works the same way (viewOutreachLead). -->
-              <th>Source</th>
-              <th>Status</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="providers-table">
-            <tr><td colspan="10" class="empty-state">No active providers</td></tr>
-          </tbody>
-        </table>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th style="width:40px;"><input type="checkbox" id="select-all-providers" onchange="toggleSelectAll(this)"></th>
+                <th>Business</th>
+                <th>Credits</th>
+                <th>Rating</th>
+                <th>Jobs</th>
+                <th>Earnings</th>
+                <th>Bg Check</th>
+                <!-- Task #249 — outreach attribution mirrors the Source column on the Applications tab.
+                     Click-through to the originating outreach lead works the same way (viewOutreachLead). -->
+                <th>Source</th>
+                <th>Status</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="providers-table">
+              <tr><td colspan="10" class="empty-state">No active providers</td></tr>
+            </tbody>
+          </table>
+        </div>
         <div id="providers-pagination"></div>
       </div>
     </section>
@@ -2908,22 +2916,24 @@
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
-        <table>
-          <thead>
-            <tr>
-              <th>Package</th>
-              <th>Member</th>
-              <th>Vehicle</th>
-              <th>Category</th>
-              <th>Bids</th>
-              <th>Status</th>
-              <th>Created</th>
-            </tr>
-          </thead>
-          <tbody id="packages-table">
-            <tr><td colspan="7" class="empty-state">Loading packages...</td></tr>
-          </tbody>
-        </table>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Package</th>
+                <th>Member</th>
+                <th>Vehicle</th>
+                <th>Category</th>
+                <th>Bids</th>
+                <th>Status</th>
+                <th>Created</th>
+              </tr>
+            </thead>
+            <tbody id="packages-table">
+              <tr><td colspan="7" class="empty-state">Loading packages...</td></tr>
+            </tbody>
+          </table>
+        </div>
         <div id="packages-pagination"></div>
       </div>
     </section>
@@ -3218,23 +3228,25 @@
       </div>
 
       <div class="card" style="padding:0;overflow:hidden;">
-        <table>
-          <thead>
-            <tr>
-              <th>Name</th>
-              <th>Email</th>
-              <th>Account Type</th>
-              <th>Vehicles</th>
-              <th>Packages</th>
-              <th>Identity</th>
-              <th>Joined</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody id="members-table">
-            <tr><td colspan="8" class="empty-state">No members</td></tr>
-          </tbody>
-        </table>
+        <div class="admin-table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Email</th>
+                <th>Account Type</th>
+                <th>Vehicles</th>
+                <th>Packages</th>
+                <th>Identity</th>
+                <th>Joined</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="members-table">
+              <tr><td colspan="8" class="empty-state">No members</td></tr>
+            </tbody>
+          </table>
+        </div>
         <div id="members-pagination"></div>
       </div>
     </section>
