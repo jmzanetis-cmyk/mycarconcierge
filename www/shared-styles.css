@@ -55,6 +55,19 @@
   --shadow-lg: 0 12px 40px rgba(0,0,0,0.3);
   --shadow-glow-gold: 0 0 60px rgba(201, 162, 39, 0.1);
   --shadow-glow-blue: 0 2px 12px rgba(56, 189, 248, 0.3);
+
+  /* Type scale — 10 steps, ~1.2 ratio anchored on dominant existing sizes.
+     See docs/type-scale-map.md for full collapse mapping. */
+  --text-xs:      0.72rem;   /* 11.5px — fine print, timestamps, copyright */
+  --text-sm:      0.82rem;   /* 13.1px — tags, badges, secondary metadata */
+  --text-base:    0.9rem;    /* 14.4px — inputs, nav, buttons, secondary text */
+  --text-md:      1rem;      /* 16px   — body text */
+  --text-lg:      1.1rem;    /* 17.6px — slightly enlarged body, card subtitles */
+  --text-xl:      1.3rem;    /* 20.8px — card titles, small section labels */
+  --text-2xl:     1.5rem;    /* 24px   — section headings, card headers */
+  --text-3xl:     1.8rem;    /* 28.8px — page-level headings */
+  --text-4xl:     2.25rem;   /* 36px   — hero headings */
+  --text-display: 3rem;      /* 48px   — display / banner text */
 }
 
 /* ==========================================================================
