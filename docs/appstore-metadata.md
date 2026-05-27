@@ -21,10 +21,6 @@ Copy each field exactly into App Store Connect. Character counts are noted where
 ## Subtitle (30 chars max)
 
 ```
-Your Complete Auto Ownership App
-```
-*(33 chars — trim to:)*
-```
 Complete Auto Ownership App
 ```
 *(27 chars ✓)*
@@ -278,3 +274,40 @@ For the initial submission (1.0.0), App Store Connect requires a "What's New" en
 Welcome to My Car Concierge — your complete auto ownership platform. Post service requests and receive competitive bids from vetted local providers, manage your vehicles and maintenance history, scan OBD fault codes with AI-powered explanations, and earn loyalty rewards through Car Club programs. Secure escrow payments protect every transaction. Built for car owners, by car enthusiasts.
 ```
 *(370 chars)*
+
+---
+
+## App Review Notes
+
+### Demo Account for Apple Reviewers
+
+A pre-seeded member account is available for reviewers to explore all member-facing features without needing to create an account or enter real payment details.
+
+| Field | Value |
+|---|---|
+| **Email** | reviewer@mycarconcierge.com |
+| **Password** | ReviewMCC2025! |
+| **Account type** | Member |
+
+**Pre-loaded state:**
+- One vehicle added (2022 Toyota Camry, VIN verified)
+- Identity verification completed
+- One completed service request in history
+- Sample care plan on file
+- Car Club membership active with 3 punch credits
+
+**Key flows to test:**
+1. **Dashboard** → tap the vehicle card to see health score and maintenance history
+2. **Request Service** → post a new bid request (select "Oil Change", any date/time)
+3. **Transport** → request a vehicle pickup (identity gate will show as verified)
+4. **OBD Scan** → upload the sample OBD image from Photo Library (included in account)
+5. **Account → Delete Account** → enter password `ReviewMCC2025!` to test deletion flow (a fresh account will be restored within 1 hour for continued review)
+
+### Feature Notes for Reviewer
+
+- **Payments**: All Stripe flows are in test mode for the review account. Use card `4242 4242 4242 4242`, any future expiry, any CVC.
+- **Geolocation**: Transport pickup request requires location permission. Tap "Allow Once" when prompted — the app uses precise GPS only for setting the pickup pin.
+- **Camera/Photos**: Used for vehicle registration upload, insurance card upload, and OBD scan photo. All processed by on-device AI; images are not stored beyond the verification flow.
+- **Face ID / Touch ID**: Not required; used only as an optional fast-login shortcut if the user enables it in Settings.
+- **Push Notifications**: Optional. The app functions fully without them.
+- **Admin portal**: The admin interface is a separate web-only tool at a different URL and is not included in this submission.
