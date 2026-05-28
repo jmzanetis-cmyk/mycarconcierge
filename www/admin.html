@@ -257,6 +257,10 @@
     .sortable-th:hover { background: rgba(255,255,255,0.05); }
     .sort-caret { display: inline-block; margin-left: 4px; font-size: 0.65rem; opacity: 0.4; vertical-align: middle; }
     .sort-caret.active { opacity: 1; color: var(--accent-blue, #3b82f6); }
+    .nav-label { cursor: pointer; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+    .nav-label:hover { color: var(--text-primary); }
+    .nav-group-caret { font-size: 0.7rem; opacity: 0.6; transition: transform 0.15s ease; flex-shrink: 0; }
+    .nav-group-items.collapsed { display: none; }
 
     .status-badge { display:inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; }
     .status-badge.pending, .status-badge.orange { background: var(--accent-orange-soft); color: var(--accent-orange); }
@@ -569,70 +573,92 @@
     </a>
 
     <div class="sidebar-nav">
-      <div class="nav-label">Overview</div>
-      <div class="nav-item active" data-section="dashboard"><span class="icon-inline" data-icon="bar-chart"></span> Dashboard</div>
-      <div class="nav-item" data-section="analytics"><span class="icon-inline" data-icon="trending-up"></span> Analytics</div>
-      <div class="nav-item" data-section="traffic"><span class="icon-inline" data-icon="activity"></span> Traffic</div>
-      <div class="nav-item" data-section="marketing-outreach"><span class="icon-inline" data-icon="zap"></span> Marketing & Outreach</div>
+      <div class="nav-label" data-group="overview" onclick="toggleNavGroup('overview')">Overview <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="overview">
+        <div class="nav-item active" data-section="dashboard"><span class="icon-inline" data-icon="bar-chart"></span> Dashboard</div>
+        <div class="nav-item" data-section="analytics"><span class="icon-inline" data-icon="trending-up"></span> Analytics</div>
+        <div class="nav-item" data-section="traffic"><span class="icon-inline" data-icon="activity"></span> Traffic</div>
+        <div class="nav-item" data-section="marketing-outreach"><span class="icon-inline" data-icon="zap"></span> Marketing & Outreach</div>
+      </div>
 
-      <div class="nav-label">Provider Management</div>
-      <div class="nav-item" data-section="applications"><span class="icon-inline" data-icon="clipboard-list"></span> Applications <span class="nav-badge orange" id="app-count">0</span></div>
-      <div class="nav-item" data-section="providers"><span class="icon-inline" data-icon="check"></span> Active Providers</div>
-      <div class="nav-item" data-section="violations"><span class="icon-inline" data-icon="flag"></span> Violation Reports <span class="nav-badge red" id="violation-count">0</span></div>
-      <div class="nav-item" data-section="car-reviews"><span class="icon-inline" data-icon="file-text"></span> CAR Reviews <span class="nav-badge orange" id="car-count">0</span></div>
+      <div class="nav-label" data-group="provider-management" onclick="toggleNavGroup('provider-management')">Provider Management <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="provider-management">
+        <div class="nav-item" data-section="applications"><span class="icon-inline" data-icon="clipboard-list"></span> Applications <span class="nav-badge orange" id="app-count">0</span></div>
+        <div class="nav-item" data-section="providers"><span class="icon-inline" data-icon="check"></span> Active Providers</div>
+        <div class="nav-item" data-section="violations"><span class="icon-inline" data-icon="flag"></span> Violation Reports <span class="nav-badge red" id="violation-count">0</span></div>
+        <div class="nav-item" data-section="car-reviews"><span class="icon-inline" data-icon="file-text"></span> CAR Reviews <span class="nav-badge orange" id="car-count">0</span></div>
+      </div>
 
-      <div class="nav-label">Founder Management</div>
-      <div class="nav-item" data-section="pilot-applications"><span class="icon-inline" data-icon="star"></span> Provider Founders <span class="nav-badge orange" id="pilot-count">0</span></div>
-      <div class="nav-item" data-section="driver-applications"><span class="icon-inline" data-icon="truck"></span> Driver Applications <span class="nav-badge orange" id="driver-apps-badge" style="display:none;">0</span></div>
-      <div class="nav-item" data-section="active-drivers"><span class="icon-inline" data-icon="user-check"></span> Active Drivers</div>
-      <div class="nav-item" data-section="member-founders"><span class="icon-inline" data-icon="users"></span> Member Founders <span class="nav-badge orange" id="member-founder-count">0</span></div>
-      <div class="nav-item" data-section="commission-payouts"><span class="icon-inline" data-icon="dollar-sign"></span> Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
+      <div class="nav-label" data-group="founder-management" onclick="toggleNavGroup('founder-management')">Founder Management <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="founder-management">
+        <div class="nav-item" data-section="pilot-applications"><span class="icon-inline" data-icon="star"></span> Provider Founders <span class="nav-badge orange" id="pilot-count">0</span></div>
+        <div class="nav-item" data-section="driver-applications"><span class="icon-inline" data-icon="truck"></span> Driver Applications <span class="nav-badge orange" id="driver-apps-badge" style="display:none;">0</span></div>
+        <div class="nav-item" data-section="active-drivers"><span class="icon-inline" data-icon="user-check"></span> Active Drivers</div>
+        <div class="nav-item" data-section="member-founders"><span class="icon-inline" data-icon="users"></span> Member Founders <span class="nav-badge orange" id="member-founder-count">0</span></div>
+        <div class="nav-item" data-section="commission-payouts"><span class="icon-inline" data-icon="dollar-sign"></span> Commission Payouts <span class="nav-badge green" id="payout-count">0</span></div>
+      </div>
 
-      <div class="nav-label">Operations</div>
-      <div class="nav-item" data-section="transport"><span class="icon-inline" data-icon="map-pin"></span> Transport Rides</div>
-      <div class="nav-item" data-section="packages"><span class="icon-inline" data-icon="package"></span> All Packages</div>
-      <div class="nav-item" data-section="payments"><span class="icon-inline" data-icon="credit-card"></span> Payments</div>
-      <div class="nav-item" data-section="driver-payouts"><span class="icon-inline" data-icon="truck"></span> Driver Payouts <span class="nav-badge orange" id="driver-payouts-badge" style="display:none;">0</span></div>
-      <div class="nav-item" data-section="disputes"><span class="icon-inline" data-icon="alert-triangle"></span> Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
-      <div class="nav-item" data-section="refunds"><span class="icon-inline" data-icon="receipt"></span> Refunds <span class="nav-badge orange" id="refund-count">0</span></div>
-      <div class="nav-item" data-section="registration-verifications"><span class="icon-inline" data-icon="search"></span> Registration Reviews <span class="nav-badge orange" id="registration-count" style="display:none;">0</span></div>
-      <div class="nav-item" data-section="bgc-dashboard"><span class="icon-inline" data-icon="shield"></span> BGC Dashboard</div>
-      <div class="nav-item" data-section="referrals"><span class="icon-inline" data-icon="link"></span> Referral Tracking</div>
+      <div class="nav-label" data-group="operations" onclick="toggleNavGroup('operations')">Operations <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="operations">
+        <div class="nav-item" data-section="transport"><span class="icon-inline" data-icon="map-pin"></span> Transport Rides</div>
+        <div class="nav-item" data-section="packages"><span class="icon-inline" data-icon="package"></span> All Packages</div>
+        <div class="nav-item" data-section="payments"><span class="icon-inline" data-icon="credit-card"></span> Payments</div>
+        <div class="nav-item" data-section="driver-payouts"><span class="icon-inline" data-icon="truck"></span> Driver Payouts <span class="nav-badge orange" id="driver-payouts-badge" style="display:none;">0</span></div>
+        <div class="nav-item" data-section="disputes"><span class="icon-inline" data-icon="alert-triangle"></span> Disputes <span class="nav-badge red" id="dispute-count">0</span></div>
+        <div class="nav-item" data-section="refunds"><span class="icon-inline" data-icon="receipt"></span> Refunds <span class="nav-badge orange" id="refund-count">0</span></div>
+        <div class="nav-item" data-section="registration-verifications"><span class="icon-inline" data-icon="search"></span> Registration Reviews <span class="nav-badge orange" id="registration-count" style="display:none;">0</span></div>
+        <div class="nav-item" data-section="bgc-dashboard"><span class="icon-inline" data-icon="shield"></span> BGC Dashboard</div>
+        <div class="nav-item" data-section="referrals"><span class="icon-inline" data-icon="link"></span> Referral Tracking</div>
+      </div>
 
-      <div class="nav-label">Support</div>
-      <div class="nav-item" data-section="tickets"><span class="icon-inline" data-icon="ticket"></span> Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
-      <div class="nav-item" data-section="ai-chat-insights"><span class="icon-inline" data-icon="message-circle"></span> AI Chat Insights</div>
-      <div class="nav-item" data-section="car-clubs"><span class="icon-inline" data-icon="award"></span> Car Clubs</div>
-      <div class="nav-item" data-section="members"><span class="icon-inline" data-icon="users"></span> Members</div>
-      <div class="nav-item" data-section="user-roles"><span class="icon-inline" data-icon="refresh-cw"></span> User Roles</div>
-      <div class="nav-item" data-section="user-management"><span class="icon-inline" data-icon="users"></span> User Management</div>
-      <div class="nav-item" data-section="survey-analytics"><span class="icon-inline" data-icon="bar-chart-2"></span> Survey Leads</div>
-      <div class="nav-item" data-section="member-surveys"><span class="icon-inline" data-icon="pie-chart"></span> Survey Analytics</div>
-      <div class="nav-item" data-section="agreements"><span class="icon-inline" data-icon="file-text"></span> Agreements</div>
+      <div class="nav-label" data-group="support" onclick="toggleNavGroup('support')">Support <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="support">
+        <div class="nav-item" data-section="tickets"><span class="icon-inline" data-icon="ticket"></span> Help Desk <span class="nav-badge green" id="ticket-count">0</span></div>
+        <div class="nav-item" data-section="ai-chat-insights"><span class="icon-inline" data-icon="message-circle"></span> AI Chat Insights</div>
+        <div class="nav-item" data-section="car-clubs"><span class="icon-inline" data-icon="award"></span> Car Clubs</div>
+        <div class="nav-item" data-section="members"><span class="icon-inline" data-icon="users"></span> Members</div>
+        <div class="nav-item" data-section="user-roles"><span class="icon-inline" data-icon="refresh-cw"></span> User Roles</div>
+        <div class="nav-item" data-section="user-management"><span class="icon-inline" data-icon="users"></span> User Management</div>
+        <div class="nav-item" data-section="survey-analytics"><span class="icon-inline" data-icon="bar-chart-2"></span> Survey Leads</div>
+        <div class="nav-item" data-section="member-surveys"><span class="icon-inline" data-icon="pie-chart"></span> Survey Analytics</div>
+        <div class="nav-item" data-section="agreements"><span class="icon-inline" data-icon="file-text"></span> Agreements</div>
+      </div>
 
-      <div class="nav-label">Commerce</div>
-      <div class="nav-item" data-section="merch-manager"><span class="icon-inline" data-icon="store"></span> Merch Manager</div>
+      <div class="nav-label" data-group="commerce" onclick="toggleNavGroup('commerce')">Commerce <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="commerce">
+        <div class="nav-item" data-section="merch-manager"><span class="icon-inline" data-icon="store"></span> Merch Manager</div>
+      </div>
 
-      <div class="nav-label">CRM</div>
-      <div class="nav-item" data-section="crm"><span class="icon-inline" data-icon="users"></span> HubSpot CRM</div>
-      
-      <div class="nav-label">Resources</div>
-      <div class="nav-item" data-section="documents"><span class="icon-inline" data-icon="file-text"></span> Documents &amp; Resources</div>
-      
-      <div class="nav-label">AI Operations</div>
-      <div class="nav-item" data-section="agent-fleet"><span class="icon-inline" data-icon="zap"></span> Agent Fleet <span class="nav-badge red" id="agent-fleet-badge" style="display:none;">0</span></div>
-      <div class="nav-item" data-section="ai-ops"><span class="icon-inline" data-icon="cpu"></span> AI Activity</div>
+      <div class="nav-label" data-group="crm" onclick="toggleNavGroup('crm')">CRM <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="crm">
+        <div class="nav-item" data-section="crm"><span class="icon-inline" data-icon="users"></span> HubSpot CRM</div>
+      </div>
 
-      <div class="nav-label">Revenue</div>
-      <div class="nav-item" data-section="saas-subscriptions"><span class="icon-inline" data-icon="layers"></span> SaaS Subscriptions</div>
-      <div class="nav-item" data-section="white-label"><span class="icon-inline" data-icon="globe"></span> White-label Tenants</div>
-      <div class="nav-item" data-section="api-usage"><span class="icon-inline" data-icon="code"></span> AI API Usage</div>
+      <div class="nav-label" data-group="resources" onclick="toggleNavGroup('resources')">Resources <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="resources">
+        <div class="nav-item" data-section="documents"><span class="icon-inline" data-icon="file-text"></span> Documents &amp; Resources</div>
+      </div>
 
-      <div class="nav-label">System</div>
-      <div class="nav-item" data-section="sms-log"><span class="icon-inline" data-icon="message-circle"></span> SMS Log</div>
-      <div class="nav-item" data-section="audit-log"><span class="icon-inline" data-icon="shield"></span> Audit Log</div>
-      <div class="nav-item" data-section="team-management"><span class="icon-inline" data-icon="users"></span> Team Management</div>
-      <div class="nav-item" data-section="settings"><span class="icon-inline" data-icon="settings"></span> Settings</div>
+      <div class="nav-label" data-group="ai-operations" onclick="toggleNavGroup('ai-operations')">AI Operations <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="ai-operations">
+        <div class="nav-item" data-section="agent-fleet"><span class="icon-inline" data-icon="zap"></span> Agent Fleet <span class="nav-badge red" id="agent-fleet-badge" style="display:none;">0</span></div>
+        <div class="nav-item" data-section="ai-ops"><span class="icon-inline" data-icon="cpu"></span> AI Activity</div>
+      </div>
+
+      <div class="nav-label" data-group="revenue" onclick="toggleNavGroup('revenue')">Revenue <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="revenue">
+        <div class="nav-item" data-section="saas-subscriptions"><span class="icon-inline" data-icon="layers"></span> SaaS Subscriptions</div>
+        <div class="nav-item" data-section="white-label"><span class="icon-inline" data-icon="globe"></span> White-label Tenants</div>
+        <div class="nav-item" data-section="api-usage"><span class="icon-inline" data-icon="code"></span> AI API Usage</div>
+      </div>
+
+      <div class="nav-label" data-group="system" onclick="toggleNavGroup('system')">System <span class="nav-group-caret">▾</span></div>
+      <div class="nav-group-items" data-group="system">
+        <div class="nav-item" data-section="sms-log"><span class="icon-inline" data-icon="message-circle"></span> SMS Log</div>
+        <div class="nav-item" data-section="audit-log"><span class="icon-inline" data-icon="shield"></span> Audit Log</div>
+        <div class="nav-item" data-section="team-management"><span class="icon-inline" data-icon="users"></span> Team Management</div>
+        <div class="nav-item" data-section="settings"><span class="icon-inline" data-icon="settings"></span> Settings</div>
+      </div>
     </div>
 
     <div class="sidebar-footer">

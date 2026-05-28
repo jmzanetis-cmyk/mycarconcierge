@@ -320,6 +320,21 @@
       applications: { page: 1, limit: 25, total: 0, totalPages: 0 },
     };
     
+    // ========== NAV GROUP COLLAPSE STATE ==========
+    const navGroupCollapsed = {
+      overview: false, 'provider-management': false, 'founder-management': false,
+      operations: false, support: false, commerce: false, crm: false,
+      resources: false, 'ai-operations': false, revenue: false, system: false,
+    };
+
+    globalThis.toggleNavGroup = function(group) {
+      navGroupCollapsed[group] = !navGroupCollapsed[group];
+      const items = document.querySelector(`.nav-group-items[data-group="${group}"]`);
+      if (items) items.classList.toggle('collapsed', navGroupCollapsed[group]);
+      const caret = document.querySelector(`.nav-label[data-group="${group}"] .nav-group-caret`);
+      if (caret) caret.style.transform = navGroupCollapsed[group] ? 'rotate(-90deg)' : '';
+    };
+
     // ========== SORT STATE ==========
     const sortState = {
       applications: { col: null, dir: 'asc' },
@@ -11028,16 +11043,15 @@
       });
       
       navLabels.forEach(label => {
-        let next = label.nextElementSibling;
-        let hasVisible = false;
-        while (next && !next.classList.contains('nav-label')) {
-          if (next.classList.contains('nav-item') && next.style.display !== 'none') {
-            hasVisible = true;
-            break;
-          }
-          next = next.nextElementSibling;
-        }
+        const group = label.dataset.group;
+        const container = group
+          ? document.querySelector(`.nav-group-items[data-group="${group}"]`)
+          : null;
+        const hasVisible = container
+          ? [...container.querySelectorAll('.nav-item')].some(el => el.style.display !== 'none')
+          : false;
         label.style.display = hasVisible ? '' : 'none';
+        if (container) container.style.display = hasVisible ? '' : 'none';
       });
       
       const userInfo = document.createElement('div');
