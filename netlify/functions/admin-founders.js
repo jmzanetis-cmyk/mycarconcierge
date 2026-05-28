@@ -264,26 +264,14 @@ exports.handler = async function(event) {
 
       var currentResult = await supabase
         .from('member_founder_profiles')
-        .select('commission_rate, user_id')
+        .select('commission_rate, commission_rate_locked')
         .eq('id', fId)
         .single();
       if (!currentResult.data) return utils.errorResponse(404, 'Founder not found');
       var oldRate = currentResult.data.commission_rate || 0.50;
-      var founderUserId = currentResult.data.user_id;
 
-      // Agreement-lock: if the founder has a signed agreement with an agreement_date,
-      // their rate is contractually locked. Require admin_override: true to proceed.
-      if (founderUserId) {
-        var agreementResult = await supabase
-          .from('signed_agreements')
-          .select('id, agreement_date, commission_rate')
-          .eq('user_id', founderUserId)
-          .not('agreement_date', 'is', null)
-          .limit(1);
-        var hasAgreement = agreementResult.data && agreementResult.data.length > 0;
-        if (hasAgreement && !body.admin_override) {
-          return utils.errorResponse(403, 'This founder has a signed agreement locking their commission rate. Pass admin_override: true to override.');
-        }
+      if (currentResult.data.commission_rate_locked && !body.admin_override) {
+        return utils.errorResponse(403, 'This founder\'s commission rate is contractually locked. Pass admin_override: true to override.');
       }
 
       var updateResult = await supabase

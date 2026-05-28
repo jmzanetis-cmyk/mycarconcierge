@@ -377,12 +377,11 @@ async function main() {
     eq(sb._tables.member_founder_profiles[0].commission_rate, 0.30);
   });
 
-  await run('commission rate update: agreement-locked → 403 without admin_override', async () => {
+  await run('commission rate update: commission_rate_locked → 403 without admin_override', async () => {
     currentStripe = makeStripe();
     const sb = makeSupabase({
       tables: {
-        member_founder_profiles: [{ id: 'mfp-1', commission_rate: 0.50, user_id: 'fuser-1' }],
-        signed_agreements: [{ id: 'sa-1', user_id: 'fuser-1', agreement_date: '2025-01-01', commission_rate: 0.50 }],
+        member_founder_profiles: [{ id: 'mfp-1', commission_rate: 0.50, commission_rate_locked: true }],
         commission_rate_history: [],
         profiles: [{ id: 'admin-1', role: 'admin' }],
       },
@@ -393,12 +392,11 @@ async function main() {
     truthy(JSON.parse(res.body).error?.includes('admin_override'), 'error mentions admin_override');
   });
 
-  await run('commission rate update: agreement-locked → 200 with admin_override: true', async () => {
+  await run('commission rate update: commission_rate_locked → 200 with admin_override: true', async () => {
     currentStripe = makeStripe();
     const sb = makeSupabase({
       tables: {
-        member_founder_profiles: [{ id: 'mfp-1', commission_rate: 0.50, user_id: 'fuser-1' }],
-        signed_agreements: [{ id: 'sa-1', user_id: 'fuser-1', agreement_date: '2025-01-01', commission_rate: 0.50 }],
+        member_founder_profiles: [{ id: 'mfp-1', commission_rate: 0.50, commission_rate_locked: true }],
         commission_rate_history: [],
         profiles: [{ id: 'admin-1', role: 'admin' }],
       },
