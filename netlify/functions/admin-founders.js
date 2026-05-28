@@ -25,6 +25,9 @@
 
 var utils = require('./utils');
 
+// B3 milestone bonuses are scoped exclusively to Chris's founder profile.
+var CHRIS_FOUNDER_ID = '21837a02-6df4-4cb8-b0f4-c5082e83acbd';
+
 var DEFAULT_PAYOUT_SETTINGS = {
   min_payout_threshold:      10.00,
   instant_payout_fee_percent: 1.00,
@@ -341,31 +344,43 @@ exports.handler = async function(event) {
 
     // ── GET /api/admin/milestones ──────────────────────────────────────────
     if (method === 'GET' && path === 'milestones') {
+      // Compute cumulative MCC-retained revenue from three authoritative sources:
+      //   1. bid_credit_purchases.amount_paid (status='completed') — 100% MCC
+      //   2. payments.mcc_fee (non-voided/refunded) — MCC service cut
+      //   3. rides: COALESCE(actual_fare, gross_fare, estimated_fare) * 0.18
+      //      (rides.mcc_platform_fee_amount is never written by any code path)
       var mResults = await Promise.all([
-        supabase.from('platform_revenue_tracking').select('*').single(),
+        supabase.from('bid_credit_purchases').select('amount_paid').eq('status', 'completed'),
+        supabase.from('payments').select('mcc_fee').not('status', 'in', '(refunded,voided,failed,cancelled)'),
+        supabase.from('rides').select('actual_fare, gross_fare, estimated_fare').eq('status', 'completed'),
         supabase.from('milestone_thresholds').select('*').eq('is_active', true).order('threshold_amount', { ascending: true }),
-        supabase.from('milestone_achievements').select('*').order('threshold_amount', { ascending: true }),
-        supabase.from('founding_provider_partners').select('*').eq('status', 'active')
+        supabase.from('milestone_achievements').select('*').eq('founder_id', CHRIS_FOUNDER_ID).order('threshold_amount', { ascending: true }),
+        supabase.from('founding_provider_partners').select('*').eq('status', 'active'),
       ]);
 
-      var revenueData    = mResults[0].data;
-      var thresholds     = mResults[1].data || [];
-      var achievements   = mResults[2].data || [];
-      var partners       = mResults[3].data || [];
+      var bidTotal  = (mResults[0].data || []).reduce(function(s, r) { return s + parseFloat(r.amount_paid || 0); }, 0);
+      var payTotal  = (mResults[1].data || []).reduce(function(s, r) { return s + parseFloat(r.mcc_fee || 0); }, 0);
+      var rideTotal = (mResults[2].data || []).reduce(function(s, r) {
+        var fare = parseFloat(r.actual_fare || r.gross_fare || r.estimated_fare || 0);
+        return s + fare * 0.18;
+      }, 0);
+      var totalRevenue = bidTotal + payTotal + rideTotal;
 
-      var totalRevenue = parseFloat(revenueData && revenueData.total_bid_pack_revenue || 0);
+      var thresholds   = mResults[3].data || [];
+      var achievements = mResults[4].data || [];
+      var partners     = mResults[5].data || [];
 
       var milestones = thresholds.map(function(t) {
         var achievement = achievements.find(function(a) { return a.milestone_id === t.id; });
         return Object.assign({}, t, {
-          is_achieved: totalRevenue >= t.threshold_amount,
+          is_achieved: totalRevenue >= parseFloat(t.threshold_amount),
           is_paid:     achievement && achievement.status === 'paid',
           achievement: achievement || null
         });
       });
 
       var nextMilestone   = milestones.find(function(m) { return !m.is_achieved; });
-      var progressPercent = nextMilestone ? Math.min(100, (totalRevenue / nextMilestone.threshold_amount) * 100) : 100;
+      var progressPercent = nextMilestone ? Math.min(100, (totalRevenue / parseFloat(nextMilestone.threshold_amount)) * 100) : 100;
 
       var now = new Date();
       var nextAnniversary = new Date(now.getFullYear(), 0, 23);
@@ -373,14 +388,50 @@ exports.handler = async function(event) {
       var daysUntilAnniversary = Math.ceil((nextAnniversary - now) / (1000 * 60 * 60 * 24));
 
       return utils.successResponse({
-        success: true,
-        total_bid_pack_revenue:  totalRevenue,
+        success:                true,
+        cumulative_mcc_revenue: totalRevenue,
         milestones,
-        next_milestone:          nextMilestone || null,
-        progress_percent:        progressPercent,
-        founding_partners:       partners,
-        next_anniversary:        nextAnniversary.toISOString(),
-        days_until_anniversary:  daysUntilAnniversary
+        next_milestone:         nextMilestone || null,
+        progress_percent:       progressPercent,
+        founding_partners:      partners,
+        next_anniversary:       nextAnniversary.toISOString(),
+        days_until_anniversary: daysUntilAnniversary
+      });
+    }
+
+    // ── POST /api/admin/milestones/:id/pay ────────────────────────────────
+    // Marks a milestone achievement as paid. :id is the milestone_thresholds.id.
+    // The B3 check function creates the achievement and credits pending_balance;
+    // this endpoint records that the actual payment was disbursed.
+    if (method === 'POST' && path.startsWith('milestones/') && path.endsWith('/pay')) {
+      var parts = path.split('/');
+      var thresholdId = parts[1];
+      if (!thresholdId || thresholdId.length < 10) {
+        return utils.errorResponse(400, 'Invalid milestone id');
+      }
+
+      var achievementResult = await supabase.from('milestone_achievements')
+        .select('id, status, bonus_amount, threshold_amount')
+        .eq('milestone_id', thresholdId)
+        .eq('founder_id', CHRIS_FOUNDER_ID)
+        .maybeSingle();
+      var ach = achievementResult.data;
+      if (!ach) return utils.errorResponse(404, 'No achievement found for this milestone');
+      if (ach.status === 'paid') return utils.errorResponse(409, 'Milestone already marked as paid');
+
+      var updateResult = await supabase.from('milestone_achievements').update({
+        status:             'paid',
+        paid_at:            new Date().toISOString(),
+        paid_by:            user.id,
+        stripe_transfer_id: body.stripe_transfer_id || null,
+        notes:              body.notes || null,
+      }).eq('id', ach.id).select().single();
+      if (updateResult.error) throw updateResult.error;
+
+      return utils.successResponse({
+        success:     true,
+        achievement: updateResult.data,
+        message:     'Milestone $' + parseFloat(ach.threshold_amount).toLocaleString() + ' marked as paid',
       });
     }
 

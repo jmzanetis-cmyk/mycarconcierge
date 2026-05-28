@@ -178,6 +178,13 @@
 [functions."maintenance-reminders-scheduled"]
   schedule = "0 8 * * *"
 
+# B3 milestone bonuses: daily check at 02:15 UTC. Computes cumulative MCC-retained
+# revenue (bid credits + service platform fees + 18% transport fees) and fires
+# contract §1.3 milestone bonuses for Chris Agrapidis when thresholds are crossed.
+# Idempotent: UNIQUE(founder_id, threshold_amount) prevents double-firing.
+[functions."b3-milestone-check-scheduled"]
+  schedule = "15 2 * * *"
+
 # Monthly founder payout: on the 1st of each month at 14:00 UTC (9am ET).
 # Creates founder_payouts rows for all active founders with pending_balance > 0,
 # auto-processes Stripe Connect founders, flags PayPal-only and no-email founders

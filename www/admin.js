@@ -7482,7 +7482,7 @@
     function renderMilestonesContent() {
       if (!milestonesData) return;
       
-      const revenue = milestonesData.total_bid_pack_revenue || 0;
+      const revenue = milestonesData.cumulative_mcc_revenue || 0;
       const milestones = milestonesData.milestones || [];
       const achievedCount = milestones.filter(m => m.is_achieved).length;
       const pendingCount = milestones.filter(m => !m.is_achieved).length;
