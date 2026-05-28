@@ -438,9 +438,9 @@
         loader = document.createElement('div');
         loader.className = 'section-loader';
         loader.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;color:var(--text-muted);">
-            <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div>
-            <p style="margin-top:16px;">Loading...</p>
+          <div class="loading-state">
+            <div class="loading-spinner"></div>
+            Loading...
           </div>
         `;
         section.insertBefore(loader, section.firstChild);
@@ -4145,7 +4145,7 @@
         </div>
         <div id="member-vehicles-panel" style="margin-top:20px;">
           <div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>
-          <div style="color:var(--text-muted);font-size:0.85rem;">Loading...</div>
+          <div class="loading-state" style="padding:16px 0;justify-content:flex-start;gap:8px;font-size:0.85rem;"><div class="loading-spinner"></div> Loading...</div>
         </div>`;
 
       openModal('member-detail-modal');
@@ -11397,7 +11397,7 @@
     async function loadMarketingSharePeople() {
       const container = document.getElementById('mkt-share-people-list');
       if (!container) return;
-      container.innerHTML = '<div style="text-align:center;padding:20px;"><div style="width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
+      container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading...</div>';
       try {
         const [membersRes, invitesRes] = await Promise.all([
           fetch(getTeamApiUrl('members'), { headers: getAdminHeaders() }),
@@ -11698,7 +11698,7 @@
       const output = document.getElementById('social-posts-output');
       btn.disabled = true;
       btn.textContent = 'Generating...';
-      output.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>Creating platform-optimized posts...</div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Creating platform-optimized posts...</div>';
       try {
         const res = await fetch('/api/admin/marketing/generate', {
           method: 'POST',
@@ -11984,7 +11984,7 @@
       const btn = document.getElementById('mkt-generate-btn');
       btn.disabled = true;
       btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Generating...';
-      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is crafting your content...</p></div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> AI is crafting your content...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
@@ -12097,7 +12097,7 @@
       const channels = Array.from(document.querySelectorAll('.strategy-channel:checked')).map(c => c.value);
       if (!goal) { showToast('Please enter a goal', 'error'); return; }
       const output = document.getElementById('strategy-output');
-      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is building your strategy...</p></div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> AI is building your strategy...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/strategy`, {
@@ -12134,7 +12134,7 @@
       const stage = document.getElementById('fund-stage').value;
       if (!goal) { showToast('Please enter a funding goal', 'error'); return; }
       const output = document.getElementById('fund-output');
-      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is generating fundraising content...</p></div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> AI is generating fundraising content...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
@@ -12219,7 +12219,7 @@
       const sourceCount = document.getElementById('research-source-count');
       btn.disabled = true;
       btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Searching the web...';
-      resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is searching the internet for real opportunities...</p><p style="font-size:0.85rem;margin-top:8px;">This may take 30-60 seconds</p></div>';
+      resultsDiv.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>AI is searching the internet for real opportunities…<br><small style="color:var(--text-muted);">This may take 30-60 seconds</small></span></div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/research`, {
@@ -12343,7 +12343,7 @@
     async function loadOutreachQueue() {
       const resultsDiv = document.getElementById('research-results');
       if (!resultsDiv) return;
-      resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">Loading outreach queue...</p></div>';
+      resultsDiv.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading outreach queue...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue`, { headers: getMarketingHeaders() });
@@ -12615,7 +12615,7 @@
       const bulkBar = document.getElementById('outreach-bulk-bar');
       if (!listEl) return;
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
+      listEl.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading approval queue...</div>';
       try {
         const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
         const messages = data.data || data.items || [];
@@ -12845,7 +12845,7 @@
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const listEl = document.getElementById('instantly-campaigns-list');
       if (!listEl) return;
-      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:24px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
+      listEl.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading campaigns…</div>';
       try {
         const res = await fetch(`${apiBase}/api/admin/marketing/instantly-campaigns`, { headers: getMarketingHeaders() });
         const data = await res.json();

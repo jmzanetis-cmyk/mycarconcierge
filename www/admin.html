@@ -287,6 +287,9 @@
     .modal { background: var(--bg-elevated); border: 1px solid var(--border-medium); border-radius: var(--radius-xl); width: 100%; max-width: 700px; animation: modalIn 0.2s ease; }
     @keyframes modalIn { from { opacity: 0; transform: translateY(-20px); } to { opacity: 1; transform: translateY(0); } }
     @keyframes spin { to { transform: rotate(360deg); } }
+    .loading-spinner { display:inline-block; width:20px; height:20px; border:2px solid var(--border-subtle); border-top-color:var(--accent-blue); border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; flex-shrink:0; }
+    .loading-state { display:flex; align-items:center; justify-content:center; gap:10px; padding:32px 24px; color:var(--text-muted); font-size:0.9rem; }
+    .loading-cell { padding:32px 16px; text-align:center; color:var(--text-muted); font-size:0.9rem; }
     .section-loader { position: relative; z-index: 10; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 28px; border-bottom: 1px solid var(--border-subtle); }
     .modal-title { font-size: 1.15rem; font-weight: 600; }
@@ -946,7 +949,7 @@
             <h2 class="card-title"><span class="icon-inline" data-icon="star"></span> Top Providers</h2>
           </div>
           <div id="top-providers-list">
-            <p style="color:var(--text-muted);">Loading...</p>
+            <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
           </div>
         </div>
 
@@ -956,7 +959,7 @@
             <h2 class="card-title"><span class="icon-inline" data-icon="bar-chart"></span> Service Categories</h2>
           </div>
           <div id="category-breakdown">
-            <p style="color:var(--text-muted);">Loading...</p>
+            <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
           </div>
         </div>
 
@@ -1050,7 +1053,7 @@
             <h2 class="card-title"><span class="icon-inline" data-icon="smartphone"></span> Device Breakdown</h2>
           </div>
           <div id="traffic-device-breakdown" style="padding:16px;">
-            <p style="color:var(--text-muted);">Loading...</p>
+            <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
           </div>
         </div>
 
@@ -1059,7 +1062,7 @@
             <h2 class="card-title"><span class="icon-inline" data-icon="file-text"></span> Top Pages</h2>
           </div>
           <div id="traffic-top-pages" style="max-height:400px;overflow-y:auto;">
-            <p style="color:var(--text-muted);">Loading...</p>
+            <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
           </div>
         </div>
 
@@ -1068,7 +1071,7 @@
             <h2 class="card-title"><span class="icon-inline" data-icon="link"></span> Referral Sources</h2>
           </div>
           <div id="traffic-referrals" style="max-height:400px;overflow-y:auto;">
-            <p style="color:var(--text-muted);">Loading...</p>
+            <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
           </div>
         </div>
       </div>
@@ -3268,7 +3271,7 @@
           <button class="modal-close" onclick="closeModal('member-detail-modal')">&times;</button>
         </div>
         <div class="modal-body" id="member-detail-body">
-          <p class="text-muted">Loading...</p>
+          <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
         </div>
         <div class="modal-footer">
           <button class="btn btn-secondary" onclick="closeModal('member-detail-modal')">Close</button>
@@ -3641,7 +3644,7 @@
           <button class="modal-close" onclick="closeModal('insurance-detail-modal')">&times;</button>
         </div>
         <div class="modal-body" id="insurance-detail-body">
-          <p class="text-muted">Loading...</p>
+          <div class="loading-state"><div class="loading-spinner"></div> Loading...</div>
         </div>
         <div class="modal-footer" id="insurance-detail-footer">
           <button class="btn btn-secondary" onclick="closeModal('insurance-detail-modal')">Close</button>
@@ -3672,7 +3675,7 @@
           <button class="btn btn-secondary btn-sm" onclick="loadReferralDashboard()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
         </div>
         <div id="referrals-content">
-          <div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>
+          <div class="loading-state"><div class="loading-spinner"></div> Loading…</div>
         </div>
       </div>
     </section>
@@ -3701,7 +3704,7 @@
           <button class="btn btn-secondary btn-sm" onclick="loadBgcDashboard()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
         </div>
         <div id="bgc-content">
-          <div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>
+          <div class="loading-state"><div class="loading-spinner"></div> Loading…</div>
         </div>
       </div>
     </section>
@@ -4691,7 +4694,7 @@
           <button class="btn btn-secondary btn-sm" onclick="loadPromoterDrafts()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
         </div>
         <div id="promoter-drafts-list" style="padding:8px 0;">
-          <div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>
+          <div class="loading-state"><div class="loading-spinner"></div> Loading…</div>
         </div>
       </div>
 
@@ -5152,7 +5155,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       </div>
       <div class="card">
         <div class="form-section-title">Top API Keys by Usage</div>
-        <div id="api-keys-table"><div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div></div>
+        <div id="api-keys-table"><div class="loading-state"><div class="loading-spinner"></div> Loading…</div></div>
       </div>
     </section>
 
