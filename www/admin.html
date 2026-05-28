@@ -290,6 +290,9 @@
     .loading-spinner { display:inline-block; width:20px; height:20px; border:2px solid var(--border-subtle); border-top-color:var(--accent-blue); border-radius:50%; animation:spin 1s linear infinite; vertical-align:middle; flex-shrink:0; }
     .loading-state { display:flex; align-items:center; justify-content:center; gap:10px; padding:32px 24px; color:var(--text-muted); font-size:0.9rem; }
     .loading-cell { padding:32px 16px; text-align:center; color:var(--text-muted); font-size:0.9rem; }
+    .admin-section-header { font-size:1.05rem; font-weight:600; color:var(--text-primary); margin:0 0 4px; }
+    .admin-section-description { font-size:0.85rem; color:var(--text-muted); line-height:1.5; margin:0; }
+    .admin-section-label { font-size:0.78rem; font-weight:600; text-transform:uppercase; letter-spacing:0.08em; color:var(--text-muted); margin:0 0 12px; padding-left:4px; }
     .section-loader { position: relative; z-index: 10; }
     .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 24px 28px; border-bottom: 1px solid var(--border-subtle); }
     .modal-title { font-size: 1.15rem; font-weight: 600; }
@@ -784,19 +787,19 @@
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(350px, 1fr));gap:20px;">
           <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;">
-            <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text-secondary);"><span class="icon-inline" data-icon="dollar-sign"></span> Revenue Over Time</h3>
+            <h3 class="admin-section-header" style="margin-bottom:12px;"><span class="icon-inline" data-icon="dollar-sign"></span> Revenue Over Time</h3>
             <div style="height:220px;position:relative;">
               <canvas id="dashboard-revenue-chart"></canvas>
             </div>
           </div>
           <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;">
-            <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text-secondary);"><span class="icon-inline" data-icon="users"></span> User Growth</h3>
+            <h3 class="admin-section-header" style="margin-bottom:12px;"><span class="icon-inline" data-icon="users"></span> User Growth</h3>
             <div style="height:220px;position:relative;">
               <canvas id="dashboard-users-chart"></canvas>
             </div>
           </div>
           <div style="background:var(--bg-elevated);border-radius:var(--radius-md);padding:16px;">
-            <h3 style="font-size:0.95rem;margin-bottom:12px;color:var(--text-secondary);"><span class="icon-inline" data-icon="package"></span> Orders / Services</h3>
+            <h3 class="admin-section-header" style="margin-bottom:12px;"><span class="icon-inline" data-icon="package"></span> Orders / Services</h3>
             <div style="height:220px;position:relative;">
               <canvas id="dashboard-orders-chart"></canvas>
             </div>
@@ -1110,7 +1113,7 @@
         <div id="launch-broadcast-grid" class="stats-grid" style="margin-top:8px;"></div>
         <div style="margin-top:16px;">
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
-            <h3 style="margin:0;font-size:0.95rem;">Recent Bounces, Complaints & Failures</h3>
+            <h3 class="admin-section-header" style="margin:0;">Recent Bounces, Complaints & Failures</h3>
             <span id="launch-broadcast-bounces-count" style="font-size:0.8rem;color:var(--text-muted);"></span>
           </div>
           <div id="launch-broadcast-bounces" style="max-height:320px;overflow:auto;border:1px solid var(--border-subtle);border-radius:6px;"></div>
@@ -3052,7 +3055,7 @@
       </div>
 
       <div class="card" style="margin-bottom:24px;padding:16px;">
-        <h3 style="margin-top:0;">Manual Adjustment</h3>
+        <h3 class="admin-section-header" style="margin-top:0;">Manual Adjustment</h3>
         <p style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">Add a tip, bonus, or correction. Negative amounts claw back overpayments. Marked as <code>manual</code> so they don't fire another Stripe transfer.</p>
         <div style="display:grid;grid-template-columns:2fr 1fr 1fr 2fr auto;gap:8px;align-items:end;">
           <div>
@@ -3099,7 +3102,7 @@
         </table>
       </div>
 
-      <h3 style="margin-top:32px;">Recent Cash-Outs</h3>
+      <h3 class="admin-section-header" style="margin-top:32px;">Recent Cash-Outs</h3>
       <p style="font-size:0.85rem;color:var(--text-muted);margin-top:-8px;">Driver-initiated and admin-initiated wallet withdrawals. Standard cash-outs land via the connected account's default ACH schedule; instant cash-outs use Stripe Instant Payouts (1.5% fee, min $0.50).</p>
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
@@ -3120,7 +3123,7 @@
         </table>
       </div>
 
-      <h3 style="margin-top:32px;">Recent Earnings</h3>
+      <h3 class="admin-section-header" style="margin-top:32px;">Recent Earnings</h3>
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
           <thead>
@@ -4497,7 +4500,7 @@
         </div>
       </div>
       <div class="card" style="margin-top:24px;padding:20px;">
-        <h3 style="margin-bottom:16px;">Role Permissions Reference</h3>
+        <h3 class="admin-section-header" style="margin-bottom:16px;">Role Permissions Reference</h3>
         <div class="table-container">
           <table class="data-table" style="font-size:0.85rem;">
             <thead><tr><th>Role</th><th>Access</th></tr></thead>
@@ -4828,7 +4831,7 @@
           </div>
 
           <div style="padding-top:20px;border-top:1px solid var(--border-subtle);margin-top:8px;">
-            <h3 style="font-size:1rem;margin-bottom:16px;color:var(--text-primary);">Manual Triggers</h3>
+            <h3 class="admin-section-header" style="margin-bottom:16px;">Manual Triggers</h3>
             <div style="background:var(--bg-tertiary);border:1px solid var(--border-subtle);border-radius:8px;padding:14px 16px;margin-bottom:12px;color:var(--text-secondary);font-size:0.85rem;line-height:1.5;">
               Dispute Resolver and Payment Tracker run against the
               <code>care_plan_completions</code> table. Stripe escrow is now
@@ -5569,7 +5572,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
 
         <!-- Group: Discovery & Satisfaction -->
         <div>
-          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Discovery &amp; Satisfaction</h3>
+          <h3 class="admin-section-label">Discovery &amp; Satisfaction</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
             <div class="card">
               <div class="card-header"><h2 class="card-title" style="font-size:1rem;">How They Find Providers</h2></div>
@@ -5588,7 +5591,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
 
         <!-- Group: Service Habits -->
         <div>
-          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Service Habits</h3>
+          <h3 class="admin-section-label">Service Habits</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
             <div class="card">
               <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Service Frequency</h2></div>
@@ -5607,7 +5610,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
 
         <!-- Group: Spending Habits -->
         <div>
-          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Spending Habits</h3>
+          <h3 class="admin-section-label">Spending Habits</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
             <div class="card">
               <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Annual Spend</h2></div>
@@ -5630,7 +5633,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
 
         <!-- Group: Trust Signals -->
         <div>
-          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Trust Signals</h3>
+          <h3 class="admin-section-label">Trust Signals</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
             <div class="card">
               <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Provider Honesty</h2></div>
@@ -5653,7 +5656,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
 
         <!-- Group: Tracking & Communication -->
         <div>
-          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Tracking &amp; Communication</h3>
+          <h3 class="admin-section-label">Tracking &amp; Communication</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
             <div class="card">
               <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Service-History Tracking</h2></div>
@@ -5672,7 +5675,7 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
 
         <!-- Group: Adoption Readiness -->
         <div>
-          <h3 style="font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;color:var(--text-muted);margin:0 0 12px;padding-left:4px;">Adoption Readiness</h3>
+          <h3 class="admin-section-label">Adoption Readiness</h3>
           <div style="display:grid;grid-template-columns:repeat(auto-fit, minmax(340px, 1fr));gap:20px;">
             <div class="card">
               <div class="card-header"><h2 class="card-title" style="font-size:1rem;">Competitive Bids Appetite</h2></div>
