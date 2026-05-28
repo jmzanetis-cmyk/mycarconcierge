@@ -4989,6 +4989,7 @@
     }
     globalThis.navigateToSection = navigateToSection;
 
+    function openModal(id) { const m = document.getElementById(id); m.classList.add('active'); m.style.display = 'flex'; }
     function closeModal(id) { const m = document.getElementById(id); m.classList.remove('active'); m.style.display = 'none'; }
 
     function showToast(msg, type = 'success') {
