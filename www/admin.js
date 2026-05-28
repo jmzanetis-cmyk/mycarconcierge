@@ -314,7 +314,10 @@
       members: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       agreements: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
-      refunds: { page: 1, limit: 25, total: 0, totalPages: 0, filter: 'all' }
+      refunds: { page: 1, limit: 25, total: 0, totalPages: 0, filter: 'all' },
+      payments: { page: 1, limit: 25, total: 0, totalPages: 0 },
+      transport: { page: 1, limit: 25, total: 0, totalPages: 0 },
+      applications: { page: 1, limit: 25, total: 0, totalPages: 0 },
     };
     
     // ========== SORT STATE ==========
@@ -367,8 +370,45 @@
         state.col = col;
         state.dir = 'asc';
       }
+      if (paginationState[tableId]) paginationState[tableId].page = 1;
       ({ applications: renderApplications, transport: renderTransportRides,
          providers: renderProviders, payments: renderPayments, members: renderMembers })[tableId]?.();
+    };
+
+    function applyClientPagination(rows, state) {
+      state.total = rows.length;
+      state.totalPages = Math.max(1, Math.ceil(rows.length / state.limit));
+      if (state.page > state.totalPages) state.page = state.totalPages;
+      const start = (state.page - 1) * state.limit;
+      return rows.slice(start, start + state.limit);
+    }
+
+    globalThis.changeApplicationsPage = function(delta) {
+      paginationState.applications.page = Math.max(1, paginationState.applications.page + delta);
+      renderApplications();
+    };
+    globalThis.changeApplicationsPageSize = function(size) {
+      paginationState.applications.limit = Number(size);
+      paginationState.applications.page = 1;
+      renderApplications();
+    };
+    globalThis.changePaymentsPage = function(delta) {
+      paginationState.payments.page = Math.max(1, paginationState.payments.page + delta);
+      renderPayments();
+    };
+    globalThis.changePaymentsPageSize = function(size) {
+      paginationState.payments.limit = Number(size);
+      paginationState.payments.page = 1;
+      renderPayments();
+    };
+    globalThis.changeTransportPage = function(delta) {
+      paginationState.transport.page = Math.max(1, paginationState.transport.page + delta);
+      renderTransportRides();
+    };
+    globalThis.changeTransportPageSize = function(size) {
+      paginationState.transport.limit = Number(size);
+      paginationState.transport.page = 1;
+      renderTransportRides();
     };
 
     // Debounce helper for search functions
@@ -380,14 +420,20 @@
       searchDebounceTimers[key] = setTimeout(fn, delay);
     }
     
-    function renderPaginationControls(state, changePageFn) {
+    function renderPaginationControls(state, changePageFn, changePageSizeFn = null) {
       const start = state.total === 0 ? 0 : (state.page - 1) * state.limit + 1;
       const end = Math.min(state.page * state.limit, state.total);
-      
+      const pageSizeHtml = changePageSizeFn
+        ? `<select onchange="${changePageSizeFn}(this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            ${[25,50,100].map(n => `<option value="${n}" ${state.limit === n ? 'selected' : ''}>${n} / page</option>`).join('')}
+           </select>`
+        : '';
+
       return `
         <div class="pagination-controls" style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-top:1px solid var(--border-subtle);margin-top:16px;">
-          <div style="color:var(--text-secondary);font-size:0.9rem;">
-            Showing ${start}-${end} of ${state.total}
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="color:var(--text-secondary);font-size:0.9rem;">Showing ${start}–${end} of ${state.total}</span>
+            ${pageSizeHtml}
           </div>
           <div style="display:flex;align-items:center;gap:12px;">
             <button class="btn btn-secondary btn-sm" onclick="${changePageFn}(-1)" ${state.page <= 1 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
@@ -3213,6 +3259,7 @@
     // state, refreshes the URL, and re-renders the table.
     function filterApplicationsBySource(value) {
       currentFilters.applicationsSource = value || 'all';
+      paginationState.applications.page = 1;
       syncApplicationsUrl();
       renderApplications();
     }
@@ -3256,7 +3303,9 @@
         return null;
       });
 
-      tbody.innerHTML = sortedApps.map(app => `
+      const pagedApps = applyClientPagination(sortedApps, paginationState.applications);
+
+      tbody.innerHTML = pagedApps.map(app => `
         <tr>
           <td><strong>${escapeHtml(app.business_name)}</strong><br><span style="color:var(--text-muted);font-size:0.82rem;">${escapeHtml(app.contact_name)}</span></td>
           <td>${escapeHtml(app.business_type) || 'N/A'}</td>
@@ -3268,6 +3317,8 @@
         </tr>
       `).join('');
       updateSortIndicators('applications-table', sortState.applications);
+      const appsPagEl = document.getElementById('applications-pagination');
+      if (appsPagEl) appsPagEl.innerHTML = renderPaginationControls(paginationState.applications, 'changeApplicationsPage', 'changeApplicationsPageSize');
     }
 
     let selectedProviders = new Set();
@@ -3828,7 +3879,9 @@
         return null;
       });
 
-      tbody.innerHTML = sortedPayments.map(p => `
+      const pagedPayments = applyClientPagination(sortedPayments, paginationState.payments);
+
+      tbody.innerHTML = pagedPayments.map(p => `
         <tr>
           <td>${p.maintenance_packages?.title || 'Package'}</td>
           <td>${p.member?.full_name || 'Member'}</td>
@@ -3844,6 +3897,8 @@
         </tr>
       `).join('');
       updateSortIndicators('payments-table', sortState.payments);
+      const payPagEl = document.getElementById('payments-pagination');
+      if (payPagEl) payPagEl.innerHTML = renderPaginationControls(paginationState.payments, 'changePaymentsPage', 'changePaymentsPageSize');
     }
 
     let _transportPaymentCache = null;
@@ -5048,8 +5103,8 @@
             const section = tabContainer.closest('.section').id;
             currentFilters[section] = tab.dataset.filter;
             // Task #248 — keep ?app_status=... in the URL so links survive a refresh.
-            if (section === 'applications') { syncApplicationsUrl(); renderApplications(); }
-            if (section === 'payments') renderPayments();
+            if (section === 'applications') { paginationState.applications.page = 1; syncApplicationsUrl(); renderApplications(); }
+            if (section === 'payments') { paginationState.payments.page = 1; renderPayments(); }
             if (section === 'disputes') renderDisputes();
             if (section === 'tickets') renderTickets();
             if (section === 'refunds') { paginationState.refunds.filter = tab.dataset.filter; paginationState.refunds.page = 1; loadRefunds(1); }
@@ -6157,7 +6212,7 @@
       }
     }
 
-    function filterTransportRides() { renderTransportRides(); }
+    function filterTransportRides() { paginationState.transport.page = 1; renderTransportRides(); }
 
     function renderTransportRides() {
       const tbody = document.getElementById('transport-table');
@@ -6198,7 +6253,9 @@
         return null;
       });
 
-      tbody.innerHTML = sortedRides.map(r => {
+      const pagedRides = applyClientPagination(sortedRides, paginationState.transport);
+
+      tbody.innerHTML = pagedRides.map(r => {
         const fare = r.actual_fare || r.estimated_fare || 0;
         const memberName = r.member?.full_name || r.member?.email || '—';
         const driverName = r.provider?.full_name || '—';
@@ -6221,6 +6278,8 @@
         </tr>`;
       }).join('');
       updateSortIndicators('transport-table', sortState.transport);
+      const transPagEl = document.getElementById('transport-pagination');
+      if (transPagEl) transPagEl.innerHTML = renderPaginationControls(paginationState.transport, 'changeTransportPage', 'changeTransportPageSize');
     }
 
     async function viewTransportRide(rideId) {
