@@ -387,7 +387,6 @@ exports.handler = async function(event) {
       signature_type: signature_type || 'type'
     };
 
-    var pdfUrl = null;
     var emailSent = false;
 
     try {
@@ -395,21 +394,9 @@ exports.handler = async function(event) {
 
       try {
         var fileName = 'agreements/' + agreement_type + '/' + agreementId + '.pdf';
-        var uploadResult = await supabase.storage
+        await supabase.storage
           .from('documents')
           .upload(fileName, pdfBuffer, { contentType: 'application/pdf', upsert: true });
-
-        if (uploadResult.error) {
-          await supabase.storage.createBucket('documents', { public: true, fileSizeLimit: 10485760 });
-          var retryResult = await supabase.storage
-            .from('documents')
-            .upload(fileName, pdfBuffer, { contentType: 'application/pdf', upsert: true });
-          if (!retryResult.error) {
-            pdfUrl = supabase.storage.from('documents').getPublicUrl(fileName).data?.publicUrl || fileName;
-          }
-        } else {
-          pdfUrl = supabase.storage.from('documents').getPublicUrl(fileName).data?.publicUrl || fileName;
-        }
       } catch (uploadErr) {
         console.error('PDF upload failed:', uploadErr);
       }
@@ -439,7 +426,7 @@ exports.handler = async function(event) {
 
       await supabase
         .from('signed_agreements')
-        .update({ pdf_url: pdfUrl || null, email_sent: emailSent })
+        .update({ email_sent: emailSent })
         .eq('id', agreementId);
     } catch (postErr) {
       console.error('Agreement post-processing failed:', postErr);
