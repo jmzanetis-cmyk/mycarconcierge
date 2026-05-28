@@ -191,7 +191,14 @@ async function _deleteAuthAndNotify(opts, displayName) {
   await supabase.from('referral_code_usages').delete().eq('referred_user_id', userId);
   await supabase.from('messages').delete().eq('sender_id', userId);
   await supabase.from('messages').delete().eq('receiver_id', userId);
-  // signed_agreements: anonymise (legal record — must retain the agreement itself)
+  // signed_agreements: capture signer email BEFORE breaking the user_id link so
+  // the legal record survives deletion with full identity (name already stored in
+  // full_name column; email stamped here).
+  if (userEmail) {
+    await supabase.from('signed_agreements')
+      .update({ signer_email_snapshot: userEmail })
+      .eq('user_id', userId);
+  }
   await supabase.from('signed_agreements').update({ user_id: null }).eq('user_id', userId);
   // sms_opt_out_log: unlink the profile reference but keep the opt-out record
   await supabase.from('sms_opt_out_log').update({ matched_profile_id: null }).eq('matched_profile_id', userId);
