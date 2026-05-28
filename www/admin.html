@@ -253,6 +253,10 @@
     th { font-size: 0.82rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.05em; }
     td { font-size: 0.9rem; }
     tr:hover { background: var(--bg-elevated); }
+    .sortable-th { cursor: pointer; user-select: none; white-space: nowrap; }
+    .sortable-th:hover { background: rgba(255,255,255,0.05); }
+    .sort-caret { display: inline-block; margin-left: 4px; font-size: 0.65rem; opacity: 0.4; vertical-align: middle; }
+    .sort-caret.active { opacity: 1; color: var(--accent-blue, #3b82f6); }
 
     .status-badge { display:inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; }
     .status-badge.pending, .status-badge.orange { background: var(--accent-orange-soft); color: var(--accent-orange); }
@@ -2047,12 +2051,12 @@
         <table>
           <thead>
             <tr>
-              <th>Business</th>
-              <th>Type</th>
-              <th>Location</th>
-              <th>Submitted</th>
+              <th class="sortable-th" data-sort="business_name" onclick="toggleSort('applications','business_name')">Business <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="business_type" onclick="toggleSort('applications','business_type')">Type <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="city" onclick="toggleSort('applications','city')">Location <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="created_at" onclick="toggleSort('applications','created_at')">Submitted <span class="sort-caret">⇅</span></th>
               <th>Source</th>
-              <th>Status</th>
+              <th class="sortable-th" data-sort="status" onclick="toggleSort('applications','status')">Status <span class="sort-caret">⇅</span></th>
               <th>Action</th>
             </tr>
           </thead>
@@ -2228,13 +2232,13 @@
           <table>
             <thead>
               <tr>
-                <th>Status</th>
-                <th>Member</th>
-                <th>Driver</th>
+                <th class="sortable-th" data-sort="status" onclick="toggleSort('transport','status')">Status <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="member" onclick="toggleSort('transport','member')">Member <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="driver" onclick="toggleSort('transport','driver')">Driver <span class="sort-caret">⇅</span></th>
                 <th>Pickup</th>
                 <th>Dropoff</th>
-                <th>Fare</th>
-                <th>Date</th>
+                <th class="sortable-th" data-sort="fare" onclick="toggleSort('transport','fare')">Fare <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="created_at" onclick="toggleSort('transport','created_at')">Date <span class="sort-caret">⇅</span></th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -2824,16 +2828,16 @@
             <thead>
               <tr>
                 <th style="width:40px;"><input type="checkbox" id="select-all-providers" onchange="toggleSelectAll(this)"></th>
-                <th>Business</th>
-                <th>Credits</th>
-                <th>Rating</th>
-                <th>Jobs</th>
-                <th>Earnings</th>
+                <th class="sortable-th" data-sort="business_name" onclick="toggleSort('providers','business_name')">Business <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="bid_credits" onclick="toggleSort('providers','bid_credits')">Credits <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="rating" onclick="toggleSort('providers','rating')">Rating <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="jobs" onclick="toggleSort('providers','jobs')">Jobs <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="earnings" onclick="toggleSort('providers','earnings')">Earnings <span class="sort-caret">⇅</span></th>
                 <th>Bg Check</th>
                 <!-- Task #249 — outreach attribution mirrors the Source column on the Applications tab.
                      Click-through to the originating outreach lead works the same way (viewOutreachLead). -->
                 <th>Source</th>
-                <th>Status</th>
+                <th class="sortable-th" data-sort="status" onclick="toggleSort('providers','status')">Status <span class="sort-caret">⇅</span></th>
                 <th>Action</th>
               </tr>
             </thead>
@@ -3018,12 +3022,12 @@
         <table>
           <thead>
             <tr>
-              <th>Package</th>
-              <th>Member</th>
-              <th>Provider</th>
-              <th>Amount</th>
-              <th>MCC Fee</th>
-              <th>Status</th>
+              <th class="sortable-th" data-sort="package" onclick="toggleSort('payments','package')">Package <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="member" onclick="toggleSort('payments','member')">Member <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="provider" onclick="toggleSort('payments','provider')">Provider <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="amount_total" onclick="toggleSort('payments','amount_total')">Amount <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="amount_mcc_fee" onclick="toggleSort('payments','amount_mcc_fee')">MCC Fee <span class="sort-caret">⇅</span></th>
+              <th class="sortable-th" data-sort="status" onclick="toggleSort('payments','status')">Status <span class="sort-caret">⇅</span></th>
               <th>Actions</th>
             </tr>
           </thead>
@@ -3254,13 +3258,13 @@
           <table>
             <thead>
               <tr>
-                <th>Name</th>
-                <th>Email</th>
-                <th>Account Type</th>
+                <th class="sortable-th" data-sort="full_name" onclick="toggleSort('members','full_name')">Name <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="email" onclick="toggleSort('members','email')">Email <span class="sort-caret">⇅</span></th>
+                <th class="sortable-th" data-sort="account_type" onclick="toggleSort('members','account_type')">Account Type <span class="sort-caret">⇅</span></th>
                 <th>Vehicles</th>
                 <th>Packages</th>
                 <th>Identity</th>
-                <th>Joined</th>
+                <th class="sortable-th" data-sort="created_at" onclick="toggleSort('members','created_at')">Joined <span class="sort-caret">⇅</span></th>
                 <th>Action</th>
               </tr>
             </thead>

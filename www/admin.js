@@ -317,6 +317,60 @@
       refunds: { page: 1, limit: 25, total: 0, totalPages: 0, filter: 'all' }
     };
     
+    // ========== SORT STATE ==========
+    const sortState = {
+      applications: { col: null, dir: 'asc' },
+      transport:    { col: null, dir: 'asc' },
+      providers:    { col: null, dir: 'asc' },
+      payments:     { col: null, dir: 'asc' },
+      members:      { col: null, dir: 'asc' },
+    };
+
+    function applySortToRows(rows, state, accessor) {
+      if (!state.col) return rows;
+      const dir = state.dir === 'asc' ? 1 : -1;
+      return [...rows].sort((a, b) => {
+        const av = accessor(a, state.col);
+        const bv = accessor(b, state.col);
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1 * dir;
+        if (bv == null) return -1 * dir;
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+        return String(av).toLowerCase().localeCompare(String(bv).toLowerCase()) * dir;
+      });
+    }
+
+    function updateSortIndicators(tbodyId, state) {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      const thead = tbody.closest('table')?.querySelector('thead');
+      if (!thead) return;
+      thead.querySelectorAll('th[data-sort]').forEach(th => {
+        const caret = th.querySelector('.sort-caret');
+        if (!caret) return;
+        if (th.dataset.sort === state.col) {
+          caret.textContent = state.dir === 'asc' ? '▲' : '▼';
+          caret.classList.add('active');
+        } else {
+          caret.textContent = '⇅';
+          caret.classList.remove('active');
+        }
+      });
+    }
+
+    globalThis.toggleSort = function(tableId, col) {
+      const state = sortState[tableId];
+      if (!state) return;
+      if (state.col === col) {
+        state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.col = col;
+        state.dir = 'asc';
+      }
+      ({ applications: renderApplications, transport: renderTransportRides,
+         providers: renderProviders, payments: renderPayments, members: renderMembers })[tableId]?.();
+    };
+
     // Debounce helper for search functions
     let searchDebounceTimers = {};
     function debounceSearch(key, fn, delay = 300) {
@@ -3193,7 +3247,16 @@
         return;
       }
 
-      tbody.innerHTML = filtered.map(app => `
+      const sortedApps = applySortToRows(filtered, sortState.applications, (r, col) => {
+        if (col === 'business_name') return r.business_name;
+        if (col === 'business_type') return r.business_type;
+        if (col === 'city') return r.city;
+        if (col === 'created_at') return new Date(r.created_at).getTime();
+        if (col === 'status') return r.status;
+        return null;
+      });
+
+      tbody.innerHTML = sortedApps.map(app => `
         <tr>
           <td><strong>${escapeHtml(app.business_name)}</strong><br><span style="color:var(--text-muted);font-size:0.82rem;">${escapeHtml(app.contact_name)}</span></td>
           <td>${escapeHtml(app.business_type) || 'N/A'}</td>
@@ -3204,6 +3267,7 @@
           <td><button class="btn btn-secondary btn-sm" onclick="viewApplication('${escapeHtml(app.id)}')">Review</button></td>
         </tr>
       `).join('');
+      updateSortIndicators('applications-table', sortState.applications);
     }
 
     let selectedProviders = new Set();
@@ -3349,7 +3413,18 @@
         return;
       }
 
-      tbody.innerHTML = filteredProviders.map(p => {
+      const sortedProviders = applySortToRows(filteredProviders, sortState.providers, (p, col) => {
+        const stats = p.provider_stats?.[0] || {};
+        if (col === 'business_name') return p.business_name || p.full_name || '';
+        if (col === 'bid_credits') return (p.bid_credits || 0) + (p.free_trial_bids || 0);
+        if (col === 'rating') return stats.average_rating || 0;
+        if (col === 'jobs') return stats.jobs_completed || 0;
+        if (col === 'earnings') return stats.total_earnings || 0;
+        if (col === 'status') return p.suspension_reason ? 'suspended' : 'active';
+        return null;
+      });
+
+      tbody.innerHTML = sortedProviders.map(p => {
         const stats = p.provider_stats?.[0] || {};
         const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
         const isSuspended = p.suspension_reason || stats.suspended;
@@ -3397,7 +3472,8 @@
       }).join('');
       
       updateBulkBar();
-      
+      updateSortIndicators('providers-table', sortState.providers);
+
       // Add pagination controls
       const paginationContainer = document.getElementById('providers-pagination');
       if (paginationContainer) {
@@ -3742,7 +3818,17 @@
         return;
       }
 
-      tbody.innerHTML = filtered.map(p => `
+      const sortedPayments = applySortToRows(filtered, sortState.payments, (p, col) => {
+        if (col === 'package') return p.maintenance_packages?.title || '';
+        if (col === 'member') return p.member?.full_name || '';
+        if (col === 'provider') return p.provider?.full_name || '';
+        if (col === 'amount_total') return p.amount_total || 0;
+        if (col === 'amount_mcc_fee') return p.amount_mcc_fee || 0;
+        if (col === 'status') return p.status;
+        return null;
+      });
+
+      tbody.innerHTML = sortedPayments.map(p => `
         <tr>
           <td>${p.maintenance_packages?.title || 'Package'}</td>
           <td>${p.member?.full_name || 'Member'}</td>
@@ -3757,6 +3843,7 @@
           </td>
         </tr>
       `).join('');
+      updateSortIndicators('payments-table', sortState.payments);
     }
 
     let _transportPaymentCache = null;
@@ -4095,7 +4182,15 @@
         return;
       }
 
-      tbody.innerHTML = members.map(m => {
+      const sortedMembers = applySortToRows(members, sortState.members, (m, col) => {
+        if (col === 'full_name') return m.full_name || '';
+        if (col === 'email') return m.email || '';
+        if (col === 'account_type') return m.account_type || '';
+        if (col === 'created_at') return new Date(m.created_at).getTime();
+        return null;
+      });
+
+      tbody.innerHTML = sortedMembers.map(m => {
         const identityBadge = m.identity_verified
           ? '<span class="badge badge-success" title="Stripe Identity verified">Verified</span>'
           : '<span class="badge badge-warning" title="Identity not yet verified">Unverified</span>';
@@ -4111,6 +4206,7 @@
             <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
           </tr>`;
       }).join('');
+      updateSortIndicators('members-table', sortState.members);
 
       const paginationContainer = document.getElementById('members-pagination');
       if (paginationContainer) {
@@ -6093,7 +6189,16 @@
         driver_en_route: '#f59e0b', accepted: '#6366f1', requested: '#6b7280', dispatched: '#f59e0b', driver_arrived: '#3b82f6'
       })[s] || '#6b7280';
 
-      tbody.innerHTML = rows.map(r => {
+      const sortedRides = applySortToRows(rows, sortState.transport, (r, col) => {
+        if (col === 'status') return r.status;
+        if (col === 'member') return r.member?.full_name || r.member?.email || '';
+        if (col === 'driver') return r.provider?.full_name || '';
+        if (col === 'fare') return r.actual_fare || r.estimated_fare || 0;
+        if (col === 'created_at') return new Date(r.created_at).getTime();
+        return null;
+      });
+
+      tbody.innerHTML = sortedRides.map(r => {
         const fare = r.actual_fare || r.estimated_fare || 0;
         const memberName = r.member?.full_name || r.member?.email || '—';
         const driverName = r.provider?.full_name || '—';
@@ -6115,6 +6220,7 @@
           </td>
         </tr>`;
       }).join('');
+      updateSortIndicators('transport-table', sortState.transport);
     }
 
     async function viewTransportRide(rideId) {
