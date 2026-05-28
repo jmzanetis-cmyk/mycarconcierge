@@ -8274,13 +8274,13 @@
         return '<span class="status-badge blue">Both</span>';
       }
       if (roles.includes('Provider')) {
-        return '<span class="status-badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);">Provider</span>';
+        return '<span class="status-badge provider">Provider</span>';
       }
       if (roles.includes('Member')) {
-        return '<span class="status-badge" style="background:var(--accent-green-soft);color:var(--accent-green);">Member</span>';
+        return '<span class="status-badge member">Member</span>';
       }
       if (roles.includes('Admin')) {
-        return '<span class="status-badge" style="background:var(--accent-red-soft);color:var(--accent-red);">Admin</span>';
+        return '<span class="status-badge admin">Admin</span>';
       }
       return '<span class="status-badge muted">-</span>';
     }
@@ -8294,14 +8294,12 @@
       if (user.isFoundingMember) statuses.push('Member Founder');
       if (user.isFoundingProvider) statuses.push('Provider Founder');
       
-      if (statuses.length === 0) return '<span style="color:var(--text-muted);">None</span>';
-      
-      // Intentional contrast: dark text (#0a0a0f) on gold/light backgrounds for readability
+      if (statuses.length === 0) return '<span class="status-badge muted">None</span>';
       return statuses.map(s => {
         if (s === 'Member Founder') {
-          return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">${mccIcon('star', 16)} ${s}</span>`;
+          return `<span class="status-badge blue">${mccIcon('star', 16)} ${s}</span>`;
         }
-        return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">${mccIcon('star', 16)} ${s}</span>`;
+        return `<span class="status-badge open">${mccIcon('star', 16)} ${s}</span>`;
       }).join(' ');
     }
 

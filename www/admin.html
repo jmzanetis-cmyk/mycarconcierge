@@ -254,13 +254,23 @@
     td { font-size: 0.9rem; }
     tr:hover { background: var(--bg-elevated); }
 
-    .status-badge { padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; }
+    .status-badge { display:inline-block; padding: 4px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 500; }
     .status-badge.pending, .status-badge.orange { background: var(--accent-orange-soft); color: var(--accent-orange); }
-    .status-badge.approved, .status-badge.resolved, .status-badge.released { background: var(--accent-green-soft); color: var(--accent-green); }
-    .status-badge.rejected, .status-badge.disputed, .status-badge.red { background: var(--accent-red-soft); color: var(--accent-red); }
-    .status-badge.held, .status-badge.investigating, .status-badge.blue { background: var(--accent-blue-soft); color: var(--accent-blue); }
-    .status-badge.open { background: var(--accent-gold-soft); color: var(--accent-gold); }
-    .status-badge.muted, .status-badge.dismissed { background: var(--bg-elevated); color: var(--text-muted); }
+    .status-badge.approved, .status-badge.resolved, .status-badge.released,
+    .status-badge.active, .status-badge.clear, .status-badge.completed, .status-badge.member { background: var(--accent-green-soft); color: var(--accent-green); }
+    .status-badge.rejected, .status-badge.disputed, .status-badge.red,
+    .status-badge.suspended, .status-badge.failed, .status-badge.cancelled, .status-badge.expired,
+    .status-badge.admin { background: var(--accent-red-soft); color: var(--accent-red); }
+    .status-badge.held, .status-badge.investigating, .status-badge.blue,
+    .status-badge.review, .status-badge.in_review, .status-badge.manual_review { background: var(--accent-blue-soft); color: var(--accent-blue); }
+    .status-badge.open, .status-badge.provider { background: var(--accent-gold-soft); color: var(--accent-gold); }
+    .status-badge.muted, .status-badge.dismissed, .status-badge.inactive { background: var(--bg-elevated); color: var(--text-muted); }
+    /* Standalone status classes — same palette, usable without .status-badge */
+    .status-approved, .status-active { display:inline-block; padding:4px 12px; border-radius:100px; font-size:0.75rem; font-weight:500; background:var(--accent-green-soft); color:var(--accent-green); }
+    .status-pending { display:inline-block; padding:4px 12px; border-radius:100px; font-size:0.75rem; font-weight:500; background:var(--accent-orange-soft); color:var(--accent-orange); }
+    .status-suspended, .status-rejected { display:inline-block; padding:4px 12px; border-radius:100px; font-size:0.75rem; font-weight:500; background:var(--accent-red-soft); color:var(--accent-red); }
+    .status-inactive { display:inline-block; padding:4px 12px; border-radius:100px; font-size:0.75rem; font-weight:500; background:var(--bg-elevated); color:var(--text-muted); }
+    .status-review { display:inline-block; padding:4px 12px; border-radius:100px; font-size:0.75rem; font-weight:500; background:var(--accent-blue-soft); color:var(--accent-blue); }
 
     .badge { display: inline-block; padding: 3px 10px; border-radius: 12px; font-size: 0.78rem; font-weight: 600; }
     .badge-green { background: var(--accent-green-soft); color: var(--accent-green); }
