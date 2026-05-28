@@ -148,12 +148,17 @@ test('initiate uses mock when BGC_LIVE_MODE not set', async () => {
   });
   dbState['profiles.maybeSingle'] = () => ({ data: { role: 'provider' }, error: null });
   dbState['employee_background_checks.insertSingle'] = () => ({ data: { id: 'bgc1' }, error: null });
+  // Stub fetch before the handler runs: the mock path fires a Resend admin-alert
+  // via fetch() and we must not send real emails from the test suite.
+  const prevFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, status: 200, text: async () => '{}', json: async () => ({}) });
   const mod = fresh('../functions/initiate-background-check.js');
   const resp = await mod.handler({
     httpMethod: 'POST',
     body: JSON.stringify({ employeeId: 'emp1' }),
     headers: { authorization: 'Bearer good' }
   });
+  global.fetch = prevFetch;
   assert.strictEqual(resp.statusCode, 200, 'body: ' + resp.body);
   const parsed = JSON.parse(resp.body);
   assert.strictEqual(parsed.mocked, true);

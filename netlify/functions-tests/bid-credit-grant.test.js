@@ -196,6 +196,10 @@ async function main() {
     };
   }
 
+  // Stub fetch for all reconciler tests: sendAdminEmail() calls fetch() when
+  // missing sessions are found and must never send real emails from the test suite.
+  global.fetch = async () => ({ ok: true, status: 200, text: async () => '{}', json: async () => ({}) });
+
   const oldSec = Math.floor((Date.now() - 2 * 60 * 60 * 1000) / 1000); // 2h ago
   const recentSec = Math.floor((Date.now() - 5 * 60 * 1000) / 1000);   // 5m ago
 
