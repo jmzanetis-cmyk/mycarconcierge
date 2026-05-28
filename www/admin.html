@@ -2205,14 +2205,20 @@
           <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             <select id="transport-status-filter" onchange="filterTransportRides()" style="padding:6px 10px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--bg-elevated);color:var(--text-primary);font-size:0.85rem;">
               <option value="">All Statuses</option>
-              <option value="requested">Requested</option>
-              <option value="dispatched">Dispatched</option>
-              <option value="accepted">Accepted</option>
-              <option value="driver_en_route">Driver En Route</option>
-              <option value="driver_arrived">Driver Arrived</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
+              <optgroup label="Pre-Trip">
+                <option value="requested">Requested</option>
+                <option value="dispatched">Dispatched</option>
+                <option value="accepted">Accepted</option>
+              </optgroup>
+              <optgroup label="Active">
+                <option value="driver_en_route">Driver En Route</option>
+                <option value="driver_arrived">Driver Arrived</option>
+                <option value="in_progress">In Progress</option>
+              </optgroup>
+              <optgroup label="Terminal">
+                <option value="completed">Completed</option>
+                <option value="cancelled">Cancelled</option>
+              </optgroup>
             </select>
             <button class="btn btn-secondary btn-sm" onclick="loadTransportRides()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
           </div>
@@ -2757,16 +2763,16 @@
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
           <div class="form-group" style="margin:0;min-width:150px;">
             <select class="form-input" id="provider-status-filter" onchange="filterProvidersApi()" style="padding:8px 12px;">
-              <option value="all">All Status</option>
-              <option value="active">Active</option>
-              <option value="suspended">Suspended</option>
+              <option value="all">All Providers</option>
+              <option value="active">Active Only</option>
+              <option value="suspended">Suspended Only</option>
             </select>
           </div>
           <div class="form-group" style="margin:0;min-width:150px;">
             <select class="form-input" id="provider-credits-filter" onchange="filterProviders()" style="padding:8px 12px;">
-              <option value="all">All Credits</option>
-              <option value="zero">No Credits</option>
-              <option value="low">Low (1-10)</option>
+              <option value="all">All Credit Balances</option>
+              <option value="zero">No Credits (0)</option>
+              <option value="low">Low Credits (1–10)</option>
               <option value="has">Has Credits (10+)</option>
             </select>
           </div>
@@ -3230,10 +3236,10 @@
         <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;">
           <div class="form-group" style="margin:0;min-width:150px;">
             <select class="form-input" id="member-type-filter" onchange="filterMembersApi()" style="padding:8px 12px;">
-              <option value="all">All Types</option>
+              <option value="all">All Account Types</option>
               <option value="individual">Individual</option>
-              <option value="family">Family</option>
-              <option value="fleet">Fleet</option>
+              <option value="family">Family Plan</option>
+              <option value="fleet">Fleet Account</option>
             </select>
           </div>
           <div class="form-group" style="margin:0;flex:1;min-width:200px;">
@@ -4064,11 +4070,15 @@
           </div>
           <div>
             <select class="form-select" id="agreement-type-filter" onchange="filterAgreementsApi()" style="min-width:180px;">
-              <option value="all">All Types</option>
-              <option value="founding_partner">Founding Partner</option>
-              <option value="founding_provider_chris_agrapidis">Founding Provider</option>
-              <option value="member_founder">Member Founder</option>
-              <option value="provider">Provider</option>
+              <option value="all">All Agreement Types</option>
+              <optgroup label="Founding">
+                <option value="founding_partner">Founding Partner Agreement</option>
+                <option value="founding_provider_chris_agrapidis">Founding Provider (Chris A.)</option>
+                <option value="member_founder">Member Founder Agreement</option>
+              </optgroup>
+              <optgroup label="Standard">
+                <option value="provider">Provider Agreement</option>
+              </optgroup>
             </select>
           </div>
           <div>
