@@ -134,8 +134,10 @@ exports.handler = async function(event) {
     const summary = await runOnce(supabase);
     return { statusCode: 200, body: JSON.stringify({ ok: true, summary }) };
   } catch (e) {
+    // Return 200 so repeated cron invocations don't generate HTTP-500 noise while
+    // the social_channels table or pipeline is not yet wired up in this environment.
     console.error('[social-monitor] failed:', e);
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) };
   }
 };
 
