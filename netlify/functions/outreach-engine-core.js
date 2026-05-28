@@ -1297,7 +1297,10 @@ async function runEngineCycle(supabase) {
       results.scored = scored;
     }
 
-    if (state.instantly_auto_sync && process.env.INSTANTLY_API_KEY) {
+    if (state.instantly_auto_sync && process.env.INSTANTLY_API_KEY && !( process.env.INSTANTLY_LIVE === 'true')) {
+      console.log('[OutreachEngine] Instantly batch-sync skipped: INSTANTLY_LIVE env var not set to "true". Set both instantly_auto_sync=true AND INSTANTLY_LIVE=true to enable autonomous enrollment.');
+    }
+    if (state.instantly_auto_sync && process.env.INSTANTLY_API_KEY && process.env.INSTANTLY_LIVE === 'true') {
       try {
         const { data: unsyncedLeads } = await supabase
           .from('outreach_leads')
@@ -2751,7 +2754,10 @@ async function runApolloDiscoveryCycle(supabase) {
               } catch (_) {}
               await new Promise(r => setTimeout(r, 350));
             }
-            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY) {
+            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY && !(process.env.INSTANTLY_LIVE === 'true')) {
+              console.log(`[Apollo] Instantly first-touch skipped for ${leadData.name}: INSTANTLY_LIVE env var not set to "true". Set both instantly_auto_sync=true AND INSTANTLY_LIVE=true to enable autonomous enrollment.`);
+            }
+            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY && process.env.INSTANTLY_LIVE === 'true') {
               try {
                 const pushResult = await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
                 if (pushResult.synced > 0) {
