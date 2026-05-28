@@ -178,6 +178,13 @@
 [functions."maintenance-reminders-scheduled"]
   schedule = "0 8 * * *"
 
+# Monthly founder payout: on the 1st of each month at 14:00 UTC (9am ET).
+# Creates founder_payouts rows for all active founders with pending_balance > 0,
+# auto-processes Stripe Connect founders, flags PayPal-only and no-email founders
+# in an admin summary email. Within 15 business days per founding contract.
+[functions."founder-payout-monthly-scheduled"]
+  schedule = "0 14 1 * *"
+
 # Promotes scheduled rides to 'requested' 30 min before pickup so dispatch fires on time.
 [functions."transport-scheduled-dispatch"]
   schedule = "*/15 * * * *"
