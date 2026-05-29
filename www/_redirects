@@ -35,6 +35,8 @@
 /api/admin/packages /.netlify/functions/admin-data/packages 200
 /api/admin/2fa-global-status /.netlify/functions/admin-data/2fa-global-status 200
 /api/admin/2fa-global-toggle /.netlify/functions/admin-data/2fa-global-toggle 200
+/api/admin/feature-flags         /.netlify/functions/admin-data/feature-flags 200
+/api/admin/feature-flags/*       /.netlify/functions/admin-data/feature-flags/:splat 200
 /api/admin/refunds/* /.netlify/functions/admin-refunds/:splat 200
 /api/admin/refunds /.netlify/functions/admin-refunds 200
 /api/admin/agreements/* /.netlify/functions/admin-agreements/:splat 200
