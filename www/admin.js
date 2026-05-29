@@ -542,7 +542,8 @@
       'survey-analytics': async () => { await loadSurveyAnalytics(); },
       'member-surveys': async () => { await loadMemberSurveyAnalytics(); },
       'car-clubs': async () => { await loadCarClubs(); },
-      referrals: async () => { await loadReferralDashboard(); }
+      referrals: async () => { await loadReferralDashboard(); },
+      'feature-flags': async () => { await loadFeatureFlags(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -5511,6 +5512,153 @@
         toggle.checked = !enabled;
       }
     }
+
+    // ── Feature Flags ────────────────────────────────────────────────────────
+
+    const FLAG_LABELS = {
+      custody_chain_enabled:      { title: 'Custody Chain',      desc: 'Photo verification + return fees for vehicle handoffs.' },
+      car_club_programs_enabled:  { title: 'Car Club Programs',  desc: 'Points, coupons, and comp services for car club providers.' }
+    };
+
+    async function loadFeatureFlags() {
+      const list = document.getElementById('feature-flags-list');
+      const errBox = document.getElementById('feature-flags-error');
+      list.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div>Loading flags…</div>';
+      errBox.style.display = 'none';
+      try {
+        const session = await supabaseClient.auth.getSession();
+        if (!session?.data?.session?.access_token) throw new Error('No admin session');
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags`, {
+          headers: { Authorization: `Bearer ${session.data.session.access_token}` }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        list.innerHTML = '';
+        (data.flags || []).forEach(flag => renderFlagCard(flag));
+        if (!data.flags || data.flags.length === 0) {
+          list.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:0.9rem;">No feature flags found. Paste the SQL block to prod first.</div>';
+        }
+      } catch (err) {
+        list.innerHTML = '';
+        errBox.style.display = 'block';
+        errBox.textContent = 'Failed to load feature flags: ' + err.message;
+      }
+    }
+
+    function renderFlagCard(flag) {
+      const list = document.getElementById('feature-flags-list');
+      const val = flag.setting_value || {};
+      const enabled = !!val.enabled;
+      const testUsers = Array.isArray(val.test_users) ? val.test_users : [];
+      const meta = FLAG_LABELS[flag.setting_key] || { title: flag.setting_key, desc: flag.description || '' };
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = `flag-card-${flag.setting_key}`;
+      card.innerHTML = `
+        <div class="card-header" style="padding-bottom:12px;">
+          <div>
+            <h2 class="card-title" style="margin-bottom:4px;">${escapeHtml(meta.title)}</h2>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(meta.desc)}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">key: <code>${escapeHtml(flag.setting_key)}</code></div>
+          </div>
+          <label class="toggle-switch" style="position:relative;display:inline-block;width:52px;height:28px;flex-shrink:0;margin-left:20px;">
+            <input type="checkbox" id="toggle-${flag.setting_key}" ${enabled ? 'checked' : ''}
+              onchange="toggleFeatureFlag('${flag.setting_key}', this.checked)"
+              style="opacity:0;width:0;height:0;">
+            <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:${enabled ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)'};border:2px solid ${enabled ? 'var(--accent-green)' : 'var(--accent-red)'};border-radius:28px;transition:0.3s;"></span>
+          </label>
+        </div>
+        <div style="padding:0 4px;">
+          <div style="font-weight:600;font-size:0.88rem;margin-bottom:10px;">
+            Status: <span style="color:${enabled ? 'var(--accent-green)' : 'var(--accent-orange)'};">${enabled ? 'Enabled globally' : 'Disabled globally'}</span>
+          </div>
+          <div style="font-size:0.88rem;font-weight:600;margin-bottom:8px;">Test users (flag on for these users even when globally off):</div>
+          <div id="test-users-${flag.setting_key}" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:32px;">
+            ${testUsers.length === 0
+              ? '<span style="font-size:0.85rem;color:var(--text-muted);">None</span>'
+              : testUsers.map(uid => `
+                <span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-input);border-radius:var(--radius-sm);padding:4px 10px;font-size:0.82rem;font-family:monospace;">
+                  ${escapeHtml(uid)}
+                  <button onclick="removeFeatureFlagTestUser('${flag.setting_key}','${uid}')"
+                    style="background:none;border:none;cursor:pointer;color:var(--accent-red);font-size:1rem;line-height:1;padding:0;" title="Remove">×</button>
+                </span>`).join('')}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="test-user-input-${flag.setting_key}" type="text" placeholder="User UUID to add…"
+              style="flex:1;padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;font-family:monospace;"
+              onkeydown="if(event.key==='Enter')addFeatureFlagTestUser('${flag.setting_key}')">
+            <button class="btn btn-primary" onclick="addFeatureFlagTestUser('${flag.setting_key}')" style="white-space:nowrap;font-size:0.85rem;">Add test user</button>
+          </div>
+        </div>`;
+      list.appendChild(card);
+    }
+
+    async function toggleFeatureFlag(key, enabled) {
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags/toggle`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.data.session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, enabled })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        showToast((FLAG_LABELS[key]?.title || key) + ' ' + (enabled ? 'enabled' : 'disabled'), 'success');
+        // Update the status label without full reload
+        const card = document.getElementById(`flag-card-${key}`);
+        if (card) {
+          const statusSpan = card.querySelector('[style*="Status:"] span');
+          if (statusSpan) { statusSpan.textContent = enabled ? 'Enabled globally' : 'Disabled globally'; statusSpan.style.color = enabled ? 'var(--accent-green)' : 'var(--accent-orange)'; }
+          const slider = card.querySelector('.toggle-slider');
+          if (slider) { slider.style.background = enabled ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)'; slider.style.border = `2px solid ${enabled ? 'var(--accent-green)' : 'var(--accent-red)'}`; }
+        }
+      } catch (err) {
+        showToast('Failed to toggle flag: ' + err.message, 'error');
+        const toggle = document.getElementById(`toggle-${key}`);
+        if (toggle) toggle.checked = !enabled;
+      }
+    }
+
+    async function addFeatureFlagTestUser(key) {
+      const input = document.getElementById(`test-user-input-${key}`);
+      const userId = (input?.value || '').trim();
+      if (!userId) return;
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags/test-users`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.data.session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, user_id: userId, action: 'add' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        if (input) input.value = '';
+        showToast('Test user added', 'success');
+        await loadFeatureFlags();
+      } catch (err) {
+        showToast('Failed to add test user: ' + err.message, 'error');
+      }
+    }
+
+    async function removeFeatureFlagTestUser(key, userId) {
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags/test-users`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.data.session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, user_id: userId, action: 'remove' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        showToast('Test user removed', 'success');
+        await loadFeatureFlags();
+      } catch (err) {
+        showToast('Failed to remove test user: ' + err.message, 'error');
+      }
+    }
+
+    // ── End Feature Flags ─────────────────────────────────────────────────────
 
     async function sendBulkWelcomeEmails() {
       const btn = document.getElementById('send-welcome-emails-btn');

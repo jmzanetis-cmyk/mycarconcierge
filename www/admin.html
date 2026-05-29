@@ -658,6 +658,7 @@
         <div class="nav-item" data-section="audit-log"><span class="icon-inline" data-icon="shield"></span> Audit Log</div>
         <div class="nav-item" data-section="team-management"><span class="icon-inline" data-icon="users"></span> Team Management</div>
         <div class="nav-item" data-section="settings"><span class="icon-inline" data-icon="settings"></span> Settings</div>
+        <div class="nav-item" data-section="feature-flags"><span class="icon-inline" data-icon="toggle-right"></span> Feature Flags</div>
       </div>
     </div>
 
@@ -5032,6 +5033,17 @@ ALTER TABLE ai_daily_digests ENABLE ROW LEVEL SECURITY;</pre>
       </div>
     </section>
     
+    <!-- Feature Flags Section -->
+    <section id="feature-flags" class="section">
+      <div class="page-header">
+        <button class="back-to-dashboard" onclick="navigateToSection('dashboard')"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 19-7-7 7-7"/><path d="M19 12H5"/></svg> Dashboard</button>
+        <h1 class="page-title"><span class="icon-inline" data-icon="toggle-right"></span> Feature Flags</h1>
+        <p class="page-subtitle">Gate new features. Enable globally or for specific test users only.</p>
+      </div>
+      <div id="feature-flags-list" style="display:flex;flex-direction:column;gap:16px;"></div>
+      <div id="feature-flags-error" style="display:none;padding:14px 18px;border-radius:var(--radius-md);background:var(--accent-red-soft);color:var(--accent-red);font-size:0.9rem;margin-top:8px;"></div>
+    </section>
+
     <!-- AI Chat Insights Section -->
     <section id="ai-chat-insights" class="section">
       <div class="page-header">
