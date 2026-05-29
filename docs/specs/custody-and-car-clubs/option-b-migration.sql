@@ -153,7 +153,7 @@ BEGIN
       v_pkg.vehicle_id,
       1,                                            -- tier: 1 = standard stub
       1,                                            -- scenario: 1 = direct maintenance
-      'pending',
+      'scheduled',                                  -- allowed: draft|scheduled|in_progress|completed|cancelled
       ROUND(NEW.price * 100)::integer,
       'Auto-created from bid acceptance: bid ' || NEW.id::text
     )

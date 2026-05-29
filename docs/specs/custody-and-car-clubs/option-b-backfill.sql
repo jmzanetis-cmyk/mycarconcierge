@@ -48,7 +48,7 @@ SELECT
   mp.vehicle_id,       -- member_vehicle_id (nullable — safe if NULL)
   1,                   -- tier: 1 = standard stub (matches existing prod pattern)
   1,                   -- scenario: 1 = direct maintenance
-  'pending',
+  'scheduled',         -- allowed: draft|scheduled|in_progress|completed|cancelled
   ROUND(b.price * 100)::integer,
   'Backfill from Option B migration: bid ' || b.id::text
 FROM maintenance_packages mp
