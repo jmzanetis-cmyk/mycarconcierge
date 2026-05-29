@@ -3487,7 +3487,6 @@ async function submitContribution(packageId) {
 }
 
 // Reset community board when switching away from it
-const _origShowSection = typeof showSection === 'function' ? showSection : null;
 function patchShowSectionForCommunityBoard(fn) {
   return function(sectionId) {
     if (sectionId !== 'packages') {
