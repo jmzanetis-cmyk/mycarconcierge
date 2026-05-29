@@ -141,6 +141,77 @@ async function handlePackages(supabase, qs) {
   };
 }
 
+// ── Feature flags ─────────────────────────────────────────────────────────────
+// Stored in platform_settings as { "enabled": bool, "test_users": ["uuid",...] }
+// A flag is on for a user if global enabled=true OR their id is in test_users.
+
+async function handleFeatureFlags(supabase) {
+  var result = await supabase
+    .from('platform_settings')
+    .select('setting_key, setting_value, description, updated_at, updated_by')
+    .in('setting_key', ['custody_chain_enabled', 'car_club_programs_enabled'])
+    .order('setting_key');
+  if (result.error) throw result.error;
+  return { success: true, flags: result.data || [] };
+}
+
+async function handleFeatureFlagToggle(supabase, body, adminUserId) {
+  var key     = (body.key     || '').trim();
+  var enabled = body.enabled;
+  var allowed = ['custody_chain_enabled', 'car_club_programs_enabled'];
+  if (!allowed.includes(key)) {
+    var e = new Error('Unknown flag key'); e.statusCode = 400; throw e;
+  }
+  if (typeof enabled !== 'boolean') {
+    var e2 = new Error('enabled must be boolean'); e2.statusCode = 400; throw e2;
+  }
+  var existing = await supabase
+    .from('platform_settings')
+    .select('setting_value')
+    .eq('setting_key', key)
+    .single();
+  var currentVal = (existing.data && existing.data.setting_value) || { enabled: false, test_users: [] };
+  var newVal = Object.assign({}, currentVal, { enabled });
+  var upd = await supabase
+    .from('platform_settings')
+    .update({ setting_value: newVal, updated_at: new Date().toISOString(), updated_by: adminUserId })
+    .eq('setting_key', key);
+  if (upd.error) throw upd.error;
+  return { success: true, key, enabled, message: key + ' ' + (enabled ? 'enabled' : 'disabled') + ' globally' };
+}
+
+async function handleFeatureFlagTestUsers(supabase, body, adminUserId) {
+  var key    = (body.key     || '').trim();
+  var userId = (body.user_id || '').trim();
+  var action = (body.action  || '').trim(); // 'add' | 'remove'
+  var allowed = ['custody_chain_enabled', 'car_club_programs_enabled'];
+  if (!allowed.includes(key)) {
+    var e = new Error('Unknown flag key'); e.statusCode = 400; throw e;
+  }
+  if (!userId || !/^[0-9a-f-]{36}$/i.test(userId)) {
+    var e2 = new Error('user_id must be a valid UUID'); e2.statusCode = 400; throw e2;
+  }
+  if (action !== 'add' && action !== 'remove') {
+    var e3 = new Error('action must be add or remove'); e3.statusCode = 400; throw e3;
+  }
+  var existing = await supabase
+    .from('platform_settings')
+    .select('setting_value')
+    .eq('setting_key', key)
+    .single();
+  var currentVal = (existing.data && existing.data.setting_value) || { enabled: false, test_users: [] };
+  var users = Array.isArray(currentVal.test_users) ? currentVal.test_users.slice() : [];
+  if (action === 'add' && !users.includes(userId)) users.push(userId);
+  if (action === 'remove') users = users.filter(function(u) { return u !== userId; });
+  var newVal = Object.assign({}, currentVal, { test_users: users });
+  var upd = await supabase
+    .from('platform_settings')
+    .update({ setting_value: newVal, updated_at: new Date().toISOString(), updated_by: adminUserId })
+    .eq('setting_key', key);
+  if (upd.error) throw upd.error;
+  return { success: true, key, action, user_id: userId, test_users: users };
+}
+
 function handle2faStatus() {
   var raw = (process.env.GLOBAL_2FA_ENABLED || '').toLowerCase().trim();
   var enabled = raw !== 'false' && raw !== '0';
@@ -193,6 +264,19 @@ exports.handler = async function(event) {
       var body = {};
       try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
       result = handle2faToggle(body);
+
+    } else if (route === 'feature-flags' && method === 'GET') {
+      result = await handleFeatureFlags(supabase);
+
+    } else if (route === 'feature-flags/toggle' && method === 'POST') {
+      var body = {};
+      try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
+      result = await handleFeatureFlagToggle(supabase, body, user.id);
+
+    } else if (route === 'feature-flags/test-users' && method === 'POST') {
+      var body = {};
+      try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
+      result = await handleFeatureFlagTestUsers(supabase, body, user.id);
 
     } else {
       return utils.errorResponse(404, 'Unknown route: ' + method + ' ' + route);
