@@ -79,6 +79,7 @@
     let selectedBiddingWindowHours = 72; // Default 3 days
     let selectedOilPreference = 'provider'; // 'provider' or 'specify'
     let carClubProviderIds = new Set();
+    let memberFeatureFlags = {}; // populated at init via /api/me/feature-flags
     let pendingPackagePhotos = []; // Photos to upload with new package
     let pendingVehiclePhoto = null; // Photo to upload with new vehicle
     let pendingEditVehiclePhoto = null; // Photo to upload when editing vehicle
@@ -455,12 +456,14 @@
         loadNotifications(),
         checkActiveEmergency(),
         loadCarClubProviders(),
-        loadTransportRequests()
+        loadTransportRequests(),
+        loadMemberFeatureFlags()
       ]);
 
       updateStats();
       setupEventListeners();
       setupRealtimeSubscriptions();
+      if (memberFeatureFlags.custody_chain_enabled) setupCustodyRealtimeSubscription();
       showBudgetForecastIfEligible();
       if (typeof window.loadBillingSubscriptions === 'function') {
         window.loadBillingSubscriptions().catch(() => {});
@@ -480,6 +483,50 @@
     
     // ========== REALTIME SUBSCRIPTIONS ==========
     // Canonical implementation lives in members-core.js (loaded by members.html).
+
+    let custodyRealtimeChannel = null;
+
+    function setupCustodyRealtimeSubscription() {
+      if (custodyRealtimeChannel) supabaseClient.removeChannel(custodyRealtimeChannel);
+      custodyRealtimeChannel = supabaseClient.channel('custody-updates')
+
+        .on('postgres_changes', {
+          event: '*',
+          schema: 'public',
+          table: 'custody_handoffs'
+        }, async (payload) => {
+          // Find which package this job belongs to and refresh that panel
+          const jobId = payload.new?.job_id || payload.old?.job_id;
+          if (!jobId) return;
+          const { data: job } = await supabaseClient
+            .from('concierge_jobs')
+            .select('package_id')
+            .eq('id', jobId)
+            .maybeSingle();
+          if (job?.package_id && document.getElementById(`custody-chain-content-${job.package_id}`)) {
+            loadCustodyChain(job.package_id);
+          }
+        })
+
+        .on('postgres_changes', {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'custody_photos'
+        }, async (payload) => {
+          const jobId = payload.new?.job_id;
+          if (!jobId) return;
+          const { data: job } = await supabaseClient
+            .from('concierge_jobs')
+            .select('package_id')
+            .eq('id', jobId)
+            .maybeSingle();
+          if (job?.package_id && document.getElementById(`custody-chain-content-${job.package_id}`)) {
+            loadCustodyChain(job.package_id);
+          }
+        })
+
+        .subscribe();
+    }
 
     function updateRealtimeStatus(status) {
       const dot = document.getElementById('realtime-dot');
@@ -1026,6 +1073,22 @@
         }
       } catch (e) {
         console.warn('Could not load car club providers:', e);
+      }
+    }
+
+    async function loadMemberFeatureFlags() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session?.access_token) return;
+        const res = await fetch('/api/me/feature-flags', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.flags) memberFeatureFlags = data.flags;
+        }
+      } catch (e) {
+        console.warn('Could not load member feature flags:', e);
       }
     }
 
@@ -6839,6 +6902,10 @@
       const vehicle = pkg.vehicles;
       const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
 
+      // Fix: acceptedBid was never declared — was undefined throughout the template,
+      // breaking shareMyLocation and silently passing '' to schedule/transfer modals.
+      const acceptedBid = bids?.find(b => b.id === pkg.accepted_bid_id) ?? bids?.find(b => b.status === 'accepted') ?? null;
+
       document.getElementById('view-package-title').textContent = pkg.title;
       document.getElementById('view-package-body').innerHTML = `
         <div class="form-section">
@@ -7019,7 +7086,7 @@
             </div>
 
             <!-- Inspection Report Section -->
-            <div id="inspection-report-container-${packageId}" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;">
+            <div id="inspection-report-container-${packageId}" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;margin-bottom:16px;">
               <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;">
                 <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('search', 14)} Multi-Point Inspection</h4>
               </div>
@@ -7027,6 +7094,24 @@
                 <div style="color:var(--text-muted);font-size:0.9rem;">Loading inspection report...</div>
               </div>
             </div>
+
+            ${memberFeatureFlags.custody_chain_enabled ? `
+            <!-- Chain of Custody Section (feature-flagged) -->
+            <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);padding:20px;" id="custody-chain-section-${packageId}">
+              <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+                <h4 style="margin:0;font-size:1rem;display:flex;align-items:center;gap:8px;">${mccIcon('shield', 14)} Chain of Custody</h4>
+              </div>
+              <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Document vehicle condition and track all handoffs between you and your provider. Photos are timestamped and GPS-tagged for dispute protection.</p>
+              <div id="custody-chain-content-${packageId}" style="margin-bottom:16px;">
+                <div style="color:var(--text-muted);font-size:0.9rem;">Loading custody chain...</div>
+              </div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-primary btn-sm" onclick="startHandoffFlow('${packageId}')">
+                  ${mccIcon('camera', 14)} Start Vehicle Handoff
+                </button>
+              </div>
+            </div>
+            ` : ''}
           </div>
         ` : ''}
         ${(pkg.status === 'accepted' || pkg.status === 'in_progress') ? `<div id="logistics-loader-${packageId}" data-load-logistics="true"></div>` : ''}
@@ -9348,6 +9433,7 @@
         loadEvidenceTimeline(packageId);
         loadKeyExchangeTimeline(packageId);
         loadInspectionReport(packageId);
+        loadCustodyChain(packageId);
         
         if (driverLocationRefreshInterval) {
           clearInterval(driverLocationRefreshInterval);
@@ -11116,6 +11202,179 @@
           </div>
         ` : ''}
       `;
+    }
+
+    // ========== CUSTODY CHAIN ==========
+
+    async function loadCustodyChain(packageId) {
+      const container = document.getElementById(`custody-chain-content-${packageId}`);
+      if (!container) return;
+
+      try {
+        const { data: job, error } = await supabaseClient
+          .from('concierge_jobs')
+          .select('id, status, provider_id')
+          .eq('package_id', packageId)
+          .maybeSingle();
+
+        if (error || !job) {
+          container.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:12px;">No service job created yet — check back after your bid is accepted.</div>`;
+          return;
+        }
+
+        const section = document.getElementById(`custody-chain-section-${packageId}`);
+        if (section) {
+          section.dataset.jobId = job.id;
+          section.dataset.providerId = job.provider_id || '';
+        }
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) { container.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Authentication error.</div>`; return; }
+
+        const res = await fetch(`/api/custody/jobs/${job.id}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+
+        if (!res.ok) {
+          container.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Could not load custody chain.</div>`;
+          return;
+        }
+
+        const chainData = await res.json();
+        renderCustodyChainPanel(container, chainData.handoffs || [], chainData.photos || []);
+      } catch (err) {
+        console.error('Error loading custody chain:', err);
+        container.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Could not load custody chain.</div>`;
+      }
+    }
+
+    function renderCustodyChainPanel(container, handoffs, photos) {
+      if (!handoffs.length) {
+        container.innerHTML = `
+          <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;padding:16px;">
+            ${mccIcon('shield', 14)} No handoffs recorded yet. Use the button below when handing off your vehicle.
+          </div>
+        `;
+        return;
+      }
+
+      const LEG_LABELS = {
+        'member_to_provider': 'Member → Provider',
+        'member_to_driver':   'Member → Driver',
+        'driver_to_shop':     'Driver → Shop',
+        'shop_to_driver':     'Shop → Driver',
+        'driver_to_member':   'Driver → Member',
+        'driver_to_driver':   'Driver → Driver'
+      };
+
+      const STATUS_COLORS = {
+        'pending':            'var(--text-muted)',
+        'awaiting_receiver':  'var(--accent-orange)',
+        'accepted':           'var(--accent-green)',
+        'disputed':           'var(--accent-red)'
+      };
+
+      container.innerHTML = handoffs.map(h => {
+        const hPhotos = photos.filter(p => p.handoff_id === h.id);
+        const createdAt = new Date(h.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+        const releasedAt = h.released_at ? new Date(h.released_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : null;
+        const statusColor = STATUS_COLORS[h.status] || 'var(--text-muted)';
+        const statusLabel = h.status === 'awaiting_receiver' ? 'Awaiting Review' : (h.status || '').replace(/_/g, ' ');
+
+        const photoThumbs = hPhotos.length ? `
+          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
+            ${hPhotos.slice(0, 6).map(p => {
+              const url = supabaseClient.storage.from('custody-evidence').getPublicUrl(p.storage_path).data.publicUrl;
+              return `<div style="width:58px;height:58px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-base);flex-shrink:0;">
+                <img src="${url}" alt="${p.angle || 'photo'}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'">
+              </div>`;
+            }).join('')}
+            ${hPhotos.length > 6 ? `<div style="width:58px;height:58px;border-radius:var(--radius-sm);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:0.8rem;color:var(--text-muted);">+${hPhotos.length - 6}</div>` : ''}
+          </div>
+        ` : `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;">No photos captured</div>`;
+
+        return `
+          <div style="border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:12px;margin-bottom:10px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:6px;">
+              <span style="font-size:0.85rem;font-weight:600;">${LEG_LABELS[h.leg] || h.leg}</span>
+              <span style="font-size:0.75rem;font-weight:600;color:${statusColor};text-transform:capitalize;">${statusLabel}</span>
+            </div>
+            <div style="font-size:0.8rem;color:var(--text-muted);">
+              ${mccIcon('clock', 12)} ${createdAt}${releasedAt ? ' &rarr; released ' + releasedAt : ''}
+            </div>
+            ${photoThumbs}
+          </div>
+        `;
+      }).join('');
+    }
+
+    async function startHandoffFlow(packageId) {
+      const section = document.getElementById(`custody-chain-section-${packageId}`);
+      const jobId = section?.dataset?.jobId;
+      const providerId = section?.dataset?.providerId;
+
+      if (!jobId) {
+        showToast('No service job found for this package.', 'error');
+        return;
+      }
+      if (!providerId) {
+        showToast('Provider not yet assigned — cannot start handoff.', 'warning');
+        return;
+      }
+
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const token = session?.access_token;
+      if (!token) { showToast('Authentication required.', 'error'); return; }
+
+      try {
+        const createRes = await fetch('/api/custody/handoffs', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({
+            job_id:               jobId,
+            leg:                  'member_to_provider',
+            releasing_party_role: 'member',
+            receiving_party_id:   providerId,
+            receiving_party_role: 'provider'
+          })
+        });
+
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}));
+          showToast(err.error || 'Could not start handoff. Please try again.', 'error');
+          return;
+        }
+
+        const { handoff } = await createRes.json();
+
+        showToast(`${mccIcon('camera', 14)} Preparing photo capture...`, 'info');
+        const captureResult = await window.CustodyCapture.captureHandoffPhotos(
+          handoff.id, jobId, 'member', window.CustodyCapture.STANDARD_ANGLES
+        );
+
+        if (!captureResult.photos.length) {
+          showToast('No photos captured — handoff not submitted.', 'warning');
+          return;
+        }
+
+        const releaseRes = await fetch(`/api/custody/handoffs/${handoff.id}/release`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+          body: JSON.stringify({})
+        });
+
+        if (releaseRes.ok) {
+          showToast(`${mccIcon('check-circle', 14)} Handoff documented — awaiting provider confirmation.`, 'success');
+        } else {
+          showToast('Photos saved but handoff release failed. Contact support.', 'warning');
+        }
+
+        await loadCustodyChain(packageId);
+      } catch (err) {
+        console.error('startHandoffFlow error:', err);
+        showToast('An error occurred during handoff. Please try again.', 'error');
+      }
     }
 
     // ========== DESTINATION SERVICES ==========

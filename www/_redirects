@@ -216,6 +216,9 @@
 /api/insurance/verifications/*       /.netlify/functions/vehicle-verify/insurance/verifications/:splat 200
 /api/insurance/name-cross-ref/*      /.netlify/functions/vehicle-verify/insurance/name-cross-ref/:splat 200
 
+# Feature: Member feature-flag resolution (non-admin)
+/api/me/feature-flags /.netlify/functions/me-feature-flags 200
+
 # Feature: Custody Chain
 /api/custody/handoffs          /.netlify/functions/custody/handoffs 200
 /api/custody/handoffs/*        /.netlify/functions/custody/handoffs/:splat 200
