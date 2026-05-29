@@ -1072,7 +1072,7 @@ async function checkFounderAccess() {
       .select('id, status')
       .eq('user_id', currentUser.id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
     
     if (founderRecord) {
       document.getElementById('founder-nav').style.display = 'block';
@@ -1142,13 +1142,14 @@ async function displayLoyaltyBadges(profile) {
 async function checkProviderAccess() {
   try {
     const { data: providerRecord } = await supabaseClient
-      .from('service_providers')
+      .from('provider_applications')
       .select('id, status')
       .eq('user_id', currentUser.id)
-      .single();
-    
+      .eq('status', 'approved')
+      .maybeSingle();
+
     // Only show dual access if user has an approved provider record
-    if (providerRecord && providerRecord.status === 'approved') {
+    if (providerRecord) {
       document.getElementById('switch-portal-container').style.display = 'block';
     } else {
       document.getElementById('switch-portal-container').style.display = 'none';

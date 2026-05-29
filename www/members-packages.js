@@ -619,7 +619,7 @@
       
       try {
         const { data: payments } = await supabaseClient.from('payments')
-          .select('package_id, status, escrow_payment_intent_id, escrow_captured, amount_total')
+          .select('package_id, status, stripe_payment_intent_id, amount_total')
           .in('package_id', packageIds);
         
         packagePaymentStatuses = {};
@@ -643,11 +643,11 @@
         return '';
       }
       
-      if (payment.escrow_captured === true || payment.status === 'released' || payment.status === 'completed') {
+      if (payment.status === 'released' || payment.status === 'completed') {
         return `<span class="payment-status-badge complete" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(52,211,153,0.3);">${mccIcon('check', 16)} Payment Complete</span>`;
       }
       
-      if (payment.escrow_payment_intent_id && payment.escrow_captured === false) {
+      if (payment.stripe_payment_intent_id && payment.status === 'held') {
         return `<span class="payment-status-badge held" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-blue-soft);color:var(--accent-blue);border:1px solid rgba(56,189,248,0.3);">${mccIcon('lock', 16)} Payment Held</span>`;
       }
       
@@ -708,8 +708,7 @@
         let confirmCompleteButton = '';
         const payment = packagePaymentStatuses[p.id];
         if ((p.status === 'in_progress' || p.status === 'completed') && payment && 
-            (payment.status === 'held' || payment.status === 'authorized') && 
-            !payment.escrow_captured) {
+            (payment.status === 'held' || payment.status === 'authorized')) {
           confirmCompleteButton = `<button class="btn btn-success btn-sm" onclick="openReleasePaymentModal('${p.id}')">${mccIcon('check', 16)} Confirm Complete</button>`;
         }
         
@@ -1954,7 +1953,7 @@
         const providerIds = bids.map(b => b.provider_id);
         const { data: applications } = await supabaseClient
           .from('provider_applications')
-          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified, background_verified')
+          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified')
           .in('user_id', providerIds)
           .eq('status', 'approved');
         applications?.forEach(app => providerApplications[app.user_id] = app);
@@ -2019,7 +2018,7 @@
                 const brands = appData.brand_specializations || [];
                 const specialties = [...services.slice(0, 2), ...brands.slice(0, 1)].slice(0, 3);
                 const bidPrice = bid.price || 0;
-                const isBackgroundVerified = appData.background_verified === true;
+                const isBackgroundVerified = false;
                 
                 // Performance data
                 const tier = perf?.tier || 'bronze';
@@ -2276,7 +2275,7 @@
             overall_score: perf?.overall_score ? Math.round(perf.overall_score) : null,
             tier: perf?.tier || null,
             is_verified: isVerified,
-            is_background_verified: appData.background_verified === true,
+            is_background_verified: false,
             years_in_business: appData.years_in_business || null,
             estimated_duration: bid.estimated_duration || null,
             badges: perf?.badges || [],
@@ -3514,7 +3513,7 @@
       
       // Only show for packages with payment held and not yet checked in
       const payment = packagePaymentStatuses[pkg.id];
-      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized') && !payment.escrow_captured;
+      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized');
       const isInProgress = pkg.status === 'in_progress';
       const isAccepted = pkg.status === 'accepted';
       const isCheckedIn = !!pkg.checked_in_at;

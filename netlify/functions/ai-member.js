@@ -85,7 +85,7 @@ async function handleServiceHistoryChat(user, body) {
   const { data: vehicles } = await supabase
     .from('vehicles')
     .select('id, year, make, model, vin')
-    .eq('member_id', user.id)
+    .eq('owner_id', user.id)
     .limit(5);
 
   const { data: packages } = await supabase
