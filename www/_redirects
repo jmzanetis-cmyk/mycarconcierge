@@ -215,3 +215,9 @@
 /api/insurance/verifications         /.netlify/functions/vehicle-verify/insurance/verifications 200
 /api/insurance/verifications/*       /.netlify/functions/vehicle-verify/insurance/verifications/:splat 200
 /api/insurance/name-cross-ref/*      /.netlify/functions/vehicle-verify/insurance/name-cross-ref/:splat 200
+
+# Feature: Custody Chain
+/api/custody/handoffs          /.netlify/functions/custody/handoffs 200
+/api/custody/handoffs/*        /.netlify/functions/custody/handoffs/:splat 200
+/api/custody/photos            /.netlify/functions/custody/photos 200
+/api/custody/jobs/*            /.netlify/functions/custody/jobs/:splat 200
