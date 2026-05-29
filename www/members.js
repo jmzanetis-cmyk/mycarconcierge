@@ -11242,7 +11242,22 @@
         }
 
         const chainData = await res.json();
-        renderCustodyChainPanel(container, chainData.handoffs || [], chainData.photos || []);
+        const rawPhotos = chainData.photos || [];
+
+        // Private bucket — generate signed URLs (1 hr) for thumbnail display
+        let photosWithUrls = rawPhotos;
+        if (rawPhotos.length) {
+          const paths = rawPhotos.map(p => p.storage_path);
+          const { data: signed } = await supabaseClient.storage
+            .from('custody-evidence')
+            .createSignedUrls(paths, 3600);
+          if (signed) {
+            const urlMap = Object.fromEntries(signed.map(s => [s.path, s.signedUrl]));
+            photosWithUrls = rawPhotos.map(p => ({ ...p, signed_url: urlMap[p.storage_path] || '' }));
+          }
+        }
+
+        renderCustodyChainPanel(container, chainData.handoffs || [], photosWithUrls);
       } catch (err) {
         console.error('Error loading custody chain:', err);
         container.innerHTML = `<div style="color:var(--text-muted);font-size:0.9rem;">Could not load custody chain.</div>`;
@@ -11285,9 +11300,8 @@
         const photoThumbs = hPhotos.length ? `
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;">
             ${hPhotos.slice(0, 6).map(p => {
-              const url = supabaseClient.storage.from('custody-evidence').getPublicUrl(p.storage_path).data.publicUrl;
               return `<div style="width:58px;height:58px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-base);flex-shrink:0;">
-                <img src="${url}" alt="${p.angle || 'photo'}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'">
+                <img src="${p.signed_url || ''}" alt="${p.angle || 'photo'}" style="width:100%;height:100%;object-fit:cover;" onerror="this.parentElement.style.display='none'">
               </div>`;
             }).join('')}
             ${hPhotos.length > 6 ? `<div style="width:58px;height:58px;border-radius:var(--radius-sm);background:var(--bg-elevated);display:flex;align-items:center;justify-content:center;font-size:0.8rem;color:var(--text-muted);">+${hPhotos.length - 6}</div>` : ''}
