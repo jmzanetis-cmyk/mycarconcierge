@@ -60,7 +60,6 @@ SECURITY DEFINER
 AS $$
 DECLARE
   v_pkg  maintenance_packages%ROWTYPE;
-  v_job_id uuid;
 BEGIN
   -- Only act when status transitions TO 'accepted'
   IF NEW.status IS DISTINCT FROM 'accepted' THEN
@@ -142,9 +141,16 @@ $$;
 DROP TRIGGER IF EXISTS bid_accepted_create_concierge_job ON bids;
 
 CREATE TRIGGER bid_accepted_create_concierge_job
-  AFTER UPDATE OF status ON bids
+  AFTER INSERT OR UPDATE OF status ON bids
   FOR EACH ROW
   EXECUTE FUNCTION trg_bid_accepted_create_concierge_job();
+
+-- Why INSERT OR UPDATE (not just UPDATE):
+-- A bid inserted directly at status='accepted' (admin import, POS flow, dashboard row)
+-- would not fire an UPDATE-only trigger. The function already handles INSERT correctly:
+-- OLD is NULL for INSERT triggers; IF OLD.status = 'accepted' evaluates to IF NULL, which
+-- is false, so it falls through to the upsert. No function changes needed — trigger
+-- binding change only.
 ```
 
 ---
