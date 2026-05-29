@@ -204,6 +204,12 @@ The trigger fires on `AFTER UPDATE OF status ON bids`, and the function guards `
 - Backfill + trigger race (backfill runs while trigger fires on new acceptance): `ON CONFLICT DO NOTHING` in the backfill + `ON CONFLICT DO UPDATE` in the trigger are both safe.
 - Admin manually creates a job for a package that already has one: FK UNIQUE violation prevents it at the DB level.
 
+### 4b — `vehicle_id` / `member_vehicle_id` nullability (confirmed safe)
+
+`concierge_jobs.member_vehicle_id` is nullable (no NOT NULL constraint, no default). The trigger inserts `v_pkg.vehicle_id` there — if it is NULL, the INSERT succeeds and the job is created with `member_vehicle_id = NULL`. No failure path exists here.
+
+In production: 0 of 10 accepted packages have a NULL `vehicle_id`. The UI requires a vehicle to be attached before a member can post a package (enforced in the create-package flow), so this is always populated in practice. This is a behavioral constraint, not a schema constraint — it is not enforced by a NOT NULL column on `maintenance_packages.vehicle_id`. If a package somehow reaches acceptance with no vehicle, the stub job is created but `member_vehicle_id` is NULL, which is harmless.
+
 ### 5 — `is_job_party()` unchanged
 
 The existing server-side `isJobParty()` in `custody.js` (and the SQL `is_job_party()` function in the custody schema) queries `concierge_jobs` by `member_id` and `provider_id`. The stub job INSERT populates both from the package and accepted bid respectively. No change to `custody.js` or the SQL function is required.
