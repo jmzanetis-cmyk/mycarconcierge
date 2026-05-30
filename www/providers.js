@@ -12630,7 +12630,7 @@
       try {
         const { data: bids } = await supabaseClient
           .from('bids')
-          .select('id, status, amount, created_at')
+          .select('id, status, created_at')
           .eq('provider_id', currentUser.id);
         
         if (!bids || bids.length === 0) {

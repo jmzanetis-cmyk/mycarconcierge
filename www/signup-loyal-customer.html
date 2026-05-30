@@ -765,8 +765,7 @@
             full_name: name,
             phone: phone,
             is_verified: true,
-            referred_by_provider: providerId,
-            loyalty_status: 'vip',
+            referred_by_provider_id: providerId,
             platform_fee_exempt: true,
             sms_consent: smsConsent,
             sms_consent_date: smsConsent ? new Date().toISOString() : null,
@@ -778,17 +777,13 @@
           }
 
           try {
-            const { data: referralResult, error: referralError } = await supabaseClient
-              .rpc('process_loyal_customer_referral', {
-                p_referral_code: referralCode,
-                p_customer_user_id: data.user.id,
-                p_customer_email: email,
-                p_customer_name: name,
-                p_customer_phone: phone
-              });
-
-            if (referralError) {
-              console.log('Referral processing note:', referralError.message);
+            const referralResp = await fetch('/.netlify/functions/referral-process', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: data.user.id, referral_code: referralCode })
+            });
+            if (!referralResp.ok) {
+              console.log('Referral processing note:', await referralResp.text());
             }
           } catch (refErr) {
             console.log('Referral processing note:', refErr.message);

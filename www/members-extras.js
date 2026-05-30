@@ -771,9 +771,9 @@
           const uid = ses?.user?.id;
           if (uid) {
             const { data: prof } = await supabaseClient.from('profiles')
-              .select('address, city, state, zip').eq('id', uid).maybeSingle();
+              .select('address, city, state, zip_code').eq('id', uid).maybeSingle();
             if (prof?.address) {
-              out.pickup = [prof.address, prof.city, prof.state, prof.zip].filter(Boolean).join(', ');
+              out.pickup = [prof.address, prof.city, prof.state, prof.zip_code].filter(Boolean).join(', ');
             }
           }
           if (appointmentId) {
@@ -781,10 +781,10 @@
               .select('provider_id').eq('id', appointmentId).maybeSingle();
             if (appt?.provider_id) {
               const { data: prov } = await supabaseClient.from('profiles')
-                .select('business_name, address, city, state, zip')
+                .select('business_name, address, city, state, zip_code')
                 .eq('id', appt.provider_id).maybeSingle();
               if (prov?.address) {
-                out.dropoff = [prov.business_name, prov.address, prov.city, prov.state, prov.zip].filter(Boolean).join(', ');
+                out.dropoff = [prov.business_name, prov.address, prov.city, prov.state, prov.zip_code].filter(Boolean).join(', ');
               }
             }
           }

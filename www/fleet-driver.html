@@ -599,8 +599,7 @@
           title: `Driver Report: ${type.replace(/_/g, ' ')}`,
           description: desc,
           service_category: type,
-          status: requiresApproval ? 'pending_approval' : 'open',
-          pending_approval_amount: null
+          status: requiresApproval ? 'pending_approval' : 'open'
         }).select().single();
 
         if (error) throw error;
