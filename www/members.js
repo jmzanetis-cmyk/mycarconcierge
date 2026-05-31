@@ -75,6 +75,7 @@
     let currentUpsellFilter = 'pending';
     let currentViewPackage = null;
     let currentMessageProvider = null;
+    let currentMessageProviderAlias = null;
     let selectedPartsTier = 'standard';
     let selectedBiddingWindowHours = 72; // Default 3 days
     let selectedOilPreference = 'provider'; // 'provider' or 'specify'
@@ -1170,7 +1171,7 @@
       }
 
       container.innerHTML = conversations.map(c => `
-        <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
+        <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}', '${c.providerName}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
           <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
             <div>
               <div style="font-weight:600;margin-bottom:2px;">${c.providerName}</div>
@@ -7007,7 +7008,7 @@
                     ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                       <button class="btn btn-ghost btn-sm" onclick="viewProviderBgcProfile('${bid.provider_id}')" style="font-size:0.78rem;">${mccIcon('user', 13)} View Profile</button>
-                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 14)} Message</button>
+                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}', '${bid.profiles?.provider_alias || ''}')">${mccIcon('message-square', 14)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check-circle', 14)} Accept Bid</button>` : ''}
                     </div>
                   </div>
@@ -7573,19 +7574,12 @@
     }
 
     // ========== MESSAGING ==========
-    async function openMessageWithProvider(packageId, providerId) {
+    async function openMessageWithProvider(packageId, providerId, providerAlias = null) {
       currentViewPackage = packageId;
       currentMessageProvider = providerId;
+      currentMessageProviderAlias = providerAlias;
 
-      // Get provider alias (not real name for privacy)
-      const { data: providerProfile } = await supabaseClient
-        .from('profiles')
-        .select('provider_alias')
-        .eq('id', providerId)
-        .single();
-
-      // Use alias or generate anonymous ID
-      const providerName = providerProfile?.provider_alias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
+      const providerName = providerAlias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
 
       const { data: messages } = await supabaseClient.from('messages').select('*').eq('package_id', packageId).or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`).order('created_at', { ascending: true });
 
@@ -7626,7 +7620,7 @@
       }
 
       input.value = '';
-      await openMessageWithProvider(currentViewPackage, currentMessageProvider);
+      await openMessageWithProvider(currentViewPackage, currentMessageProvider, currentMessageProviderAlias);
     }
 
     // ========== PROVIDER BGC PROFILE VIEW ==========

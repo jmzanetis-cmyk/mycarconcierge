@@ -1924,20 +1924,10 @@
         showToast('Error loading bids: ' + bidsError.message, 'error');
       }
 
-      // Load provider profiles separately
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: profiles } = await supabaseClient
-          .from('profiles')
-          .select('id, provider_alias, business_name')
-          .in('id', providerIds);
-        
-        // Attach profile info to bids
-        bids.forEach(bid => {
-          const profile = profiles?.find(p => p.id === bid.provider_id);
-          bid.profiles = profile || null;
-        });
-      }
+      // Populate bid.profiles from denormalized columns — no profiles query needed
+      bids?.forEach(bid => {
+        bid.profiles = { provider_alias: bid.provider_alias, business_name: bid.business_name };
+      });
 
       // Store bids for acceptBid function
       currentPackageBids = bids || [];
@@ -2081,7 +2071,7 @@
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 16)} Availability: ${bid.available_dates}</div>` : ''}
                     ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 16)} Message</button>
+                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}', '${bid.profiles?.provider_alias || ''}')">${mccIcon('message-square', 16)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check', 16)} Accept Bid</button>` : ''}
                     </div>
                   </div>

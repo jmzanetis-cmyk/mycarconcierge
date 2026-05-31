@@ -2,19 +2,13 @@
 // Emergency, fuel, insurance, messaging, fleet, household, spending, shop, referrals, etc.
 
     // ========== MESSAGING ==========
-    async function openMessageWithProvider(packageId, providerId) {
+    let currentMessageProviderAlias = null;
+    async function openMessageWithProvider(packageId, providerId, providerAlias = null) {
       currentViewPackage = packageId;
       currentMessageProvider = providerId;
+      currentMessageProviderAlias = providerAlias;
 
-      // Get provider alias (not real name for privacy)
-      const { data: providerProfile } = await supabaseClient
-        .from('profiles')
-        .select('provider_alias')
-        .eq('id', providerId)
-        .single();
-
-      // Use alias or generate anonymous ID
-      const providerName = providerProfile?.provider_alias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
+      const providerName = providerAlias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
 
       const { data: messages } = await supabaseClient.from('messages').select('*').eq('package_id', packageId).or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`).order('created_at', { ascending: true });
 
@@ -55,7 +49,7 @@
       }
 
       input.value = '';
-      await openMessageWithProvider(currentViewPackage, currentMessageProvider);
+      await openMessageWithProvider(currentViewPackage, currentMessageProvider, currentMessageProviderAlias);
     }
 
 

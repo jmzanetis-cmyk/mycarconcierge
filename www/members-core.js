@@ -1571,13 +1571,16 @@ async function loadConversations() {
       return;
     }
 
-    // Group by package_id and get the other party
+    // Group by package_id and get the other party.
+    // provider_alias is denormalized onto provider-sent messages at insert time;
+    // pick the first non-null value in each thread. Threads where the provider
+    // has not yet replied fall back to Provider #XXXX until their first message.
     const conversationMap = new Map();
-    
+
     for (const msg of messages || []) {
       const key = msg.package_id;
       const otherPartyId = msg.sender_id === currentUser.id ? msg.recipient_id : msg.sender_id;
-      
+
       if (!conversationMap.has(key)) {
         conversationMap.set(key, {
           packageId: msg.package_id,
@@ -1585,29 +1588,18 @@ async function loadConversations() {
           otherPartyId,
           lastMessage: msg.content,
           lastMessageTime: msg.created_at,
-          unread: msg.recipient_id === currentUser.id && !msg.read_at
+          unread: msg.recipient_id === currentUser.id && !msg.read_at,
+          providerAlias: msg.provider_alias || null,
         });
+      } else if (!conversationMap.get(key).providerAlias && msg.provider_alias) {
+        conversationMap.get(key).providerAlias = msg.provider_alias;
       }
     }
 
-    // Fetch provider alias for each conversation
     const conversations = Array.from(conversationMap.values());
-    const providerIds = [...new Set(conversations.map(c => c.otherPartyId))];
-    
-    if (providerIds.length > 0) {
-      const { data: providers } = await supabaseClient
-        .from('profiles')
-        .select('id, provider_alias')
-        .in('id', providerIds);
-
-      const providerMap = new Map(providers?.map(p => [p.id, p]) || []);
-      
-      conversations.forEach(c => {
-        const provider = providerMap.get(c.otherPartyId);
-        // Use alias, never real business name
-        c.providerName = provider?.provider_alias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
-      });
-    }
+    conversations.forEach(c => {
+      c.providerName = c.providerAlias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
+    });
 
     renderConversations(conversations);
     
@@ -1634,7 +1626,7 @@ function renderConversations(conversations) {
   }
 
   container.innerHTML = conversations.map(c => `
-    <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
+    <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}', '${c.providerName}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <div>
           <div style="font-weight:600;margin-bottom:2px;">${c.providerName}</div>

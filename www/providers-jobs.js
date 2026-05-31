@@ -493,7 +493,8 @@ async function sendMessage() {
       sender_id: currentUser.id,
       recipient_id: currentMessageMemberId,
       package_id: currentMessagePackageId,
-      content
+      content,
+      provider_alias: providerProfile?.provider_alias || null,
     });
     
     if (error) throw error;

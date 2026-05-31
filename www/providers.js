@@ -3778,7 +3778,9 @@
           provider_id: currentUser.id,
           price: 0, // Price to be discussed directly with customer
           notes: 'Private job - accepted directly without bidding',
-          status: 'accepted'
+          status: 'accepted',
+          provider_alias: providerProfile?.provider_alias || null,
+          business_name: providerProfile?.business_name || null,
         }).select().single();
         
         if (bidError) {
@@ -4287,7 +4289,9 @@
         available_dates: document.getElementById('bid-availability').value.trim() || null,
         notes: document.getElementById('bid-notes').value.trim() || null,
         updated_at: new Date().toISOString(),
-        include_free_pickup: !isUpdatingBid && (document.getElementById('bid-include-pickup')?.checked || false)
+        include_free_pickup: !isUpdatingBid && (document.getElementById('bid-include-pickup')?.checked || false),
+        provider_alias: providerProfile?.provider_alias || null,
+        business_name: providerProfile?.business_name || null,
       };
 
       let error;
@@ -4425,7 +4429,8 @@
         package_id: currentMessagePackageId,
         sender_id: currentUser.id,
         recipient_id: currentMessageMemberId,
-        content
+        content,
+        provider_alias: providerProfile?.provider_alias || null,
       });
 
       input.value = '';
