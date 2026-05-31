@@ -3781,6 +3781,12 @@
           status: 'accepted',
           provider_alias: providerProfile?.provider_alias || null,
           business_name: providerProfile?.business_name || null,
+          years_in_business: providerApplication?.years_in_business ?? null,
+          services_offered: providerApplication?.services_offered ?? null,
+          brand_specializations: providerApplication?.brand_specializations ?? null,
+          license_verified: providerApplication?.license_verified ?? null,
+          insurance_verified: providerApplication?.insurance_verified ?? null,
+          certifications_verified: providerApplication?.certifications_verified ?? null,
         }).select().single();
         
         if (bidError) {
@@ -4292,6 +4298,12 @@
         include_free_pickup: !isUpdatingBid && (document.getElementById('bid-include-pickup')?.checked || false),
         provider_alias: providerProfile?.provider_alias || null,
         business_name: providerProfile?.business_name || null,
+        years_in_business: providerApplication?.years_in_business ?? null,
+        services_offered: providerApplication?.services_offered ?? null,
+        brand_specializations: providerApplication?.brand_specializations ?? null,
+        license_verified: providerApplication?.license_verified ?? null,
+        insurance_verified: providerApplication?.insurance_verified ?? null,
+        certifications_verified: providerApplication?.certifications_verified ?? null,
       };
 
       let error;

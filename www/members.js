@@ -6876,17 +6876,19 @@
         perfData?.forEach(p => providerPerformance[p.provider_id] = p);
       }
 
-      // Load provider application data for enhanced transparency
+      // Build credential map from denormalized bid columns — no provider_applications query
       const providerApplications = {};
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: applications } = await supabaseClient
-          .from('provider_applications')
-          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified')
-          .in('user_id', providerIds)
-          .eq('status', 'approved');
-        applications?.forEach(app => providerApplications[app.user_id] = app);
-      }
+      bids?.forEach(bid => {
+        providerApplications[bid.provider_id] = {
+          business_name:           bid.business_name,
+          years_in_business:       bid.years_in_business,
+          services_offered:        bid.services_offered,
+          brand_specializations:   bid.brand_specializations,
+          license_verified:        bid.license_verified,
+          insurance_verified:      bid.insurance_verified,
+          certifications_verified: bid.certifications_verified,
+        };
+      });
 
       // Load BGC compliance badges for all bidding providers
       const providerBgcCompliance = {};
