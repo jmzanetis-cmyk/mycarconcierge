@@ -53,6 +53,7 @@ const DEFAULT_TABLES = (getArg('--tables', '') || [
   'household_members', 'drivers', 'driver_locations', 'location_shares',
   'key_exchanges', 'bid_credit_purchases', 'service_history',
   'vehicle_service_history', 'emergency_requests', 'transport_tasks',
+  'care_plans', 'plan_bids', 'provider_auto_bid_settings',
 ].join(',')).split(',').map((s) => s.trim()).filter(Boolean);
 
 const anon = createClient(URL, ANON, { auth: { persistSession: false } });
