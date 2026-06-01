@@ -15,20 +15,11 @@
 //   GET /api/admin/stats/users?period=week|month|quarter|year
 //   GET /api/admin/stats/orders?period=week|month|quarter|year
 //
-// Auth: x-admin-password or x-admin-token header matching ADMIN_PASSWORD env var.
+// Auth: Authorization: Bearer <supabase_token> → verify with getUser → profiles.role === 'admin'
 
 'use strict';
 
 var utils = require('./utils');
-
-function authenticateAdmin(event) {
-  var headers = event.headers || {};
-  var pw = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
-  var tk = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
-  var adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || tk === adminPassword;
-}
 
 function parsePath(event) {
   var raw = event.path || '';
@@ -256,10 +247,12 @@ async function handleOrders(supabase, qs) {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
   if (event.httpMethod !== 'GET') return utils.errorResponse(405, 'Method not allowed');
-  if (!authenticateAdmin(event)) return utils.errorResponse(403, 'Forbidden');
 
   var supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
+
+  var admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   var route = parsePath(event);
   var qs    = event.queryStringParameters || {};

@@ -405,7 +405,8 @@
         return true;
       } catch (error) {
         console.error('Access check error:', error);
-        return true;
+        window.location.href = 'login.html';
+        return false;
       }
     }
 

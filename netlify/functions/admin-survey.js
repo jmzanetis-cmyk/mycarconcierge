@@ -10,7 +10,7 @@
 //   GET /api/admin/survey-leads/export       → CSV download
 //   GET /api/admin/survey-not-interested     → paginated not-interested emails
 //
-// Auth: x-admin-password or x-admin-token header matching ADMIN_PASSWORD env var
+// Auth: Authorization: Bearer <supabase_token> → verify with getUser → profiles.role === 'admin'
 
 'use strict';
 
@@ -29,14 +29,6 @@ var CHART_KEYS = [
   'history_tracking', 'job_status_updates', 'maintenance_reminders',
   'competitive_bids', 'app_usage', 'payment_comfort', 'decision_maker', 'near_term_need'
 ];
-
-function authenticateAdmin(event) {
-  var pw = process.env.ADMIN_PASSWORD;
-  if (!pw) return false;
-  var headers = event.headers || {};
-  var provided = headers['x-admin-password'] || headers['x-admin-token'] || '';
-  return provided === pw;
-}
 
 function parsePath(event) {
   var raw = event.path || '';
@@ -373,10 +365,11 @@ async function handleNotInterested(supabase, qs) {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
-  if (!authenticateAdmin(event)) return utils.errorResponse(401, 'Authentication required');
-
   var supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
+
+  var admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   var path   = parsePath(event);
   var method = event.httpMethod;
