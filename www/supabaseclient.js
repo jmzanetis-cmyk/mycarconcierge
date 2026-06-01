@@ -1634,127 +1634,21 @@ async function getProviderPerformanceByIds(providerIds) {
 
 async function calculateProviderPerformance(providerId) {
   try {
-    // Fetch reviews for this provider
-    const { data: reviews } = await supabaseClient
-      .from('reviews')
-      .select('rating, quality_rating, communication_rating, timeliness_rating, value_rating, created_at')
-      .eq('provider_id', providerId);
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const token = session?.access_token;
+    if (!token) return { data: null, error: 'Not authenticated' };
 
-    // Fetch bids for this provider
-    const { data: bids } = await supabaseClient
-      .from('bids')
-      .select('id, status, created_at, package_id')
-      .eq('provider_id', providerId);
+    const res = await fetch('/api/provider/performance', {
+      method: 'POST',
+      headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+    });
 
-    // Fetch completed packages (where provider's bid was accepted)
-    const { data: completedPackages } = await supabaseClient
-      .from('maintenance_packages')
-      .select('id, status, deadline, completed_at, winning_bid_id')
-      .in('winning_bid_id', (bids || []).map(b => b.id))
-      .eq('status', 'completed');
-
-    // Calculate metrics
-    const ratingCount = reviews?.length || 0;
-    const ratingAvg = ratingCount > 0 
-      ? reviews.reduce((sum, r) => sum + (r.rating || 0), 0) / ratingCount 
-      : 0;
-
-    const bidsSubmitted = bids?.length || 0;
-    const acceptedBids = bids?.filter(b => b.status === 'accepted' || b.status === 'won')?.length || 0;
-    const acceptanceRate = bidsSubmitted > 0 ? (acceptedBids / bidsSubmitted) * 100 : 0;
-
-    const jobsCompleted = completedPackages?.length || 0;
-    const jobsOnTime = completedPackages?.filter(p => {
-      if (!p.deadline || !p.completed_at) return true;
-      return new Date(p.completed_at) <= new Date(p.deadline);
-    })?.length || 0;
-    const onTimeRate = jobsCompleted > 0 ? (jobsOnTime / jobsCompleted) * 100 : 100;
-
-    // Calculate average response time (hours between package creation and first bid)
-    let avgResponseTimeHours = null;
-    if (bids && bids.length > 0) {
-      const responseTimes = [];
-      for (const bid of bids) {
-        const { data: pkg } = await supabaseClient
-          .from('maintenance_packages')
-          .select('created_at')
-          .eq('id', bid.package_id)
-          .single();
-        
-        if (pkg) {
-          const bidTime = new Date(bid.created_at);
-          const pkgTime = new Date(pkg.created_at);
-          const hours = (bidTime - pkgTime) / (1000 * 60 * 60);
-          if (hours >= 0 && hours < 720) { // Cap at 30 days
-            responseTimes.push(hours);
-          }
-        }
-      }
-      if (responseTimes.length > 0) {
-        avgResponseTimeHours = responseTimes.reduce((a, b) => a + b, 0) / responseTimes.length;
-      }
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return { data: null, error: body.error || `HTTP ${res.status}` };
     }
 
-    // Calculate overall score (weighted average)
-    const ratingScore = (ratingAvg / 5) * 100;
-    const reliabilityScore = onTimeRate;
-    const experienceScore = Math.min(jobsCompleted / 100, 1) * 100;
-    const responsivenessScore = avgResponseTimeHours !== null 
-      ? Math.max(0, 100 - (avgResponseTimeHours * 5)) 
-      : 50; // Default to 50 if no data
-
-    const overallScore = (
-      ratingScore * 0.4 +
-      reliabilityScore * 0.3 +
-      experienceScore * 0.15 +
-      responsivenessScore * 0.15
-    );
-
-    // Determine tier
-    let tier = 'bronze';
-    if (overallScore >= 90) tier = 'platinum';
-    else if (overallScore >= 75) tier = 'gold';
-    else if (overallScore >= 50) tier = 'silver';
-
-    // Determine badges
-    const badges = [];
-    if (ratingAvg >= 4.8 && ratingCount >= 3) badges.push('top_rated');
-    if (avgResponseTimeHours !== null && avgResponseTimeHours < 2) badges.push('quick_responder');
-    if (jobsCompleted >= 50) badges.push('veteran');
-    if (overallScore >= 100) badges.push('perfect_score');
-    
-    // Check for disputes (would need disputes table - assume 0 for now)
-    const disputesCount = 0;
-    if (disputesCount === 0 && jobsCompleted >= 5) badges.push('dispute_free');
-
-    // Upsert performance record
-    const performanceData = {
-      provider_id: providerId,
-      overall_score: Math.round(overallScore * 10) / 10,
-      rating_avg: Math.round(ratingAvg * 100) / 100,
-      rating_count: ratingCount,
-      jobs_completed: jobsCompleted,
-      jobs_on_time: jobsOnTime,
-      on_time_rate: Math.round(onTimeRate * 100) / 100,
-      avg_response_time_hours: avgResponseTimeHours ? Math.round(avgResponseTimeHours * 100) / 100 : null,
-      disputes_count: disputesCount,
-      disputes_resolved: 0,
-      bids_submitted: bidsSubmitted,
-      bids_accepted: acceptedBids,
-      acceptance_rate: Math.round(acceptanceRate * 100) / 100,
-      badges: badges,
-      tier: tier,
-      last_calculated_at: new Date().toISOString(),
-      updated_at: new Date().toISOString()
-    };
-
-    const { data, error } = await supabaseClient
-      .from('provider_performance')
-      .upsert(performanceData, { onConflict: 'provider_id' })
-      .select()
-      .single();
-
-    return { data: data || performanceData, error };
+    return { data: await res.json(), error: null };
   } catch (err) {
     console.error('Error calculating provider performance:', err);
     return { data: null, error: err };

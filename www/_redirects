@@ -219,6 +219,9 @@
 # Feature: Member feature-flag resolution (non-admin)
 /api/me/feature-flags /.netlify/functions/me-feature-flags 200
 
+# Feature: Provider Performance (server-side computation)
+/api/provider/performance /.netlify/functions/provider-performance 200
+
 # Feature: Custody Chain
 /api/custody/handoffs          /.netlify/functions/custody/handoffs 200
 /api/custody/handoffs/*        /.netlify/functions/custody/handoffs/:splat 200
