@@ -1131,8 +1131,8 @@ async function loadProviderReferrals() {
   try {
     const { data } = await supabaseClient
       .from('provider_referrals')
-      .select('*, referred:referred_id(business_name, full_name, email)')
-      .eq('referrer_id', currentUser.id)
+      .select('*, referred:referred_user_id(business_name, full_name, email)')
+      .eq('provider_id', currentUser.id)
       .order('created_at', { ascending: false });
     
     if (!data || data.length === 0) {
