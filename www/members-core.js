@@ -2796,6 +2796,15 @@ async function showSection(sectionId) {
     if (typeof initPushNotifications === 'function') initPushNotifications();
     if (typeof loadLoginActivity === 'function') loadLoginActivity();
     if (typeof load2FAStatus === 'function') load2FAStatus();
+    // Reflect active booking guidance tile from localStorage
+    const _curGuidance = localStorage.getItem('mcc_booking_guidance') || 'full';
+    document.querySelectorAll('.guidance-tile').forEach(t => {
+      t.setAttribute('data-active', t.getAttribute('data-value') === _curGuidance ? 'true' : 'false');
+    });
+    // Load subscription/billing data
+    if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
+    if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+    if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
   }
   if (sectionId === 'order-history' && typeof loadOrderHistory === 'function') {
     loadOrderHistory();

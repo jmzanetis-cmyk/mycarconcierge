@@ -177,6 +177,9 @@
 /api/member/*/referral-code /.netlify/functions/member-referral 200
 /api/member/*/referrals /.netlify/functions/member-referral 200
 /api/member/*/credits /.netlify/functions/member-referral 200
+/api/member/*/login-activity /.netlify/functions/member-login-activity/:splat 200
+/api/login-activity/*/acknowledge /.netlify/functions/member-login-activity/:splat 200
+/api/login-activity/*/report-suspicious /.netlify/functions/member-login-activity/:splat 200
 
 # Feature: My Next Car (AI suggestions)
 /api/next-car/suggest /.netlify/functions/next-car 200

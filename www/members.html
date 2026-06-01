@@ -4088,7 +4088,6 @@
           <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Manage your Fleet, Shop, AI API, and other add-on subscriptions.</p>
         </div>
         <div id="billing-subscriptions-list">
-          <div style="color:var(--text-muted);padding:8px 0;font-size:0.9rem;">Loading subscription info…</div>
         </div>
         <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
           <button class="btn btn-secondary" onclick="openSaasPricingModal()">Explore Plans</button>
@@ -4097,7 +4096,7 @@
       </div>
 
       <!-- Developer API Key Management Card (Task #90) -->
-      <div class="card" style="margin-top:24px;" id="developer-api-card">
+      <div class="card" style="margin-top:24px;display:none;" id="developer-api-card">
         <div class="card-header" style="align-items:flex-start;">
           <div>
             <h2 class="card-title">🔑 Developer API Keys</h2>
@@ -4126,7 +4125,7 @@
       </div>
 
       <!-- Outreach Engine SaaS Card (Task #91) -->
-      <div class="card" style="margin-top:24px;" id="outreach-saas-card">
+      <div class="card" style="margin-top:24px;display:none;" id="outreach-saas-card">
         <div class="card-header">
           <h2 class="card-title">📡 Outreach Engine</h2>
           <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">AI-powered lead discovery and outreach campaigns, scoped to your subscription plan.</p>
@@ -8896,6 +8895,8 @@
     // ========== DEVELOPER API KEY MANAGEMENT (Task #90) ==========
 
     async function loadApiKeys() {
+      const card = document.getElementById('developer-api-card');
+      if (card) card.style.display = '';
       const listEl = document.getElementById('api-keys-list');
       if (!listEl) return;
       try {
@@ -9000,6 +9001,8 @@
     // ========== OUTREACH SAAS STATUS (Task #91) ==========
 
     async function loadOutreachStatus() {
+      const card = document.getElementById('outreach-saas-card');
+      if (card) card.style.display = '';
       const el = document.getElementById('outreach-saas-status');
       if (!el) return;
       try {

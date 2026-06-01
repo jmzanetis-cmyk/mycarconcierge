@@ -827,7 +827,7 @@
       if (alertEl) alertEl.style.display = 'none';
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/member/${currentUser.id}/login-activity`, {
           headers: {
@@ -954,7 +954,7 @@
     
     async function acknowledgeLoginActivity(activityId) {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/login-activity/${activityId}/acknowledge`, {
           method: 'POST',
@@ -984,7 +984,7 @@
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/login-activity/${activityId}/report-suspicious`, {
           method: 'POST',
