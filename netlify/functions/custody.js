@@ -134,15 +134,24 @@ async function handleCreateHandoff(supabase, body, userId) {
     .limit(1);
   var nextSeq = seqRes.data && seqRes.data.length > 0 ? seqRes.data[0].sequence + 1 : 1;
 
+  // Snapshot the provider at handoff time for any leg involving a driver.
+  // Survives driver record deletion — see custody_handoffs.on_behalf_of_provider_id.
+  var onBehalfOfProviderId = null;
+  if (relRole === 'driver' || recvRole === 'driver') {
+    var jobRes = await supabase.from('concierge_jobs').select('provider_id').eq('id', jobId).single();
+    onBehalfOfProviderId = jobRes.data?.provider_id || null;
+  }
+
   var ins = await supabase.from('custody_handoffs').insert({
-    job_id:               jobId,
-    sequence:             nextSeq,
-    leg:                  leg,
-    releasing_party_id:   userId,
-    releasing_party_role: relRole,
-    receiving_party_id:   recvId,
-    receiving_party_role: recvRole,
-    status:               'pending'
+    job_id:                   jobId,
+    sequence:                 nextSeq,
+    leg:                      leg,
+    releasing_party_id:       userId,
+    releasing_party_role:     relRole,
+    receiving_party_id:       recvId,
+    receiving_party_role:     recvRole,
+    on_behalf_of_provider_id: onBehalfOfProviderId,
+    status:                   'pending'
   }).select().single();
   if (ins.error) throw ins.error;
 
