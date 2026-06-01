@@ -222,6 +222,15 @@
 # Feature: Provider Performance (server-side computation)
 /api/provider/performance /.netlify/functions/provider-performance 200
 
+# Feature: Developer API Keys
+/api/developer/keys        /.netlify/functions/developer-api 200
+/api/developer/keys/*      /.netlify/functions/developer-api/:splat 200
+/api/developer/usage       /.netlify/functions/developer-api 200
+
+# Feature: SaaS Subscription Status (member-facing)
+/api/saas/subscription/status /.netlify/functions/saas-member 200
+/api/saas/outreach/status     /.netlify/functions/saas-member 200
+
 # Feature: Custody Chain
 /api/custody/handoffs          /.netlify/functions/custody/handoffs 200
 /api/custody/handoffs/*        /.netlify/functions/custody/handoffs/:splat 200
