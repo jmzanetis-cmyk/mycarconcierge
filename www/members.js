@@ -12042,6 +12042,8 @@
         const { data, error } = await getMyHouseholds(currentUser.id);
         if (error) {
           console.error('Error loading households:', error);
+          document.getElementById('household-no-household').style.display = 'block';
+          document.getElementById('household-dashboard').style.display = 'none';
           return;
         }
         
@@ -12096,6 +12098,8 @@
         
       } catch (err) {
         console.error('Error loading household section:', err);
+        document.getElementById('household-no-household').style.display = 'block';
+        document.getElementById('household-dashboard').style.display = 'none';
       }
     }
 

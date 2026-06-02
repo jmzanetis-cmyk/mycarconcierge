@@ -8768,14 +8768,18 @@
       if (!container) return;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return;
+        if (!session) {
+          if (container) container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Sign in to view subscription info.</div>';
+          return;
+        }
         const resp = await fetch('/api/saas/subscription/status', {
           headers: { 'Authorization': 'Bearer ' + session.access_token }
         });
         if (!resp.ok) throw new Error('Failed');
         const data = await resp.json();
-        const subs = data.by_product || {};
-        const productLabels = { fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API', outreach: 'Outreach Engine', white_label: 'White-label' };
+        const MEMBER_PRODUCTS = ['fleet', 'outreach', 'white_label'];
+        const subs = Object.fromEntries(Object.entries(data.by_product || {}).filter(([p]) => MEMBER_PRODUCTS.includes(p)));
+        const productLabels = { fleet: 'Fleet Management', outreach: 'Outreach Engine', white_label: 'White-label' };
         const statusColors = { active: 'var(--accent-green)', trialing: 'var(--accent-blue)', canceled: 'var(--text-muted)', past_due: 'var(--accent-red)' };
 
         if (Object.keys(subs).length === 0) {
