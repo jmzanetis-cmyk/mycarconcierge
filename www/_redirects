@@ -241,3 +241,6 @@
 /api/custody/handoffs/*        /.netlify/functions/custody/handoffs/:splat 200
 /api/custody/photos            /.netlify/functions/custody/photos 200
 /api/custody/jobs/*            /.netlify/functions/custody/jobs/:splat 200
+
+# Feature: Pre-launch waitlist
+/api/waitlist/join /.netlify/functions/waitlist-join 200

@@ -2602,6 +2602,98 @@
       }
     </script>
 
+    <!-- Pre-launch waitlist / early access capture (Run Sequence Step 6) -->
+    <section id="waitlist-section" style="padding:80px 0;background:var(--bg-card);border-top:1px solid var(--border-subtle);">
+      <div class="container" style="max-width:640px;margin:0 auto;padding:0 24px;">
+        <div style="text-align:center;margin-bottom:36px;">
+          <span style="display:inline-block;padding:4px 16px;border-radius:100px;background:var(--accent-gold-soft);color:var(--accent-gold);font-size:0.78rem;font-weight:700;letter-spacing:0.06em;margin-bottom:16px;">EARLY ACCESS</span>
+          <h2 style="font-size:clamp(1.6rem,4vw,2.1rem);font-weight:700;margin-bottom:12px;line-height:1.25;">Be first. Get the founding deal.</h2>
+          <p style="color:var(--text-secondary);font-size:0.97rem;line-height:1.65;max-width:520px;margin:0 auto;">
+            <strong style="color:var(--text-primary);">Members:</strong> Free forever — early access &amp; founding benefits.<br>
+            <strong style="color:var(--text-primary);">Providers:</strong> Zero platform fees for 90 days + 50% lifetime referral commission.
+          </p>
+        </div>
+
+        <div id="waitlist-form-wrap">
+          <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+            <button type="button" id="wl-role-member" onclick="selectWaitlistRole('member')"
+              style="flex:1;min-width:160px;padding:13px 16px;border:2px solid var(--accent-gold);border-radius:var(--radius-md);background:var(--accent-gold-soft);color:var(--accent-gold);font-weight:600;font-size:0.95rem;cursor:pointer;transition:all 0.15s;">
+              I'm a Member
+            </button>
+            <button type="button" id="wl-role-provider" onclick="selectWaitlistRole('provider')"
+              style="flex:1;min-width:160px;padding:13px 16px;border:2px solid var(--border-subtle);border-radius:var(--radius-md);background:transparent;color:var(--text-secondary);font-weight:600;font-size:0.95rem;cursor:pointer;transition:all 0.15s;">
+              I'm a Provider / Shop
+            </button>
+          </div>
+          <input type="email" id="wl-email" placeholder="Your email address" required autocomplete="email"
+            style="display:block;width:100%;padding:14px 16px;border:1.5px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);color:var(--text-primary);font-size:1rem;box-sizing:border-box;margin-bottom:10px;">
+          <input type="text" id="wl-zip" placeholder="ZIP code (optional — helps us prioritize your area)" inputmode="numeric" maxlength="10"
+            style="display:block;width:100%;padding:14px 16px;border:1.5px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);color:var(--text-primary);font-size:1rem;box-sizing:border-box;margin-bottom:14px;">
+          <button type="button" id="wl-submit" onclick="submitWaitlist()"
+            style="display:block;width:100%;padding:15px 28px;background:var(--accent-gold);color:var(--bg-deep);font-size:1rem;font-weight:700;border:none;border-radius:var(--radius-md);cursor:pointer;transition:opacity 0.15s;">
+            Join Early Access
+          </button>
+          <div id="wl-error" style="display:none;margin-top:12px;padding:12px 16px;border-radius:var(--radius-md);background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);color:var(--accent-red);font-size:0.9rem;text-align:center;"></div>
+        </div>
+
+        <div id="wl-success" style="display:none;text-align:center;padding:32px 20px;">
+          <div style="font-size:2rem;margin-bottom:12px;">✓</div>
+          <div style="font-size:1.2rem;font-weight:700;color:var(--accent-green);margin-bottom:8px;">You're on the list!</div>
+          <div style="color:var(--text-secondary);font-size:0.95rem;">We'll reach out when we launch in your area. Thanks for your interest!</div>
+        </div>
+      </div>
+
+      <script>
+        (function() {
+          var _wlRole = 'member';
+          window.selectWaitlistRole = function(role) {
+            _wlRole = role;
+            var m = document.getElementById('wl-role-member');
+            var p = document.getElementById('wl-role-provider');
+            if (!m || !p) return;
+            if (role === 'member') {
+              m.style.borderColor = 'var(--accent-gold)'; m.style.background = 'var(--accent-gold-soft)'; m.style.color = 'var(--accent-gold)';
+              p.style.borderColor = 'var(--border-subtle)'; p.style.background = 'transparent'; p.style.color = 'var(--text-secondary)';
+            } else {
+              p.style.borderColor = 'var(--accent-gold)'; p.style.background = 'var(--accent-gold-soft)'; p.style.color = 'var(--accent-gold)';
+              m.style.borderColor = 'var(--border-subtle)'; m.style.background = 'transparent'; m.style.color = 'var(--text-secondary)';
+            }
+          };
+          window.submitWaitlist = async function() {
+            var btn = document.getElementById('wl-submit');
+            var errEl = document.getElementById('wl-error');
+            var email = (document.getElementById('wl-email').value || '').trim();
+            var zip = (document.getElementById('wl-zip').value || '').trim();
+            if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+              errEl.textContent = 'Please enter a valid email address.';
+              errEl.style.display = 'block';
+              return;
+            }
+            errEl.style.display = 'none';
+            btn.disabled = true; btn.textContent = 'Joining…';
+            try {
+              var res = await fetch('/api/waitlist/join', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ email: email, intended_role: _wlRole, zip_code: zip || null, source: 'landing_page' })
+              });
+              var data = await res.json();
+              if (res.ok && data.success) {
+                document.getElementById('waitlist-form-wrap').style.display = 'none';
+                document.getElementById('wl-success').style.display = 'block';
+              } else {
+                throw new Error(data.error || 'Something went wrong');
+              }
+            } catch (err) {
+              errEl.textContent = err.message || 'Could not join — please try again.';
+              errEl.style.display = 'block';
+              btn.disabled = false; btn.textContent = 'Join Early Access';
+            }
+          };
+        })();
+      </script>
+    </section>
+
     <section class="cta-section">
       <div class="container">
         <div class="cta-box">
