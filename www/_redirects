@@ -3,6 +3,8 @@
 /api/directory/providers/* /.netlify/functions/directory-providers/:splat 200
 /api/directory/providers   /.netlify/functions/directory-providers 200
 /api/auth/check-access /.netlify/functions/auth-check-access 200
+/api/2fa/totp/enroll          /.netlify/functions/totp-enroll 200
+/api/2fa/totp/confirm-enroll  /.netlify/functions/totp-enroll 200
 /api/agreements/sign /.netlify/functions/sign-agreement 200
 /api/stripe-key /.netlify/functions/stripe-key 200
 /api/config/stripe /.netlify/functions/stripe-key 200
