@@ -945,6 +945,45 @@
           </div>
         </div>
       </div>
+
+      <div id="totp-screen" style="display:none;">
+        <div class="twofa-screen">
+          <div class="twofa-icon"><span class="icon-inline" data-icon="lock"></span></div>
+          <h2 class="twofa-title">Two-Factor Authentication</h2>
+          <p class="twofa-text">Enter the 6-digit code from your authenticator app</p>
+
+          <div class="code-inputs">
+            <input type="text" class="totp-code-input" id="totp-code-1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+            <input type="text" class="totp-code-input" id="totp-code-2" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-3" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-4" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-5" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-6" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          </div>
+
+          <div class="login-message" id="totp-message"></div>
+
+          <div class="twofa-actions">
+            <button class="btn btn--primary" id="verify-totp-btn" onclick="verifyTotpCode()">Verify Code</button>
+          </div>
+
+          <div class="twofa-back">
+            <a onclick="backTotpToLogin()">← Back to login</a>
+          </div>
+
+          <div class="twofa-resend" id="totp-backup-toggle">
+            Lost your authenticator? <a onclick="toggleBackupCodeEntry()">Use a backup code instead</a>
+          </div>
+          <div id="totp-backup-entry" style="display:none;margin-top:16px;">
+            <input type="text" class="form-input" id="totp-backup-input"
+                   placeholder="XXXX-XXXX" autocomplete="off" maxlength="9"
+                   style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-size:var(--text-lg);">
+            <button class="btn btn--primary" id="verify-backup-btn" onclick="verifyBackupCode()" style="margin-top:12px;">
+              Use Backup Code
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="login-footer">

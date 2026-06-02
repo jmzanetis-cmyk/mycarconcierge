@@ -289,6 +289,7 @@
       document.getElementById('rejected-driver-screen').style.display = 'none';
       document.getElementById('portal-selection-screen').style.display = 'none';
       document.getElementById('twofa-screen').style.display = 'none';
+      document.getElementById('totp-screen').style.display = 'none';
       document.getElementById('biometric-enroll-screen').style.display = 'none';
       document.getElementById('magic-link-sent').style.display = 'none';
       document.getElementById(screenId).style.display = 'block';
@@ -748,70 +749,242 @@
       showScreen('login-form-container');
     }
 
+    // ── TOTP challenge state and helpers ─────────────────────────────────────
+
+    let pendingTotpUser = null;
+    let pendingTotpFactorId = null;
+
+    function showTotpMessage(text, type = 'error') {
+      const msgEl = document.getElementById('totp-message');
+      msgEl.textContent = text;
+      msgEl.className = `login-message show ${type}`;
+    }
+
+    function hideTotpMessage() {
+      document.getElementById('totp-message').className = 'login-message';
+    }
+
+    function clearTotpInputs() {
+      for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById(`totp-code-${i}`);
+        if (el) { el.value = ''; el.classList.remove('filled', 'error'); }
+      }
+      document.getElementById('totp-code-1')?.focus();
+    }
+
+    function getTotpCode() {
+      let code = '';
+      for (let i = 1; i <= 6; i++) code += document.getElementById(`totp-code-${i}`)?.value || '';
+      return code;
+    }
+
+    function setupTotpInputs() {
+      // Clone inputs to flush stale event listeners from prior showings.
+      document.querySelectorAll('.totp-code-input').forEach(input => {
+        const fresh = input.cloneNode(true);
+        input.parentNode.replaceChild(fresh, input);
+      });
+      const inputs = document.querySelectorAll('.totp-code-input');
+      inputs.forEach((input, index) => {
+        input.addEventListener('input', (e) => {
+          const value = e.target.value.replace(/[^0-9]/g, '');
+          e.target.value = value;
+          if (value) {
+            e.target.classList.add('filled');
+            if (index < 5) inputs[index + 1].focus();
+          } else {
+            e.target.classList.remove('filled');
+          }
+          if (getTotpCode().length === 6) verifyTotpCode();
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && !e.target.value && index > 0) inputs[index - 1].focus();
+        });
+        input.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const digits = (e.clipboardData || window.clipboardData).getData('text')
+            .replace(/[^0-9]/g, '').slice(0, 6);
+          digits.split('').forEach((d, i) => {
+            if (inputs[i]) { inputs[i].value = d; inputs[i].classList.add('filled'); }
+          });
+          if (digits.length > 0) inputs[Math.min(digits.length, 5)].focus();
+          if (digits.length === 6) verifyTotpCode();
+        });
+      });
+    }
+
+    async function verifyTotpCode() {
+      const code = getTotpCode();
+      if (code.length !== 6) { showTotpMessage('Please enter all 6 digits'); return; }
+
+      const btn = document.getElementById('verify-totp-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Verifying...';
+      hideTotpMessage();
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showTotpMessage('Session expired. Please log in again.'); return; }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/totp/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ factorId: pendingTotpFactorId, code })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showTotpMessage('Verification successful!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: { session: currentSession } } = await supabaseClient.auth.getSession();
+          const offered = await checkBiometricEnrollmentOffer(pendingTotpUser, currentSession);
+          if (!offered) await handleUserRedirect(pendingTotpUser);
+        } else {
+          document.querySelectorAll('.totp-code-input').forEach(el => el.classList.add('error'));
+          showTotpMessage(result.error || 'Invalid code. Please try again.');
+          setTimeout(() => document.querySelectorAll('.totp-code-input').forEach(el => el.classList.remove('error')), 500);
+        }
+      } catch (error) {
+        console.error('TOTP verification error:', error);
+        showTotpMessage('Verification failed. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Verify Code';
+      }
+    }
+
+    async function backTotpToLogin() {
+      pendingTotpUser = null;
+      pendingTotpFactorId = null;
+      await supabaseClient.auth.signOut();
+      showScreen('login-form-container');
+      await initBiometricUI();
+    }
+
+    function resetTotpScreen() {
+      clearTotpInputs();
+      const entry  = document.getElementById('totp-backup-entry');
+      const toggle = document.getElementById('totp-backup-toggle');
+      const input  = document.getElementById('totp-backup-input');
+      if (entry)  entry.style.display  = 'none';
+      if (toggle) toggle.style.display = 'block';
+      if (input)  { input.value = ''; input.classList.remove('error'); }
+      hideTotpMessage();
+    }
+
+    function toggleBackupCodeEntry() {
+      const entry  = document.getElementById('totp-backup-entry');
+      const toggle = document.getElementById('totp-backup-toggle');
+      if (!entry) return;
+      const showing = entry.style.display !== 'none';
+      entry.style.display  = showing ? 'none'  : 'block';
+      toggle.style.display = showing ? 'block' : 'none';
+      if (!showing) document.getElementById('totp-backup-input')?.focus();
+    }
+
+    async function verifyBackupCode() {
+      const input = document.getElementById('totp-backup-input');
+      const code  = (input?.value || '').trim().toUpperCase();
+      if (!code) { showTotpMessage('Please enter a backup code'); return; }
+
+      const btn = document.getElementById('verify-backup-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Verifying...';
+      hideTotpMessage();
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showTotpMessage('Session expired. Please log in again.'); return; }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/totp/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ factorId: pendingTotpFactorId, code })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showTotpMessage('Backup code accepted!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: { session: currentSession } } = await supabaseClient.auth.getSession();
+          const offered = await checkBiometricEnrollmentOffer(pendingTotpUser, currentSession);
+          if (!offered) await handleUserRedirect(pendingTotpUser);
+        } else {
+          if (input) input.classList.add('error');
+          showTotpMessage(result.error || 'Invalid backup code. Please try again.');
+          setTimeout(() => { if (input) input.classList.remove('error'); }, 500);
+        }
+      } catch (err) {
+        console.error('Backup code verification error:', err);
+        showTotpMessage('Verification failed. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Use Backup Code';
+      }
+    }
+
     async function check2faAndProceed(user) {
+      let totpEnrolled = false;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) {
           showMessage('Session expired. Please log in again.', 'error');
           return;
         }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/status`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`
-          }
-        });
-        const result = await response.json();
-        
-        if (result.success && result.enabled) {
-          // If recently verified (within 1 hour), skip 2FA
-          if (result.recently_verified) {
-            await logLoginActivityClient(session.access_token);
-            const offered = await checkBiometricEnrollmentOffer(user, session);
-            if (!offered) {
-              await handleUserRedirect(user);
-            }
-            return;
-          }
-          
+
+        // Check for a verified TOTP factor via Supabase native MFA.
+        const { data: factorsData } = await supabaseClient.auth.mfa.listFactors();
+        const totpFactor = (factorsData?.totp || []).find(f => f.status === 'verified');
+
+        if (totpFactor) {
+          // Flag and store pending state before any async that could throw,
+          // so the catch block can safely show the TOTP screen on error.
+          totpEnrolled = true;
+          pendingTotpUser = user;
+          pendingTotpFactorId = totpFactor.id;
+
+          // Honour the 1-hour recently-verified window (same column the page
+          // gate reads, so no additional endpoint is needed).
           const { data: profile } = await supabaseClient
             .from('profiles')
-            .select('phone')
+            .select('two_factor_verified_at')
             .eq('id', user.id)
             .single();
-          
-          if (!profile?.phone) {
-            await handleUserRedirect(user);
-            return;
+
+          if (profile?.two_factor_verified_at) {
+            const verifiedAt = new Date(profile.two_factor_verified_at);
+            if (verifiedAt > new Date(Date.now() - 60 * 60 * 1000)) {
+              await logLoginActivityClient(session.access_token);
+              const offered = await checkBiometricEnrollmentOffer(user, session);
+              if (!offered) await handleUserRedirect(user);
+              return;
+            }
           }
-          
-          pending2faUser = user;
-          pending2faPhone = profile.phone;
-          
-          const sendResult = await send2faCode(profile.phone);
-          
-          if (sendResult.success) {
-            document.getElementById('twofa-phone-display').textContent = result.phone;
-            showScreen('twofa-screen');
-            setup2faInputs();
-            clear2faInputs();
-            startResendCountdown();
-          } else {
-            showMessage(sendResult.error || 'Failed to send verification code', 'error');
-            await supabaseClient.auth.signOut();
-          }
-        } else {
-          // No 2FA enabled, log login activity directly
-          await logLoginActivityClient(session.access_token);
-          const offered = await checkBiometricEnrollmentOffer(user, session);
-          if (!offered) {
-            await handleUserRedirect(user);
-          }
+
+          showScreen('totp-screen');
+          setupTotpInputs();
+          resetTotpScreen();
+          return;
         }
+
+        // No enrolled TOTP factor — proceed without 2FA challenge.
+        await logLoginActivityClient(session.access_token);
+        const offered = await checkBiometricEnrollmentOffer(user, session);
+        if (!offered) await handleUserRedirect(user);
       } catch (error) {
         console.error('2FA check error:', error);
-        await handleUserRedirect(user);
+        if (totpEnrolled) {
+          // An enrolled user must never be admitted by an error — show the
+          // TOTP screen so they can retry (or use a backup code).
+          showScreen('totp-screen');
+          showTotpMessage('An error occurred. Please try again.');
+        } else {
+          // No verified factor was found before the error; we cannot enforce
+          // 2FA for a non-enrolled user, so proceed normally.
+          await handleUserRedirect(user);
+        }
       }
     }
     
