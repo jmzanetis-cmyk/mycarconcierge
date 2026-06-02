@@ -2697,23 +2697,29 @@ function setupEventListeners() {
 
 // ========== MODULE LOADER ==========
 const loadedModules = {};
+const pendingModules = {};
 async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
-  return new Promise((resolve, reject) => {
+  if (pendingModules[name]) return pendingModules[name];
+  const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = `/members-${name}.js`;
     script.async = true;
     script.onload = () => {
       loadedModules[name] = true;
+      delete pendingModules[name];
       console.log(`[Module] Loaded ${name} module`);
       resolve();
     };
     script.onerror = (e) => {
+      delete pendingModules[name];
       console.error(`[Module] Failed to load ${name} module`, e);
       reject(e);
     };
     document.body.appendChild(script);
   });
+  pendingModules[name] = promise;
+  return promise;
 }
 
 function loadModuleForSection(section) {
@@ -3768,3 +3774,27 @@ window.cancelTotpEnroll = cancelTotpEnroll;
 window.confirmTotpEnroll = confirmTotpEnroll;
 window.acknowledgeBackupCodes = acknowledgeBackupCodes;
 window.toggleTotpBackupAck = toggleTotpBackupAck;
+
+// ========== LOGOUT ==========
+// Moved from members-settings.js: must be globally available immediately since the
+// Log Out button is in the sidebar and visible before the settings module ever loads.
+async function logout() {
+  try {
+    const storedToken = localStorage.getItem('mcc_fcm_token');
+    if (storedToken) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/push/unregister-device`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: storedToken })
+        }).catch(() => {});
+        localStorage.removeItem('mcc_fcm_token');
+      }
+    }
+  } catch {}
+  await supabaseClient.auth.signOut();
+  window.location.href = 'login.html';
+}
+window.logout = logout;
