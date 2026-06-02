@@ -57,7 +57,10 @@ function makeChain(table) {
     order(field) { orderField = field; return chain; },
     range(from, to) { rangeBounds = [from, to]; return chain; },
     limit() { return chain; },
-    single() { return Promise.resolve({ data: null, error: null }); },
+    single() {
+      if (table === 'profiles') return Promise.resolve({ data: { role: 'admin' }, error: null });
+      return Promise.resolve({ data: null, error: null });
+    },
     maybeSingle() { return Promise.resolve({ data: null, error: null }); },
     insert() { return Promise.resolve({ data: null, error: null }); },
     update() { return { eq: () => Promise.resolve({ data: null, error: null }) }; },
@@ -89,7 +92,15 @@ function makeChain(table) {
   return chain;
 }
 
-const supabaseStub = { from: (t) => makeChain(t) };
+const supabaseStub = {
+  from: (t) => makeChain(t),
+  auth: {
+    getUser: async (token) => {
+      if (!token) return { data: { user: null }, error: { message: 'no token' } };
+      return { data: { user: { id: 'stub-admin-uid' } }, error: null };
+    }
+  }
+};
 
 const supabasePaths = new Set([
   require.resolve('@supabase/supabase-js'),
@@ -111,7 +122,7 @@ function makeEvent({ path: p, method = 'GET', headers = {}, query = {} }) {
     body: null
   };
 }
-function adminHeaders() { return { 'x-admin-token': ADMIN_PASSWORD }; }
+function adminHeaders() { return { authorization: 'Bearer stub-admin-bearer' }; }
 
 (async () => {
   // ---- 1) Unauthorized ----

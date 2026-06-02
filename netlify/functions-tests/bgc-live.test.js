@@ -88,7 +88,15 @@ const stubSupabase = {
 };
 
 require.cache[require.resolve(path.join('..', 'functions', 'utils.js'))] = {
-  exports: { createSupabaseClient: () => stubSupabase }
+  exports: {
+    createSupabaseClient: () => stubSupabase,
+    authenticateBearerAdmin: async (event, _supabase) => {
+      const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
+      if (!auth.startsWith('Bearer ')) return null;
+      const token = auth.slice(7).trim();
+      return token === 'stub-admin-bearer' ? { id: 'stub-admin-uid' } : null;
+    }
+  }
 };
 
 function fresh(modPath) {
@@ -405,10 +413,10 @@ test('bgc-admin rejects without auth', async () => {
   assert.strictEqual(resp.statusCode, 401);
 });
 
-test('bgc-admin accepts x-admin-password', async () => {
+test('bgc-admin accepts admin Bearer JWT', async () => {
   dbState = {}; // clear
   const mod = fresh('../functions/bgc-admin.js');
-  const resp = await mod.handler({ httpMethod: 'GET', headers: { 'x-admin-password': 'test-admin-pw' } });
+  const resp = await mod.handler({ httpMethod: 'GET', headers: { authorization: 'Bearer stub-admin-bearer' } });
   assert.strictEqual(resp.statusCode, 200);
   const parsed = JSON.parse(resp.body);
   assert.ok(Array.isArray(parsed.providers));
