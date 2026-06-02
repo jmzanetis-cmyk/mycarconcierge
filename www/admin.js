@@ -753,13 +753,16 @@
         const response = await fetch(`${apiBase}/api/auth/check-access`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        if (!response.ok) {
+          window.location.href = 'login.html';
+          return false;
+        }
         const result = await response.json();
-        
         if (!result.authorized && result.reason === '2fa_required') {
           window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
           return false;
         }
-        return true;
+        return result.authorized === true;
       } catch (error) {
         console.error('Access check error:', error);
         window.location.href = 'login.html';
