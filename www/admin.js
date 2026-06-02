@@ -4307,6 +4307,11 @@
         ? `<a href="https://dashboard.stripe.com/identity/verification-sessions/${m.stripe_identity_session_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_identity_session_id}</a>`
         : '<span style="color:var(--text-muted);">None</span>';
 
+      const safeDisplayName = (m.full_name || m.email || 'this user').replace(/'/g, "\\'");
+      const twoFaHtml = m.two_factor_enabled
+        ? `<span class="badge badge-warning">TOTP enrolled</span> <button class="btn btn-sm" style="margin-left:8px;font-size:0.75rem;padding:3px 10px;background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.4);" onclick="adminResetMfa('${m.id}','${safeDisplayName}')">Reset 2FA</button>`
+        : '<span style="color:var(--text-muted);">Not enrolled</span>';
+
       document.getElementById('member-detail-body').innerHTML = `
         <div class="detail-grid" style="row-gap:12px;">
           <span class="detail-label">Name</span><span class="detail-value">${m.full_name || 'N/A'}</span>
@@ -4319,6 +4324,7 @@
           <span class="detail-label">Stripe Customer</span><span class="detail-value">${m.stripe_customer_id
             ? `<a href="https://dashboard.stripe.com/customers/${m.stripe_customer_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_customer_id}</a>`
             : '<span style="color:var(--text-muted);">None</span>'}</span>
+          <span class="detail-label" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">Two-Factor Auth</span><span class="detail-value" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">${twoFaHtml}</span>
         </div>
         <div id="member-vehicles-panel" style="margin-top:20px;">
           <div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>
@@ -4372,6 +4378,39 @@
           `<div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>${vehHtml}`;
       } catch (e) {
         console.warn('[admin] viewMember vehicles error:', e.message);
+      }
+    };
+
+    globalThis.adminResetMfa = async function adminResetMfa(userId, displayName) {
+      const confirmed = window.confirm(
+        `Reset 2FA for ${displayName}?\n\nThis will:\n• Delete their authenticator app enrollment\n• Delete their backup codes\n• Require them to re-enroll\n\nThis cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { alert('Session expired. Please refresh and try again.'); return; }
+
+        const res = await fetch('/api/admin/mfa-reset', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ userId })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          alert(`2FA reset for ${displayName}. They can now re-enroll.`);
+          closeModal('member-detail-modal');
+          loadMembers();
+        } else {
+          alert(`Reset failed: ${data.error || data.message || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('[admin] adminResetMfa error:', err);
+        alert('Network error. Please try again.');
       }
     };
 

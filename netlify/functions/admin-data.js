@@ -9,11 +9,12 @@
 //   handleAdminToggle2faGlobal    (line 7332)
 //
 // Routes (via _redirects):
-//   GET /api/admin/providers         → admin-data/providers
-//   GET /api/admin/members           → admin-data/members
-//   GET /api/admin/packages          → admin-data/packages
-//   GET /api/admin/2fa-global-status → admin-data/2fa-global-status
+//   GET  /api/admin/providers         → admin-data/providers
+//   GET  /api/admin/members           → admin-data/members
+//   GET  /api/admin/packages          → admin-data/packages
+//   GET  /api/admin/2fa-global-status → admin-data/2fa-global-status
 //   POST /api/admin/2fa-global-toggle → admin-data/2fa-global-toggle
+//   POST /api/admin/mfa-reset         → admin-data/mfa-reset
 //
 // Auth: Authorization: Bearer <supabase_token> → verify with getUser → profiles.role === 'admin'
 //
@@ -232,6 +233,82 @@ function handle2faToggle(body) {
   };
 }
 
+// ── MFA reset (A4) ───────────────────────────────────────────────────────────
+// Clears both sources of truth for a user's TOTP 2FA, in this order:
+//   1. totp_backup_codes rows (cleanup; no auth impact if this fails alone)
+//   2. profiles.two_factor_enabled + two_factor_verified_at (profile columns)
+//   3. native auth.mfa_factors entry via GoTrue admin API (LAST)
+//
+// Order rationale: profile cleared BEFORE native factor deleted. If step 3
+// fails, the user is locked out (gate still enforces TOTP) but NOT bypassed —
+// admin retries to complete removal. If we deleted the native factor first
+// and profile clear failed, the user would pass the gate with no challenge.
+async function handleMfaReset(supabase, body) {
+  var userId = body && body.userId;
+  if (!userId || typeof userId !== 'string') {
+    var e = new Error('userId is required'); e.statusCode = 400; throw e;
+  }
+  if (!/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(userId)) {
+    var e = new Error('userId must be a valid UUID'); e.statusCode = 400; throw e;
+  }
+
+  var supabaseUrl = process.env.SUPABASE_URL;
+  var supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  // Step 1: delete backup codes
+  var bcResult = await supabase.from('totp_backup_codes').delete().eq('user_id', userId);
+  if (bcResult.error) {
+    var e = new Error('Failed to delete backup codes: ' + bcResult.error.message);
+    e.statusCode = 500; e.step = 'backup_codes'; throw e;
+  }
+
+  // Step 2: clear profile 2FA columns
+  var profResult = await supabase.from('profiles')
+    .update({ two_factor_enabled: false, two_factor_verified_at: null })
+    .eq('id', userId);
+  if (profResult.error) {
+    var e = new Error('Failed to clear profile 2FA fields: ' + profResult.error.message);
+    e.statusCode = 500; e.step = 'profile'; throw e;
+  }
+
+  // Step 3: delete native TOTP factor(s) via GoTrue admin API
+  var listRes = await fetch(supabaseUrl + '/auth/v1/admin/users/' + userId + '/factors', {
+    headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey }
+  });
+  if (!listRes.ok) {
+    var listBody = await listRes.json().catch(function() { return {}; });
+    var e = new Error('Failed to list MFA factors: ' + (listBody.message || listRes.status));
+    e.statusCode = 502; e.step = 'factor_list'; throw e;
+  }
+
+  var factors = await listRes.json();
+  var totpFactors = (Array.isArray(factors) ? factors : []).filter(function(f) { return f.factor_type === 'totp'; });
+
+  var deleteErrors = [];
+  for (var i = 0; i < totpFactors.length; i++) {
+    var factorId = totpFactors[i].id;
+    var delRes = await fetch(supabaseUrl + '/auth/v1/admin/users/' + userId + '/factors/' + factorId, {
+      method: 'DELETE',
+      headers: { 'apikey': supabaseKey, 'Authorization': 'Bearer ' + supabaseKey }
+    });
+    if (!delRes.ok) {
+      var delBody = await delRes.json().catch(function() { return {}; });
+      deleteErrors.push('factor ' + factorId + ': ' + (delBody.message || delRes.status));
+    }
+  }
+
+  if (deleteErrors.length > 0) {
+    var e = new Error(
+      'Profile and backup codes cleared, but failed to delete ' + deleteErrors.length +
+      ' native factor(s): ' + deleteErrors.join('; ') +
+      '. User is locked out of 2FA — admin must retry to finish removal.'
+    );
+    e.statusCode = 500; e.step = 'factor_delete'; throw e;
+  }
+
+  return { success: true, userId: userId, factorsDeleted: totpFactors.length };
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
@@ -277,6 +354,11 @@ exports.handler = async function(event) {
       var body = {};
       try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
       result = await handleFeatureFlagTestUsers(supabase, body, user.id);
+
+    } else if (route === 'mfa-reset' && method === 'POST') {
+      var body = {};
+      try { body = event.body ? JSON.parse(event.body) : {}; } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
+      result = await handleMfaReset(supabase, body);
 
     } else {
       return utils.errorResponse(404, 'Unknown route: ' + method + ' ' + route);
