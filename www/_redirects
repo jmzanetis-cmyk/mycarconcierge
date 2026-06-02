@@ -52,6 +52,8 @@
 /api/admin/team-members /.netlify/functions/admin-team/members 200
 /api/admin/team-invites/* /.netlify/functions/admin-team/invites/:splat 200
 /api/admin/team-invites /.netlify/functions/admin-team/invites 200
+/api/admin/invite-validate /.netlify/functions/admin-invite 200
+/api/admin/invite-accept /.netlify/functions/admin-invite 200
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
 /api/admin/stripe-key-expiry /.netlify/functions/stripe-key-expiry-admin 200
 /api/admin/stripe-key-expiry/* /.netlify/functions/stripe-key-expiry-admin/:splat 200
