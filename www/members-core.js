@@ -497,12 +497,24 @@ window.addEventListener('load', async () => {
         const accepted = await TosModal.accept(supabaseClient, user.id);
         if (accepted) {
           await initializeDashboard();
+          const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
+            .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
+          if (!_2faExempt && !userProfile?.two_factor_enabled) {
+            _show2FAGate();
+          }
         }
       });
       return;
     }
     
     await initializeDashboard();
+
+    // Mandatory 2FA enrollment gate — runs after loadProfile() sets userProfile
+    const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
+      .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
+    if (!_2faExempt && !userProfile?.two_factor_enabled) {
+      _show2FAGate();
+    }
   } catch (err) {
     console.error('Page initialization error:', err);
     showToast('Error loading page. Check console for details.', 'error');
@@ -2768,7 +2780,28 @@ function loadModuleForSection(section) {
 }
 
 // ========== NAVIGATION ==========
+// ========== MANDATORY 2FA GATE ==========
+function _show2FAGate() {
+  window._2faGateActive = true;
+  const banner = document.getElementById('2fa-enrollment-required-banner');
+  if (banner) banner.style.display = '';
+  showSection('settings');
+}
+
+function _dismiss2FAGate() {
+  window._2faGateActive = false;
+  const banner = document.getElementById('2fa-enrollment-required-banner');
+  if (banner) banner.style.display = 'none';
+  showSection('learn');
+}
+
 async function showSection(sectionId) {
+  // Block navigation away from settings while mandatory 2FA enrollment is pending
+  if (window._2faGateActive && sectionId !== 'settings') {
+    showToast('Please complete your 2FA setup before accessing other sections.', 'warning');
+    return;
+  }
+
   // Load required module first
   await loadModuleForSection(sectionId);
 
@@ -3768,7 +3801,11 @@ function toggleTotpBackupAck() {
 function acknowledgeBackupCodes() {
   totpPendingFactorId = null;
   totpShowStep(0);
-  load2FAStatus(); // reloads: listFactors() will now find the verified factor
+  if (window._2faGateActive) {
+    _dismiss2FAGate();
+  } else {
+    load2FAStatus();
+  }
 }
 
 

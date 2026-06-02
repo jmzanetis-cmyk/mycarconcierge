@@ -200,7 +200,7 @@
       pendingBiometricSession = null;
     }
     
-    // Handle redirect from protected pages requiring 2FA verification
+    // Handle redirect from protected pages requiring 2FA verification (TOTP path)
     async function handle2faRequiredRedirect(user) {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -209,54 +209,7 @@
           showMessage('Session expired. Please log in again.');
           return;
         }
-        
-        // Check 2FA status and get phone
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/status`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
-        const result = await response.json();
-        
-        if (!result.success || !result.enabled) {
-          // 2FA not enabled, redirect back
-          await handleUserRedirect(user);
-          return;
-        }
-        
-        // If recently verified, redirect back
-        if (result.recently_verified) {
-          await handleUserRedirect(user);
-          return;
-        }
-        
-        // Get phone for 2FA
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('phone')
-          .eq('id', user.id)
-          .single();
-        
-        if (!profile?.phone) {
-          showMessage('2FA is enabled but no phone number is configured.');
-          await handleUserRedirect(user);
-          return;
-        }
-        
-        pending2faUser = user;
-        pending2faPhone = profile.phone;
-        
-        // Send 2FA code
-        const sendResult = await send2faCode(profile.phone);
-        
-        if (sendResult.success) {
-          document.getElementById('twofa-phone-display').textContent = sendResult.phone || maskPhone(profile.phone);
-          showScreen('twofa-screen');
-          setup2faInputs();
-          clear2faInputs();
-          startResendCountdown();
-        } else {
-          showMessage(sendResult.error || 'Failed to send verification code', 'error');
-        }
+        await check2faAndProceed(user);
       } catch (error) {
         console.error('2FA required redirect error:', error);
         showMessage('Error initiating 2FA verification.');

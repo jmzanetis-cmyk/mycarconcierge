@@ -59,6 +59,8 @@
     DRIVER_FUND_DONOR_COUNT: 0,
     // Milestones are funded in order: first $25K → licensing, next $18K → insurance, etc.
     // JS computes per-milestone raised amounts from DRIVER_FUND_RAISED automatically.
+    // Email addresses exempt from mandatory 2FA (e.g. App Store reviewer accounts)
+    mandatory2faExemptEmails: [],
     DRIVER_FUND_MILESTONES: [
       { name: 'TNC Licensing & Legal', goal: 25000, description: 'Covers state permits and transportation attorney fees so we can legally operate' },
       { name: 'Commercial Auto Insurance', goal: 18000, description: 'Year 1 hired & non-owned auto policy with $1.5M liability coverage' },
