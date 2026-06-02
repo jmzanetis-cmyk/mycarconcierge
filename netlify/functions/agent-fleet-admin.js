@@ -564,7 +564,10 @@ async function listAgentsWithSpend(supabase) {
     supabase.from('agents').select('*').order('slug'),
     supabase.from('agent_daily_spend').select('*').eq('day', today)
   ]);
-  if (agentsRes.error) throw new Error(agentsRes.error.message);
+  if (agentsRes.error) {
+    console.error('[agent-fleet-admin] agents table error:', agentsRes.error.message);
+    return [];
+  }
   const spendBySlug = {};
   for (const s of (spendRes.data || [])) spendBySlug[s.agent_slug] = s;
   return (agentsRes.data || []).map(a => ({
@@ -602,7 +605,7 @@ async function listActions(supabase, { limit = 50, offset = 0, agent = null, sta
   if (reviewOnly) q = q.eq('needs_review', true).is('reviewed_at', null);
   if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return { actions: [], total: 0, limit: lim, offset: off, error: error.message };
   return { actions: data || [], total: count || 0, limit: lim, offset: off };
 }
 
@@ -1488,8 +1491,14 @@ async function spendRollup(supabase) {
     supabase.from('agents').select('slug,display_name,daily_spend_cap_usd,enabled').order('slug'),
     supabase.from('agent_daily_spend').select('*').gte('day', startStr).order('day', { ascending: true })
   ]);
-  if (agentsRes.error) throw new Error(agentsRes.error.message);
-  if (spendRes.error)  throw new Error(spendRes.error.message);
+  if (agentsRes.error) {
+    console.error('[agent-fleet-admin] spend agents error:', agentsRes.error.message);
+    return { agents: [], days: [] };
+  }
+  if (spendRes.error) {
+    console.error('[agent-fleet-admin] agent_daily_spend error:', spendRes.error.message);
+    return { agents: agentsRes.data || [], days: [] };
+  }
   return { agents: agentsRes.data || [], days: spendRes.data || [] };
 }
 
@@ -1502,7 +1511,7 @@ async function latestBriefing(supabase) {
     .eq('kind', 'briefing')
     .eq('key', 'latest')
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) { console.error('[agent-fleet-admin] briefing query error:', error.message); return null; }
   if (data) return data;
   // Fallback for legacy rows written before the 'latest' key existed.
   const fallback = await supabase
@@ -1513,7 +1522,7 @@ async function latestBriefing(supabase) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (fallback.error) throw new Error(fallback.error.message);
+  if (fallback.error) { console.error('[agent-fleet-admin] briefing fallback error:', fallback.error.message); return null; }
   return fallback.data;
 }
 
@@ -1586,7 +1595,7 @@ async function handleActionsByTarget(event, ctx) {
   if (qs.agent) q = q.eq('agent_slug', qs.agent);
   q = q.or(orExpr);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { actions: [], target_id: targetId, target_kind: kind || 'any', error: error.message });
   return jsonResponse(200, { actions: data || [], target_id: targetId, target_kind: kind || 'any' });
 }
 
@@ -1918,7 +1927,7 @@ async function handleSmokeRuns(event, ctx) {
     .eq('agent_slug', slug)
     .order('started_at', { ascending: false })
     .limit(lim);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { agent_slug: slug, runs: [], last_pass: null, last_fail: null, latest: null, error: error.message });
   const runs = data || [];
   const lastPass = runs.find(r => r.status === 'passed') || null;
   const lastFail = runs.find(r => r.status !== 'passed') || null;
@@ -1956,7 +1965,7 @@ async function handleDeadLetter(event, ctx) {
   if (openOnly) q = q.is('replayed_at', null);
   if (eventIdFilter) q = q.in('event_id', eventIdFilter);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { entries: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { entries: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -1988,7 +1997,7 @@ async function handleSpendAlerts(event, ctx) {
     .select('*')
     .gte('day', startDate)
     .order('notified_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { alerts: [], since: startDate, error: error.message });
   return jsonResponse(200, { alerts: data || [], since: startDate });
 }
 
@@ -2067,7 +2076,7 @@ async function handleEventsTimeseries(event, ctx) {
     .gte('created_at', sinceIso)
     .order('created_at', { ascending: true })
     .limit(20000);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { series: [], days, group_by: groupBy, error: error.message });
   const bucketMs = 60 * 60 * 1000;
   const startBucket = Math.floor(sinceMs / bucketMs) * bucketMs;
   const endBucket   = Math.floor(Date.now() / bucketMs) * bucketMs;
@@ -2128,7 +2137,7 @@ async function handleMemory(event, ctx) {
     .eq('agent_slug', slug)
     .order('created_at', { ascending: false })
     .range(off, off + lim - 1);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -2152,7 +2161,7 @@ async function listAuditMismatches(supabase, stripe) {
     .neq('review_status', 'executed')
     .order('created_at', { ascending: false })
     .limit(500);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { mismatches: [], error: error.message });
 
   const mismatches = [];
   for (const a of actions || []) {
@@ -2273,7 +2282,7 @@ async function handleSocialLeads(event, ctx) {
     .range(off, off + lim - 1);
   if (status) q = q.eq('status', status);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -2366,7 +2375,7 @@ async function handleSocialPosts(event, ctx) {
     .range(off, off + lim - 1);
   if (status) q = q.eq('status', status);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -2565,7 +2574,7 @@ async function handleSocialPostPatch(event, ctx) {
 async function handleSocialChannelsList(event, ctx) {
   const { data, error } = await ctx.supabase
     .from('social_channels').select('*').order('platform', { ascending: true });
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], error: error.message });
   return jsonResponse(200, { rows: data || [] });
 }
 
@@ -2645,7 +2654,7 @@ async function handlePromptGet(event, ctx) {
     .eq('agent_slug', slug)
     .eq('is_active', true)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { active: null, error: error.message });
   return jsonResponse(200, { active: data || null });
 }
 
@@ -2659,7 +2668,7 @@ async function handlePromptHistory(event, ctx) {
     .eq('agent_slug', slug)
     .order('version', { ascending: false })
     .limit(lim);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { versions: [], error: error.message });
   return jsonResponse(200, { versions: data || [] });
 }
 
