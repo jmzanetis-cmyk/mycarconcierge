@@ -1,12 +1,20 @@
-const { createClient } = require('@supabase/supabase-js');
-const crypto = require('node:crypto');
+// netlify/functions/admin-team.js
+//
+// Routes:
+//   GET    /api/admin/team-members          — list team members
+//   POST   /api/admin/team-members          — add a team member (direct, no invite)
+//   PUT    /api/admin/team-members/:id      — update member
+//   DELETE /api/admin/team-members/:id      — remove member
+//   GET    /api/admin/team-invites          — list invites
+//   POST   /api/admin/team-invites          — create an invite
+//   DELETE /api/admin/team-invites/:id      — revoke an invite
+//
+// Auth: Authorization: Bearer <supabase_token> → verify with getUser → profiles.role === 'admin'
 
-function createSupabaseClient() {
-  const url = process.env.SUPABASE_URL;
-  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  if (!url || !key) return null;
-  return createClient(url, key);
-}
+'use strict';
+
+const utils = require('./utils');
+const crypto = require('node:crypto');
 
 function jsonResponse(statusCode, data) {
   return {
@@ -15,35 +23,21 @@ function jsonResponse(statusCode, data) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token, x-admin-token, x-admin-password',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
       'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-      'Access-Control-Allow-Credentials': 'true'
     },
     body: JSON.stringify(data)
   };
 }
 
-function authenticateAdmin(event) {
-  const token = (event.headers['x-admin-token'] || event.headers['X-Admin-Token'] || '').trim();
-  const password = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return token === adminPassword || password === adminPassword;
-}
+exports.handler = async function(event) {
+  if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
-exports.handler = async function(event, context) {
-  if (event.httpMethod === 'OPTIONS') {
-    return jsonResponse(204, '');
-  }
+  const supabase = utils.createSupabaseClient();
+  if (!supabase) return utils.errorResponse(500, 'Server configuration error');
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
-  const supabase = createSupabaseClient();
-  if (!supabase) {
-    return jsonResponse(500, { error: 'Database not configured' });
-  }
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   const rawPath = event.path || '';
   const path = rawPath
