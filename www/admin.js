@@ -725,7 +725,7 @@
     try { supabaseClient.auth.onAuthStateChange(async (event, session) => {
       console.log('[Admin] Auth state changed:', event, { hasSession: !!session });
 
-      if (session?.access_token) _adminBearer = session.access_token;
+      if (session?.access_token) { _adminBearer = session.access_token; globalThis._adminBearer = session.access_token; }
 
       if (event === 'SIGNED_IN' && session?.user && currentModalState === 'login') {
         currentUser = session.user;
@@ -801,7 +801,7 @@
         if (session?.user) {
           currentUser = session.user;
           globalThis._adminEmail = session.user.email || '';
-          if (session.access_token) _adminBearer = session.access_token;
+          if (session.access_token) { _adminBearer = session.access_token; globalThis._adminBearer = session.access_token; }
 
           // Check 2FA authorization before checking admin role
           const authorized = await checkAccessAuthorization();
@@ -862,7 +862,7 @@
           localStorage.setItem('mcc_admin_pass', password);
           adminPermissions = null;
           const { data: { session: _s } } = await supabaseClient.auth.getSession();
-          if (_s?.access_token) _adminBearer = _s.access_token;
+          if (_s?.access_token) { _adminBearer = _s.access_token; globalThis._adminBearer = _s.access_token; }
           // Task #233 — restore the button so the modal is usable next time
           // it's opened (e.g. via the AI Ops "Sign in again" prompt).
           btn.textContent = 'Verify';
@@ -12302,6 +12302,7 @@
 
     function getMarketingHeaders() {
       const headers = { 'Content-Type': 'application/json' };
+      if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
       else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
       return headers;

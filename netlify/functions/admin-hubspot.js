@@ -21,13 +21,6 @@ var utils = require('./utils');
 
 var HS_BASE = 'https://api.hubapi.com';
 
-function authenticateAdmin(event) {
-  var pw = process.env.ADMIN_PASSWORD;
-  if (!pw) return false;
-  var headers = event.headers || {};
-  var provided = headers['x-admin-password'] || headers['x-admin-token'] || '';
-  return provided === pw;
-}
 
 function parsePath(event) {
   var raw = event.path || '';
@@ -202,7 +195,10 @@ async function handleSyncMembers(supabase) {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
-  if (!authenticateAdmin(event)) return utils.errorResponse(401, 'Authentication required');
+  var supabase = utils.createSupabaseClient();
+  if (!supabase) return utils.errorResponse(500, 'Server configuration error');
+  var admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   var path   = parsePath(event);
   var method = event.httpMethod;
@@ -226,8 +222,6 @@ exports.handler = async function(event) {
     }
 
     if (path === 'sync-members' && method === 'POST') {
-      var supabase = utils.createSupabaseClient();
-      if (!supabase) return utils.errorResponse(500, 'Server configuration error');
       return utils.successResponse(await handleSyncMembers(supabase));
     }
 

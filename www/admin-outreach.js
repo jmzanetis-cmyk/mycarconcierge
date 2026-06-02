@@ -16,6 +16,8 @@
 
   function getOutreachHeaders() {
     const headers = { 'Content-Type': 'application/json' };
+    const bearer = globalThis._adminBearer;
+    if (bearer) headers['Authorization'] = 'Bearer ' + bearer;
     const adminTeamToken = localStorage.getItem('mcc_admin_team_token');
     const adminPass = localStorage.getItem('mcc_admin_pass');
     if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;

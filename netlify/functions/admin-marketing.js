@@ -26,13 +26,6 @@ var utils = require('./utils');
 
 var BRAND_INFO = 'Brand: "My Car Concierge" - Your complete auto ownership platform. Tagline: "One app. Every auto need. Zero hassle." Four Pillars: Get Quotes, Manage Vehicles, Maintaining Your Ride, Shop Smarter. Website: mycarconcierge.com. Value propositions: connects vehicle owners with vetted service providers, escrow payments for trust and security, Car Club loyalty program with rewards and points, AI-powered diagnostics and maintenance tracking.';
 
-function authenticateAdmin(event) {
-  var pw = process.env.ADMIN_PASSWORD;
-  if (!pw) return false;
-  var headers = event.headers || {};
-  var provided = headers['x-admin-password'] || headers['x-admin-token'] || '';
-  return provided === pw;
-}
 
 function parsePath(event) {
   var raw = event.path || '';
@@ -388,7 +381,9 @@ async function handleCheckDedup(supabase, body) {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
-  if (!authenticateAdmin(event)) return utils.errorResponse(401, 'Authentication required');
+  var _authSb = utils.createSupabaseClient();
+  if (!_authSb) return utils.errorResponse(500, 'Server configuration error');
+  if (!(await utils.authenticateBearerAdmin(event, _authSb))) return utils.errorResponse(401, 'Authentication required');
 
   var path   = parsePath(event);
   var method = event.httpMethod;

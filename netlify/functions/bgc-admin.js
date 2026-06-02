@@ -13,7 +13,7 @@
 //   prod authenticates with the env-shared password.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { createSupabaseClient } = require('./utils');
+const utils = require('./utils');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,28 +22,6 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-function isAuthorizedByPassword(event) {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  const provided = event.headers?.['x-admin-password'] || event.headers?.['X-Admin-Password'];
-  return provided && provided === expected;
-}
-
-async function isAuthorizedByJwt(supabase, event) {
-  const auth = event.headers?.authorization || event.headers?.Authorization;
-  if (!auth) return false;
-  const token = String(auth).replace(/^Bearer\s+/i, '').trim();
-  if (!token) return false;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return false;
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', data.user.id)
-    .maybeSingle();
-  return prof && prof.role === 'admin';
-}
-
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders, body: '' };
@@ -51,13 +29,12 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'GET') {
     return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
-  const supabase = createSupabaseClient();
+  const supabase = utils.createSupabaseClient();
   if (!supabase) {
     return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'db_unavailable' }) };
   }
-  if (!isAuthorizedByPassword(event) && !(await isAuthorizedByJwt(supabase, event))) {
-    return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized' }) };
-  }
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const liveModeFlag = String(process.env.BGC_LIVE_MODE || '').toLowerCase() === 'true';
 

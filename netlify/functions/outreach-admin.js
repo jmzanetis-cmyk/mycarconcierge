@@ -1,3 +1,4 @@
+const utils = require('./utils');
 const {
   createSupabaseClient,
   initEngineState,
@@ -212,26 +213,18 @@ async function buildLeadsCsv(supabase, params) {
   return { csv: lines.join('\n') + '\n', filename, row_count: allLeads.length };
 }
 
-function authenticateAdmin(event) {
-  const token = event.headers['x-admin-token'] || event.headers['X-Admin-Token'];
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return token === adminPassword;
-}
-
 exports.handler = async function(event, context) {
   if (event.httpMethod === 'OPTIONS') {
     return jsonResponse(204, '');
-  }
-
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
   }
 
   const supabase = createSupabaseClient();
   if (!supabase) {
     return jsonResponse(500, { error: 'Database not configured' });
   }
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const rawPath = event.path || '';
   const path = rawPath

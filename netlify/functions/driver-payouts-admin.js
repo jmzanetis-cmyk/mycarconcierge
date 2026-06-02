@@ -24,6 +24,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { alertOnAuditFailure } = require('../../lib/audit-warning-alert');
+const utils = require('./utils');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -43,32 +44,6 @@ function jsonResponse(statusCode, data) {
   return { statusCode, headers: corsHeaders, body: JSON.stringify(data) };
 }
 
-function isAuthorizedByPassword(event) {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  const pw = event.headers?.['x-admin-password'] || event.headers?.['X-Admin-Password']
-          || event.headers?.['x-admin-token']    || event.headers?.['X-Admin-Token'];
-  return !!pw && pw === expected;
-}
-
-async function isAuthorizedByJwt(supabase, event) {
-  const auth = event.headers?.authorization || event.headers?.Authorization;
-  if (!auth) return false;
-  const token = String(auth).replace(/^Bearer\s+/i, '').trim();
-  if (!token) return false;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return false;
-  const { data: prof } = await supabase
-    .from('profiles').select('role').eq('id', data.user.id).maybeSingle();
-  return prof && prof.role === 'admin';
-}
-
-function getActorId(event) {
-  // Best-effort: if a JWT is present we'll have already validated it. Returning
-  // the raw token sub isn't strictly needed for the audit row — we just record
-  // 'admin' as a placeholder when password auth is used.
-  return 'admin';
-}
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -390,9 +365,8 @@ exports.handler = async function(event) {
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
 
-  if (!isAuthorizedByPassword(event) && !(await isAuthorizedByJwt(supabase, event))) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const route = stripPrefix(event.path);
   const method = event.httpMethod;
