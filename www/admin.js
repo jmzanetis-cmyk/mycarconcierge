@@ -14863,7 +14863,7 @@
         if (statusFilter) params.set('status', statusFilter);
         if (typeFilter) params.set('type', typeFilter);
         const data = await safeFetch(`/api/admin/sms-log?${params}`, {
-          headers: { 'x-admin-password': localStorage.getItem('mcc_admin_pass') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
+          headers: getAdminHeaders()
         });
 
         const { rows = [], total = 0, summary = {} } = data;
@@ -14945,11 +14945,7 @@
       try {
         const res = await fetch('/api/admin/sms-log/refresh-status', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-password': localStorage.getItem('mcc_admin_pass') || '',
-            'x-admin-token': localStorage.getItem('adminTeamToken') || ''
-          },
+          headers: getAdminHeaders(),
           body: JSON.stringify({ sids: [sid] })
         });
         const data = await res.json();
