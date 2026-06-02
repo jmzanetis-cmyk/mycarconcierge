@@ -409,8 +409,11 @@
       const tableEl = document.getElementById('login-activity-table');
       const tbodyEl = document.getElementById('login-activity-tbody');
       
-      if (!currentUser) return;
-      
+      if (!currentUser) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        return;
+      }
+
       if (loadingEl) loadingEl.style.display = 'block';
       if (contentEl) contentEl.style.display = 'none';
       if (alertEl) alertEl.style.display = 'none';

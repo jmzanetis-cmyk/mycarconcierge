@@ -4096,7 +4096,7 @@
           </div>
         </div>
         
-        <div id="login-activity-loading" style="text-align:center;padding:24px;">
+        <div id="login-activity-loading" style="text-align:center;padding:24px;display:none;">
           <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px;"></div>
           <p style="color:var(--text-muted);font-size:0.9rem;">Loading login activity...</p>
         </div>
@@ -8526,8 +8526,8 @@
         <div style="padding:16px 24px 0;">
           <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
             <button class="btn btn-sm" id="saas-tab-fleet" onclick="switchSaasTab('fleet')" style="background:var(--accent-gold);color:#000;">Fleet</button>
-            <button class="btn btn-sm btn-secondary" id="saas-tab-shop" onclick="switchSaasTab('shop')">Provider Shop</button>
-            <button class="btn btn-sm btn-secondary" id="saas-tab-ai_api" onclick="switchSaasTab('ai_api')">AI API</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-shop" onclick="switchSaasTab('shop')" style="display:none;">Provider Shop</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-ai_api" onclick="switchSaasTab('ai_api')" style="display:none;">AI API</button>
             <button class="btn btn-sm btn-secondary" id="saas-tab-outreach" onclick="switchSaasTab('outreach')">Outreach</button>
             <button class="btn btn-sm btn-secondary" id="saas-tab-white_label" onclick="switchSaasTab('white_label')">White-label</button>
           </div>

@@ -2820,8 +2820,11 @@ async function showSection(sectionId) {
     });
     // Load subscription/billing data
     if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
-    if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
-    if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
+    // Developer API Keys and Outreach Engine are admin/developer tools — hide from standard members
+    if (userProfile?.role === 'admin') {
+      if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+      if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
+    }
   }
   if (sectionId === 'order-history' && typeof loadOrderHistory === 'function') {
     loadOrderHistory();

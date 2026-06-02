@@ -99,7 +99,15 @@ exports.handler = async function(event) {
       .order('login_at', { ascending: false })
       .limit(50);
 
-    if (error) return json(500, { error: error.message });
+    if (error) {
+      // Table not provisioned yet — return empty activity list rather than 500
+      const tableNotFound = error.code === 'PGRST116'
+        || (error.message && (error.message.includes('does not exist') || error.message.includes('relation')));
+      if (tableNotFound) {
+        return json(200, { success: true, activities: [], failed_unacknowledged_count: 0 });
+      }
+      return json(500, { error: error.message });
+    }
 
     const rows = activities || [];
     const failed_unacknowledged_count = rows.filter(a => !a.is_successful && !a.acknowledged_at).length;
