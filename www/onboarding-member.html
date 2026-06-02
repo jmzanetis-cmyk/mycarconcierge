@@ -1029,6 +1029,7 @@
       carMake: '',
       carModel: '',
       category: '',
+      categories: [],
       requestTitle: '',
       requestDesc: ''
     };
@@ -1117,7 +1118,7 @@
       } else if (currentStep === 3) {
         formData.phone = document.getElementById('input-phone').value.trim();
       } else if (currentStep === 6) {
-        if (!formData.category) {
+        if (!formData.categories.length) {
           document.getElementById('error-category').style.display = 'block';
           return false;
         }
@@ -1128,7 +1129,7 @@
     function nextStep() {
       if (!validateCurrentStep()) return;
       if (currentStep === 6) {
-        document.getElementById('input-request-title').value = categoryTitleSuggestions[formData.category] || '';
+        document.getElementById('input-request-title').value = categoryTitleSuggestions[formData.categories[0]] || '';
       }
       showStep(currentStep + 1);
     }
@@ -1151,9 +1152,10 @@
     }
 
     function selectCategory(card) {
-      document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      formData.category = card.dataset.category;
+      card.classList.toggle('selected');
+      formData.categories = [...document.querySelectorAll('.category-card.selected')].map(c => c.dataset.category);
+      formData.category = formData.categories[0] || '';
+      document.getElementById('error-category').style.display = 'none';
     }
 
     function skipVehicle() {

@@ -4006,9 +4006,10 @@
             <div style="font-size:0.8rem;color:var(--text-muted);">
               ${item.lastService ? `Last: ${new Date(item.lastService.service_date).toLocaleDateString()} at ${(item.lastService.mileage_at_service || 0).toLocaleString()} mi` : 'No service logged'}
             </div>
-            <div style="display:flex;gap:8px;">
+            <div style="display:flex;gap:8px;flex-wrap:wrap;">
               <button class="btn btn-sm btn-secondary" onclick="openLogServiceModal('${item.code}')">Log Service</button>
               ${item.status !== 'up-to-date' ? `<button class="btn btn-sm btn-primary" onclick="postMaintenanceRequest('${item.code}', '${item.name.replace(/'/g, "\\'")}')">Post Request</button>` : ''}
+              <button class="btn btn-sm btn-ghost" onclick="dismissMaintenanceItem('${item.code}', '${item.name.replace(/'/g, "\\'")}')">Delete</button>
             </div>
           </div>
           ${item.notes ? `<div style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;padding-top:8px;border-top:1px solid var(--border-subtle);">${mccIcon('info', 14)} ${item.notes}</div>` : ''}
@@ -4017,6 +4018,40 @@
           </div>
         </div>
       `;
+    }
+
+    async function dismissMaintenanceItem(itemCode, itemName) {
+      if (!confirm(`Remove this reminder?\n\n"${itemName}" will be cleared now and reappear only after the next service interval.`)) return;
+
+      const vehicle = vehicles.find(v => v.id === selectedMaintenanceVehicle);
+      const currentMileage = vehicle?.mileage || 0;
+      const today = new Date().toISOString().split('T')[0];
+
+      try {
+        await supabaseClient.from('vehicle_service_history').insert({
+          vehicle_id: selectedMaintenanceVehicle,
+          member_id: currentUser.id,
+          service_type_code: itemCode,
+          service_date: today,
+          mileage_at_service: currentMileage,
+          source: 'dismissed',
+          notes: 'Baseline reset — removed from schedule'
+        });
+      } catch (e) {
+        console.error('Dismiss failed:', e);
+      }
+
+      // Update in-memory history so re-render reflects immediately
+      maintenanceServiceHistory = maintenanceServiceHistory.filter(h => h.service_code !== itemCode);
+      maintenanceServiceHistory.unshift({
+        service_code: itemCode,
+        service_date: today,
+        mileage_at_service: currentMileage,
+        source: 'dismissed'
+      });
+
+      renderMaintenanceItems();
+      showToast(`"${itemName}" removed. It will reappear at the next service interval.`, 'success');
     }
 
     function filterMaintenanceStatus(status) {
