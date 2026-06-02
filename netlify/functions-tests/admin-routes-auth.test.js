@@ -10,9 +10,9 @@
 // Each route is hit twice:
 //   1) Without admin credentials. The handler must return a non-2xx
 //      (specifically 401) so any future refactor that drops the
-//      handler-level `authenticateAdmin` guard fails the test.
+//      handler-level authenticateBearerAdmin guard fails the test.
 //   2) The four Task #146 routes additionally re-assert their happy-path
-//      shape with valid `x-admin-password` headers — the dashboard relies
+//      shape with a valid Bearer admin token — the dashboard relies
 //      on those exact JSON keys.
 //
 // Plus a completeness check: the test scans the two handler source files
@@ -45,17 +45,31 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-role-key';
 // ---------------------------------------------------------------------------
 
 function makeSupabaseStub() {
-  const emptyResult = { data: [], count: 0, error: null };
-  const chain = {};
-  const passthrough = ['from','select','order','range','limit','eq','neq','gt',
-    'gte','lt','lte','is','in','or','filter','match','not','contains','overlaps',
-    'textSearch','update','delete','upsert'];
-  for (const fn of passthrough) chain[fn] = () => chain;
-  chain.maybeSingle = () => Promise.resolve({ data: null, error: null });
-  chain.single      = () => Promise.resolve({ data: null, error: null });
-  chain.insert      = () => Promise.resolve({ data: null, error: null });
-  chain.then = (resolve, reject) => Promise.resolve(emptyResult).then(resolve, reject);
-  return chain;
+  function makeChain(table) {
+    const emptyResult = { data: [], count: 0, error: null };
+    const chain = {};
+    const passthrough = ['select','order','range','limit','eq','neq','gt',
+      'gte','lt','lte','is','in','or','filter','match','not','contains','overlaps',
+      'textSearch','update','delete','upsert'];
+    for (const fn of passthrough) chain[fn] = () => chain;
+    chain.maybeSingle = () => Promise.resolve({ data: null, error: null });
+    chain.single = () => {
+      if (table === 'profiles') return Promise.resolve({ data: { role: 'admin' }, error: null });
+      return Promise.resolve({ data: null, error: null });
+    };
+    chain.insert = () => Promise.resolve({ data: null, error: null });
+    chain.then = (resolve, reject) => Promise.resolve(emptyResult).then(resolve, reject);
+    return chain;
+  }
+  return {
+    from: (t) => makeChain(t),
+    auth: {
+      getUser: async (token) => {
+        if (!token) return { data: { user: null }, error: { message: 'no token' } };
+        return { data: { user: { id: 'stub-admin-uid' } }, error: null };
+      }
+    }
+  };
 }
 
 // IMPORTANT: netlify/functions/ has its OWN node_modules (a nested install
@@ -365,7 +379,7 @@ async function run() {
     if (!route.shape) continue;
     try {
       const ev = route.event();
-      ev.headers['x-admin-password'] = ADMIN_PASSWORD;
+      ev.headers['authorization'] = 'Bearer stub-admin-bearer';
       const res = await route.handler(ev);
       assert.ok(res && typeof res.statusCode === 'number',
         `${route.label}: handler must return { statusCode }`);

@@ -3,6 +3,7 @@ const { createClient } = require('@supabase/supabase-js');
 // getAiOpsSettings) live in `_shared/ai-ops.js` so the three Netlify Functions
 // that use them stop drifting. esbuild inlines this require into the bundle.
 const { getAiOpsSettings, callAI, logAiAction, aiOpsSendSMS } = require('./_shared/ai-ops');
+const utils = require('./utils');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -25,17 +26,6 @@ function jsonResponse(statusCode, data) {
   };
 }
 
-function authenticateAdmin(event) {
-  // Accept either x-admin-password (single owner session) or x-admin-token
-  // (team-admin session). Mirrors admin-team.js — both headers are validated
-  // against ADMIN_PASSWORD because the team-admin login flow currently mints
-  // a token equal to the admin password.
-  const pw    = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const token = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || token === adminPassword;
-}
 
 // Task #150 Light fix: rewritten against care_plan_completions + care_plans
 // + plan_bids. No Stripe refund (no payment integration in Light) — the AI
@@ -368,14 +358,13 @@ exports.handler = async function(event, context) {
     return jsonResponse(204, '');
   }
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
   const supabase = getSupabase();
   if (!supabase) {
     return jsonResponse(500, { error: 'Database not configured' });
   }
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const rawPath = event.path || '';
   const path = rawPath

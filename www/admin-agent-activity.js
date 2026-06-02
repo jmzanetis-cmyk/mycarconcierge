@@ -28,6 +28,7 @@
   // one stamps the other.
   function authHeaders() {
     const h = { 'Accept': 'application/json' };
+    if (globalThis._adminBearer) h['Authorization'] = 'Bearer ' + globalThis._adminBearer;
     // Check both legacy key names — admin.js writes `adminTeamToken`,
     // admin-outreach.js reads `mcc_admin_team_token`. Take whichever is
     // populated so the helper survives either page's storage convention.

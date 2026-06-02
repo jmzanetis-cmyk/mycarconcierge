@@ -37,9 +37,10 @@
 // ============================================================================
 
 const {
-  getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent,
+  getSupabase, jsonResponse, listAgents, emitEvent,
   sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
+const utils = require('./utils');
 const { maybeSendAuditWarningAlert } = require('./_shared/audit-warning-alert');
 const { Resend } = require('resend');
 const crypto = require('node:crypto');
@@ -2884,10 +2885,12 @@ function _matchRoute(route, method) {
 // The actual behavior of each route lives in its `handle*` function above.
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
-  if (!authenticateAdmin(event)) return jsonResponse(401, { error: 'Unauthorized' });
 
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const route = parsePath(event);
   const method = event.httpMethod || 'GET';

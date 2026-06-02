@@ -13350,12 +13350,8 @@
     let aiOpsDigests = [];
 
     function getAiOpsHeaders() {
-      // Send whichever credentials are present. agent-fleet-runtime.js and
-      // ai-ops-admin.js authenticateAdmin both accept x-admin-token OR
-      // x-admin-password (validated server-side against ADMIN_PASSWORD, same
-      // pattern as admin-team.js), so a team-admin session with only the
-      // token still authenticates correctly.
       const headers = {};
+      if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
       const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       if (pw) headers['x-admin-password'] = pw;
