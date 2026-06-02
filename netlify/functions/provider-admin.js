@@ -4,7 +4,7 @@
 // Privileged provider lifecycle endpoints. Replaces the browser-side
 // supabaseClient.from('profiles').update({ suspension_reason, suspended_at })
 // calls in www/admin.js so suspend/activate cannot be performed by anyone who
-// just happens to reach the admin page — the ADMIN_PASSWORD header is required
+// just happens to reach the admin page — a valid admin Bearer JWT is required
 // and every action leaves an admin_audit_log row.
 //
 // Routes (mounted at /.netlify/functions/provider-admin/* and proxied from
@@ -15,7 +15,7 @@
 //   POST /check-low-rated   { rating_threshold?: number, autosuspend?: boolean, reason?: string }
 //   POST /adjust-credits    { provider_ids: uuid[], delta: integer, reason?: string }
 //
-// All routes require the x-admin-password header to match ADMIN_PASSWORD.
+// All routes require a Supabase Bearer JWT with role 'admin' (authenticateBearerAdmin).
 // All routes use the service-role Supabase client so they bypass RLS.
 // ============================================================================
 
@@ -42,7 +42,7 @@ function jsonResponse(statusCode, data) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token, x-admin-token, X-Admin-Password, x-admin-password',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token, x-admin-token',
       'Access-Control-Allow-Methods': 'POST, OPTIONS'
     },
     body: typeof data === 'string' ? data : JSON.stringify(data)

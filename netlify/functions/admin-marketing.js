@@ -18,7 +18,7 @@
 //   POST /api/admin/marketing/campaign-to-leads → Bulk email send to leads + log to outreach_messages
 //   POST /api/admin/marketing/check-dedup      → Dedup check against outreach_leads
 //
-// Auth: x-admin-password or x-admin-token header matching ADMIN_PASSWORD env var
+// Auth: Supabase Bearer JWT, role must be 'admin'
 
 'use strict';
 

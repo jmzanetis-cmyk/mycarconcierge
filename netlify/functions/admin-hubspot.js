@@ -12,7 +12,7 @@
 //   POST /api/admin/hubspot/companies      → create company
 //   POST /api/admin/hubspot/sync-members   → sync Supabase profiles → HubSpot
 //
-// Auth: x-admin-password or x-admin-token header matching ADMIN_PASSWORD env var
+// Auth: Supabase Bearer JWT, role must be 'admin'
 // HubSpot: HUBSPOT_PRIVATE_APP_TOKEN env var (private app bearer token)
 
 'use strict';
