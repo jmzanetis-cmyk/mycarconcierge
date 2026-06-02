@@ -188,11 +188,58 @@ async function _processFounderCode(supabase, user_id, upperCode, founder) {
 }
 
 async function _processMemberCode(supabase, user_id, upperCode, member) {
-  // Link new provider to the member who referred them
+  var now = new Date().toISOString();
+
+  // Link new user to the member who referred them
   await supabase.from('profiles').update({
     referred_by_member_id: member.id,
     provider_referral_type: 'member_referral'
   }).eq('id', user_id);
+
+  // Grant referral credits — idempotent guard on (referrer_id, referred_id)
+  var creditGranted = false;
+  var existingRef = await supabase
+    .from('referrals')
+    .select('id')
+    .eq('referrer_id', member.id)
+    .eq('referred_id', user_id)
+    .maybeSingle();
+
+  if (!existingRef.data) {
+    var refResult = await supabase.from('referrals').insert({
+      referrer_id:            member.id,
+      referred_id:            user_id,
+      referral_code:          upperCode,
+      status:                 'credited',
+      referrer_credit_amount: 1000,
+      referred_credit_amount: 1000,
+      credit_amount:          1000,
+      credited_at:            now
+    }).select('id').single();
+
+    if (!refResult.error && refResult.data) {
+      var referralId = refResult.data.id;
+      await supabase.from('member_credits').insert([
+        {
+          member_id:   member.id,
+          amount:      1000,
+          type:        'referral',
+          description: 'Referral credit — a friend joined with your code',
+          referral_id: referralId
+        },
+        {
+          member_id:   user_id,
+          amount:      1000,
+          type:        'referral',
+          description: 'Welcome credit — joined with referral code ' + upperCode,
+          referral_id: referralId
+        }
+      ]);
+      creditGranted = true;
+    } else if (refResult.error) {
+      console.error('[referral-process] referrals insert failed:', refResult.error.message);
+    }
+  }
 
   // Record in founder_referrals if this member is also a founder
   try {
@@ -211,7 +258,7 @@ async function _processMemberCode(supabase, user_id, upperCode, member) {
         referred_type:    'provider',
         referred_user_id: user_id,
         status:           'pending',
-        created_at:       new Date().toISOString()
+        created_at:       now
       });
       await supabase.from('member_founder_profiles')
         .update({ total_provider_referrals: (fp.total_provider_referrals || 0) + 1 })
@@ -226,6 +273,7 @@ async function _processMemberCode(supabase, user_id, upperCode, member) {
     referral_type: 'member_referral',
     referrer_type: 'member',
     founder_name: member.full_name || member.email || 'Member',
-    platform_fee_exempt: false
+    platform_fee_exempt: false,
+    credit_granted: creditGranted
   });
 }
