@@ -154,65 +154,74 @@ test.describe('Member Settings Module', () => {
     });
   });
 
-  test.describe('Two-Factor Authentication (2FA)', () => {
+  test.describe('Two-Factor Authentication (2FA) — TOTP', () => {
 
-    test('2FA status endpoint exists (GET /api/2fa/status)', async ({ request }) => {
-      const res = await request.get(`${BASE_URL}/api/2fa/status`);
-      expect(res.status()).not.toBe(404);
-    });
-
-    test('2FA UI shows enabled/disabled states with proper icons and badges', async () => {
+    test('2FA status UI structure: enabled/disabled toggle elements present', async () => {
       expect(membersHtmlContent).toContain('id="2fa-status-icon"');
       expect(membersHtmlContent).toContain('id="2fa-status-text"');
       expect(membersHtmlContent).toContain('id="2fa-status-desc"');
       expect(membersHtmlContent).toContain('id="2fa-status-badge"');
       expect(membersHtmlContent).toContain('id="2fa-enable-section"');
       expect(membersHtmlContent).toContain('id="2fa-disable-section"');
-
-      expect(membersSettingsContent).toContain("statusIcon.textContent = '🔒'");
-      expect(membersSettingsContent).toContain("statusIcon.textContent = '🔓'");
-      expect(membersSettingsContent).toContain("statusBadge.textContent = 'Enabled'");
-      expect(membersSettingsContent).toContain("statusBadge.textContent = 'Disabled'");
     });
 
-    test('Phone input formatter strips non-digits and formats as (XXX) XXX-XXXX', async () => {
-      expect(membersSettingsContent).toContain('function format2FAPhoneInput(input)');
-      expect(membersSettingsContent).toContain("input.value.replace(/\\D/g, '')");
-      expect(membersSettingsContent).toContain('value.slice(0, 3)');
-      expect(membersSettingsContent).toContain('value.slice(3, 6)');
-      expect(membersSettingsContent).toContain('value.slice(6)');
-      expect(membersHtmlContent).toContain('oninput="format2FAPhoneInput(this)"');
+    test('TOTP enrollment flow: step elements exist in members.html', async () => {
+      expect(membersHtmlContent).toContain('id="totp-enroll-step0"');
+      expect(membersHtmlContent).toContain('id="totp-enroll-step1"');
+      expect(membersHtmlContent).toContain('id="totp-backup-panel"');
+      expect(membersHtmlContent).toContain('id="totp-qr-canvas"');
+      expect(membersHtmlContent).toContain('id="totp-secret-display"');
+      expect(membersHtmlContent).toContain('id="totp-enroll-error"');
     });
 
-    test('6-digit verification code input UI with individual digit fields', async () => {
+    test('TOTP enrollment: 6 digit inputs with auto-advance wiring', async () => {
       for (let i = 1; i <= 6; i++) {
-        expect(membersHtmlContent).toContain(`id="2fa-digit-${i}"`);
-        expect(membersHtmlContent).toContain(`handle2FADigitInput(this, ${i})`);
-        expect(membersHtmlContent).toContain(`handle2FAKeydown(event, ${i})`);
+        expect(membersHtmlContent).toContain(`id="totp-enroll-${i}"`);
       }
-      expect(membersHtmlContent).toContain('id="2fa-verify-modal"');
-      expect(membersHtmlContent).toContain('id="2fa-verify-btn"');
-      expect(membersHtmlContent).toContain('id="2fa-verify-error"');
+      expect(membersHtmlContent).toContain('class="totp-enroll-digit"');
+      expect(membersHtmlContent).toContain('onclick="confirmTotpEnroll()"');
     });
 
-    test('2FA send-code endpoint exists (POST /api/2fa/send-code)', async ({ request }) => {
-      const res = await request.post(`${BASE_URL}/api/2fa/send-code`, {
-        data: { phone: '5551234567' },
+    test('TOTP backup codes panel: grid, acknowledgment checkbox, done button', async () => {
+      expect(membersHtmlContent).toContain('id="totp-backup-codes-grid"');
+      expect(membersHtmlContent).toContain('id="totp-backup-ack"');
+      expect(membersHtmlContent).toContain('onchange="toggleTotpBackupAck()"');
+      expect(membersHtmlContent).toContain('id="totp-backup-done-btn"');
+      expect(membersHtmlContent).toContain('onclick="acknowledgeBackupCodes()"');
+    });
+
+    test('TOTP JS functions exist in members.js', async () => {
+      expect(membersJsContent).toContain('async function load2FAStatus()');
+      expect(membersJsContent).toContain('function update2FADisplay(enrolled)');
+      expect(membersJsContent).toContain('async function startTotpEnroll()');
+      expect(membersJsContent).toContain('async function confirmTotpEnroll()');
+      expect(membersJsContent).toContain('function toggleTotpBackupAck()');
+      expect(membersJsContent).toContain('function acknowledgeBackupCodes()');
+    });
+
+    test('TOTP load2FAStatus uses listFactors (not a dead status endpoint)', async () => {
+      expect(membersJsContent).toContain('auth.mfa.listFactors()');
+      expect(membersJsContent).toContain("status === 'verified'");
+      expect(membersJsContent).not.toContain("fetch('/api/2fa/status'");
+    });
+
+    test('TOTP enroll endpoint exists (POST /api/2fa/totp/enroll)', async ({ request }) => {
+      const res = await request.post(`${BASE_URL}/api/2fa/totp/enroll`, {
         headers: { 'Content-Type': 'application/json' }
       });
       expect(res.status()).not.toBe(404);
     });
 
-    test('2FA verify endpoint exists (POST /api/2fa/verify-code)', async ({ request }) => {
-      const res = await request.post(`${BASE_URL}/api/2fa/verify-code`, {
-        data: { code: '123456' },
+    test('TOTP confirm-enroll endpoint exists (POST /api/2fa/totp/confirm-enroll)', async ({ request }) => {
+      const res = await request.post(`${BASE_URL}/api/2fa/totp/confirm-enroll`, {
+        data: {},
         headers: { 'Content-Type': 'application/json' }
       });
       expect(res.status()).not.toBe(404);
     });
 
-    test('2FA disable endpoint exists (POST /api/2fa/disable)', async ({ request }) => {
-      const res = await request.post(`${BASE_URL}/api/2fa/disable`, {
+    test('TOTP verify endpoint exists (POST /api/2fa/totp/verify)', async ({ request }) => {
+      const res = await request.post(`${BASE_URL}/api/2fa/totp/verify`, {
         data: {},
         headers: { 'Content-Type': 'application/json' }
       });

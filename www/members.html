@@ -3991,39 +3991,89 @@
             <span id="2fa-status-badge" class="package-status" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Disabled</span>
           </div>
           
-          <!-- Enable 2FA Section (shown when disabled) -->
+          <!-- Enable 2FA Section (shown when not enrolled) -->
           <div id="2fa-enable-section">
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
-              Enable 2FA to receive a verification code via SMS each time you log in. This helps protect your account even if your password is compromised.
-            </p>
-            
-            <div class="form-group">
-              <label class="form-label">Phone Number for 2FA</label>
-              <div style="display:flex;gap:12px;align-items:flex-start;">
-                <input type="tel" class="form-input" id="2fa-phone-input" placeholder="(555) 555-5555" style="max-width:200px;" oninput="format2FAPhoneInput(this)">
-                <button class="btn btn-primary" id="2fa-enable-btn" onclick="initiate2FAEnable()">
-                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Enable 2FA
+
+            <!-- Step 0: initial prompt -->
+            <div id="totp-enroll-step0">
+              <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
+                Use an authenticator app (Google Authenticator, Authy, 1Password, etc.) to generate time-based codes. No phone number required.
+              </p>
+              <button class="btn btn-primary" id="totp-start-btn" onclick="startTotpEnroll()">
+                <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                Enable Authenticator App
+              </button>
+            </div>
+
+            <!-- Step 1: QR + code entry -->
+            <div id="totp-enroll-step1" style="display:none;">
+              <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9rem;">
+                Open your authenticator app and scan this QR code:
+              </p>
+              <div style="text-align:center;margin:0 0 16px;">
+                <div style="display:inline-block;background:#fff;padding:12px;border-radius:8px;">
+                  <canvas id="totp-qr-canvas"></canvas>
+                </div>
+              </div>
+              <details style="margin-bottom:16px;font-size:0.88rem;">
+                <summary style="cursor:pointer;color:var(--accent-blue);user-select:none;">Can't scan? Enter the key manually</summary>
+                <div style="margin-top:10px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                  <div style="color:var(--text-muted);margin-bottom:6px;">Account: My Car Concierge</div>
+                  <code id="totp-secret-display" style="display:block;font-family:monospace;font-size:0.95rem;letter-spacing:2px;word-break:break-all;color:var(--text-primary);user-select:all;cursor:text;"></code>
+                  <div style="color:var(--text-muted);margin-top:6px;font-size:0.8rem;">Click/tap the key to select all, then copy it into your app.</div>
+                </div>
+              </details>
+              <p style="color:var(--text-secondary);margin-bottom:8px;font-size:0.9rem;">Enter the 6-digit code from your app:</p>
+              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-1" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-2" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-3" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-4" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-5" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-6" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+              </div>
+              <div id="totp-enroll-error" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(239,95,95,0.1);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);color:var(--accent-red);font-size:0.88rem;"></div>
+              <div style="display:flex;gap:12px;">
+                <button class="btn btn-primary" id="totp-confirm-btn" onclick="confirmTotpEnroll()" disabled>
+                  Verify &amp; Enable
                 </button>
+                <button class="btn btn-secondary" onclick="cancelTotpEnroll()">Cancel</button>
               </div>
-              <p class="form-hint">We'll send a verification code to this number.</p>
             </div>
+
+            <!-- Step 2: backup codes — shown once, must acknowledge -->
+            <div id="totp-backup-panel" style="display:none;">
+              <div style="padding:16px;background:rgba(201,168,76,0.08);border:2px solid rgba(201,168,76,0.4);border-radius:var(--radius-md);margin-bottom:16px;">
+                <div style="font-weight:700;font-size:1rem;margin-bottom:6px;color:var(--accent-gold);">
+                  ⚠ Save Your Backup Codes — They Will NOT Be Shown Again
+                </div>
+                <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.6;">
+                  If you lose access to your authenticator app, these 10 one-time backup codes are your only way back in. Store them somewhere safe (password manager, printed copy, etc.).
+                </p>
+                <div id="totp-backup-codes-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;font-family:monospace;font-size:0.95rem;"></div>
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.9rem;color:var(--text-secondary);">
+                  <input type="checkbox" id="totp-backup-ack" onchange="toggleTotpBackupAck()" style="margin-top:2px;flex-shrink:0;">
+                  I have saved these backup codes in a safe place and understand they will not be shown again.
+                </label>
+              </div>
+              <button class="btn btn-primary" id="totp-backup-done-btn" onclick="acknowledgeBackupCodes()" disabled>
+                Done — I've saved my codes
+              </button>
+            </div>
+
           </div>
-          
-          <!-- Disable 2FA Section (shown when enabled) -->
+
+          <!-- Enrolled status (shown when TOTP is active) -->
           <div id="2fa-disable-section" style="display:none;">
-            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:20px;">
-              <span style="font-size:1.5rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span></span>
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);">
+              <span style="font-size:1.5rem;color:var(--accent-green);">✓</span>
               <div style="flex:1;">
-                <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">2FA is Active</div>
-                <div style="font-size:0.9rem;color:var(--text-secondary);">Verification codes are sent to: <strong id="2fa-masked-phone">***-***-1234</strong></div>
+                <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">Authenticator App is Active</div>
+                <div style="font-size:0.88rem;color:var(--text-secondary);">Your account requires a code from your authenticator app at each login.</div>
               </div>
             </div>
-            
-            <button class="btn btn-danger" onclick="open2FADisableModal()">
-              <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Disable 2FA
-            </button>
             <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;">
-              Disabling 2FA will make your account less secure. You'll only need your password to log in.
+              To remove 2FA from your account, contact support. Self-service disable is coming soon.
             </p>
           </div>
         </div>
@@ -7952,67 +8002,6 @@
       <div class="modal-footer" style="border-top-color:rgba(239,95,95,0.3);">
         <button class="btn btn-secondary" onclick="closeModal('delete-account-modal')">Cancel</button>
         <button class="btn" id="confirm-delete-btn" style="background:var(--accent-red);color:white;" onclick="confirmDeleteAccount()" disabled>Delete My Account</button>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2FA Verification Modal -->
-  <div class="modal-backdrop" id="2fa-verify-modal">
-    <div class="modal" style="max-width:420px;">
-      <div class="modal-header">
-        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Verify Your Phone</h3>
-        <button class="modal-close" onclick="close2FAVerifyModal()">×</button>
-      </div>
-      <div class="modal-body" style="text-align:center;">
-        <div style="margin-bottom:16px;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
-        <p style="color:var(--text-secondary);margin-bottom:8px;">We sent a verification code to</p>
-        <p id="2fa-verify-phone-display" style="font-weight:600;font-size:1.1rem;margin-bottom:24px;color:var(--accent-blue);">(555) 555-5555</p>
-        
-        <div class="form-group" style="margin-bottom:20px;">
-          <label class="form-label" style="text-align:center;">Enter 6-digit code</label>
-          <div style="display:flex;justify-content:center;gap:8px;">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-1" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 1)" onkeydown="handle2FAKeydown(event, 1)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-2" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 2)" onkeydown="handle2FAKeydown(event, 2)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-3" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 3)" onkeydown="handle2FAKeydown(event, 3)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-4" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 4)" onkeydown="handle2FAKeydown(event, 4)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-5" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 5)" onkeydown="handle2FAKeydown(event, 5)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-6" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 6)" onkeydown="handle2FAKeydown(event, 6)">
-          </div>
-        </div>
-        
-        <div id="2fa-verify-error" style="display:none;color:var(--accent-red);margin-bottom:16px;font-size:0.9rem;"></div>
-        
-        <button class="btn btn-primary" id="2fa-verify-btn" onclick="verify2FACode()" style="width:100%;margin-bottom:16px;" disabled>
-          Verify & Enable 2FA
-        </button>
-        
-        <div style="font-size:0.85rem;color:var(--text-muted);">
-          Didn't receive the code? 
-          <button onclick="resend2FACode()" style="background:none;border:none;color:var(--accent-blue);cursor:pointer;font-size:0.85rem;text-decoration:underline;" id="2fa-resend-btn">Resend Code</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2FA Disable Confirmation Modal -->
-  <div class="modal-backdrop" id="2fa-disable-modal">
-    <div class="modal" style="max-width:420px;">
-      <div class="modal-header">
-        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Disable 2FA</h3>
-        <button class="modal-close" onclick="close2FADisableModal()">×</button>
-      </div>
-      <div class="modal-body" style="text-align:center;">
-        <div style="margin-bottom:16px;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
-        <h4 style="margin-bottom:12px;">Are you sure?</h4>
-        <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;">
-          Disabling two-factor authentication will make your account less secure. 
-          Anyone with your password will be able to access your account.
-        </p>
-        
-        <div style="display:flex;gap:12px;justify-content:center;">
-          <button class="btn btn-secondary" onclick="close2FADisableModal()">Cancel</button>
-          <button class="btn btn-danger" onclick="confirm2FADisable()">Yes, Disable 2FA</button>
-        </div>
       </div>
     </div>
   </div>
