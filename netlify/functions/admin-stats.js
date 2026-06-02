@@ -205,7 +205,7 @@ async function handleOrders(supabase, qs) {
 
   var result = await supabase
     .from('maintenance_packages')
-    .select('created_at, status')
+    .select('created_at, status, category')
     .gte('created_at', range.startDate.toISOString())
     .order('created_at', { ascending: true });
 

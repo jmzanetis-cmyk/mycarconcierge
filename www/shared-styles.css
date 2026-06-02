@@ -1582,7 +1582,7 @@ button, a, input, select, textarea, [role="button"] {
   .toast-container {
     left: 12px;
     right: 12px;
-    top: 12px;
+    top: max(12px, env(safe-area-inset-top));
   }
   
   .toast {

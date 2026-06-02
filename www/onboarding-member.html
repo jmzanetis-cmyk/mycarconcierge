@@ -784,6 +784,7 @@
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
           </div>
+          <div id="founding-pill" style="display:none;margin:0 auto 10px;padding:6px 14px;background:rgba(201,168,76,0.12);border:1px solid rgba(201,168,76,0.4);border-radius:100px;font-size:0.78rem;font-weight:600;color:#C9A84C;letter-spacing:0.04em;text-transform:uppercase;">Founding Member Invite</div>
           <div class="free-join-pill" role="note" aria-label="Free to join">
             <span class="free-join-pill-dot" aria-hidden="true"></span>
             <span class="free-join-pill-strong">Open for Business</span>
@@ -1017,6 +1018,7 @@
     // We skip the email/password steps and just collect remaining info.
     let oauthSource = null;
     const _urlRef = new URLSearchParams(window.location.search).get('ref') || '';
+    const isFoundingPath = new URLSearchParams(window.location.search).get('founding') === '1';
     const formData = {
       name: '',
       email: '',
@@ -1033,6 +1035,11 @@
       requestTitle: '',
       requestDesc: ''
     };
+
+    if (isFoundingPath) {
+      const pill = document.getElementById('founding-pill');
+      if (pill) pill.style.display = 'block';
+    }
 
     const categoryLabels = {
       maintenance: 'Maintenance & Mechanical',
@@ -1197,7 +1204,8 @@
           const { error: updateErr } = await supabaseClient.from('profiles').update({
             full_name: formData.name || null,
             phone: formData.phone || null,
-            sms_consent: formData.smsConsent || false
+            sms_consent: formData.smsConsent || false,
+            ...(isFoundingPath ? { is_founding_member: true, founding_member_joined_at: new Date().toISOString() } : {})
           }).eq('id', userId);
 
           if (updateErr) console.error('Profile update error:', updateErr);
@@ -1243,7 +1251,8 @@
               full_name: formData.name,
               phone: formData.phone || null,
               sms_consent: formData.smsConsent || false,
-              preferred_language: preferredLanguage
+              preferred_language: preferredLanguage,
+              ...(isFoundingPath ? { is_founding_member: true, founding_member_joined_at: new Date().toISOString() } : {})
             });
 
             if (profileError) console.error('Profile insert error:', profileError);
@@ -1271,7 +1280,14 @@
           });
         }
 
-        showStep(5);
+        if (isFoundingPath) {
+          skippedVehicle = true;
+          skippedRequest = true;
+          buildSuccessScreen();
+          showStep(totalSteps);
+        } else {
+          showStep(5);
+        }
 
       } catch (err) {
         btn.disabled = false;
@@ -1401,7 +1417,10 @@
       const hasVehicle = !skippedVehicle && vehicleId;
       const hasRequest = requestSaved;
 
-      if (hasVehicle && hasRequest) {
+      if (isFoundingPath) {
+        titleEl.textContent = "You're a Founding Member!";
+        subtitleEl.textContent = "Welcome to the founding circle. Confirm your email, then log in — add your vehicle and create your first service request whenever you're ready.";
+      } else if (hasVehicle && hasRequest) {
         titleEl.textContent = "You're all set!";
         subtitleEl.textContent = 'Your account is ready, your ride is in the garage, and your request is live. Check your email to confirm your account, then log in to see quotes as they come in.';
       } else if (hasRequest) {

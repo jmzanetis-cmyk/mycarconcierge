@@ -1016,7 +1016,18 @@ async function loadProfile() {
   } else {
     userProfile = data;
   }
-  
+
+  // Redirect non-members who don't have cross-role member access
+  const _role = userProfile?.role;
+  if (_role === 'provider' && !userProfile?.is_also_member) {
+    window.location.replace('providers.html');
+    return;
+  }
+  if (_role === 'driver') {
+    window.location.replace('driver-dispatch.html');
+    return;
+  }
+
   const name = userProfile?.full_name || 'Member';
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   document.getElementById('user-name').textContent = name;
