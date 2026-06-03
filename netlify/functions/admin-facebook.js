@@ -167,18 +167,6 @@ function buildRedirectUri(event) {
   return proto + '://' + host + '/api/admin/facebook/oauth-callback';
 }
 
-// Admin gate. The production path is x-admin-password matching the
-// ADMIN_PASSWORD env var (same as the rest of the netlify/functions
-// admin tooling). Returns an "identity" object on success or null.
-function resolveAdminIdentity(event) {
-  var hdrs = event.headers || {};
-  var pw = hdrs['x-admin-password'] || hdrs['X-Admin-Password'];
-  if (pw && process.env.ADMIN_PASSWORD && pw === process.env.ADMIN_PASSWORD) {
-    return { key: 'env-admin', userId: null, email: null };
-  }
-  return null;
-}
-
 function isMissingTableError(err) {
   if (!err) return false;
   if (err.code === '42P01' || err.code === 'PGRST106' || err.code === 'PGRST205') return true;
@@ -280,10 +268,10 @@ exports.handler = async function (event) {
     }
 
     // ---- All other endpoints are admin-gated ----
-    var ident = resolveAdminIdentity(event);
-    if (!ident) {
-      return jsonResponse(401, { error: 'Admin authentication required' });
-    }
+    var supabase = utils.createSupabaseClient();
+    if (!supabase) return jsonResponse(503, { error: 'Database not configured' });
+    var admin = await utils.authenticateBearerAdmin(event, supabase);
+    if (!admin) return jsonResponse(401, { error: 'Admin authentication required' });
 
     if (event.httpMethod === 'POST' && endpoint === 'oauth-start') {
       if (!getStateSecret()) {
@@ -293,7 +281,7 @@ exports.handler = async function (event) {
         return jsonResponse(503, { error: 'Server not configured (FACEBOOK_APP_SECRET missing)' });
       }
       var nonce = crypto.randomBytes(16).toString('hex');
-      var state = signState({ adminId: ident.key, nonce: nonce, ts: Date.now() });
+      var state = signState({ adminId: admin.id, nonce: nonce, ts: Date.now() });
       var redirectUri2 = buildRedirectUri(event);
       var oauthUrl = new URL('https://www.facebook.com/' + FB_GRAPH_VERSION + '/dialog/oauth');
       oauthUrl.searchParams.set('client_id', FB_APP_ID);
@@ -315,7 +303,7 @@ exports.handler = async function (event) {
       if (!pend) {
         return jsonResponse(410, { error: 'No pending Pages — start the OAuth flow again' });
       }
-      if (pend.adminId !== ident.key) {
+      if (pend.adminId !== admin.id) {
         return jsonResponse(403, { error: 'Pending Pages belong to a different admin session' });
       }
       return jsonResponse(200, { pages: pend.pages || [], expiresAt: pend.expiresAt });
@@ -334,7 +322,7 @@ exports.handler = async function (event) {
       // (and shouldn't be trusted to) supply it.
       var raw2 = readCookie(event, FB_PENDING_COOKIE);
       var pend2 = verifyPendingCookie(raw2);
-      if (!pend2 || pend2.adminId !== ident.key) {
+      if (!pend2 || pend2.adminId !== admin.id) {
         return jsonResponse(410, { error: 'Pending Pages session expired — start the OAuth flow again' });
       }
       var pickedPage = (pend2.pages || []).find(function (p) { return String(p.id) === String(page_id); });
@@ -363,8 +351,8 @@ exports.handler = async function (event) {
         .insert({
           page_id: String(page_id),
           page_name: String(page_name),
-          connected_by_user_id: ident.userId || null,
-          connected_by_email: ident.email || null
+          connected_by_user_id: admin.id || null,
+          connected_by_email: admin.email || null
         })
         .select()
         .single();
