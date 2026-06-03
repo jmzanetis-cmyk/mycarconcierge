@@ -168,6 +168,9 @@
 # Feature: Recall Alerts
 /api/vehicle/*/recalls /.netlify/functions/vehicle-recalls 200
 
+# Feature: Vehicle Photos
+/api/vehicle-photos/* /.netlify/functions/vehicle-photos/:splat 200
+
 # Feature: Vehicle Health Score
 /api/vehicles/*/compute-health /.netlify/functions/vehicle-health 200
 
