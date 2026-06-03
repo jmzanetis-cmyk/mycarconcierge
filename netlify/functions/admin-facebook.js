@@ -67,13 +67,13 @@ function redirectResponse(location, extraHeaders) {
 }
 
 function getStateSecret() {
-  var pw = process.env.ADMIN_PASSWORD;
+  var pw = process.env.COOKIE_SECRET || process.env.ADMIN_PASSWORD;
   if (!pw) return null;
   return crypto.createHash('sha256').update('mcc-fb-oauth-state-' + pw).digest('hex');
 }
 
 function getCookieSecret() {
-  var pw = process.env.ADMIN_PASSWORD;
+  var pw = process.env.COOKIE_SECRET || process.env.ADMIN_PASSWORD;
   if (!pw) return null;
   return crypto.createHash('sha256').update('mcc-fb-pending-cookie-' + pw).digest('hex');
 }

@@ -249,10 +249,10 @@ exports.handler = async function(event) {
     return jsonResponse(500, { error: 'db_unavailable' });
   }
 
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPassword = process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
-    console.error('[smoke-scheduled:matchmaker] ADMIN_PASSWORD not configured');
-    return jsonResponse(500, { error: 'admin_password_not_configured' });
+    console.error('[smoke-scheduled:matchmaker] INTERNAL_API_SECRET not configured');
+    return jsonResponse(500, { error: 'internal_api_secret_not_configured' });
   }
 
   const triggeredBy = auth === 'admin' ? 'admin' : 'scheduled';

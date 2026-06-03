@@ -28,7 +28,7 @@ function authenticateAdmin(event) {
   // a token equal to the admin password.
   const pw    = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
   const token = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPassword = process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD;
   if (!adminPassword) return false;
   return pw === adminPassword || token === adminPassword;
 }

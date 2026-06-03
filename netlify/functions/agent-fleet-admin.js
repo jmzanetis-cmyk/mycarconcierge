@@ -1749,7 +1749,7 @@ async function _proxyAdminRun(event, fnName) {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-admin-password': process.env.ADMIN_PASSWORD || ''
+      'x-admin-password': process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD || ''
     },
     body: JSON.stringify({ source: 'admin' })
   });

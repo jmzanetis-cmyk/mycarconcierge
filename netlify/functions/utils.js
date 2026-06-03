@@ -14,9 +14,9 @@ function isValidUUID(str) {
 }
 
 function getGuestTokenSecret() {
-  var adminPassword = process.env.ADMIN_PASSWORD;
+  var adminPassword = process.env.COOKIE_SECRET || process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
-    throw new Error('[utils] ADMIN_PASSWORD is required for guest token operations');
+    throw new Error('[utils] COOKIE_SECRET (or ADMIN_PASSWORD) is required for guest token operations');
   }
   return crypto.createHash('sha256').update('mcc-guest-split-' + adminPassword).digest('hex');
 }

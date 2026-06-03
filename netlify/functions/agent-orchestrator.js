@@ -43,7 +43,8 @@ async function dispatchEvent(baseUrl, agent, evt) {
       'content-type': 'application/json',
       'x-fleet-source': 'orchestrator'
     };
-    if (process.env.ADMIN_PASSWORD) headers['x-admin-password'] = process.env.ADMIN_PASSWORD;
+    const internalSecret = process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD;
+    if (internalSecret) headers['x-admin-password'] = internalSecret;
     const r = await fetch(url, {
       method: 'POST',
       headers,

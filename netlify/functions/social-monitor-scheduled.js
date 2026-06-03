@@ -126,7 +126,8 @@ exports.handler = async function(event) {
   // (handy from the admin console once a UI lands).
   const isScheduled = isScheduledInvocation(event);
   const adminPwd = event?.headers?.['x-admin-password'] || event?.headers?.['X-Admin-Password'];
-  const ok = isScheduled || (adminPwd && adminPwd === process.env.ADMIN_PASSWORD);
+  const internalSecret = process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD;
+  const ok = isScheduled || (adminPwd && internalSecret && adminPwd === internalSecret);
   if (!ok) return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   try {
