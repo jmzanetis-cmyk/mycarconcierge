@@ -2396,7 +2396,7 @@ async function removeHouseholdMember(membershipId) {
 // Share a vehicle with a household
 async function shareVehicleWithHousehold(householdId, vehicleId, accessLevel, sharedBy) {
   const { data, error } = await supabaseClient
-    .from('household_vehicles')
+    .from('household_vehicle_access')
     .insert({
       household_id: householdId,
       vehicle_id: vehicleId,
@@ -2406,50 +2406,47 @@ async function shareVehicleWithHousehold(householdId, vehicleId, accessLevel, sh
     })
     .select()
     .single();
-  
+
   return { data, error };
 }
 
 // Get all vehicles shared with a household
 async function getHouseholdVehicles(householdId) {
   const { data, error } = await supabaseClient
-    .from('household_vehicles')
+    .from('household_vehicle_access')
     .select(`
       *,
       vehicle:vehicle_id(
         id, year, make, model, color, license_plate, vin,
-        owner:member_id(full_name, email)
+        owner:owner_id(full_name, email)
       ),
       shared_by_user:shared_by(full_name)
     `)
     .eq('household_id', householdId)
     .order('created_at', { ascending: false });
-  
+
   return { data: data || [], error };
 }
 
 // Update vehicle access level in a household
 async function updateVehicleAccess(accessId, newLevel) {
   const { data, error } = await supabaseClient
-    .from('household_vehicles')
-    .update({
-      access_level: newLevel,
-      updated_at: new Date().toISOString()
-    })
+    .from('household_vehicle_access')
+    .update({ access_level: newLevel })
     .eq('id', accessId)
     .select()
     .single();
-  
+
   return { data, error };
 }
 
 // Remove a vehicle from household sharing
 async function removeVehicleFromHousehold(accessId) {
   const { error } = await supabaseClient
-    .from('household_vehicles')
+    .from('household_vehicle_access')
     .delete()
     .eq('id', accessId);
-  
+
   return { error };
 }
 
