@@ -499,20 +499,20 @@ window.addEventListener('load', async () => {
           await initializeDashboard();
           const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
             .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
-          if (!_2faExempt && !userProfile?.two_factor_enabled) {
+          if (window.MCC_CONFIG?.mandatory2faEnabled && !_2faExempt && !userProfile?.two_factor_enabled) {
             _show2FAGate();
           }
         }
       });
       return;
     }
-    
+
     await initializeDashboard();
 
     // Mandatory 2FA enrollment gate — runs after loadProfile() sets userProfile
     const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
       .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
-    if (!_2faExempt && !userProfile?.two_factor_enabled) {
+    if (window.MCC_CONFIG?.mandatory2faEnabled && !_2faExempt && !userProfile?.two_factor_enabled) {
       _show2FAGate();
     }
   } catch (err) {
