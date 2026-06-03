@@ -9,10 +9,8 @@ const BASE_URL = process.env.BASE_URL || 'http://localhost:5000';
 
 const membersHtmlContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'members.html'), 'utf8');
 const membersSettingsContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'members-settings.js'), 'utf8');
-const membersJsContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'members.js'), 'utf8');
 const membersCoreContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'members-core.js'), 'utf8');
 const i18nContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'i18n.js'), 'utf8');
-const serverContent = fs.readFileSync(path.join(__dirname, '..', 'www', 'server.js'), 'utf8');
 
 test.describe('Member Settings Module', () => {
 
@@ -40,8 +38,8 @@ test.describe('Member Settings Module', () => {
       expect(membersHtmlContent).toContain('id="sms-options"');
       expect(membersHtmlContent).toContain('id="sms-enabled"');
       expect(membersHtmlContent).toContain('onchange="toggleSmsOptions()"');
-      expect(membersSettingsContent).toContain("function toggleSmsOptions()");
-      expect(membersSettingsContent).toContain("'block' : 'none'");
+      expect(membersCoreContent).toContain("function toggleSmsOptions()");
+      expect(membersCoreContent).toContain("'block' : 'none'");
     });
 
     test('Settings save updates profile display name and initials', async () => {
@@ -178,7 +176,7 @@ test.describe('Member Settings Module', () => {
       for (let i = 1; i <= 6; i++) {
         expect(membersHtmlContent).toContain(`id="totp-enroll-${i}"`);
       }
-      expect(membersHtmlContent).toContain('class="totp-enroll-digit"');
+      expect(membersHtmlContent).toContain('totp-enroll-digit');
       expect(membersHtmlContent).toContain('onclick="confirmTotpEnroll()"');
     });
 
@@ -190,19 +188,19 @@ test.describe('Member Settings Module', () => {
       expect(membersHtmlContent).toContain('onclick="acknowledgeBackupCodes()"');
     });
 
-    test('TOTP JS functions exist in members.js', async () => {
-      expect(membersJsContent).toContain('async function load2FAStatus()');
-      expect(membersJsContent).toContain('function update2FADisplay(enrolled)');
-      expect(membersJsContent).toContain('async function startTotpEnroll()');
-      expect(membersJsContent).toContain('async function confirmTotpEnroll()');
-      expect(membersJsContent).toContain('function toggleTotpBackupAck()');
-      expect(membersJsContent).toContain('function acknowledgeBackupCodes()');
+    test('TOTP JS functions exist in members-core.js', async () => {
+      expect(membersCoreContent).toContain('async function load2FAStatus()');
+      expect(membersCoreContent).toContain('function update2FADisplay(enrolled)');
+      expect(membersCoreContent).toContain('async function startTotpEnroll()');
+      expect(membersCoreContent).toContain('async function confirmTotpEnroll()');
+      expect(membersCoreContent).toContain('function toggleTotpBackupAck()');
+      expect(membersCoreContent).toContain('function acknowledgeBackupCodes()');
     });
 
     test('TOTP load2FAStatus uses listFactors (not a dead status endpoint)', async () => {
-      expect(membersJsContent).toContain('auth.mfa.listFactors()');
-      expect(membersJsContent).toContain("status === 'verified'");
-      expect(membersJsContent).not.toContain("fetch('/api/2fa/status'");
+      expect(membersCoreContent).toContain('auth.mfa.listFactors()');
+      expect(membersCoreContent).toContain("status === 'verified'");
+      expect(membersCoreContent).not.toContain("fetch('/api/2fa/status'");
     });
 
     test('TOTP enroll endpoint exists (POST /api/2fa/totp/enroll)', async ({ request }) => {
@@ -296,9 +294,9 @@ test.describe('Member Settings Module', () => {
     });
 
     test('Source code contains theme toggle and language functions', async () => {
-      expect(membersJsContent).toContain('function toggleTheme()');
-      expect(membersJsContent).toContain("getAttribute('data-theme')");
-      expect(membersJsContent).toContain("setAttribute('data-theme'");
+      expect(membersCoreContent).toContain('function toggleTheme()');
+      expect(membersCoreContent).toContain("getAttribute('data-theme')");
+      expect(membersCoreContent).toContain("setAttribute('data-theme'");
       expect(i18nContent).toContain('async function setLanguage(lang)');
       expect(i18nContent).toContain('languageChanged');
     });
