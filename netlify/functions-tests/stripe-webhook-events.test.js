@@ -172,7 +172,30 @@ function makeSupabase(opts = {}) {
     return b;
   }
 
-  return { from, _tables: tables, _ops: ops };
+  async function rpc(fnName, params) {
+    if (fnName === 'record_bid_pack_commission') {
+      const { p_provider_id, p_purchase_amount, p_transaction_id } = params;
+      const profile = (tables.profiles || []).find(r => r.id === p_provider_id);
+      if (!profile || !profile.referred_by_founder_id) return { data: null, error: null };
+      const founder = (tables.member_founder_profiles || []).find(
+        r => r.user_id === profile.referred_by_founder_id
+      );
+      if (!founder || founder.status !== 'active') return { data: null, error: null };
+      const commissions = tables.founder_commissions || (tables.founder_commissions = []);
+      if (commissions.find(r => r.source_transaction_id === p_transaction_id)) {
+        return { data: null, error: null }; // idempotent duplicate
+      }
+      const commissionAmount = parseFloat((p_purchase_amount * parseFloat(founder.commission_rate)).toFixed(2));
+      commissions.push({ founder_id: founder.id, commission_type: 'bid_pack', commission_amount: commissionAmount,
+                         source_transaction_id: p_transaction_id, transaction_id: p_transaction_id });
+      founder.pending_balance          = parseFloat(((founder.pending_balance          || 0) + commissionAmount).toFixed(2));
+      founder.total_commissions_earned = parseFloat(((founder.total_commissions_earned || 0) + commissionAmount).toFixed(2));
+      return { data: commissions.length, error: null };
+    }
+    return { data: null, error: null };
+  }
+
+  return { from, rpc, _tables: tables, _ops: ops };
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
