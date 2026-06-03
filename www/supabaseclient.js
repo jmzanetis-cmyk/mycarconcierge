@@ -2373,13 +2373,14 @@ async function updateHouseholdMemberPermissions(membershipId, permissions) {
   const { data, error } = await supabaseClient
     .from('household_members')
     .update({
-      permissions: permissions,
-      updated_at: new Date().toISOString()
+      can_request_services: permissions.can_request_services ?? null,
+      can_approve_services: permissions.can_approve_services ?? null,
+      spending_limit: permissions.spending_limit ?? null,
     })
     .eq('id', membershipId)
     .select()
     .single();
-  
+
   return { data, error };
 }
 
