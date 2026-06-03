@@ -38,14 +38,25 @@ const STUB_ROWS = [
 
 function makeSupabaseStub() {
   const state = { filters: [], orderField: null, limit: null };
+  let currentTable = null;
   const chain = {};
-  chain.from = () => chain;
+  chain.from = (tableName) => { currentTable = tableName; state.filters = []; return chain; };
   chain.select = () => chain;
   chain.eq = (col, val) => { state.filters.push(['eq', col, val]); return chain; };
   chain.lt = (col, val) => { state.filters.push(['lt', col, val]); return chain; };
   chain.order = (col) => { state.orderField = col; return chain; };
   chain.limit = (n) => { state.limit = n; return chain; };
+  chain.single = () => {
+    if (currentTable === 'profiles') return Promise.resolve({ data: { role: 'admin' }, error: null });
+    return Promise.resolve({ data: null, error: null });
+  };
   chain.then = (resolve) => resolve({ data: STUB_ROWS, error: null });
+  chain.auth = {
+    getUser: async (token) => {
+      if (!token) return { data: { user: null }, error: { message: 'no token' } };
+      return { data: { user: { id: 'stub-admin-id' } }, error: null };
+    }
+  };
   return chain;
 }
 
@@ -91,7 +102,7 @@ async function run() {
 
   // 2) Non-GET method → 405
   try {
-    const res = await handler(makeEvent({ method: 'POST', headers: { 'x-admin-password': ADMIN_PASSWORD } }));
+    const res = await handler(makeEvent({ method: 'POST', headers: { 'authorization': 'Bearer ' + ADMIN_PASSWORD } }));
     assert.strictEqual(res.statusCode, 405, `expected 405, got ${res.statusCode}`);
     ok('rejects non-GET method (405)');
   } catch (e) { fail('rejects non-GET method', e); }
@@ -99,7 +110,7 @@ async function run() {
   // 3) Malformed before timestamp → 400
   try {
     const res = await handler(makeEvent({
-      headers: { 'x-admin-password': ADMIN_PASSWORD },
+      headers: { 'authorization': 'Bearer ' + ADMIN_PASSWORD },
       query: { before: 'not-a-date' }
     }));
     assert.strictEqual(res.statusCode, 400, `expected 400, got ${res.statusCode}`);
@@ -110,7 +121,7 @@ async function run() {
   let body;
   try {
     const res = await handler(makeEvent({
-      headers: { 'x-admin-password': ADMIN_PASSWORD },
+      headers: { 'authorization': 'Bearer ' + ADMIN_PASSWORD },
       query: { action: 'suspend_provider', limit: '10' }
     }));
     assert.strictEqual(res.statusCode, 200, `expected 200, got ${res.statusCode} body=${res.body}`);

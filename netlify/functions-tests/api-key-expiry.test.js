@@ -61,7 +61,8 @@ const stripeAdminShim = require(path.resolve(__dirname, '../functions/stripe-key
 function makeSupabaseStub(initial = {}) {
   const tables = {
     ai_ops_settings: initial.ai_ops_settings ? [...initial.ai_ops_settings] : [],
-    ai_action_log: initial.ai_action_log ? [...initial.ai_action_log] : []
+    ai_action_log: initial.ai_action_log ? [...initial.ai_action_log] : [],
+    profiles: [{ id: 'stub-admin-id', role: 'admin' }]
   };
   function from(tableName) {
     const rows = tables[tableName] || (tables[tableName] = []);
@@ -74,6 +75,10 @@ function makeSupabaseStub(initial = {}) {
       gt(col, val) { ctx._filters.push(r => r[col] > val); return builder; },
       order() { return builder; },
       limit(n) { ctx._limit = n; return builder; },
+      async single() {
+        const filtered = rows.filter(r => ctx._filters.every(f => f(r)));
+        return { data: filtered[0] || null, error: null };
+      },
       async maybeSingle() {
         const filtered = rows.filter(r => ctx._filters.every(f => f(r)));
         return { data: filtered[0] || null, error: null };
@@ -96,7 +101,13 @@ function makeSupabaseStub(initial = {}) {
     };
     return builder;
   }
-  return { from, _tables: tables };
+  const auth = {
+    getUser: async (token) => {
+      if (!token) return { data: { user: null }, error: { message: 'no token' } };
+      return { data: { user: { id: 'stub-admin-id' } }, error: null };
+    }
+  };
+  return { from, auth, _tables: tables };
 }
 
 function plusDaysFromToday(n) {
@@ -241,7 +252,7 @@ async function main() {
     const res = await admin.handler({
       httpMethod: 'GET',
       path: '/api/admin/api-key-expiry',
-      headers: { 'x-admin-password': 'test-admin-pw' },
+      headers: { 'authorization': 'Bearer test-admin-pw' },
       body: ''
     });
     eq(res.statusCode, 200);
@@ -255,7 +266,7 @@ async function main() {
     const res = await admin.handler({
       httpMethod: 'POST',
       path: '/api/admin/api-key-expiry',
-      headers: { 'x-admin-password': 'test-admin-pw' },
+      headers: { 'authorization': 'Bearer test-admin-pw' },
       body: JSON.stringify({ key_id: 'twilio_auth_token', expiry_date: '2030-01-15' })
     });
     eq(res.statusCode, 200);
@@ -273,7 +284,7 @@ async function main() {
     const res = await admin.handler({
       httpMethod: 'POST',
       path: '/api/admin/api-key-expiry',
-      headers: { 'x-admin-password': 'test-admin-pw' },
+      headers: { 'authorization': 'Bearer test-admin-pw' },
       body: JSON.stringify({ key_id: 'not_real', expiry_date: '2030-01-15' })
     });
     eq(res.statusCode, 400);
@@ -284,7 +295,7 @@ async function main() {
     const res = await admin.handler({
       httpMethod: 'POST',
       path: '/api/admin/api-key-expiry',
-      headers: { 'x-admin-password': 'test-admin-pw' },
+      headers: { 'authorization': 'Bearer test-admin-pw' },
       body: JSON.stringify({ key_id: 'resend_api_key', expiry_date: 'not-a-date' })
     });
     eq(res.statusCode, 400);
@@ -310,7 +321,7 @@ async function main() {
     const res = await admin.handler({
       httpMethod: 'GET',
       path: '/api/admin/stripe-key-expiry',
-      headers: { 'x-admin-password': 'test-admin-pw' },
+      headers: { 'authorization': 'Bearer test-admin-pw' },
       body: ''
     });
     eq(res.statusCode, 200);
@@ -325,7 +336,7 @@ async function main() {
     const res = await admin.handler({
       httpMethod: 'POST',
       path: '/api/admin/stripe-key-expiry',
-      headers: { 'x-admin-password': 'test-admin-pw' },
+      headers: { 'authorization': 'Bearer test-admin-pw' },
       body: JSON.stringify({ expiry_date: '2031-03-04' })
     });
     eq(res.statusCode, 200);

@@ -25,6 +25,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const SCENARIOS = require('./_concierge-scenarios');
+const utils = require('./utils');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -45,15 +46,6 @@ function jsonResponse(statusCode, data) {
     },
     body: typeof data === 'string' ? data : JSON.stringify(data)
   };
-}
-
-function authenticateAdmin(event) {
-  const h = event.headers || {};
-  const pw = (h['x-admin-password'] || h['X-Admin-Password'] || '').trim();
-  const tk = (h['x-admin-token']    || h['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || tk === adminPassword;
 }
 
 function isUuid(v) {
@@ -274,10 +266,12 @@ function stripPrefix(p) {
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
-  if (!authenticateAdmin(event))     return jsonResponse(401, { error: 'Unauthorized' });
 
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const route = stripPrefix(event.path);
   const method = event.httpMethod;

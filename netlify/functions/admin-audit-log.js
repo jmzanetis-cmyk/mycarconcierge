@@ -25,6 +25,7 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+const utils = require('./utils');
 
 function jsonResponse(statusCode, data) {
   return {
@@ -38,15 +39,6 @@ function jsonResponse(statusCode, data) {
     },
     body: typeof data === 'string' ? data : JSON.stringify(data)
   };
-}
-
-function authenticateAdmin(event) {
-  const headers = event.headers || {};
-  const pw = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
-  const tk = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || tk === adminPassword;
 }
 
 function getSupabase() {
@@ -86,10 +78,11 @@ exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
   if (event.httpMethod !== 'GET')     return jsonResponse(405, { error: 'GET only' });
 
-  if (!authenticateAdmin(event)) return jsonResponse(401, { error: 'Unauthorized' });
-
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const params = event.queryStringParameters || {};
   const limit = Math.min(Math.max(parseInt(params.limit, 10) || 50, 1), 100);

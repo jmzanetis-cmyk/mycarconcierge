@@ -366,7 +366,7 @@ const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';
   console.log('  ✓ 7b) location ping batch >50 returns 400 BAD_REQUEST');
 
   // ---- 7e) Admin reassignment resets prior accept/decline state ----
-  process.env.ADMIN_PASSWORD = 'stub-admin-pw';
+  currentAuthUserId = 'stub-admin-user';
   let assignUpsertPayload = null;
   dbState = {
     'concierge_jobs.maybeSingle': () => ({
@@ -375,6 +375,7 @@ const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';
     'drivers.maybeSingle': () => ({
       data: { id: DRIVER_B, status: 'active' }, error: null
     }),
+    'profiles.single': () => ({ data: { role: 'admin' }, error: null }),
     // Capture the upsert payload so we can assert resets are present.
     'concierge_job_drivers.update': () => ({ data: null, error: null })
   };
@@ -397,11 +398,11 @@ const LEG_2    = 'bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbb2';
   res = await adminFn.handler(makeEvent({
     path: `/api/admin/concierge-jobs/${JOB_X}/assign-driver`,
     method: 'POST',
-    headers: { 'x-admin-password': 'stub-admin-pw' },
+    headers: { authorization: 'Bearer stub-admin-token' },
     body: { driver_id: DRIVER_B, role: 'primary' }
   }));
   supabaseStub.from = _origFrom;
-  delete process.env.ADMIN_PASSWORD;
+  currentAuthUserId = null;
   assert.strictEqual(res.statusCode, 200, '7e: admin assign should be 200');
   assert.ok(assignUpsertPayload, '7e: upsert payload must be captured');
   assert.strictEqual(assignUpsertPayload.accepted_at, null, '7e: accepted_at must be reset to null on reassignment');

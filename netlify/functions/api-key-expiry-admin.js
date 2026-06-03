@@ -29,6 +29,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { TRACKED_KEYS, findKeyConfig } = require('../../lib/api-key-expiry-config');
 const { _runChecker, _computeStatus } = require('./api-key-expiry-scheduled');
+const utils = require('./utils');
 
 const STRIPE_KEY_ID = 'stripe_secret_key';
 
@@ -51,14 +52,6 @@ function jsonResponse(statusCode, data) {
     },
     body: JSON.stringify(data)
   };
-}
-
-function authenticateAdmin(event) {
-  const pw    = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const token = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || token === adminPassword;
 }
 
 async function fetchKeyStatus(supabase, keyConfig) {
@@ -185,10 +178,12 @@ function legacyStripeStatusShape(stripeStatus) {
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
-  if (!authenticateAdmin(event)) return jsonResponse(401, { error: 'Unauthorized' });
 
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const rawPath = event.path || '';
   const subPath = normalizeSubPath(rawPath);

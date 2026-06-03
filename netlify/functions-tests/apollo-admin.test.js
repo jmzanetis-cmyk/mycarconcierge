@@ -84,6 +84,12 @@ function makeSupabaseStub() {
   return {
     from(table) {
       return makeQuery(table);
+    },
+    auth: {
+      getUser: async (token) => {
+        if (!token) return { data: { user: null }, error: { message: 'no token' } };
+        return { data: { user: { id: 'stub-admin-id' } }, error: null };
+      }
     }
   };
 }
@@ -111,7 +117,10 @@ function makeQuery(table) {
     order: () => q,
     limit: (n) => { limitValue = n; return q; },
     range: () => q,
-    single:      () => Promise.resolve({ data: null, error: null }),
+    single: () => {
+      if (table === 'profiles') return Promise.resolve({ data: { role: 'admin' }, error: null });
+      return Promise.resolve({ data: null, error: null });
+    },
     maybeSingle: () => Promise.resolve({ data: null, error: null }),
     update: () => ({ eq: () => Promise.resolve({ data: null, error: null }) }),
     insert(row) {
@@ -172,7 +181,7 @@ function makeEvent(opts) {
   return {
     httpMethod: method,
     path: `/.netlify/functions/apollo-admin/${route}`,
-    headers: { 'x-admin-password': process.env.ADMIN_PASSWORD, ...headers },
+    headers: { 'authorization': 'Bearer stub-admin-token', ...headers },
     queryStringParameters: query,
     body: body == null ? null : JSON.stringify(body)
   };
@@ -188,22 +197,22 @@ function parseBody(res) {
 const tests = [];
 function test(name, fn) { tests.push({ name, fn }); }
 
-test('auth: missing x-admin-password header returns 401', async () => {
-  const res = await handler(makeEvent({ method: 'GET', route: 'config', headers: { 'x-admin-password': '' } }));
+test('auth: missing Authorization header returns 401', async () => {
+  const res = await handler(makeEvent({ method: 'GET', route: 'config', headers: { 'authorization': '' } }));
   assert.strictEqual(res.statusCode, 401);
   assert.deepStrictEqual(parseBody(res), { error: 'Unauthorized' });
 });
 
-test('auth: wrong x-admin-password returns 401', async () => {
-  const res = await handler(makeEvent({ method: 'GET', route: 'config', headers: { 'x-admin-password': 'not-the-real-pw' } }));
+test('auth: non-Bearer Authorization returns 401', async () => {
+  const res = await handler(makeEvent({ method: 'GET', route: 'config', headers: { 'authorization': 'Basic abc' } }));
   assert.strictEqual(res.statusCode, 401);
 });
 
-test('auth: x-admin-token also accepted when it matches ADMIN_PASSWORD', async () => {
+test('auth: valid Bearer token returns 200', async () => {
   const res = await handler(makeEvent({
     method: 'GET',
     route: 'config',
-    headers: { 'x-admin-password': '', 'x-admin-token': process.env.ADMIN_PASSWORD }
+    headers: { 'authorization': 'Bearer valid-stub-token' }
   }));
   assert.strictEqual(res.statusCode, 200);
 });

@@ -15,7 +15,7 @@
 
 'use strict';
 
-const { createSupabaseClient } = require('./utils');
+const { createSupabaseClient, authenticateBearerAdmin } = require('./utils');
 
 const BGC_API_BASE    = process.env.BGC_API_BASE    || 'https://app.backgroundchecks.com/api';
 const BGC_DEFAULT_SKU = process.env.BGC_DEFAULT_REPORT_SKU || 'HIRE1';
@@ -26,15 +26,6 @@ const CORS = {
   'Access-Control-Allow-Headers': 'Content-Type, x-admin-password, x-admin-token',
   'Access-Control-Allow-Methods': 'POST, OPTIONS',
 };
-
-function authenticateAdmin(event) {
-  const h  = event.headers || {};
-  const pw = (h['x-admin-password'] || h['X-Admin-Password'] || '').trim();
-  const tk = (h['x-admin-token']    || h['X-Admin-Token']    || '').trim();
-  const ap = process.env.ADMIN_PASSWORD;
-  if (!ap) return false;
-  return pw === ap || tk === ap;
-}
 
 function resp(status, body) {
   return { statusCode: status, headers: CORS, body: JSON.stringify(body) };
@@ -77,15 +68,17 @@ async function orderBgcReport(email) {
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return resp(204, {});
   if (event.httpMethod !== 'POST')  return resp(405, { error: 'Method not allowed' });
-  if (!authenticateAdmin(event))    return resp(403, { error: 'Forbidden' });
+
+  const supabase = createSupabaseClient();
+  if (!supabase) return resp(500, { error: 'db_unavailable' });
+
+  const admin = await authenticateBearerAdmin(event, supabase);
+  if (!admin) return resp(401, { error: 'Unauthorized' });
 
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return resp(400, { error: 'Invalid JSON' }); }
   const { profile_id } = body;
   if (!profile_id) return resp(400, { error: 'profile_id required' });
-
-  const supabase = createSupabaseClient();
-  if (!supabase) return resp(500, { error: 'db_unavailable' });
 
   // Fetch the driver's profile for email / name
   const { data: profile } = await supabase
