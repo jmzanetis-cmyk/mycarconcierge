@@ -10140,13 +10140,8 @@
         }
       } catch { /* Intentionally silent */ }
       const headers = {};
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified || localStorage.getItem('mcc_admin_pass')) {
-        headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || adminPasswordVerified || '';
-      }
-      if (!headers['Authorization'] && !headers['x-admin-token'] && !headers['x-admin-password']) {
-        throw new Error('Not authenticated');
-      }
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
+      if (!headers['Authorization']) throw new Error('Not authenticated');
       return headers;
     }
 
@@ -11107,7 +11102,7 @@
     function getAdminHeaders() {
       const headers = { 'Content-Type': 'application/json' };
       if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
       return headers;
     }
 
@@ -12299,7 +12294,7 @@
     function getMarketingHeaders() {
       const headers = { 'Content-Type': 'application/json' };
       if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
       return headers;
     }
 
@@ -13347,7 +13342,7 @@
     function getAiOpsHeaders() {
       const headers = {};
       if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
       return headers;
     }
 
@@ -13376,7 +13371,7 @@
       let hasAuth = false;
       for (const k of Object.keys(headers)) {
         const lk = k.toLowerCase();
-        if ((lk === 'authorization' || lk === 'x-admin-token') && headers[k]) {
+        if (lk === 'authorization' && headers[k]) {
           hasAuth = true; break;
         }
       }
@@ -14963,7 +14958,7 @@
       container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading subscription data…</div>';
       try {
         const resp = await safeFetch('/api/admin/saas/subscriptions', {
-          headers: { 'x-admin-token': globalThis.__adminToken || '' }
+          headers: getAiOpsHeaders()
         });
 
         const { subscriptions = [], stats = {}, by_product = {}, recent_churns = [] } = resp;
@@ -15318,8 +15313,8 @@
       }
       const nextBtn = document.getElementById('tenant-wz-next-btn');
       if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Creating…'; }
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      const authHeaders = await getAdminAuthHeader().catch(() => ({}));
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       try {
         const res = await fetch('/api/admin/white-label/tenants', { method: 'POST', headers, body: JSON.stringify(body) });
         const data = await res.json();
@@ -15405,8 +15400,8 @@
       if (!body.name || !body.brand_name) { if (errEl) { errEl.textContent = 'Name and brand name required.'; errEl.style.display = 'block'; } return; }
       const btn = document.getElementById('save-tenant-edit-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      const authHeaders = await getAdminAuthHeader().catch(() => ({}));
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       try {
         const res = await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify(body) });
         const data = await res.json();
@@ -15426,8 +15421,8 @@
 
     async function deactivateTenant(id) {
       if (!confirm('Suspend this tenant? They will lose access to white-label features.')) return;
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      const authHeaders = await getAdminAuthHeader().catch(() => ({}));
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       try {
         await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify({ status: 'suspended' }) });
         loadedSections['white-label'] = false;
@@ -15436,11 +15431,11 @@
     }
 
     async function previewTenantBranding(domain) {
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      if (!token) { alert('Admin auth required to preview branding.'); return; }
+      const authHeaders = await getAdminAuthHeader().catch(() => null);
+      if (!authHeaders) { alert('Admin auth required to preview branding.'); return; }
       try {
         const res = await fetch(`/api/white-label/config?preview_domain=${encodeURIComponent(domain)}`, {
-          headers: { 'x-admin-token': token }
+          headers: authHeaders
         });
         const data = await res.json();
         if (!data.is_white_label || !data.tenant) {
@@ -15501,8 +15496,7 @@
       if (!modal || !contentEl) return;
       contentEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading tenant data…</div>';
       modal.style.display = 'flex';
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = token ? { 'x-admin-token': token } : {};
+      const headers = await getAdminAuthHeader().catch(() => ({}));
       try {
         const res = await fetch(`/api/admin/white-label/tenants/${tenantId}/portal`, { headers });
         if (!res.ok) throw new Error('Failed to load tenant portal');
@@ -15587,7 +15581,6 @@
     // ========== AI API USAGE DASHBOARD (Task #90) ==========
     let _apiUsageChart = null;
     async function loadApiUsage() {
-      const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
       const revenueEl = document.getElementById('api-stat-revenue');
@@ -15595,7 +15588,7 @@
       const tableEl = document.getElementById('api-keys-table');
       // Task #355 — missing admin session surfaces the shared "Sign in again"
       // prompt instead of silently returning.
-      if (!adminPassword) {
+      if (!_adminBearer && !adminTeamToken) {
         if (tableEl) {
           const err = new Error('No admin session — please sign in again to view API usage.');
           err.code = 'NO_ADMIN_AUTH';
@@ -15675,14 +15668,13 @@
 
     async function adminRevokeApiKey(keyId, btn) {
       if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
-      // Task #464 — canonical admin password key (see loadApiUsage above).
-      const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
-      if (!adminPassword) { alert('Admin session not found. Please refresh.'); return; }
+      const authHeaders = await getAdminAuthHeader().catch(() => null);
+      if (!authHeaders) { alert('Admin session not found. Please sign in again.'); return; }
       btn.disabled = true; btn.textContent = 'Revoking…';
       try {
         const res = await fetch(`/api/admin/api-keys/${encodeURIComponent(keyId)}/revoke`, {
           method: 'POST',
-          headers: { 'x-admin-password': adminPassword }
+          headers: authHeaders
         });
         const data = await res.json();
         if (res.ok) {
@@ -16172,13 +16164,12 @@
     function exportSurveyLeads() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const headers = getAdminHeaders();
-      const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
       // Thread the active Survey Analytics range so the CSV matches the charts/list window.
       const range   = document.getElementById('ms-range-select')?.value || 'all';
       const url     = apiBase + '/api/admin/survey-leads/export?range=' + encodeURIComponent(range);
       const a       = document.createElement('a');
-      a.href = url + (pw ? '&_t=' + Date.now() : '');
-      // Pass password via fetch and redirect to blob URL
+      a.href = url;
+      // Pass auth via fetch and redirect to blob URL
       fetch(url, { headers }).then(r => r.blob()).then(blob => {
         const blobUrl = URL.createObjectURL(blob);
         a.href = blobUrl;
