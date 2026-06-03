@@ -3744,10 +3744,10 @@
         fleetCountBadge.style.display = fleetVehicles.length > 0 ? 'inline-flex' : 'none';
       }
       
-      if (data.billing_email || data.address || data.tax_id) {
+      if (data.billing_email || data.billing_address || data.tax_id) {
         document.getElementById('fleet-company-info').style.display = 'block';
         document.getElementById('fleet-billing-email-display').innerHTML = data.billing_email ? `${mccIcon('mail', 16)} ${data.billing_email}` : '';
-        document.getElementById('fleet-address-display').innerHTML = data.address ? `${mccIcon('map-pin', 16)} ${data.address}` : '';
+        document.getElementById('fleet-address-display').innerHTML = data.billing_address ? `${mccIcon('map-pin', 16)} ${data.billing_address}` : '';
         const taxIdEl = document.getElementById('fleet-tax-id-display');
         if (taxIdEl) taxIdEl.innerHTML = data.tax_id ? `${mccIcon('store', 16)} Tax ID: ${data.tax_id}` : '';
       } else {
@@ -4131,7 +4131,7 @@
         name,
         business_type: businessType || 'other',
         billing_email: billingEmail || null,
-        address: billingAddress || null,
+        billing_address: billingAddress || null,
         tax_id: taxId || null,
         owner_id: currentUser.id
       });
@@ -4699,7 +4699,7 @@
       document.getElementById('fleet-settings-company-name').value = currentFleet.company_name || '';
       document.getElementById('fleet-settings-business-type').value = currentFleet.business_type || 'other';
       document.getElementById('fleet-settings-billing-email').value = currentFleet.billing_email || '';
-      document.getElementById('fleet-settings-address').value = currentFleet.address || '';
+      document.getElementById('fleet-settings-address').value = currentFleet.billing_address || '';
       const taxIdEl = document.getElementById('fleet-settings-tax-id');
       if (taxIdEl) taxIdEl.value = currentFleet.tax_id || '';
       
@@ -4726,7 +4726,7 @@
           company_name: companyName || null,
           business_type: businessType,
           billing_email: billingEmail || null,
-          address: address || null,
+          billing_address: address || null,
           tax_id: taxId || null
         })
         .eq('id', currentFleet.id);
