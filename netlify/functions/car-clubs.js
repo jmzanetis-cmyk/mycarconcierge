@@ -1,13 +1,32 @@
 // Car Clubs — member clubs with provider benefits + return-visit bid credit bonuses
 //
-// GET    /api/car-clubs                                        — list active clubs
-// POST   /api/car-clubs/:id/join                               — join a club
-// GET    /api/car-clubs/:id/members                            — list members
-// POST   /api/car-clubs/:id/punch                              — record a punch-card visit
-// GET    /api/car-clubs/:id/provider-benefits                  — list benefits for club
-// POST   /api/car-clubs/:id/provider-benefits                  — provider creates benefit
-// POST   /api/car-clubs/:id/provider-benefits/:bId/redeem      — member redeems benefit
-// POST   /api/car-clubs/return-bonus                           — grant provider 3 credits (called from service request flow)
+// Existing routes:
+// GET    /api/car-clubs                                              — list active clubs
+// POST   /api/car-clubs/:id/join                                    — join a club
+// GET    /api/car-clubs/:id/members                                 — list members
+// POST   /api/car-clubs/:id/punch                                   — record a punch-card visit
+// GET    /api/car-clubs/:id/provider-benefits                       — list benefits for club
+// POST   /api/car-clubs/:id/provider-benefits                       — provider creates benefit
+// POST   /api/car-clubs/:id/provider-benefits/:bId/redeem           — member redeems benefit
+// POST   /api/car-clubs/return-bonus                                — grant provider 3 credits
+//
+// Program routes (points / coupons / comp services):
+// PATCH  /api/car-clubs/:id/features                                — toggle program features
+// PUT    /api/car-clubs/:id/points-config                           — upsert points earn rate
+// GET    /api/car-clubs/:id/members/:memberId/points                — balance + history
+// GET    /api/car-clubs/:id/rewards                                 — list active rewards
+// POST   /api/car-clubs/:id/rewards                                 — create reward
+// PATCH  /api/car-clubs/:id/rewards/:rewardId                      — edit / set active
+// POST   /api/car-clubs/:id/rewards/:rewardId/redeem               — member redeems (atomic)
+// POST   /api/car-clubs/:id/redemptions/:redemptionId/fulfill       — provider fulfills voucher
+// GET    /api/car-clubs/:id/coupons                                 — list active coupons
+// POST   /api/car-clubs/:id/coupons                                 — create coupon
+// POST   /api/car-clubs/:id/coupons/:code/redeem                   — validate + redeem coupon
+// GET    /api/car-clubs/:id/comp-services                           — list active comp services
+// POST   /api/car-clubs/:id/comp-services                           — create comp service
+// POST   /api/car-clubs/:id/comp-services/:csId/claim              — member claims grant
+// POST   /api/car-clubs/:id/grants/:grantId/use                    — provider marks grant used
+const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
 
 function supabase() {
@@ -21,7 +40,7 @@ function json(status, body) {
       'Content-Type': 'application/json',
       'Access-Control-Allow-Origin': '*',
       'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-      'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+      'Access-Control-Allow-Methods': 'GET, POST, PATCH, PUT, OPTIONS',
     },
     body: JSON.stringify(body),
   };
@@ -36,7 +55,7 @@ async function getUser(event, sb) {
   return { user };
 }
 
-// --- Route helpers ---
+// ─── Existing route helpers ────────────────────────────────────────────────────
 
 async function listClubs(sb, user, query) {
   let q = sb.from('car_clubs')
@@ -49,7 +68,6 @@ async function listClubs(sb, user, query) {
 
   const { data: clubs } = await q.limit(50);
 
-  // Mark which ones the user has joined
   const ids = (clubs || []).map(c => c.id);
   const { data: memberships } = ids.length
     ? await sb.from('club_memberships').select('club_id').eq('member_id', user.id).in('club_id', ids)
@@ -101,7 +119,6 @@ async function recordPunch(sb, user, clubId) {
     activity_type: 'punch',
   });
 
-  // Check if any punch-card reward threshold reached
   const { count } = await sb.from('club_activity_log')
     .select('id', { count: 'exact', head: true })
     .eq('club_id', clubId)
@@ -125,7 +142,6 @@ async function listBenefits(sb, user, clubId) {
     .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  // Mark which the user has already redeemed
   const ids = (benefits || []).map(b => b.id);
   const { data: redemptions } = ids.length
     ? await sb.from('car_club_redemptions').select('benefit_id').eq('member_id', user.id).in('benefit_id', ids)
@@ -147,7 +163,6 @@ async function createBenefit(event, sb, user, clubId) {
   const { benefit_type, description, value_text, expiry_date, max_uses } = body;
   if (!benefit_type || !description) return json(400, { error: 'benefit_type and description required' });
 
-  // Must be the club's provider or have a membership
   const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
   if (!club) return json(404, { error: 'Club not found' });
   if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can add benefits' });
@@ -178,12 +193,10 @@ async function redeemBenefit(sb, user, clubId, benefitId) {
   if (benefit.expiry_date && new Date(benefit.expiry_date) < new Date()) return json(400, { error: 'Benefit has expired' });
   if (benefit.max_uses != null && benefit.uses_count >= benefit.max_uses) return json(400, { error: 'Benefit has reached its usage limit' });
 
-  // Check membership
   const { data: membership } = await sb.from('club_memberships')
     .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).single();
   if (!membership) return json(403, { error: 'You must be a club member to redeem benefits' });
 
-  // Check for duplicate redemption
   const { data: existing } = await sb.from('car_club_redemptions')
     .select('id').eq('benefit_id', benefitId).eq('member_id', user.id).single();
   if (existing) return json(409, { error: 'You have already redeemed this benefit' });
@@ -198,20 +211,16 @@ async function redeemBenefit(sb, user, clubId, benefitId) {
   return json(200, { success: true });
 }
 
-// Called when a service request is created — grants 3 bid credits if member is a club member
-// returning to a provider they've used within the club context, once per 30-day window.
 async function grantReturnBonus(event, sb, user) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
   const { provider_id, club_id } = body;
   if (!provider_id || !club_id) return json(400, { error: 'provider_id and club_id required' });
 
-  // Verify member belongs to the club
   const { data: membership } = await sb.from('club_memberships')
     .select('id').eq('club_id', club_id).eq('member_id', user.id).eq('is_active', true).single();
   if (!membership) return json(200, { granted: false, reason: 'not_a_member' });
 
-  // 30-day dedup window
   const windowStart = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
   const { data: recent } = await sb.from('car_club_return_bonuses')
     .select('id')
@@ -221,7 +230,6 @@ async function grantReturnBonus(event, sb, user) {
     .single();
   if (recent) return json(200, { granted: false, reason: 'already_granted_this_month' });
 
-  // Grant 3 bid credits to provider
   const BONUS_CREDITS = 3;
   await sb.from('car_club_return_bonuses').insert({
     provider_id,
@@ -236,17 +244,12 @@ async function grantReturnBonus(event, sb, user) {
     status: 'granted',
     stripe_session_id: 'car_club_return_bonus',
   });
-  await sb.from('profiles').update({ bid_credits: sb.rpc('increment_bid_credits', { delta: BONUS_CREDITS }) })
-    .eq('id', provider_id);
-  // Simple increment via raw update
   await sb.rpc('increment_value', { table: 'profiles', column: 'bid_credits', row_id: provider_id, delta: BONUS_CREDITS })
     .catch(async () => {
-      // Fallback if RPC doesn't exist: fetch + update
       const { data: p } = await sb.from('profiles').select('bid_credits').eq('id', provider_id).single();
       await sb.from('profiles').update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS }).eq('id', provider_id);
     });
 
-  // Notify provider
   await sb.from('notifications').insert({
     user_id: provider_id,
     type: 'car_club_bonus',
@@ -258,7 +261,371 @@ async function grantReturnBonus(event, sb, user) {
   return json(200, { granted: true, credits: BONUS_CREDITS });
 }
 
-// --- Main dispatcher ---
+// ─── Program route helpers ─────────────────────────────────────────────────────
+
+async function patchFeatures(event, sb, user, clubId) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can update features' });
+
+  const allowed = ['points_enabled', 'coupons_enabled', 'comp_services_enabled', 'punch_card_enabled'];
+  const update = {};
+  for (const key of allowed) {
+    if (key in body) update[key] = Boolean(body[key]);
+  }
+  if (!Object.keys(update).length) return json(400, { error: 'No valid feature toggles provided' });
+
+  const { error } = await sb.from('car_clubs').update(update).eq('id', clubId);
+  if (error) return json(500, { error: error.message });
+  return json(200, { success: true, updated: update });
+}
+
+async function putPointsConfig(event, sb, user, clubId) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: club } = await sb.from('car_clubs').select('provider_id, points_enabled').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can configure points' });
+  if (!club.points_enabled) return json(400, { error: 'Points are not enabled for this club' });
+
+  const { points_per_dollar, points_label, accrual_source } = body;
+  if (points_per_dollar != null && (typeof points_per_dollar !== 'number' || points_per_dollar <= 0))
+    return json(400, { error: 'points_per_dollar must be a positive number' });
+  const VALID_SOURCES = new Set(['mcc_processed', 'manual_entry']);
+  if (accrual_source != null && !VALID_SOURCES.has(accrual_source))
+    return json(400, { error: 'invalid accrual_source' });
+
+  const row = {
+    club_id: clubId,
+    updated_at: new Date().toISOString(),
+    ...(points_per_dollar != null && { points_per_dollar }),
+    ...(points_label      != null && { points_label }),
+    ...(accrual_source    != null && { accrual_source }),
+  };
+  const { data, error } = await sb.from('club_points_config').upsert(row, { onConflict: 'club_id' }).select().single();
+  if (error) return json(500, { error: error.message });
+  return json(200, { success: true, config: data });
+}
+
+async function getMemberPoints(sb, user, clubId, memberId) {
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+
+  const isProvider = club.provider_id === user.id;
+  const isSelf = user.id === memberId;
+  if (!isProvider && !isSelf) return json(403, { error: 'Access denied' });
+
+  const { data: ledger, error } = await sb.from('club_points_ledger')
+    .select('id, delta_points, reason, dollars_spent_cents, source_ref, created_at')
+    .eq('club_id', clubId)
+    .eq('member_id', memberId)
+    .order('created_at', { ascending: false })
+    .limit(200);
+  if (error) return json(500, { error: error.message });
+
+  const balance = (ledger || []).reduce((sum, r) => sum + r.delta_points, 0);
+  return json(200, { balance, history: ledger || [] });
+}
+
+async function listRewards(sb, clubId) {
+  const { data: club } = await sb.from('car_clubs').select('id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+
+  const { data: rewards, error } = await sb.from('club_rewards')
+    .select('id, kind, title, description, point_cost, image_url, inventory_qty, active, created_at')
+    .eq('club_id', clubId)
+    .eq('active', true)
+    .order('created_at', { ascending: false });
+  if (error) return json(500, { error: error.message });
+  return json(200, { rewards: rewards || [] });
+}
+
+async function createReward(event, sb, user, clubId) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: club } = await sb.from('car_clubs').select('provider_id, points_enabled').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can create rewards' });
+  if (!club.points_enabled) return json(400, { error: 'Points are not enabled for this club' });
+
+  const { kind, title, description, point_cost, image_url, inventory_qty } = body;
+  const VALID_KINDS = new Set(['merch', 'comp_service', 'other']);
+  if (!title) return json(400, { error: 'title is required' });
+  if (point_cost == null || typeof point_cost !== 'number' || point_cost < 0)
+    return json(400, { error: 'point_cost must be a non-negative number' });
+  if (kind && !VALID_KINDS.has(kind)) return json(400, { error: 'invalid kind' });
+
+  const { data, error } = await sb.from('club_rewards').insert({
+    club_id: clubId,
+    kind: kind || 'other',
+    title,
+    description: description || null,
+    point_cost,
+    image_url: image_url || null,
+    inventory_qty: inventory_qty != null ? inventory_qty : null,
+  }).select().single();
+  if (error) return json(500, { error: error.message });
+  return json(201, { success: true, reward: data });
+}
+
+async function patchReward(event, sb, user, clubId, rewardId) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can edit rewards' });
+
+  const allowed = ['kind', 'title', 'description', 'point_cost', 'image_url', 'inventory_qty', 'active'];
+  const update = {};
+  for (const key of allowed) {
+    if (key in body) update[key] = body[key];
+  }
+  if (!Object.keys(update).length) return json(400, { error: 'No updatable fields provided' });
+
+  const { data, error } = await sb.from('club_rewards')
+    .update(update).eq('id', rewardId).eq('club_id', clubId).select().single();
+  if (error) return json(500, { error: error.message });
+  if (!data) return json(404, { error: 'Reward not found' });
+  return json(200, { success: true, reward: data });
+}
+
+// Replicates redeem_reward() SECURITY DEFINER RPC in JS — auth.uid() is null
+// under service role so the RPC cannot be called directly.
+async function redeemReward(sb, user, clubId, rewardId) {
+  const { data: club } = await sb.from('car_clubs').select('points_enabled').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (!club.points_enabled) return json(400, { error: 'Points are not enabled for this club' });
+
+  const { data: membership } = await sb.from('club_memberships')
+    .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).single();
+  if (!membership) return json(403, { error: 'Not a member of this club' });
+
+  const { data: reward } = await sb.from('club_rewards')
+    .select('id, point_cost, inventory_qty, active').eq('id', rewardId).eq('club_id', clubId).single();
+  if (!reward || !reward.active) return json(400, { error: 'Reward unavailable' });
+  if (reward.inventory_qty != null && reward.inventory_qty <= 0) return json(400, { error: 'Reward out of stock' });
+
+  const { data: ledger } = await sb.from('club_points_ledger')
+    .select('delta_points').eq('club_id', clubId).eq('member_id', user.id);
+  const balance = (ledger || []).reduce((sum, r) => sum + r.delta_points, 0);
+  if (balance < reward.point_cost)
+    return json(400, { error: `Not enough points (${balance} of ${reward.point_cost})` });
+
+  const { error: debitErr } = await sb.from('club_points_ledger').insert({
+    club_id: clubId, member_id: user.id,
+    delta_points: -reward.point_cost, reason: 'redeem', source_ref: rewardId,
+  });
+  if (debitErr) return json(500, { error: debitErr.message });
+
+  const code = crypto.randomBytes(4).toString('hex').toUpperCase();
+  const { data: redemption, error: redErr } = await sb.from('club_points_redemptions').insert({
+    club_id: clubId, member_id: user.id, reward_id: rewardId,
+    point_cost: reward.point_cost, voucher_code: code,
+  }).select('id').single();
+  if (redErr) return json(500, { error: redErr.message });
+
+  if (reward.inventory_qty != null) {
+    await sb.from('club_rewards')
+      .update({ inventory_qty: reward.inventory_qty - 1 }).eq('id', rewardId);
+  }
+
+  return json(200, { success: true, redemption_id: redemption.id, voucher_code: code });
+}
+
+async function fulfillRedemption(sb, user, clubId, redemptionId) {
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can fulfill redemptions' });
+
+  const { data, error } = await sb.from('club_points_redemptions')
+    .update({ status: 'fulfilled', fulfilled_at: new Date().toISOString() })
+    .eq('id', redemptionId).eq('club_id', clubId).select().single();
+  if (error) return json(500, { error: error.message });
+  if (!data) return json(404, { error: 'Redemption not found' });
+  return json(200, { success: true });
+}
+
+async function listCoupons(sb, clubId) {
+  const { data: club } = await sb.from('car_clubs').select('id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+
+  const { data: coupons, error } = await sb.from('club_coupons')
+    .select('id, code, title, discount_type, discount_value, min_spend_cents, eligible_services, max_redemptions, per_member_limit, starts_at, expires_at, active, created_at')
+    .eq('club_id', clubId)
+    .eq('active', true)
+    .order('created_at', { ascending: false });
+  if (error) return json(500, { error: error.message });
+  return json(200, { coupons: coupons || [] });
+}
+
+async function createCoupon(event, sb, user, clubId) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: club } = await sb.from('car_clubs').select('provider_id, coupons_enabled').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can create coupons' });
+  if (!club.coupons_enabled) return json(400, { error: 'Coupons are not enabled for this club' });
+
+  const { code, title, discount_type, discount_value, min_spend_cents,
+          eligible_services, max_redemptions, per_member_limit, starts_at, expires_at } = body;
+  const VALID_DISCOUNT = new Set(['percent', 'flat']);
+  if (!code) return json(400, { error: 'code is required' });
+  if (!VALID_DISCOUNT.has(discount_type)) return json(400, { error: 'discount_type must be percent or flat' });
+  if (discount_value == null || typeof discount_value !== 'number' || discount_value <= 0)
+    return json(400, { error: 'discount_value must be a positive number' });
+
+  const { data, error } = await sb.from('club_coupons').insert({
+    club_id: clubId, code, title: title || null, discount_type, discount_value,
+    min_spend_cents: min_spend_cents || null,
+    eligible_services: Array.isArray(eligible_services) ? eligible_services : null,
+    max_redemptions: max_redemptions || null,
+    per_member_limit: per_member_limit || null,
+    starts_at: starts_at || null,
+    expires_at: expires_at || null,
+  }).select().single();
+  if (error) {
+    if (error.code === '23505') return json(409, { error: 'Coupon code already exists for this club' });
+    return json(500, { error: error.message });
+  }
+  return json(201, { success: true, coupon: data });
+}
+
+async function redeemCoupon(event, sb, user, clubId, couponCode) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: coupon } = await sb.from('club_coupons')
+    .select('*').eq('club_id', clubId).eq('code', couponCode).single();
+  if (!coupon || !coupon.active) return json(404, { error: 'Coupon not found or inactive' });
+
+  const now = new Date();
+  if (coupon.starts_at && new Date(coupon.starts_at) > now) return json(400, { error: 'Coupon not yet active' });
+  if (coupon.expires_at && new Date(coupon.expires_at) < now) return json(400, { error: 'Coupon has expired' });
+
+  if (coupon.max_redemptions != null) {
+    const { count } = await sb.from('club_coupon_redemptions')
+      .select('id', { count: 'exact', head: true }).eq('coupon_id', coupon.id);
+    if (count >= coupon.max_redemptions) return json(400, { error: 'Coupon has reached its usage limit' });
+  }
+
+  if (coupon.per_member_limit != null) {
+    const { count: myCount } = await sb.from('club_coupon_redemptions')
+      .select('id', { count: 'exact', head: true }).eq('coupon_id', coupon.id).eq('member_id', user.id);
+    if (myCount >= coupon.per_member_limit) return json(400, { error: 'You have reached your redemption limit for this coupon' });
+  }
+
+  const spendCents = body.spend_cents ?? null;
+  if (coupon.min_spend_cents != null && (spendCents == null || spendCents < coupon.min_spend_cents))
+    return json(400, { error: `Minimum spend of ${coupon.min_spend_cents} cents required` });
+
+  const amountDiscountedCents = spendCents != null
+    ? (coupon.discount_type === 'percent'
+        ? Math.round(spendCents * coupon.discount_value / 100)
+        : coupon.discount_value)
+    : null;
+
+  const { error } = await sb.from('club_coupon_redemptions').insert({
+    coupon_id: coupon.id, club_id: clubId, member_id: user.id,
+    job_id: body.job_id || null,
+    amount_discounted_cents: amountDiscountedCents,
+  });
+  if (error) return json(500, { error: error.message });
+  return json(200, {
+    success: true,
+    discount_type: coupon.discount_type,
+    discount_value: coupon.discount_value,
+    amount_discounted_cents: amountDiscountedCents,
+  });
+}
+
+async function listCompServices(sb, clubId) {
+  const { data: club } = await sb.from('car_clubs').select('id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+
+  const { data: services, error } = await sb.from('club_comp_services')
+    .select('id, title, description, service_type, condition_min_spend_cents, per_member_limit, starts_at, expires_at, active, created_at')
+    .eq('club_id', clubId)
+    .eq('active', true)
+    .order('created_at', { ascending: false });
+  if (error) return json(500, { error: error.message });
+  return json(200, { comp_services: services || [] });
+}
+
+async function createCompService(event, sb, user, clubId) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const { data: club } = await sb.from('car_clubs').select('provider_id, comp_services_enabled').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can create comp services' });
+  if (!club.comp_services_enabled) return json(400, { error: 'Comp services are not enabled for this club' });
+
+  const { title, description, service_type, condition_min_spend_cents,
+          per_member_limit, starts_at, expires_at } = body;
+  if (!title) return json(400, { error: 'title is required' });
+
+  const { data, error } = await sb.from('club_comp_services').insert({
+    club_id: clubId, title,
+    description: description || null,
+    service_type: service_type || null,
+    condition_min_spend_cents: condition_min_spend_cents || null,
+    per_member_limit: per_member_limit || null,
+    starts_at: starts_at || null,
+    expires_at: expires_at || null,
+  }).select().single();
+  if (error) return json(500, { error: error.message });
+  return json(201, { success: true, comp_service: data });
+}
+
+async function claimCompService(sb, user, clubId, csId) {
+  const { data: membership } = await sb.from('club_memberships')
+    .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).single();
+  if (!membership) return json(403, { error: 'Not a member of this club' });
+
+  const { data: cs } = await sb.from('club_comp_services')
+    .select('*').eq('id', csId).eq('club_id', clubId).single();
+  if (!cs || !cs.active) return json(404, { error: 'Comp service not found or inactive' });
+
+  const now = new Date();
+  if (cs.starts_at && new Date(cs.starts_at) > now) return json(400, { error: 'Comp service not yet active' });
+  if (cs.expires_at && new Date(cs.expires_at) < now) return json(400, { error: 'Comp service has expired' });
+
+  if (cs.per_member_limit != null) {
+    const { count } = await sb.from('club_comp_service_grants')
+      .select('id', { count: 'exact', head: true }).eq('comp_service_id', csId).eq('member_id', user.id);
+    if (count >= cs.per_member_limit)
+      return json(400, { error: 'You have reached the claim limit for this service' });
+  }
+
+  const { data, error } = await sb.from('club_comp_service_grants').insert({
+    comp_service_id: csId, club_id: clubId, member_id: user.id,
+  }).select('id').single();
+  if (error) return json(500, { error: error.message });
+  return json(200, { success: true, grant_id: data.id });
+}
+
+async function useGrant(sb, user, clubId, grantId) {
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can mark grants as used' });
+
+  const { data, error } = await sb.from('club_comp_service_grants')
+    .update({ status: 'used', used_at: new Date().toISOString() })
+    .eq('id', grantId).eq('club_id', clubId).eq('status', 'granted')
+    .select().single();
+  if (error) return json(500, { error: error.message });
+  if (!data) return json(404, { error: 'Grant not found or already used' });
+  return json(200, { success: true });
+}
+
+// ─── Main dispatcher ──────────────────────────────────────────────────────────
 
 exports.handler = async (event) => {
   if (event.httpMethod === 'OPTIONS') return json(200, {});
@@ -280,20 +647,57 @@ exports.handler = async (event) => {
   // /api/car-clubs/:id/...
   const segments = path.split('/');
   const clubId = segments[0];
-  const sub = segments[1];       // join | members | punch | provider-benefits
-  const benefitId = segments[2]; // for redeem
+  const sub = segments[1];
+  const seg2 = segments[2];
+  const seg3 = segments[3];
 
   if (!clubId) return json(404, { error: 'Club ID required' });
 
-  if (method === 'POST' && sub === 'join')                return joinClub(sb, auth.user, clubId);
-  if (method === 'GET'  && sub === 'members')             return listMembers(sb, clubId);
-  if (method === 'POST' && sub === 'punch')               return recordPunch(sb, auth.user, clubId);
-  if (method === 'GET'  && sub === 'provider-benefits')   return listBenefits(sb, auth.user, clubId);
-  if (method === 'POST' && sub === 'provider-benefits' && !benefitId) return createBenefit(event, sb, auth.user, clubId);
-  if (method === 'POST' && sub === 'provider-benefits' && benefitId === 'redeem')
-    return json(400, { error: 'Include benefit ID: /provider-benefits/:id/redeem' });
-  if (method === 'POST' && sub === 'provider-benefits' && segments[3] === 'redeem')
-    return redeemBenefit(sb, auth.user, clubId, benefitId);
+  // Existing routes
+  if (method === 'POST' && sub === 'join')  return joinClub(sb, auth.user, clubId);
+  if (method === 'POST' && sub === 'punch') return recordPunch(sb, auth.user, clubId);
+
+  if (sub === 'members') {
+    if (method === 'GET' && seg2 && seg3 === 'points') return getMemberPoints(sb, auth.user, clubId, seg2);
+    if (method === 'GET' && !seg2) return listMembers(sb, clubId);
+  }
+
+  if (sub === 'provider-benefits') {
+    if (method === 'GET') return listBenefits(sb, auth.user, clubId);
+    if (method === 'POST' && !seg2) return createBenefit(event, sb, auth.user, clubId);
+    if (method === 'POST' && seg2 === 'redeem')
+      return json(400, { error: 'Include benefit ID: /provider-benefits/:id/redeem' });
+    if (method === 'POST' && seg3 === 'redeem') return redeemBenefit(sb, auth.user, clubId, seg2);
+  }
+
+  // Program routes
+  if (sub === 'features' && method === 'PATCH')       return patchFeatures(event, sb, auth.user, clubId);
+  if (sub === 'points-config' && method === 'PUT')    return putPointsConfig(event, sb, auth.user, clubId);
+
+  if (sub === 'rewards') {
+    if (method === 'GET'   && !seg2)                  return listRewards(sb, clubId);
+    if (method === 'POST'  && !seg2)                  return createReward(event, sb, auth.user, clubId);
+    if (method === 'PATCH' && seg2 && !seg3)          return patchReward(event, sb, auth.user, clubId, seg2);
+    if (method === 'POST'  && seg2 && seg3 === 'redeem') return redeemReward(sb, auth.user, clubId, seg2);
+  }
+
+  if (sub === 'redemptions' && seg3 === 'fulfill' && method === 'POST')
+    return fulfillRedemption(sb, auth.user, clubId, seg2);
+
+  if (sub === 'coupons') {
+    if (method === 'GET'  && !seg2)                   return listCoupons(sb, clubId);
+    if (method === 'POST' && !seg2)                   return createCoupon(event, sb, auth.user, clubId);
+    if (method === 'POST' && seg2 && seg3 === 'redeem') return redeemCoupon(event, sb, auth.user, clubId, seg2);
+  }
+
+  if (sub === 'comp-services') {
+    if (method === 'GET'  && !seg2)                   return listCompServices(sb, clubId);
+    if (method === 'POST' && !seg2)                   return createCompService(event, sb, auth.user, clubId);
+    if (method === 'POST' && seg2 && seg3 === 'claim') return claimCompService(sb, auth.user, clubId, seg2);
+  }
+
+  if (sub === 'grants' && seg3 === 'use' && method === 'POST')
+    return useGrant(sb, auth.user, clubId, seg2);
 
   return json(404, { error: 'Unknown car-clubs route' });
 };
