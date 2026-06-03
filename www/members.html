@@ -2157,46 +2157,82 @@
     </div>
 
     <!-- Add Prospect Vehicle Modal -->
-    <div id="add-prospect-modal" class="modal" style="display:none;">
-      <div class="modal-content" style="max-width: 600px;">
+    <div id="add-prospect-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center;padding:24px;overflow-y:auto;">
+      <div class="modal" style="max-width:720px;display:flex;flex-direction:column;max-height:90vh;overflow:hidden;">
         <div class="modal-header">
-          <h2>Add Prospect Vehicle</h2>
+          <h2 style="display:flex;align-items:center;gap:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 8-2 2-1.5-3.7A2 2 0 0 0 15.646 5H8.4a2 2 0 0 0-1.903 1.257L5 10 3 8"/><path d="M7 14h.01"/><path d="M17 14h.01"/><rect width="18" height="8" x="3" y="10" rx="2"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>
+            Add Prospect Vehicle
+          </h2>
           <button class="modal-close" onclick="closeAddProspectModal()">×</button>
         </div>
-        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-          <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px;">Quick VIN Lookup (Optional)</h4>
-            <div style="display: flex; gap: 12px;">
-              <input type="text" id="prospect-vin-lookup" placeholder="Enter VIN to auto-fill specs" maxlength="17" style="flex: 1; padding: 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); text-transform: uppercase;">
-              <button type="button" class="btn btn-secondary" onclick="lookupProspectVIN()" id="vin-lookup-btn">
-                <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Lookup
-              </button>
-            </div>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">Uses free NHTSA database - fills year, make, model, and specs.</p>
-          </div>
 
-          <form id="add-prospect-form" onsubmit="saveProspectVehicle(event)">
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--accent-gold);">Vehicle Details</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <form id="add-prospect-form" onsubmit="saveProspectVehicle(event)" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+          <div class="modal-body" style="overflow-y:auto;flex:1;">
+            <!-- VIN Lookup -->
+            <div style="margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <h4 style="font-size:0.9rem;font-weight:600;margin-bottom:12px;">Quick VIN Lookup (Optional)</h4>
+              <div style="display:flex;gap:12px;">
+                <input type="text" id="prospect-vin-lookup" placeholder="Enter VIN to auto-fill specs" maxlength="17" style="flex:1;padding:12px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);text-transform:uppercase;">
+                <button type="button" class="btn btn-secondary" onclick="lookupProspectVIN()" id="vin-lookup-btn">
+                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Lookup
+                </button>
+              </div>
+              <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">Uses free NHTSA database — fills year, make, model, and specs.</p>
+            </div>
+
+            <!-- Section divider -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+              <div style="flex:1;height:1px;background:var(--border-subtle);"></div>
+              <span style="font-size:0.72rem;font-weight:600;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;">Vehicle Details</span>
+              <div style="flex:1;height:1px;background:var(--border-subtle);"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
               <div class="form-group">
                 <label>Year *</label>
-                <input type="number" id="prospect-year" required min="1900" max="2030" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-year" required style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+                  <option value="">Select year...</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Make *</label>
-                <input type="text" id="prospect-make" required placeholder="e.g. Toyota" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-make" required onchange="loadProspectModels()" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+                  <option value="">Select make...</option>
+                  <option>Toyota</option><option>Honda</option><option>Ford</option>
+                  <option>Chevrolet</option><option>BMW</option><option>Mercedes-Benz</option>
+                  <option>Audi</option><option>Nissan</option><option>Hyundai</option>
+                  <option>Kia</option><option>Subaru</option><option>Jeep</option>
+                  <option>Ram</option><option>GMC</option><option>Cadillac</option>
+                  <option>Lexus</option><option>Acura</option><option>Infiniti</option>
+                  <option>Volvo</option><option>Mazda</option><option>Porsche</option>
+                  <option>Tesla</option><option>Rivian</option><option>Lucid</option>
+                  <option>Volkswagen</option><option>MINI</option><option>Land Rover</option>
+                  <option>Jaguar</option><option>Alfa Romeo</option><option>Maserati</option>
+                  <option>Ferrari</option><option>Lamborghini</option><option>Rolls-Royce</option>
+                  <option>Bentley</option><option>Mitsubishi</option><option>Chrysler</option>
+                  <option>Dodge</option><option>Lincoln</option><option>Buick</option>
+                  <option>Genesis</option><option>Polestar</option><option>Fisker</option>
+                  <option>Scout</option><option>Fiat</option><option>Pontiac</option>
+                  <option>Saturn</option><option>Oldsmobile</option><option>Scion</option>
+                  <option>Saab</option><option>Suzuki</option><option>Isuzu</option>
+                  <option>Hummer</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Model *</label>
-                <input type="text" id="prospect-model" required placeholder="e.g. Camry" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-model" required style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+                  <option value="">Select a make first</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Trim</label>
-                <input type="text" id="prospect-trim" placeholder="e.g. XLE, Sport" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-trim" placeholder="e.g. XLE, Sport" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Body Style</label>
-                <select id="prospect-body-style" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-body-style" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
                   <option value="">Select...</option>
                   <option value="Sedan">Sedan</option>
                   <option value="SUV">SUV</option>
@@ -2211,11 +2247,11 @@
               </div>
               <div class="form-group">
                 <label>Engine</label>
-                <input type="text" id="prospect-engine" placeholder="e.g. 2.5L 4-cyl" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-engine" placeholder="e.g. 2.5L 4-cyl" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Fuel Type</label>
-                <select id="prospect-fuel-type" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-fuel-type" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
                   <option value="">Select...</option>
                   <option value="Gasoline">Gasoline</option>
                   <option value="Diesel">Diesel</option>
@@ -2226,31 +2262,31 @@
               </div>
               <div class="form-group">
                 <label>Mileage</label>
-                <input type="number" id="prospect-mileage" placeholder="e.g. 45000" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-mileage" placeholder="e.g. 45000" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Asking Price ($)</label>
-                <input type="number" id="prospect-price" placeholder="e.g. 25000" step="0.01" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-price" placeholder="e.g. 25000" step="0.01" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Exterior Color</label>
-                <input type="text" id="prospect-ext-color" placeholder="e.g. Silver" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-ext-color" placeholder="e.g. Silver" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Interior Color</label>
-                <input type="text" id="prospect-int-color" placeholder="e.g. Black leather" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-int-color" placeholder="e.g. Black leather" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>VIN (if known)</label>
-                <input type="text" id="prospect-vin" placeholder="17-character VIN" maxlength="17" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); text-transform: uppercase;">
+                <input type="text" id="prospect-vin" placeholder="17-character VIN" maxlength="17" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);text-transform:uppercase;">
               </div>
             </div>
 
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Seller Information</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <h4 style="font-size:0.95rem;font-weight:600;margin:24px 0 16px;color:var(--accent-gold);">Seller Information</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
               <div class="form-group">
                 <label>Seller Type</label>
-                <select id="prospect-seller-type" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-seller-type" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
                   <option value="">Select...</option>
                   <option value="dealer">Dealer</option>
                   <option value="private">Private Seller</option>
@@ -2260,63 +2296,63 @@
               </div>
               <div class="form-group">
                 <label>Seller Name</label>
-                <input type="text" id="prospect-seller-name" placeholder="Dealer or seller name" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-seller-name" placeholder="Dealer or seller name" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
-              <div class="form-group" style="grid-column: 1 / -1;">
+              <div class="form-group" style="grid-column:1/-1;">
                 <label>Location</label>
-                <input type="text" id="prospect-location" placeholder="City, State or Address" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-location" placeholder="City, State or Address" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
-              <div class="form-group" style="grid-column: 1 / -1;">
+              <div class="form-group" style="grid-column:1/-1;">
                 <label>Listing URL</label>
-                <input type="url" id="prospect-listing-url" placeholder="https://..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="url" id="prospect-listing-url" placeholder="https://..." style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
             </div>
 
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Carfax / History (Manual Entry)</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <h4 style="font-size:0.95rem;font-weight:600;margin:24px 0 16px;color:var(--accent-gold);">Carfax / History (Manual Entry)</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
               <div class="form-group">
                 <label>Accidents</label>
-                <input type="number" id="prospect-accidents" placeholder="0" min="0" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-accidents" placeholder="0" min="0" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Previous Owners</label>
-                <input type="number" id="prospect-owners" placeholder="1" min="1" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-owners" placeholder="1" min="1" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
-              <div class="form-group" style="display: flex; flex-direction: column; justify-content: center;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                  <input type="checkbox" id="prospect-service-records" style="width: 18px; height: 18px; accent-color: var(--accent-gold);">
+              <div class="form-group" style="display:flex;flex-direction:column;justify-content:center;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" id="prospect-service-records" style="width:18px;height:18px;accent-color:var(--accent-gold);">
                   <span>Has Service Records</span>
                 </label>
               </div>
             </div>
-            <div class="form-group" style="margin-top: 12px;">
+            <div class="form-group" style="margin-top:12px;">
               <label>Carfax/History Notes</label>
-              <textarea id="prospect-carfax-notes" rows="2" placeholder="Any notes from the Carfax report..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+              <textarea id="prospect-carfax-notes" rows="2" placeholder="Any notes from the Carfax report..." style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);resize:vertical;"></textarea>
             </div>
 
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Your Assessment</h4>
+            <h4 style="font-size:0.95rem;font-weight:600;margin:24px 0 16px;color:var(--accent-gold);">Your Assessment</h4>
             <div class="form-group">
               <label>Your Rating</label>
-              <div id="prospect-rating-stars" style="display: flex; gap: 8px; margin-top: 8px;">
-                <span class="rating-star" data-rating="1" onclick="setProspectRating(1)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="2" onclick="setProspectRating(2)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="3" onclick="setProspectRating(3)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="4" onclick="setProspectRating(4)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="5" onclick="setProspectRating(5)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+              <div id="prospect-rating-stars" style="display:flex;gap:8px;margin-top:8px;">
+                <span class="rating-star" data-rating="1" onclick="setProspectRating(1)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="2" onclick="setProspectRating(2)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="3" onclick="setProspectRating(3)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="4" onclick="setProspectRating(4)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="5" onclick="setProspectRating(5)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
               </div>
               <input type="hidden" id="prospect-rating" value="">
             </div>
-            <div class="form-group" style="margin-top: 16px;">
+            <div class="form-group" style="margin-top:16px;">
               <label>Personal Notes</label>
-              <textarea id="prospect-notes" rows="3" placeholder="Your thoughts on this vehicle..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+              <textarea id="prospect-notes" rows="3" placeholder="Your thoughts on this vehicle..." style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);resize:vertical;"></textarea>
             </div>
+          </div>
 
-            <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
-              <button type="button" class="btn btn-secondary" onclick="closeAddProspectModal()">Cancel</button>
-              <button type="submit" class="btn btn-primary">Save Prospect</button>
-            </div>
-          </form>
-        </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeAddProspectModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Prospect</button>
+          </div>
+        </form>
       </div>
     </div>
 
