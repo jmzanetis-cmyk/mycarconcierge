@@ -3697,7 +3697,8 @@
     async function loadFleetSection() {
       if (!currentUser) return;
       
-      const { owned, memberOf } = await getMyFleets(currentUser.id);
+      const { data: { owned, memberOf } = {}, error: fleetsError } = await getMyFleets(currentUser.id);
+      if (fleetsError) console.error('loadFleetSection:', fleetsError);
       const allFleets = [...(owned || []), ...(memberOf || [])];
       
       if (allFleets.length === 0) {
