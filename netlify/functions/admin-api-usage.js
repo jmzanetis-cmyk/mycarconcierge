@@ -4,7 +4,7 @@
 //   GET    /api/admin/api-usage        — aggregate stats + top-key list
 //   DELETE /api/admin/api-keys/:id     — revoke an API key
 //
-// Auth: x-admin-password or x-admin-token
+// Auth: Authorization: Bearer <supabase_token|team_token>
 
 'use strict';
 
@@ -17,21 +17,14 @@ function parsePath(event) {
     .replace(/^\/+|\/+$/g, '');
 }
 
-function checkAuth(event) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const incomingPw = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const incomingTk = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
-  const teamTokens = (process.env.ADMIN_TEAM_TOKENS || '').split(',').map(t => t.trim()).filter(Boolean);
-  return (adminPassword && incomingPw === adminPassword)
-      || (incomingTk && teamTokens.includes(incomingTk));
-}
-
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
-  if (!checkAuth(event)) return utils.errorResponse(401, 'Unauthorized');
 
   const supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
+
+  const caller = await utils.authenticateBearerAdminOrTeam(event, supabase);
+  if (!caller) return utils.errorResponse(401, 'Unauthorized');
 
   const path   = parsePath(event);
   const method = event.httpMethod;

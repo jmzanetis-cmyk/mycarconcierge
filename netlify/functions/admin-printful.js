@@ -13,7 +13,7 @@
 //   POST /mockup                 — generate mockup
 //
 // Requires PRINTFUL_API_KEY env var.
-// Auth: x-admin-password or x-admin-token
+// Auth: Authorization: Bearer <supabase_token|team_token>
 
 'use strict';
 
@@ -26,15 +26,6 @@ function parsePath(event) {
     .replace(/^\/?\.netlify\/functions\/admin-printful\/?/, '')
     .replace(/^\/api\/admin\/printful\/?/, '')
     .replace(/^\/+|\/+$/g, '');
-}
-
-function checkAuth(event) {
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  const incomingPw = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const incomingTk = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
-  const teamTokens = (process.env.ADMIN_TEAM_TOKENS || '').split(',').map(t => t.trim()).filter(Boolean);
-  return (adminPassword && incomingPw === adminPassword)
-      || (incomingTk && teamTokens.includes(incomingTk));
 }
 
 async function printfulRequest(method, endpoint, body) {
@@ -59,7 +50,12 @@ async function printfulRequest(method, endpoint, body) {
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
-  if (!checkAuth(event)) return utils.errorResponse(401, 'Unauthorized');
+
+  const supabase = utils.createSupabaseClient();
+  if (!supabase) return utils.errorResponse(500, 'Server configuration error');
+
+  const caller = await utils.authenticateBearerAdminOrTeam(event, supabase);
+  if (!caller) return utils.errorResponse(401, 'Unauthorized');
 
   if (!process.env.PRINTFUL_API_KEY) {
     return utils.errorResponse(503, 'Printful integration not configured — set PRINTFUL_API_KEY in environment variables');

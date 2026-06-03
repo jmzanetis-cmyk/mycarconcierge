@@ -49,6 +49,31 @@ function createSupabaseClient() {
   return createClient(supabaseUrl, serviceKey);
 }
 
+// Bearer-token auth for team-accessible endpoints.
+// Accepts two kinds of callers via Authorization: Bearer <token>:
+//   1. ADMIN_TEAM_TOKENS entry (CSV env var) → { type: 'team' } — no DB round-trip.
+//   2. Supabase JWT where profiles.role === 'admin' → { type: 'admin', user }.
+// Returns null if the token doesn't match either.
+async function authenticateBearerAdminOrTeam(event, supabase) {
+  var authHeader = (event.headers['authorization'] || event.headers['Authorization'] || '').trim();
+  if (!authHeader.startsWith('Bearer ')) return null;
+  var token = authHeader.slice(7).trim();
+  if (!token) return null;
+
+  var teamTokens = (process.env.ADMIN_TEAM_TOKENS || '').split(',').map(function(t) { return t.trim(); }).filter(Boolean);
+  if (teamTokens.includes(token)) return { type: 'team' };
+
+  if (!supabase) return null;
+  var authResult = await supabase.auth.getUser(token);
+  var user = authResult.data && authResult.data.user;
+  if (authResult.error || !user) return null;
+  var profileResult = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profileResult.error) return null;
+  var profile = profileResult.data;
+  if (!profile || profile.role !== 'admin') return null;
+  return { type: 'admin', user: user };
+}
+
 // Bearer-token admin auth: verifies JWT, then checks profiles.role === 'admin'.
 // Used by admin Netlify functions that have migrated off the static ADMIN_PASSWORD.
 async function authenticateBearerAdmin(event, supabase) {
@@ -153,6 +178,7 @@ module.exports = {
   verifyGuestToken: verifyGuestToken,
   extractPathParam: extractPathParam,
   createSupabaseClient: createSupabaseClient,
+  authenticateBearerAdminOrTeam: authenticateBearerAdminOrTeam,
   authenticateBearerAdmin: authenticateBearerAdmin,
   errorResponse: errorResponse,
   successResponse: successResponse,
