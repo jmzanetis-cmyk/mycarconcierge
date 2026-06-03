@@ -3047,10 +3047,16 @@
         <button class="btn btn-secondary" onclick="exportPayments()">Export CSV</button>
       </div>
 
+      <div id="payments-bulk-bar" style="display:none;align-items:center;gap:12px;padding:10px 16px;background:var(--accent-blue-soft);border:1px solid var(--accent-blue);border-radius:8px;margin-bottom:12px;">
+        <span id="payments-bulk-count" style="font-size:0.88rem;color:var(--accent-blue);font-weight:600;"></span>
+        <button class="btn btn-sm btn-danger" onclick="bulkDeletePayments()">Delete Selected</button>
+        <button class="btn btn-sm btn-secondary" onclick="clearPaymentSelection()">Clear</button>
+      </div>
       <div class="card" style="padding:0;overflow:hidden;">
         <table>
           <thead>
             <tr>
+              <th style="width:32px;"><input type="checkbox" id="payments-select-all" onchange="toggleAllPayments(this.checked)" title="Select all"></th>
               <th class="sortable-th" data-sort="package" onclick="toggleSort('payments','package')">Package <span class="sort-caret">⇅</span></th>
               <th class="sortable-th" data-sort="member" onclick="toggleSort('payments','member')">Member <span class="sort-caret">⇅</span></th>
               <th class="sortable-th" data-sort="provider" onclick="toggleSort('payments','provider')">Provider <span class="sort-caret">⇅</span></th>
@@ -3061,7 +3067,7 @@
             </tr>
           </thead>
           <tbody id="payments-table">
-            <tr><td colspan="7" class="empty-state">No payments</td></tr>
+            <tr><td colspan="8" class="empty-state">No payments</td></tr>
           </tbody>
         </table>
         <div id="payments-pagination"></div>

@@ -26,6 +26,7 @@
     let applications = [];
     let providers = [];
     let payments = [];
+    let selectedPaymentIds = new Set();
     let disputes = [];
     let tickets = [];
     let members = [];
@@ -408,10 +409,12 @@
       renderApplications();
     };
     globalThis.changePaymentsPage = function(delta) {
+      selectedPaymentIds.clear();
       paginationState.payments.page = Math.max(1, paginationState.payments.page + delta);
       renderPayments();
     };
     globalThis.changePaymentsPageSize = function(size) {
+      selectedPaymentIds.clear();
       paginationState.payments.limit = Number(size);
       paginationState.payments.page = 1;
       renderPayments();
@@ -3844,12 +3847,12 @@
 
       // Task #281 — show load error before falling through to "No payments".
       if (loadErrors.payments) {
-        renderTableLoadErrorRow('payments-table', 7, 'payments', 'loadPayments()');
+        renderTableLoadErrorRow('payments-table', 8, 'payments', 'loadPayments()');
         return;
       }
 
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No payments</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No payments</td></tr>';
         return;
       }
 
@@ -3867,6 +3870,7 @@
 
       tbody.innerHTML = pagedPayments.map(p => `
         <tr>
+          <td><input type="checkbox" class="payment-row-cb" data-id="${p.id}" ${selectedPaymentIds.has(p.id) ? 'checked' : ''} onchange="onPaymentRowCheck(this)"></td>
           <td>${p.maintenance_packages?.title || 'Package'}</td>
           <td>${p.member?.full_name || 'Member'}</td>
           <td>${p.provider?.full_name || 'Provider'}</td>
@@ -3881,8 +3885,74 @@
         </tr>
       `).join('');
       updateSortIndicators('payments-table', sortState.payments);
+      syncPaymentsBulkBar();
       const payPagEl = document.getElementById('payments-pagination');
       if (payPagEl) payPagEl.innerHTML = renderPaginationControls(paginationState.payments, 'changePaymentsPage', 'changePaymentsPageSize');
+    }
+
+    function syncPaymentsBulkBar() {
+      const bar = document.getElementById('payments-bulk-bar');
+      const countEl = document.getElementById('payments-bulk-count');
+      const selectAll = document.getElementById('payments-select-all');
+      const n = selectedPaymentIds.size;
+      if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+      if (countEl) countEl.textContent = `${n} payment${n === 1 ? '' : 's'} selected`;
+      if (selectAll) {
+        const pageIds = [...document.querySelectorAll('.payment-row-cb')].map(cb => cb.dataset.id);
+        const allChecked = pageIds.length > 0 && pageIds.every(id => selectedPaymentIds.has(id));
+        const someChecked = pageIds.some(id => selectedPaymentIds.has(id));
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+      }
+    }
+
+    function onPaymentRowCheck(cb) {
+      const id = cb.dataset.id;
+      if (cb.checked) selectedPaymentIds.add(id); else selectedPaymentIds.delete(id);
+      syncPaymentsBulkBar();
+    }
+
+    function toggleAllPayments(checked) {
+      document.querySelectorAll('.payment-row-cb').forEach(cb => {
+        if (checked) selectedPaymentIds.add(cb.dataset.id); else selectedPaymentIds.delete(cb.dataset.id);
+        cb.checked = checked;
+      });
+      syncPaymentsBulkBar();
+    }
+
+    function clearPaymentSelection() {
+      selectedPaymentIds.clear();
+      document.querySelectorAll('.payment-row-cb').forEach(cb => { cb.checked = false; });
+      syncPaymentsBulkBar();
+    }
+
+    async function bulkDeletePayments() {
+      const ids = [...selectedPaymentIds];
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} payment${ids.length === 1 ? '' : 's'}?\n\nThis cannot be undone.`)) return;
+
+      // Check for open disputes via package_id across all selected payments
+      const selectedPayments = payments.filter(p => ids.includes(p.id));
+      const packageIds = selectedPayments.map(p => p.package_id).filter(Boolean);
+      if (packageIds.length) {
+        const { data: openDisputes, error: disputeErr } = await supabaseClient
+          .from('disputes').select('id').in('package_id', packageIds).eq('status', 'open').limit(1);
+        if (disputeErr) { showToast('Could not check disputes: ' + disputeErr.message, 'error'); return; }
+        if (openDisputes && openDisputes.length > 0) {
+          showToast('Cannot delete: one or more selected payments have open disputes. Resolve disputes first.', 'error');
+          return;
+        }
+      }
+
+      let failed = 0;
+      for (const id of ids) {
+        const { error } = await supabaseClient.rpc('admin_delete_payment', { p_id: id });
+        if (error) failed++;
+      }
+      selectedPaymentIds.clear();
+      await loadPayments();
+      if (failed > 0) showToast(`Deleted ${ids.length - failed}/${ids.length} — ${failed} failed`, 'error');
+      else showToast(`Deleted ${ids.length} payment${ids.length === 1 ? '' : 's'}`);
     }
 
     let _transportPaymentCache = null;
@@ -5128,7 +5198,7 @@
             currentFilters[section] = tab.dataset.filter;
             // Task #248 — keep ?app_status=... in the URL so links survive a refresh.
             if (section === 'applications') { paginationState.applications.page = 1; syncApplicationsUrl(); renderApplications(); }
-            if (section === 'payments') { paginationState.payments.page = 1; renderPayments(); }
+            if (section === 'payments') { selectedPaymentIds.clear(); paginationState.payments.page = 1; renderPayments(); }
             if (section === 'disputes') renderDisputes();
             if (section === 'tickets') renderTickets();
             if (section === 'refunds') { paginationState.refunds.filter = tab.dataset.filter; paginationState.refunds.page = 1; loadRefunds(1); }
