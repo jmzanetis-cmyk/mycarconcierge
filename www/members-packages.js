@@ -4351,7 +4351,7 @@
 
       const pkg = packages.find(p => p.id === currentReviewPackageId);
       const vehicle = vehicles.find(v => v.id === pkg?.vehicle_id);
-      const { data: bid } = await supabaseClient.from('bids').select('price_estimate').eq('package_id', currentReviewPackageId).eq('status', 'accepted').single();
+      const { data: bid } = await supabaseClient.from('bids').select('price').eq('package_id', currentReviewPackageId).eq('status', 'accepted').single();
 
       const reviewData = {
         provider_id: currentReviewProviderId,
@@ -4368,7 +4368,7 @@
         complaint_reason_other: complaintReasonOther,
         service_type: pkg?.service_type,
         vehicle_info: vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : null,
-        amount_paid: bid?.price_estimate,
+        amount_paid: bid?.price,
         status: 'published',
         verified_purchase: true
       };

@@ -43,8 +43,8 @@ async function computePerformance(supabase, providerId) {
 
   const { data: completedPackages } = acceptedBidIds.length > 0
     ? await supabase.from('maintenance_packages')
-        .select('id, deadline, completed_at, winning_bid_id')
-        .in('winning_bid_id', acceptedBidIds)
+        .select('id, bidding_deadline, work_completed_at, accepted_bid_id')
+        .in('accepted_bid_id', acceptedBidIds)
         .eq('status', 'completed')
     : { data: [] };
 
@@ -59,8 +59,8 @@ async function computePerformance(supabase, providerId) {
 
   const jobsCompleted = completedPackages?.length || 0;
   const jobsOnTime    = (completedPackages || []).filter(p =>
-    !p.deadline || !p.completed_at ||
-    new Date(p.completed_at) <= new Date(p.deadline)
+    !p.bidding_deadline || !p.work_completed_at ||
+    new Date(p.work_completed_at) <= new Date(p.bidding_deadline)
   ).length;
   const onTimeRate = jobsCompleted > 0 ? (jobsOnTime / jobsCompleted) * 100 : 100;
 

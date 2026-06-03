@@ -346,7 +346,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
       if (method === 'GET' && url === '/api/car-club/browse') {
         const result = await db.query(
           `SELECT c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.theme_color, c.welcome_message, c.rules_text, c.created_at,
-           p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_verified_at,
+           p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_computed_at,
            (SELECT COUNT(*) FROM club_memberships WHERE club_id = c.id AND is_active = true) as member_count,
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
            FROM car_clubs c
@@ -400,7 +400,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         const result = await db.query(
           `SELECT cm.id as membership_id, cm.joined_at, cm.is_active,
            c.id as club_id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.theme_color, c.rules_text, c.provider_suspended,
-           p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_verified_at,
+           p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_computed_at,
            COALESCE(json_agg(json_build_object(
              'reward_rule_id', mcb.reward_rule_id,
              'punch_count', mcb.punch_count,
@@ -415,7 +415,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
            LEFT JOIN member_club_balances mcb ON mcb.membership_id = cm.id
            WHERE cm.member_id = $1 AND cm.is_active = true
            GROUP BY cm.id, cm.joined_at, cm.is_active, c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url, c.provider_suspended,
-                    p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_verified_at
+                    p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_computed_at
            ORDER BY cm.joined_at DESC`,
           [user.id]
         );
@@ -833,7 +833,7 @@ module.exports = function handleCarClubRequest(req, res, { getSupabaseClient }) 
         if (!user) return;
         const result = await db.query(
           `SELECT c.id, c.provider_id, c.name, c.description, c.logo_url, c.banner_url,
-           p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_verified_at,
+           p.bgc_badge_verified, p.bgc_compliant_employees, p.bgc_total_employees, p.bgc_last_computed_at,
            (SELECT COUNT(*) FROM club_memberships WHERE club_id = c.id AND is_active = true) as member_count,
            (SELECT COUNT(*) FROM club_reward_rules WHERE club_id = c.id AND is_active = true) as reward_count
            FROM car_clubs c
