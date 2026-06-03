@@ -3,6 +3,8 @@
 //
 // Events handled:
 //   checkout.session.completed                     — grant bid credits; record founder commission
+//   charge.refunded                                — void/claw back founder commission on refund
+//   charge.dispute.created                         — void/claw back founder commission on dispute
 //   payment_intent.succeeded                       — update tip/subsidy status
 //   payment_intent.payment_failed                  — update tip/subsidy status; alert admin
 //   payout.paid                                    — mark driver_cashouts row completed
@@ -93,61 +95,146 @@ async function handleCheckoutComplete(session, supabase) {
 
   console.log(`[stripe-webhook] granted ${totalBids} bid credits to provider ${meta.provider_id}`);
 
-  // Founder commission for bid pack (best-effort)
+  // Founder commission for bid pack (best-effort, routed through service-role RPC)
   await _recordBidPackFounderCommission(session, meta, supabase);
 }
 
 async function _recordBidPackFounderCommission(session, meta, supabase) {
+  // Single writer: delegate entirely to the record_bid_pack_commission RPC which is
+  // SECURITY DEFINER, service_role-only, and idempotent on transaction_id. The RPC
+  // also updates member_founder_profiles.pending_balance atomically.
   try {
-    const { data: profile } = await supabase.from('profiles')
-      .select('referred_by_founder_id').eq('id', meta.provider_id).maybeSingle();
-    if (!profile?.referred_by_founder_id) return;
+    const purchaseAmount = (session.amount_total || 0) / 100;
+    if (!session.payment_intent || purchaseAmount <= 0) return;
 
-    const { data: founder } = await supabase.from('member_founder_profiles')
-      .select('id, commission_rate, total_commissions_earned, pending_balance, status')
-      .eq('user_id', profile.referred_by_founder_id).maybeSingle();
-    if (!founder || founder.status !== 'active') return;
+    const { data: commissionId, error } = await supabase.rpc('record_bid_pack_commission', {
+      p_provider_id:     meta.provider_id,
+      p_purchase_amount: purchaseAmount,
+      p_transaction_id:  session.payment_intent,
+    });
 
-    // Idempotency
-    const { data: dup } = await supabase.from('founder_commissions')
-      .select('id').eq('source_transaction_id', session.payment_intent).limit(1).maybeSingle();
-    if (dup) return;
-
-    const purchaseAmount  = (session.amount_total || 0) / 100;
-    const commissionRate  = parseFloat(founder.commission_rate || 0.50);
-    const commissionAmt   = parseFloat((purchaseAmount * commissionRate).toFixed(2));
-    if (commissionAmt <= 0) return;
-
-    const { data: inserted, error: commErr } = await supabase.from('founder_commissions').insert({
-      founder_id:            founder.id,
-      referred_provider_id:  meta.provider_id,
-      commission_type:       'bid_pack',
-      source_transaction_id: session.payment_intent,
-      original_amount:       purchaseAmount,
-      commission_rate:       commissionRate,
-      commission_amount:     commissionAmt,
-      purchase_amount:       purchaseAmount,
-      description:           `Bid pack commission (${(commissionRate * 100).toFixed(0)}%) — webhook`,
-      status:                'pending',
-      created_at:            new Date().toISOString(),
-      updated_at:            new Date().toISOString(),
-    }).select('id').single();
-
-    if (commErr) {
-      if (commErr.code !== '23505') console.error('[stripe-webhook] founder_commissions insert failed:', commErr.message);
+    if (error) {
+      console.warn('[stripe-webhook] record_bid_pack_commission RPC error (non-fatal):', error.message);
       return;
     }
 
-    await supabase.from('member_founder_profiles').update({
-      total_commissions_earned: parseFloat(founder.total_commissions_earned || 0) + commissionAmt,
-      pending_balance:          parseFloat(founder.pending_balance || 0) + commissionAmt,
-      updated_at:               new Date().toISOString(),
-    }).eq('id', founder.id);
-
-    console.log(`[stripe-webhook] founder commission $${commissionAmt} recorded for founder ${founder.id}`);
+    if (commissionId) {
+      console.log(`[stripe-webhook] founder commission recorded via RPC — id ${commissionId}`);
+    }
+    // NULL return = no referrer, inactive founder, or idempotent duplicate — all fine
   } catch (e) {
     console.warn('[stripe-webhook] founder commission error (non-fatal):', e.message);
   }
+}
+
+// ── charge.refunded / charge.dispute.created — clawback ───────────────────
+//
+// Shared handler for both events. For commissions still in pending/payable:
+//   void the row and decrement pending_balance so the next payout doesn't
+//   include it. For already-paid commissions: insert a negative adjustment
+//   row (status=payable) that nets against the founder's next payout.
+//
+// Idempotent: repeated deliveries of the same event are harmless.
+// Non-fatal: any error is logged but the function still returns 200 to Stripe.
+
+async function _handleFounderCommissionClawback(paymentIntentId, reason, supabase) {
+  if (!paymentIntentId) return;
+  try {
+    // Look up the commission. Rows may have been written with source_transaction_id
+    // (pre-RPC-consolidation webhook) or transaction_id (RPC path). Check both;
+    // the RPC now writes both columns to the same value so this query covers either era.
+    const { data: commission } = await supabase
+      .from('founder_commissions')
+      .select('id, founder_id, commission_amount, status')
+      .or(`source_transaction_id.eq.${paymentIntentId},transaction_id.eq.${paymentIntentId}`)
+      .not('commission_type', 'eq', 'clawback_adjustment')
+      .limit(1)
+      .maybeSingle();
+
+    if (!commission) return; // no commission for this charge — nothing to do
+
+    const now = new Date().toISOString();
+
+    if (commission.status === 'voided') {
+      // Already voided — idempotent
+      return;
+    }
+
+    if (commission.status === 'pending' || commission.status === 'payable') {
+      // Void before payout — just cancel the row and remove from pending balance
+      await supabase.from('founder_commissions')
+        .update({ status: 'voided', voided_at: now, updated_at: now })
+        .eq('id', commission.id);
+
+      const snap = await supabase.from('member_founder_profiles')
+        .select('pending_balance')
+        .eq('id', commission.founder_id)
+        .single();
+      const prevBal = parseFloat((snap.data && snap.data.pending_balance) || 0);
+
+      await supabase.from('member_founder_profiles').update({
+        pending_balance: Math.max(0, parseFloat((prevBal - parseFloat(commission.commission_amount)).toFixed(2))),
+        updated_at:      now,
+      }).eq('id', commission.founder_id);
+
+      console.log(`[stripe-webhook] founder commission ${commission.id} voided — ${reason}`);
+      return;
+    }
+
+    if (commission.status === 'paid') {
+      // Already paid out — carry the debit as a negative adjustment row.
+      // Idempotency key: clawback_ prefix on the transaction id.
+      const clawbackKey = 'clawback_' + paymentIntentId;
+
+      const { error: adjErr } = await supabase.from('founder_commissions').insert({
+        founder_id:            commission.founder_id,
+        commission_type:       'clawback_adjustment',
+        source_transaction_id: clawbackKey,
+        transaction_id:        clawbackKey,
+        commission_amount:     -Math.abs(parseFloat(commission.commission_amount)),
+        original_amount:       0,
+        purchase_amount:       0,
+        commission_rate:       0,
+        description:           `Clawback adjustment — ${reason} on ${paymentIntentId}`,
+        status:                'payable',
+        became_payable_at:     now,
+        created_at:            now,
+        updated_at:            now,
+      });
+
+      if (adjErr) {
+        if (adjErr.code === '23505') return; // already inserted — idempotent
+        console.warn('[stripe-webhook] clawback adjustment insert error (non-fatal):', adjErr.message);
+        return;
+      }
+
+      // Decrement pending_balance by the adjustment so the next payout nets correctly
+      const snap2 = await supabase.from('member_founder_profiles')
+        .select('pending_balance')
+        .eq('id', commission.founder_id)
+        .single();
+      const prevBal2 = parseFloat((snap2.data && snap2.data.pending_balance) || 0);
+      const debit    = Math.abs(parseFloat(commission.commission_amount));
+
+      await supabase.from('member_founder_profiles').update({
+        pending_balance: Math.max(0, parseFloat((prevBal2 - debit).toFixed(2))),
+        updated_at:      now,
+      }).eq('id', commission.founder_id);
+
+      console.log(`[stripe-webhook] clawback adjustment inserted for paid commission ${commission.id} — ${reason}`);
+    }
+  } catch (e) {
+    console.warn('[stripe-webhook] commission clawback error (non-fatal):', e.message);
+  }
+}
+
+async function handleChargeRefunded(charge, supabase) {
+  await _handleFounderCommissionClawback(charge.payment_intent, 'refund', supabase);
+}
+
+async function handleChargeDisputeCreated(dispute, supabase) {
+  // dispute.payment_intent is present in Stripe API 2024-04-10+
+  await _handleFounderCommissionClawback(dispute.payment_intent, 'dispute', supabase);
 }
 
 // ── payment_intent.succeeded ───────────────────────────────────────────────
@@ -355,6 +442,12 @@ exports.handler = async function(event) {
     switch (stripeEvent.type) {
       case 'checkout.session.completed':
         await handleCheckoutComplete(stripeEvent.data.object, supabase);
+        break;
+      case 'charge.refunded':
+        await handleChargeRefunded(stripeEvent.data.object, supabase);
+        break;
+      case 'charge.dispute.created':
+        await handleChargeDisputeCreated(stripeEvent.data.object, supabase);
         break;
       case 'payment_intent.succeeded':
         await handlePaymentIntentSucceeded(stripeEvent.data.object, supabase);
