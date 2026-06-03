@@ -60,6 +60,10 @@ async function authenticateBearerAdmin(event, supabase) {
   var user = authResult.data && authResult.data.user;
   if (authResult.error || !user) return null;
   var profileResult = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  if (profileResult.error) {
+    console.error('[utils] admin profile lookup failed:', profileResult.error.message);
+    return null;
+  }
   var profile = profileResult.data;
   if (!profile || profile.role !== 'admin') return null;
   return user;
