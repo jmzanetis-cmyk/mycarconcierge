@@ -773,9 +773,10 @@ let vehiclePredictions = {};
 let _predictionsLoading = false;
 
 async function fetchVehiclePredictions(vehicleId) {
+  const empty = { health_summary: null, predictions: [], generated_at: null, cached: false };
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return null;
+    if (!session) { vehiclePredictions[vehicleId] = empty; return null; }
 
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
@@ -792,9 +793,11 @@ async function fetchVehiclePredictions(vehicleId) {
       };
       return vehiclePredictions[vehicleId];
     }
+    vehiclePredictions[vehicleId] = empty;
     return null;
   } catch (error) {
     console.error('Error fetching predictions:', error);
+    vehiclePredictions[vehicleId] = empty;
     return null;
   }
 }

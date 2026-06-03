@@ -167,6 +167,8 @@
 
 # Feature: Recall Alerts
 /api/vehicle/*/recalls /.netlify/functions/vehicle-recalls 200
+/api/vehicle/*/predictions/invalidate /.netlify/functions/vehicle-predictions 200
+/api/vehicle/*/predictions /.netlify/functions/vehicle-predictions 200
 
 # Feature: Vehicle Photos
 /api/vehicle-photos/* /.netlify/functions/vehicle-photos/:splat 200
