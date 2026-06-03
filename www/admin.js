@@ -709,9 +709,9 @@
             return;
           }
           
-          // Admin confirmed, show password verification
-          showModalState('password');
+          // Admin confirmed — complete auth directly (no password step needed)
           btn.disabled = false;
+          await completeAdminAuth();
         }
       } catch (err) {
         errorEl.textContent = 'Login failed. Please try again.';
@@ -732,7 +732,7 @@
         globalThis._adminEmail = session.user.email || '';
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
         if (profile && profile.role === 'admin') {
-          showModalState('password');
+          await completeAdminAuth();
         } else {
           showModalState('not-admin');
         }
@@ -812,7 +812,7 @@
           console.log('[Admin] Profile:', profile);
           
           if (profile && profile.role === 'admin') {
-            showModalState('password');
+            await completeAdminAuth();
           } else {
             showModalState('not-admin');
           }
@@ -827,77 +827,37 @@
       }
     });
     
+    // Thin alias kept so handleAdminModalAction and any external callers continue
+    // to work without changes. All logic lives in completeAdminAuth().
     async function verifyAdminPassword() {
-      const password = document.getElementById('admin-password-input').value;
-      const errorEl = document.getElementById('admin-password-error');
-      const btn = document.getElementById('admin-modal-btn');
-      
-      if (!password) {
-        errorEl.textContent = 'Please enter a password.';
-        errorEl.style.display = 'block';
-        return;
-      }
-      
-      btn.textContent = 'Verifying...';
-      btn.disabled = true;
-      errorEl.style.display = 'none';
-      
+      return completeAdminAuth();
+    }
+
+    async function completeAdminAuth() {
       try {
-        // Call Supabase RPC function for secure server-side password verification
-        const { data, error } = await supabaseClient.rpc('verify_admin_password', {
-          input_password: password
-        });
-        
-        if (error) {
-          console.error('Password verification error:', error);
-          errorEl.textContent = 'Error: ' + (error.message || 'Verification failed');
-          errorEl.style.display = 'block';
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-          return;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.access_token) {
+          _adminBearer = session.access_token;
+          globalThis._adminBearer = session.access_token;
         }
-        
-        if (data === true) {
-          adminPasswordVerified = password;
-          localStorage.setItem('mcc_admin_pass', password);
-          adminPermissions = null;
-          const { data: { session: _s } } = await supabaseClient.auth.getSession();
-          if (_s?.access_token) { _adminBearer = _s.access_token; globalThis._adminBearer = _s.access_token; }
-          // Task #233 — restore the button so the modal is usable next time
-          // it's opened (e.g. via the AI Ops "Sign in again" prompt).
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-          document.getElementById('admin-password-modal').style.display = 'none';
-          applyRolePermissions(null);
-          // Task #233 — when this modal was opened via the AI Ops "Sign in
-          // again" button, run that loader's retry callback instead of doing
-          // a heavy full-dashboard refresh, so the admin lands back on the
-          // exact card they were on.
-          if (typeof _aiOpsReauthRetry === 'function') {
-            const fn = _aiOpsReauthRetry;
-            _aiOpsReauthRetry = null;
-            try { await fn(); } catch (retryErr) { console.error('[Admin] AI Ops reauth retry failed:', retryErr); }
-          } else {
-            await loadAllData();
-            setupEventListeners();
-          }
-        } else {
-          errorEl.textContent = 'Invalid password. Please try again.';
-          errorEl.style.display = 'block';
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-        }
-      } catch (error) {
-        console.error('Password verification error:', error);
-        errorEl.textContent = 'Error: ' + (error.message || 'Unknown error');
-        errorEl.style.display = 'block';
-        btn.textContent = 'Verify';
-        btn.disabled = false;
+      } catch { /* non-fatal */ }
+      adminPasswordVerified = false;
+      adminPermissions = null;
+      document.getElementById('admin-password-modal').style.display = 'none';
+      applyRolePermissions(null);
+      if (typeof _aiOpsReauthRetry === 'function') {
+        const fn = _aiOpsReauthRetry;
+        _aiOpsReauthRetry = null;
+        try { await fn(); } catch (retryErr) { console.error('[Admin] reauth retry failed:', retryErr); }
+      } else {
+        await loadAllData();
+        setupEventListeners();
       }
     }
-    
+
     globalThis.handleAdminModalAction = handleAdminModalAction;
     globalThis.verifyAdminPassword = verifyAdminPassword;
+    globalThis.completeAdminAuth = completeAdminAuth;
 
     (function bindAdminButtons() {
       function attach() {
@@ -2487,9 +2447,7 @@
       }
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
-        else if (localStorage.getItem('mcc_admin_pass')) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass');
+        const headers = getAdminHeaders();
         const res = await fetch(`${apiBase}/api/admin/agreements`, {
           method: 'POST',
           headers,
@@ -11150,7 +11108,6 @@
       const headers = { 'Content-Type': 'application/json' };
       if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
       return headers;
     }
 
@@ -12343,7 +12300,6 @@
       const headers = { 'Content-Type': 'application/json' };
       if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
       return headers;
     }
 
@@ -13392,8 +13348,6 @@
       const headers = {};
       if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
-      if (pw) headers['x-admin-password'] = pw;
       return headers;
     }
 
@@ -13422,7 +13376,7 @@
       let hasAuth = false;
       for (const k of Object.keys(headers)) {
         const lk = k.toLowerCase();
-        if ((lk === 'x-admin-password' || lk === 'x-admin-token') && headers[k]) {
+        if ((lk === 'authorization' || lk === 'x-admin-token') && headers[k]) {
           hasAuth = true; break;
         }
       }
@@ -13510,19 +13464,18 @@
     // Escalations, Digest, Settings) so the four cards behave consistently.
     let _aiOpsReauthRetry = null;
 
-    function openAiOpsReauth(retryFn) {
+    async function openAiOpsReauth(retryFn) {
       _aiOpsReauthRetry = (typeof retryFn === 'function') ? retryFn : null;
-      const modal = document.getElementById('admin-password-modal');
-      if (!modal) {
-        // Last-resort fallback: send the admin to the login page if the
-        // re-login modal isn't on this page for some reason.
-        window.location.href = 'admin.html';
-        return;
-      }
-      try { showModalState('password'); } catch { /* showModalState may not be in scope here, ignore */ }
-      modal.style.display = 'flex';
-      const input = document.getElementById('admin-password-input');
-      if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
+      try {
+        const { data, error } = await supabaseClient.auth.refreshSession();
+        if (!error && data?.session?.access_token) {
+          _adminBearer = data.session.access_token;
+          globalThis._adminBearer = data.session.access_token;
+          await completeAdminAuth();
+          return;
+        }
+      } catch { /* fall through to login redirect */ }
+      window.location.href = 'login.html';
     }
     globalThis.openAiOpsReauth = openAiOpsReauth;
     // Task #355 — generic alias so non-AI-Ops admin loaders (Provider /
