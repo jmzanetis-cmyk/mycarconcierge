@@ -3075,7 +3075,7 @@
         const initial = name.charAt(0).toUpperCase();
         const role = member.role || 'member';
         const roleColor = roleColors[role] || roleColors.viewer;
-        const perms = member.permissions || {};
+        const perms = member;
         
         let permsBadges = [];
         if (perms.can_request_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">' + mccIcon('file-text', 16) + ' Can Request</span>');
@@ -3452,7 +3452,7 @@
       
       const user = managingMember.user || {};
       const name = user.full_name || managingMember.email || 'Member';
-      const perms = managingMember.permissions || {};
+      const perms = managingMember;
       
       document.getElementById('manage-member-content').innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
