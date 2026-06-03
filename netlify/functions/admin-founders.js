@@ -36,20 +36,6 @@ var DEFAULT_PAYOUT_SETTINGS = {
   weekly_payout_fee:          0.00
 };
 
-async function authenticateBearerAdmin(event, supabase) {
-  var authHeader = (event.headers['authorization'] || event.headers['Authorization'] || '').trim();
-  if (!authHeader.startsWith('Bearer ')) return null;
-  var token = authHeader.slice(7).trim();
-  if (!token) return null;
-  var authResult = await supabase.auth.getUser(token);
-  var user = authResult.data && authResult.data.user;
-  if (authResult.error || !user) return null;
-  var profileResult = await supabase.from('profiles').select('role').eq('id', user.id).single();
-  var profile = profileResult.data;
-  if (!profile || profile.role !== 'admin') return null;
-  return user;
-}
-
 function parsePath(event) {
   var raw = event.path || '';
   return raw
@@ -77,23 +63,23 @@ exports.handler = async function(event) {
   var supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
 
-  // ── Body-password-authenticated payout routes ───────────────────────────
-  // These routes are called from the admin UI with admin_password in the body
-  // (no Bearer token) because the payout confirmation prompt collects it inline.
-  var earlyBody = {};
-  if (event.body) { try { earlyBody = JSON.parse(event.body); } catch (e) { earlyBody = {}; } }
-  var bodyPassword = (earlyBody.admin_password || '').trim();
-  var envPassword  = (process.env.ADMIN_PASSWORD || '').trim();
-  var bodyAuthed   = envPassword && bodyPassword === envPassword;
+  var user = await utils.authenticateBearerAdmin(event, supabase);
+  if (!user) return utils.errorResponse(401, 'Authentication required');
 
-  if (bodyAuthed) {
-    var earlyPath   = parsePath(event);
-    var earlyMethod = event.httpMethod;
+  var path   = parsePath(event);
+  var method = event.httpMethod;
 
-    // ── POST /api/admin/process-founder-payout ──────────────────────────
-    if (earlyMethod === 'POST' && earlyPath === 'process-founder-payout') {
-      var payoutId   = earlyBody.payout_id;
-      var payoutType = earlyBody.payout_type || 'weekly';
+  var body = {};
+  if (event.body) {
+    try { body = JSON.parse(event.body); } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
+  }
+
+  try {
+
+    // ── POST /api/admin/process-founder-payout ────────────────────────────
+    if (method === 'POST' && path === 'process-founder-payout') {
+      var payoutId   = body.payout_id;
+      var payoutType = body.payout_type || 'weekly';
 
       if (!payoutId) return utils.errorResponse(400, 'payout_id required');
 
@@ -116,14 +102,14 @@ exports.handler = async function(event) {
       }
       var stripeAccount = profileRow.data.stripe_connect_account_id;
 
-      var settings = await getPayoutSettings(supabase);
+      var payoutSettings = await getPayoutSettings(supabase);
       var grossAmount = parseFloat(payout.amount || 0);
       var feeAmount = 0;
       if (payoutType === 'instant') {
-        var feeRate = (settings.instant_payout_fee_percent || 1) / 100;
+        var feeRate = (payoutSettings.instant_payout_fee_percent || 1) / 100;
         feeAmount = Math.min(
-          settings.instant_payout_fee_max || 10,
-          Math.max(settings.instant_payout_fee_min || 0.50, grossAmount * feeRate)
+          payoutSettings.instant_payout_fee_max || 10,
+          Math.max(payoutSettings.instant_payout_fee_min || 0.50, grossAmount * feeRate)
         );
       }
       var netAmount = grossAmount - feeAmount;
@@ -141,11 +127,10 @@ exports.handler = async function(event) {
           metadata:    { payout_id: payoutId, payout_type: payoutType, founder_id: payout.founder_id }
         });
 
-        var now = new Date().toISOString();
         await supabase.from('founder_payouts').update({
           status:             'completed',
           stripe_transfer_id: transfer.id,
-          processed_at:       now,
+          processed_at:       new Date().toISOString(),
           payout_type:        payoutType,
           fee_amount:         feeAmount,
           net_amount:         netAmount,
@@ -159,10 +144,10 @@ exports.handler = async function(event) {
       }
     }
 
-    // ── POST /api/admin/process-bulk-payouts ────────────────────────────
-    if (earlyMethod === 'POST' && earlyPath === 'process-bulk-payouts') {
-      var threshold   = parseFloat(earlyBody.threshold || 10);
-      var bulkType    = earlyBody.payout_type || 'weekly';
+    // ── POST /api/admin/process-bulk-payouts ──────────────────────────────
+    if (method === 'POST' && path === 'process-bulk-payouts') {
+      var threshold = parseFloat(body.threshold || 10);
+      var bulkType  = body.payout_type || 'weekly';
 
       var pendingResult = await supabase.from('founder_payouts')
         .select('id, founder_id, amount')
@@ -173,7 +158,7 @@ exports.handler = async function(event) {
 
       if (pending.length === 0) return utils.successResponse({ summary: { succeeded: 0, failed: 0, total_amount: 0, results: [] } });
 
-      var settings = await getPayoutSettings(supabase);
+      var bulkSettings = await getPayoutSettings(supabase);
       var { STRIPE_API_VERSION: SV } = require('../../lib/stripe-api-version');
       var StripeB = require('stripe');
       var stripeB = new StripeB(process.env.STRIPE_SECRET_KEY, { apiVersion: SV });
@@ -193,8 +178,8 @@ exports.handler = async function(event) {
           var gross = parseFloat(p.amount || 0);
           var fee   = 0;
           if (bulkType === 'instant') {
-            var fr = (settings.instant_payout_fee_percent || 1) / 100;
-            fee = Math.min(settings.instant_payout_fee_max || 10, Math.max(settings.instant_payout_fee_min || 0.50, gross * fr));
+            var fr = (bulkSettings.instant_payout_fee_percent || 1) / 100;
+            fee = Math.min(bulkSettings.instant_payout_fee_max || 10, Math.max(bulkSettings.instant_payout_fee_min || 0.50, gross * fr));
           }
           var net = gross - fee;
           if (net < 0.50) { results.push({ payout_id: p.id, status: 'failed', error: 'Net below minimum' }); continue; }
@@ -226,21 +211,6 @@ exports.handler = async function(event) {
         }
       });
     }
-  }
-  // ────────────────────────────────────────────────────────────────────────
-
-  var user = await authenticateBearerAdmin(event, supabase);
-  if (!user) return utils.errorResponse(401, 'Authentication required');
-
-  var path   = parsePath(event);
-  var method = event.httpMethod;
-
-  var body = {};
-  if (event.body) {
-    try { body = JSON.parse(event.body); } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }
-  }
-
-  try {
 
     // ── GET /api/admin/founders/:id/commission-history ─────────────────────
     var commHistMatch = path.match(/^founders\/([^/]+)\/commission-history$/);

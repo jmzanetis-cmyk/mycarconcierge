@@ -177,8 +177,8 @@ function payoutRequest(body) {
   return {
     httpMethod: 'POST',
     path: '/api/admin/process-founder-payout',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ admin_password: 'test_admin_pw', ...body }),
+    headers: { 'content-type': 'application/json', authorization: 'Bearer tok_admin' },
+    body: JSON.stringify(body),
   };
 }
 
@@ -186,8 +186,8 @@ function bulkPayoutRequest(body = {}) {
   return {
     httpMethod: 'POST',
     path: '/api/admin/process-bulk-payouts',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ admin_password: 'test_admin_pw', ...body }),
+    headers: { 'content-type': 'application/json', authorization: 'Bearer tok_admin' },
+    body: JSON.stringify(body),
   };
 }
 
