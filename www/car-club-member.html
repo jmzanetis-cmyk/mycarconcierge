@@ -901,8 +901,12 @@
               ${club.rules_text ? `<details style="margin-bottom:12px;font-size:var(--text-sm);color:var(--text-secondary);"><summary style="cursor:pointer;color:var(--text-primary);font-weight:500;">Club Rules &amp; Terms</summary><div style="margin-top:6px;white-space:pre-wrap;">${escHtml(club.rules_text)}</div></details>` : ''}
               ${progressHtml || '<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:16px;">No reward rules set up yet</div>'}
               <div class="club-card-footer" style="display:flex;gap:8px;flex-wrap:wrap;">
+                <button class="btn btn-metallic btn--small" onclick="toggleClubPerks('${club.club_id}')">Perks &amp; Points</button>
                 <button class="btn btn--secondary btn--small" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>
                 <button class="btn btn--danger btn--small" onclick="leaveClub('${club.club_id}', '${escHtml(club.name)}')">Leave Club</button>
+              </div>
+              <div id="perks-${club.club_id}" style="display:none;margin-top:12px;">
+                <div id="perks-content-${club.club_id}" style="color:var(--text-muted);font-size:var(--text-sm);">Loading…</div>
               </div>
               <div class="review-form" id="review-form-${club.club_id}" style="display:none;">
                 ${buildStarRating(club.club_id, 0)}
@@ -1251,6 +1255,122 @@
         notifsData = [];
         updateNotifBadge();
         await loadNotifications();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ── Perks & Points ──────────────────────────────────────────────────────
+    const _perksLoaded = new Set();
+
+    async function toggleClubPerks(clubId) {
+      const panel = document.getElementById(`perks-${clubId}`);
+      if (!panel) return;
+      const isOpen = panel.style.display !== 'none';
+      panel.style.display = isOpen ? 'none' : '';
+      if (!isOpen && !_perksLoaded.has(clubId)) {
+        _perksLoaded.add(clubId);
+        await loadClubPerks(clubId);
+      }
+    }
+
+    async function loadClubPerks(clubId) {
+      const el = document.getElementById(`perks-content-${clubId}`);
+      if (!el) return;
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        const uid = session?.user?.id;
+        if (!uid) { el.innerHTML = '<p style="color:var(--text-muted);">Sign in to view perks.</p>'; return; }
+
+        const [rewardsRes, couponsRes, compRes, pointsRes] = await Promise.allSettled([
+          apiFetch(`/api/car-clubs/${clubId}/rewards`),
+          apiFetch(`/api/car-clubs/${clubId}/coupons`),
+          apiFetch(`/api/car-clubs/${clubId}/comp-services`),
+          apiFetch(`/api/car-clubs/${clubId}/members/${uid}/points`)
+        ]);
+
+        const rewards  = rewardsRes.status  === 'fulfilled' ? (rewardsRes.value.rewards      || []) : [];
+        const coupons  = couponsRes.status  === 'fulfilled' ? (couponsRes.value.coupons       || []) : [];
+        const compSvcs = compRes.status     === 'fulfilled' ? (compRes.value.comp_services    || []) : [];
+        const balance  = pointsRes.status   === 'fulfilled' ? (pointsRes.value.balance        ?? null) : null;
+
+        let html = '';
+
+        if (balance !== null) {
+          html += `<div style="margin-bottom:14px;padding:10px 14px;background:var(--bg-primary);border-radius:var(--radius-md);">
+            <span style="font-weight:600;font-size:var(--text-sm);">Your Points Balance: ${balance} pts</span>
+          </div>`;
+        }
+
+        if (rewards.length) {
+          html += `<div style="margin-bottom:14px;">
+            <div style="font-weight:600;font-size:var(--text-sm);margin-bottom:8px;">Point Rewards</div>
+            ${rewards.map(r => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <div>
+                  <div style="font-size:var(--text-sm);">${escHtml(r.title)}</div>
+                  <div style="font-size:var(--text-xs);color:var(--text-muted);">${r.point_cost} pts${r.inventory_qty != null ? ` · ${r.inventory_qty} left` : ''}</div>
+                </div>
+                <button class="btn btn--secondary btn--small" onclick="redeemPointsReward('${clubId}','${r.id}','${escHtml(r.title)}',${r.point_cost},${balance ?? 0})">Redeem</button>
+              </div>`).join('')}
+          </div>`;
+        }
+
+        if (coupons.length) {
+          html += `<div style="margin-bottom:14px;">
+            <div style="font-weight:600;font-size:var(--text-sm);margin-bottom:8px;">Coupons</div>
+            ${coupons.map(c => {
+              const disc = c.discount_type === 'percent' ? `${c.discount_value}% off` : `$${c.discount_value} off`;
+              return `<div style="padding:8px 0;border-bottom:1px solid var(--border);">
+                <div style="font-size:var(--text-sm);">${escHtml(c.title || c.code)} — ${disc}</div>
+                <code style="font-size:var(--text-xs);background:var(--bg-primary);padding:2px 6px;border-radius:4px;">${escHtml(c.code)}</code>
+                ${c.expires_at ? `<span style="font-size:var(--text-xs);color:var(--text-muted);margin-left:6px;">Exp ${new Date(c.expires_at).toLocaleDateString()}</span>` : ''}
+              </div>`;
+            }).join('')}
+          </div>`;
+        }
+
+        if (compSvcs.length) {
+          html += `<div style="margin-bottom:14px;">
+            <div style="font-weight:600;font-size:var(--text-sm);margin-bottom:8px;">Complimentary Services</div>
+            ${compSvcs.map(s => `
+              <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border);">
+                <div>
+                  <div style="font-size:var(--text-sm);">${escHtml(s.title)}</div>
+                  ${s.description ? `<div style="font-size:var(--text-xs);color:var(--text-muted);">${escHtml(s.description)}</div>` : ''}
+                </div>
+                <button class="btn btn--secondary btn--small" onclick="claimClubCompService('${clubId}','${s.id}')">Claim</button>
+              </div>`).join('')}
+          </div>`;
+        }
+
+        if (!html) html = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No active perks for this club yet.</p>';
+        el.innerHTML = html;
+      } catch(e) {
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    async function redeemPointsReward(clubId, rewardId, title, cost, balance) {
+      if (balance < cost) { showToast(`Not enough points (${balance} of ${cost})`, 'error'); return; }
+      if (!confirm(`Redeem "${title}" for ${cost} pts?`)) return;
+      try {
+        const data = await apiFetch(`/api/car-clubs/${clubId}/rewards/${rewardId}/redeem`, { method: 'POST' });
+        showToast(`Redeemed! Voucher: ${data.voucher_code}`, 'success');
+        _perksLoaded.delete(clubId);
+        await loadClubPerks(clubId);
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function claimClubCompService(clubId, csId) {
+      if (!confirm('Claim this complimentary service?')) return;
+      try {
+        await apiFetch(`/api/car-clubs/${clubId}/comp-services/${csId}/claim`, { method: 'POST' });
+        showToast('Claimed! Show this confirmation to your provider.', 'success');
+        _perksLoaded.delete(clubId);
+        await loadClubPerks(clubId);
       } catch(e) {
         showToast(e.message, 'error');
       }

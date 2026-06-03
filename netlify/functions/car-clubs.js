@@ -261,6 +261,23 @@ async function grantReturnBonus(event, sb, user) {
   return json(200, { granted: true, credits: BONUS_CREDITS });
 }
 
+async function getClub(sb, user, clubId) {
+  const { data, error } = await sb.from('car_clubs')
+    .select('id, name, description, vehicle_make, vehicle_model, region, provider_id, is_active, points_enabled, coupons_enabled, comp_services_enabled, punch_card_enabled, logo_url, banner_url, theme_color, welcome_message, rules_text, member_count, created_at')
+    .eq('id', clubId).single();
+  if (error || !data) return json(404, { error: 'Club not found' });
+  if (data.provider_id !== user.id) return json(403, { error: 'Access denied' });
+  return json(200, { club: data });
+}
+
+async function getPointsConfig(sb, user, clubId) {
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Access denied' });
+  const { data: config } = await sb.from('club_points_config').select('*').eq('club_id', clubId).single();
+  return json(200, { config: config || null });
+}
+
 // ─── Program route helpers ─────────────────────────────────────────────────────
 
 async function patchFeatures(event, sb, user, clubId) {
@@ -670,8 +687,12 @@ exports.handler = async (event) => {
     if (method === 'POST' && seg3 === 'redeem') return redeemBenefit(sb, auth.user, clubId, seg2);
   }
 
+  // GET /api/car-clubs/:id
+  if (method === 'GET' && !sub) return getClub(sb, auth.user, clubId);
+
   // Program routes
   if (sub === 'features' && method === 'PATCH')       return patchFeatures(event, sb, auth.user, clubId);
+  if (sub === 'points-config' && method === 'GET')    return getPointsConfig(sb, auth.user, clubId);
   if (sub === 'points-config' && method === 'PUT')    return putPointsConfig(event, sb, auth.user, clubId);
 
   if (sub === 'rewards') {

@@ -557,6 +557,10 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Analytics
     </div>
+    <div class="nav-item" onclick="showSection('programs')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Programs
+    </div>
     <div class="sidebar-footer">
       <button class="theme-toggle-btn" onclick="toggleTheme()">
         <span class="theme-icon-dark">🔆</span>
@@ -968,6 +972,147 @@
         </div>
       </div>
     </div>
+    <!-- ── PROGRAMS section ─────────────────────────────────────────────── -->
+    <div id="section-programs" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Loyalty Programs</h2>
+        <p class="section-subtitle">Configure points, coupons, and complimentary services for your members</p>
+      </div>
+      <!-- Feature toggles -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Program Features</h3>
+        <div id="prg-toggles-loading" style="text-align:center;padding:20px;color:var(--text-muted);">Loading…</div>
+        <div id="prg-toggles" style="display:none;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Points Program</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-points" onchange="saveFeatureToggle('points_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Coupons</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-coupons" onchange="saveFeatureToggle('coupons_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Comp Services</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-comp" onchange="saveFeatureToggle('comp_services_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Punch Card</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-punch" onchange="saveFeatureToggle('punch_card_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <!-- Points config + rewards -->
+      <div id="prg-points-panel" class="card" style="margin-bottom:24px;display:none;">
+        <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Points Configuration</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label">Points per $ Spent</label>
+            <input type="number" class="form-input" id="pts-earn-rate" min="0.01" step="0.01" placeholder="e.g. 10" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Points Label</label>
+            <input type="text" class="form-input" id="pts-label" placeholder="e.g. Tony Bucks" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Accrual Source</label>
+            <select class="form-input" id="pts-accrual">
+              <option value="mcc_processed">MCC Processed Payments</option>
+              <option value="manual_entry">Manual Entry</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-metallic" onclick="savePtsConfig()">Save Points Config</button>
+        <hr style="margin:24px 0;border-color:var(--border);" />
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h4 style="font-size:var(--text-sm);font-weight:600;">Point Rewards</h4>
+          <button class="btn btn--secondary btn--small" onclick="openRewardForm()">+ Add Reward</button>
+        </div>
+        <div id="prg-rewards-loading" style="text-align:center;padding:16px;color:var(--text-muted);display:none;">Loading…</div>
+        <div id="prg-rewards-list"></div>
+      </div>
+      <!-- Coupons -->
+      <div id="prg-coupons-panel" class="card" style="margin-bottom:24px;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="font-size:var(--text-md);font-weight:600;">Coupons</h3>
+          <button class="btn btn--secondary btn--small" onclick="openCouponForm()">+ Create Coupon</button>
+        </div>
+        <div id="prg-coupons-list"></div>
+      </div>
+      <!-- Comp services -->
+      <div id="prg-comp-panel" class="card" style="margin-bottom:24px;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="font-size:var(--text-md);font-weight:600;">Complimentary Services</h3>
+          <button class="btn btn--secondary btn--small" onclick="openCompForm()">+ Add Service</button>
+        </div>
+        <div id="prg-comp-list"></div>
+      </div>
+    </div>
+    <!-- Reward form modal -->
+    <div id="reward-form-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Reward</h3>
+          <button class="btn-icon" onclick="closeRewardForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="form-group"><label class="form-label">Reward Title *</label><input type="text" class="form-input" id="reward-title" placeholder="e.g. Free Oil Change" /></div>
+        <div class="form-group"><label class="form-label">Kind</label>
+          <select class="form-input" id="reward-kind">
+            <option value="other">Other</option>
+            <option value="comp_service">Comp Service</option>
+            <option value="merch">Merch</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="reward-desc" rows="2" placeholder="What does the member receive?"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group"><label class="form-label">Points Cost *</label><input type="number" class="form-input" id="reward-point-cost" min="1" placeholder="e.g. 500" /></div>
+          <div class="form-group"><label class="form-label">Inventory (blank=unlimited)</label><input type="number" class="form-input" id="reward-inventory" min="0" placeholder="∞" /></div>
+        </div>
+        <input type="hidden" id="reward-edit-id" value="" />
+        <button class="btn btn-metallic" style="width:100%;margin-top:8px;" onclick="savePrgReward()">Save Reward</button>
+      </div>
+    </div>
+    <!-- Coupon form modal -->
+    <div id="coupon-form-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Create Coupon</h3>
+          <button class="btn-icon" onclick="closeCouponForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group"><label class="form-label">Coupon Code *</label><input type="text" class="form-input" id="coupon-code" placeholder="e.g. SUMMER20" style="text-transform:uppercase;" /></div>
+          <div class="form-group"><label class="form-label">Title</label><input type="text" class="form-input" id="coupon-title" placeholder="e.g. Summer Special" /></div>
+          <div class="form-group"><label class="form-label">Discount Type</label>
+            <select class="form-input" id="coupon-type">
+              <option value="percent">Percent Off</option>
+              <option value="flat">Flat Amount Off</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Value *</label><input type="number" class="form-input" id="coupon-value" min="0.01" step="0.01" placeholder="e.g. 20" /></div>
+          <div class="form-group"><label class="form-label">Expires At</label><input type="date" class="form-input" id="coupon-expires" /></div>
+          <div class="form-group"><label class="form-label">Max Redemptions (blank=∞)</label><input type="number" class="form-input" id="coupon-max-redemptions" min="1" placeholder="∞" /></div>
+        </div>
+        <button class="btn btn-metallic" style="width:100%;margin-top:8px;" onclick="saveCoupon()">Create Coupon</button>
+      </div>
+    </div>
+    <!-- Comp service form modal -->
+    <div id="comp-form-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Complimentary Service</h3>
+          <button class="btn-icon" onclick="closeCompForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="form-group"><label class="form-label">Service Title *</label><input type="text" class="form-input" id="comp-title" placeholder="e.g. Free Car Wash" /></div>
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="comp-desc" rows="2"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group"><label class="form-label">Service Type</label><input type="text" class="form-input" id="comp-service-type" placeholder="e.g. car_wash" /></div>
+          <div class="form-group"><label class="form-label">Max per Member</label><input type="number" class="form-input" id="comp-per-member" min="1" placeholder="e.g. 1" /></div>
+          <div class="form-group"><label class="form-label">Expires At</label><input type="date" class="form-input" id="comp-expires" /></div>
+        </div>
+        <button class="btn btn-metallic" style="width:100%;margin-top:8px;" onclick="saveCompService()">Save Service</button>
+      </div>
+    </div>
     <div id="product-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:560px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
@@ -1284,7 +1429,7 @@
       document.getElementById(`section-${name}`).classList.add('active');
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const navItems = document.querySelectorAll('.nav-item');
-      const map = { setup: 0, rewards: 1, members: 2, activity: 3, freebids: 4, leaderboard: 5, promotions: 6, store: 7, orders: 8, analytics: 9 };
+      const map = { setup: 0, rewards: 1, members: 2, activity: 3, freebids: 4, leaderboard: 5, promotions: 6, store: 7, orders: 8, analytics: 9, programs: 10 };
       if (map[name] !== undefined && navItems[map[name]]) navItems[map[name]].classList.add('active');
       if (name === 'rewards') loadRewards();
       else if (name === 'members') loadMembers();
@@ -1295,6 +1440,7 @@
       else if (name === 'store') loadProducts();
       else if (name === 'orders') loadOrders();
       else if (name === 'analytics') loadAnalytics();
+      else if (name === 'programs') loadPrograms();
       if (window.innerWidth <= 900) toggleSidebar();
     }
 
@@ -2598,6 +2744,289 @@
         });
         showToast('Order marked as shipped', 'success');
         await loadOrders();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ── Programs ────────────────────────────────────────────────────────────
+    async function loadPrograms() {
+      if (!clubData) return;
+      const cid = clubData.id;
+      document.getElementById('prg-toggles-loading').style.display = '';
+      document.getElementById('prg-toggles').style.display = 'none';
+      try {
+        const data = await apiFetch(`/api/car-clubs/${cid}`);
+        const club = data.club;
+        document.getElementById('toggle-points').checked  = !!club.points_enabled;
+        document.getElementById('toggle-coupons').checked = !!club.coupons_enabled;
+        document.getElementById('toggle-comp').checked    = !!club.comp_services_enabled;
+        document.getElementById('toggle-punch').checked   = !!club.punch_card_enabled;
+        const ptsPanel    = document.getElementById('prg-points-panel');
+        const couponPanel = document.getElementById('prg-coupons-panel');
+        const compPanel   = document.getElementById('prg-comp-panel');
+        ptsPanel.style.display    = club.points_enabled ? '' : 'none';
+        couponPanel.style.display = club.coupons_enabled ? '' : 'none';
+        compPanel.style.display   = club.comp_services_enabled ? '' : 'none';
+        if (club.points_enabled)         { await loadPtsConfig(cid); await loadPrgRewards(cid); }
+        if (club.coupons_enabled)        await loadPrgCoupons(cid);
+        if (club.comp_services_enabled)  await loadPrgComp(cid);
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        document.getElementById('prg-toggles-loading').style.display = 'none';
+        document.getElementById('prg-toggles').style.display = '';
+      }
+    }
+
+    async function saveFeatureToggle(field, value) {
+      if (!clubData) return;
+      try {
+        await apiFetch(`/api/car-clubs/${clubData.id}/features`, {
+          method: 'PATCH',
+          body: JSON.stringify({ [field]: value })
+        });
+        showToast('Saved', 'success');
+        const panelMap = {
+          points_enabled: 'prg-points-panel',
+          coupons_enabled: 'prg-coupons-panel',
+          comp_services_enabled: 'prg-comp-panel'
+        };
+        if (panelMap[field]) {
+          document.getElementById(panelMap[field]).style.display = value ? '' : 'none';
+          if (value) {
+            const cid = clubData.id;
+            if (field === 'points_enabled')        { await loadPtsConfig(cid); await loadPrgRewards(cid); }
+            if (field === 'coupons_enabled')        await loadPrgCoupons(cid);
+            if (field === 'comp_services_enabled')  await loadPrgComp(cid);
+          }
+        }
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPtsConfig(cid) {
+      try {
+        const data = await apiFetch(`/api/car-clubs/${cid}/points-config`);
+        const c = data.config || {};
+        document.getElementById('pts-earn-rate').value = c.points_per_dollar ?? '';
+        document.getElementById('pts-label').value     = c.points_label ?? '';
+        document.getElementById('pts-accrual').value   = c.accrual_source ?? 'mcc_processed';
+      } catch { /* no config yet */ }
+    }
+
+    async function savePtsConfig() {
+      if (!clubData) return;
+      const payload = {
+        points_per_dollar: parseFloat(document.getElementById('pts-earn-rate').value) || 1,
+        points_label:      document.getElementById('pts-label').value.trim() || 'points',
+        accrual_source:    document.getElementById('pts-accrual').value
+      };
+      try {
+        await apiFetch(`/api/car-clubs/${clubData.id}/points-config`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        showToast('Points config saved', 'success');
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPrgRewards(cid) {
+      const el      = document.getElementById('prg-rewards-list');
+      const loading = document.getElementById('prg-rewards-loading');
+      loading.style.display = '';
+      try {
+        const data    = await apiFetch(`/api/car-clubs/${cid}/rewards`);
+        const rewards = data.rewards || [];
+        loading.style.display = 'none';
+        if (!rewards.length) {
+          el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No rewards yet.</p>';
+          return;
+        }
+        el.innerHTML = rewards.map(r => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:500;font-size:var(--text-sm);">${escHtml(r.title)}</div>
+              <div style="font-size:var(--text-xs);color:var(--text-muted);">${r.point_cost} pts · ${escHtml(r.kind)}${r.inventory_qty != null ? ` · ${r.inventory_qty} left` : ''}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div class="toggle-switch" style="transform:scale(0.85);">
+                <input type="checkbox" ${r.active ? 'checked' : ''} onchange="togglePrgReward('${r.id}',this.checked)">
+                <span class="toggle-slider"></span>
+              </div>
+              <button class="btn btn--secondary btn--small"
+                onclick="openRewardForm('${r.id}','${escHtml(r.title)}','${escHtml(r.description||'')}','${r.kind}',${r.point_cost},${r.inventory_qty ?? ''})">
+                Edit
+              </button>
+            </div>
+          </div>`).join('');
+      } catch(e) {
+        loading.style.display = 'none';
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function openRewardForm(id='', title='', desc='', kind='other', pts='', inv='') {
+      document.getElementById('reward-edit-id').value    = id;
+      document.getElementById('reward-title').value      = title;
+      document.getElementById('reward-desc').value       = desc;
+      document.getElementById('reward-kind').value       = kind;
+      document.getElementById('reward-point-cost').value = pts;
+      document.getElementById('reward-inventory').value  = inv;
+      document.getElementById('reward-form-modal').style.display = 'flex';
+    }
+    function closeRewardForm() { document.getElementById('reward-form-modal').style.display = 'none'; }
+
+    async function savePrgReward() {
+      if (!clubData) return;
+      const cid  = clubData.id;
+      const id   = document.getElementById('reward-edit-id').value;
+      const invVal = document.getElementById('reward-inventory').value;
+      const payload = {
+        title:         document.getElementById('reward-title').value.trim(),
+        description:   document.getElementById('reward-desc').value.trim(),
+        kind:          document.getElementById('reward-kind').value,
+        point_cost:    parseFloat(document.getElementById('reward-point-cost').value),
+        inventory_qty: invVal !== '' ? parseInt(invVal) : null
+      };
+      if (!payload.title || isNaN(payload.point_cost)) {
+        showToast('Title and points cost are required', 'error');
+        return;
+      }
+      try {
+        if (id) {
+          await apiFetch(`/api/car-clubs/${cid}/rewards/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+        } else {
+          await apiFetch(`/api/car-clubs/${cid}/rewards`, { method: 'POST', body: JSON.stringify(payload) });
+        }
+        closeRewardForm();
+        showToast('Reward saved', 'success');
+        await loadPrgRewards(cid);
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function togglePrgReward(rewardId, active) {
+      if (!clubData) return;
+      try {
+        await apiFetch(`/api/car-clubs/${clubData.id}/rewards/${rewardId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ active })
+        });
+        showToast(active ? 'Reward enabled' : 'Reward disabled', 'success');
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPrgCoupons(cid) {
+      const el = document.getElementById('prg-coupons-list');
+      try {
+        const data    = await apiFetch(`/api/car-clubs/${cid}/coupons`);
+        const coupons = data.coupons || [];
+        if (!coupons.length) {
+          el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No coupons yet.</p>';
+          return;
+        }
+        el.innerHTML = coupons.map(c => {
+          const disc = c.discount_type === 'percent' ? `${c.discount_value}% off` : `$${c.discount_value} off`;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:500;font-size:var(--text-sm);">${escHtml(c.title || c.code)} <code style="font-size:var(--text-xs);background:var(--bg-primary);padding:2px 6px;border-radius:4px;">${escHtml(c.code)}</code></div>
+              <div style="font-size:var(--text-xs);color:var(--text-muted);">${disc}${c.expires_at ? ` · Expires ${new Date(c.expires_at).toLocaleDateString()}` : ''}</div>
+            </div>
+            <span style="font-size:var(--text-xs);padding:2px 8px;border-radius:999px;background:${c.active ? 'rgba(34,197,94,.15)' : 'var(--bg-primary)'};color:${c.active ? '#22c55e' : 'var(--text-muted)'};">${c.active ? 'Active' : 'Inactive'}</span>
+          </div>`;
+        }).join('');
+      } catch(e) {
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function openCouponForm() { document.getElementById('coupon-form-modal').style.display = 'flex'; }
+    function closeCouponForm() {
+      document.getElementById('coupon-form-modal').style.display = 'none';
+      ['coupon-code','coupon-title','coupon-value','coupon-expires','coupon-max-redemptions'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+    }
+
+    async function saveCoupon() {
+      if (!clubData) return;
+      const cid  = clubData.id;
+      const code = document.getElementById('coupon-code').value.trim().toUpperCase();
+      const val  = parseFloat(document.getElementById('coupon-value').value);
+      if (!code) { showToast('Coupon code is required', 'error'); return; }
+      if (!val || val <= 0) { showToast('Discount value must be positive', 'error'); return; }
+      const maxR = document.getElementById('coupon-max-redemptions').value;
+      const payload = {
+        code,
+        title:           document.getElementById('coupon-title').value.trim() || null,
+        discount_type:   document.getElementById('coupon-type').value,
+        discount_value:  val,
+        expires_at:      document.getElementById('coupon-expires').value || null,
+        max_redemptions: maxR ? parseInt(maxR) : null
+      };
+      try {
+        await apiFetch(`/api/car-clubs/${cid}/coupons`, { method: 'POST', body: JSON.stringify(payload) });
+        closeCouponForm();
+        showToast('Coupon created', 'success');
+        await loadPrgCoupons(cid);
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPrgComp(cid) {
+      const el = document.getElementById('prg-comp-list');
+      try {
+        const data     = await apiFetch(`/api/car-clubs/${cid}/comp-services`);
+        const services = data.comp_services || [];
+        if (!services.length) {
+          el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No complimentary services yet.</p>';
+          return;
+        }
+        el.innerHTML = services.map(s => `
+          <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+            <div style="font-weight:500;font-size:var(--text-sm);">${escHtml(s.title)}${s.service_type ? ` <span style="font-size:var(--text-xs);color:var(--text-muted);">(${escHtml(s.service_type)})</span>` : ''}</div>
+            ${s.description ? `<div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;">${escHtml(s.description)}</div>` : ''}
+            ${s.per_member_limit ? `<div style="font-size:var(--text-xs);color:var(--text-muted);">Max ${s.per_member_limit} per member</div>` : ''}
+          </div>`).join('');
+      } catch(e) {
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function openCompForm() { document.getElementById('comp-form-modal').style.display = 'flex'; }
+    function closeCompForm() {
+      document.getElementById('comp-form-modal').style.display = 'none';
+      ['comp-title','comp-desc','comp-service-type','comp-per-member','comp-expires'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+    }
+
+    async function saveCompService() {
+      if (!clubData) return;
+      const cid   = clubData.id;
+      const title = document.getElementById('comp-title').value.trim();
+      if (!title) { showToast('Service title is required', 'error'); return; }
+      const perM = document.getElementById('comp-per-member').value;
+      const payload = {
+        title,
+        description:    document.getElementById('comp-desc').value.trim() || null,
+        service_type:   document.getElementById('comp-service-type').value.trim() || null,
+        per_member_limit: perM ? parseInt(perM) : null,
+        expires_at:     document.getElementById('comp-expires').value || null
+      };
+      try {
+        await apiFetch(`/api/car-clubs/${cid}/comp-services`, { method: 'POST', body: JSON.stringify(payload) });
+        closeCompForm();
+        showToast('Complimentary service added', 'success');
+        await loadPrgComp(cid);
       } catch(e) {
         showToast(e.message, 'error');
       }
