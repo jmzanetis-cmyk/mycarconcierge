@@ -3478,6 +3478,8 @@ async function mountContributeCardElement() {
     });
   } catch (err) {
     console.error('[ContributeModal] Stripe init error:', err);
+    const errorEl = document.getElementById('contribute-card-error');
+    if (errorEl) { errorEl.textContent = 'Payment system unavailable. Please refresh and try again.'; errorEl.style.display = 'block'; }
   }
 }
 
