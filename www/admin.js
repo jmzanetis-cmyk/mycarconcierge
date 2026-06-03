@@ -2245,7 +2245,7 @@
     async function loadDisputes() {
       // Task #281 — surface load errors instead of silently rendering "No disputes".
       loadErrors.disputes = null;
-      const { data, error } = await supabaseClient.from('disputes').select('*, maintenance_packages(title), payments(amount_total), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
+      const { data, error } = await supabaseClient.from('disputes').select('*, maintenance_packages(title, payments(id, amount_total)), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
       if (error) { console.error('loadDisputes failed:', error); setLoadError('disputes', error); disputes = []; renderDisputes(); return; }
       disputes = data || [];
       renderDisputes();
@@ -4149,7 +4149,7 @@
       });
       const tbody = document.getElementById('disputes-table');
 
-      const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
+      const highValue = disputes.filter(d => (d.maintenance_packages?.payments?.[0]?.amount_total || 0) > 1000 && d.status === 'open');
       document.getElementById('high-value-alert').style.display = highValue.length ? 'block' : 'none';
 
       // Task #281 — show load error before falling through to "No disputes".
@@ -4788,19 +4788,20 @@
       }).eq('id', currentDispute.id);
 
       // Process refund if member wins
-      if (winner === 'member' && currentDispute.payment_id) {
+      const disputePaymentId = currentDispute.maintenance_packages?.payments?.[0]?.id;
+      if (winner === 'member' && disputePaymentId) {
         await supabaseClient.from('payments').update({
           status: 'refunded',
           refund_amount: resolutionAmount,
           refund_reason: notes,
           refunded_at: new Date().toISOString()
-        }).eq('id', currentDispute.payment_id);
+        }).eq('id', disputePaymentId);
       }
 
       // If provider loses, add a strike
       if (winner === 'member') {
         // Get provider from payment
-        const payment = payments.find(p => p.id === currentDispute.payment_id);
+        const payment = payments.find(p => p.id === disputePaymentId);
         if (payment?.provider_id) {
           await supabaseClient.rpc('increment_provider_strikes', { provider_id: payment.provider_id });
         }
@@ -5036,7 +5037,7 @@
       const { data: openDisputes, error: disputeErr } = await supabaseClient
         .from('disputes')
         .select('id')
-        .eq('payment_id', paymentId)
+        .eq('package_id', p.package_id)
         .eq('status', 'open')
         .limit(1);
       if (disputeErr) {
