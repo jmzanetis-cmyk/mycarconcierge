@@ -8272,6 +8272,9 @@ See you there!`);
       if (sectionId === 'insurance') {
         loadInsuranceDocuments();
       }
+      if (sectionId === 'founder') {
+        loadFounderSection();
+      }
       originalShowSectionForReferrals(sectionId);
     };
 
@@ -9157,3 +9160,227 @@ See you there!`);
       }
     }
 
+    // ── Founder Inline Section ─────────────────────────────────────────────
+    let _founderProfile = null;
+    let _founderSectionInit = false;
+
+    async function loadFounderSection() {
+      if (_founderSectionInit) return;
+      _founderSectionInit = true;
+      const loading = document.getElementById('founder-loading-state');
+      const notApproved = document.getElementById('founder-not-approved-state');
+      const approved = document.getElementById('founder-approved-state');
+      if (!loading) return;
+      loading.style.display = 'flex';
+      notApproved.style.display = 'none';
+      approved.style.display = 'none';
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) { loading.style.display = 'none'; renderFounderNotApproved(); return; }
+        const res = await fetch('/api/member-founder/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        loading.style.display = 'none';
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.profile) { _founderProfile = data.profile; renderFounderApproved(data.profile); return; }
+        }
+        renderFounderNotApproved();
+      } catch(e) {
+        const loadingEl = document.getElementById('founder-loading-state');
+        if (loadingEl) loadingEl.style.display = 'none';
+        renderFounderNotApproved();
+      }
+    }
+
+    function renderFounderNotApproved() {
+      document.getElementById('founder-not-approved-state').style.display = 'block';
+      document.getElementById('founder-approved-state').style.display = 'none';
+      const emailEl = document.getElementById('founder-apply-email');
+      if (emailEl && !emailEl.value && currentUser?.email) emailEl.value = currentUser.email;
+      const nameEl = document.getElementById('founder-apply-name');
+      if (nameEl && !nameEl.value && typeof userProfile !== 'undefined' && userProfile?.full_name) nameEl.value = userProfile.full_name;
+    }
+
+    async function renderFounderApproved(profile) {
+      document.getElementById('founder-not-approved-state').style.display = 'none';
+      document.getElementById('founder-approved-state').style.display = 'block';
+      const bd = profile.balance_breakdown || {};
+      const cleared = (bd.payable_amount || 0) + (bd.paid_amount_ytd || 0);
+      function _sf(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+      _sf('founder-commission-rate', Math.round((profile.commission_rate || 0.5) * 100) + '%');
+      _sf('founder-stat-cleared', '$' + cleared.toFixed(2));
+      _sf('founder-stat-maturing', '$' + (bd.maturing_amount || 0).toFixed(2));
+      _sf('founder-stat-payable', '$' + (bd.payable_amount || 0).toFixed(2));
+      _sf('founder-stat-providers', profile.total_provider_referrals || 0);
+      if (profile.next_payout_date) {
+        _sf('founder-next-payout', new Date(profile.next_payout_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+      }
+      const code = profile.referral_code || '';
+      _sf('founder-code-display', code || '—');
+      const provUrl = code ? `https://www.mycarconcierge.com/signup-provider.html?ref=${code}` : '—';
+      _sf('founder-provider-link', provUrl);
+      const badge = document.getElementById('founder-earn-badge');
+      if (badge && code) { badge.textContent = Math.round((profile.commission_rate || 0.5) * 100) + '%'; badge.style.display = 'inline-block'; }
+      if (code && typeof QRCode !== 'undefined') {
+        const canvas = document.getElementById('founder-qr-canvas');
+        if (canvas) try { await QRCode.toCanvas(canvas, provUrl, { width: 160, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } }); } catch(e) {}
+      }
+      loadFounderCommissions();
+    }
+
+    async function loadFounderCommissions() {
+      const feedEl = document.getElementById('founder-activity-feed');
+      if (!feedEl) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch('/api/member-founder/commissions?limit=10', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) { feedEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">No activity yet.</p>'; return; }
+        const data = await res.json();
+        const comms = data.commissions || [];
+        if (!comms.length) { feedEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">No commissions yet. Start sharing your link!</p>'; return; }
+        const statusColors = { paid: 'var(--accent-green)', payable: 'var(--accent-gold)', pending: 'var(--accent-blue)', voided: 'var(--text-muted)', clawback_adjustment: 'var(--accent-orange)' };
+        const statusLabels = { paid: 'Paid', payable: 'Payable', pending: 'Maturing', voided: 'Voided', clawback_adjustment: 'Clawback' };
+        feedEl.innerHTML = comms.map(c => {
+          const color = statusColors[c.status] || 'var(--text-muted)';
+          const label = statusLabels[c.status] || c.status;
+          const amt = parseFloat(c.commission_amount || 0);
+          const date = new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const prov = c.referred_provider_name || 'Provider';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border-subtle);">
+            <div><div style="font-weight:500;font-size:0.9rem;">${prov}</div><div style="font-size:0.78rem;color:var(--text-muted);">${date}</div></div>
+            <div style="text-align:right;"><div style="font-weight:600;color:${color};">$${amt.toFixed(2)}</div><div style="font-size:0.75rem;color:${color};opacity:0.8;">${label}</div></div>
+          </div>`;
+        }).join('');
+      } catch(e) {
+        feedEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">Could not load commissions.</p>';
+      }
+    }
+
+    async function submitFounderApplication(event) {
+      event.preventDefault();
+      const btn = document.getElementById('founder-apply-btn');
+      const form = document.getElementById('founder-apply-form');
+      const successEl = document.getElementById('founder-apply-success');
+      const fullName = document.getElementById('founder-apply-name').value.trim();
+      const email = document.getElementById('founder-apply-email').value.trim();
+      const phone = document.getElementById('founder-apply-phone').value.trim();
+      const location = document.getElementById('founder-apply-location').value.trim();
+      const promoMethod = document.getElementById('founder-apply-promo').value;
+      const motivation = document.getElementById('founder-apply-motivation').value.trim();
+      if (!fullName || !email || !phone || !location || !promoMethod || !motivation) {
+        showToast('Please fill in all required fields', 'error'); return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+      try {
+        const { error } = await supabaseClient.from('member_founder_applications').insert({
+          full_name: fullName, email, phone, location,
+          promotion_method: promoMethod, motivation, status: 'pending',
+        });
+        if (error && error.code === '23505') {
+          showToast('You already have an application on file.', 'info');
+        } else if (error) {
+          throw error;
+        } else {
+          form.style.display = 'none';
+          successEl.style.display = 'block';
+        }
+      } catch(e) {
+        console.error('founder apply error:', e);
+        showToast('Submission failed. Please try again.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Application';
+      }
+    }
+
+    function copyFounderCode() {
+      if (!_founderProfile?.referral_code) { showToast('Code not loaded', 'error'); return; }
+      navigator.clipboard.writeText(_founderProfile.referral_code).then(
+        () => showToast('Code copied!', 'success'),
+        () => showToast('Failed to copy', 'error')
+      );
+    }
+
+    function copyFounderProviderLink() {
+      if (!_founderProfile?.referral_code) { showToast('Code not loaded', 'error'); return; }
+      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      navigator.clipboard.writeText(url).then(
+        () => showToast('Link copied!', 'success'),
+        () => showToast('Failed to copy', 'error')
+      );
+    }
+
+    function downloadFounderQr() {
+      const canvas = document.getElementById('founder-qr-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `mcc-founder-${_founderProfile?.referral_code || 'qr'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('QR code downloaded!', 'success');
+    }
+
+    function shareFounderProviderEmail() {
+      if (!_founderProfile?.referral_code) return;
+      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      window.open(`mailto:?subject=${encodeURIComponent('Join My Car Concierge as a Provider')}&body=${encodeURIComponent('Hi,\n\nI wanted to invite you to join the My Car Concierge provider network. Sign up here: ' + url)}`);
+    }
+
+    function shareFounderProviderSMS() {
+      if (!_founderProfile?.referral_code) return;
+      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      const msg = encodeURIComponent(`Join My Car Concierge as a provider — grow your auto shop with new clients! ${url}`);
+      window.open(/iPhone|iPad|iPod/i.test(navigator.userAgent) ? `sms:&body=${msg}` : `sms:?body=${msg}`);
+    }
+
+    async function sendFounderInvite(event) {
+      event.preventDefault();
+      const btn = document.getElementById('founder-invite-btn');
+      const emailEl = document.getElementById('founder-invite-email');
+      const phoneEl = document.getElementById('founder-invite-phone');
+      const msgEl = document.getElementById('founder-invite-message');
+      const invEmail = emailEl?.value.trim();
+      const invPhone = phoneEl?.value.trim();
+      if (!invEmail && !invPhone) { showToast('Enter an email or phone number', 'error'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        const payload = {};
+        if (invEmail) payload.email = invEmail;
+        if (invPhone) payload.phone = invPhone;
+        const invMsg = msgEl?.value.trim();
+        if (invMsg) payload.message = invMsg;
+        const res = await fetch('/api/member-founder/invite', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('Invite sent!', 'success');
+          if (emailEl) emailEl.value = '';
+          if (phoneEl) phoneEl.value = '';
+          if (msgEl) msgEl.value = '';
+        } else {
+          showToast(data.error || 'Failed to send invite', 'error');
+        }
+      } catch(e) {
+        showToast('Failed to send invite', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Invite';
+      }
+    }
+
+    window.loadFounderSection     = loadFounderSection;
+    window.submitFounderApplication = submitFounderApplication;
+    window.copyFounderCode        = copyFounderCode;
+    window.copyFounderProviderLink = copyFounderProviderLink;
+    window.downloadFounderQr      = downloadFounderQr;
+    window.shareFounderProviderEmail = shareFounderProviderEmail;
+    window.shareFounderProviderSMS = shareFounderProviderSMS;
+    window.sendFounderInvite      = sendFounderInvite;
