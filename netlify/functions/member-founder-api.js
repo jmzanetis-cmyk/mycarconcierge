@@ -276,24 +276,8 @@ ${personalNote ? `<p><em>${message}</em></p>` : ''}
       }
     }
 
-    // ── SMS ────────────────────────────────────────────────────────────────
-    if (phone) {
-      const { sendSms } = require('./_shared/sms');
-      const smsBody = [
-        `${founderName} invited you to join My Car Concierge as a provider.`,
-        personalNote ? `"${message}"` : null,
-        `Sign up: ${refUrl}`,
-        `Note: ${founderName} earns a commission if you purchase bid credits.`,
-      ].filter(Boolean).join(' ');
-      const sbClient = sb();
-      const result = await sendSms({ supabase: sbClient, toPhone: phone, body: smsBody });
-      if (result.sent) {
-        channelsSent.push('sms');
-      } else {
-        console.error('[member-founder-api] invite SMS failed:', result.reason);
-        errors.push(`sms_${result.reason}`);
-      }
-    }
+    // SMS invite disabled pending TCPA express written consent infrastructure.
+    // Recipients are non-MCC users (cold outreach) — cannot safely send without prior consent.
 
     // ── Log invite ─────────────────────────────────────────────────────────
     await supabase.from('founder_invites').insert({
