@@ -988,7 +988,7 @@ function renderServiceHistory() {
           <div class="history-date">${date}</div>
           ${h.notes ? `<div class="history-notes">${escapeHtml(h.notes)}</div>` : ''}
         </div>
-        ${h.cost ? `<div class="history-cost">$${h.cost.toFixed(2)}</div>` : ''}
+        ${h.total_cost ? `<div class="history-cost">$${Number(h.total_cost).toFixed(2)}</div>` : ''}
       </div>
     `;
   }).join('');
