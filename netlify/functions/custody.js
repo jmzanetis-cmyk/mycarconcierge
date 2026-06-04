@@ -328,6 +328,55 @@ async function handlePhotoMetadata(supabase, body, userId) {
   return { success: true, photo: ins.data };
 }
 
+// GET /job-for-ride?ride_id=<uuid>
+// Returns {job_id, member_id, provider_id} for the concierge job linked to a ride.
+// Only succeeds if the caller has an active driver assignment for that ride.
+async function handleGetJobForRide(supabase, rideId, userId) {
+  if (!rideId || !UUID_RE.test(rideId)) bail('invalid ride_id', 400);
+
+  // Resolve the driver row (profile_id = auth.uid).
+  var driverRes = await supabase
+    .from('drivers')
+    .select('id')
+    .eq('profile_id', userId)
+    .single();
+  if (driverRes.error || !driverRes.data) bail('Driver record not found', 403);
+
+  // Verify active assignment for this ride.
+  var aRes = await supabase
+    .from('driver_assignments')
+    .select('id')
+    .eq('ride_id', rideId)
+    .eq('driver_id', driverRes.data.id)
+    .in('status', ['accepted', 'en_route', 'arrived', 'in_progress', 'completed'])
+    .limit(1);
+  if (aRes.error || !aRes.data || aRes.data.length === 0)
+    bail('No active assignment for this ride', 403);
+
+  // Ride → service_request_id (= maintenance_packages.id = concierge_jobs.package_id).
+  var rideRes = await supabase
+    .from('rides')
+    .select('service_request_id')
+    .eq('id', rideId)
+    .single();
+  if (rideRes.error || !rideRes.data) bail('Ride not found', 404);
+  if (!rideRes.data.service_request_id) bail('Ride is not linked to a concierge job', 404);
+
+  var jobRes = await supabase
+    .from('concierge_jobs')
+    .select('id, member_id, provider_id')
+    .eq('package_id', rideRes.data.service_request_id)
+    .single();
+  if (jobRes.error || !jobRes.data) bail('Concierge job not found', 404);
+
+  return {
+    success:     true,
+    job_id:      jobRes.data.id,
+    member_id:   jobRes.data.member_id,
+    provider_id: jobRes.data.provider_id || null,
+  };
+}
+
 // GET /jobs/:jobId — full custody chain visible to this user
 async function handleGetJob(supabase, jobId, userId) {
   if (!jobId || !UUID_RE.test(jobId)) bail('invalid job_id', 400);
@@ -407,6 +456,11 @@ exports.handler = async function(event) {
     // GET /jobs/:jobId
     } else if (parts.length === 2 && parts[0] === 'jobs' && method === 'GET') {
       result = await handleGetJob(supabase, parts[1], user.id);
+
+    // GET /job-for-ride?ride_id=<uuid>
+    } else if (route === 'job-for-ride' && method === 'GET') {
+      var rideId = (event.queryStringParameters && event.queryStringParameters.ride_id) || '';
+      result = await handleGetJobForRide(supabase, rideId, user.id);
 
     } else {
       return utils.errorResponse(404, 'Unknown route: ' + method + ' ' + route);
