@@ -255,6 +255,107 @@ async function handlePaymentIntentSucceeded(pi, supabase) {
       .update({ provider_subsidy_status: 'charged' })
       .eq('id', meta.ride_id);
   }
+
+  // Grant pending referral credits on first care-plan payment
+  if (meta.care_plan_id && meta.member_id) {
+    await _grantPendingReferralCredits(meta.member_id, supabase);
+  }
+
+  // Accrue car-club points when member pays a car-club provider
+  if (meta.care_plan_id && meta.member_id && meta.provider_id && pi.amount > 0) {
+    await _accrueCarClubPoints(meta.member_id, meta.provider_id, pi.amount, pi.id, supabase);
+  }
+}
+
+// Moves a pending referral row to credited and issues member_credits for both parties.
+// Only fires on the first care-plan payment for a given referred user.
+// Idempotent: referral rows already in status credited/voided are skipped.
+async function _grantPendingReferralCredits(memberId, supabase) {
+  try {
+    // Find a pending referral where this member is the referred party
+    const { data: ref } = await supabase
+      .from('referrals')
+      .select('id, referrer_id, referred_id, referrer_credit_amount, referred_credit_amount')
+      .eq('referred_id', memberId)
+      .eq('status', 'pending')
+      .limit(1)
+      .maybeSingle();
+
+    if (!ref) return; // no pending referral — nothing to do
+
+    const now = new Date().toISOString();
+
+    // Mark credited first (idempotency anchor)
+    const { error: updateErr } = await supabase.from('referrals')
+      .update({ status: 'credited', credited_at: now })
+      .eq('id', ref.id)
+      .eq('status', 'pending'); // guard against race
+
+    if (updateErr) {
+      if (updateErr.code === '23505' || updateErr.message?.includes('0 rows')) return;
+      console.warn('[stripe-webhook] referral credit update error (non-fatal):', updateErr.message);
+      return;
+    }
+
+    // Grant credits to both parties
+    await supabase.from('member_credits').insert([
+      {
+        member_id:   ref.referrer_id,
+        amount:      ref.referrer_credit_amount || 1000,
+        type:        'referral',
+        description: 'Referral credit — a friend completed their first service',
+        referral_id: ref.id,
+      },
+      {
+        member_id:   ref.referred_id,
+        amount:      ref.referred_credit_amount || 1000,
+        type:        'referral',
+        description: 'Welcome credit — first service completed with referral code',
+        referral_id: ref.id,
+      },
+    ]);
+
+    console.log(`[stripe-webhook] referral credits granted — referral ${ref.id} member ${memberId}`);
+  } catch (e) {
+    console.warn('[stripe-webhook] _grantPendingReferralCredits error (non-fatal):', e.message);
+  }
+}
+
+// Accrue car-club loyalty points when a member pays a club provider.
+// No-op when: provider has no club, member isn't a club member, or points are disabled.
+async function _accrueCarClubPoints(memberId, providerId, amountCents, paymentIntentId, supabase) {
+  try {
+    const { data: club } = await supabase
+      .from('car_clubs')
+      .select('id, points_enabled, is_active')
+      .eq('provider_id', providerId)
+      .eq('is_active', true)
+      .limit(1)
+      .maybeSingle();
+
+    if (!club || !club.points_enabled) return;
+
+    const { data: membership } = await supabase
+      .from('club_memberships')
+      .select('id')
+      .eq('club_id', club.id)
+      .eq('member_id', memberId)
+      .eq('is_active', true)
+      .maybeSingle();
+
+    if (!membership) return;
+
+    await supabase.rpc('accrue_points', {
+      p_club_id:     club.id,
+      p_member_id:   memberId,
+      p_amount_cents: amountCents,
+      p_source_ref:  paymentIntentId,
+    });
+
+    console.log(`[stripe-webhook] car-club points accrued — club ${club.id} member ${memberId} ${amountCents}¢`);
+  } catch (e) {
+    console.warn('[stripe-webhook] _accrueCarClubPoints error (non-fatal):', e.message);
+  }
 }
 
 // ── payment_intent.payment_failed ─────────────────────────────────────────

@@ -1,6 +1,7 @@
 // POST   /api/booking           — create a service appointment (slot_bookings)
 // GET    /api/booking/:id       — get appointment details
 // DELETE /api/booking/:id       — cancel appointment
+'use strict';
 const { createClient } = require('@supabase/supabase-js');
 
 function supabase() {
@@ -88,6 +89,10 @@ async function handleCreate(event, sb, user) {
   }).select('*').single();
 
   if (error) return json(500, { error: error.message });
+
+  // Notify the provider by email (best-effort, non-blocking)
+  sendBookingEmail(sb, booking, user).catch(e => console.warn('[booking] email notify error:', e.message));
+
   return json(201, { success: true, booking });
 }
 
@@ -99,6 +104,44 @@ async function handleGet(sb, user, bookingId) {
   if (!booking) return json(404, { error: 'Booking not found' });
   if (booking.member_id !== user.id && booking.provider_id !== user.id) return json(403, { error: 'Forbidden' });
   return json(200, { success: true, booking });
+}
+
+async function sendBookingEmail(sb, booking, member) {
+  const apiKey = process.env.RESEND_API_KEY;
+  const from   = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  if (!apiKey) return;
+
+  const { data: provProfile } = await sb.from('profiles')
+    .select('email, full_name, business_name').eq('id', booking.provider_id).maybeSingle();
+  if (!provProfile?.email) return;
+
+  const { data: memberProfile } = await sb.from('profiles')
+    .select('full_name, email').eq('id', member.id).maybeSingle();
+
+  const providerName = provProfile.business_name || provProfile.full_name || 'Provider';
+  const memberName   = memberProfile?.full_name || memberProfile?.email || 'A member';
+  const dateStr      = booking.booking_date ? new Date(booking.booking_date).toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }) : '';
+  const timeStr      = booking.start_time ? booking.start_time.slice(0, 5) : '';
+
+  await fetch('https://api.resend.com/emails', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${apiKey}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      from,
+      to: provProfile.email,
+      subject: `New booking request — ${dateStr} at ${timeStr}`,
+      html: `<h2>New Booking Request</h2>
+<p>Hi ${providerName},</p>
+<p><strong>${memberName}</strong> has requested a booking with you:</p>
+<ul>
+  <li><strong>Date:</strong> ${dateStr}</li>
+  <li><strong>Time:</strong> ${timeStr}</li>
+  ${booking.service_type ? `<li><strong>Service:</strong> ${booking.service_type}</li>` : ''}
+  ${booking.member_notes ? `<li><strong>Notes:</strong> ${booking.member_notes}</li>` : ''}
+</ul>
+<p>Log in to your dashboard to review and confirm this appointment.</p>`,
+    }),
+  });
 }
 
 async function handleCancel(sb, user, bookingId) {
