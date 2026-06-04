@@ -176,7 +176,6 @@
     "/api/maintenance/check-reminders",
     "/api/member/onboarding",
     "/api/member/onboarding/step",
-    "/api/member/survey",
     "/api/notify/urgent-update",
     "/api/obd/interpret",
     "/api/obd/scan",

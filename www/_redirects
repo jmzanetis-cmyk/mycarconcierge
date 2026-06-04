@@ -191,6 +191,9 @@
 /api/packages/*/contributions /.netlify/functions/package-contributions/:splat 200
 /api/packages/*/contribute /.netlify/functions/package-contribute/:splat 200
 
+# Feature: Member survey (post-signup 22-question survey)
+/api/member/survey /.netlify/functions/member-survey 200
+
 # Feature: Referral System
 /api/member/referral/apply /.netlify/functions/member-referral 200
 /api/member/*/referral-code /.netlify/functions/member-referral 200
