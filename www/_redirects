@@ -194,6 +194,10 @@
 # Feature: Member survey (post-signup 22-question survey)
 /api/member/survey /.netlify/functions/member-survey 200
 
+# Feature: Member onboarding checklist
+/api/member/onboarding/step /.netlify/functions/member-onboarding 200
+/api/member/onboarding      /.netlify/functions/member-onboarding 200
+
 # Feature: Referral System
 /api/member/referral/apply /.netlify/functions/member-referral 200
 /api/member/*/referral-code /.netlify/functions/member-referral 200
