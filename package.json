@@ -41,8 +41,10 @@
   "dependencies": {
     "@anthropic-ai/sdk": "^0.24.0",
     "@capacitor/android": "^7.4.4",
+    "@capacitor/camera": "^7.0.5",
     "@capacitor/cli": "^7.4.4",
     "@capacitor/core": "^7.4.4",
+    "@capacitor/geolocation": "^7.1.8",
     "@capacitor/ios": "^7.4.4",
     "@capacitor/push-notifications": "^7.0.0",
     "@google-cloud/vision": "^5.3.4",

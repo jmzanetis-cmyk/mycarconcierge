@@ -10,7 +10,8 @@ export type HandoffLeg =
   | 'driver_to_shop'     // 2. drop-off
   | 'shop_to_driver'     // 3. return after service
   | 'driver_to_member'   // 4. delivery
-  | 'driver_to_driver';  // relay
+  | 'driver_to_driver'   // relay
+  | 'member_to_provider'; // direct member → provider drop-off (no driver leg)
 
 export type HandoffStatus =
   | 'pending'
