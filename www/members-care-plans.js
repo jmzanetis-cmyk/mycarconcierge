@@ -8,6 +8,8 @@
   let activePlanId = null;
   let activeBidId = null;
   let activeClientSecret = null;
+  let activeCreditsCents = 0;
+  let memberCreditBalance = null; // cents; null = not yet fetched
   let isSubmitting = false;
   const DISPUTE_REASONS = ['quality', 'incomplete', 'overcharged', 'no_show', 'damaged', 'other'];
 
@@ -106,6 +108,22 @@
       throw err;
     }
     return data;
+  }
+
+  async function fetchMemberCreditBalance() {
+    if (memberCreditBalance !== null) return memberCreditBalance;
+    try {
+      const sb = window.supabaseClient || window.supabase;
+      if (!sb || !sb.auth) return 0;
+      const { data: sessionData } = await sb.auth.getSession();
+      const userId = sessionData && sessionData.session && sessionData.session.user && sessionData.session.user.id;
+      if (!userId) return 0;
+      const data = await api('GET', `/api/member/${userId}/credits`);
+      memberCreditBalance = (data && typeof data.total_credits === 'number') ? data.total_credits : 0;
+      return memberCreditBalance;
+    } catch (_) {
+      return 0;
+    }
   }
 
   // -- status badge -------------------------------------------------------
@@ -293,7 +311,7 @@
       let actionHtml = '';
       if (ps === 'requires_payment') {
         // Member needs to authorize the card. We re-mount the card element.
-        actionHtml = renderCardAuthorizePanel(plan.id, acceptedBid.id, acceptedBid.amount);
+        actionHtml = renderCardAuthorizePanel(plan.id, acceptedBid.id, acceptedBid.amount, plan.credit_applied_cents || 0);
       } else if (ps === 'held') {
         actionHtml = '' +
           '<div style="display:flex;flex-wrap:wrap;gap:10px;">' +
@@ -361,13 +379,14 @@
     // wire up bid accept buttons
     Array.prototype.forEach.call(detail.querySelectorAll('[data-accept-bid]'), function (el) {
       el.addEventListener('click', function () {
-        startAcceptBidFlow(plan.id, el.getAttribute('data-accept-bid'));
+        var bidAmountCents = parseInt(el.getAttribute('data-accept-bid-amount') || '0', 10) || 0;
+        startAcceptBidFlow(plan.id, el.getAttribute('data-accept-bid'), bidAmountCents);
       });
     });
 
     // If we just rendered the card-authorize panel, mount the Stripe element.
     if (acceptedBid && ps === 'requires_payment') {
-      mountAcceptBidCard(plan.id, acceptedBid.id, acceptedBid.amount);
+      mountAcceptBidCard(plan.id, acceptedBid.id, acceptedBid.amount, plan.credit_applied_cents || 0);
     }
   }
 
@@ -410,7 +429,7 @@
         statusEl = '<span style="font-size:0.78rem;padding:2px 10px;border-radius:999px;background:rgba(156,163,175,0.12);color:var(--text-secondary,#9ca3af);border:1px solid rgba(156,163,175,0.3);">' +
           escapeHtml(t('member.cpBidNotSelected', 'Not selected')) + '</span>';
       } else if (acceptable && b.status === 'pending') {
-        statusEl = '<button class="btn btn-primary" type="button" data-accept-bid="' + escapeHtml(b.id) + '">' + escapeHtml(t('member.cpAcceptBid', 'Accept Bid')) + '</button>';
+        statusEl = '<button class="btn btn-primary" type="button" data-accept-bid="' + escapeHtml(b.id) + '" data-accept-bid-amount="' + escapeHtml(String(Math.round(Number(b.amount) * 100))) + '">' + escapeHtml(t('member.cpAcceptBid', 'Accept Bid')) + '</button>';
       } else {
         statusEl = '<span style="font-size:0.83rem;color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpBidStatus_' + b.status, b.status)) + '</span>';
       }
@@ -439,14 +458,52 @@
   }
 
   // -- accept bid flow ----------------------------------------------------
-  async function startAcceptBidFlow(planId, bidId) {
+  async function startAcceptBidFlow(planId, bidId, bidAmountCents) {
     if (isSubmitting) return;
+
+    // Offer credit toggle before charging the card
+    activeCreditsCents = 0;
+    try {
+      const balance = await fetchMemberCreditBalance();
+      if (balance > 0 && bidAmountCents > 0) {
+        const creditable = Math.min(balance, bidAmountCents);
+        await new Promise(function (resolve) {
+          const applyLabel = '$' + (creditable / 100).toFixed(2);
+          const balLabel = '$' + (balance / 100).toFixed(2);
+          const html =
+            '<h3 style="margin:0 0 8px;color:var(--text-primary,#f5f5f7);">' + escapeHtml(t('member.cpApplyCreditTitle', 'Apply Credits')) + '</h3>' +
+            '<p style="margin:0 0 16px;font-size:0.9rem;color:var(--text-secondary,#9ca3af);">' +
+              escapeHtml(t('member.cpApplyCreditMsg', 'You have {{bal}} in MCC credits. Apply {{amt}} toward this purchase?', { bal: balLabel, amt: applyLabel })) +
+            '</p>' +
+            '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">' +
+              '<button class="btn" type="button" id="cp-credit-skip">' + escapeHtml(t('member.cpCreditSkip', 'No thanks')) + '</button>' +
+              '<button class="btn btn-primary" type="button" id="cp-credit-apply">' + escapeHtml(t('member.cpCreditApply', 'Apply {{amt}}', { amt: applyLabel })) + '</button>' +
+            '</div>';
+          openInlineModal(html, function () {
+            document.getElementById('cp-credit-skip').addEventListener('click', function () {
+              activeCreditsCents = 0;
+              closeInlineModal();
+              resolve();
+            });
+            document.getElementById('cp-credit-apply').addEventListener('click', function () {
+              activeCreditsCents = creditable;
+              closeInlineModal();
+              resolve();
+            });
+          });
+        });
+      }
+    } catch (_) { activeCreditsCents = 0; }
+
     isSubmitting = true;
     try {
-      const data = await api('POST', '/api/care-plans/' + encodeURIComponent(planId) + '/accept-bid', { bid_id: bidId });
+      const body = { bid_id: bidId };
+      if (activeCreditsCents > 0) body.credits_to_apply = activeCreditsCents;
+      const data = await api('POST', '/api/care-plans/' + encodeURIComponent(planId) + '/accept-bid', body);
       activePlanId = planId;
       activeBidId = bidId;
       activeClientSecret = data.client_secret;
+      if (data.credit_applied_cents) activeCreditsCents = data.credit_applied_cents;
       // Re-render the detail view; it will now show the card-authorize panel
       // because payment_status flipped to 'requires_payment'.
       await viewCarePlan(planId);
@@ -462,10 +519,18 @@
     }
   }
 
-  function renderCardAuthorizePanel(planId, bidId, amount) {
+  function renderCardAuthorizePanel(planId, bidId, amount, creditAppliedCents) {
+    const applied = creditAppliedCents || activeCreditsCents || 0;
+    const creditLine = applied > 0
+      ? '<div style="margin-bottom:10px;padding:8px 12px;border-radius:8px;background:rgba(201,162,39,0.10);border:1px solid rgba(201,162,39,0.35);color:var(--accent-gold,#c9a227);font-size:0.88rem;">' +
+          escapeHtml(t('member.cpCreditApplied', 'MCC credit applied: −${{amt}}', { amt: (applied / 100).toFixed(2) })) +
+        '</div>'
+      : '';
+    const chargeAmount = amount != null ? Math.max(Number(amount) - applied / 100, 0.5) : amount;
     return '' +
       '<div style="margin-top:8px;">' +
-        '<p style="margin:0 0 10px;color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpAuthorizeIntro', 'Authorize {{amt}} on your card. Funds will be held in escrow and released only when you Mark Complete.', { amt: fmtMoney(amount) })) + '</p>' +
+        creditLine +
+        '<p style="margin:0 0 10px;color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpAuthorizeIntro', 'Authorize {{amt}} on your card. Funds will be held in escrow and released only when you Mark Complete.', { amt: fmtMoney(chargeAmount) })) + '</p>' +
         '<div id="cp-card-element" style="padding:14px;border:1px solid var(--border-color,#2c2f36);border-radius:10px;background:rgba(20,24,30,0.6);min-height:44px;"></div>' +
         '<div id="cp-card-errors" style="color:var(--accent-red,#ef4444);font-size:0.85rem;margin-top:8px;min-height:18px;"></div>' +
         '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">' +
@@ -475,7 +540,8 @@
       '</div>';
   }
 
-  async function mountAcceptBidCard(planId, bidId, amount) {
+  async function mountAcceptBidCard(planId, bidId, amount, creditAppliedCents) {
+    if (creditAppliedCents) activeCreditsCents = creditAppliedCents;
     const errEl = document.getElementById('cp-card-errors');
     try {
       if (typeof window.initStripe !== 'function') {
@@ -497,6 +563,7 @@
         try {
           const data = await api('POST', '/api/care-plans/' + encodeURIComponent(planId) + '/accept-bid', { bid_id: bidId });
           activeClientSecret = data.client_secret;
+          if (data.credit_applied_cents) activeCreditsCents = data.credit_applied_cents;
         } catch (e) {
           if (e.status === 409) {
             if (errEl) errEl.textContent = e.message || t('member.cpRaceErr', 'This plan was updated elsewhere. Refreshing.');

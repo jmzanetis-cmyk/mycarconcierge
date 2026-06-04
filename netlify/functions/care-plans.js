@@ -150,8 +150,11 @@ async function handleGetOne(sb, user, planId) {
 async function handleAcceptBid(event, sb, user, planId) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
-  const { bid_id } = body;
+  const { bid_id, credits_to_apply } = body;
   if (!bid_id) return json(400, { error: 'bid_id required' });
+
+  const creditsCents = Number.isInteger(credits_to_apply) && credits_to_apply > 0
+    ? credits_to_apply : 0;
 
   const { data: plan } = await sb.from('care_plans').select('*').eq('id', planId).single();
   if (!plan) return json(404, { error: 'Care plan not found' });
@@ -166,7 +169,13 @@ async function handleAcceptBid(event, sb, user, planId) {
     if (st) {
       try {
         const pi = await st.paymentIntents.retrieve(plan.stripe_payment_intent_id);
-        if (pi.client_secret) return json(200, { success: true, client_secret: pi.client_secret });
+        if (pi.client_secret) {
+          return json(200, {
+            success: true,
+            client_secret: pi.client_secret,
+            credit_applied_cents: plan.credit_applied_cents || 0,
+          });
+        }
       } catch (_) {}
     }
   }
@@ -190,10 +199,25 @@ async function handleAcceptBid(event, sb, user, planId) {
     .eq('id', bid.provider_id)
     .single();
 
-  const amountCents = Math.round(Number(bid.amount) * 100);
+  const bidAmountCents = Math.round(Number(bid.amount) * 100);
+
+  // Atomically deduct credits from member_credits ledger and stamp care plan.
+  // The RPC locks the care plan row and guards against over-redemption.
+  let appliedCreditsCents = 0;
+  if (creditsCents > 0) {
+    const { data: rpcData, error: rpcErr } = await sb.rpc('redeem_credits_for_payment', {
+      p_member_id: user.id,
+      p_care_plan_id: planId,
+      p_credits_cents: creditsCents,
+    });
+    if (rpcErr) return json(400, { error: rpcErr.message || 'Failed to apply credits' });
+    appliedCreditsCents = (rpcData && rpcData[0]?.credit_applied_cents) || creditsCents;
+  }
+
+  const chargeAmountCents = Math.max(bidAmountCents - appliedCreditsCents, 50); // Stripe minimum 50¢
 
   const piParams = {
-    amount: amountCents,
+    amount: chargeAmountCents,
     currency: 'usd',
     capture_method: 'manual',
     metadata: {
@@ -201,6 +225,7 @@ async function handleAcceptBid(event, sb, user, planId) {
       bid_id: bid.id,
       member_id: user.id,
       provider_id: bid.provider_id,
+      credit_applied_cents: String(appliedCreditsCents),
     },
   };
   if (provProfile?.stripe_account_id) {
@@ -214,7 +239,7 @@ async function handleAcceptBid(event, sb, user, planId) {
     return json(500, { error: stripeErr.message || 'Failed to create payment intent' });
   }
 
-  // Update care plan atomically
+  // Update care plan — credit columns already set by RPC if credits were applied
   const { error: updateErr } = await sb.from('care_plans').update({
     accepted_bid_id: bid_id,
     provider_id: bid.provider_id,
@@ -233,7 +258,11 @@ async function handleAcceptBid(event, sb, user, planId) {
   await sb.from('plan_bids').update({ status: 'not_selected' })
     .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
 
-  return json(200, { success: true, client_secret: pi.client_secret });
+  return json(200, {
+    success: true,
+    client_secret: pi.client_secret,
+    credit_applied_cents: appliedCreditsCents,
+  });
 }
 
 async function handleComplete(event, sb, user, planId) {
