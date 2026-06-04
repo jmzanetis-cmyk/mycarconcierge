@@ -283,6 +283,7 @@ ${personalNote ? `<p><em>${message}</em></p>` : ''}
         `${founderName} invited you to join My Car Concierge as a provider.`,
         personalNote ? `"${message}"` : null,
         `Sign up: ${refUrl}`,
+        `Note: ${founderName} earns a commission if you purchase bid credits.`,
       ].filter(Boolean).join(' ');
       const sbClient = sb();
       const result = await sendSms({ supabase: sbClient, toPhone: phone, body: smsBody });
