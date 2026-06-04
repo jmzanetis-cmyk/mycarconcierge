@@ -55,8 +55,20 @@
       z-index: 100;
     }
     .hero-brand {
-      width: 80px; height: 80px; border-radius: 18px;
-      margin-bottom: 20px; display: block;
+      width: 280px; height: auto; border-radius: 20px;
+      margin-bottom: 40px; display: block;
+      box-shadow: 0 20px 60px rgba(201, 162, 39, 0.2);
+      animation: fadeInUp 0.6s ease forwards;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 768px) {
+      .hero-brand { width: 200px; margin-bottom: 30px; }
+    }
+    @media (min-width: 1024px) {
+      .hero-brand { width: 320px; }
     }
     .nav-link {
       font-size: 13px; font-weight: 500; color: var(--text-muted);
@@ -279,14 +291,14 @@
 <body>
 
 <nav>
-  <a href="https://www.mycarconcierge.co" class="nav-link" style="font-size:14px;font-weight:600;color:var(--text-muted);">mycarconcierge.co</a>
+  <a href="https://www.mycarconcierge.com" class="nav-link" style="font-size:14px;font-weight:600;color:var(--text-muted);">mycarconcierge.com</a>
   <a href="/founder-program-terms.html" class="nav-link">Program Terms</a>
 </nav>
 
 <!-- ── HERO ── -->
 <section class="hero" id="hero">
-  <a href="https://www.mycarconcierge.co">
-    <img src="/icons/icon-192.png" alt="My Car Concierge" class="hero-brand">
+  <a href="https://www.mycarconcierge.com">
+    <img src="/logo.png" alt="My Car Concierge" class="hero-brand">
   </a>
   <div class="eyebrow">🚗 Driver Founder Program</div>
   <h1>Earn <em>50%</em> on every auto pro you refer — for&nbsp;life.</h1>
