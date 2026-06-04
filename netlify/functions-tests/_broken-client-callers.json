@@ -49,7 +49,6 @@
     {"url": "/api/package/:param/checkin-token",                       "caller": "members-packages.js:3471",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/package/:param/confirm-arrival",                     "caller": "providers-jobs.js:1507",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/package/:param/generate-checkin-token",              "caller": "members-packages.js:3519",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
-    {"url": "/api/packages/:param/contribute",                         "caller": "members-core.js:3455",       "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/payments/methods",                                   "caller": "stripeutils.js:327",         "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#455"},
     {"url": "/api/payments/save-method",                               "caller": "stripeutils.js:313",         "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#455"},
     {"url": "/api/pos/session/:param/authorize",                       "caller": "providers.js:10957",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},

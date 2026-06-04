@@ -186,6 +186,7 @@
 # Feature: Community Board
 /api/community-board /.netlify/functions/community-board 200
 /api/packages/*/contributions /.netlify/functions/package-contributions/:splat 200
+/api/packages/*/contribute /.netlify/functions/package-contribute/:splat 200
 
 # Feature: Referral System
 /api/member/referral/apply /.netlify/functions/member-referral 200
