@@ -35,7 +35,7 @@ exports.handler = async function(event) {
 
     let result = await supabase
       .from('split_participants')
-      .select('id, status, payment_intent_id, split_payment_id')
+      .select('id, status, payment_intent_id, split_payment_id, split_payments(expires_at, status)')
       .eq('id', participantId)
       .single();
 
@@ -44,6 +44,15 @@ exports.handler = async function(event) {
     }
 
     let participant = result.data;
+    let splitPayment = participant.split_payments;
+
+    if (splitPayment && splitPayment.expires_at && new Date(splitPayment.expires_at) < new Date()) {
+      return utils.errorResponse(400, 'This split payment has expired');
+    }
+
+    if (splitPayment && splitPayment.status !== 'pending') {
+      return utils.errorResponse(400, 'This split payment is no longer active');
+    }
 
     if (participant.status === 'paid') {
       return utils.errorResponse(400, 'This share has already been paid');
