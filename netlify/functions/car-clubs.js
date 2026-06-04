@@ -411,47 +411,34 @@ async function patchReward(event, sb, user, clubId, rewardId) {
   return json(200, { success: true, reward: data });
 }
 
-// Replicates redeem_reward() SECURITY DEFINER RPC in JS — auth.uid() is null
-// under service role so the RPC cannot be called directly.
+// Delegates to redeem_reward_for_member() SECURITY DEFINER RPC so the debit,
+// redemption insert, and inventory decrement happen in a single transaction.
 async function redeemReward(sb, user, clubId, rewardId) {
-  const { data: club } = await sb.from('car_clubs').select('points_enabled').eq('id', clubId).single();
-  if (!club) return json(404, { error: 'Club not found' });
-  if (!club.points_enabled) return json(400, { error: 'Points are not enabled for this club' });
-
-  const { data: membership } = await sb.from('club_memberships')
-    .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).single();
-  if (!membership) return json(403, { error: 'Not a member of this club' });
-
-  const { data: reward } = await sb.from('club_rewards')
-    .select('id, point_cost, inventory_qty, active').eq('id', rewardId).eq('club_id', clubId).single();
-  if (!reward || !reward.active) return json(400, { error: 'Reward unavailable' });
-  if (reward.inventory_qty != null && reward.inventory_qty <= 0) return json(400, { error: 'Reward out of stock' });
-
-  const { data: ledger } = await sb.from('club_points_ledger')
-    .select('delta_points').eq('club_id', clubId).eq('member_id', user.id);
-  const balance = (ledger || []).reduce((sum, r) => sum + r.delta_points, 0);
-  if (balance < reward.point_cost)
-    return json(400, { error: `Not enough points (${balance} of ${reward.point_cost})` });
-
-  const { error: debitErr } = await sb.from('club_points_ledger').insert({
-    club_id: clubId, member_id: user.id,
-    delta_points: -reward.point_cost, reason: 'redeem', source_ref: rewardId,
+  const { data: rid, error } = await sb.rpc('redeem_reward_for_member', {
+    p_club_id:   clubId,
+    p_reward_id: rewardId,
+    p_member_id: user.id,
   });
-  if (debitErr) return json(500, { error: debitErr.message });
-
-  const code = crypto.randomBytes(4).toString('hex').toUpperCase();
-  const { data: redemption, error: redErr } = await sb.from('club_points_redemptions').insert({
-    club_id: clubId, member_id: user.id, reward_id: rewardId,
-    point_cost: reward.point_cost, voucher_code: code,
-  }).select('id').single();
-  if (redErr) return json(500, { error: redErr.message });
-
-  if (reward.inventory_qty != null) {
-    await sb.from('club_rewards')
-      .update({ inventory_qty: reward.inventory_qty - 1 }).eq('id', rewardId);
+  if (error) {
+    const msg = error.message || '';
+    if (msg.includes('Not a member')) return json(403, { error: 'Not a member of this club' });
+    if (msg.includes('Points are not enabled')) return json(400, { error: 'Points are not enabled for this club' });
+    if (msg.includes('Reward unavailable')) return json(400, { error: 'Reward unavailable' });
+    if (msg.includes('out of stock')) return json(400, { error: 'Reward out of stock' });
+    if (msg.includes('Not enough points')) return json(400, { error: msg.replace(/^.*?exception\s*/i, '') });
+    return json(500, { error: msg });
   }
+  return json(200, { success: true, redemption_id: rid });
+}
 
-  return json(200, { success: true, redemption_id: redemption.id, voucher_code: code });
+async function handleFreeBids(sb, user) {
+  const { data: profile, error } = await sb
+    .from('profiles')
+    .select('bid_credits')
+    .eq('id', user.id)
+    .single();
+  if (error) return json(500, { error: error.message });
+  return json(200, { bid_credits: profile?.bid_credits || 0 });
 }
 
 async function fulfillRedemption(sb, user, clubId, redemptionId) {
@@ -651,7 +638,8 @@ exports.handler = async (event) => {
   if (auth.error) return auth.error;
 
   const method = event.httpMethod;
-  const path = (event.path || '').replace(/.*\/api\/car-clubs\/?/, '').replace(/\/$/, '');
+  // Handles both /api/car-clubs/* (prod redirect) and /api/car-club/* (legacy singular)
+  const path = (event.path || '').replace(/.*\/api\/car-clubs?\/?/, '').replace(/\/$/, '');
   const qs = event.queryStringParameters || {};
 
   // GET /api/car-clubs
@@ -659,6 +647,9 @@ exports.handler = async (event) => {
 
   // POST /api/car-clubs/return-bonus
   if (method === 'POST' && path === 'return-bonus') return grantReturnBonus(event, sb, auth.user);
+
+  // GET /api/car-clubs/free-bids (also /api/car-club/free-bids via redirect)
+  if (method === 'GET' && path === 'free-bids') return handleFreeBids(sb, auth.user);
 
   // /api/car-clubs/:id/...
   const segments = path.split('/');
