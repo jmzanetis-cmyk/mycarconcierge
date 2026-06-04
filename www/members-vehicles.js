@@ -8,7 +8,11 @@
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         const url = `${apiBase}/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
-        const response = await fetch(url);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
         
         if (data.success) {

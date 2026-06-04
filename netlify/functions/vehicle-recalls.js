@@ -62,9 +62,12 @@ exports.handler = async (event) => {
       .eq('vehicle_id', vehicleId)
       .order('created_at', { ascending: false });
     if (cached && cached.length > 0) {
+      const active = cached.filter(r => !r.is_acknowledged);
       return json(200, {
+        success: true,
         recalls: cached,
-        activeCount: cached.filter(r => !r.is_acknowledged).length,
+        active_count: active.length,
+        total_count: cached.length,
         source: 'cache',
       });
     }
@@ -106,9 +109,12 @@ exports.handler = async (event) => {
     .order('report_received_date', { ascending: false, nullsFirst: false });
 
   const list = recalls || [];
+  const active = list.filter(r => !r.is_acknowledged);
   return json(200, {
+    success: true,
     recalls: list,
-    activeCount: list.filter(r => !r.is_acknowledged).length,
+    active_count: active.length,
+    total_count: list.length,
     source: 'nhtsa',
   });
 };
