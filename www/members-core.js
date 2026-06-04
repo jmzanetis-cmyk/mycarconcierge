@@ -1901,6 +1901,7 @@ async function saveReminder() {
   }
   
   const reminderData = {
+    user_id: currentUser.id,
     vehicle_id: vehicleId,
     title: title,
     reminder_type: reminderType,
