@@ -83,6 +83,7 @@
     {"url": "/api/recalls/:param/enrich",                              "caller": "members.js:2475",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/shop/profile",                                       "caller": "booking-widget.js:129",      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/split/confirm/:param",                               "caller": "split-pay.js:396",           "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
+
     {"url": "/api/square/sync/:param",                                 "caller": "providers.js:578",           "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/v2/connection",                                      "caller": "hubspot-client.js:16",       "reason": "dev-only: Replit connectors API shim (not a real internal endpoint)", "ticket": ""},
     {"url": "/api/vehicle-photos",                                     "caller": "members-vehicles.js:1987",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""}

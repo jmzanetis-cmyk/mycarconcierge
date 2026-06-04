@@ -7311,9 +7311,13 @@
 
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session: splitSession } } = await supabaseClient.auth.getSession();
         const response = await fetch(`${apiBase}/api/split/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${splitSession?.access_token}`
+          },
           body: JSON.stringify({
             package_id: packageId,
             participants: splitParticipantRows.map(p => ({

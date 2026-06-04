@@ -10,6 +10,7 @@
 /api/stripe-key /.netlify/functions/stripe-key 200
 /api/config/stripe /.netlify/functions/stripe-key 200
 /api/stripe-publishable-key /.netlify/functions/stripe-key 200
+/api/split/create /.netlify/functions/split-create 200
 /api/split/guest-details/* /.netlify/functions/split-guest-details/:splat 200
 /api/split/guest-pay/* /.netlify/functions/split-guest-pay/:splat 200
 /api/split/guest-confirm/* /.netlify/functions/split-guest-confirm/:splat 200
