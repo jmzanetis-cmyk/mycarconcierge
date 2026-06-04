@@ -55,11 +55,10 @@
       z-index: 100;
     }
     .nav-logo {
-      display: flex; align-items: center; gap: 10px;
-      text-decoration: none; color: var(--cream);
-      font-weight: 700; font-size: 15px; letter-spacing: 0.02em;
+      display: flex; align-items: center;
+      text-decoration: none;
     }
-    .nav-logo img { width: 32px; height: 32px; border-radius: 8px; }
+    .nav-logo img { width: 60px; height: 60px; border-radius: 12px; }
     .nav-link {
       font-size: 13px; font-weight: 500; color: var(--text-muted);
       text-decoration: none; transition: color 0.2s;
@@ -111,6 +110,7 @@
     }
     .btn-primary:active { transform: scale(0.97); }
     .btn-primary:hover { background: var(--gold-light); }
+    /* .btn-store kept for future re-add — see STORE BUTTONS comment in HTML */
     .btn-store {
       display: flex; align-items: center; justify-content: center; gap: 10px;
       width: 100%; padding: 13px 24px;
@@ -124,6 +124,27 @@
     .store-label { display: flex; flex-direction: column; text-align: left; }
     .store-label small { font-size: 10px; font-weight: 400; color: var(--text-muted); line-height: 1.2; }
     .store-label span { font-size: 14px; font-weight: 700; }
+
+    /* coming-soon member CTA (replaces store buttons while apps are in review) */
+    .member-cta-block {
+      width: 100%; max-width: 480px;
+      padding: 24px 28px;
+      background: var(--dark-card);
+      border: 1px solid rgba(201,162,39,0.25);
+      border-radius: 16px;
+      text-align: left;
+    }
+    .member-cta-block .cta-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 500;
+      color: var(--gold); margin-bottom: 10px;
+    }
+    .member-cta-block .cta-body {
+      font-size: 14px; color: var(--text-muted);
+      line-height: 1.7; margin-bottom: 20px;
+    }
+    .member-cta-block .btn-primary { width: 100%; }
+
     .hero-note {
       font-size: 12px; color: var(--text-muted);
       margin-top: 16px; max-width: 320px; text-align: center; line-height: 1.6;
@@ -155,6 +176,30 @@
       font-weight: 500; line-height: 1.2; margin-bottom: 16px;
     }
     .section-intro { font-size: 16px; color: var(--text-muted); line-height: 1.7; margin-bottom: 36px; }
+
+    /* marketplace flow */
+    .marketplace-flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 28px;
+    }
+    .mf-card {
+      padding: 20px;
+      background: var(--dark-card);
+      border: 1px solid var(--border); border-radius: 16px;
+    }
+    .mf-icon { font-size: 24px; margin-bottom: 10px; }
+    .mf-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--cream); }
+    .mf-card p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+    .mf-card.highlight {
+      border-color: rgba(201,162,39,0.35);
+      background: linear-gradient(135deg, rgba(201,162,39,0.08) 0%, rgba(201,162,39,0.03) 100%);
+    }
+    .mf-card.highlight h3 { color: var(--gold); }
+    @media (max-width: 479px) {
+      .marketplace-flow { grid-template-columns: 1fr; }
+    }
 
     /* how it works */
     .steps { display: flex; flex-direction: column; gap: 20px; }
@@ -228,8 +273,7 @@
 
 <nav>
   <a href="https://www.mycarconcierge.co" class="nav-logo">
-    <img src="/icons/icon-192.png" alt="MCC">
-    My Car Concierge
+    <img src="/icons/icon-192.png" alt="My Car Concierge">
   </a>
   <a href="/founder-program-terms.html" class="nav-link">Program Terms</a>
 </nav>
@@ -244,21 +288,11 @@
     they ever make on the platform.
   </p>
 
-  <div class="cta-group">
-    <a href="#" id="btn-ios" class="btn-store" onclick="handleStoreClick('ios'); return false;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11"/></svg>
-      <div class="store-label">
-        <small>Download on the</small>
-        <span>App Store</span>
-      </div>
-    </a>
-    <a href="#" id="btn-android" class="btn-store" onclick="handleStoreClick('android'); return false;">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 20.5v-17c0-.83.94-1.3 1.6-.8l14 8.5c.63.38.63 1.32 0 1.7l-14 8.5c-.66.5-1.6.03-1.6-.8z"/></svg>
-      <div class="store-label">
-        <small>Get it on</small>
-        <span>Google Play</span>
-      </div>
-    </a>
+  <!-- STORE BUTTONS: re-add once iOS + Android builds are approved, alongside or replacing this member CTA -->
+  <div class="member-cta-block">
+    <p class="cta-headline">The apps are on the way.</p>
+    <p class="cta-body">While we're building out the network, you can get started right now as a member — and begin referring the auto-service providers you know. Every provider you bring in is one you earn 50% on for life once they're active. Help build the network, and you build your own income with it.</p>
+    <a href="/signup-member.html" id="btn-join-member" class="btn-primary">Join as a Member</a>
   </div>
 
   <p class="hero-note" id="already-installed-note" style="display:none;">
@@ -286,6 +320,38 @@
     <div class="stat-label">Payout every month</div>
   </div>
 </div>
+
+<!-- ── HOW MCC WORKS (marketplace mechanics) ── -->
+<section>
+  <div class="section-tag">The Marketplace</div>
+  <h2>How MCC connects vehicle owners with auto pros.</h2>
+  <p class="section-intro">
+    Here's the pitch you can give any shop in under a minute.
+  </p>
+
+  <div class="marketplace-flow">
+    <div class="mf-card">
+      <div class="mf-icon">🚗</div>
+      <h3>Members post service jobs</h3>
+      <p>Vehicle owners submit requests — oil changes, brakes, detailing, repairs, whatever their car needs — and set their budget.</p>
+    </div>
+    <div class="mf-card">
+      <div class="mf-icon">🏆</div>
+      <h3>Providers buy bid credits to compete</h3>
+      <p>Shops, mechanics, and mobile techs spend bid credits to submit quotes on those jobs. More credits, more opportunities.</p>
+    </div>
+    <div class="mf-card">
+      <div class="mf-icon">✅</div>
+      <h3>Members pick the best offer</h3>
+      <p>They review bids, choose a provider, and payment is handled securely through the platform — no chasing invoices.</p>
+    </div>
+    <div class="mf-card highlight">
+      <div class="mf-icon">💰</div>
+      <h3>That's where your commission comes from</h3>
+      <p>Every time a provider you referred buys bid credits to compete for jobs, you earn 50% of that purchase — automatically, for life.</p>
+    </div>
+  </div>
+</section>
 
 <!-- ── HOW IT WORKS ── -->
 <section>
@@ -375,8 +441,8 @@
   <p>Founding-era commission rates lock in for life. Once the program closes to new entrants, existing founders keep their rates — but no new applications are accepted.</p>
 
   <div class="cta-group" style="margin: 0 auto;">
-    <a href="#" id="btn-ios-2" class="btn-primary" onclick="handleStoreClick('ios'); return false;">
-      Download MCC Driver
+    <a href="/signup-member.html" id="btn-join-member-2" class="btn-primary">
+      Join as a Member
     </a>
   </div>
   <p class="hero-note" style="margin-top: 16px;">
@@ -392,21 +458,14 @@
 
 <script>
   // ── Attribution ─────────────────────────────────────────────────────────────
-  // Read ?src= from URL and carry it forward into store links + localStorage.
-  // NOTE: Full deferred deep-link attribution through an App Store install
-  // (i.e., attributing a fresh install to this specific referral source)
-  // requires a service like Branch or AppsFlyer and is NOT solved here.
-  // This is best-effort: the src value persists in localStorage and is read
-  // by the driver app on first sign-in when the web app is opened directly.
-  // For native app fresh installs, the src is encoded in the store UTM params
-  // for analytics but cannot be retrieved by the app post-install without
-  // a deferred deep-link provider.
+  // Read ?src= from URL and carry it forward into member signup links +
+  // localStorage. The src value persists in localStorage so the driver app
+  // can read it on first sign-in when launched from this page.
   // ─────────────────────────────────────────────────────────────────────────
 
   var params = new URLSearchParams(window.location.search);
   var src = params.get('src') || '';
 
-  // Persist for the web version of the driver app (same origin or via URL)
   if (src) {
     try {
       localStorage.setItem('mcc_driver_src', src);
@@ -414,52 +473,21 @@
     } catch(e) {}
   }
 
-  // ── Store URLs ──────────────────────────────────────────────────────────────
-  // TODO: Replace placeholder App Store ID with the real one once submitted.
-  // Play Store bundle ID: com.mycarconcierge.driver
-  var utmParams = '?utm_source=drive_landing&utm_medium=referral' +
-    (src ? '&utm_campaign=' + encodeURIComponent(src) : '');
-
-  var iosStoreUrl    = 'https://apps.apple.com/app/id6745960685' + utmParams;
-  var androidStoreUrl = 'https://play.google.com/store/apps/details?id=com.mycarconcierge.driver' + utmParams;
+  // ── Member signup links — carry ?src= through for attribution ──────────────
+  var memberSignupHref = '/signup-member.html' + (src ? '?src=' + encodeURIComponent(src) : '');
+  ['btn-join-member', 'btn-join-member-2'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.href = memberSignupHref;
+  });
 
   // ── Deep link (for users with the app already installed) ────────────────────
-  // App scheme: mccdriver:// — adjust if the Capacitor scheme differs.
-  // Universal link fallback: driver.mycarconcierge.co (configure in Capacitor).
-  var deepLinkSrc    = src ? '&src=' + encodeURIComponent(src) : '';
-  var deepLinkUrl    = 'mccdriver://signin?from_founder=1' + deepLinkSrc;
+  var deepLinkSrc = src ? '&src=' + encodeURIComponent(src) : '';
+  var deepLinkUrl = 'mccdriver://signin?from_founder=1' + deepLinkSrc;
 
-  // ── Platform detection ──────────────────────────────────────────────────────
   var ua = navigator.userAgent || '';
   var isIOS     = /iPhone|iPad|iPod/i.test(ua);
   var isAndroid = /Android/i.test(ua);
 
-  function handleStoreClick(platform) {
-    // Attempt to open the native app first; fall back to the store after 1.5 s.
-    var storeUrl = platform === 'android' ? androidStoreUrl : iosStoreUrl;
-
-    // Try deep link
-    var iframe = document.createElement('iframe');
-    iframe.style.display = 'none';
-    document.body.appendChild(iframe);
-    try { iframe.src = deepLinkUrl; } catch(e) {}
-
-    setTimeout(function() {
-      try { document.body.removeChild(iframe); } catch(e) {}
-      window.location.href = storeUrl;
-    }, 1500);
-  }
-
-  // On desktop or unknown platform, second button also goes to iOS store by default
-  if (isAndroid) {
-    document.getElementById('btn-android').href = androidStoreUrl;
-    document.getElementById('btn-ios').href     = iosStoreUrl;
-    // Swap to play-store primary on Android
-    document.getElementById('btn-ios-2').textContent = 'Get MCC Driver';
-    document.getElementById('btn-ios-2').onclick = function() { handleStoreClick('android'); return false; };
-  }
-
-  // Show "already installed" deep link hint
   var deepLinkEl = document.getElementById('deep-link-open');
   if (deepLinkEl) deepLinkEl.href = deepLinkUrl;
   if (isIOS || isAndroid) {
