@@ -251,7 +251,10 @@
 /api/developer/keys/*      /.netlify/functions/developer-api/:splat 200
 /api/developer/usage       /.netlify/functions/developer-api 200
 
-# Feature: SaaS Subscription Status (member-facing)
+# Feature: SaaS plans + checkout + billing (member-facing)
+/api/saas/plans               /.netlify/functions/saas 200
+/api/saas/checkout            /.netlify/functions/saas 200
+/api/saas/billing-portal      /.netlify/functions/saas 200
 /api/saas/subscription/status /.netlify/functions/saas-member 200
 /api/saas/outreach/status     /.netlify/functions/saas-member 200
 
