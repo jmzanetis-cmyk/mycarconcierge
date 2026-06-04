@@ -3661,6 +3661,26 @@
               <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Why do you want to join? *</label>
               <textarea id="founder-apply-motivation" class="form-input" rows="3" placeholder="Tell us a bit about yourself and why you'd be a great Founding Member…" required style="resize:vertical;"></textarea>
             </div>
+            <!-- Agreements -->
+            <div style="display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--bg-deep);border-radius:10px;border:1px solid var(--border-subtle);">
+              <div style="font-size:0.82rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Agreements</div>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-terms" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">I agree to the MCC <a href="/founder-program-terms.html" target="_blank" style="color:var(--accent-gold);">Founder Program Terms</a> and Terms of Service.</span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-contractor" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">I understand I am an independent contractor, not an employee of MCC.</span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-commission" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">I understand commissions are held for 7 days and paid in monthly batches — payout is not instant, and I may earn $0.</span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-accurate" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">The information I provided is accurate and truthful.</span>
+              </label>
+            </div>
             <button id="founder-apply-btn" type="submit" class="btn btn-primary" style="width:100%;padding:16px;">Submit Application</button>
           </form>
         </div>

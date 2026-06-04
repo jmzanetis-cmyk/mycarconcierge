@@ -9271,6 +9271,13 @@ See you there!`);
       if (!fullName || !email || !phone || !location || !promoMethod || !motivation) {
         showToast('Please fill in all required fields', 'error'); return;
       }
+      const agreeTerms = document.getElementById('founder-agree-terms')?.checked;
+      const agreeContractor = document.getElementById('founder-agree-contractor')?.checked;
+      const agreeCommission = document.getElementById('founder-agree-commission')?.checked;
+      const agreeAccurate = document.getElementById('founder-agree-accurate')?.checked;
+      if (!agreeTerms || !agreeContractor || !agreeCommission || !agreeAccurate) {
+        showToast('Please agree to all terms before submitting', 'error'); return;
+      }
       btn.disabled = true;
       btn.textContent = 'Submitting…';
       try {
