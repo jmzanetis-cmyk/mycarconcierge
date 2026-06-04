@@ -9274,6 +9274,17 @@ See you there!`);
       btn.disabled = true;
       btn.textContent = 'Submitting…';
       try {
+        const { data: settings } = await supabaseClient
+          .from('founder_program_settings')
+          .select('enrollment_open')
+          .eq('id', 1)
+          .maybeSingle();
+        if (settings && settings.enrollment_open === false) {
+          showToast('Applications are currently closed. Check back soon.', 'info');
+          btn.disabled = false;
+          btn.textContent = 'Submit Application';
+          return;
+        }
         const { error } = await supabaseClient.from('member_founder_applications').insert({
           full_name: fullName, email, phone, location,
           promotion_method: promoMethod, motivation, status: 'pending',
