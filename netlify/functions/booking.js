@@ -62,8 +62,9 @@ async function handleCreate(event, sb, user) {
   const { data: blocked } = await sb.from('provider_blocked_time')
     .select('id')
     .eq('provider_id', provider_id)
-    .lte('start_datetime', `${booking_date}T${start_time}`)
-    .gte('end_datetime', `${booking_date}T${start_time}`)
+    .eq('block_date', booking_date)
+    .lte('start_time', start_time)
+    .gte('end_time', start_time)
     .limit(1);
   if (blocked && blocked.length > 0) return json(409, { error: 'Provider is unavailable at that time' });
 

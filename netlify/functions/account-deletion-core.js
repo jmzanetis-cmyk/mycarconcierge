@@ -15,8 +15,8 @@ async function _deleteSharedTables(supabase, userId) {
   await supabase.from('login_activity').delete().eq('user_id', userId);
   await supabase.from('two_factor_tokens').delete().eq('user_id', userId);
   await supabase.from('two_factor_rate_limits').delete().eq('user_id', userId);
-  await supabase.from('dream_car_matches').delete().eq('member_id', userId);
-  await supabase.from('dream_car_criteria').delete().eq('member_id', userId);
+  await supabase.from('dream_car_matches').delete().eq('user_id', userId);
+  await supabase.from('dream_car_searches').delete().eq('user_id', userId);
   await supabase.from('fuel_logs').delete().eq('member_id', userId);
   await supabase.from('insurance_cards').delete().eq('member_id', userId);
   await supabase.from('prospective_vehicles').delete().eq('member_id', userId);
