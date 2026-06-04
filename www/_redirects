@@ -281,3 +281,6 @@
 
 # Feature: Pre-launch waitlist
 /api/waitlist/join /.netlify/functions/waitlist-join 200
+
+# Driver Founder recruitment landing page
+/drive /drive.html 200
