@@ -115,7 +115,6 @@ async function recordPunch(sb, user, clubId) {
   await sb.from('club_activity_log').insert({
     club_id: clubId,
     member_id: user.id,
-    membership_id: membership.id,
     activity_type: 'punch',
   });
 
