@@ -29,7 +29,7 @@ var { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 // Captures [1]=job_id [2]=handoff_id [3]=photo_id for cross-checking.
 var CUSTODY_PATH_RE = /^custody\/([0-9a-f-]{36})\/([0-9a-f-]{36})\/([0-9a-f-]{36})\.jpg$/i;
 
-var VALID_LEG          = new Set(['member_to_driver','driver_to_shop','shop_to_driver','driver_to_member','driver_to_driver','member_to_provider']);
+var VALID_LEG          = new Set(['member_to_driver','driver_to_shop','shop_to_driver','driver_to_member','driver_to_driver','member_to_provider','provider_to_member']);
 var VALID_ROLE         = new Set(['member','provider','driver']);
 var VALID_ANGLE        = new Set(['front','rear','driver_side','passenger_side','roof','wheel_fl','wheel_fr','wheel_rl','wheel_rr','interior_front','interior_rear','cargo','odometer','other']);
 var VALID_DISPUTE_TYPE = new Set(['new_damage','missing_item','condition_mismatch','cleaning_revealed']);

@@ -88,6 +88,9 @@
     let myActiveEmergency = null;
     let providerLocation = null;
 
+    // Custody chain feature flag (populated in initializeProviderDashboard)
+    window._mccCustodyEnabled = false;
+
     // ========== 2FA ACCESS CHECK ==========
     async function checkAccessAuthorization() {
       const { data: { session } } = await supabaseClient.auth.getSession();
@@ -192,7 +195,8 @@
         loadLoyaltyNetwork(),
         loadStripeConnectStatus(),
         (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve()),
-        loadProviderTransportRequests()
+        loadProviderTransportRequests(),
+        loadCustodyFlag()
       ]);
       
       // Check if returning from Stripe Connect onboarding
@@ -3099,9 +3103,90 @@
       `;
     }
 
+    // ========== CUSTODY CHAIN (feature-flagged) ==========
+
+    async function loadCustodyFlag() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const res = await fetch('/api/me/feature-flags', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) return;
+        const flags = await res.json();
+        window._mccCustodyEnabled = !!(flags.custody_chain_enabled);
+      } catch { /* leave false */ }
+    }
+
+    async function startCustodyReturn(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const token = session.access_token;
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+        const { data: jobs } = await supabaseClient
+          .from('concierge_jobs')
+          .select('id, member_id')
+          .eq('package_id', packageId)
+          .limit(1);
+
+        if (!jobs || !jobs.length) {
+          // No concierge job for this package — fall back to legacy key exchange
+          _openKeyExchangeModalLegacy(packageId, 'return');
+          return;
+        }
+        const job = jobs[0];
+
+        const createRes = await fetch(`${apiBase}/api/custody/handoffs`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: job.id,
+            leg: 'provider_to_member',
+            releasing_party_role: 'provider',
+            receiving_party_id: job.member_id,
+            receiving_party_role: 'member'
+          })
+        });
+
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to create handoff record', 'error');
+        }
+        const { handoff } = await createRes.json();
+
+        const captureResult = await window.CustodyCapture.captureHandoffPhotos(
+          handoff.id, job.id, 'provider'
+        );
+        if (!captureResult || captureResult.photos.length === 0) {
+          showToast('Photo capture cancelled — handoff not released', 'info');
+          return;
+        }
+
+        const gps = captureResult.photos[0]?.metadata || {};
+        const releaseRes = await fetch(`${apiBase}/api/custody/handoffs/${handoff.id}/release`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: gps.lat || null, lng: gps.lng || null, gps_accuracy_m: gps.accuracy_m || null })
+        });
+
+        if (!releaseRes.ok) {
+          const err = await releaseRes.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to release handoff', 'error');
+        }
+
+        showToast('Vehicle returned — awaiting member confirmation', 'success');
+        renderActiveJobs();
+      } catch (e) {
+        console.error('[startCustodyReturn]', e);
+        showToast('Custody handoff failed: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
     // ========== KEY EXCHANGE VERIFICATION ==========
 
-    function openKeyExchangeModal(packageId, stage) {
+    function _openKeyExchangeModalLegacy(packageId, stage) {
       document.getElementById('key-exchange-package-id').value = packageId;
       document.getElementById('key-exchange-stage').value = stage;
       document.getElementById('key-exchange-modal-title').textContent = stage === 'pickup' ? 'Pickup Key Exchange' : 'Return Key Exchange';
@@ -3112,6 +3197,14 @@
       document.getElementById('key-exchange-notes').value = '';
       document.getElementById('key-exchange-upload-status').style.display = 'none';
       document.getElementById('key-exchange-modal').classList.add('active');
+    }
+
+    function openKeyExchangeModal(packageId, stage) {
+      if (window._mccCustodyEnabled && stage === 'return') {
+        startCustodyReturn(packageId);
+        return;
+      }
+      _openKeyExchangeModalLegacy(packageId, stage);
     }
 
     function previewKeyExchangeIdPhoto() {
@@ -3312,7 +3405,7 @@
           <div class="logistics-section-content">
             <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem;">Document key handoffs to verify custody and protect both parties.</p>
             ${renderExchangeCard(pickupExchange, 'pickup', 'Pickup Key Exchange', mccIcon('circle', 16))}
-            ${renderExchangeCard(returnExchange, 'return', 'Return Key Exchange', mccIcon('circle', 16))}
+            ${renderExchangeCard(returnExchange, 'return', window._mccCustodyEnabled ? 'Return Custody Handoff' : 'Return Key Exchange', mccIcon('circle', 16))}
           </div>
         </div>
       `;
