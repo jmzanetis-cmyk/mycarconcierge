@@ -60,6 +60,17 @@ exports.handler = async function(event) {
       return await _processMemberCode(supabase, user_id, upperCode, memberCodeRes.data);
     }
 
+    // ── 4. Check drivers.referral_code (driver-generated codes) ─────────────
+    var driverCodeRes = await supabase
+      .from('drivers')
+      .select('id, referral_code, full_name, email, profile_id')
+      .eq('referral_code', upperCode)
+      .maybeSingle();
+
+    if (driverCodeRes.data) {
+      return await _processDriverCode(supabase, user_id, upperCode, driverCodeRes.data);
+    }
+
     return utils.errorResponse(404, 'Referral code not found or inactive');
   } catch (err) {
     console.error('referral-process error:', err);
@@ -183,6 +194,86 @@ async function _processFounderCode(supabase, user_id, upperCode, founder) {
     referral_type: 'founder',
     referrer_type: 'founder',
     founder_name: founder.full_name || founder.email || 'Member Founder',
+    platform_fee_exempt: false
+  });
+}
+
+async function _processDriverCode(supabase, user_id, upperCode, driver) {
+  // `driver.profile_id` is the driver's Supabase auth user ID (FK → profiles.id).
+  // Resolve to their member_founder_profiles row, creating one if absent.
+  var driverUserId = driver.profile_id;
+  if (!driverUserId) {
+    console.warn('[referral-process] driver has no profile_id, skipping founder attribution');
+    return utils.successResponse({
+      success: true,
+      referral_type: 'driver_referral',
+      referrer_type: 'driver',
+      founder_name: driver.full_name || driver.email || 'Driver',
+      platform_fee_exempt: false
+    });
+  }
+
+  // Ensure the driver has a member_founder_profiles row
+  var founderRes = await supabase
+    .from('member_founder_profiles')
+    .select('id, total_provider_referrals')
+    .eq('user_id', driverUserId)
+    .maybeSingle();
+
+  var fp = founderRes.data;
+  if (!fp) {
+    // Create a default profile so the existing commission RPC can fire
+    var insertRes = await supabase
+      .from('member_founder_profiles')
+      .insert({
+        user_id:        driverUserId,
+        full_name:      driver.full_name || null,
+        email:          driver.email || null,
+        referral_code:  upperCode,
+        commission_rate: 0.50,
+        status:         'active',
+        founder_type:   'driver',
+        total_provider_referrals: 0
+      })
+      .select('id, total_provider_referrals')
+      .single();
+
+    if (insertRes.error) {
+      console.error('[referral-process] driver founder profile create error:', insertRes.error.message);
+    } else {
+      fp = insertRes.data;
+    }
+  }
+
+  // Link the new provider to the driver-founder
+  await supabase.from('profiles').update({
+    referred_by_founder_id: driverUserId,
+    provider_referral_type: 'driver_referral'
+  }).eq('id', user_id);
+
+  if (fp) {
+    try {
+      await supabase.from('founder_referrals').insert({
+        founder_id:       fp.id,
+        referral_code:    upperCode,
+        referred_type:    'provider',
+        referred_user_id: user_id,
+        status:           'pending',
+        created_at:       new Date().toISOString()
+      });
+      await supabase.from('member_founder_profiles')
+        .update({ total_provider_referrals: (fp.total_provider_referrals || 0) + 1 })
+        .eq('id', fp.id);
+    } catch (err) {
+      console.warn('[referral-process] driver founder_referrals insert skipped:', err.message);
+    }
+  }
+
+  return utils.successResponse({
+    success: true,
+    referral_type: 'driver_referral',
+    referrer_type: 'driver',
+    founder_name: driver.full_name || driver.email || 'Driver',
     platform_fee_exempt: false
   });
 }
