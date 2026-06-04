@@ -54,11 +54,10 @@
       border-bottom: 1px solid var(--border);
       z-index: 100;
     }
-    .nav-logo {
-      display: flex; align-items: center;
-      text-decoration: none;
+    .hero-brand {
+      width: 80px; height: 80px; border-radius: 18px;
+      margin-bottom: 20px; display: block;
     }
-    .nav-logo img { width: 60px; height: 60px; border-radius: 12px; }
     .nav-link {
       font-size: 13px; font-weight: 500; color: var(--text-muted);
       text-decoration: none; transition: color 0.2s;
@@ -280,14 +279,15 @@
 <body>
 
 <nav>
-  <a href="https://www.mycarconcierge.co" class="nav-logo">
-    <img src="/icons/icon-192.png" alt="My Car Concierge">
-  </a>
+  <a href="https://www.mycarconcierge.co" class="nav-link" style="font-size:14px;font-weight:600;color:var(--text-muted);">mycarconcierge.co</a>
   <a href="/founder-program-terms.html" class="nav-link">Program Terms</a>
 </nav>
 
 <!-- ── HERO ── -->
 <section class="hero" id="hero">
+  <a href="https://www.mycarconcierge.co">
+    <img src="/icons/icon-192.png" alt="My Car Concierge" class="hero-brand">
+  </a>
   <div class="eyebrow">🚗 Driver Founder Program</div>
   <h1>Earn <em>50%</em> on every auto pro you refer — for&nbsp;life.</h1>
   <p class="hero-sub">
