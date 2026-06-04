@@ -2,8 +2,9 @@
 // member-founder-api — member founder earnings dashboard API
 //
 // Routes (all require Bearer JWT):
-//   GET /api/member-founder/me          — founder profile + balance breakdown
-//   GET /api/member-founder/commissions — paginated commission history
+//   GET  /api/member-founder/me          — founder profile + balance breakdown
+//   GET  /api/member-founder/commissions — paginated commission history
+//   POST /api/member-founder/invite      — send provider invite via email/SMS
 //
 // Balance breakdown (returned on /me):
 //   maturing_count / maturing_amount  — status=pending, inside 7-day window
@@ -71,12 +72,12 @@ exports.handler = async function(event) {
       headers: {
         'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Allow-Methods': 'GET, OPTIONS',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
       },
       body: '',
     };
   }
-  if (event.httpMethod !== 'GET') return json(405, { error: 'Method not allowed' });
+  if (event.httpMethod !== 'GET' && event.httpMethod !== 'POST') return json(405, { error: 'Method not allowed' });
 
   const supabase = sb();
   const user = await getUser(event, supabase);
@@ -220,6 +221,90 @@ exports.handler = async function(event) {
       limit,
       offset,
     });
+  }
+
+  // ── POST invite ──────────────────────────────────────────────────────────
+  if (path === 'invite' && event.httpMethod === 'POST') {
+    let body;
+    try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+    const { email, phone, message } = body;
+    if (!email && !phone) return json(400, { error: 'Provide email or phone' });
+
+    const { data: profile } = await supabase
+      .from('member_founder_profiles')
+      .select('id, full_name, referral_code, commission_rate')
+      .eq('user_id', user.id)
+      .eq('status', 'active')
+      .maybeSingle();
+    if (!profile) return json(403, { error: 'Not an approved founding member' });
+
+    const refUrl = `https://www.mycarconcierge.com/signup-provider.html?ref=${profile.referral_code}`;
+    const founderName = profile.full_name || 'A My Car Concierge member';
+    const commPct = Math.round((profile.commission_rate || 0.5) * 100);
+    const personalNote = message ? `\n\n"${message}"` : '';
+
+    const channelsSent = [];
+    const errors = [];
+
+    // ── Email ──────────────────────────────────────────────────────────────
+    if (email) {
+      const resendKey = process.env.RESEND_API_KEY;
+      const fromEmail = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
+      if (resendKey) {
+        try {
+          const { Resend } = require('resend');
+          const resend = new Resend(resendKey);
+          await resend.emails.send({
+            from: fromEmail,
+            to: email,
+            subject: `${founderName} thinks you'd be a great fit for My Car Concierge`,
+            html: `<p>Hi,</p>
+<p>${founderName} wanted to personally invite you to join the <strong>My Car Concierge</strong> provider network — a platform that connects auto shops with customers in their area.</p>
+${personalNote ? `<p><em>${message}</em></p>` : ''}
+<p>Sign up here:<br><a href="${refUrl}">${refUrl}</a></p>
+<p>When you join and purchase bid credits, you'll be helping ${founderName} earn commissions at no extra cost to you. It's win-win.</p>
+<p>Questions? Reply to this email or visit <a href="https://www.mycarconcierge.com">mycarconcierge.com</a>.</p>`,
+          });
+          channelsSent.push('email');
+        } catch(e) {
+          console.error('[member-founder-api] invite email failed:', e.message);
+          errors.push('email_failed');
+        }
+      } else {
+        errors.push('email_not_configured');
+      }
+    }
+
+    // ── SMS ────────────────────────────────────────────────────────────────
+    if (phone) {
+      const { sendSms } = require('./_shared/sms');
+      const smsBody = [
+        `${founderName} invited you to join My Car Concierge as a provider.`,
+        personalNote ? `"${message}"` : null,
+        `Sign up: ${refUrl}`,
+      ].filter(Boolean).join(' ');
+      const sbClient = sb();
+      const result = await sendSms({ supabase: sbClient, toPhone: phone, body: smsBody });
+      if (result.sent) {
+        channelsSent.push('sms');
+      } else {
+        console.error('[member-founder-api] invite SMS failed:', result.reason);
+        errors.push(`sms_${result.reason}`);
+      }
+    }
+
+    // ── Log invite ─────────────────────────────────────────────────────────
+    await supabase.from('founder_invites').insert({
+      founder_id: profile.id,
+      email:      email || null,
+      phone:      phone || null,
+      message:    message || null,
+      channel:    channelsSent.join('+') || 'none',
+    });
+
+    if (!channelsSent.length) return json(500, { error: 'Could not send invite', details: errors });
+    return json(200, { success: true, channels_sent: channelsSent });
   }
 
   return json(404, { error: 'Unknown route' });
