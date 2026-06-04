@@ -1212,9 +1212,11 @@
 
           if (formData.referral) {
             try {
-              await supabaseClient.rpc('register_member_referral', {
-                p_member_id: userId,
-                p_referral_code: formData.referral
+              const { data: { session: _s1 } } = await supabaseClient.auth.getSession();
+              await fetch('/api/member/referral/apply', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_s1?.access_token || '') },
+                body: JSON.stringify({ code: formData.referral }),
               });
             } catch (refErr) {
               console.error('Referral error:', refErr);
@@ -1259,9 +1261,11 @@
 
             if (formData.referral) {
               try {
-                await supabaseClient.rpc('register_member_referral', {
-                  p_member_id: userId,
-                  p_referral_code: formData.referral
+                const { data: { session: _s2 } } = await supabaseClient.auth.getSession();
+                await fetch('/api/member/referral/apply', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + (_s2?.access_token || '') },
+                  body: JSON.stringify({ code: formData.referral }),
                 });
               } catch (refErr) {
                 console.error('Referral error:', refErr);
