@@ -7,8 +7,6 @@
     {"url": "/api/additional-work/:param/decline",                     "caller": "members-packages.js:3125",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/appointments",                                        "caller": "providers-jobs.js:1833",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/appointments/:param/ical",                           "caller": "members-packages.js:2485",   "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#456"},
-{"url": "/api/care-plans",                                         "caller": "members-care-plans.js:238",  "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
-    {"url": "/api/care-plans/mine",                                    "caller": "members-care-plans.js:149",  "reason": "No handler in _redirects or server.js — audit-identified broken caller", "ticket": "#456"},
     {"url": "/api/checkin/:param/complete",                            "caller": "check-in.js:335",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/checkin/:param/lookup",                              "caller": "check-in.js:125",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/checkin/:param/service",                             "caller": "check-in.js:280",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
