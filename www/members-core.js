@@ -934,8 +934,13 @@ function renderVehicles() {
   grid.innerHTML = vehicles.map(v => {
     const displayName = v.nickname || `${v.year} ${v.make} ${v.model}`;
     const trimInfo = v.trim_version ? `<span class="vehicle-trim">${escapeHtml(v.trim_version)}</span>` : '';
+    const recallCount = vehicleRecalls[v.id]?.activeCount || 0;
+    const recallBadge = recallCount > 0
+      ? `<span class="recall-badge" onclick="openRecallsModal('${v.id}')" title="${recallCount} active recall${recallCount > 1 ? 's' : ''}">⚠ ${recallCount} Recall${recallCount > 1 ? 's' : ''}</span>`
+      : '';
     return `
-      <div class="vehicle-card" data-id="${v.id}">
+      <div class="vehicle-card" data-id="${v.id}" style="position:relative;">
+        ${recallBadge}
         <div class="vehicle-card-header">
           <h3>${escapeHtml(displayName)}</h3>
           ${trimInfo}
@@ -1111,17 +1116,22 @@ async function checkFounderAccess() {
 }
 
 function showFounderPromoBanner() {
-  const banner = document.getElementById('founder-promo-banner');
-  if (!banner) return;
-  const dismissed = localStorage.getItem('founderPromoDismissed');
+  const uid = currentUser?.id || 'anon';
+  const dismissed = localStorage.getItem(`founderPromoDismissed_${uid}`);
   if (dismissed) return;
-  banner.style.display = 'block';
+  for (const id of ['founder-promo-banner', 'founder-promo-banner-2']) {
+    const banner = document.getElementById(id);
+    if (banner) banner.style.display = 'block';
+  }
 }
 
 window.dismissFounderPromo = function() {
-  const banner = document.getElementById('founder-promo-banner');
-  if (banner) banner.style.display = 'none';
-  localStorage.setItem('founderPromoDismissed', Date.now().toString());
+  const uid = currentUser?.id || 'anon';
+  for (const id of ['founder-promo-banner', 'founder-promo-banner-2']) {
+    const banner = document.getElementById(id);
+    if (banner) banner.style.display = 'none';
+  }
+  localStorage.setItem(`founderPromoDismissed_${uid}`, Date.now().toString());
 };
 
 async function displayLoyaltyBadges(profile) {

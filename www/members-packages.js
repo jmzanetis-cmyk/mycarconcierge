@@ -7708,8 +7708,43 @@
     window.generateAppointmentDebrief = generateAppointmentDebrief;
     window.showCounterSuggestion = showCounterSuggestion;
     window.askServiceHistoryChat = typeof askServiceHistoryChat !== 'undefined' ? askServiceHistoryChat : null;
-    window.toggleBudgetForecast = typeof toggleBudgetForecast !== 'undefined' ? toggleBudgetForecast : null;
-    window.loadBudgetForecast = typeof loadBudgetForecast !== 'undefined' ? loadBudgetForecast : null;
+
+    const _isNativeForForecast = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+
+    // Show the card always; web shows the mobile-only message, native gets the full flow.
+    (function initBudgetForecastCard() {
+      const card = document.getElementById('budget-forecast-card');
+      if (!card) return;
+      card.style.display = 'block';
+      if (!_isNativeForForecast) {
+        const content = document.getElementById('budget-forecast-content');
+        if (content) {
+          content.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--text-muted);">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;opacity:0.5;"><rect width="5" height="6" x="3" y="14"/><rect width="5" height="10" x="8" y="10"/><rect width="5" height="14" x="13" y="6"/><path d="M22 20H2"/></svg>' +
+            '<p style="font-size:0.9rem;font-weight:500;margin:0 0 4px;">Available in the mobile app</p>' +
+            '<p style="font-size:0.8rem;margin:0;opacity:0.7;">Download the MCC app to generate your 12-month cost forecast.</p>' +
+            '</div>';
+        }
+      }
+    })();
+
+    function toggleBudgetForecast() {
+      const body = document.getElementById('budget-forecast-body');
+      const chevron = document.getElementById('forecast-chevron');
+      if (!body) return;
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+    }
+
+    function loadBudgetForecast() {
+      if (!_isNativeForForecast) return; // already replaced with static message
+      const content = document.getElementById('budget-forecast-content');
+      if (content) content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Loading forecast…</div>';
+    }
+
+    window.toggleBudgetForecast = toggleBudgetForecast;
+    window.loadBudgetForecast = loadBudgetForecast;
 
     function getBookingGuidance() {
       const stored = localStorage.getItem('mcc_booking_guidance');
