@@ -68,8 +68,6 @@
     {"url": "/api/providers/:param/team/invitations",                  "caller": "providers.js:11957",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/providers/:param/team/invitations/:param",           "caller": "providers.js:12283",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/providers/:param/team/invite",                       "caller": "providers.js:12167",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
-    {"url": "/api/recalls/:param/acknowledge",                         "caller": "members.js:2534",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
-    {"url": "/api/recalls/:param/enrich",                              "caller": "members.js:2475",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/shop/profile",                                       "caller": "booking-widget.js:129",      "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
 
     {"url": "/api/square/sync/:param",                                 "caller": "providers.js:578",           "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},

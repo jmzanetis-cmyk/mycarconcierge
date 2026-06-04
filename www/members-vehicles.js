@@ -291,9 +291,10 @@
     async function acknowledgeRecall(recallId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session: ackSession } } = await supabaseClient.auth.getSession();
         const response = await fetch(`${apiBase}/api/recalls/${recallId}/acknowledge`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ackSession?.access_token || ''}` },
           body: JSON.stringify({ user_id: currentUser?.id || null })
         });
         

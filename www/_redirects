@@ -207,6 +207,9 @@
 /api/login-activity/*/acknowledge /.netlify/functions/member-login-activity/:splat 200
 /api/login-activity/*/report-suspicious /.netlify/functions/member-login-activity/:splat 200
 
+# Feature: Recall acknowledge + AI enrich
+/api/recalls/* /.netlify/functions/recall-actions/:splat 200
+
 # Feature: VIN lookup proxy (NHTSA)
 /api/vin-proxy /.netlify/functions/vin-proxy 200
 
