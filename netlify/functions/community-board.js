@@ -41,30 +41,46 @@ exports.handler = async (event) => {
     const auth = await getUser(event, sb);
     if (auth.error) return auth.error;
 
-    // ── GET: list community posts ─────────────────────────────────────────
+    // ── GET: crowd-funded packages open for community contribution ────────
     if (event.httpMethod === 'GET') {
-      const { data: posts, error } = await sb
-        .from('community_posts')
-        .select('id, title, body, category, created_at, author_id, profiles(full_name)')
+      const { data: pkgs, error } = await sb
+        .from('maintenance_packages')
+        .select(`
+          id, title, description, category, member_zip, crowd_funded,
+          funding_goal_cents, member_id, created_at,
+          profiles!maintenance_packages_member_id_fkey(first_name, full_name),
+          crowd_fund_contributions(amount_cents)
+        `)
+        .eq('crowd_funded', true)
+        .in('status', ['pending', 'active', 'open'])
         .order('created_at', { ascending: false })
         .limit(50);
 
       if (error) {
         console.error('community-board GET error:', error.message);
-        return json(500, { error: 'Failed to load community posts' });
+        return json(500, { error: 'Failed to load community board' });
       }
 
-      const enriched = (posts || []).map(p => ({
-        id:          p.id,
-        title:       p.title,
-        body:        p.body || '',
-        category:    p.category || null,
-        created_at:  p.created_at,
-        author_id:   p.author_id,
-        author_name: p.profiles?.full_name || 'A member',
-      }));
+      const packages = (pkgs || []).map(pkg => {
+        const contributions = pkg.crowd_fund_contributions || [];
+        const raised_cents = contributions.reduce((sum, c) => sum + (c.amount_cents || 0), 0);
+        return {
+          id:                 pkg.id,
+          title:              pkg.title,
+          description:        pkg.description || null,
+          category:           pkg.category || null,
+          member_zip:         pkg.member_zip || null,
+          member_id:          pkg.member_id,
+          member_first_name:  pkg.profiles?.first_name || null,
+          member_name:        pkg.profiles?.full_name || null,
+          funding_goal_cents: pkg.funding_goal_cents || null,
+          raised_cents,
+          contributor_count:  contributions.length,
+          created_at:         pkg.created_at,
+        };
+      });
 
-      return json(200, { posts: enriched, count: enriched.length });
+      return json(200, { packages, count: packages.length });
     }
 
     // ── POST: create a community post ─────────────────────────────────────
