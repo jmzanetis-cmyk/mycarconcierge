@@ -8266,6 +8266,9 @@ See you there!`);
       if (sectionId === 'referrals' || sectionId === 'settings') {
         loadReferralData();
       }
+      if (sectionId === 'settings') {
+        loadCommissionOptOutCard();
+      }
       if (sectionId === 'fuel-tracker') {
         loadFuelLogs();
       }
@@ -8277,6 +8280,43 @@ See you there!`);
       }
       originalShowSectionForReferrals(sectionId);
     };
+
+    async function loadCommissionOptOutCard() {
+      if (!currentUser) return;
+      const card = document.getElementById('commission-opt-out-card');
+      const toggle = document.getElementById('commission-opt-out-toggle');
+      if (!card || !toggle) return;
+      try {
+        const { data } = await supabaseClient
+          .from('profiles')
+          .select('referred_by_founder_id, commission_opt_out')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        if (data && data.referred_by_founder_id) {
+          card.style.display = 'block';
+          toggle.checked = !!data.commission_opt_out;
+        }
+      } catch(e) {
+        console.warn('[opt-out] loadCommissionOptOutCard error:', e.message);
+      }
+    }
+
+    async function saveCommissionOptOut(optOut) {
+      if (!currentUser) return;
+      try {
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ commission_opt_out: optOut })
+          .eq('id', currentUser.id);
+        if (error) throw error;
+        showToast(optOut ? 'Commission attribution disabled.' : 'Commission attribution re-enabled.', 'success');
+      } catch(e) {
+        console.error('[opt-out] saveCommissionOptOut error:', e.message);
+        showToast('Could not save preference. Try again.', 'error');
+      }
+    }
+
+    window.saveCommissionOptOut = saveCommissionOptOut;
 
 
     // ========== FUEL TRACKER SECTION ==========
