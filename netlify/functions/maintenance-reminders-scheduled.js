@@ -103,7 +103,7 @@ exports.handler = async function() {
   let prefMap = {};
   if (memberIds.length) {
     const { data: prefs } = await supabase
-      .from('member_notification_prefs')
+      .from('member_notification_preferences')
       .select('member_id, maintenance_reminder_emails, maintenance_reminder_sms')
       .in('member_id', memberIds);
     for (const p of prefs || []) prefMap[p.member_id] = p;
