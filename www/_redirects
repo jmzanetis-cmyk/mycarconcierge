@@ -191,6 +191,9 @@
 /api/packages/*/contributions /.netlify/functions/package-contributions/:splat 200
 /api/packages/*/contribute /.netlify/functions/package-contribute/:splat 200
 
+# Feature: Dream Car Finder (search CRUD + AI run-search)
+/api/dream-car/* /.netlify/functions/dream-car/:splat 200
+
 # Feature: Member survey (post-signup 22-question survey)
 /api/member/survey /.netlify/functions/member-survey 200
 

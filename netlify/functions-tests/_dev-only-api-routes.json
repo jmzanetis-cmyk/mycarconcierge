@@ -151,7 +151,6 @@
     "/api/diagnostics/generate",
     "/api/discount/offer",
     "/api/dream-car/scheduled-search",
-    "/api/dream-car/searches",
     "/api/email/founder-approved",
     "/api/email/welcome",
     "/api/escrow/create",

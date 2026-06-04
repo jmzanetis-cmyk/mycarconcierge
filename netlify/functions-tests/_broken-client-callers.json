@@ -18,7 +18,6 @@
     {"url": "/api/clover/sync/:param",                                 "caller": "providers.js:440",           "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/discount/:param/accept",                             "caller": "members-packages.js:3158",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/discounts/:param",                                   "caller": "members-packages.js:2548",   "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
-    {"url": "/api/dream-car/run-search",                               "caller": "members-extras.js:6010",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/escrow/confirm/:param",                              "caller": "stripeutils.js:157",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/escrow/refund/:param",                               "caller": "stripeutils.js:185",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/escrow/release/:param",                              "caller": "stripeutils.js:171",         "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
