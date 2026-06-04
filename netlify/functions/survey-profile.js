@@ -26,6 +26,7 @@
 //     limiter does too.
 
 var utils = require('./utils');
+var { sendSms } = require('./_shared/sms');
 
 function trim(value, max) {
   if (value === undefined || value === null) return null;
@@ -80,6 +81,7 @@ exports.handler = async function (event) {
   var phoneTrimmed = body.phone ? trim(body.phone, 30) : null;
   var zipTrimmed = body.zip ? trim(body.zip, 20) : null;
   var survey_response_id = body.survey_response_id || null;
+  var smsOptIn = body.sms_opt_in === true || body.sms_opt_in === 'true';
 
   try {
     // Mirror dev behaviour: if we have the survey_responses row, update
@@ -108,7 +110,8 @@ exports.handler = async function (event) {
       zip: zipTrimmed,
       vehicle_year: body.vehicle_year ? trim(body.vehicle_year, 10) : null,
       vehicle_make: body.vehicle_make ? trim(body.vehicle_make, 60) : null,
-      vehicle_model: body.vehicle_model ? trim(body.vehicle_model, 80) : null
+      vehicle_model: body.vehicle_model ? trim(body.vehicle_model, 80) : null,
+      sms_opt_in: smsOptIn,
     }).select('id').single();
 
     if (insertResult.error) {
@@ -128,6 +131,20 @@ exports.handler = async function (event) {
       console.error('[survey-profile] customer_profiles insert error:',
         insertResult.error.message, insertResult.error.details || '');
       return utils.errorResponse(500, 'Failed to save profile');
+    }
+
+    // Send welcome SMS if the prospect opted in and gave a phone number.
+    // Respects sms_opt_out / TCPA fail-closed via the shared sendSms helper.
+    if (smsOptIn && phoneTrimmed) {
+      sendSms({
+        supabase,
+        toPhone: phoneTrimmed,
+        body: 'Welcome to My Car Concierge! Reply STOP at any time to opt out.',
+      }).then(function(res) {
+        if (!res.sent) console.warn('[survey-profile] welcome SMS skipped:', res.reason);
+      }).catch(function(e) {
+        console.warn('[survey-profile] welcome SMS error:', e.message);
+      });
     }
 
     return utils.successResponse({

@@ -196,6 +196,12 @@
 [functions."transport-scheduled-dispatch"]
   schedule = "*/15 * * * *"
 
+# E28 — daily abandoned-signup recovery email. Sends one email per uncontacted
+# abandoned_signups row (recovery_email_sent_at IS NULL, recovered = false).
+# Sets recovery_email_sent_at after sending so rows are never emailed twice.
+[functions."survey-recovery-scheduled"]
+  schedule = "0 10 * * *"
+
 
 [[headers]]
   for = "/sw.js"
