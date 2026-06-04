@@ -9791,6 +9791,57 @@
     // ========== END SaaS UI TASKS ==========
   </script>
 
+  <!-- Custody Accept / Dispute Modal -->
+  <div class="modal-backdrop" id="custody-accept-modal">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Verify Vehicle Return</h3>
+        <button class="modal-close" onclick="closeCustodyAcceptModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- Binary choice -->
+        <div id="custody-choice-section">
+          <p style="color:var(--text-secondary);margin-bottom:20px;">Did everything go as expected with the vehicle?</p>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <button class="btn btn-success" style="justify-content:center;padding:14px;" onclick="submitCustodyAccept()">
+              ✓ Everything looks good
+            </button>
+            <button class="btn btn-secondary" style="justify-content:center;padding:14px;" onclick="showCustodyDisputeForm()">
+              ⚠ I see a problem
+            </button>
+          </div>
+        </div>
+        <!-- Dispute form (hidden until "I see a problem") -->
+        <div id="custody-dispute-section" style="display:none;">
+          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;">What issue did you find?</p>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="new_damage"> New damage found
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="missing_item"> Missing item
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="condition_mismatch"> Condition mismatch
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="cleaning_revealed"> Cleaning revealed damage
+            </label>
+          </div>
+          <textarea id="custody-dispute-notes" class="form-input" rows="3" placeholder="Additional notes (optional)" style="margin-bottom:12px;resize:vertical;"></textarea>
+          <div style="margin-bottom:16px;">
+            <button class="btn btn-secondary btn-sm" onclick="captureCustodyDisputePhotos()">📷 Add Photo Evidence</button>
+            <div id="custody-dispute-photo-status" style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="custody-modal-footer-dispute" style="display:none;">
+        <button class="btn btn-secondary" onclick="showCustodyChoiceSection()">← Back</button>
+        <button class="btn btn-danger" onclick="submitCustodyDispute()">Submit Dispute</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Vehicle Photos Modal -->
   <div id="vehicle-photos-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;">
     <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;">

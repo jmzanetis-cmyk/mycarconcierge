@@ -535,7 +535,8 @@ async function initializeDashboard() {
     loadUpsellRequests(),
     loadConversations(),
     loadNotifications(),
-    typeof checkActiveEmergency === 'function' ? checkActiveEmergency() : Promise.resolve()
+    typeof checkActiveEmergency === 'function' ? checkActiveEmergency() : Promise.resolve(),
+    typeof loadCustodyFlag === 'function' ? loadCustodyFlag() : Promise.resolve()
   ]);
   
   updateStats();

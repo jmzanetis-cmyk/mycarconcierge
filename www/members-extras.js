@@ -314,7 +314,227 @@
     // Load logistics data for a package
     let driverLocationRefreshInterval = null;
     
+    // ========== CUSTODY CHAIN (feature-flagged) ==========
+
+    window._mccCustodyEnabled = false;
+    let _custodyJobSub = null;
+
+    async function loadCustodyFlag() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const res = await fetch('/api/me/feature-flags', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) return;
+        const flags = await res.json();
+        window._mccCustodyEnabled = !!(flags.custody_chain_enabled);
+      } catch { /* leave false */ }
+    }
+
+    function subscribeCustodyTimeline(packageId, jobId) {
+      if (_custodyJobSub) { _custodyJobSub.unsubscribe(); _custodyJobSub = null; }
+      _custodyJobSub = supabaseClient
+        .channel(`custody-job-${jobId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'custody_handoffs', filter: `job_id=eq.${jobId}` }, () => {
+          loadKeyExchangeTimeline(packageId);
+        })
+        .subscribe();
+    }
+
+    function unsubscribeCustodyTimeline() {
+      if (_custodyJobSub) { _custodyJobSub.unsubscribe(); _custodyJobSub = null; }
+    }
+
+    // State for the accept/dispute modal
+    let _custodyHandoffId = null;
+    let _custodyHandoffJobId = null;
+    let _custodyHandoffPackageId = null;
+
+    function openCustodyAcceptModal(handoffId, jobId, packageId) {
+      _custodyHandoffId = handoffId;
+      _custodyHandoffJobId = jobId;
+      _custodyHandoffPackageId = packageId;
+      document.getElementById('custody-choice-section').style.display = '';
+      document.getElementById('custody-dispute-section').style.display = 'none';
+      document.getElementById('custody-dispute-notes').value = '';
+      document.getElementById('custody-dispute-photo-status').textContent = '';
+      const radios = document.querySelectorAll('input[name="custody_dispute_type"]');
+      radios.forEach(r => { r.checked = false; });
+      document.getElementById('custody-accept-modal').classList.add('active');
+    }
+
+    function closeCustodyAcceptModal() {
+      document.getElementById('custody-accept-modal').classList.remove('active');
+    }
+
+    function showCustodyDisputeForm() {
+      document.getElementById('custody-choice-section').style.display = 'none';
+      document.getElementById('custody-dispute-section').style.display = '';
+      document.getElementById('custody-modal-footer-dispute').style.display = '';
+    }
+
+    function showCustodyChoiceSection() {
+      document.getElementById('custody-choice-section').style.display = '';
+      document.getElementById('custody-dispute-section').style.display = 'none';
+      document.getElementById('custody-modal-footer-dispute').style.display = 'none';
+    }
+
+    async function submitCustodyAccept() {
+      if (!_custodyHandoffId) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/handoffs/${_custodyHandoffId}/accept`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to accept handoff', 'error');
+        }
+        closeCustodyAcceptModal();
+        showToast('Vehicle receipt confirmed', 'success');
+        if (_custodyHandoffPackageId) loadLogisticsData(_custodyHandoffPackageId);
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    async function captureCustodyDisputePhotos() {
+      if (!_custodyHandoffId || !_custodyHandoffJobId) return;
+      const statusEl = document.getElementById('custody-dispute-photo-status');
+      statusEl.textContent = 'Starting camera…';
+      try {
+        const result = await window.CustodyCapture.captureHandoffPhotos(
+          _custodyHandoffId, _custodyHandoffJobId, 'member'
+        );
+        if (result && result.photos.length > 0) {
+          statusEl.textContent = `${result.photos.length} photo(s) captured`;
+        } else {
+          statusEl.textContent = 'No photos captured';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Photo capture failed';
+      }
+    }
+
+    async function submitCustodyDispute() {
+      if (!_custodyHandoffId) return;
+      const type = document.querySelector('input[name="custody_dispute_type"]:checked')?.value;
+      if (!type) return showToast('Please select a dispute type', 'error');
+      const notes = document.getElementById('custody-dispute-notes').value.trim();
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/handoffs/${_custodyHandoffId}/dispute`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, description: notes || undefined })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to submit dispute', 'error');
+        }
+        closeCustodyAcceptModal();
+        showToast('Dispute filed — our team has been notified', 'success');
+        if (_custodyHandoffPackageId) loadLogisticsData(_custodyHandoffPackageId);
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    // Pickup: member creates member_to_provider handoff, captures photos, releases
+    async function startCustodyPickup(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const token = session.access_token;
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id, provider_id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) return _confirmVehicleHandoffLegacy(null, packageId, 'pickup');
+
+        const job = jobs[0];
+
+        const createRes = await fetch(`${apiBase}/api/custody/handoffs`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: job.id,
+            leg: 'member_to_provider',
+            releasing_party_role: 'member',
+            receiving_party_id: job.provider_id,
+            receiving_party_role: 'provider'
+          })
+        });
+
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to create handoff record', 'error');
+        }
+        const { handoff } = await createRes.json();
+
+        const captureResult = await window.CustodyCapture.captureHandoffPhotos(handoff.id, job.id, 'member');
+        if (!captureResult || captureResult.photos.length === 0) {
+          showToast('Photo capture cancelled', 'info');
+          return;
+        }
+
+        const gps = captureResult.photos[0]?.metadata || {};
+        const releaseRes = await fetch(`${apiBase}/api/custody/handoffs/${handoff.id}/release`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: gps.lat || null, lng: gps.lng || null, gps_accuracy_m: gps.accuracy_m || null })
+        });
+
+        if (!releaseRes.ok) {
+          const err = await releaseRes.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to release handoff', 'error');
+        }
+
+        showToast('Vehicle handed off — provider will confirm', 'success');
+        loadLogisticsData(packageId);
+      } catch (e) {
+        console.error('[startCustodyPickup]', e);
+        showToast('Custody handoff failed: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    // Return: find the awaiting provider_to_member handoff and open accept/dispute modal
+    async function startCustodyReturn(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) return _confirmVehicleHandoffLegacy(null, packageId, 'return');
+
+        const jobId = jobs[0].id;
+        const chainRes = await fetch(`${apiBase}/api/custody/jobs/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!chainRes.ok) return _confirmVehicleHandoffLegacy(null, packageId, 'return');
+
+        const chain = await chainRes.json();
+        const pending = (chain.handoffs || []).find(h => h.leg === 'provider_to_member' && h.status === 'awaiting_receiver');
+        if (!pending) {
+          showToast('Provider has not yet released the vehicle', 'info');
+          return;
+        }
+        openCustodyAcceptModal(pending.id, jobId, packageId);
+      } catch (e) {
+        console.error('[startCustodyReturn]', e);
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
     async function loadLogisticsData(packageId) {
+      unsubscribeCustodyTimeline();
       try {
         const [appointmentResult, transferResult, locationResult, driverLocationResult] = await Promise.all([
           getAppointment(packageId),
@@ -1260,9 +1480,89 @@
       }
     }
 
+    const LEG_LABELS = {
+      member_to_provider: 'You → Provider (Pickup)',
+      provider_to_member: 'Provider → You (Return)',
+      member_to_driver:   'You → Driver',
+      driver_to_member:   'Driver → You',
+      driver_to_shop:     'Driver → Shop',
+      shop_to_driver:     'Shop → Driver',
+      driver_to_driver:   'Driver Transfer',
+    };
+
+    const HANDOFF_STATUS_BADGE = {
+      pending:          { label: 'Pending',            color: 'var(--accent-gold)' },
+      released:         { label: 'Released',           color: 'var(--accent-blue)' },
+      awaiting_receiver:{ label: 'Awaiting Your Confirmation', color: 'var(--accent-orange)' },
+      accepted:         { label: 'Accepted',           color: 'var(--accent-green)' },
+      disputed:         { label: 'Disputed',           color: 'var(--accent-red)' },
+    };
+
+    async function loadCustodyChainTimeline(packageId, container) {
+      try {
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;padding:12px;">No custody chain found for this package.</div>';
+          return;
+        }
+        const jobId = jobs[0].id;
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/jobs/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) {
+          container.innerHTML = '<div style="color:var(--accent-red);font-size:0.9rem;">Failed to load custody chain.</div>';
+          return;
+        }
+        const chain = await res.json();
+        const handoffs = chain.handoffs || [];
+
+        if (!handoffs.length) {
+          container.innerHTML = `
+            <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
+              <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
+                No custody handoffs recorded yet.
+              </div>
+            </div>`;
+          return;
+        }
+
+        const uid = currentUser?.id || '';
+        container.innerHTML = handoffs.map(h => {
+          const badge = HANDOFF_STATUS_BADGE[h.status] || { label: h.status, color: 'var(--text-muted)' };
+          const isReceiver = h.receiving_party_id === uid && h.status === 'awaiting_receiver';
+          const ts = h.released_at ? new Date(h.released_at).toLocaleString() : (h.created_at ? new Date(h.created_at).toLocaleString() : '');
+          return `
+            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid ${badge.color};margin-bottom:12px;">
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                  <span style="font-weight:600;font-size:0.9rem;">${LEG_LABELS[h.leg] || h.leg}</span>
+                  <span style="background:${badge.color}22;color:${badge.color};border:1px solid ${badge.color}55;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">${badge.label}</span>
+                </div>
+                ${ts ? `<div style="font-size:0.75rem;color:var(--text-muted);">${ts}</div>` : ''}
+                ${isReceiver ? `<button class="btn btn-success btn-sm" style="margin-top:8px;" onclick="openCustodyAcceptModal('${h.id}','${jobId}','${packageId}')">Review &amp; Confirm Receipt</button>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+
+        subscribeCustodyTimeline(packageId, jobId);
+      } catch (err) {
+        console.error('[loadCustodyChainTimeline]', err);
+        container.innerHTML = '<div style="color:var(--accent-red);font-size:0.9rem;">Failed to load custody chain.</div>';
+      }
+    }
+
     async function loadKeyExchangeTimeline(packageId) {
       const container = document.getElementById(`key-exchange-timeline-${packageId}`);
       if (!container) return;
+
+      if (window._mccCustodyEnabled) {
+        return loadCustodyChainTimeline(packageId, container);
+      }
 
       try {
         const { data: keyExchanges, error } = await supabaseClient
@@ -1926,13 +2226,11 @@
     }
 
     // Confirm vehicle handoff
-    async function confirmVehicleHandoff(transferId, packageId, type) {
-      const confirmMsg = type === 'pickup' 
-        ? 'Confirm that you have handed over your vehicle?' 
+    async function _confirmVehicleHandoffLegacy(transferId, packageId, type) {
+      const confirmMsg = type === 'pickup'
+        ? 'Confirm that you have handed over your vehicle?'
         : 'Confirm that you have received your vehicle back?';
-      
       if (!confirm(confirmMsg)) return;
-
       try {
         let result;
         if (type === 'pickup') {
@@ -1940,17 +2238,21 @@
         } else {
           result = await confirmReturn(transferId, packageId, 'member');
         }
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
+        if (result.error) throw new Error(result.error);
         showToast(type === 'pickup' ? 'Handoff confirmed!' : 'Return confirmed!', 'success');
         loadLogisticsData(packageId);
       } catch (err) {
         console.error('Error confirming handoff:', err);
         showToast('Failed to confirm: ' + err.message, 'error');
       }
+    }
+
+    async function confirmVehicleHandoff(transferId, packageId, type) {
+      if (window._mccCustodyEnabled) {
+        if (type === 'pickup') return startCustodyPickup(packageId);
+        if (type === 'return') return startCustodyReturn(packageId);
+      }
+      return _confirmVehicleHandoffLegacy(transferId, packageId, type);
     }
 
     // Share my location
