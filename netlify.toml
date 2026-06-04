@@ -192,6 +192,11 @@
 [functions."founder-payout-monthly-scheduled"]
   schedule = "0 14 1 * *"
 
+# Dream Car Finder — daily sweep at 02:00 UTC. Runs due searches, inserts
+# mock matches, and sends email/SMS notifications when enabled.
+[functions."dream-car-scheduled"]
+  schedule = "0 2 * * *"
+
 # Promotes scheduled rides to 'requested' 30 min before pickup so dispatch fires on time.
 [functions."transport-scheduled-dispatch"]
   schedule = "*/15 * * * *"

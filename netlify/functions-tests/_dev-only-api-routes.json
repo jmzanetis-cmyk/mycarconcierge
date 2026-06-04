@@ -150,7 +150,6 @@
     "/api/developer/usage",
     "/api/diagnostics/generate",
     "/api/discount/offer",
-    "/api/dream-car/scheduled-search",
     "/api/email/founder-approved",
     "/api/email/welcome",
     "/api/escrow/create",
