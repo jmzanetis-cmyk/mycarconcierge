@@ -41,15 +41,54 @@ const supabase = createClient(SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY, {
   auth: { autoRefreshToken: false, persistSession: false }
 });
 
+// Single combined account — this is what App Store Connect has in the
+// Sign-In Information field. Logging in shows the "Choose Your Portal"
+// screen so Apple's reviewer can access both member and provider flows
+// from one credential.
+const DEMO_EMAIL     = 'demo@mycarconcierge.com';
+
+// Backup two-account set kept for internal QA.
 const MEMBER_EMAIL   = 'reviewer-member@mycarconcierge.com';
 const PROVIDER_EMAIL = 'reviewer-provider@mycarconcierge.com';
+
+// ---------------------------------------------------------------------------
+// Helper: find an auth user by email via the GoTrue admin REST endpoint.
+// GoTrue supports ?filter=<email> which returns only matching users,
+// avoiding full-list pagination and the "Database error" the JS client
+// throws when `page` is passed as a parameter on this Supabase version.
+// ---------------------------------------------------------------------------
+async function findUserByEmail(email) {
+  const https = require('https');
+  const url = `${SUPABASE_URL}/auth/v1/admin/users?filter=${encodeURIComponent(email)}&per_page=10`;
+  return new Promise((resolve, reject) => {
+    const req = https.get(url, {
+      headers: {
+        'apikey': SUPABASE_SERVICE_ROLE_KEY,
+        'Authorization': `Bearer ${SUPABASE_SERVICE_ROLE_KEY}`,
+      }
+    }, (res) => {
+      let body = '';
+      res.on('data', chunk => { body += chunk; });
+      res.on('end', () => {
+        try {
+          const json = JSON.parse(body);
+          const users = json.users || [];
+          const hit = users.find(u => u.email === email);
+          resolve(hit || null);
+        } catch (e) {
+          reject(new Error(`findUserByEmail parse error: ${e.message} — body: ${body.slice(0, 200)}`));
+        }
+      });
+    });
+    req.on('error', reject);
+  });
+}
 
 // ---------------------------------------------------------------------------
 // Helper: upsert an auth user. Returns the user's UUID.
 // ---------------------------------------------------------------------------
 async function upsertAuthUser(email, password) {
-  const { data: { users } } = await supabase.auth.admin.listUsers({ perPage: 1000 });
-  const existing = users.find(u => u.email === email);
+  const existing = await findUserByEmail(email);
 
   if (existing) {
     await supabase.auth.admin.updateUserById(existing.id, {
@@ -65,7 +104,18 @@ async function upsertAuthUser(email, password) {
     password,
     email_confirm: true
   });
-  if (error) throw new Error(`auth.admin.createUser(${email}): ${error.message}`);
+  if (error) {
+    // Race / replication lag: treat "already registered" as a lookup miss and retry.
+    if (error.message.includes('already')) {
+      const retry = await findUserByEmail(email);
+      if (retry) {
+        await supabase.auth.admin.updateUserById(retry.id, { password, email_confirm: true });
+        console.log(`  [auth] updated existing user (retry): ${email} (${retry.id})`);
+        return retry.id;
+      }
+    }
+    throw new Error(`auth.admin.createUser(${email}): ${error.message}`);
+  }
   console.log(`  [auth] created user: ${email} (${data.user.id})`);
   return data.user.id;
 }
@@ -248,8 +298,36 @@ async function ensureProviderApplication(providerId) {
 async function main() {
   console.log('=== App Store Reviewer Seed ===\n');
 
-  // --- Member account ---
-  console.log(`[1/3] Member account: ${MEMBER_EMAIL}`);
+  // -------------------------------------------------------------------------
+  // [1] Combined demo account — App Store Connect sign-in credential.
+  //     role='provider' + is_also_member=true triggers the "Choose Your
+  //     Portal" screen so the reviewer can reach both member and provider
+  //     flows from one login.
+  // -------------------------------------------------------------------------
+  console.log(`[1/4] Combined demo account: ${DEMO_EMAIL}`);
+  const demoId = await upsertAuthUser(DEMO_EMAIL, REVIEWER_PASSWORD);
+  await upsertProfile(demoId, DEMO_EMAIL, {
+    role: 'provider',
+    is_also_member: true,
+    full_name: 'MCC Demo',
+    business_name: 'Demo Auto Works',
+    phone: '3105550100',
+    city: 'Los Angeles',
+    state: 'CA',
+    zip_code: '90001',
+    bid_credits: 10,
+    free_trial_bids: 5,
+    application_status: 'approved'
+  });
+  await ensureVehicle(demoId);
+  const demoCarePlanId = await ensureCarePlan(demoId);
+  await ensureProviderStats(demoId);
+  await ensureProviderApplication(demoId);
+
+  // -------------------------------------------------------------------------
+  // [2] Backup member account (internal QA; not shown in App Store Connect).
+  // -------------------------------------------------------------------------
+  console.log(`\n[2/4] Backup member account: ${MEMBER_EMAIL}`);
   const memberId = await upsertAuthUser(MEMBER_EMAIL, REVIEWER_PASSWORD);
   await upsertProfile(memberId, MEMBER_EMAIL, {
     role: 'member',
@@ -260,10 +338,12 @@ async function main() {
     zip_code: '90001'
   });
   await ensureVehicle(memberId);
-  const carePlanId = await ensureCarePlan(memberId);
+  const memberCarePlanId = await ensureCarePlan(memberId);
 
-  // --- Provider account ---
-  console.log(`\n[2/3] Provider account: ${PROVIDER_EMAIL}`);
+  // -------------------------------------------------------------------------
+  // [3] Backup provider account (internal QA; not shown in App Store Connect).
+  // -------------------------------------------------------------------------
+  console.log(`\n[3/4] Backup provider account: ${PROVIDER_EMAIL}`);
   const providerId = await upsertAuthUser(PROVIDER_EMAIL, REVIEWER_PASSWORD);
   await upsertProfile(providerId, PROVIDER_EMAIL, {
     role: 'provider',
@@ -281,17 +361,32 @@ async function main() {
   await ensureProviderStats(providerId);
   await ensureProviderApplication(providerId);
 
-  // --- Seed bid from provider on member's care plan ---
-  console.log('\n[3/3] Cross-account bid');
-  await ensureBid(carePlanId, providerId);
+  // -------------------------------------------------------------------------
+  // [4] Cross-account bids so each member portal shows incoming bids.
+  //     - reviewer-provider@ bids on demo@'s care plan
+  //     - reviewer-provider@ bids on reviewer-member@'s care plan
+  // -------------------------------------------------------------------------
+  console.log('\n[4/4] Cross-account bids');
+  await ensureBid(demoCarePlanId, providerId);
+  await ensureBid(memberCarePlanId, providerId);
 
-  // --- Summary ---
+  // -------------------------------------------------------------------------
+  // Summary
+  // -------------------------------------------------------------------------
   console.log('\n=== Done ===');
-  console.log(`  Member email:   ${MEMBER_EMAIL}`);
-  console.log(`  Provider email: ${PROVIDER_EMAIL}`);
-  console.log('  Password:       (value of REVIEWER_PASSWORD — save to App Store Connect)');
-  console.log('\n  Enter both sets of credentials in App Store Connect →');
-  console.log('  App Review Information → Sign-In Information.');
+  console.log('');
+  console.log('  App Store Connect → App Review Information → Sign-In Information:');
+  console.log(`    Email:    ${DEMO_EMAIL}`);
+  console.log('    Password: (value of REVIEWER_PASSWORD)');
+  console.log('');
+  console.log('  When the reviewer logs in they will see "Choose Your Portal":');
+  console.log('    • Member Portal  → vehicles, care plans, incoming bids');
+  console.log('    • Provider Portal → job board, bid submission');
+  console.log('');
+  console.log('  Backup accounts (internal QA only, not in App Store Connect):');
+  console.log(`    ${MEMBER_EMAIL}`);
+  console.log(`    ${PROVIDER_EMAIL}`);
+  console.log('');
   console.log('  Do NOT commit the password to git.\n');
 }
 

@@ -281,27 +281,34 @@ Welcome to My Car Concierge — your complete auto ownership platform. Post serv
 
 ### Demo Account for Apple Reviewers
 
-A pre-seeded member account is available for reviewers to explore all member-facing features without needing to create an account or enter real payment details.
+A single combined account gives the reviewer access to both the member and
+provider portals from one login. After signing in, the app shows a
+**"Choose Your Portal"** screen.
+
+**App Store Connect → App Review Information → Sign-In Information:**
 
 | Field | Value |
 |---|---|
-| **Email** | reviewer@mycarconcierge.com |
-| **Password** | ReviewMCC2025! |
-| **Account type** | Member |
+| **Email** | demo@mycarconcierge.com |
+| **Password** | *(stored in App Store Connect only — set via `REVIEWER_PASSWORD` when running `scripts/seed-app-store-reviewer.js`)* |
+| **Account type** | Provider + Member (portal selector shown at login) |
 
-**Pre-loaded state:**
-- One vehicle added (2022 Toyota Camry, VIN verified)
-- Identity verification completed
-- One completed service request in history
-- Sample care plan on file
-- Car Club membership active with 3 punch credits
+> Seed the account before each submission:
+> ```bash
+> SUPABASE_SERVICE_ROLE_KEY=<key> REVIEWER_PASSWORD=<password-from-app-store-connect> \
+>   node scripts/seed-app-store-reviewer.js
+> ```
+
+**Pre-loaded state (both portals):**
+- **Member portal:** 2022 Toyota Camry, open care plan "Reviewer — Oil Change & Brake Inspection", incoming $149 bid from Reviewer Auto Works
+- **Provider portal:** approved application, 10 bid credits, 4.9-star rating, can submit bids on open care plans
 
 **Key flows to test:**
-1. **Dashboard** → tap the vehicle card to see health score and maintenance history
-2. **Request Service** → post a new bid request (select "Oil Change", any date/time)
-3. **Transport** → request a vehicle pickup (identity gate will show as verified)
-4. **OBD Scan** → upload the sample OBD image from Photo Library (included in account)
-5. **Account → Delete Account** → enter password `ReviewMCC2025!` to test deletion flow (a fresh account will be restored within 1 hour for continued review)
+1. **Sign in** → "Choose Your Portal" screen appears with Member and Provider options
+2. **Member Portal** → Dashboard shows Toyota Camry; tap "Service Requests" to see the open care plan and the incoming bid
+3. **Provider Portal** → Job board shows open care plans; tap a listing to submit a bid (uses bid credits)
+4. **Payments** → All Stripe flows use test mode. Use card `4242 4242 4242 4242`, any future expiry, any CVC
+5. **Account → Delete Account** → test the deletion flow (account will be re-seeded for continued review)
 
 ### Feature Notes for Reviewer
 

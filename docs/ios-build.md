@@ -272,15 +272,17 @@ Run through every item below before clicking **Submit for Review** in App Store 
 ### Review Demo Account
 
 Apple reviewers need working test accounts to verify both the member and provider flows.
-Two accounts are seeded by `scripts/seed-app-store-reviewer.js` (see below).
+`scripts/seed-app-store-reviewer.js` creates a **single combined account** (`demo@mycarconcierge.com`)
+whose profile has `role='provider'` and `is_also_member=true`. At login, the app shows
+the "Choose Your Portal" screen, letting the reviewer switch between member and provider
+views without signing out.
 
-- [ ] Reviewer accounts seeded in production Supabase (run `scripts/seed-app-store-reviewer.js`)
-- [ ] Demo credentials entered in App Store Connect → App Review Information:
-  - **Member account:** `reviewer-member@mycarconcierge.com`
-  - **Provider account:** `reviewer-provider@mycarconcierge.com`
-  - **Password:** *(same for both — stored in App Store Connect only, never committed to git)*
+- [ ] Demo account seeded in production Supabase (run `scripts/seed-app-store-reviewer.js`)
+- [ ] App Store Connect → App Review Information → Sign-In Information:
+  - **Email:** `demo@mycarconcierge.com`
+  - **Password:** *(stored in App Store Connect only — set via `REVIEWER_PASSWORD` env var; never commit to git)*
 - [ ] Notes to Apple reviewer filled in — explain any features that require special setup:
-  > "This is an automotive service marketplace. Two demo accounts are provided: a member account (reviewer-member@mycarconcierge.com) and a provider account (reviewer-provider@mycarconcierge.com) — both use the same password shown above. Sign in as the member to browse service requests and view bids. Sign in as the provider to see the bid dashboard. Payment flows use Stripe; tap 'Pay' and use test card 4242 4242 4242 4242. Push notifications require accepting the prompt on first launch."
+  > "This is an automotive service marketplace. Sign in with the demo account above. After login you will see a 'Choose Your Portal' screen — tap Member Portal to see vehicles, service requests, and incoming bids; tap Provider Portal to browse the job board and submit bids. Payment flows use Stripe test mode; use card 4242 4242 4242 4242, any future expiry, any CVC. Push notifications require accepting the prompt on first launch."
 - [ ] App Privacy section updated to reflect no iOS tracking (see App Store Connect → App Privacy; Guideline 5.1.2 addressed in commit `b4a7b2a`)
 
 #### Running the seed script
@@ -296,8 +298,9 @@ SUPABASE_SERVICE_ROLE_KEY=<your-key> REVIEWER_PASSWORD="$REVIEWER_PASSWORD" \
 ```
 
 The script creates/updates:
-- `reviewer-member@mycarconcierge.com` — member role, 2022 Toyota Camry, open care plan
-- `reviewer-provider@mycarconcierge.com` — provider role (also member), verified profile, $149 bid on the member's care plan
+- `demo@mycarconcierge.com` — **primary App Store Connect credential**; role=provider + is_also_member=true; 2022 Toyota Camry, open care plan, approved provider application, 10 bid credits, $149 incoming bid
+- `reviewer-member@mycarconcierge.com` — backup member account (internal QA only)
+- `reviewer-provider@mycarconcierge.com` — backup provider account (internal QA only)
 
 ### App Privacy / ATT declaration (App Store Connect)
 

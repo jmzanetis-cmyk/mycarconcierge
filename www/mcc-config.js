@@ -60,7 +60,12 @@
     // Milestones are funded in order: first $25K → licensing, next $18K → insurance, etc.
     // JS computes per-milestone raised amounts from DRIVER_FUND_RAISED automatically.
     // Email addresses exempt from mandatory 2FA (e.g. App Store reviewer accounts)
-    mandatory2faExemptEmails: ['jm.zanetis@gmail.com'],
+    mandatory2faExemptEmails: [
+      'jm.zanetis@gmail.com',
+      'demo@mycarconcierge.com',
+      'reviewer-member@mycarconcierge.com',
+      'reviewer-provider@mycarconcierge.com',
+    ],
     // Master switch — set to true only after enrollment is proven working end-to-end
     mandatory2faEnabled: false,
     DRIVER_FUND_MILESTONES: [
