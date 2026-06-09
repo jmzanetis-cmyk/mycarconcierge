@@ -1093,11 +1093,12 @@ async function _processCarePlanFounderCommission(supabase, stripe, providerId, c
 
     const { data: founder } = await supabase
       .from('member_founder_profiles')
-      .select('id, user_id, full_name, email, stripe_connect_account_id, instant_payout_enabled, payout_preference, referral_code, total_commissions_earned, total_commissions_paid, status')
+      .select('id, user_id, full_name, email, stripe_connect_account_id, instant_payout_enabled, payout_preference, referral_code, total_commissions_earned, total_commissions_paid, status, commission_end_date')
       .eq('user_id', provider.referred_by_founder_id)
       .maybeSingle();
     if (!founder) return { skipped: true, reason: 'founder_not_found' };
     if (founder.status && founder.status !== 'active') return { skipped: true, reason: 'founder_inactive' };
+    if (founder.commission_end_date && new Date(founder.commission_end_date) < new Date()) return { skipped: true, reason: 'commission_term_expired' };
     if (!founder.instant_payout_enabled || founder.payout_preference !== 'instant') return { skipped: true, reason: 'instant_payout_disabled' };
     if (!founder.stripe_connect_account_id) return { skipped: true, reason: 'no_connect_account' };
 
