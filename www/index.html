@@ -16,6 +16,14 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
+  <!-- Native guard: marketing homepage is unreachable inside the iOS/Android app (Guideline 3.1.1).
+       startPage in capacitor.config.json already prevents this, but a stray internal link
+       (e.g. the brand logo on login.html) could still navigate here. Redirect immediately. -->
+  <script>
+    if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+      window.location.replace('login.html');
+    }
+  </script>
   <link rel="manifest" href="manifest.json" />
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />

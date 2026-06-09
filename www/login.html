@@ -1010,6 +1010,12 @@
   <script>
     /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
     document.addEventListener('DOMContentLoaded', async () => {
+      // Fast path: skip login screen for already-authenticated users
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) { window.location.replace('members.html'); return; }
+      } catch (_) {}
+
       const icon = document.querySelector('.theme-icon');
       if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
       await I18n.init();

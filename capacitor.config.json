@@ -3,6 +3,7 @@
   "appName": "My Car Concierge",
   "webDir": "www",
   "server": {
+    "startPage": "login.html",
     "androidScheme": "https",
     "iosScheme": "https",
     "allowNavigation": [
