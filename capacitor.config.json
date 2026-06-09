@@ -3,7 +3,6 @@
   "appName": "My Car Concierge",
   "webDir": "www",
   "server": {
-    "url": "https://www.mycarconcierge.com",
     "androidScheme": "https",
     "iosScheme": "https",
     "allowNavigation": [

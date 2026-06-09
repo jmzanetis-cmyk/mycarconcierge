@@ -12,6 +12,22 @@
 
   const apiBaseUrl = isNativeApp ? 'https://www.mycarconcierge.com' : '';
 
+  // When the app runs from bundled assets (no server.url), bare /api/* paths
+  // would resolve to https://localhost/api/* — a dead end. Intercept them early
+  // and prepend the absolute production URL. Only active on native; web callers
+  // hit the same origin and need no rewrite.
+  if (isNativeApp && apiBaseUrl) {
+    var _nativeFetch = window.fetch;
+    window.fetch = function(resource, init) {
+      if (typeof resource === 'string' &&
+          resource.length > 5 &&
+          resource.slice(0, 5) === '/api/') {
+        resource = apiBaseUrl + resource;
+      }
+      return _nativeFetch.call(this, resource, init);
+    };
+  }
+
   // ==========================================================================
   // TODO: server.js routes that still need Netlify function equivalents.
   //
