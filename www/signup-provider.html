@@ -15,13 +15,13 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       /* Automotive Theme - Warmer, garage-inspired */
@@ -186,7 +186,7 @@
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/signup-provider.html" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -208,7 +208,7 @@
   <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
 <!-- SEO-INJECT:END -->
   <meta name="mcc-fb-event" content="Lead|signup_provider_view|signup_provider">
-  <script src="/auth-theme-toggle.js" defer></script>
+  <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -903,9 +903,9 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script src="signup-provider.js"></script>
-  <script src="/footer.js"></script>
-  <script src="/utils.js"></script>
-  <script src="/pwa-init.js?v=20260202"></script>
+  <script src="footer.js"></script>
+  <script src="utils.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
   <script>
     // Task #318 — Facebook OAuth shortcut on the legacy provider form.
     // Defined in its OWN <script> tag so it stays available even if the
@@ -1032,7 +1032,7 @@
     fixed, it should go through signup-provider.js's existing
     DOMContentLoaded path.
   -->
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');
@@ -1040,6 +1040,6 @@
       if (svg) el.innerHTML = svg;
     });
   </script>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

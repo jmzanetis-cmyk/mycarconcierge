@@ -15,13 +15,13 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <!-- Preload critical resources -->
-  <link rel="preload" href="/providers-core.js" as="script" />
-  <link rel="preload" href="/supabaseclient.js" as="script" />
-  <link rel="preload" href="/logo.png" as="image" />
+  <link rel="preload" href="providers-core.js" as="script" />
+  <link rel="preload" href="supabaseclient.js" as="script" />
+  <link rel="preload" href="logo.png" as="image" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Preconnect to external services -->
@@ -30,7 +30,7 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="dns-prefetch" href="https://supabase.co">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
+  <link rel="stylesheet" href="shared-styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qr-creator/dist/qr-creator.min.js" defer></script>
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
@@ -885,7 +885,7 @@
     .section-icon { display: inline-flex; align-items: center; color: inherit; }
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/providers.html" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -6949,7 +6949,7 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260122"></script>
   <script src="mcc-config.js?v=20260122"></script>
-  <script src="/white-label-client.js"></script>
+  <script src="white-label-client.js"></script>
   <script src="tos-modal.js?v=20260122"></script>
   <script src="emailService.js?v=20260122"></script>
   <script src="mobile-pay.js?v=20260124"></script>
@@ -6958,15 +6958,15 @@
   <script src="providers-core.js?v=20260202"></script>
   <script src="providers-settings.js?v=20260315"></script>
   <script src="providers-care-plans.js?v=20260516"></script>
-  <script src="/bgc-badge.js?v=20260428"></script>
-  <script src="/bgc-pricing.js?v=20260429"></script>
-  <script src="/bgc-onboarding.js?v=20260429"></script>
+  <script src="bgc-badge.js?v=20260428"></script>
+  <script src="bgc-pricing.js?v=20260429"></script>
+  <script src="bgc-onboarding.js?v=20260429"></script>
   <script src="bgc-compliance.js?v=20260428i"></script>
   <script src="members-push.js?v=20260319"></script>
-  <script src="/pwa-init.js?v=20260202"></script>
-  <script src="/chat-widget-base.js?v=20260122"></script>
-  <script src="/helpdesk-widget.js?v=20260122"></script>
-  <script src="/custody-capture.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
+  <script src="chat-widget-base.js?v=20260122"></script>
+  <script src="helpdesk-widget.js?v=20260122"></script>
+  <script src="custody-capture.js"></script>
   <script>
     function toggleTheme() {
       const html = document.documentElement;
@@ -6989,7 +6989,7 @@
       new HelpdeskWidget({ mode: 'provider', position: 'bottom-right' });
     });
   </script>
-  <script src="/provider-onboarding.js?v=20260429" defer></script>
+  <script src="provider-onboarding.js?v=20260429" defer></script>
   <script>
     document.addEventListener('DOMContentLoaded', () => {
       setTimeout(() => {
