@@ -241,7 +241,7 @@
 /* End PBXVariantGroup section */
 
 /* Begin XCBuildConfiguration section */
-                504EC3141FED79650016851F /* Debug */ = {
+                396A44545EFB490A93143E8C /* Debug */ = {
                         isa = XCBuildConfiguration;
                         buildSettings = {
                                 ALWAYS_SEARCH_USER_PATHS = NO;
@@ -395,7 +395,7 @@
                 504EC2FF1FED79650016851F /* Build configuration list for PBXProject "App" */ = {
                         isa = XCConfigurationList;
                         buildConfigurations = (
-                                504EC3141FED79650016851F /* Debug */,
+                                396A44545EFB490A93143E8C /* Debug */,
                                 504EC3151FED79650016851F /* Release */,
                         );
                         defaultConfigurationIsVisible = 0;
