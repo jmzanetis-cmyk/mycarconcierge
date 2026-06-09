@@ -170,7 +170,7 @@ async function handlePdf(supabase, agreementId) {
       sectionHeader('1. FOUNDING PROVIDER BENEFITS');
 
       sectionBody('1.1 Unlimited Bid Credits.', 'Founding Provider receives unlimited bid credits at no cost (every other provider purchases bid-credit packs to compete for jobs). MCC charges no platform fee on completed jobs for any provider; Founding Provider keeps 100% of customer payments minus only standard credit-card payment processing fees.');
-      sectionBody('1.2 Referral Commissions.', "Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for the lifetime of the respective provider's account. Commissions paid monthly within 15 business days.");
+      sectionBody('1.2 Referral Commissions.', "Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for one (1) year from the Agreement Effective Date (\"Commission Term\"). No new commissions accrue after the Commission Term; commissions already earned continue through the normal monthly payout schedule. Commissions paid monthly within 15 business days.");
       sectionBody('1.3 Milestone Bonuses.', 'Founding Provider receives one-time bonuses when MCC achieves total aggregate revenue milestones:');
 
       var milestones = [
@@ -215,7 +215,7 @@ async function handlePdf(supabase, agreementId) {
       sectionHeader('3. TERMS & CONDITIONS');
       sectionBody('3.1 Independent Contractor.', 'Founding Provider is an independent contractor, not an employee. MCC will issue Form 1099-NEC for payments exceeding $600/year. Founding Provider provides Form W-9 before first payment and is responsible for all taxes, insurance, and business expenses.');
       sectionBody('3.2 Duration.',              'This Agreement continues indefinitely and may only be terminated by mutual written agreement of both parties.');
-      sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other Founding Provider benefits (unlimited free bid credits, milestone bonuses) end upon termination.');
+      sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for the remainder of the one (1)-year Commission Term, even if this Agreement terminates before the term expires. All other Founding Provider benefits (unlimited free bid credits, milestone bonuses) end upon termination.');
       sectionBody('3.4 Confidentiality.',       'Both parties maintain confidentiality of business information, customer data, and proprietary processes.');
       sectionBody('3.5 Intellectual Property.', "All MCC trademarks, platform technology, and IP remain MCC's exclusive property. Founding Provider may use MCC branding only for recruiting providers.");
       sectionBody('3.6 Indemnification.',       "Founding Provider shall indemnify, defend, and hold harmless MCC and its officers, directors, employees, and agents from and against any and all claims, damages, losses, liabilities, costs, and expenses (including reasonable attorneys' fees) arising out of or related to Founding Provider's services, operations, or breach of this Agreement. Founding Provider shall maintain adequate insurance coverage as required by applicable law.");

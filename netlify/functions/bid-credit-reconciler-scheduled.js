@@ -199,10 +199,12 @@ async function recordBidPackCommissions({ supabase, stripe, now = Date.now() }) 
       if (!profile?.referred_by_founder_id) continue;
 
       const { data: founder } = await supabase.from('member_founder_profiles')
-        .select('id, commission_rate, total_commissions_earned, pending_balance, status')
+        .select('id, commission_rate, total_commissions_earned, pending_balance, status, commission_end_date')
         .eq('user_id', profile.referred_by_founder_id)
         .maybeSingle();
       if (!founder || founder.status !== 'active') continue;
+      // Enforce 1-year commission term: skip if the term window has closed.
+      if (founder.commission_end_date && new Date(founder.commission_end_date) < new Date(now)) continue;
 
       const purchaseAmount  = (s.amount_total || 0) / 100;
       const commissionRate  = parseFloat(founder.commission_rate || 0.50);

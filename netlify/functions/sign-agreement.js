@@ -55,7 +55,7 @@ function generatePDF(agreementData) {
 
     sectionBody('1.1 Unlimited Bid Credits.', 'Founding Provider receives unlimited bid credits at no cost (every other provider purchases bid-credit packs to compete for jobs). MCC charges no platform fee on completed jobs for any provider; Founding Provider keeps 100% of customer payments minus only standard credit-card payment processing fees.');
 
-    sectionBody('1.2 Referral Commissions.', 'Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for the lifetime of the respective provider\'s account. Commissions paid monthly within 15 business days.');
+    sectionBody('1.2 Referral Commissions.', 'Founding Provider receives 90% of total revenue from bid pack purchases made by any provider Founding Provider refers to MCC, for one (1) year from the Agreement Effective Date ("Commission Term"). No new commissions accrue after the Commission Term; commissions already earned continue through the normal monthly payout schedule. Commissions paid monthly within 15 business days.');
 
     sectionBody('1.3 Milestone Bonuses.', 'Founding Provider receives one-time bonuses when MCC achieves total aggregate revenue milestones:');
 
@@ -115,7 +115,7 @@ function generatePDF(agreementData) {
 
     sectionBody('3.2 Duration.', 'This Agreement continues indefinitely and may only be terminated by mutual written agreement of both parties.');
 
-    sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for life, even if this Agreement terminates. All other Founding Provider benefits (unlimited free bid credits, milestone bonuses) end upon termination.');
+    sectionBody('3.3 Commission Protection.', 'The 90% commission rate on already-referred providers continues for the remainder of the one (1)-year Commission Term, even if this Agreement terminates before the term expires. All other Founding Provider benefits (unlimited free bid credits, milestone bonuses) end upon termination.');
 
     sectionBody('3.4 Confidentiality.', 'Both parties maintain confidentiality of business information, customer data, and proprietary processes.');
 
