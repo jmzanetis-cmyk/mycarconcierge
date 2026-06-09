@@ -81,7 +81,5 @@
         <string>My Car Concierge uses Face ID for quick and secure login to your account.</string>
         <key>ITSAppUsesNonExemptEncryption</key>
         <false/>
-        <key>NSUserTrackingUsageDescription</key>
-        <string>My Car Concierge uses this permission to measure the effectiveness of our advertising and improve the service recommendations we show you.</string>
 </dict>
 </plist>

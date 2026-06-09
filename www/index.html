@@ -3035,27 +3035,30 @@
   </script>
   <script src="analytics-tracker.js" defer></script>
   <!-- Facebook SDK for JavaScript (Task #182) -->
+  <!-- Not loaded in native iOS/Android builds — App Store Guideline 5.1.2. -->
   <div id="fb-root"></div>
   <script>
-    window.fbAsyncInit = function() {
-      FB.init({
-        appId: '1210351411006961',
-        cookie: true,
-        xfbml: true,
-        version: 'v23.0'
-      });
-      FB.AppEvents.logPageView();
-    };
-    (function(d, s, id) {
-      var js, fjs = d.getElementsByTagName(s)[0];
-      if (d.getElementById(id)) return;
-      js = d.createElement(s); js.id = id;
-      js.src = 'https://connect.facebook.net/en_US/sdk.js';
-      js.async = true;
-      js.defer = true;
-      js.crossOrigin = 'anonymous';
-      fjs.parentNode.insertBefore(js, fjs);
-    }(document, 'script', 'facebook-jssdk'));
+    if (!(window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform())) {
+      window.fbAsyncInit = function() {
+        FB.init({
+          appId: '1210351411006961',
+          cookie: true,
+          xfbml: true,
+          version: 'v23.0'
+        });
+        FB.AppEvents.logPageView();
+      };
+      (function(d, s, id) {
+        var js, fjs = d.getElementsByTagName(s)[0];
+        if (d.getElementById(id)) return;
+        js = d.createElement(s); js.id = id;
+        js.src = 'https://connect.facebook.net/en_US/sdk.js';
+        js.async = true;
+        js.defer = true;
+        js.crossOrigin = 'anonymous';
+        fjs.parentNode.insertBefore(js, fjs);
+      }(document, 'script', 'facebook-jssdk'));
+    }
   </script>
   <script src="/fb-pixel.js" defer></script>
 </body>

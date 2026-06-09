@@ -3,7 +3,6 @@ import Capacitor
 import FirebaseCore
 import FirebaseMessaging
 import UserNotifications
-import AppTrackingTransparency
 
 @UIApplicationMain
 class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUserNotificationCenterDelegate {
@@ -24,11 +23,7 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUser
 
     func applicationWillEnterForeground(_ application: UIApplication) {}
 
-    func applicationDidBecomeActive(_ application: UIApplication) {
-        if #available(iOS 14.5, *) {
-            ATTrackingManager.requestTrackingAuthorization { _ in }
-        }
-    }
+    func applicationDidBecomeActive(_ application: UIApplication) {}
 
     func applicationWillTerminate(_ application: UIApplication) {}
 
