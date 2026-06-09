@@ -76,7 +76,7 @@ class ChatWidgetBase {
 
       body.has-bottom-nav .chat-widget-base.bottom-right,
       body.has-bottom-nav .chat-widget-base.bottom-left {
-        bottom: 84px;
+        display: none;
       }
 
       .chat-widget-toggle {
