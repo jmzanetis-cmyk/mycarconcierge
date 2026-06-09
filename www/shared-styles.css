@@ -1464,20 +1464,17 @@ button:active,
   transition: transform 0.1s ease;
 }
 
-/* Add bottom padding to pages when bottom nav is visible */
-@media (max-width: 768px) {
-  .mobile-bottom-nav {
-    display: block;
-  }
-  
-  body.has-bottom-nav {
-    padding-bottom: 72px;
-  }
-  
-  /* Hide sidebar on mobile when bottom nav is present */
-  body.has-bottom-nav .sidebar.hide-on-mobile {
-    display: none;
-  }
+/* Tab bar visible only when native shell activates has-bottom-nav */
+body.has-bottom-nav .mobile-bottom-nav {
+  display: block;
+}
+
+body.has-bottom-nav {
+  padding-bottom: 72px;
+}
+
+body.has-bottom-nav .sidebar.hide-on-mobile {
+  display: none;
 }
 
 /* ==========================================================================

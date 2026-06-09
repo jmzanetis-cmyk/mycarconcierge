@@ -100,6 +100,9 @@ function setThemeFromToggle(isLight) {
 
 document.addEventListener('DOMContentLoaded', () => {
   updateThemeIcon();
+  if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+    document.body.classList.add('has-bottom-nav');
+  }
 });
 
 // ========== GLOBAL WINDOW ASSIGNMENTS ==========
@@ -2827,6 +2830,8 @@ async function showSection(sectionId) {
   target.classList.add('active');
   document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
   document.querySelector(`.nav-item[data-section="${sectionId}"]`)?.classList.add('active');
+  document.querySelectorAll('.mobile-bottom-nav-item').forEach(n => n.classList.remove('active'));
+  document.querySelector(`.mobile-bottom-nav-item[data-section="${sectionId}"]`)?.classList.add('active');
   document.getElementById('sidebar').classList.remove('open');
   
   // Reset scroll position to top
