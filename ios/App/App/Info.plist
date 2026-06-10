@@ -69,6 +69,8 @@
                         <string>discover</string>
                 </array>
         </dict>
+        <key>NSFaceIDUsageDescription</key>
+        <string>My Car Concierge uses Face ID to sign you in quickly and securely without entering your password each time.</string>
         <key>NSCameraUsageDescription</key>
         <string>My Car Concierge uses your camera to photograph your vehicles, registration cards, insurance documents, and service records.</string>
         <key>NSPhotoLibraryUsageDescription</key>

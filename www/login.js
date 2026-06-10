@@ -167,7 +167,7 @@
         const authResult = await BiometricAuth.authenticate('Verify your identity to enable biometric sign-in');
         
         if (authResult.success) {
-          await BiometricAuth.enrollBiometric(pendingBiometricUser.id, pendingBiometricSession.access_token);
+          await BiometricAuth.enrollBiometric(pendingBiometricUser.id, pendingBiometricSession.access_token, pendingBiometricSession.refresh_token);
           showMessage('Biometric sign-in enabled!', 'success');
           await new Promise(resolve => setTimeout(resolve, 500));
           await handleUserRedirect(pendingBiometricUser);
