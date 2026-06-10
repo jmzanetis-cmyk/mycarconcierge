@@ -1965,6 +1965,63 @@
 let currentPhotoVehicleId = null;
 let vehiclePhotos = [];
 
+// --- Native camera helpers ---
+
+function _base64ToFile(b64, mimeType, filename) {
+  const chars = atob(b64);
+  const bytes = new Uint8Array(chars.length);
+  for (let i = 0; i < chars.length; i++) bytes[i] = chars.charCodeAt(i);
+  return new File([bytes], filename, { type: mimeType });
+}
+
+async function _nativeCapturePhoto() {
+  const Camera = typeof Capacitor !== 'undefined' && Capacitor.Plugins && Capacitor.Plugins.Camera;
+  if (!Camera) return null;
+  try {
+    const photo = await Camera.getPhoto({ quality: 80, allowEditing: false, resultType: 'base64', source: 'PROMPT', correctOrientation: true });
+    const mimeType = photo.format === 'png' ? 'image/png' : 'image/jpeg';
+    const ext = photo.format === 'png' ? 'png' : 'jpg';
+    const file = _base64ToFile(photo.base64String, mimeType, `vehicle_${Date.now()}.${ext}`);
+    return { file, dataUrl: `data:${mimeType};base64,${photo.base64String}` };
+  } catch (e) {
+    const msg = (e.message || '').toLowerCase();
+    if (!msg.includes('cancel') && !msg.includes('no image') && !msg.includes('denied') && !msg.includes('dismiss')) {
+      showToast('Could not open camera', 'error');
+    }
+    return null;
+  }
+}
+
+window.triggerVehiclePhotoPickerAdd = async function() {
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    const result = await _nativeCapturePhoto();
+    if (!result) return;
+    pendingVehiclePhoto = { file: result.file, preview: result.dataUrl };
+    document.getElementById('vehicle-photo-preview').src = result.dataUrl;
+    document.getElementById('vehicle-photo-preview').style.display = 'block';
+    document.getElementById('vehicle-photo-placeholder').style.display = 'none';
+    document.getElementById('vehicle-photo-remove').style.display = 'flex';
+    document.getElementById('vehicle-photo-upload-area').style.borderStyle = 'solid';
+  } else {
+    document.getElementById('vehicle-photo-input').click();
+  }
+};
+
+window.triggerVehiclePhotoPickerEdit = async function() {
+  if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    const result = await _nativeCapturePhoto();
+    if (!result) return;
+    pendingEditVehiclePhoto = { file: result.file, preview: result.dataUrl };
+    document.getElementById('edit-vehicle-photo-preview').src = result.dataUrl;
+    document.getElementById('edit-vehicle-photo-preview').style.display = 'block';
+    document.getElementById('edit-vehicle-photo-placeholder').style.display = 'none';
+    document.getElementById('edit-vehicle-photo-remove').style.display = 'flex';
+    document.getElementById('edit-vehicle-photo-upload-area').style.borderStyle = 'solid';
+  } else {
+    document.getElementById('edit-vehicle-photo-input').click();
+  }
+};
+
 async function openVehiclePhotos(vehicleId, vehicleName) {
   currentPhotoVehicleId = vehicleId;
   const modal = document.getElementById('vehicle-photos-modal');
@@ -2015,13 +2072,23 @@ function renderVehiclePhotosGrid(photos) {
     </div>
   `).join('');
   if (!addDisabled) {
-    html += `
-      <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
-        <span style="font-size:0.78rem;">Add Photo</span>
-        <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
-      </label>
-    `;
+    const _isNative = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+    if (_isNative) {
+      html += `
+        <div style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onclick="triggerVehiclePhotoModalCapture()" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <span style="font-size:0.78rem;">Add Photo</span>
+        </div>
+      `;
+    } else {
+      html += `
+        <label style="aspect-ratio:4/3;border-radius:var(--radius-md);border:2px dashed var(--border-subtle);display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;gap:8px;color:var(--text-muted);transition:border-color 0.2s;" onmouseenter="this.style.borderColor='var(--accent-gold)'" onmouseleave="this.style.borderColor='var(--border-subtle)'">
+          <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h7"/><line x1="16" y1="5" x2="22" y2="5"/><line x1="19" y1="2" x2="19" y2="8"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg>
+          <span style="font-size:0.78rem;">Add Photo</span>
+          <input type="file" accept="image/jpeg,image/png" style="display:none;" onchange="uploadVehiclePhoto(this)">
+        </label>
+      `;
+    }
   }
   if (!photos.length && addDisabled) {
     html = '<div style="color:var(--text-muted);font-size:0.85rem;text-align:center;grid-column:1/-1;padding:20px 0;">No photos yet. Add up to 6 photos.</div>';
@@ -2062,18 +2129,22 @@ async function uploadVehiclePhotoFile(vehicleId, file, photoType) {
 // uploadVehiclePhoto — called from the photo modal's file input (onchange handler)
 async function uploadVehiclePhoto(input) {
   if (!input.files || !input.files[0]) return;
-  const file = input.files[0];
+  await _doUploadVehiclePhotoToModal(input.files[0]);
+}
+
+// _doUploadVehiclePhotoToModal — shared by file-input path and native camera path
+async function _doUploadVehiclePhotoToModal(file) {
   if (!['image/jpeg', 'image/png', 'image/jpg'].includes(file.type)) { showToast('Please upload a JPEG or PNG photo', 'error'); return; }
   if (file.size > 10 * 1024 * 1024) { showToast('Photo must be under 10MB', 'error'); return; }
   try {
     showToast('Uploading photo...', 'info');
-    const ext = file.name.split('.').pop().toLowerCase().replace('heic','jpg');
+    const ext = (file.name.split('.').pop() || 'jpg').toLowerCase().replace('heic', 'jpg');
     const session = await supabaseClient.auth.getSession();
     const uid = session.data.session?.user?.id;
     const token = session.data.session?.access_token;
     if (!uid || !token) throw new Error('Not authenticated');
     const fileName = uid + '/' + currentPhotoVehicleId + '/' + Date.now() + '.' + ext;
-    const { data: uploadData, error: uploadErr } = await supabaseClient.storage
+    const { error: uploadErr } = await supabaseClient.storage
       .from('vehicle-photos').upload(fileName, file, { contentType: file.type, upsert: false });
     if (uploadErr) throw uploadErr;
     // Do NOT use getPublicUrl — send only storage_path; server generates signed URL
@@ -2089,6 +2160,12 @@ async function uploadVehiclePhoto(input) {
     showToast('Upload failed: ' + e.message, 'error');
   }
 }
+
+window.triggerVehiclePhotoModalCapture = async function() {
+  const result = await _nativeCapturePhoto();
+  if (!result) return;
+  await _doUploadVehiclePhotoToModal(result.file);
+};
 
 async function setVehiclePhotoPrimary(photoId) {
   try {

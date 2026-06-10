@@ -70,9 +70,9 @@
                 </array>
         </dict>
         <key>NSCameraUsageDescription</key>
-        <string>My Car Concierge needs camera access to take photos of your vehicle registration, insurance cards, and service documents for verification.</string>
+        <string>My Car Concierge uses your camera to photograph your vehicles, registration cards, insurance documents, and service records.</string>
         <key>NSPhotoLibraryUsageDescription</key>
-        <string>My Car Concierge needs photo library access to upload images of your vehicle registration, insurance cards, and service documents.</string>
+        <string>My Car Concierge accesses your photo library to attach vehicle photos and upload registration cards, insurance documents, and service records.</string>
         <key>NSPhotoLibraryAddUsageDescription</key>
         <string>My Car Concierge needs permission to save photos to your library.</string>
         <key>NSLocationWhenInUseUsageDescription</key>
