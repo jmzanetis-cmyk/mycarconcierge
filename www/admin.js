@@ -1,11 +1,3 @@
-    // ========== SECURITY HELPERS ==========
-    function escapeHtml(text) {
-      if (!text) return '';
-      const div = document.createElement('div');
-      div.textContent = String(text);
-      return div.innerHTML;
-    }
-
     // ========== FETCH HELPER ==========
     // Task #234 — `safeFetch` is kept as a thin compatibility wrapper. It now
     // delegates to `aiOpsFetch` (declared further below as `adminFetch` too)
@@ -34,6 +26,7 @@
     let applications = [];
     let providers = [];
     let payments = [];
+    let selectedPaymentIds = new Set();
     let disputes = [];
     let tickets = [];
     let members = [];
@@ -41,14 +34,91 @@
     // them instead of falling through to the generic empty-state row that
     // makes failures look like "no data".
     let loadErrors = { providers: null, members: null, payments: null, disputes: null, tickets: null, applications: null };
+    // Task #355 — preserve the error `code` (NO_ADMIN_AUTH / ADMIN_AUTH_REJECTED
+    // from adminFetch) alongside the human message so renderTableLoadErrorRow
+    // can swap the dead-end Retry button for an actionable "Sign in again"
+    // prompt when the failure was a session expiry. Stored as a parallel map
+    // so the existing `loadErrors[key]` string lookups keep working.
+    const loadErrorCodes = {};
     function setLoadError(key, err) {
       const msg = err && (err.message || err.error || err.hint) ? (err.message || err.error || err.hint) : (err ? String(err) : 'Unknown error');
       loadErrors[key] = msg;
+      loadErrorCodes[key] = err && err.code ? err.code : null;
     }
+    // Task #355 — single canonical renderer for an "admin session expired"
+    // table-row banner. Every admin loader that pours an error into a table
+    // calls this so the prompt copy, color, and Sign-in-again behavior stay
+    // identical. `retryFn` may be a function or a string (HTML onclick form
+    // used by `renderTableLoadErrorRow`).
+    function renderAdminAuthErrorRow(tbody, colspan, err, retryFn) {
+      if (!tbody) return;
+      const stashKey = '_adminAuthRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[stashKey] = function () {
+        try { delete globalThis[stashKey]; } catch { globalThis[stashKey] = null; }
+        const fn = (typeof retryFn === 'function')
+          ? retryFn
+          : (typeof retryFn === 'string'
+              ? () => { try { new Function(retryFn)(); } catch (e) { console.error('Auth retry failed:', e); } }
+              : null);
+        if (typeof globalThis.openAdminReauth === 'function') globalThis.openAdminReauth(fn);
+        else if (typeof globalThis.openAiOpsReauth === 'function') globalThis.openAiOpsReauth(fn);
+      };
+      const msg = (err && err.message) ? err.message : (typeof err === 'string' ? err : 'Your admin session is no longer valid.');
+      tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(245,158,11,0.06);border-left:3px solid var(--accent-gold);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:240px;">
+            <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">⚠ Your admin session expired</div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(msg)}</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="globalThis['${stashKey}']()">Sign in again</button>
+        </div>
+      </td></tr>`;
+    }
+    globalThis.renderAdminAuthErrorRow = renderAdminAuthErrorRow;
+
+    // Task #355 — same "Sign in again" prompt as the table-row variant but
+    // rendered into an arbitrary container element (e.g. a card body, a
+    // summary div) so non-table loaders share the exact same UI and copy.
+    function renderAdminAuthErrorInto(el, err, retryFn) {
+      if (!el) return;
+      const stashKey = '_adminAuthRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[stashKey] = function () {
+        try { delete globalThis[stashKey]; } catch { globalThis[stashKey] = null; }
+        const fn = (typeof retryFn === 'function')
+          ? retryFn
+          : (typeof retryFn === 'string'
+              ? () => { try { new Function(retryFn)(); } catch (e) { console.error('Auth retry failed:', e); } }
+              : null);
+        if (typeof globalThis.openAdminReauth === 'function') globalThis.openAdminReauth(fn);
+        else if (typeof globalThis.openAiOpsReauth === 'function') globalThis.openAiOpsReauth(fn);
+      };
+      const msg = (err && err.message) ? err.message : (typeof err === 'string' ? err : 'Your admin session is no longer valid.');
+      el.innerHTML = `<div style="padding:18px 16px;background:rgba(245,158,11,0.06);border-left:3px solid var(--accent-gold);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:240px;">
+          <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">⚠ Your admin session expired</div>
+          <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(msg)}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="globalThis['${stashKey}']()">Sign in again</button>
+      </div>`;
+    }
+    globalThis.renderAdminAuthErrorInto = renderAdminAuthErrorInto;
+
+    // Task #355 — helper that lets non-table loaders decide auth vs non-auth
+    // without each one duplicating the `err.code === ...` boilerplate.
+    function isAdminAuthError(err) {
+      return !!(err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED'));
+    }
+    globalThis.isAdminAuthError = isAdminAuthError;
+
     function renderTableLoadErrorRow(tbodyId, colspan, key, retryFn) {
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
       const msg = loadErrors[key] || 'Unknown error';
+      const code = loadErrorCodes[key];
+      if (code === 'NO_ADMIN_AUTH' || code === 'ADMIN_AUTH_REJECTED') {
+        renderAdminAuthErrorRow(tbody, colspan, { message: msg, code }, retryFn);
+        return;
+      }
       tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(220,53,69,0.06);border-left:3px solid #dc3545;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:240px;">
@@ -245,9 +315,120 @@
       members: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       packages: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
       agreements: { page: 1, limit: 25, total: 0, totalPages: 0, search: '', filter: 'all' },
-      refunds: { page: 1, limit: 25, total: 0, totalPages: 0, filter: 'all' }
+      refunds: { page: 1, limit: 25, total: 0, totalPages: 0, filter: 'all' },
+      payments: { page: 1, limit: 25, total: 0, totalPages: 0 },
+      transport: { page: 1, limit: 25, total: 0, totalPages: 0 },
+      applications: { page: 1, limit: 25, total: 0, totalPages: 0 },
     };
     
+    // ========== NAV GROUP COLLAPSE STATE ==========
+    const navGroupCollapsed = {
+      overview: false, 'provider-management': false, 'founder-management': false,
+      operations: false, support: false, commerce: false, crm: false,
+      resources: false, 'ai-operations': false, revenue: false, system: false,
+    };
+
+    globalThis.toggleNavGroup = function(group) {
+      navGroupCollapsed[group] = !navGroupCollapsed[group];
+      const items = document.querySelector(`.nav-group-items[data-group="${group}"]`);
+      if (items) items.classList.toggle('collapsed', navGroupCollapsed[group]);
+      const caret = document.querySelector(`.nav-label[data-group="${group}"] .nav-group-caret`);
+      if (caret) caret.style.transform = navGroupCollapsed[group] ? 'rotate(-90deg)' : '';
+    };
+
+    // ========== SORT STATE ==========
+    const sortState = {
+      applications: { col: null, dir: 'asc' },
+      transport:    { col: null, dir: 'asc' },
+      providers:    { col: null, dir: 'asc' },
+      payments:     { col: null, dir: 'asc' },
+      members:      { col: null, dir: 'asc' },
+    };
+
+    function applySortToRows(rows, state, accessor) {
+      if (!state.col) return rows;
+      const dir = state.dir === 'asc' ? 1 : -1;
+      return [...rows].sort((a, b) => {
+        const av = accessor(a, state.col);
+        const bv = accessor(b, state.col);
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1 * dir;
+        if (bv == null) return -1 * dir;
+        if (typeof av === 'number' && typeof bv === 'number') return (av - bv) * dir;
+        return String(av).toLowerCase().localeCompare(String(bv).toLowerCase()) * dir;
+      });
+    }
+
+    function updateSortIndicators(tbodyId, state) {
+      const tbody = document.getElementById(tbodyId);
+      if (!tbody) return;
+      const thead = tbody.closest('table')?.querySelector('thead');
+      if (!thead) return;
+      thead.querySelectorAll('th[data-sort]').forEach(th => {
+        const caret = th.querySelector('.sort-caret');
+        if (!caret) return;
+        if (th.dataset.sort === state.col) {
+          caret.textContent = state.dir === 'asc' ? '▲' : '▼';
+          caret.classList.add('active');
+        } else {
+          caret.textContent = '⇅';
+          caret.classList.remove('active');
+        }
+      });
+    }
+
+    globalThis.toggleSort = function(tableId, col) {
+      const state = sortState[tableId];
+      if (!state) return;
+      if (state.col === col) {
+        state.dir = state.dir === 'asc' ? 'desc' : 'asc';
+      } else {
+        state.col = col;
+        state.dir = 'asc';
+      }
+      if (paginationState[tableId]) paginationState[tableId].page = 1;
+      ({ applications: renderApplications, transport: renderTransportRides,
+         providers: renderProviders, payments: renderPayments, members: renderMembers })[tableId]?.();
+    };
+
+    function applyClientPagination(rows, state) {
+      state.total = rows.length;
+      state.totalPages = Math.max(1, Math.ceil(rows.length / state.limit));
+      if (state.page > state.totalPages) state.page = state.totalPages;
+      const start = (state.page - 1) * state.limit;
+      return rows.slice(start, start + state.limit);
+    }
+
+    globalThis.changeApplicationsPage = function(delta) {
+      paginationState.applications.page = Math.max(1, paginationState.applications.page + delta);
+      renderApplications();
+    };
+    globalThis.changeApplicationsPageSize = function(size) {
+      paginationState.applications.limit = Number(size);
+      paginationState.applications.page = 1;
+      renderApplications();
+    };
+    globalThis.changePaymentsPage = function(delta) {
+      selectedPaymentIds.clear();
+      paginationState.payments.page = Math.max(1, paginationState.payments.page + delta);
+      renderPayments();
+    };
+    globalThis.changePaymentsPageSize = function(size) {
+      selectedPaymentIds.clear();
+      paginationState.payments.limit = Number(size);
+      paginationState.payments.page = 1;
+      renderPayments();
+    };
+    globalThis.changeTransportPage = function(delta) {
+      paginationState.transport.page = Math.max(1, paginationState.transport.page + delta);
+      renderTransportRides();
+    };
+    globalThis.changeTransportPageSize = function(size) {
+      paginationState.transport.limit = Number(size);
+      paginationState.transport.page = 1;
+      renderTransportRides();
+    };
+
     // Debounce helper for search functions
     let searchDebounceTimers = {};
     function debounceSearch(key, fn, delay = 300) {
@@ -257,14 +438,20 @@
       searchDebounceTimers[key] = setTimeout(fn, delay);
     }
     
-    function renderPaginationControls(state, changePageFn) {
+    function renderPaginationControls(state, changePageFn, changePageSizeFn = null) {
       const start = state.total === 0 ? 0 : (state.page - 1) * state.limit + 1;
       const end = Math.min(state.page * state.limit, state.total);
-      
+      const pageSizeHtml = changePageSizeFn
+        ? `<select onchange="${changePageSizeFn}(this.value)" style="padding:4px 8px;border-radius:6px;border:1px solid var(--border-subtle);background:var(--bg-card);color:var(--text-primary);font-size:0.85rem;">
+            ${[25,50,100].map(n => `<option value="${n}" ${state.limit === n ? 'selected' : ''}>${n} / page</option>`).join('')}
+           </select>`
+        : '';
+
       return `
         <div class="pagination-controls" style="display:flex;justify-content:space-between;align-items:center;padding:16px 0;border-top:1px solid var(--border-subtle);margin-top:16px;">
-          <div style="color:var(--text-secondary);font-size:0.9rem;">
-            Showing ${start}-${end} of ${state.total}
+          <div style="display:flex;align-items:center;gap:12px;">
+            <span style="color:var(--text-secondary);font-size:0.9rem;">Showing ${start}–${end} of ${state.total}</span>
+            ${pageSizeHtml}
           </div>
           <div style="display:flex;align-items:center;gap:12px;">
             <button class="btn btn-secondary btn-sm" onclick="${changePageFn}(-1)" ${state.page <= 1 ? 'disabled style="opacity:0.5;cursor:not-allowed;"' : ''}>
@@ -324,13 +511,18 @@
       violations: async () => { await loadViolationReports(); },
       'car-reviews': async () => { await loadPendingCARs(); },
       'pilot-applications': async () => { await loadPilotApplications(); },
+      'driver-applications': async () => { await loadDriverApplications(); },
+      'active-drivers': async () => { await loadActiveDrivers(); },
+      'transport': async () => { await loadTransportRides(); },
       'member-founders': async () => { await loadMemberFounderApplications(); },
       'commission-payouts': async () => { await loadFounderPayouts(); },
       packages: async () => { await loadAllPackages(); },
       payments: async () => { await loadPayments(); },
+      'driver-payouts': async () => { await loadDriverPayouts(); },
       disputes: async () => { await loadDisputes(); },
       refunds: async () => { await loadRefunds(); },
       'registration-verifications': async () => { await loadRegistrationVerifications(); },
+      'bgc-dashboard': async () => { await loadBgcDashboard(); },
       tickets: async () => { await loadTickets(); },
       members: async () => { await loadMembers(); },
       'user-roles': async () => { await loadUserRoles(); },
@@ -346,12 +538,15 @@
       'ai-ops': async () => { await initAiOps(); },
       'agent-fleet': async () => { await loadAgentFleetSection(); },
       'sms-log': async () => { await loadSmsLog(1); },
+      'audit-log': async () => { if (typeof globalThis.loadAdminAuditLog === 'function') await globalThis.loadAdminAuditLog(); },
       'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
       'white-label': async () => { await loadWhiteLabelTenants(); },
       'api-usage': async () => { await loadApiUsage(); },
       'survey-analytics': async () => { await loadSurveyAnalytics(); },
       'member-surveys': async () => { await loadMemberSurveyAnalytics(); },
-      'car-clubs': async () => { if (typeof loadCarClubs === 'function') await loadCarClubs(); }
+      'car-clubs': async () => { await loadCarClubs(); },
+      referrals: async () => { await loadReferralDashboard(); },
+      'feature-flags': async () => { await loadFeatureFlags(); }
     };
 
     function showSectionLoading(sectionId) {
@@ -362,9 +557,9 @@
         loader = document.createElement('div');
         loader.className = 'section-loader';
         loader.innerHTML = `
-          <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;padding:48px;color:var(--text-muted);">
-            <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div>
-            <p style="margin-top:16px;">Loading...</p>
+          <div class="loading-state">
+            <div class="loading-spinner"></div>
+            Loading...
           </div>
         `;
         section.insertBefore(loader, section.firstChild);
@@ -400,6 +595,7 @@
     let adminTeamToken = null;
     let adminTeamUser = null;
     let adminPermissions = null;
+    let _adminBearer = null;
     let currentModalState = 'loading'; // 'loading', 'login', 'password', 'not-admin', 'team-login'
     
     function showModalState(state) {
@@ -516,9 +712,9 @@
             return;
           }
           
-          // Admin confirmed, show password verification
-          showModalState('password');
+          // Admin confirmed — complete auth directly (no password step needed)
           btn.disabled = false;
+          await completeAdminAuth();
         }
       } catch (err) {
         errorEl.textContent = 'Login failed. Please try again.';
@@ -531,13 +727,15 @@
     // Listen for auth state changes
     try { supabaseClient.auth.onAuthStateChange(async (event, session) => {
       console.log('[Admin] Auth state changed:', event, { hasSession: !!session });
-      
+
+      if (session?.access_token) { _adminBearer = session.access_token; globalThis._adminBearer = session.access_token; }
+
       if (event === 'SIGNED_IN' && session?.user && currentModalState === 'login') {
         currentUser = session.user;
         globalThis._adminEmail = session.user.email || '';
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
         if (profile && profile.role === 'admin') {
-          showModalState('password');
+          await completeAdminAuth();
         } else {
           showModalState('not-admin');
         }
@@ -558,16 +756,20 @@
         const response = await fetch(`${apiBase}/api/auth/check-access`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        if (!response.ok) {
+          window.location.href = 'login.html';
+          return false;
+        }
         const result = await response.json();
-        
         if (!result.authorized && result.reason === '2fa_required') {
           window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
           return false;
         }
-        return true;
+        return result.authorized === true;
       } catch (error) {
         console.error('Access check error:', error);
-        return true;
+        window.location.href = 'login.html';
+        return false;
       }
     }
 
@@ -602,7 +804,8 @@
         if (session?.user) {
           currentUser = session.user;
           globalThis._adminEmail = session.user.email || '';
-          
+          if (session.access_token) { _adminBearer = session.access_token; globalThis._adminBearer = session.access_token; }
+
           // Check 2FA authorization before checking admin role
           const authorized = await checkAccessAuthorization();
           if (!authorized) return;
@@ -612,7 +815,7 @@
           console.log('[Admin] Profile:', profile);
           
           if (profile && profile.role === 'admin') {
-            showModalState('password');
+            await completeAdminAuth();
           } else {
             showModalState('not-admin');
           }
@@ -627,75 +830,37 @@
       }
     });
     
+    // Thin alias kept so handleAdminModalAction and any external callers continue
+    // to work without changes. All logic lives in completeAdminAuth().
     async function verifyAdminPassword() {
-      const password = document.getElementById('admin-password-input').value;
-      const errorEl = document.getElementById('admin-password-error');
-      const btn = document.getElementById('admin-modal-btn');
-      
-      if (!password) {
-        errorEl.textContent = 'Please enter a password.';
-        errorEl.style.display = 'block';
-        return;
-      }
-      
-      btn.textContent = 'Verifying...';
-      btn.disabled = true;
-      errorEl.style.display = 'none';
-      
+      return completeAdminAuth();
+    }
+
+    async function completeAdminAuth() {
       try {
-        // Call Supabase RPC function for secure server-side password verification
-        const { data, error } = await supabaseClient.rpc('verify_admin_password', {
-          input_password: password
-        });
-        
-        if (error) {
-          console.error('Password verification error:', error);
-          errorEl.textContent = 'Error: ' + (error.message || 'Verification failed');
-          errorEl.style.display = 'block';
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-          return;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session?.access_token) {
+          _adminBearer = session.access_token;
+          globalThis._adminBearer = session.access_token;
         }
-        
-        if (data === true) {
-          adminPasswordVerified = password;
-          localStorage.setItem('mcc_admin_pass', password);
-          adminPermissions = null;
-          // Task #233 — restore the button so the modal is usable next time
-          // it's opened (e.g. via the AI Ops "Sign in again" prompt).
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-          document.getElementById('admin-password-modal').style.display = 'none';
-          applyRolePermissions(null);
-          // Task #233 — when this modal was opened via the AI Ops "Sign in
-          // again" button, run that loader's retry callback instead of doing
-          // a heavy full-dashboard refresh, so the admin lands back on the
-          // exact card they were on.
-          if (typeof _aiOpsReauthRetry === 'function') {
-            const fn = _aiOpsReauthRetry;
-            _aiOpsReauthRetry = null;
-            try { await fn(); } catch (retryErr) { console.error('[Admin] AI Ops reauth retry failed:', retryErr); }
-          } else {
-            await loadAllData();
-            setupEventListeners();
-          }
-        } else {
-          errorEl.textContent = 'Invalid password. Please try again.';
-          errorEl.style.display = 'block';
-          btn.textContent = 'Verify';
-          btn.disabled = false;
-        }
-      } catch (error) {
-        console.error('Password verification error:', error);
-        errorEl.textContent = 'Error: ' + (error.message || 'Unknown error');
-        errorEl.style.display = 'block';
-        btn.textContent = 'Verify';
-        btn.disabled = false;
+      } catch { /* non-fatal */ }
+      adminPasswordVerified = false;
+      adminPermissions = null;
+      document.getElementById('admin-password-modal').style.display = 'none';
+      applyRolePermissions(null);
+      if (typeof _aiOpsReauthRetry === 'function') {
+        const fn = _aiOpsReauthRetry;
+        _aiOpsReauthRetry = null;
+        try { await fn(); } catch (retryErr) { console.error('[Admin] reauth retry failed:', retryErr); }
+      } else {
+        await loadAllData();
+        setupEventListeners();
       }
     }
-    
+
     globalThis.handleAdminModalAction = handleAdminModalAction;
     globalThis.verifyAdminPassword = verifyAdminPassword;
+    globalThis.completeAdminAuth = completeAdminAuth;
 
     (function bindAdminButtons() {
       function attach() {
@@ -748,6 +913,17 @@
         try { await loadDashboardAgentTile(); }
         catch (e) { console.warn('[admin] dashboard agent tile failed:', e); }
       }
+      // Task #459 — show API key alert banner if any key is failing or expiring
+      try { await loadDashboardApiKeyAlert(); } catch {}
+      // Task #406 — if the admin landed here via a shared activity-card
+      // deep link (?aap_src=...&aap_id=...[&aap_section=...|&aap_modal=...]),
+      // route to the right section/modal now that loadAllData has populated
+      // the in-memory caches viewApplication/viewDispute/viewTicket need.
+      try {
+        if (typeof globalThis.consumeAgentActivityDeepLink === 'function') {
+          await globalThis.consumeAgentActivityDeepLink();
+        }
+      } catch (e) { console.warn('[admin] agent activity deep-link routing failed:', e); }
     }
 
     async function loadDashboardStats() {
@@ -763,10 +939,11 @@
           { count: memberFounderCount },
           { count: payoutCount },
           { count: memberCount },
-          { count: registrationCount }
+          { count: registrationCount },
+          { count: driverAppsCount }
         ] = await Promise.all([
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 })),
           Promise.resolve(supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
@@ -774,8 +951,9 @@
           supabaseClient.from('pilot_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member'),
-          supabaseClient.from('registration_verifications').select('*', { count: 'exact', head: true }).in('status', ['pending', 'manual_review'])
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'member').is('suspended_at', null),
+          supabaseClient.from('registration_verifications').select('*', { count: 'exact', head: true }).in('status', ['pending', 'manual_review']),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'pending_driver')
         ]);
 
         document.getElementById('app-count').textContent = appCount || 0;
@@ -787,6 +965,8 @@
         document.getElementById('member-founder-count').textContent = memberFounderCount || 0;
         document.getElementById('payout-count').textContent = payoutCount || 0;
         document.getElementById('registration-count').textContent = registrationCount || 0;
+        const driverAppsEl = document.getElementById('dash-driver-apps');
+        if (driverAppsEl) driverAppsEl.textContent = (driverAppsCount || 0).toLocaleString();
 
         const statApps = document.getElementById('stat-pending-apps');
         const statProviders = document.getElementById('stat-providers');
@@ -1169,6 +1349,12 @@
           document.getElementById('dash-total-providers').textContent = (overview.data.totalProviders || 0).toLocaleString();
           document.getElementById('dash-active-packages').textContent = (overview.data.activePackages || 0).toLocaleString();
           document.getElementById('dash-total-revenue').textContent = '$' + (overview.data.totalRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+          const t = overview.data.transport || {};
+          const dEl = id => document.getElementById(id);
+          if (dEl('dash-total-rides'))       dEl('dash-total-rides').textContent       = (t.totalRides       || 0).toLocaleString();
+          if (dEl('dash-completed-rides'))   dEl('dash-completed-rides').textContent   = (t.completedRides   || 0).toLocaleString();
+          if (dEl('dash-active-drivers'))    dEl('dash-active-drivers').textContent    = (t.activeDrivers    || 0).toLocaleString();
+          if (dEl('dash-transport-revenue')) dEl('dash-transport-revenue').textContent = '$' + (t.transportRevenue || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
         }
 
         if (revenue.success) {
@@ -1333,7 +1519,16 @@
       const { data, error } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
       if (error) {
         console.error('loadApplications failed:', error);
-        setLoadError('applications', error);
+        // Task #355 — Supabase 401/JWT-expired errors tag the load with the
+        // ADMIN_AUTH_REJECTED code so the shared table-row renderer surfaces
+        // the "Sign in again" prompt instead of just "Failed to load".
+        const isAuth = error && (
+          error.status === 401 || error.status === 403 ||
+          /jwt|token|unauthor|expired/i.test(error.message || '')
+        );
+        const wrapped = new Error(error.message || 'Failed to load applications');
+        if (isAuth) wrapped.code = 'ADMIN_AUTH_REJECTED';
+        setLoadError('applications', wrapped);
         applications = [];
         renderApplications();
         document.getElementById('app-count').textContent = '!';
@@ -1495,7 +1690,9 @@
 
     async function loadProviders(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { setLoadError('providers', 'No active admin session — sign in again.'); renderProviders(); return; }
+      // Task #355 — flag this as an auth failure so renderTableLoadErrorRow
+      // surfaces the "Sign in again" prompt instead of a generic Retry.
+      if (!session) { setLoadError('providers', { message: 'No active admin session — sign in again.', code: 'NO_ADMIN_AUTH' }); renderProviders(); return; }
 
       const state = paginationState.providers;
       state.page = page;
@@ -1515,7 +1712,14 @@
         const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
+        if (!response.ok) {
+          let e; try { e = await response.json(); } catch { /* Intentionally silent */ }
+          const err = new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`);
+          // Task #355 — preserve auth-failure code so renderTableLoadErrorRow
+          // can swap Retry for "Sign in again".
+          if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -1546,8 +1750,13 @@
                 bgc_pending_count: liveMap[p.id].pending_count,
                 bgc_completed_count: liveMap[p.id].completed_count
               }) : p);
+              // Task #373 — render the BGC Mode visibility panel above
+              // the providers table from the same payload.
+              renderBgcModePanel(bgcJson);
+            } else {
+              renderBgcModePanel({ error: `HTTP ${bgcResp.status}` });
             }
-          } catch { /* non-fatal */ }
+          } catch (e) { renderBgcModePanel({ error: e?.message || 'fetch failed' }); }
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
@@ -1566,7 +1775,8 @@
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('providers-agent-activity', {
           agentSlug: ['matchmaker', 'treasurer', 'gatekeeper', 'advocate'],
-          limit: 10, title: 'Recent Provider-related Agent Activity', showEmpty: false
+          limit: 10, title: 'Recent Provider-related Agent Activity', showEmpty: false,
+          linkContext: { section: 'providers' }
         }); } catch { /* Intentionally silent */ }
       }
     }
@@ -1605,101 +1815,440 @@
       if (error) { console.error('loadPayments failed:', error); setLoadError('payments', error); payments = []; renderPayments(); return; }
       payments = data || [];
       renderPayments();
-      // Task #246 — load Stripe key expiry pill alongside the payments table.
-      try { await loadStripeKeyExpiry(); } catch (err) { console.error('loadStripeKeyExpiry failed:', err); }
+      // Task #246 / Task #353 — load critical API key expiry tracker
+      // alongside the payments table.
+      try { await loadApiKeyExpiry(); } catch (err) { console.error('loadApiKeyExpiry failed:', err); }
       // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('payments-agent-activity', {
           agentSlug: 'treasurer',
           includeAiOpsModule: 'payment_tracker',
-          limit: 10, title: 'Recent Payment-related Agent Activity', showEmpty: false
+          limit: 10, title: 'Recent Payment-related Agent Activity', showEmpty: false,
+          linkContext: { section: 'payments' }
         }); } catch { /* Intentionally silent */ }
       }
     }
 
-    // Task #246 — Stripe secret key expiry pill (in Payments section).
-    async function loadStripeKeyExpiry() {
-      const pill = document.getElementById('stripe-key-expiry-pill');
-      const dateEl = document.getElementById('stripe-key-expiry-date');
-      const input = document.getElementById('stripe-key-expiry-input');
-      if (!pill || !dateEl) return;
+    // Task #246 / Task #353 — Critical API key expiry tracker (multi-key
+    // generalization of the original Stripe-only pill). Renders one row per
+    // tracked secret into #api-key-expiry-rows with a colored status pill,
+    // an inline YYYY-MM-DD input, and an Update button. The same idempotent
+    // alert ladder fires for each one (3-day / 1-day / 0-day email reminders).
+    function apiKeyExpiryPillFor(data) {
+      if (!data.configured) {
+        return { cls: 'status-badge muted', label: 'Not configured' };
+      }
+      const days = data.days_until;
+      if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
+        return { cls: 'status-badge red', label: 'Invalid date' };
+      }
+      if (data.level === 'expired' || days <= 0) {
+        return { cls: 'status-badge red', label: `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}` };
+      }
+      if (data.level === 'critical' || days <= 1) {
+        return { cls: 'status-badge red', label: days === 1 ? 'Expires in 1 day' : `Expires in ${days} days` };
+      }
+      if (data.level === 'warning' || days <= 3) {
+        return { cls: 'status-badge orange', label: `Expires in ${days} days` };
+      }
+      return { cls: 'status-badge approved', label: `Healthy · ${days} days` };
+    }
+
+    // Task #460 — build "Alerts sent this cycle" chips for a key row
+    function buildAlertSentChips(k) {
+      const alerts = Array.isArray(k.recent_alerts) ? k.recent_alerts : [];
+      const THRESHOLDS = [
+        { type: 'alert_3d',      label: '3-day' },
+        { type: 'alert_1d',      label: '1-day' },
+        { type: 'alert_expired', label: 'Expired' },
+        { type: 'probe_alert',   label: 'Probe failure' }
+      ];
+      const chips = THRESHOLDS.map(t => {
+        const sent = alerts.find(a => a.action_type === t.type && a.outcome === 'sent');
+        if (sent) {
+          const ts = sent.created_at ? new Date(sent.created_at).toLocaleDateString() : '';
+          return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:0.72rem;padding:2px 7px;border-radius:10px;background:var(--accent-green-soft,#d1fae5);color:var(--accent-green,#059669);" title="Sent ${escapeHtml(ts)}">✓ ${escapeHtml(t.label)}</span>`;
+        }
+        return `<span style="display:inline-flex;align-items:center;gap:3px;font-size:0.72rem;padding:2px 7px;border-radius:10px;background:var(--bg-subtle,rgba(255,255,255,0.04));color:var(--text-muted);">${escapeHtml(t.label)}</span>`;
+      }).join('');
+      if (!chips) return '';
+      return `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:6px;" title="Alert status resets when you update the expiry date">${chips}</div>`;
+    }
+
+    function renderApiKeyExpiryRows(keys) {
+      const host = document.getElementById('api-key-expiry-rows');
+      if (!host) return;
+      if (!Array.isArray(keys) || keys.length === 0) {
+        host.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.9rem;">No tracked keys configured.</div>';
+        return;
+      }
+      host.innerHTML = keys.map(k => {
+        const pill = apiKeyExpiryPillFor(k);
+        const probePill = k.probe_failing
+          ? `<span class="status-badge red" style="font-size:0.72rem;">Probe failing</span>`
+          : '';
+        const dateStr = k.expiry_date ? escapeHtml(k.expiry_date) : '—';
+        const dateVal = k.expiry_date && /^\d{4}-\d{2}-\d{2}$/.test(k.expiry_date) ? escapeHtml(k.expiry_date) : '';
+        const feature = escapeHtml(k.feature || '');
+        const alertChips = buildAlertSentChips(k);
+        return `
+          <div style="padding:12px 14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:10px;">
+              <div style="min-width:240px;flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-weight:600;color:var(--text-primary);">${escapeHtml(k.label)}</span>
+                  <span class="${pill.cls}">${escapeHtml(pill.label)}</span>
+                  ${probePill}
+                  <span style="font-size:0.78rem;color:var(--text-muted);">env <code>${escapeHtml(k.env_var)}</code></span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${feature}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Expiry: ${dateStr}</div>
+                ${alertChips}
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <input type="date" data-api-key-input="${escapeHtml(k.id)}" class="form-input" style="width:auto;padding:6px 10px;font-size:0.85rem;" value="${dateVal}" />
+                <button class="btn btn-primary btn-sm" onclick="saveApiKeyExpiry('${escapeHtml(k.id)}')">Update</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function loadApiKeyExpiry() {
+      const host = document.getElementById('api-key-expiry-rows');
+      if (!host) return;
       try {
-        const res = await fetch('/api/admin/stripe-key-expiry', { headers: getAdminHeaders() });
-        if (!res.ok) {
-          pill.className = 'status-badge muted';
-          pill.textContent = 'Unavailable';
-          dateEl.textContent = '';
-          return;
-        }
-        const data = await res.json();
-        if (!data.configured) {
-          pill.className = 'status-badge muted';
-          pill.textContent = 'Not configured';
-          dateEl.textContent = 'Set the date your Stripe secret key expires.';
-          return;
-        }
-        const days = data.days_until;
-        if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
-          pill.className = 'status-badge red';
-          pill.textContent = 'Invalid configuration';
-          dateEl.textContent = `Stored value "${data.expiry_date ?? ''}" is not a valid YYYY-MM-DD date. Re-enter below.`;
-          if (input && !input.value && data.expiry_date) input.value = data.expiry_date;
-          return;
-        }
-        let cls = 'status-badge approved'; // green
-        let label = `Healthy · expires in ${days} days`;
-        if (data.level === 'expired' || days <= 0) {
-          cls = 'status-badge red';
-          label = `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}`;
-        } else if (data.level === 'critical' || days <= 1) {
-          cls = 'status-badge red';
-          label = days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
-        } else if (data.level === 'warning' || days <= 3) {
-          cls = 'status-badge orange';
-          label = `Expires in ${days} days`;
-        }
-        pill.className = cls;
-        pill.textContent = label;
-        dateEl.textContent = `Date: ${data.expiry_date}`;
-        if (input && !input.value) input.value = data.expiry_date;
+        // Task #355 — adminFetch surfaces 401/403 with auth codes so the
+        // catch can render the shared "Sign in again" prompt instead of a
+        // dead-end red error string.
+        const data = await adminFetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
+        renderApiKeyExpiryRows(data.keys || []);
       } catch (err) {
-        console.error('loadStripeKeyExpiry error:', err);
-        pill.className = 'status-badge muted';
-        pill.textContent = 'Error';
+        console.error('loadApiKeyExpiry error:', err);
+        if (err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED') && typeof globalThis.renderAdminAuthError === 'function') {
+          globalThis.renderAdminAuthError(host, err, loadApiKeyExpiry);
+        } else {
+          host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Error loading API key expiry data: ${escapeHtml(err.message || String(err))}</div>`;
+        }
       }
     }
 
-    async function saveStripeKeyExpiry() {
-      const input = document.getElementById('stripe-key-expiry-input');
+    async function saveApiKeyExpiry(keyId) {
+      const input = document.querySelector(`[data-api-key-input="${keyId}"]`);
       const value = (input?.value || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
-        alert('Enter the expiry date in YYYY-MM-DD format.');
+        showToast('Enter the expiry date in YYYY-MM-DD format.', 'error');
         return;
       }
       try {
-        const res = await fetch('/api/admin/stripe-key-expiry', {
+        const data = await adminFetch('/api/admin/api-key-expiry', {
           method: 'POST',
           headers: getAdminHeaders(),
-          body: JSON.stringify({ expiry_date: value })
+          body: JSON.stringify({ key_id: keyId, expiry_date: value })
         });
-        const data = await res.json();
-        if (!res.ok) {
-          alert(`Failed to update: ${data.error || res.statusText}`);
-          return;
-        }
-        await loadStripeKeyExpiry();
-        if (typeof showToast === 'function') showToast('Stripe key expiry updated. Alert state reset.');
+        await loadApiKeyExpiry();
+        if (typeof showToast === 'function') showToast(`Expiry updated for ${data.key?.label || keyId}. Alert state reset.`);
       } catch (err) {
-        console.error('saveStripeKeyExpiry error:', err);
-        alert('Failed to update Stripe key expiry.');
+        console.error('saveApiKeyExpiry error:', err);
+        showToast('Failed to update API key expiry.', 'error');
       }
     }
-    globalThis.saveStripeKeyExpiry = saveStripeKeyExpiry;
+
+    globalThis.loadApiKeyExpiry = loadApiKeyExpiry;
+    globalThis.saveApiKeyExpiry = saveApiKeyExpiry;
+
+    // Task #459 — Render a banner on admin home when any key needs attention
+    function renderDashboardApiKeyAlert(keys) {
+      const host = document.getElementById('dashboard-api-key-alert');
+      if (!host) return;
+      const urgent = (keys || []).filter(k =>
+        k.probe_failing ||
+        k.level === 'expired' ||
+        k.level === 'critical' ||
+        k.level === 'warning'
+      );
+      if (urgent.length === 0) { host.style.display = 'none'; return; }
+
+      const hasExpiredOrFailing = urgent.some(k => k.probe_failing || k.level === 'expired' || k.level === 'critical');
+      const accent = hasExpiredOrFailing ? 'var(--accent-red)' : 'var(--accent-orange, #f59e0b)';
+      const borderColor = hasExpiredOrFailing ? 'var(--accent-red-soft, #fca5a5)' : 'var(--accent-orange-soft, #fde68a)';
+      const icon = hasExpiredOrFailing ? 'alert-triangle' : 'alert-circle';
+
+      const pills = urgent.map(k => {
+        let label, cls;
+        if (k.probe_failing) { label = `${escapeHtml(k.label)}: probe failure`; cls = 'status-badge red'; }
+        else if (k.level === 'expired') { label = `${escapeHtml(k.label)}: EXPIRED`; cls = 'status-badge red'; }
+        else if (k.level === 'critical') { label = `${escapeHtml(k.label)}: expires tomorrow`; cls = 'status-badge red'; }
+        else { label = `${escapeHtml(k.label)}: expiring soon`; cls = 'status-badge orange'; }
+        return `<span class="${cls}" style="font-size:0.75rem;">${label}</span>`;
+      }).join('');
+
+      host.style.display = '';
+      host.innerHTML = `
+        <div style="background:var(--bg-elevated);border:1px solid ${borderColor};border-left:4px solid ${accent};border-radius:var(--radius-md);padding:14px 16px;display:flex;align-items:flex-start;gap:12px;flex-wrap:wrap;">
+          <span class="icon-inline" data-icon="${icon}" style="color:${accent};flex-shrink:0;margin-top:2px;"></span>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:600;color:var(--text-primary);margin-bottom:6px;">${urgent.length} API key${urgent.length > 1 ? 's need' : ' needs'} attention</div>
+            <div style="display:flex;flex-wrap:wrap;gap:6px;">${pills}</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="navigateToSection('payments');setTimeout(()=>document.getElementById('api-key-expiry-rows')?.scrollIntoView({behavior:'smooth'}),300);" style="flex-shrink:0;">
+            View API Keys →
+          </button>
+        </div>`;
+      if (typeof renderIcons === 'function') renderIcons(host);
+    }
+
+    async function loadDashboardApiKeyAlert() {
+      try {
+        const data = await adminFetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
+        renderDashboardApiKeyAlert(data.keys || []);
+      } catch {}
+    }
+
+    globalThis.loadDashboardApiKeyAlert = loadDashboardApiKeyAlert;
+
+    // ========================================================================
+    // Task #334 — Driver Payouts admin section
+    // ========================================================================
+    let driverPayoutsCache = null;
+
+    function dollars(cents) {
+      const n = Number(cents || 0) / 100;
+      return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadDriverPayouts() {
+      const tbody = document.getElementById('driver-payouts-table');
+      const earningsBody = document.getElementById('driver-payouts-earnings-table');
+      const cashoutsBody = document.getElementById('driver-cashouts-table');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+      if (cashoutsBody) cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading…</td></tr>';
+      let data;
+      try {
+        // Task #355 — adminFetch routes 401/403 through the shared "Sign in
+        // again" prompt instead of leaving a dead-end "Failed to load: 401"
+        // string in the table.
+        data = await adminFetch('/api/admin/driver-payouts', { headers: getAdminHeaders() });
+      } catch (err) {
+        console.error('loadDriverPayouts error:', err);
+        // Task #355 — single shared "Sign in again" renderer for auth errors
+        // (NO_ADMIN_AUTH / ADMIN_AUTH_REJECTED).
+        if (isAdminAuthError(err)) {
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, loadDriverPayouts);
+          if (cashoutsBody) renderAdminAuthErrorRow(cashoutsBody, 7, err, loadDriverPayouts);
+        } else if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Failed to load: ${escapeHtml(err.message || String(err))}</td></tr>`;
+        }
+        return;
+      }
+      try {
+        driverPayoutsCache = data;
+
+        const drivers = data.drivers || [];
+        let available = 0, inflight = 0, paid = 0, blocked = 0, failed = 0;
+        drivers.forEach(d => {
+          available += d.available_cents || 0;
+          inflight  += d.in_flight_cents || 0;
+          paid      += (d.paid_cents || 0) + (d.manual_cents || 0);
+          blocked   += d.pending_account_cents || 0;
+          failed    += d.failed_cents || 0;
+        });
+        document.getElementById('driver-payouts-available-total').textContent = dollars(available);
+        document.getElementById('driver-payouts-inflight-total').textContent  = dollars(inflight);
+        document.getElementById('driver-payouts-paid-total').textContent      = dollars(paid);
+        document.getElementById('driver-payouts-failed-total').textContent    = dollars(blocked + failed);
+
+        // Badge in nav: drivers with failed/blocked balance OR cash-outs awaiting attention.
+        const badge = document.getElementById('driver-payouts-badge');
+        const attentionCount = drivers.filter(d => (d.failed_cents + d.pending_account_cents) > 0).length;
+        if (badge) {
+          badge.textContent = attentionCount;
+          badge.style.display = attentionCount > 0 ? 'inline-block' : 'none';
+        }
+
+        if (tbody) {
+          if (drivers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No drivers configured</td></tr>';
+          } else {
+            tbody.innerHTML = drivers.map(d => {
+              const drv = d.driver || {};
+              const connectBadge = drv.stripe_connect_account_id
+                ? (drv.stripe_payouts_enabled
+                    ? '<span class="status-badge approved">Payouts ON</span>'
+                    : '<span class="status-badge orange">Onboarding</span>')
+                : '<span class="status-badge red">Not connected</span>';
+              const canCashOut = !!(drv.stripe_connect_account_id && drv.stripe_payouts_enabled) && (d.available_cents || 0) >= 100;
+              return `<tr>
+                <td><strong>${escapeHtml(drv.full_name || '—')}</strong><div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(drv.phone || '')}</div></td>
+                <td>${connectBadge}</td>
+                <td><strong>${dollars(d.available_cents)}</strong></td>
+                <td>${dollars(d.in_flight_cents)}</td>
+                <td>${dollars((d.paid_cents || 0) + (d.manual_cents || 0))}</td>
+                <td>${dollars(d.pending_account_cents)}</td>
+                <td>${dollars(d.failed_cents)}</td>
+                <td>${canCashOut
+                  ? `<button class="btn btn-sm btn-primary" onclick="adminCashoutDriver('${drv.id}','standard')">Cash Out (ACH)</button>
+                     <button class="btn btn-sm" onclick="adminCashoutDriver('${drv.id}','instant')">Instant</button>`
+                  : '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        // Recent cash-outs (driver_cashouts is included in the same payload).
+        const cashouts = data.cashouts || [];
+        if (cashoutsBody) {
+          if (cashouts.length === 0) {
+            cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No cash-outs yet</td></tr>';
+          } else {
+            const driverNameById = {};
+            drivers.forEach(d => { if (d.driver) driverNameById[d.driver.id] = d.driver.full_name || d.driver.phone || d.driver.id; });
+            cashoutsBody.innerHTML = cashouts.map(c => {
+              const when = c.requested_at ? new Date(c.requested_at).toLocaleString() : '—';
+              const statusClass = ({ paid: 'approved', processing: 'orange', failed: 'red', cancelled: 'muted' })[c.status] || 'muted';
+              return `<tr>
+                <td style="font-size:0.8rem;">${escapeHtml(when)}</td>
+                <td>${escapeHtml(driverNameById[c.driver_id] || (c.driver_id || '').slice(0, 8))}</td>
+                <td><span class="status-badge ${c.method === 'instant' ? 'orange' : 'muted'}">${escapeHtml(c.method)}</span></td>
+                <td>${dollars(c.amount_cents)}</td>
+                <td>${c.fee_cents ? dollars(c.fee_cents) : '—'}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(c.status)}</span>${c.error ? `<div style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(c.error)}</div>` : ''}</td>
+                <td style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(c.stripe_transfer_id || '')}<br/>${escapeHtml(c.stripe_payout_id || '')}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        // Populate adjustment driver dropdown.
+        const sel = document.getElementById('driver-payout-adjust-driver');
+        if (sel) {
+          sel.innerHTML = '<option value="">Select driver…</option>' +
+            drivers.map(d => `<option value="${escapeHtml(d.driver.id)}">${escapeHtml(d.driver.full_name || d.driver.phone || d.driver.id)}</option>`).join('');
+        }
+
+        // Recent earnings table — flatten across drivers, take latest 50.
+        const all = [];
+        drivers.forEach(d => {
+          (d.recent || []).forEach(r => all.push({ ...r, driver_name: d.driver?.full_name || d.driver?.phone || d.driver?.id }));
+        });
+        all.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+        const top = all.slice(0, 50);
+        if (earningsBody) {
+          if (top.length === 0) {
+            earningsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No earnings recorded yet</td></tr>';
+          } else {
+            earningsBody.innerHTML = top.map(r => {
+              const when = r.recorded_at ? new Date(r.recorded_at).toLocaleString() : '—';
+              const statusClass = ({
+                paid: 'approved', pending: 'orange', pending_account: 'red',
+                failed: 'red', manual: 'muted'
+              })[r.payout_status] || 'muted';
+              const canRetry  = r.payout_status === 'failed' || r.payout_status === 'pending_account';
+              const canManual = r.payout_status !== 'paid' && r.payout_status !== 'manual';
+              const actions = [
+                canRetry  ? `<button class="btn btn-sm btn-secondary" onclick="retryDriverPayout('${r.id}')">Retry</button>` : '',
+                canManual ? `<button class="btn btn-sm" onclick="markDriverPayoutPaid('${r.id}')">Mark Paid</button>` : ''
+              ].filter(Boolean).join(' ');
+              return `<tr>
+                <td style="font-size:0.8rem;">${escapeHtml(when)}</td>
+                <td>${escapeHtml(r.driver_name)}</td>
+                <td>${escapeHtml(r.kind)}</td>
+                <td>${dollars(r.amount_cents)}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(r.payout_status)}</span>${r.payout_error ? `<div style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(r.payout_error)}</div>` : ''}</td>
+                <td style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml((r.job_id || '').slice(0, 8))}</td>
+                <td>${actions || '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+      } catch (err) {
+        console.error('loadDriverPayouts error:', err);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function submitDriverPayoutAdjustment() {
+      const driverId = document.getElementById('driver-payout-adjust-driver').value;
+      const amountStr = document.getElementById('driver-payout-adjust-amount').value;
+      const kind = document.getElementById('driver-payout-adjust-kind').value;
+      const notes = document.getElementById('driver-payout-adjust-notes').value;
+      if (!driverId) { showToast('Pick a driver.', 'error'); return; }
+      const amountCents = Math.round(parseFloat(amountStr) * 100);
+      if (!Number.isFinite(amountCents) || amountCents === 0) { showToast('Enter a nonzero amount.', 'error'); return; }
+      try {
+        const res = await fetch('/api/admin/driver-payouts/adjust', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driver_id: driverId, amount_cents: amountCents, kind, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(`Failed: ${data.error || res.statusText}`, 'error'); return; }
+        document.getElementById('driver-payout-adjust-amount').value = '';
+        document.getElementById('driver-payout-adjust-notes').value = '';
+        await loadDriverPayouts();
+      } catch (err) {
+        showToast('Adjustment failed: ' + err.message, 'error');
+      }
+    }
+
+    async function retryDriverPayout(earningsId) {
+      if (!confirm('Retry Stripe transfer for this earnings row?')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(earningsId)}/retry`, {
+          method: 'POST', headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(`Retry failed: ${data.error || res.statusText}`, 'error'); return; }
+        await loadDriverPayouts();
+      } catch (err) { showToast('Retry failed: ' + err.message, 'error'); }
+    }
+
+    async function markDriverPayoutPaid(earningsId) {
+      const notes = prompt('Notes (e.g. "paid via Zelle ref 123")', 'Marked paid out-of-band');
+      if (notes === null) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(earningsId)}/mark-paid`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(`Failed: ${data.error || res.statusText}`, 'error'); return; }
+        await loadDriverPayouts();
+      } catch (err) { showToast('Failed: ' + err.message, 'error'); }
+    }
+
+    async function adminCashoutDriver(driverId, method) {
+      const label = method === 'instant' ? 'Instant Payout (1.5% fee)' : 'standard ACH cash-out';
+      if (!confirm(`Trigger ${label} for this driver's full available balance?`)) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(driverId)}/cashout`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method })
+        });
+        const data = await res.json();
+        if (!res.ok) { showToast(`Cash-out failed: ${(data.error && data.error.message) || data.error || res.statusText}`, 'error'); return; }
+        showToast(`Cash-out queued: ${dollars(data.amount_cents)} (${method}${data.fee_cents ? ', fee ' + dollars(data.fee_cents) : ''})`, 'success');
+        await loadDriverPayouts();
+      } catch (err) { showToast('Cash-out failed: ' + err.message, 'error'); }
+    }
+
+    globalThis.loadDriverPayouts = loadDriverPayouts;
+    globalThis.submitDriverPayoutAdjustment = submitDriverPayoutAdjustment;
+    globalThis.retryDriverPayout = retryDriverPayout;
+    globalThis.markDriverPayoutPaid = markDriverPayoutPaid;
+    globalThis.adminCashoutDriver = adminCashoutDriver;
 
     async function loadDisputes() {
       // Task #281 — surface load errors instead of silently rendering "No disputes".
       loadErrors.disputes = null;
-      const { data, error } = await supabaseClient.from('disputes').select('*, maintenance_packages(title), payments(amount_total), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
+      const { data, error } = await supabaseClient.from('disputes').select('*, maintenance_packages(title, payments(id, amount_total)), filed_by_profile:filed_by(full_name)').order('created_at', { ascending: false });
       if (error) { console.error('loadDisputes failed:', error); setLoadError('disputes', error); disputes = []; renderDisputes(); return; }
       disputes = data || [];
       renderDisputes();
@@ -1718,7 +2267,9 @@
 
     async function loadMembers(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { setLoadError('members', 'No active admin session — sign in again.'); renderMembers(); return; }
+      // Task #355 — auth-coded error so the "Sign in again" prompt appears
+      // instead of a dead-end Retry button.
+      if (!session) { setLoadError('members', { message: 'No active admin session — sign in again.', code: 'NO_ADMIN_AUTH' }); renderMembers(); return; }
 
       const state = paginationState.members;
       state.page = page;
@@ -1737,7 +2288,13 @@
         const response = await fetch(`${apiBase}/api/admin/members?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`); }
+        if (!response.ok) {
+          let e; try { e = await response.json(); } catch { /* Intentionally silent */ }
+          const err = new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`);
+          // Task #355 — preserve auth code for the "Sign in again" prompt.
+          if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -1789,7 +2346,17 @@
 
     async function loadAgreements(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) return;
+      // Task #355 — missing/expired admin session surfaces the shared "Sign
+      // in again" prompt instead of silently returning.
+      if (!session) {
+        const tbody = document.getElementById('agreements-tbody');
+        if (tbody) {
+          const err = new Error('No admin session — please sign in again to view agreements.');
+          err.code = 'NO_ADMIN_AUTH';
+          renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
+        }
+        return;
+      }
       
       const state = paginationState.agreements;
       state.page = page;
@@ -1811,6 +2378,12 @@
         const response = await fetch(`${apiBase}/api/admin/agreements?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — 401/403 routes through the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/agreements (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -1825,6 +2398,11 @@
         }
       } catch (err) {
         console.error('Error loading agreements:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('agreements-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
+          return;
+        }
         agreements = [];
         renderAgreements();
       }
@@ -1872,9 +2450,7 @@
       }
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const headers = { 'Content-Type': 'application/json' };
-        if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
-        else if (localStorage.getItem('mcc_admin_pass')) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass');
+        const headers = getAdminHeaders();
         const res = await fetch(`${apiBase}/api/admin/agreements`, {
           method: 'POST',
           headers,
@@ -2051,7 +2627,7 @@
         URL.revokeObjectURL(url);
       } catch (err) {
         console.error('Error downloading PDF:', err);
-        alert('Failed to download PDF. Please try again.');
+        showToast('Failed to download PDF. Please try again.', 'error');
       } finally {
         btn.innerHTML = origText;
         btn.disabled = false;
@@ -2211,6 +2787,12 @@
         const response = await fetch(`${apiBase}/api/admin/packages?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/packages (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -2226,6 +2808,11 @@
         }
       } catch (err) {
         console.error('Error loading packages:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('all-packages-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAllPackages(page));
+          return;
+        }
         allPackages = [];
         renderAllPackages();
       }
@@ -2327,7 +2914,7 @@
           { count: openTicketsCount }
         ] = await Promise.all([
           supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved'),
+          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
           supabaseClient.from('payments').select('amount_total').eq('status', 'held'),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           supabaseClient.from('payments').select('amount_mcc_fee').eq('status', 'released'),
@@ -2659,6 +3246,7 @@
     // state, refreshes the URL, and re-renders the table.
     function filterApplicationsBySource(value) {
       currentFilters.applicationsSource = value || 'all';
+      paginationState.applications.page = 1;
       syncApplicationsUrl();
       renderApplications();
     }
@@ -2693,7 +3281,18 @@
         return;
       }
 
-      tbody.innerHTML = filtered.map(app => `
+      const sortedApps = applySortToRows(filtered, sortState.applications, (r, col) => {
+        if (col === 'business_name') return r.business_name;
+        if (col === 'business_type') return r.business_type;
+        if (col === 'city') return r.city;
+        if (col === 'created_at') return new Date(r.created_at).getTime();
+        if (col === 'status') return r.status;
+        return null;
+      });
+
+      const pagedApps = applyClientPagination(sortedApps, paginationState.applications);
+
+      tbody.innerHTML = pagedApps.map(app => `
         <tr>
           <td><strong>${escapeHtml(app.business_name)}</strong><br><span style="color:var(--text-muted);font-size:0.82rem;">${escapeHtml(app.contact_name)}</span></td>
           <td>${escapeHtml(app.business_type) || 'N/A'}</td>
@@ -2704,6 +3303,9 @@
           <td><button class="btn btn-secondary btn-sm" onclick="viewApplication('${escapeHtml(app.id)}')">Review</button></td>
         </tr>
       `).join('');
+      updateSortIndicators('applications-table', sortState.applications);
+      const appsPagEl = document.getElementById('applications-pagination');
+      if (appsPagEl) appsPagEl.innerHTML = renderPaginationControls(paginationState.applications, 'changeApplicationsPage', 'changeApplicationsPageSize');
     }
 
     let selectedProviders = new Set();
@@ -2729,6 +3331,108 @@
       return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};border:1px solid ${s.border};" ${title}>${s.icon} ${s.label}</span>`;
     }
 
+    // Task #373 — BackgroundChecks.com Mode visibility panel. Renders a
+    // header card with the global BGC_LIVE_MODE flag + platform-fallback
+    // status, and a per-provider table showing each provider's Live/Mock
+    // pill, mode_reason, pending/completed counts, and bgchecks_account_id.
+    // Source data: GET /api/admin/bgc/providers (already fetched by
+    // loadProviders so the same payload is reused — no extra round-trip).
+    function renderBgcModePanel(bgcJson) {
+      const host = document.getElementById('bgc-mode-panel');
+      if (!host) return;
+      if (bgcJson && bgcJson.error) {
+        host.innerHTML = `
+          <div class="card" style="padding:16px 20px;border:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;font-size:0.95rem;">BackgroundChecks.com Mode</div>
+                <div style="font-size:0.8rem;color:var(--accent-red);">Failed to load: ${escapeHtml(String(bgcJson.error))}</div>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="loadProviders(paginationState.providers.page||1)">Retry</button>
+            </div>
+          </div>`;
+        return;
+      }
+      const rows = (bgcJson && bgcJson.providers) || [];
+      const liveGlobal = !!(bgcJson && bgcJson.live_mode_global);
+      const hasFallback = !!(bgcJson && bgcJson.platform_fallback);
+      const liveCount = rows.filter(r => r.live_mode).length;
+      const mockCount = rows.length - liveCount;
+
+      const headerPill = (label, color, bg, border) =>
+        `<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;background:${bg};color:${color};border:1px solid ${border};">${label}</span>`;
+
+      const globalPill = liveGlobal
+        ? headerPill('BGC_LIVE_MODE ON', 'var(--accent-green)', 'rgba(74,200,140,0.15)', 'rgba(74,200,140,0.3)')
+        : headerPill('BGC_LIVE_MODE OFF', 'var(--text-muted)', 'rgba(100,100,120,0.15)', 'var(--border-subtle)');
+      const fallbackPill = hasFallback
+        ? headerPill('Platform fallback token present', 'var(--accent-blue)', 'rgba(56,189,248,0.12)', 'rgba(56,189,248,0.25)')
+        : headerPill('No platform fallback token', 'var(--accent-orange)', 'rgba(245,158,11,0.12)', 'rgba(245,158,11,0.25)');
+
+      const bodyHtml = rows.length === 0
+        ? `<div class="empty-state" style="padding:18px;">No providers have BGC activity yet.</div>`
+        : `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;">Provider</th>
+                  <th style="text-align:left;">Mode</th>
+                  <th style="text-align:left;">Reason</th>
+                  <th style="text-align:right;">Pending</th>
+                  <th style="text-align:right;">Completed</th>
+                  <th style="text-align:right;">Expiring ≤30d</th>
+                  <th style="text-align:left;">BGC account ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map(r => {
+                  const livePill = r.live_mode
+                    ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);">LIVE</span>'
+                    : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(100,100,120,0.15);color:var(--text-muted);border:1px solid var(--border-subtle);">MOCK</span>';
+                  const name = escapeHtml(r.business_name || 'Unnamed');
+                  const email = r.email ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(r.email)}</div>` : '';
+                  const reason = escapeHtml(r.mode_reason || '—');
+                  const acct = r.bgchecks_account_id
+                    ? `<code style="font-size:0.78rem;">${escapeHtml(String(r.bgchecks_account_id))}</code>`
+                    : '<span style="color:var(--text-muted);">—</span>';
+                  const expiring = r.expiring_within_30_days || 0;
+                  const expiringCell = expiring > 0
+                    ? `<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(245,158,11,0.15);color:#f59e0b;border:1px solid rgba(245,158,11,0.4);">⚠ ${expiring}</span>`
+                    : `<span style="color:var(--text-muted);">—</span>`;
+                  return `
+                    <tr>
+                      <td><div><strong>${name}</strong></div>${email}</td>
+                      <td>${livePill}</td>
+                      <td style="font-size:0.82rem;color:var(--text-muted);">${reason}</td>
+                      <td style="text-align:right;">${r.pending_count || 0}</td>
+                      <td style="text-align:right;">${r.completed_count || 0}</td>
+                      <td style="text-align:right;">${expiringCell}</td>
+                      <td>${acct}</td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+      host.innerHTML = `
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600;font-size:0.95rem;">BackgroundChecks.com Mode</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">Which providers are hitting the real BGC API vs. the mock path.</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              ${globalPill}
+              ${fallbackPill}
+              ${headerPill(`${liveCount} live`, 'var(--accent-green)', 'rgba(74,200,140,0.1)', 'rgba(74,200,140,0.25)')}
+              ${headerPill(`${mockCount} mock`, 'var(--text-muted)', 'rgba(100,100,120,0.1)', 'var(--border-subtle)')}
+            </div>
+          </div>
+          ${bodyHtml}
+        </div>`;
+    }
+
     function renderProviders() {
       const tbody = document.getElementById('providers-table');
       // Task #281 — show load error before falling through to "No providers match filters",
@@ -2747,7 +3451,18 @@
         return;
       }
 
-      tbody.innerHTML = filteredProviders.map(p => {
+      const sortedProviders = applySortToRows(filteredProviders, sortState.providers, (p, col) => {
+        const stats = p.provider_stats?.[0] || {};
+        if (col === 'business_name') return p.business_name || p.full_name || '';
+        if (col === 'bid_credits') return (p.bid_credits || 0) + (p.free_trial_bids || 0);
+        if (col === 'rating') return stats.average_rating || 0;
+        if (col === 'jobs') return stats.jobs_completed || 0;
+        if (col === 'earnings') return stats.total_earnings || 0;
+        if (col === 'status') return p.suspension_reason ? 'suspended' : 'active';
+        return null;
+      });
+
+      tbody.innerHTML = sortedProviders.map(p => {
         const stats = p.provider_stats?.[0] || {};
         const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
         const isSuspended = p.suspension_reason || stats.suspended;
@@ -2795,7 +3510,8 @@
       }).join('');
       
       updateBulkBar();
-      
+      updateSortIndicators('providers-table', sortState.providers);
+
       // Add pagination controls
       const paginationContainer = document.getElementById('providers-pagination');
       if (paginationContainer) {
@@ -3118,6 +3834,7 @@
     let filteredPayments = [];
 
     function renderPayments() {
+      if (currentFilters.payments === 'transport') { renderTransportPayments(); return; }
       const filtered = payments.filter(p => p.status === currentFilters.payments || currentFilters.payments === 'all');
       filteredPayments = filtered;
       const tbody = document.getElementById('payments-table');
@@ -3130,17 +3847,30 @@
 
       // Task #281 — show load error before falling through to "No payments".
       if (loadErrors.payments) {
-        renderTableLoadErrorRow('payments-table', 7, 'payments', 'loadPayments()');
+        renderTableLoadErrorRow('payments-table', 8, 'payments', 'loadPayments()');
         return;
       }
 
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No payments</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No payments</td></tr>';
         return;
       }
 
-      tbody.innerHTML = filtered.map(p => `
+      const sortedPayments = applySortToRows(filtered, sortState.payments, (p, col) => {
+        if (col === 'package') return p.maintenance_packages?.title || '';
+        if (col === 'member') return p.member?.full_name || '';
+        if (col === 'provider') return p.provider?.full_name || '';
+        if (col === 'amount_total') return p.amount_total || 0;
+        if (col === 'amount_mcc_fee') return p.amount_mcc_fee || 0;
+        if (col === 'status') return p.status;
+        return null;
+      });
+
+      const pagedPayments = applyClientPagination(sortedPayments, paginationState.payments);
+
+      tbody.innerHTML = pagedPayments.map(p => `
         <tr>
+          <td><input type="checkbox" class="payment-row-cb" data-id="${p.id}" ${selectedPaymentIds.has(p.id) ? 'checked' : ''} onchange="onPaymentRowCheck(this)"></td>
           <td>${p.maintenance_packages?.title || 'Package'}</td>
           <td>${p.member?.full_name || 'Member'}</td>
           <td>${p.provider?.full_name || 'Provider'}</td>
@@ -3154,6 +3884,116 @@
           </td>
         </tr>
       `).join('');
+      updateSortIndicators('payments-table', sortState.payments);
+      syncPaymentsBulkBar();
+      const payPagEl = document.getElementById('payments-pagination');
+      if (payPagEl) payPagEl.innerHTML = renderPaginationControls(paginationState.payments, 'changePaymentsPage', 'changePaymentsPageSize');
+    }
+
+    function syncPaymentsBulkBar() {
+      const bar = document.getElementById('payments-bulk-bar');
+      const countEl = document.getElementById('payments-bulk-count');
+      const selectAll = document.getElementById('payments-select-all');
+      const n = selectedPaymentIds.size;
+      if (bar) bar.style.display = n > 0 ? 'flex' : 'none';
+      if (countEl) countEl.textContent = `${n} payment${n === 1 ? '' : 's'} selected`;
+      if (selectAll) {
+        const pageIds = [...document.querySelectorAll('.payment-row-cb')].map(cb => cb.dataset.id);
+        const allChecked = pageIds.length > 0 && pageIds.every(id => selectedPaymentIds.has(id));
+        const someChecked = pageIds.some(id => selectedPaymentIds.has(id));
+        selectAll.checked = allChecked;
+        selectAll.indeterminate = someChecked && !allChecked;
+      }
+    }
+
+    function onPaymentRowCheck(cb) {
+      const id = cb.dataset.id;
+      if (cb.checked) selectedPaymentIds.add(id); else selectedPaymentIds.delete(id);
+      syncPaymentsBulkBar();
+    }
+
+    function toggleAllPayments(checked) {
+      document.querySelectorAll('.payment-row-cb').forEach(cb => {
+        if (checked) selectedPaymentIds.add(cb.dataset.id); else selectedPaymentIds.delete(cb.dataset.id);
+        cb.checked = checked;
+      });
+      syncPaymentsBulkBar();
+    }
+
+    function clearPaymentSelection() {
+      selectedPaymentIds.clear();
+      document.querySelectorAll('.payment-row-cb').forEach(cb => { cb.checked = false; });
+      syncPaymentsBulkBar();
+    }
+
+    async function bulkDeletePayments() {
+      const ids = [...selectedPaymentIds];
+      if (!ids.length) return;
+      if (!confirm(`Permanently delete ${ids.length} payment${ids.length === 1 ? '' : 's'}?\n\nThis cannot be undone.`)) return;
+
+      // Check for open disputes via package_id across all selected payments
+      const selectedPayments = payments.filter(p => ids.includes(p.id));
+      const packageIds = selectedPayments.map(p => p.package_id).filter(Boolean);
+      if (packageIds.length) {
+        const { data: openDisputes, error: disputeErr } = await supabaseClient
+          .from('disputes').select('id').in('package_id', packageIds).eq('status', 'open').limit(1);
+        if (disputeErr) { showToast('Could not check disputes: ' + disputeErr.message, 'error'); return; }
+        if (openDisputes && openDisputes.length > 0) {
+          showToast('Cannot delete: one or more selected payments have open disputes. Resolve disputes first.', 'error');
+          return;
+        }
+      }
+
+      let failed = 0;
+      for (const id of ids) {
+        const { error } = await supabaseClient.rpc('admin_delete_payment', { p_id: id });
+        if (error) failed++;
+      }
+      selectedPaymentIds.clear();
+      await loadPayments();
+      if (failed > 0) showToast(`Deleted ${ids.length - failed}/${ids.length} — ${failed} failed`, 'error');
+      else showToast(`Deleted ${ids.length} payment${ids.length === 1 ? '' : 's'}`);
+    }
+
+    let _transportPaymentCache = null;
+
+    async function renderTransportPayments() {
+      const tbody = document.getElementById('payments-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading transport fares…</td></tr>';
+      try {
+        if (!_transportPaymentCache) {
+          const { data } = await supabaseClient
+            .from('rides')
+            .select('id, status, actual_fare, estimated_fare, tip_amount, pickup_wait_cents, dropoff_wait_cents, payment_status, stripe_payment_intent_id, total_charged, created_at, member:member_id(full_name, email), provider:provider_id(full_name)')
+            .not('stripe_payment_intent_id', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(100);
+          _transportPaymentCache = data || [];
+        }
+        const rows = _transportPaymentCache;
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No transport payments with Stripe charge yet</td></tr>';
+          return;
+        }
+        tbody.innerHTML = rows.map(r => {
+          const fare = r.actual_fare || r.estimated_fare || 0;
+          const tip = r.tip_amount || 0;
+          const wait = ((r.pickup_wait_cents || 0) + (r.dropoff_wait_cents || 0)) / 100;
+          const total = r.total_charged || (fare + tip + wait);
+          return `<tr>
+            <td style="font-size:0.8rem;font-family:monospace;">${escapeHtml(String(r.id).slice(0,12))}…</td>
+            <td>${escapeHtml(r.member?.full_name || r.member?.email || '—')}</td>
+            <td>${escapeHtml(r.provider?.full_name || 'Driver')}</td>
+            <td>$${Number(fare).toFixed(2)}${tip ? ` + $${tip.toFixed(2)} tip` : ''}${wait ? ` + $${wait.toFixed(2)} wait` : ''}</td>
+            <td>$${Number(total).toFixed(2)}</td>
+            <td><span class="status-badge ${r.payment_status || 'pending'}">${escapeHtml(r.payment_status || 'pending')}</span></td>
+            <td style="font-size:0.8rem;color:var(--text-muted);">${new Date(r.created_at).toLocaleDateString()}</td>
+          </tr>`;
+        }).join('');
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--accent-red);">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
     }
 
     let allRefunds = [];
@@ -3176,6 +4016,12 @@
         const response = await fetch(`${apiBase}/api/admin/refunds?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/refunds (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -3191,6 +4037,11 @@
         }
       } catch (err) {
         console.error('Error loading refunds:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('refunds-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadRefunds(page));
+          return;
+        }
         allRefunds = [];
         renderRefunds();
       }
@@ -3368,7 +4219,7 @@
       });
       const tbody = document.getElementById('disputes-table');
 
-      const highValue = disputes.filter(d => d.payments?.amount_total > 1000 && d.status === 'open');
+      const highValue = disputes.filter(d => (d.maintenance_packages?.payments?.[0]?.amount_total || 0) > 1000 && d.status === 'open');
       document.getElementById('high-value-alert').style.display = highValue.length ? 'block' : 'none';
 
       // Task #281 — show load error before falling through to "No disputes".
@@ -3425,16 +4276,14 @@
 
     function renderMembers() {
       const tbody = document.getElementById('members-table');
-      // Task #281 — show load error before falling through to "No members".
       if (loadErrors.members) {
-        renderTableLoadErrorRow('members-table', 7, 'members', 'loadMembers()');
+        renderTableLoadErrorRow('members-table', 8, 'members', 'loadMembers()');
         const paginationContainer = document.getElementById('members-pagination');
         if (paginationContainer) paginationContainer.innerHTML = '';
         return;
       }
       if (!members.length) {
-        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No members</td></tr>';
-        // Still show pagination if there's state
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No members</td></tr>';
         const paginationContainer = document.getElementById('members-pagination');
         if (paginationContainer) {
           paginationContainer.innerHTML = renderPaginationControls(paginationState.members, 'changeMembersPage');
@@ -3442,24 +4291,156 @@
         return;
       }
 
-      tbody.innerHTML = members.map(m => `
-        <tr>
-          <td>${m.full_name || 'N/A'}</td>
-          <td>${m.email || 'N/A'}</td>
-          <td>${m.account_type || 'individual'}</td>
-          <td>-</td>
-          <td>-</td>
-          <td>${new Date(m.created_at).toLocaleDateString()}</td>
-          <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
-        </tr>
-      `).join('');
-      
-      // Add pagination controls
+      const sortedMembers = applySortToRows(members, sortState.members, (m, col) => {
+        if (col === 'full_name') return m.full_name || '';
+        if (col === 'email') return m.email || '';
+        if (col === 'account_type') return m.account_type || '';
+        if (col === 'created_at') return new Date(m.created_at).getTime();
+        return null;
+      });
+
+      tbody.innerHTML = sortedMembers.map(m => {
+        const identityBadge = m.identity_verified
+          ? '<span class="badge badge-success" title="Stripe Identity verified">Verified</span>'
+          : '<span class="badge badge-warning" title="Identity not yet verified">Unverified</span>';
+        return `
+          <tr>
+            <td>${m.full_name || 'N/A'}</td>
+            <td>${m.email || 'N/A'}</td>
+            <td>${m.account_type || 'individual'}</td>
+            <td>-</td>
+            <td>-</td>
+            <td>${identityBadge}</td>
+            <td>${new Date(m.created_at).toLocaleDateString()}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="viewMember('${m.id}')">View</button></td>
+          </tr>`;
+      }).join('');
+      updateSortIndicators('members-table', sortState.members);
+
       const paginationContainer = document.getElementById('members-pagination');
       if (paginationContainer) {
         paginationContainer.innerHTML = renderPaginationControls(paginationState.members, 'changeMembersPage');
       }
     }
+
+    globalThis.viewMember = async function viewMember(memberId) {
+      const m = members.find(x => x.id === memberId);
+      if (!m) return;
+
+      const identityHtml = m.identity_verified
+        ? `<span class="badge badge-success">Verified</span>${m.identity_verified_at ? ` <small style="color:var(--text-muted);">on ${new Date(m.identity_verified_at).toLocaleDateString()}</small>` : ''}`
+        : '<span class="badge badge-warning">Not Verified</span>';
+
+      const sessionHtml = m.stripe_identity_session_id
+        ? `<a href="https://dashboard.stripe.com/identity/verification-sessions/${m.stripe_identity_session_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_identity_session_id}</a>`
+        : '<span style="color:var(--text-muted);">None</span>';
+
+      const safeDisplayName = (m.full_name || m.email || 'this user').replace(/'/g, "\\'");
+      const twoFaHtml = m.two_factor_enabled
+        ? `<span class="badge badge-warning">TOTP enrolled</span> <button class="btn btn-sm" style="margin-left:8px;font-size:0.75rem;padding:3px 10px;background:rgba(239,95,95,0.15);color:var(--accent-red);border:1px solid rgba(239,95,95,0.4);" onclick="adminResetMfa('${m.id}','${safeDisplayName}')">Reset 2FA</button>`
+        : '<span style="color:var(--text-muted);">Not enrolled</span>';
+
+      document.getElementById('member-detail-body').innerHTML = `
+        <div class="detail-grid" style="row-gap:12px;">
+          <span class="detail-label">Name</span><span class="detail-value">${m.full_name || 'N/A'}</span>
+          <span class="detail-label">Email</span><span class="detail-value">${m.email || 'N/A'}</span>
+          <span class="detail-label">Phone</span><span class="detail-value">${m.phone || 'N/A'}</span>
+          <span class="detail-label">Account Type</span><span class="detail-value">${m.account_type || 'individual'}</span>
+          <span class="detail-label">Joined</span><span class="detail-value">${new Date(m.created_at).toLocaleDateString()}</span>
+          <span class="detail-label" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">Identity (KYC)</span><span class="detail-value" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">${identityHtml}</span>
+          <span class="detail-label">Stripe Session</span><span class="detail-value">${sessionHtml}</span>
+          <span class="detail-label">Stripe Customer</span><span class="detail-value">${m.stripe_customer_id
+            ? `<a href="https://dashboard.stripe.com/customers/${m.stripe_customer_id}" target="_blank" style="color:var(--accent-blue);font-size:0.82rem;">${m.stripe_customer_id}</a>`
+            : '<span style="color:var(--text-muted);">None</span>'}</span>
+          <span class="detail-label" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">Two-Factor Auth</span><span class="detail-value" style="border-top:1px solid var(--border-color);padding-top:12px;margin-top:4px;">${twoFaHtml}</span>
+        </div>
+        <div id="member-vehicles-panel" style="margin-top:20px;">
+          <div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>
+          <div class="loading-state" style="padding:16px 0;justify-content:flex-start;gap:8px;font-size:0.85rem;"><div class="loading-spinner"></div> Loading...</div>
+        </div>`;
+
+      openModal('member-detail-modal');
+
+      // Load vehicles with verification status + cross-ref
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const { data: vehs } = await supabaseClient.from('vehicles')
+          .select('id,year,make,model,vin,registration_verified,insurance_verified,insurance_carrier,insurance_policy_number,insurance_verification_id')
+          .eq('owner_id', memberId)
+          .order('created_at');
+
+        if (!vehs || !vehs.length) {
+          document.getElementById('member-vehicles-panel').innerHTML =
+            '<div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div><div style="color:var(--text-muted);font-size:0.85rem;">No vehicles.</div>';
+          return;
+        }
+
+        // For each vehicle, fetch cross-ref
+        const crossRefs = await Promise.all(vehs.map(v =>
+          fetch(`/api/insurance/name-cross-ref/${v.id}`, { headers: { 'Authorization': `Bearer ${session?.access_token}` } })
+            .then(r => r.ok ? r.json() : null).catch(() => null)
+        ));
+
+        const vehHtml = vehs.map((v, i) => {
+          const cr = crossRefs[i];
+          const confColor = !cr ? 'var(--text-muted)' : cr.confidence === 'high' ? 'var(--accent-green)' : cr.confidence === 'medium' ? 'var(--accent-gold)' : 'var(--accent-red)';
+          const confLabel = cr?.confidence?.replace('_', ' ') || 'N/A';
+          const mismatchCount = cr?.mismatches?.length || 0;
+          return `
+            <div style="background:var(--bg-elevated);border-radius:8px;padding:14px;margin-bottom:10px;border:1px solid var(--border-subtle);">
+              <div style="font-weight:600;margin-bottom:8px;">${v.year || ''} ${v.make || ''} ${v.model || ''}${v.vin ? ` <small style="color:var(--text-muted)">VIN: ${v.vin}</small>` : ''}</div>
+              <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;">
+                <span class="badge ${v.registration_verified ? 'badge-success' : 'badge-warning'}">${v.registration_verified ? 'Reg ✓' : 'Reg —'}</span>
+                <span class="badge ${v.insurance_verified ? 'badge-success' : 'badge-warning'}">${v.insurance_verified ? 'Ins ✓' : 'Ins —'}</span>
+              </div>
+              ${v.insurance_verified ? `<div style="font-size:0.82rem;color:var(--text-muted);">Carrier: ${v.insurance_carrier || '—'} &nbsp; Policy: ${v.insurance_policy_number || '—'}</div>` : ''}
+              <div style="margin-top:8px;font-size:0.82rem;">
+                <span style="color:var(--text-muted);">Name cross-ref: </span>
+                <span style="color:${confColor};font-weight:600;">${confLabel}</span>
+                ${mismatchCount ? `<span style="color:var(--accent-red);margin-left:8px;">${mismatchCount} mismatch${mismatchCount > 1 ? 'es' : ''}</span>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+
+        document.getElementById('member-vehicles-panel').innerHTML =
+          `<div style="font-weight:600;margin-bottom:10px;font-size:0.95rem;">Vehicles</div>${vehHtml}`;
+      } catch (e) {
+        console.warn('[admin] viewMember vehicles error:', e.message);
+      }
+    };
+
+    globalThis.adminResetMfa = async function adminResetMfa(userId, displayName) {
+      const confirmed = window.confirm(
+        `Reset 2FA for ${displayName}?\n\nThis will:\n• Delete their authenticator app enrollment\n• Delete their backup codes\n• Require them to re-enroll\n\nThis cannot be undone.`
+      );
+      if (!confirmed) return;
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { alert('Session expired. Please refresh and try again.'); return; }
+
+        const res = await fetch('/api/admin/mfa-reset', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({ userId })
+        });
+        const data = await res.json();
+
+        if (res.ok && data.success) {
+          alert(`2FA reset for ${displayName}. They can now re-enroll.`);
+          closeModal('member-detail-modal');
+          loadMembers();
+        } else {
+          alert(`Reset failed: ${data.error || data.message || 'Unknown error'}`);
+        }
+      } catch (err) {
+        console.error('[admin] adminResetMfa error:', err);
+        alert('Network error. Please try again.');
+      }
+    };
 
     // ========== APPLICATION REVIEW ==========
     async function viewApplication(appId) {
@@ -3652,7 +4633,8 @@
         const targetId = app.user_id || app.id;
         try { globalThis.renderAgentActivityPanel(`app-agent-${app.id}`, {
           targetId, targetKind: 'application', agentSlug: 'gatekeeper',
-          title: 'Gatekeeper Review', limit: 8, showEmpty: true
+          title: 'Gatekeeper Review', limit: 8, showEmpty: true,
+          linkContext: { modal: { type: 'application', id: app.id } }
         }); } catch (e) { console.warn('[admin] gatekeeper panel failed:', e); }
       }
     }
@@ -3853,7 +4835,8 @@
         try { globalThis.renderAgentActivityPanel(`dispute-agent-${d.id}`, {
           targetId: d.id, targetKind: 'dispute',
           agentSlug: 'advocate', includeAiOpsModule: 'dispute_resolver',
-          title: 'AI Dispute Analysis', limit: 8, showEmpty: true
+          title: 'AI Dispute Analysis', limit: 8, showEmpty: true,
+          linkContext: { modal: { type: 'dispute', id: d.id } }
         }); } catch (e) { console.warn('[admin] dispute agent panel failed:', e); }
       }
     }
@@ -3875,19 +4858,20 @@
       }).eq('id', currentDispute.id);
 
       // Process refund if member wins
-      if (winner === 'member' && currentDispute.payment_id) {
+      const disputePaymentId = currentDispute.maintenance_packages?.payments?.[0]?.id;
+      if (winner === 'member' && disputePaymentId) {
         await supabaseClient.from('payments').update({
           status: 'refunded',
           refund_amount: resolutionAmount,
           refund_reason: notes,
           refunded_at: new Date().toISOString()
-        }).eq('id', currentDispute.payment_id);
+        }).eq('id', disputePaymentId);
       }
 
       // If provider loses, add a strike
       if (winner === 'member') {
         // Get provider from payment
-        const payment = payments.find(p => p.id === currentDispute.payment_id);
+        const payment = payments.find(p => p.id === disputePaymentId);
         if (payment?.provider_id) {
           await supabaseClient.rpc('increment_provider_strikes', { provider_id: payment.provider_id });
         }
@@ -3978,7 +4962,8 @@
         try { globalThis.renderAgentActivityPanel(`ticket-agent-${t.id}`, {
           targetId: t.id, targetKind: 'ticket',
           includeAiOpsModule: 'ai_helpdesk',
-          title: 'AI Helpdesk', limit: 8, showEmpty: true
+          title: 'AI Helpdesk', limit: 8, showEmpty: true,
+          linkContext: { modal: { type: 'ticket', id: t.id } }
         }); } catch (e) { console.warn('[admin] ticket agent panel failed:', e); }
       }
 
@@ -4122,7 +5107,7 @@
       const { data: openDisputes, error: disputeErr } = await supabaseClient
         .from('disputes')
         .select('id')
-        .eq('payment_id', paymentId)
+        .eq('package_id', p.package_id)
         .eq('status', 'open')
         .limit(1);
       if (disputeErr) {
@@ -4212,8 +5197,8 @@
             const section = tabContainer.closest('.section').id;
             currentFilters[section] = tab.dataset.filter;
             // Task #248 — keep ?app_status=... in the URL so links survive a refresh.
-            if (section === 'applications') { syncApplicationsUrl(); renderApplications(); }
-            if (section === 'payments') renderPayments();
+            if (section === 'applications') { paginationState.applications.page = 1; syncApplicationsUrl(); renderApplications(); }
+            if (section === 'payments') { selectedPaymentIds.clear(); paginationState.payments.page = 1; renderPayments(); }
             if (section === 'disputes') renderDisputes();
             if (section === 'tickets') renderTickets();
             if (section === 'refunds') { paginationState.refunds.filter = tab.dataset.filter; paginationState.refunds.page = 1; loadRefunds(1); }
@@ -4249,6 +5234,7 @@
     }
     globalThis.navigateToSection = navigateToSection;
 
+    function openModal(id) { const m = document.getElementById(id); m.classList.add('active'); m.style.display = 'flex'; }
     function closeModal(id) { const m = document.getElementById(id); m.classList.remove('active'); m.style.display = 'none'; }
 
     function showToast(msg, type = 'success') {
@@ -4605,6 +5591,153 @@
       }
     }
 
+    // ── Feature Flags ────────────────────────────────────────────────────────
+
+    const FLAG_LABELS = {
+      custody_chain_enabled:      { title: 'Custody Chain',      desc: 'Photo verification + return fees for vehicle handoffs.' },
+      car_club_programs_enabled:  { title: 'Car Club Programs',  desc: 'Points, coupons, and comp services for car club providers.' }
+    };
+
+    async function loadFeatureFlags() {
+      const list = document.getElementById('feature-flags-list');
+      const errBox = document.getElementById('feature-flags-error');
+      list.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div>Loading flags…</div>';
+      errBox.style.display = 'none';
+      try {
+        const session = await supabaseClient.auth.getSession();
+        if (!session?.data?.session?.access_token) throw new Error('No admin session');
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags`, {
+          headers: { Authorization: `Bearer ${session.data.session.access_token}` }
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        list.innerHTML = '';
+        (data.flags || []).forEach(flag => renderFlagCard(flag));
+        if (!data.flags || data.flags.length === 0) {
+          list.innerHTML = '<div style="padding:20px;color:var(--text-muted);font-size:0.9rem;">No feature flags found. Paste the SQL block to prod first.</div>';
+        }
+      } catch (err) {
+        list.innerHTML = '';
+        errBox.style.display = 'block';
+        errBox.textContent = 'Failed to load feature flags: ' + err.message;
+      }
+    }
+
+    function renderFlagCard(flag) {
+      const list = document.getElementById('feature-flags-list');
+      const val = flag.setting_value || {};
+      const enabled = !!val.enabled;
+      const testUsers = Array.isArray(val.test_users) ? val.test_users : [];
+      const meta = FLAG_LABELS[flag.setting_key] || { title: flag.setting_key, desc: flag.description || '' };
+      const card = document.createElement('div');
+      card.className = 'card';
+      card.id = `flag-card-${flag.setting_key}`;
+      card.innerHTML = `
+        <div class="card-header" style="padding-bottom:12px;">
+          <div>
+            <h2 class="card-title" style="margin-bottom:4px;">${escapeHtml(meta.title)}</h2>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(meta.desc)}</div>
+            <div style="font-size:0.78rem;color:var(--text-muted);margin-top:4px;">key: <code>${escapeHtml(flag.setting_key)}</code></div>
+          </div>
+          <label class="toggle-switch" style="position:relative;display:inline-block;width:52px;height:28px;flex-shrink:0;margin-left:20px;">
+            <input type="checkbox" id="toggle-${flag.setting_key}" ${enabled ? 'checked' : ''}
+              onchange="toggleFeatureFlag('${flag.setting_key}', this.checked)"
+              style="opacity:0;width:0;height:0;">
+            <span class="toggle-slider" style="position:absolute;cursor:pointer;top:0;left:0;right:0;bottom:0;background:${enabled ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)'};border:2px solid ${enabled ? 'var(--accent-green)' : 'var(--accent-red)'};border-radius:28px;transition:0.3s;"></span>
+          </label>
+        </div>
+        <div style="padding:0 4px;">
+          <div style="font-weight:600;font-size:0.88rem;margin-bottom:10px;">
+            Status: <span style="color:${enabled ? 'var(--accent-green)' : 'var(--accent-orange)'};">${enabled ? 'Enabled globally' : 'Disabled globally'}</span>
+          </div>
+          <div style="font-size:0.88rem;font-weight:600;margin-bottom:8px;">Test users (flag on for these users even when globally off):</div>
+          <div id="test-users-${flag.setting_key}" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;min-height:32px;">
+            ${testUsers.length === 0
+              ? '<span style="font-size:0.85rem;color:var(--text-muted);">None</span>'
+              : testUsers.map(uid => `
+                <span style="display:inline-flex;align-items:center;gap:6px;background:var(--bg-input);border-radius:var(--radius-sm);padding:4px 10px;font-size:0.82rem;font-family:monospace;">
+                  ${escapeHtml(uid)}
+                  <button onclick="removeFeatureFlagTestUser('${flag.setting_key}','${uid}')"
+                    style="background:none;border:none;cursor:pointer;color:var(--accent-red);font-size:1rem;line-height:1;padding:0;" title="Remove">×</button>
+                </span>`).join('')}
+          </div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <input id="test-user-input-${flag.setting_key}" type="text" placeholder="User UUID to add…"
+              style="flex:1;padding:8px 12px;border-radius:var(--radius-sm);border:1px solid var(--border-color);background:var(--bg-input);color:var(--text-primary);font-size:0.85rem;font-family:monospace;"
+              onkeydown="if(event.key==='Enter')addFeatureFlagTestUser('${flag.setting_key}')">
+            <button class="btn btn-primary" onclick="addFeatureFlagTestUser('${flag.setting_key}')" style="white-space:nowrap;font-size:0.85rem;">Add test user</button>
+          </div>
+        </div>`;
+      list.appendChild(card);
+    }
+
+    async function toggleFeatureFlag(key, enabled) {
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags/toggle`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.data.session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, enabled })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        showToast((FLAG_LABELS[key]?.title || key) + ' ' + (enabled ? 'enabled' : 'disabled'), 'success');
+        // Update the status label without full reload
+        const card = document.getElementById(`flag-card-${key}`);
+        if (card) {
+          const statusSpan = card.querySelector('[style*="Status:"] span');
+          if (statusSpan) { statusSpan.textContent = enabled ? 'Enabled globally' : 'Disabled globally'; statusSpan.style.color = enabled ? 'var(--accent-green)' : 'var(--accent-orange)'; }
+          const slider = card.querySelector('.toggle-slider');
+          if (slider) { slider.style.background = enabled ? 'var(--accent-green-soft)' : 'var(--accent-red-soft)'; slider.style.border = `2px solid ${enabled ? 'var(--accent-green)' : 'var(--accent-red)'}`; }
+        }
+      } catch (err) {
+        showToast('Failed to toggle flag: ' + err.message, 'error');
+        const toggle = document.getElementById(`toggle-${key}`);
+        if (toggle) toggle.checked = !enabled;
+      }
+    }
+
+    async function addFeatureFlagTestUser(key) {
+      const input = document.getElementById(`test-user-input-${key}`);
+      const userId = (input?.value || '').trim();
+      if (!userId) return;
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags/test-users`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.data.session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, user_id: userId, action: 'add' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        if (input) input.value = '';
+        showToast('Test user added', 'success');
+        await loadFeatureFlags();
+      } catch (err) {
+        showToast('Failed to add test user: ' + err.message, 'error');
+      }
+    }
+
+    async function removeFeatureFlagTestUser(key, userId) {
+      try {
+        const session = await supabaseClient.auth.getSession();
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/feature-flags/test-users`, {
+          method: 'POST',
+          headers: { Authorization: `Bearer ${session.data.session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ key, user_id: userId, action: 'remove' })
+        });
+        if (!res.ok) throw new Error(await res.text());
+        showToast('Test user removed', 'success');
+        await loadFeatureFlags();
+      } catch (err) {
+        showToast('Failed to remove test user: ' + err.message, 'error');
+      }
+    }
+
+    // ── End Feature Flags ─────────────────────────────────────────────────────
+
     async function sendBulkWelcomeEmails() {
       const btn = document.getElementById('send-welcome-emails-btn');
       const statusMsg = document.getElementById('welcome-email-status');
@@ -4686,7 +5819,8 @@
         if (typeof globalThis.renderAgentActivityPanel === 'function') {
           try { globalThis.renderAgentActivityPanel('pilot-agent-activity', {
             agentSlug: 'gatekeeper',
-            limit: 10, title: 'Recent Gatekeeper Reviews', showEmpty: false
+            limit: 10, title: 'Recent Gatekeeper Reviews', showEmpty: false,
+            linkContext: { section: 'pilot-applications' }
           }); } catch { /* Intentionally silent */ }
         }
       } catch (err) {
@@ -4906,11 +6040,546 @@
       }
     });
 
+    // ========== DRIVER APPLICATIONS ==========
+    let driverApplications = [];
+
+    async function loadDriverApplications() {
+      try {
+        const { data, error } = await supabaseClient
+          .from('profiles')
+          .select('id, full_name, email, phone, city, state, created_at, role')
+          .eq('role', 'pending_driver')
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          console.error('loadDriverApplications error:', error);
+          driverApplications = [];
+          renderDriverApplications();
+          return;
+        }
+
+        const profileIds = (data || []).map(p => p.id);
+        let driverRows = [];
+        if (profileIds.length) {
+          const { data: driversData } = await supabaseClient
+            .from('drivers')
+            .select('profile_id, notes, status, bgc_status, bgc_report_id, bgc_invite_url')
+            .in('profile_id', profileIds);
+          driverRows = driversData || [];
+        }
+        const driverByProfileId = {};
+        driverRows.forEach(d => { driverByProfileId[d.profile_id] = d; });
+        driverApplications = (data || []).map(p => ({ ...p, _driver: driverByProfileId[p.id] || null }));
+
+        renderDriverApplications();
+
+        const badge = document.getElementById('driver-apps-badge');
+        if (badge) {
+          badge.textContent = driverApplications.length;
+          badge.style.display = driverApplications.length > 0 ? 'inline' : 'none';
+        }
+      } catch (err) {
+        console.error('loadDriverApplications error:', err);
+      }
+    }
+
+    function renderDriverApplications() {
+      const tbody = document.getElementById('driver-applications-table');
+      if (!tbody) return;
+
+      if (!driverApplications.length) {
+        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No pending driver applications</td></tr>';
+        return;
+      }
+
+      tbody.innerHTML = driverApplications.map(profile => {
+        const driver = profile._driver;
+        let notes = {};
+        try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
+        const vehicle = [notes.vehicle_year, notes.vehicle_make, notes.vehicle_model].filter(Boolean).join(' ') || 'Not provided';
+        const location = [profile.city, profile.state].filter(Boolean).join(', ') || 'N/A';
+        const bgcStatus = driver?.bgc_status || 'not_started';
+
+        const bgcBadgeMap = {
+          not_started: ['#888', 'BGC: Not Started'],
+          pending_check: ['#f59e0b', 'BGC: Pending'],
+          passed: ['#10b981', 'BGC: Passed'],
+          consider: ['#f59e0b', 'BGC: Review Required'],
+          failed: ['#ef4444', 'BGC: Failed'],
+        };
+        const [bgcColor, bgcLabel] = bgcBadgeMap[bgcStatus] || ['#888', bgcStatus];
+        const bgcBadge = `<span style="display:inline-block;padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${bgcColor}22;color:${bgcColor};border:1px solid ${bgcColor}55;">${bgcLabel}</span>`;
+
+        const canApprove = bgcStatus === 'passed' || bgcStatus === 'consider';
+        const approveBtn = canApprove
+          ? `<button class="btn btn-success btn-sm" onclick="approveDriver('${profile.id}')" title="Approve">${mccIcon('check', 16)}</button>`
+          : `<button class="btn btn-secondary btn-sm" disabled title="BGC required before approval" style="opacity:0.4;cursor:not-allowed;">${mccIcon('check', 16)}</button>`;
+
+        let bgcActionBtn = '';
+        if (bgcStatus === 'not_started') {
+          bgcActionBtn = `<button class="btn btn-secondary btn-sm" onclick="runDriverBgc('${profile.id}')" title="Initiate Background Check">Run BGC</button>`;
+        } else if (bgcStatus === 'pending_check') {
+          bgcActionBtn = `<button class="btn btn-secondary btn-sm" disabled style="opacity:0.5;cursor:not-allowed;">BGC Pending…</button>`;
+        }
+
+        return `
+          <tr>
+            <td>
+              <div><strong>${escapeHtml(profile.full_name || 'No name')}</strong></div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">${escapeHtml(profile.email || '')}</div>
+              <div style="margin-top:4px;">${bgcBadge}</div>
+            </td>
+            <td>${escapeHtml(profile.phone || 'N/A')}</td>
+            <td>${escapeHtml(location)}</td>
+            <td>${escapeHtml(vehicle)}</td>
+            <td>${new Date(profile.created_at).toLocaleDateString()}</td>
+            <td>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="viewDriverApplication('${profile.id}')">View</button>
+                ${bgcActionBtn}
+                ${approveBtn}
+                <button class="btn btn-danger btn-sm" onclick="rejectDriver('${profile.id}')" title="Reject">${mccIcon('x', 16)}</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function viewDriverApplication(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+
+      const driver = profile._driver;
+      let notes = {};
+      try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
+
+      const modalContent = `
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('truck', 24)} Driver Application</div>
+          <div class="detail-grid">
+            <span class="detail-label">Full Name:</span><span class="detail-value">${escapeHtml(profile.full_name || 'N/A')}</span>
+            <span class="detail-label">Email:</span><span class="detail-value">${escapeHtml(profile.email || 'N/A')}</span>
+            <span class="detail-label">Phone:</span><span class="detail-value">${escapeHtml(profile.phone || 'N/A')}</span>
+            <span class="detail-label">Location:</span><span class="detail-value">${escapeHtml([profile.city, profile.state].filter(Boolean).join(', ') || 'N/A')}</span>
+            <span class="detail-label">Availability:</span><span class="detail-value">${escapeHtml(notes.availability || 'N/A')}</span>
+          </div>
+        </div>
+        <div class="form-section">
+          <div class="form-section-title">Vehicle &amp; License</div>
+          <div class="detail-grid">
+            <span class="detail-label">License Number:</span><span class="detail-value">${escapeHtml(notes.license_number || 'N/A')}</span>
+            <span class="detail-label">License State:</span><span class="detail-value">${escapeHtml(notes.license_state || 'N/A')}</span>
+            <span class="detail-label">Vehicle Year:</span><span class="detail-value">${escapeHtml(notes.vehicle_year || 'N/A')}</span>
+            <span class="detail-label">Vehicle Make:</span><span class="detail-value">${escapeHtml(notes.vehicle_make || 'N/A')}</span>
+            <span class="detail-label">Vehicle Model:</span><span class="detail-value">${escapeHtml(notes.vehicle_model || 'N/A')}</span>
+            <span class="detail-label">Vehicle Color:</span><span class="detail-value">${escapeHtml(notes.vehicle_color || 'N/A')}</span>
+          </div>
+        </div>
+        <div class="form-section" style="border-bottom:none;">
+          <div class="detail-grid">
+            <span class="detail-label">Applied:</span><span class="detail-value">${new Date(profile.created_at).toLocaleString()}</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('application-modal-body').innerHTML = modalContent;
+      const modalFooter = document.querySelector('#application-modal .modal-footer');
+      if (modalFooter) {
+        const bgcStatus = driver?.bgc_status || 'not_started';
+        const canApprove = bgcStatus === 'passed' || bgcStatus === 'consider';
+        const approveModalBtn = canApprove
+          ? `<button class="btn btn-success" onclick="approveDriver('${profile.id}'); closeModal('application-modal');">Approve Driver</button>`
+          : `<button class="btn btn-secondary" disabled style="opacity:0.5;cursor:not-allowed;">BGC Required</button>`;
+        const bgcModalBtn = bgcStatus === 'not_started'
+          ? `<button class="btn btn-secondary" onclick="runDriverBgc('${profile.id}')">Run BGC</button>`
+          : '';
+        modalFooter.innerHTML = `
+          <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
+          ${bgcModalBtn}
+          <button class="btn btn-danger" onclick="rejectDriver('${profile.id}'); closeModal('application-modal');">Reject</button>
+          ${approveModalBtn}
+        `;
+      }
+      document.getElementById('application-modal').classList.add('active');
+    }
+
+    async function runDriverBgc(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+      if (!confirm(`Initiate background check for ${profile.full_name || profile.email}?`)) return;
+
+      try {
+        const res = await fetch('/api/admin/driver-bgc', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...getAdminHeaders() },
+          body: JSON.stringify({ profile_id: profileId }),
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          showToast(data.error || 'BGC initiation failed', 'error');
+          return;
+        }
+        showToast(data.mocked ? 'BGC ordered (mock mode)' : 'Background check ordered — awaiting results', 'success');
+        await loadDriverApplications();
+      } catch (err) {
+        console.error('runDriverBgc error:', err);
+        showToast('Error initiating background check', 'error');
+      }
+    }
+
+    async function approveDriver(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+
+      const bgcStatus = profile._driver?.bgc_status || 'not_started';
+      if (bgcStatus !== 'passed' && bgcStatus !== 'consider') {
+        showToast('Background check must pass before approving this driver', 'error');
+        return;
+      }
+
+      if (!confirm(`Approve ${profile.full_name || profile.email} as an MCC Driver?`)) return;
+
+      try {
+        const { error: profileError } = await supabaseClient
+          .from('profiles')
+          .update({ role: 'driver' })
+          .eq('id', profileId);
+
+        if (profileError) {
+          showToast('Failed to update profile role', 'error');
+          console.error('approveDriver profile error:', profileError);
+          return;
+        }
+
+        const driver = profile._driver;
+        let notes = {};
+        try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
+
+        if (driver) {
+          await supabaseClient
+            .from('drivers')
+            .update({ status: 'active', onboarded_at: new Date().toISOString() })
+            .eq('profile_id', profileId);
+        } else {
+          await supabaseClient.from('drivers').insert({
+            profile_id: profileId,
+            full_name: profile.full_name || 'Driver',
+            phone: profile.phone || '',
+            email: profile.email || '',
+            status: 'active',
+            vehicle_class: [],
+            hourly_rate_cents: 0,
+            per_job_rate_cents: 0,
+            stripe_payouts_enabled: false,
+            total_ratings: 0,
+            total_rides_completed: 0,
+            onboarded_at: new Date().toISOString()
+          });
+        }
+
+        showToast(`${profile.full_name || 'Driver'} approved!`, 'success');
+        await loadDriverApplications();
+      } catch (err) {
+        console.error('approveDriver error:', err);
+        showToast('Error approving driver', 'error');
+      }
+    }
+
+    async function rejectDriver(profileId) {
+      const profile = driverApplications.find(p => p.id === profileId);
+      if (!profile) return;
+      if (!confirm(`Reject driver application from ${profile.full_name || profile.email}?`)) return;
+
+      try {
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ role: 'rejected_driver' })
+          .eq('id', profileId);
+
+        if (error) {
+          showToast('Failed to reject application', 'error');
+          console.error('rejectDriver error:', error);
+          return;
+        }
+
+        showToast('Driver application rejected', 'success');
+        await loadDriverApplications();
+      } catch (err) {
+        console.error('rejectDriver error:', err);
+        showToast('Error rejecting driver', 'error');
+      }
+    }
+
+    globalThis.approveDriver = approveDriver;
+    globalThis.rejectDriver = rejectDriver;
+    globalThis.viewDriverApplication = viewDriverApplication;
+    globalThis.runDriverBgc = runDriverBgc;
+
     // ========== MEMBER FOUNDER APPLICATIONS ==========
     let memberFounderApplications = [];
+    // ========== ACTIVE DRIVERS ==========
+
+    async function loadActiveDrivers() {
+      const tbody = document.getElementById('active-drivers-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Loading…</td></tr>';
+      try {
+        const { data, error } = await supabaseClient
+          .from('drivers')
+          .select('id, profile_id, full_name, phone, email, status, bgc_status, bgc_checked_at, stripe_connect_account_id, stripe_payouts_enabled, total_rides_completed, average_rating, created_at, vehicle_class, hourly_rate_cents')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const rows = data || [];
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('active-drivers-total'))    dEl('active-drivers-total').textContent   = rows.length;
+        if (dEl('active-drivers-stripe-ok')) dEl('active-drivers-stripe-ok').textContent = rows.filter(r => r.stripe_payouts_enabled).length;
+        if (dEl('active-drivers-bgc-ok'))   dEl('active-drivers-bgc-ok').textContent  = rows.filter(r => r.bgc_status === 'passed').length;
+        if (dEl('active-drivers-rides'))    dEl('active-drivers-rides').textContent   = rows.reduce((s, r) => s + (r.total_rides_completed || 0), 0);
+
+        if (!rows.length) {
+          tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No approved drivers yet</td></tr>';
+          return;
+        }
+
+        const bgcBadge = s => {
+          const map = { passed: ['#10b981','Passed'], pending_check: ['#f59e0b','Pending'], consider: ['#f59e0b','Review'], failed: ['#ef4444','Failed'], not_started: ['#6b7280','—'] };
+          const [c, l] = map[s] || ['#6b7280', s || '—'];
+          return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${l}</span>`;
+        };
+        const stripeBadge = (acct, enabled) => enabled
+          ? `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#10b98122;color:#10b981;border:1px solid #10b98155;">Connected</span>`
+          : acct
+            ? `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#f59e0b22;color:#f59e0b;border:1px solid #f59e0b55;">Pending</span>`
+            : `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#6b728022;color:#6b7280;border:1px solid #6b728055;">Not linked</span>`;
+        const statusBadge = s => {
+          const map = { active: '#10b981', inactive: '#6b7280', suspended: '#ef4444' };
+          const c = map[s] || '#6b7280';
+          return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${s || 'unknown'}</span>`;
+        };
+
+        tbody.innerHTML = rows.map(d => `
+          <tr>
+            <td>
+              <div><strong>${escapeHtml(d.full_name || 'No name')}</strong></div>
+              <div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(d.phone || '')}</div>
+            </td>
+            <td style="font-size:0.85rem;">${escapeHtml(d.email || '—')}</td>
+            <td>${statusBadge(d.status)}</td>
+            <td>${bgcBadge(d.bgc_status)}</td>
+            <td>${stripeBadge(d.stripe_connect_account_id, d.stripe_payouts_enabled)}</td>
+            <td style="text-align:center;">${d.total_rides_completed || 0}</td>
+            <td style="text-align:center;">${d.average_rating ? Number(d.average_rating).toFixed(1) + ' ★' : '—'}</td>
+            <td style="font-size:0.82rem;color:var(--text-muted);">${new Date(d.created_at).toLocaleDateString()}</td>
+            <td>
+              <div style="display:flex;gap:4px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="viewActiveDriver('${d.id}')">View</button>
+                ${d.status !== 'suspended' ? `<button class="btn btn-danger btn-sm" onclick="suspendDriver('${d.id}')">Suspend</button>` : `<button class="btn btn-success btn-sm" onclick="reactivateDriver('${d.id}')">Reactivate</button>`}
+              </div>
+            </td>
+          </tr>`).join('');
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="9" class="empty-state" style="color:var(--accent-red);">Error loading drivers: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function viewActiveDriver(driverId) {
+      const { data: d } = await supabaseClient.from('drivers').select('*').eq('id', driverId).maybeSingle();
+      if (!d) return alert('Driver not found');
+      const html = `<div class="form-section">
+        <div class="form-section-title">Driver Profile</div>
+        <div class="detail-grid">
+          <span class="detail-label">Name:</span><span class="detail-value">${escapeHtml(d.full_name || '—')}</span>
+          <span class="detail-label">Email:</span><span class="detail-value">${escapeHtml(d.email || '—')}</span>
+          <span class="detail-label">Phone:</span><span class="detail-value">${escapeHtml(d.phone || '—')}</span>
+          <span class="detail-label">Status:</span><span class="detail-value">${escapeHtml(d.status || '—')}</span>
+          <span class="detail-label">Vehicle Class:</span><span class="detail-value">${escapeHtml(d.vehicle_class || '—')}</span>
+          <span class="detail-label">BGC Status:</span><span class="detail-value">${escapeHtml(d.bgc_status || 'not_started')}</span>
+          <span class="detail-label">BGC Checked:</span><span class="detail-value">${d.bgc_checked_at ? new Date(d.bgc_checked_at).toLocaleDateString() : '—'}</span>
+          <span class="detail-label">Stripe Account:</span><span class="detail-value">${escapeHtml(d.stripe_connect_account_id || 'Not linked')}</span>
+          <span class="detail-label">Payouts Enabled:</span><span class="detail-value">${d.stripe_payouts_enabled ? 'Yes' : 'No'}</span>
+          <span class="detail-label">Hourly Rate:</span><span class="detail-value">${d.hourly_rate_cents ? '$' + (d.hourly_rate_cents / 100).toFixed(2) : '—'}</span>
+          <span class="detail-label">Total Rides:</span><span class="detail-value">${d.total_rides_completed || 0}</span>
+          <span class="detail-label">Avg Rating:</span><span class="detail-value">${d.average_rating ? Number(d.average_rating).toFixed(2) + ' / 5' : '—'}</span>
+          <span class="detail-label">Joined:</span><span class="detail-value">${new Date(d.created_at).toLocaleDateString()}</span>
+        </div></div>`;
+      showModal('Driver Details', html);
+    }
+
+    async function suspendDriver(driverId) {
+      if (!confirm('Suspend this driver? They will not receive new ride requests.')) return;
+      const { error } = await supabaseClient.from('drivers').update({ status: 'suspended' }).eq('id', driverId);
+      if (error) return alert('Error: ' + error.message);
+      loadActiveDrivers();
+    }
+
+    async function reactivateDriver(driverId) {
+      if (!confirm('Reactivate this driver?')) return;
+      const { error } = await supabaseClient.from('drivers').update({ status: 'active' }).eq('id', driverId);
+      if (error) return alert('Error: ' + error.message);
+      loadActiveDrivers();
+    }
+
+    globalThis.loadActiveDrivers  = loadActiveDrivers;
+    globalThis.viewActiveDriver   = viewActiveDriver;
+    globalThis.suspendDriver      = suspendDriver;
+    globalThis.reactivateDriver   = reactivateDriver;
+
+    // ========== TRANSPORT MANAGEMENT ==========
+
+    let _transportAllRides = [];
+
+    async function loadTransportRides() {
+      const tbody = document.getElementById('transport-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+      try {
+        // Fetch rides with member and driver profile joins
+        const { data, error } = await supabaseClient
+          .from('rides')
+          .select(`id, status, pickup_address, dropoff_address, estimated_fare, actual_fare, gross_fare, tip_amount,
+                   base_rate, multiplier_rate, multiplier_label, pickup_wait_cents, dropoff_wait_cents,
+                   payment_status, cancellation_reason, member_rating, requested_at, completed_at, cancelled_at, created_at,
+                   member:member_id(full_name, email),
+                   provider:provider_id(full_name)`)
+          .order('created_at', { ascending: false })
+          .limit(200);
+        if (error) throw error;
+        _transportAllRides = data || [];
+        renderTransportRides();
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="8" class="empty-state" style="color:var(--accent-red);">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function filterTransportRides() { paginationState.transport.page = 1; renderTransportRides(); }
+
+    function renderTransportRides() {
+      const tbody = document.getElementById('transport-table');
+      if (!tbody) return;
+      const filter = document.getElementById('transport-status-filter')?.value || '';
+      const rows = filter ? _transportAllRides.filter(r => r.status === filter) : _transportAllRides;
+
+      const total     = _transportAllRides.length;
+      const completed = _transportAllRides.filter(r => r.status === 'completed').length;
+      const cancelled = _transportAllRides.filter(r => r.status === 'cancelled').length;
+      const fares     = _transportAllRides.filter(r => r.status === 'completed').map(r => r.actual_fare || r.estimated_fare || 0);
+      const avgFare   = fares.length ? fares.reduce((s, v) => s + v, 0) / fares.length : 0;
+      const completion = total ? Math.round((completed / (total - (total - completed - cancelled > 0 ? total - completed - cancelled : 0))) * 100) : 0;
+
+      const dEl = id => document.getElementById(id);
+      if (dEl('transport-total'))          dEl('transport-total').textContent          = total;
+      if (dEl('transport-completed'))      dEl('transport-completed').textContent      = completed;
+      if (dEl('transport-cancelled'))      dEl('transport-cancelled').textContent      = cancelled;
+      if (dEl('transport-avg-fare'))       dEl('transport-avg-fare').textContent       = '$' + avgFare.toFixed(2);
+      if (dEl('transport-completion-rate')) dEl('transport-completion-rate').textContent = completed + '/' + total;
+
+      if (!rows.length) {
+        tbody.innerHTML = `<tr><td colspan="8" class="empty-state">No rides${filter ? ' matching filter' : ''}</td></tr>`;
+        return;
+      }
+
+      const statusColor = s => ({
+        completed: '#10b981', cancelled: '#ef4444', in_progress: '#3b82f6',
+        driver_en_route: '#f59e0b', accepted: '#6366f1', requested: '#6b7280', dispatched: '#f59e0b', driver_arrived: '#3b82f6'
+      })[s] || '#6b7280';
+
+      const sortedRides = applySortToRows(rows, sortState.transport, (r, col) => {
+        if (col === 'status') return r.status;
+        if (col === 'member') return r.member?.full_name || r.member?.email || '';
+        if (col === 'driver') return r.provider?.full_name || '';
+        if (col === 'fare') return r.actual_fare || r.estimated_fare || 0;
+        if (col === 'created_at') return new Date(r.created_at).getTime();
+        return null;
+      });
+
+      const pagedRides = applyClientPagination(sortedRides, paginationState.transport);
+
+      tbody.innerHTML = pagedRides.map(r => {
+        const fare = r.actual_fare || r.estimated_fare || 0;
+        const memberName = r.member?.full_name || r.member?.email || '—';
+        const driverName = r.provider?.full_name || '—';
+        const date = new Date(r.created_at).toLocaleDateString() + ' ' + new Date(r.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'});
+        const c = statusColor(r.status);
+        return `<tr>
+          <td><span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${escapeHtml(r.status || '—')}</span></td>
+          <td style="font-size:0.85rem;">${escapeHtml(memberName)}</td>
+          <td style="font-size:0.85rem;">${escapeHtml(driverName)}</td>
+          <td style="font-size:0.82rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(r.pickup_address||'')}">${escapeHtml(r.pickup_address||'—')}</td>
+          <td style="font-size:0.82rem;max-width:160px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;" title="${escapeHtml(r.dropoff_address||'')}">${escapeHtml(r.dropoff_address||'—')}</td>
+          <td style="font-weight:600;">$${Number(fare).toFixed(2)}</td>
+          <td style="font-size:0.82rem;color:var(--text-muted);">${date}</td>
+          <td>
+            <div style="display:flex;gap:4px;">
+              <button class="btn btn-secondary btn-sm" onclick="viewTransportRide('${r.id}')">Detail</button>
+              ${['requested','dispatched','accepted','driver_en_route','driver_arrived'].includes(r.status) ? `<button class="btn btn-danger btn-sm" onclick="cancelTransportRide('${r.id}')">Cancel</button>` : ''}
+            </div>
+          </td>
+        </tr>`;
+      }).join('');
+      updateSortIndicators('transport-table', sortState.transport);
+      const transPagEl = document.getElementById('transport-pagination');
+      if (transPagEl) transPagEl.innerHTML = renderPaginationControls(paginationState.transport, 'changeTransportPage', 'changeTransportPageSize');
+    }
+
+    async function viewTransportRide(rideId) {
+      const r = _transportAllRides.find(x => x.id === rideId);
+      if (!r) return;
+      const fare = r.actual_fare || r.estimated_fare || 0;
+      const html = `<div class="form-section">
+        <div class="form-section-title">Ride Details — ${escapeHtml(r.id)}</div>
+        <div class="detail-grid">
+          <span class="detail-label">Status:</span><span class="detail-value">${escapeHtml(r.status)}</span>
+          <span class="detail-label">Member:</span><span class="detail-value">${escapeHtml(r.member?.full_name || r.member?.email || '—')}</span>
+          <span class="detail-label">Driver:</span><span class="detail-value">${escapeHtml(r.provider?.full_name || '—')}</span>
+          <span class="detail-label">Pickup:</span><span class="detail-value">${escapeHtml(r.pickup_address||'—')}</span>
+          <span class="detail-label">Dropoff:</span><span class="detail-value">${escapeHtml(r.dropoff_address||'—')}</span>
+          <span class="detail-label">Base Rate:</span><span class="detail-value">$${Number(r.base_rate||0).toFixed(2)}</span>
+          ${r.multiplier_rate && r.multiplier_rate !== 1 ? `<span class="detail-label">Multiplier:</span><span class="detail-value">${r.multiplier_label || ''} ×${r.multiplier_rate}</span>` : ''}
+          <span class="detail-label">Estimated Fare:</span><span class="detail-value">$${Number(r.estimated_fare||0).toFixed(2)}</span>
+          <span class="detail-label">Actual Fare:</span><span class="detail-value">$${Number(r.actual_fare||0).toFixed(2)}</span>
+          ${r.tip_amount ? `<span class="detail-label">Tip:</span><span class="detail-value">$${Number(r.tip_amount).toFixed(2)}</span>` : ''}
+          ${r.pickup_wait_cents ? `<span class="detail-label">Pickup Wait:</span><span class="detail-value">$${(r.pickup_wait_cents/100).toFixed(2)}</span>` : ''}
+          ${r.dropoff_wait_cents ? `<span class="detail-label">Dropoff Wait:</span><span class="detail-value">$${(r.dropoff_wait_cents/100).toFixed(2)}</span>` : ''}
+          <span class="detail-label">Payment:</span><span class="detail-value">${escapeHtml(r.payment_status||'—')}</span>
+          ${r.member_rating ? `<span class="detail-label">Member Rating:</span><span class="detail-value">${r.member_rating} ★</span>` : ''}
+          ${r.cancellation_reason ? `<span class="detail-label">Cancel Reason:</span><span class="detail-value">${escapeHtml(r.cancellation_reason)}</span>` : ''}
+          <span class="detail-label">Requested:</span><span class="detail-value">${r.requested_at ? new Date(r.requested_at).toLocaleString() : new Date(r.created_at).toLocaleString()}</span>
+          ${r.completed_at ? `<span class="detail-label">Completed:</span><span class="detail-value">${new Date(r.completed_at).toLocaleString()}</span>` : ''}
+        </div>
+      </div>`;
+      showModal('Ride Detail', html);
+    }
+
+    async function cancelTransportRide(rideId) {
+      if (!confirm('Cancel this ride? This cannot be undone.')) return;
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      const r = await fetch(`${apiBase}/api/transport/cancel`, {
+        method: 'POST',
+        headers: { 'Authorization': `Bearer ${session?.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ride_id: rideId, reason: 'Admin cancellation' })
+      });
+      const j = await r.json();
+      if (!r.ok) return alert('Cancel failed: ' + (j.error || r.status));
+      loadTransportRides();
+    }
+
+    globalThis.loadTransportRides   = loadTransportRides;
+    globalThis.filterTransportRides = filterTransportRides;
+    globalThis.viewTransportRide    = viewTransportRide;
+    globalThis.cancelTransportRide  = cancelTransportRide;
+
     let currentMFFilter = 'pending';
+    let _mfActiveProfiles = [];
 
     async function loadMemberFounderApplications() {
+      // If the active-profiles tab is selected, delegate to the profiles loader.
+      if (currentMFFilter === 'active-profiles') {
+        await loadMemberFounderActiveProfiles();
+        return;
+      }
       try {
         const { data, error } = await supabaseClient
           .from('member_founder_applications')
@@ -4925,12 +6594,14 @@
         }
 
         updateMFStats();
+        loadMemberFounderActiveProfilesCount();
         renderMemberFounderApplications();
         // Task #139 — Concierge + Advocate touch member-founder onboarding.
         if (typeof globalThis.renderAgentActivityPanel === 'function') {
           try { globalThis.renderAgentActivityPanel('member-founders-agent-activity', {
             agentSlug: ['concierge', 'advocate'],
-            limit: 10, title: 'Recent Member-Founder Agent Activity', showEmpty: false
+            limit: 10, title: 'Recent Member-Founder Agent Activity', showEmpty: false,
+            linkContext: { section: 'member-founders' }
           }); } catch { /* Intentionally silent */ }
         }
       } catch (err) {
@@ -5002,6 +6673,36 @@
           </tr>
         `;
       }).join('');
+    }
+
+    async function loadMemberFounderActiveProfilesCount() {
+      const { count } = await supabaseClient.from('member_founder_profiles').select('*', { count: 'exact', head: true }).eq('status', 'active');
+      const badge = document.getElementById('mf-active-badge');
+      if (badge) badge.textContent = count || 0;
+    }
+
+    async function loadMemberFounderActiveProfiles() {
+      const tbody = document.getElementById('member-founders-table');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading active founders…</td></tr>';
+      const { data, error } = await supabaseClient
+        .from('member_founder_profiles')
+        .select('id, full_name, email, phone, location, referral_code, status, total_provider_referrals, total_member_referrals, total_commissions_earned')
+        .eq('status', 'active')
+        .order('total_commissions_earned', { ascending: false });
+      if (error) { tbody.innerHTML = `<tr><td colspan="7" class="empty-state" style="color:var(--accent-red);">Error: ${escapeHtml(error.message)}</td></tr>`; return; }
+      const rows = data || [];
+      if (!rows.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No active member founders</td></tr>'; return; }
+      tbody.innerHTML = rows.map(r => `
+        <tr>
+          <td><strong>${escapeHtml(r.full_name || '—')}</strong><div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(r.phone||'')}</div></td>
+          <td>${escapeHtml(r.email||'—')}</td>
+          <td>${escapeHtml(r.location||'—')}</td>
+          <td><code style="font-size:0.82rem;">${escapeHtml(r.referral_code||'—')}</code></td>
+          <td style="text-align:center;">${r.total_provider_referrals||0} prov / ${r.total_member_referrals||0} mem</td>
+          <td style="font-weight:600;color:#10b981;">$${Number(r.total_commissions_earned||0).toFixed(2)}</td>
+          <td><span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:#10b98122;color:#10b981;border:1px solid #10b98155;">active</span></td>
+        </tr>`).join('');
     }
 
     function viewMemberFounder(id) {
@@ -5339,7 +7040,11 @@
         document.querySelectorAll('#mf-tabs .tab').forEach(t => t.classList.remove('active'));
         e.target.classList.add('active');
         currentMFFilter = e.target.dataset.filter;
-        renderMemberFounderApplications();
+        if (currentMFFilter === 'active-profiles') {
+          loadMemberFounderActiveProfiles();
+        } else {
+          renderMemberFounderApplications();
+        }
       }
     });
 
@@ -6183,7 +7888,7 @@
     function renderMilestonesContent() {
       if (!milestonesData) return;
       
-      const revenue = milestonesData.total_bid_pack_revenue || 0;
+      const revenue = milestonesData.cumulative_mcc_revenue || 0;
       const milestones = milestonesData.milestones || [];
       const achievedCount = milestones.filter(m => m.is_achieved).length;
       const pendingCount = milestones.filter(m => !m.is_achieved).length;
@@ -6976,13 +8681,13 @@
         return '<span class="status-badge blue">Both</span>';
       }
       if (roles.includes('Provider')) {
-        return '<span class="status-badge" style="background:var(--accent-gold-soft);color:var(--accent-gold);">Provider</span>';
+        return '<span class="status-badge provider">Provider</span>';
       }
       if (roles.includes('Member')) {
-        return '<span class="status-badge" style="background:var(--accent-green-soft);color:var(--accent-green);">Member</span>';
+        return '<span class="status-badge member">Member</span>';
       }
       if (roles.includes('Admin')) {
-        return '<span class="status-badge" style="background:var(--accent-red-soft);color:var(--accent-red);">Admin</span>';
+        return '<span class="status-badge admin">Admin</span>';
       }
       return '<span class="status-badge muted">-</span>';
     }
@@ -6996,14 +8701,12 @@
       if (user.isFoundingMember) statuses.push('Member Founder');
       if (user.isFoundingProvider) statuses.push('Provider Founder');
       
-      if (statuses.length === 0) return '<span style="color:var(--text-muted);">None</span>';
-      
-      // Intentional contrast: dark text (#0a0a0f) on gold/light backgrounds for readability
+      if (statuses.length === 0) return '<span class="status-badge muted">None</span>';
       return statuses.map(s => {
         if (s === 'Member Founder') {
-          return `<span style="background:linear-gradient(135deg,var(--accent-blue),#6b9fff);color:white;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;margin-right:4px;">${mccIcon('star', 16)} ${s}</span>`;
+          return `<span class="status-badge blue">${mccIcon('star', 16)} ${s}</span>`;
         }
-        return `<span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.75rem;font-weight:500;">${mccIcon('star', 16)} ${s}</span>`;
+        return `<span class="status-badge open">${mccIcon('star', 16)} ${s}</span>`;
       }).join(' ');
     }
 
@@ -7698,9 +9401,18 @@
 
     // ========== REGISTRATION VERIFICATIONS ==========
     async function loadRegistrationVerifications(status = null) {
+      const tbody = document.getElementById('registration-verifications-tbody');
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return;
+        // Task #355 — surface auth state via the shared "Sign in again" prompt.
+        if (!session) {
+          if (tbody) {
+            const err = new Error('No admin session — please sign in again to view verifications.');
+            err.code = 'NO_ADMIN_AUTH';
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadRegistrationVerifications(status));
+          }
+          return;
+        }
 
         let url = '/api/registration/verifications';
         if (status && status !== 'all') {
@@ -7713,6 +9425,12 @@
 
         if (!response.ok) {
           console.error('Failed to load registration verifications');
+          if ((response.status === 401 || response.status === 403) && tbody) {
+            const err = new Error(`Admin session rejected on /api/registration/verifications (HTTP ${response.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadRegistrationVerifications(status));
+            return;
+          }
           registrationVerifications = [];
           renderRegistrationVerifications();
           return;
@@ -7749,7 +9467,9 @@
     }
 
     function updateRegistrationBadge() {
-      const needsReview = registrationVerifications.filter(v => v.status === 'needs_review').length;
+      const needsReview = registrationVerifications.filter(v =>
+        ['needs_review', 'manual_review', 'pending'].includes(v.status)
+      ).length;
       const badgeEl = document.getElementById('registration-count');
       if (badgeEl) {
         badgeEl.textContent = needsReview;
@@ -7767,20 +9487,23 @@
       }
 
       if (!filtered.length) {
-        tbody.innerHTML = '<tr><td colspan="6" class="empty-state">No verification requests found</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No verification requests found</td></tr>';
         return;
       }
 
       tbody.innerHTML = filtered.map(v => {
         const userName = v.user?.full_name || v.user?.email || 'Unknown User';
         const vehicleInfo = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : 'Unknown Vehicle';
-        const matchScore = v.name_match_score !== null && v.name_match_score !== undefined 
-          ? Math.round(v.name_match_score) 
+        const matchScore = v.name_match_score !== null && v.name_match_score !== undefined
+          ? Math.round(v.name_match_score)
           : '--';
-        const scoreColor = matchScore === '--' ? 'var(--text-muted)' : 
-          matchScore >= 80 ? 'var(--accent-green)' : 
-          matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const scoreColor = matchScore === '--' ? 'var(--text-muted)'
+          : matchScore >= 80 ? 'var(--accent-green)'
+          : matchScore >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
         const submittedDate = v.created_at ? new Date(v.created_at).toLocaleDateString() : 'N/A';
+        const contextNote = v.context_note
+          ? `<span style="font-size:0.8rem;color:var(--text-secondary);font-style:italic;" title="${v.context_note}">${v.context_note.length > 40 ? v.context_note.slice(0, 40) + '…' : v.context_note}</span>`
+          : '<span style="color:var(--text-muted);font-size:0.8rem;">—</span>';
 
         return `
           <tr style="cursor:pointer;" onclick="openVerificationDetail('${v.id}')">
@@ -7789,8 +9512,9 @@
               <div style="font-size:0.8rem;color:var(--text-muted);">${v.user?.email || ''}</div>
             </td>
             <td>${vehicleInfo}</td>
-            <td><span class="status-badge ${v.status === 'needs_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${v.status?.replace('_', ' ') || 'unknown'}</span></td>
+            <td><span class="status-badge ${v.status === 'needs_review' || v.status === 'manual_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${(v.status || 'unknown').replace(/_/g, ' ')}</span></td>
             <td><span style="color:${scoreColor};font-weight:600;">${matchScore}${matchScore !== '--' ? '%' : ''}</span></td>
+            <td>${contextNote}</td>
             <td>${submittedDate}</td>
             <td><button class="btn btn-secondary btn-sm" onclick="event.stopPropagation();openVerificationDetail('${v.id}')">Review</button></td>
           </tr>
@@ -7885,6 +9609,13 @@
             <span class="detail-value" style="font-family:monospace;">${v.extracted_plate || 'Not detected'}</span>
           </div>
         </div>
+
+        ${v.context_note ? `
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('message-circle', 24)} Member Context Note</div>
+          <div style="background:var(--accent-gold-soft);border:1px solid rgba(201,168,76,0.3);padding:14px 16px;border-radius:var(--radius-md);font-style:italic;color:var(--text-primary);">"${v.context_note}"</div>
+        </div>
+        ` : ''}
 
         ${v.status !== 'approved' && v.status !== 'rejected' ? `
         <div class="form-section" style="border-bottom:none;">
@@ -8016,6 +9747,322 @@
         renderRegistrationVerifications();
       }
     });
+
+    // ── Top-level view switcher: Registration Docs ↔ Held Pickups ────────────
+    document.getElementById('reg-view-tabs')?.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-reg-view]');
+      if (!tab) return;
+      document.querySelectorAll('#reg-view-tabs [data-reg-view]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      const view = tab.dataset.regView;
+      document.getElementById('reg-panel-verifications').style.display = view === 'verifications' ? '' : 'none';
+      document.getElementById('reg-panel-held-rides').style.display    = view === 'held-rides'    ? '' : 'none';
+      document.getElementById('reg-panel-insurance').style.display     = view === 'insurance'     ? '' : 'none';
+      if (view === 'held-rides') loadHeldRides();
+      if (view === 'insurance')  loadInsuranceVerifications();
+    });
+
+    // ── Held Pickups (pending_name_review rides) ──────────────────────────────
+    let heldRides = [];
+
+    async function loadHeldRides() {
+      const tbody = document.getElementById('held-rides-table');
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Not signed in</td></tr>'; return; }
+        const res = await fetch('/api/registration/held-rides', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) { if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Failed to load</td></tr>'; return; }
+        const data = await res.json();
+        heldRides = data.rides || [];
+        renderHeldRides();
+        updateHeldRidesBadge();
+      } catch (err) {
+        console.error('[admin] held-rides error:', err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Error loading held pickups</td></tr>';
+      }
+    }
+
+    function updateHeldRidesBadge() {
+      const badge = document.getElementById('held-rides-badge');
+      const regCount = document.getElementById('registration-count');
+      if (badge) { badge.textContent = heldRides.length; badge.style.display = heldRides.length ? 'inline-block' : 'none'; }
+      if (regCount) {
+        const verifPending = registrationVerifications.filter(v => ['pending','manual_review','needs_review'].includes(v.status)).length;
+        const insPending   = insuranceVerificationsList.filter(v => v.status === 'manual_review').length;
+        const total = verifPending + heldRides.length + insPending;
+        regCount.textContent = total;
+        regCount.style.display = total ? 'inline-block' : 'none';
+      }
+    }
+
+    function renderHeldRides() {
+      const tbody = document.getElementById('held-rides-table');
+      if (!tbody) return;
+      if (!heldRides.length) {
+        tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No held pickups — all clear.</td></tr>';
+        return;
+      }
+      tbody.innerHTML = heldRides.map(r => {
+        const member = r.member?.full_name || r.member?.email || 'Unknown';
+        const vehicleStr = `${r.member_vehicle_year || ''} ${r.member_vehicle_make || ''} ${r.member_vehicle_model || ''}`.trim() || 'Unknown vehicle';
+        // Dig into nested verif — server returns vehicle.verif as array or object
+        const verifArr = Array.isArray(r.vehicle?.verif) ? r.vehicle.verif : (r.vehicle?.verif ? [r.vehicle.verif] : []);
+        const verif = verifArr[0] || {};
+        const score = verif.name_match_score != null ? Math.round(verif.name_match_score) : '--';
+        const scoreColor = score === '--' ? 'var(--text-muted)' : score >= 80 ? 'var(--accent-green)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const extractedOwner = verif.extracted_owner_name || '—';
+        const contextNote = verif.context_note
+          ? `<span style="font-size:0.78rem;font-style:italic;color:var(--text-secondary);" title="${verif.context_note}">${verif.context_note.length > 35 ? verif.context_note.slice(0, 35) + '…' : verif.context_note}</span>`
+          : '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+        const fare = r.estimated_fare != null ? `$${Number(r.estimated_fare).toFixed(2)}` : '—';
+        const date = r.created_at ? new Date(r.created_at).toLocaleDateString() : '—';
+        return `
+          <tr>
+            <td><strong>${member}</strong><div style="font-size:0.78rem;color:var(--text-muted);">${r.member?.email || ''}</div></td>
+            <td style="font-size:0.88rem;">${vehicleStr}</td>
+            <td style="font-size:0.88rem;">${extractedOwner}</td>
+            <td><span style="color:${scoreColor};font-weight:600;">${score}${score !== '--' ? '%' : ''}</span></td>
+            <td>${contextNote}</td>
+            <td>${fare}</td>
+            <td style="font-size:0.82rem;">${date}</td>
+            <td>
+              <div style="display:flex;gap:6px;">
+                <button class="btn btn-sm" style="background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);" onclick="approveHeldRide('${r.id}')">Approve</button>
+                <button class="btn btn-sm" style="background:var(--accent-red-soft);color:var(--accent-red);border:1px solid rgba(239,95,95,0.3);" onclick="rejectHeldRide('${r.id}')">Reject</button>
+              </div>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    async function approveHeldRide(rideId) {
+      if (!confirm('Approve this pickup? The ride will enter the driver dispatch queue immediately.')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/registration/held-rides/${rideId}/approve`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Pickup approved — ride queued for dispatch.', 'success');
+        await loadHeldRides();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+    globalThis.approveHeldRide = approveHeldRide;
+
+    async function rejectHeldRide(rideId) {
+      if (!confirm('Reject and cancel this pickup? The payment hold will be released.')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/registration/held-rides/${rideId}/reject`, {
+          method: 'POST', headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Pickup rejected and payment voided.', 'success');
+        await loadHeldRides();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    }
+    globalThis.rejectHeldRide = rejectHeldRide;
+
+    // ── Insurance Verification Admin ──────────────────────────────────────────
+    let insuranceVerificationsList = [];
+    let currentInsuranceVerifFilter = 'all';
+
+    async function loadInsuranceVerifications(status = null) {
+      const tbody = document.getElementById('insurance-verifications-table');
+      const filter = status || currentInsuranceVerifFilter;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Not signed in</td></tr>'; return; }
+        let insVerifUrl = '/api/insurance/verifications';
+        if (filter && filter !== 'all') insVerifUrl += `?status=${filter}`;
+        const res = await fetch(insVerifUrl, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) { if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Failed to load</td></tr>'; return; }
+        const data = await res.json();
+        insuranceVerificationsList = data.verifications || [];
+        renderInsuranceVerifications();
+        updateInsuranceBadge();
+        updateHeldRidesBadge();
+      } catch (err) {
+        console.error('[admin] insurance verifications error:', err);
+        if (tbody) tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Error loading</td></tr>';
+      }
+    }
+    globalThis.loadInsuranceVerifications = loadInsuranceVerifications;
+
+    function updateInsuranceBadge() {
+      const badge = document.getElementById('insurance-reviews-badge');
+      const count = insuranceVerificationsList.filter(v => v.status === 'manual_review').length;
+      if (badge) { badge.textContent = count; badge.style.display = count ? 'inline-block' : 'none'; }
+    }
+
+    function renderInsuranceVerifications() {
+      const tbody = document.getElementById('insurance-verifications-table');
+      if (!tbody) return;
+      if (!insuranceVerificationsList.length) {
+        tbody.innerHTML = '<tr><td colspan="9" class="empty-state">No insurance verifications.</td></tr>';
+        return;
+      }
+      const statusColors = { approved: 'badge-success', manual_review: 'badge-warning', expired: 'badge-danger', rejected: 'badge-secondary' };
+      const statusLabels = { approved: 'Approved', manual_review: 'Pending Review', expired: 'Expired', rejected: 'Rejected' };
+      tbody.innerHTML = insuranceVerificationsList.map(v => {
+        const member  = v.user?.full_name || v.user?.email || 'Unknown';
+        const vehicle = v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : '—';
+        const score   = v.name_match_score != null ? v.name_match_score : '—';
+        const scoreColor = score === '—' ? 'var(--text-muted)' : score >= 80 ? 'var(--accent-green)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+        const expiry  = v.expiration_date ? new Date(v.expiration_date + 'T00:00:00Z').toLocaleDateString() : '—';
+        const isExpiredDate = v.expiration_date && new Date(v.expiration_date + 'T00:00:00Z') < new Date();
+        const expiryHtml = `<span style="color:${isExpiredDate ? 'var(--accent-red)' : 'inherit'}">${expiry}</span>`;
+        const contextNote = v.context_note
+          ? `<span title="${v.context_note}" style="font-size:0.78rem;font-style:italic;">${v.context_note.length > 30 ? v.context_note.slice(0,30)+'…' : v.context_note}</span>`
+          : '<span style="color:var(--text-muted);font-size:0.78rem;">—</span>';
+        return `
+          <tr>
+            <td><strong>${member}</strong><div style="font-size:0.78rem;color:var(--text-muted);">${v.user?.email || ''}</div></td>
+            <td style="font-size:0.88rem;">${vehicle}</td>
+            <td style="font-size:0.88rem;">${v.carrier || '—'}</td>
+            <td>${expiryHtml}</td>
+            <td><span style="color:${scoreColor};font-weight:600;">${score}${score !== '—' ? '%' : ''}</span></td>
+            <td><span class="badge ${statusColors[v.status] || 'badge-secondary'}">${statusLabels[v.status] || v.status}</span></td>
+            <td>${contextNote}</td>
+            <td style="font-size:0.82rem;">${new Date(v.created_at).toLocaleDateString()}</td>
+            <td><button class="btn btn-secondary btn-sm" onclick="openInsuranceVerificationDetail('${v.id}')">Review</button></td>
+          </tr>`;
+      }).join('');
+    }
+
+    // Insurance filter tabs
+    document.getElementById('insurance-tabs')?.addEventListener('click', (e) => {
+      const tab = e.target.closest('[data-ins-filter]');
+      if (!tab) return;
+      document.querySelectorAll('#insurance-tabs [data-ins-filter]').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      currentInsuranceVerifFilter = tab.dataset.insFilter;
+      loadInsuranceVerifications(currentInsuranceVerifFilter);
+    });
+
+    globalThis.openInsuranceVerificationDetail = async function(verifId) {
+      const v = insuranceVerificationsList.find(x => x.id === verifId);
+      if (!v) return;
+
+      const statusColors = { approved: 'var(--accent-green)', manual_review: 'var(--accent-gold)', expired: 'var(--accent-red)', rejected: 'var(--accent-red)' };
+      const statusLabels = { approved: 'Approved', manual_review: 'Pending Review', expired: 'Expired', rejected: 'Rejected' };
+      const isExpiredDate = v.expiration_date && new Date(v.expiration_date + 'T00:00:00Z') < new Date();
+      const score = v.name_match_score != null ? v.name_match_score : null;
+      const scoreColor = score == null ? 'var(--text-muted)' : score >= 80 ? 'var(--accent-green)' : score >= 50 ? 'var(--accent-orange)' : 'var(--accent-red)';
+
+      let crossRefHtml = '<div style="color:var(--text-muted);font-size:0.85rem;">Loading cross-reference...</div>';
+
+      document.getElementById('insurance-detail-body').innerHTML = `
+        <div class="detail-grid" style="row-gap:10px;margin-bottom:20px;">
+          <span class="detail-label">Member</span><span class="detail-value">${v.user?.full_name || '—'} <small style="color:var(--text-muted)">${v.user?.email || ''}</small></span>
+          <span class="detail-label">Vehicle</span><span class="detail-value">${v.vehicle ? `${v.vehicle.year || ''} ${v.vehicle.make || ''} ${v.vehicle.model || ''}`.trim() : '—'}${v.vehicle?.vin ? ` <small style="color:var(--text-muted)">VIN: ${v.vehicle.vin}</small>` : ''}</span>
+          <span class="detail-label">Status</span><span class="detail-value" style="color:${statusColors[v.status] || 'inherit'};font-weight:600;">${statusLabels[v.status] || v.status}</span>
+          <span class="detail-label">Policyholder</span><span class="detail-value">${v.policyholder_name || '—'}</span>
+          <span class="detail-label">Account Name</span><span class="detail-value">${v.profile_name || '—'}</span>
+          <span class="detail-label">Name Match</span><span class="detail-value"><span style="color:${scoreColor};font-weight:600;">${score != null ? score + '%' : '—'}</span></span>
+          <span class="detail-label">Carrier</span><span class="detail-value">${v.carrier || '—'}</span>
+          <span class="detail-label">Policy #</span><span class="detail-value">${v.policy_number || '—'}</span>
+          <span class="detail-label">Effective</span><span class="detail-value">${v.effective_date || '—'}</span>
+          <span class="detail-label">Expires</span><span class="detail-value" style="color:${isExpiredDate ? 'var(--accent-red)' : 'inherit'}">${v.expiration_date || '—'}${isExpiredDate ? ' ⚠ Expired' : ''}</span>
+          <span class="detail-label">VIN on Card</span><span class="detail-value">${v.vin || '—'}</span>
+          ${v.context_note ? `<span class="detail-label">Context Note</span><span class="detail-value" style="background:var(--accent-gold-soft);border:1px solid rgba(201,162,71,0.3);padding:8px;border-radius:6px;">${v.context_note}</span>` : ''}
+        </div>
+        ${v.image_url ? `<div style="margin-bottom:20px;"><a href="${v.image_url}" target="_blank"><img src="${v.image_url}" alt="Insurance card" style="max-width:100%;max-height:300px;border-radius:8px;border:1px solid var(--border-color);"></a></div>` : ''}
+        <div id="ins-cross-ref-panel" style="margin-bottom:16px;">${crossRefHtml}</div>`;
+
+      document.getElementById('insurance-detail-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal('insurance-detail-modal')">Close</button>
+        ${['manual_review','expired'].includes(v.status) ? `
+          <button class="btn btn-danger" onclick="rejectInsuranceVerification('${v.id}')">Reject</button>
+          <button class="btn btn-success" onclick="approveInsuranceVerification('${v.id}')">Approve</button>` : ''}`;
+
+      openModal('insurance-detail-modal');
+
+      // Load three-way cross-ref asynchronously
+      if (v.vehicle_id) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          const res = await fetch(`/api/insurance/name-cross-ref/${v.vehicle_id}`, {
+            headers: { 'Authorization': `Bearer ${session?.access_token}` }
+          });
+          if (res.ok) {
+            const cr = await res.json();
+            const confColor = cr.confidence === 'high' ? 'var(--accent-green)' : cr.confidence === 'medium' ? 'var(--accent-gold)' : 'var(--accent-red)';
+            const sourcesHtml = Object.entries(cr.sources || {})
+              .filter(([,v]) => v)
+              .map(([k, val]) => `<div style="display:flex;justify-content:space-between;padding:4px 0;"><span style="color:var(--text-muted);text-transform:capitalize;">${k.replace('_', ' ')}</span><span style="font-weight:500;">${val}</span></div>`)
+              .join('');
+            const mismatchesHtml = cr.mismatches?.length
+              ? cr.mismatches.map(p => `<div style="padding:6px 0;border-bottom:1px solid var(--border-subtle);font-size:0.85rem;"><span style="color:var(--accent-red);">${p.source_a} ↔ ${p.source_b}: ${p.score}%</span><div style="color:var(--text-muted);">"${p.name_a}" vs "${p.name_b}"</div></div>`).join('')
+              : '<div style="color:var(--accent-green);font-size:0.85rem;">All sources align.</div>';
+            document.getElementById('ins-cross-ref-panel').innerHTML = `
+              <div style="background:var(--bg-elevated);border-radius:8px;padding:16px;border:1px solid var(--border-subtle);">
+                <div style="font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px;">
+                  Name Cross-Reference
+                  <span style="font-size:0.82rem;padding:2px 8px;border-radius:20px;background:${confColor}22;color:${confColor};border:1px solid ${confColor}44;">${cr.confidence?.replace('_', ' ') || '—'} confidence</span>
+                </div>
+                <div style="margin-bottom:12px;">${sourcesHtml}</div>
+                <div style="font-weight:500;margin-bottom:8px;font-size:0.85rem;color:var(--text-muted);">Mismatches (&lt;80%)</div>
+                ${mismatchesHtml}
+              </div>`;
+          }
+        } catch (e) {
+          document.getElementById('ins-cross-ref-panel').innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Cross-reference unavailable.</div>';
+        }
+      }
+    };
+
+    globalThis.approveInsuranceVerification = async function(verifId) {
+      if (!confirm('Approve this insurance verification? This will mark the vehicle insurance as verified.')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/insurance/verifications/${verifId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ status: 'approved' }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Insurance verification approved.', 'success');
+        closeModal('insurance-detail-modal');
+        await loadInsuranceVerifications();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    };
+
+    globalThis.rejectInsuranceVerification = async function(verifId) {
+      if (!confirm('Reject this insurance verification?')) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const res = await fetch(`/api/insurance/verifications/${verifId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ status: 'rejected' }),
+        });
+        const d = await res.json();
+        if (!res.ok) throw new Error(d.error || 'Failed');
+        showToast('Insurance verification rejected.', 'success');
+        closeModal('insurance-detail-modal');
+        await loadInsuranceVerifications();
+      } catch (err) { showToast('Error: ' + err.message, 'error'); }
+    };
+    // ── End Insurance Verification Admin ──────────────────────────────────────
+
+    // Also load held rides count when the section first loads (for badge)
+    const _origLoadRegVerif = loadRegistrationVerifications;
+    loadRegistrationVerifications = async function(status = null) {
+      await _origLoadRegVerif(status);
+      // Fire background fetches for badge accuracy
+      loadHeldRides().catch(() => {});
+      loadInsuranceVerifications().catch(() => {});
+    };
+    // ── End Held Pickups ──────────────────────────────────────────────────────
 
     globalThis.loadRefunds = loadRefunds;
     globalThis.changeRefundsPage = changeRefundsPage;
@@ -8164,13 +10211,8 @@
         }
       } catch { /* Intentionally silent */ }
       const headers = {};
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified || localStorage.getItem('mcc_admin_pass')) {
-        headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || adminPasswordVerified || '';
-      }
-      if (!headers['Authorization'] && !headers['x-admin-token'] && !headers['x-admin-password']) {
-        throw new Error('Not authenticated');
-      }
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
+      if (!headers['Authorization']) throw new Error('Not authenticated');
       return headers;
     }
 
@@ -9091,12 +11133,8 @@
 
     async function loadChatInsights() {
       try {
-        const resp = await fetch('/api/admin/chat-insights', {
-          headers: getAdminHeaders()
-        });
-        if (!resp.ok) throw new Error('Failed to load chat insights');
-        const data = await resp.json();
-        
+        const data = await aiOpsFetch('/api/admin/chat-insights', { headers: getAdminHeaders() });
+
         document.getElementById('chat-stat-total-sessions').textContent = data.totalSessions || 0;
         document.getElementById('chat-stat-total-messages').textContent = data.totalMessages || 0;
         document.getElementById('chat-stat-thumbs-up').textContent = data.thumbsUp || 0;
@@ -9125,14 +11163,17 @@
         
       } catch (err) {
         console.error('Failed to load chat insights:', err);
+        if (isAdminAuthError(err)) {
+          renderAdminAuthErrorInto(document.getElementById('chat-recent-activity'), err, loadChatInsights);
+        }
       }
     }
 
     // ========== TEAM LOGIN & ROLE-BASED ACCESS ==========
     function getAdminHeaders() {
       const headers = { 'Content-Type': 'application/json' };
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = adminPasswordVerified;
+      if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
       return headers;
     }
 
@@ -9223,16 +11264,15 @@
       });
       
       navLabels.forEach(label => {
-        let next = label.nextElementSibling;
-        let hasVisible = false;
-        while (next && !next.classList.contains('nav-label')) {
-          if (next.classList.contains('nav-item') && next.style.display !== 'none') {
-            hasVisible = true;
-            break;
-          }
-          next = next.nextElementSibling;
-        }
+        const group = label.dataset.group;
+        const container = group
+          ? document.querySelector(`.nav-group-items[data-group="${group}"]`)
+          : null;
+        const hasVisible = container
+          ? [...container.querySelectorAll('.nav-item')].some(el => el.style.display !== 'none')
+          : false;
         label.style.display = hasVisible ? '' : 'none';
+        if (container) container.style.display = hasVisible ? '' : 'none';
       });
       
       const userInfo = document.createElement('div');
@@ -9253,17 +11293,25 @@
     let teamMembers = [];
 
     async function loadTeamMembers() {
+      const tbody = document.getElementById('team-members-body');
       try {
+        // Task #355 — adminFetch surfaces 401/403 as coded auth errors that
+        // we route through the shared "Sign in again" prompt below.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
-        if (!response.ok) throw new Error('Failed to fetch');
-        const data = await response.json();
+        const data = await aiOpsFetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
         teamMembers = Array.isArray(data) ? data : (data.members || []);
         renderTeamMembers();
         loadPendingInvites();
       } catch (err) {
         console.error('Failed to load team members:', err);
-        document.getElementById('team-members-body').innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+        if (tbody) {
+          const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+          if (isAuthErr) {
+            renderAiOpsAuthError(tbody.closest('div, section, [id]') || tbody, err, loadTeamMembers);
+          } else {
+            tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+          }
+        }
       }
     }
 
@@ -9626,10 +11674,9 @@
       const tbody = document.getElementById('pending-invites-body');
       if (!tbody) return;
       try {
+        // Task #355 — adminFetch routes 401/403 through the shared auth row.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
-        if (!response.ok) throw new Error('Failed to fetch');
-        const invites = await response.json();
+        const invites = await aiOpsFetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
 
         const roleBadgeClass = {
           super_admin: 'badge-green', crm_manager: 'badge-blue', marketing: 'badge-purple',
@@ -9667,8 +11714,13 @@
           </tr>`;
         }).join('');
       } catch (err) {
-        console.error('Failed to load invites:', err);
-        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+        const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+        if (isAuthErr) {
+          renderAiOpsAuthError(tbody.closest('div, section, [id]') || tbody, err, loadPendingInvites);
+        } else {
+          console.error('Failed to load invites:', err);
+          tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+        }
       }
     }
 
@@ -9746,7 +11798,7 @@
     async function loadMarketingSharePeople() {
       const container = document.getElementById('mkt-share-people-list');
       if (!container) return;
-      container.innerHTML = '<div style="text-align:center;padding:20px;"><div style="width:24px;height:24px;border:2px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
+      container.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading...</div>';
       try {
         const [membersRes, invitesRes] = await Promise.all([
           fetch(getTeamApiUrl('members'), { headers: getAdminHeaders() }),
@@ -9902,14 +11954,8 @@
 
     async function loadTrafficData() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-      const headers = {};
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
-
       try {
-        const response = await fetch(`${apiBase}/api/analytics/data?days=${trafficDays}`, { headers });
-        if (!response.ok) throw new Error('Failed to load traffic data');
-        const data = await response.json();
+        const data = await aiOpsFetch(`${apiBase}/api/analytics/data?days=${trafficDays}`, { headers: getAiOpsHeaders() });
 
         document.getElementById('traffic-total-views').textContent = (data.totalViews || 0).toLocaleString();
         document.getElementById('traffic-total-visitors').textContent = (data.totalVisitors || 0).toLocaleString();
@@ -10053,7 +12099,7 @@
       const output = document.getElementById('social-posts-output');
       btn.disabled = true;
       btn.textContent = 'Generating...';
-      output.innerHTML = '<div style="text-align:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>Creating platform-optimized posts...</div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Creating platform-optimized posts...</div>';
       try {
         const res = await fetch('/api/admin/marketing/generate', {
           method: 'POST',
@@ -10179,7 +12225,8 @@
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('mo-agent-activity', {
           agentSlug: ['hunter', 'promoter'], limit: 15,
-          title: 'Recent Hunter & Promoter Activity', showEmpty: true
+          title: 'Recent Hunter & Promoter Activity', showEmpty: true,
+          linkContext: { section: 'marketing-outreach' }
         }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
       }
       // Task #222 — Launch broadcast send progress + bounces.
@@ -10209,7 +12256,15 @@
         ]);
 
         if (!statsRes.ok) {
-          summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          // Task #355 — auth failures route through the shared "Sign in again"
+          // prompt instead of a dead-end status string.
+          if ((statsRes.status === 401 || statsRes.status === 403) && typeof globalThis.renderAdminAuthError === 'function') {
+            const err = new Error(`Admin session rejected on /api/admin/launch-broadcast-stats (HTTP ${statsRes.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            globalThis.renderAdminAuthError(summary, err, loadLaunchBroadcastStats);
+          } else {
+            summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          }
           return;
         }
         const stats = await statsRes.json();
@@ -10258,7 +12313,14 @@
         grid.innerHTML = cells.join('') || '<div style="padding:8px;color:var(--text-muted);">No audience data.</div>';
 
         if (!bouncesRes.ok) {
-          list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          // Task #355 — auth-expiry surfaces the shared "Sign in again" prompt.
+          if ((bouncesRes.status === 401 || bouncesRes.status === 403)) {
+            const err = new Error(`Admin session rejected on /api/admin/launch-broadcast/bounces (HTTP ${bouncesRes.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            renderAdminAuthErrorInto(list, err, loadLaunchBroadcastStats);
+          } else {
+            list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          }
           return;
         }
         const bounces = await bouncesRes.json();
@@ -10302,8 +12364,8 @@
 
     function getMarketingHeaders() {
       const headers = { 'Content-Type': 'application/json' };
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      else if (adminPasswordVerified) headers['x-admin-password'] = localStorage.getItem('mcc_admin_pass') || '';
+      if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
       return headers;
     }
 
@@ -10323,7 +12385,7 @@
       const btn = document.getElementById('mkt-generate-btn');
       btn.disabled = true;
       btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Generating...';
-      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is crafting your content...</p></div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> AI is crafting your content...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
@@ -10436,7 +12498,7 @@
       const channels = Array.from(document.querySelectorAll('.strategy-channel:checked')).map(c => c.value);
       if (!goal) { showToast('Please enter a goal', 'error'); return; }
       const output = document.getElementById('strategy-output');
-      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is building your strategy...</p></div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> AI is building your strategy...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/strategy`, {
@@ -10473,7 +12535,7 @@
       const stage = document.getElementById('fund-stage').value;
       if (!goal) { showToast('Please enter a funding goal', 'error'); return; }
       const output = document.getElementById('fund-output');
-      output.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is generating fundraising content...</p></div>';
+      output.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> AI is generating fundraising content...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/generate`, {
@@ -10558,7 +12620,7 @@
       const sourceCount = document.getElementById('research-source-count');
       btn.disabled = true;
       btn.innerHTML = '<span style="display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,0.3);border-top-color:#fff;border-radius:50%;animation:spin 1s linear infinite;vertical-align:middle;margin-right:6px;"></span> Searching the web...';
-      resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:60px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">AI is searching the internet for real opportunities...</p><p style="font-size:0.85rem;margin-top:8px;">This may take 30-60 seconds</p></div>';
+      resultsDiv.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div><span>AI is searching the internet for real opportunities…<br><small style="color:var(--text-muted);">This may take 30-60 seconds</small></span></div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/research`, {
@@ -10682,7 +12744,7 @@
     async function loadOutreachQueue() {
       const resultsDiv = document.getElementById('research-results');
       if (!resultsDiv) return;
-      resultsDiv.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;padding:40px;color:var(--text-muted);"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;"></div><p style="margin-top:16px;">Loading outreach queue...</p></div>';
+      resultsDiv.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading outreach queue...</div>';
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue`, { headers: getMarketingHeaders() });
@@ -10727,9 +12789,7 @@
         if (minScore) params.set('min_score', minScore);
         if (source) params.set('source', source);
         params.set('limit', '200');
-        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-leads?${params}`, { headers: getMarketingHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load');
+        const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/outreach-leads?${params}`, { headers: getMarketingHeaders() });
         emailOutreachLeads = (data.leads || []).filter(l => l.email);
         if (emailOutreachLeads.length === 0) {
           preview.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text-muted);">No leads with email addresses found for these filters.</div>';
@@ -10743,7 +12803,7 @@
         if (addBtn) addBtn.style.display = 'block';
         showToast(`Loaded ${emailOutreachLeads.length} leads from Outreach Engine`);
       } catch (err) {
-        preview.innerHTML = '<div style="color:var(--accent-red);padding:12px;">Error: ' + escapeHtml(err.message) + '</div>';
+        renderAiOpsAuthError(preview, err, loadEmailOutreachLeads);
         const addBtn = document.getElementById('email-add-leads-btn');
         if (addBtn) addBtn.style.display = 'none';
       }
@@ -10836,9 +12896,7 @@
     async function loadGrowthFunnel() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       try {
-        const res = await fetch(`${apiBase}/api/admin/marketing/pipeline-metrics`, { headers: getMarketingHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load metrics');
+        const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/pipeline-metrics`, { headers: getMarketingHeaders() });
 
         const el = (id) => document.getElementById(id);
         if (el('funnel-total-leads')) el('funnel-total-leads').textContent = (data.total_leads || 0).toLocaleString();
@@ -10958,11 +13016,9 @@
       const bulkBar = document.getElementById('outreach-bulk-bar');
       if (!listEl) return;
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:32px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading approval queue...</div>';
+      listEl.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading approval queue...</div>';
       try {
-        const res = await fetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed to load queue');
+        const data = await aiOpsFetch(`${apiBase}/api/admin/marketing/outreach-queue?status=draft&limit=50`, { headers: getMarketingHeaders() });
         const messages = data.data || data.items || [];
         if (bulkBar) bulkBar.style.display = messages.length > 0 ? 'block' : 'none';
         if (messages.length === 0) {
@@ -10972,7 +13028,7 @@
         listEl.innerHTML = messages.map(_renderQueueMessageCard).join('');
         if (globalThis.renderIcons) renderIcons(listEl);
       } catch (err) {
-        listEl.innerHTML = `<p style="color:var(--accent-red);padding:20px;">Error: ${escapeHtml(err.message)}</p>`;
+        renderAiOpsAuthError(listEl, err, loadApprovalQueue);
       }
     }
     globalThis.loadApprovalQueue = loadApprovalQueue;
@@ -11190,7 +13246,7 @@
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const listEl = document.getElementById('instantly-campaigns-list');
       if (!listEl) return;
-      listEl.innerHTML = '<div style="display:flex;align-items:center;gap:12px;padding:24px;color:var(--text-muted);"><div style="width:24px;height:24px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;flex-shrink:0;"></div>Loading campaigns…</div>';
+      listEl.innerHTML = '<div class="loading-state"><div class="loading-spinner"></div> Loading campaigns…</div>';
       try {
         const res = await fetch(`${apiBase}/api/admin/marketing/instantly-campaigns`, { headers: getMarketingHeaders() });
         const data = await res.json();
@@ -11355,15 +13411,9 @@
     let aiOpsDigests = [];
 
     function getAiOpsHeaders() {
-      // Send whichever credentials are present. agent-fleet-runtime.js and
-      // ai-ops-admin.js authenticateAdmin both accept x-admin-token OR
-      // x-admin-password (validated server-side against ADMIN_PASSWORD, same
-      // pattern as admin-team.js), so a team-admin session with only the
-      // token still authenticates correctly.
       const headers = {};
-      if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass') || localStorage.getItem('adminPassword');
-      if (pw) headers['x-admin-password'] = pw;
+      if (_adminBearer) headers['Authorization'] = 'Bearer ' + _adminBearer;
+      if (adminTeamToken && !headers['Authorization']) headers['Authorization'] = 'Bearer ' + adminTeamToken;
       return headers;
     }
 
@@ -11392,7 +13442,7 @@
       let hasAuth = false;
       for (const k of Object.keys(headers)) {
         const lk = k.toLowerCase();
-        if ((lk === 'x-admin-password' || lk === 'x-admin-token') && headers[k]) {
+        if (lk === 'authorization' && headers[k]) {
           hasAuth = true; break;
         }
       }
@@ -11480,21 +13530,24 @@
     // Escalations, Digest, Settings) so the four cards behave consistently.
     let _aiOpsReauthRetry = null;
 
-    function openAiOpsReauth(retryFn) {
+    async function openAiOpsReauth(retryFn) {
       _aiOpsReauthRetry = (typeof retryFn === 'function') ? retryFn : null;
-      const modal = document.getElementById('admin-password-modal');
-      if (!modal) {
-        // Last-resort fallback: send the admin to the login page if the
-        // re-login modal isn't on this page for some reason.
-        window.location.href = 'admin.html';
-        return;
-      }
-      try { showModalState('password'); } catch { /* showModalState may not be in scope here, ignore */ }
-      modal.style.display = 'flex';
-      const input = document.getElementById('admin-password-input');
-      if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
+      try {
+        const { data, error } = await supabaseClient.auth.refreshSession();
+        if (!error && data?.session?.access_token) {
+          _adminBearer = data.session.access_token;
+          globalThis._adminBearer = data.session.access_token;
+          await completeAdminAuth();
+          return;
+        }
+      } catch { /* fall through to login redirect */ }
+      window.location.href = 'login.html';
     }
     globalThis.openAiOpsReauth = openAiOpsReauth;
+    // Task #355 — generic alias so non-AI-Ops admin loaders (Provider /
+    // Member / BGC / Care Plans / Marketing Hub / SMS log / etc.) can call
+    // the same re-login modal without reading as if they belong to AI Ops.
+    globalThis.openAdminReauth = openAiOpsReauth;
 
     function renderAiOpsAuthError(containerEl, err, retryFn) {
       if (!containerEl) return;
@@ -11519,6 +13572,11 @@
       </div>`;
     }
     globalThis.renderAiOpsAuthError = renderAiOpsAuthError;
+    // Task #355 — generic alias. Non-AI-Ops admin loaders should call
+    // `renderAdminAuthError(container, err, retryFn)` so a 401/403 always
+    // surfaces the same actionable "Sign in again" prompt instead of a
+    // dead-end error string.
+    globalThis.renderAdminAuthError = renderAiOpsAuthError;
 
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
@@ -11573,14 +13631,504 @@
         if (summaryEl) summaryEl.innerHTML =
           `<div style="grid-column:1/-1;padding:14px;color:var(--accent-red);font-size:0.85rem;">Failed to load summary: ${escapeHtml(e.message)}</div>`;
       }
+      // Load promoter drafts panel.
+      loadPromoterDrafts();
       // Render last 25 across all agents using the shared helper.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         globalThis.renderAgentActivityPanel('agent-fleet-recent', {
-          limit: 25, title: '', showEmpty: true
+          limit: 25, title: '', showEmpty: true,
+          linkContext: { section: 'agent-fleet' }
         });
       }
     }
     globalThis.loadAgentFleetSection = loadAgentFleetSection;
+
+    async function loadPromoterDrafts() {
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const listEl = document.getElementById('promoter-drafts-list');
+      const badgeEl = document.getElementById('promoter-drafts-count-badge');
+      if (!listEl) return;
+      listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions?agent=promoter&review_only=1&limit=50`, { headers: getAiOpsHeaders() });
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        const j = await r.json();
+        const drafts = j.actions || [];
+        if (badgeEl) {
+          if (drafts.length > 0) {
+            badgeEl.textContent = String(drafts.length);
+            badgeEl.style.display = 'inline-block';
+          } else {
+            badgeEl.style.display = 'none';
+          }
+        }
+        if (drafts.length === 0) {
+          listEl.innerHTML = '<div style="padding:24px;text-align:center;color:var(--text-muted);">No promoter drafts pending review.</div>';
+          return;
+        }
+        const platformColor = p => ({ reddit:'#ff4500', twitter:'#1da1f2', x:'#000', linkedin:'#0077b5', facebook:'#1877f2', instagram:'#e1306c' })[(p||'').toLowerCase()] || '#6b7280';
+        listEl.innerHTML = drafts.map(a => {
+          const d = a.decision || {};
+          const platform = d.platform || a.action_type || '—';
+          const audience = d.audience || '—';
+          const body = d.body || d.content || '(no content)';
+          const cta = d.call_to_action || '';
+          const media = d.suggested_media || '';
+          const ts = new Date(a.created_at).toLocaleDateString() + ' ' + new Date(a.created_at).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'});
+          return `<div data-draft-id="${escapeHtml(String(a.id))}" style="border:1px solid var(--border-subtle);border-radius:10px;padding:16px;margin-bottom:12px;">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap;margin-bottom:10px;">
+              <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+                <span style="background:${platformColor(platform)};color:#fff;padding:2px 10px;border-radius:6px;font-size:0.78rem;font-weight:600;text-transform:capitalize;">${escapeHtml(platform)}</span>
+                <span style="background:var(--bg-elevated);color:var(--text-secondary);padding:2px 8px;border-radius:6px;font-size:0.78rem;">audience: ${escapeHtml(audience)}</span>
+                <span style="color:var(--text-muted);font-size:0.78rem;">${ts}</span>
+              </div>
+              <div style="display:flex;gap:8px;flex-shrink:0;">
+                <button class="btn btn-sm" onclick="reviewPromoterDraft(${a.id},'approved')" style="background:#10b981;color:#fff;border-color:#10b981;">Approve &amp; Post</button>
+                <button class="btn btn-sm" onclick="reviewPromoterDraft(${a.id},'rejected')" style="background:var(--accent-red);color:#fff;border-color:var(--accent-red);">Reject</button>
+              </div>
+            </div>
+            <div style="background:var(--bg-elevated);border-radius:8px;padding:12px;font-size:0.88rem;line-height:1.55;white-space:pre-wrap;margin-bottom:${cta||media?'10px':'0'};">${escapeHtml(body)}</div>
+            ${cta ? `<div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:${media?'6px':'0'};"><strong>CTA:</strong> ${escapeHtml(cta)}</div>` : ''}
+            ${media ? `<div style="font-size:0.82rem;color:var(--text-secondary);"><strong>Suggested media:</strong> ${escapeHtml(media)}</div>` : ''}
+          </div>`;
+        }).join('');
+      } catch (e) {
+        listEl.innerHTML = `<div style="padding:24px;color:var(--accent-red);font-size:0.85rem;">Failed to load promoter drafts: ${escapeHtml(e.message)}</div>`;
+      }
+    }
+    globalThis.loadPromoterDrafts = loadPromoterDrafts;
+
+    // ========== CAR CLUBS ==========
+
+    async function loadCarClubs() {
+      const tbody = document.querySelector('#car-clubs-table tbody');
+      if (!tbody) return;
+      tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:32px;">Loading…</td></tr>';
+      try {
+        const { data, error } = await supabaseClient
+          .from('car_clubs')
+          .select('id, name, description, is_active, provider_suspended, member_count, vehicle_make, vehicle_model, region, created_at, provider_id, provider:provider_id(full_name, email)')
+          .order('created_at', { ascending: false });
+        if (error) throw error;
+        const clubs = data || [];
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('car-club-total'))       dEl('car-club-total').textContent  = clubs.length;
+        if (dEl('car-club-active'))      dEl('car-club-active').textContent = clubs.filter(c => c.is_active && !c.provider_suspended).length;
+        if (dEl('car-club-members'))     dEl('car-club-members').textContent = clubs.reduce((s, c) => s + (c.member_count || 0), 0);
+        if (dEl('car-club-redemptions')) dEl('car-club-redemptions').textContent = '—';
+
+        if (!clubs.length) {
+          tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:var(--text-muted);padding:40px;">No car clubs yet — create one below</td></tr>';
+          renderCarClubCreateForm();
+          return;
+        }
+
+        tbody.innerHTML = clubs.map(c => {
+          const providerName = c.provider?.full_name || c.provider?.email || 'Platform';
+          const active = c.is_active && !c.provider_suspended;
+          const vehicleTag = [c.vehicle_make, c.vehicle_model].filter(Boolean).join(' ') || '—';
+          const statusC = active ? '#10b981' : '#6b7280';
+          return `<tr>
+            <td style="font-size:0.85rem;">${escapeHtml(providerName)}</td>
+            <td><strong>${escapeHtml(c.name || '—')}</strong>
+              ${c.region ? `<div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(c.region)}</div>` : ''}
+            </td>
+            <td style="font-size:0.82rem;color:var(--text-muted);">${escapeHtml(vehicleTag)}</td>
+            <td style="text-align:center;">${c.member_count || 0}</td>
+            <td>—</td>
+            <td><span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${statusC}22;color:${statusC};border:1px solid ${statusC}55;">${active ? 'Active' : 'Inactive'}</span></td>
+            <td>
+              <div style="display:flex;gap:4px;">
+                <button class="btn btn-secondary btn-sm" onclick="viewCarClub('${c.id}')">View</button>
+                <button class="btn btn-${active ? 'danger' : 'success'} btn-sm" onclick="toggleCarClub('${c.id}', ${active})">${active ? 'Deactivate' : 'Activate'}</button>
+              </div>
+            </td>
+          </tr>`;
+        }).join('');
+
+        // Update table header to include Actions col
+        const thead = document.querySelector('#car-clubs-table thead tr');
+        if (thead && thead.children.length < 7) {
+          const th = document.createElement('th');
+          th.textContent = 'Actions';
+          thead.appendChild(th);
+        }
+
+        renderCarClubCreateForm();
+      } catch (err) {
+        if (tbody) tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--accent-red);padding:32px;">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    function renderCarClubCreateForm() {
+      const section = document.getElementById('car-clubs');
+      if (!section || section.querySelector('#car-club-create-form')) return;
+      const div = document.createElement('div');
+      div.id = 'car-club-create-form';
+      div.className = 'card';
+      div.style.marginTop = '24px';
+      div.innerHTML = `
+        <div class="card-header"><h3>Create Platform Club</h3></div>
+        <div class="card-body" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px;">
+          <input id="new-club-name" class="form-control" placeholder="Club name" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <input id="new-club-make" class="form-control" placeholder="Vehicle make (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <input id="new-club-model" class="form-control" placeholder="Vehicle model (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <input id="new-club-region" class="form-control" placeholder="Region (optional)" style="padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);">
+          <textarea id="new-club-desc" placeholder="Description" style="grid-column:1/-1;padding:8px 12px;border:1px solid var(--border-subtle);border-radius:6px;background:var(--bg-elevated);color:var(--text-primary);resize:vertical;min-height:70px;"></textarea>
+          <button class="btn btn-primary" onclick="createCarClub()" style="grid-column:1/-1;">Create Club</button>
+        </div>`;
+      section.appendChild(div);
+    }
+
+    async function createCarClub() {
+      const name    = document.getElementById('new-club-name')?.value.trim();
+      const make    = document.getElementById('new-club-make')?.value.trim();
+      const model   = document.getElementById('new-club-model')?.value.trim();
+      const region  = document.getElementById('new-club-region')?.value.trim();
+      const desc    = document.getElementById('new-club-desc')?.value.trim();
+      if (!name) return alert('Club name is required');
+      const { error } = await supabaseClient.from('car_clubs').insert({
+        name, description: desc || null, vehicle_make: make || null, vehicle_model: model || null,
+        region: region || null, is_active: true, member_count: 0
+      });
+      if (error) return alert('Error: ' + error.message);
+      ['new-club-name','new-club-make','new-club-model','new-club-region','new-club-desc'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+      loadCarClubs();
+    }
+
+    async function viewCarClub(clubId) {
+      const { data: c } = await supabaseClient.from('car_clubs').select('*, provider:provider_id(full_name,email)').eq('id', clubId).maybeSingle();
+      if (!c) return alert('Club not found');
+      const html = `<div class="form-section"><div class="form-section-title">${escapeHtml(c.name)}</div><div class="detail-grid">
+        <span class="detail-label">Provider:</span><span class="detail-value">${escapeHtml(c.provider?.full_name || c.provider?.email || 'Platform')}</span>
+        <span class="detail-label">Description:</span><span class="detail-value">${escapeHtml(c.description || '—')}</span>
+        <span class="detail-label">Vehicle:</span><span class="detail-value">${escapeHtml([c.vehicle_make,c.vehicle_model].filter(Boolean).join(' ') || '—')}</span>
+        <span class="detail-label">Region:</span><span class="detail-value">${escapeHtml(c.region || '—')}</span>
+        <span class="detail-label">Members:</span><span class="detail-value">${c.member_count || 0}</span>
+        <span class="detail-label">Active:</span><span class="detail-value">${c.is_active ? 'Yes' : 'No'}</span>
+        <span class="detail-label">Rules:</span><span class="detail-value" style="white-space:pre-wrap;">${escapeHtml(c.rules_text || '—')}</span>
+        <span class="detail-label">Created:</span><span class="detail-value">${new Date(c.created_at).toLocaleDateString()}</span>
+      </div></div>`;
+      showModal('Car Club', html);
+    }
+
+    async function toggleCarClub(clubId, currentlyActive) {
+      const msg = currentlyActive ? 'Deactivate this car club?' : 'Reactivate this car club?';
+      if (!confirm(msg)) return;
+      const { error } = await supabaseClient.from('car_clubs').update({ is_active: !currentlyActive }).eq('id', clubId);
+      if (error) return alert('Error: ' + error.message);
+      loadCarClubs();
+    }
+
+    globalThis.loadCarClubs       = loadCarClubs;
+    globalThis.createCarClub      = createCarClub;
+    globalThis.viewCarClub        = viewCarClub;
+    globalThis.toggleCarClub      = toggleCarClub;
+
+    // ========== BGC UNIFIED DASHBOARD ==========
+
+    let _bgcTab = 'providers';
+
+    document.getElementById('bgc-tabs')?.addEventListener('click', e => {
+      const tab = e.target.closest('[data-bgc-tab]');
+      if (!tab) return;
+      document.querySelectorAll('#bgc-tabs .tab').forEach(t => t.classList.remove('active'));
+      tab.classList.add('active');
+      _bgcTab = tab.dataset.bgcTab;
+      const title = document.getElementById('bgc-tab-title');
+      if (title) title.textContent = _bgcTab === 'providers' ? 'Provider Employee Checks' : 'Driver Checks';
+      renderBgcContent();
+    });
+
+    let _bgcProviderRows = [];
+    let _bgcDriverRows   = [];
+
+    async function loadBgcDashboard() {
+      const content = document.getElementById('bgc-content');
+      if (content) content.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const headers = { 'Authorization': `Bearer ${session?.access_token}` };
+
+        const [provRes, driverRes] = await Promise.all([
+          fetch(`${apiBase}/api/admin/bgc/providers`, { headers }),
+          supabaseClient.from('drivers').select('id, full_name, email, bgc_status, bgc_report_id, bgc_checked_at, status').order('bgc_checked_at', { ascending: false })
+        ]);
+
+        _bgcProviderRows = provRes.ok ? (await provRes.json()).providers || [] : [];
+        _bgcDriverRows   = driverRes.data || [];
+
+        const allRows = [..._bgcProviderRows, ..._bgcDriverRows];
+        const passed  = allRows.filter(r => (r.bgc_status || r.status) === 'passed' || r.bgc_status === 'passed').length;
+        const pending = allRows.filter(r => ['pending_check','consider','in_progress'].includes(r.bgc_status)).length;
+        const failed  = allRows.filter(r => r.bgc_status === 'failed').length;
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('bgc-provider-total')) dEl('bgc-provider-total').textContent = _bgcProviderRows.length;
+        if (dEl('bgc-driver-total'))   dEl('bgc-driver-total').textContent   = _bgcDriverRows.length;
+        if (dEl('bgc-passed-total'))   dEl('bgc-passed-total').textContent   = _bgcDriverRows.filter(r => r.bgc_status === 'passed').length + _bgcProviderRows.filter(r => r.bgc_status === 'passed').length;
+        if (dEl('bgc-pending-total'))  dEl('bgc-pending-total').textContent  = pending;
+        if (dEl('bgc-failed-total'))   dEl('bgc-failed-total').textContent   = failed;
+
+        renderBgcContent();
+      } catch (err) {
+        const content = document.getElementById('bgc-content');
+        if (content) content.innerHTML = `<div style="padding:32px;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderBgcContent() {
+      const content = document.getElementById('bgc-content');
+      if (!content) return;
+
+      const bgcBadge = s => {
+        const map = { passed: ['#10b981','Passed'], pending_check: ['#f59e0b','Pending'], consider: ['#f59e0b','Consider'], failed: ['#ef4444','Failed'], not_started: ['#6b7280','—'], in_progress: ['#3b82f6','In Progress'] };
+        const [c, l] = map[s] || ['#6b7280', s || 'Unknown'];
+        return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${c}22;color:${c};border:1px solid ${c}55;">${l}</span>`;
+      };
+
+      if (_bgcTab === 'providers') {
+        if (!_bgcProviderRows.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No provider employee background checks on record.</div>';
+          return;
+        }
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Provider ID</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">BGC Status</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Live Mode</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Pending</th>
+          </tr></thead><tbody>
+          ${_bgcProviderRows.map(r => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 14px;font-family:monospace;font-size:0.8rem;">${escapeHtml(String(r.provider_id||'').slice(0,12))}…</td>
+            <td style="padding:10px 14px;">${bgcBadge(r.bgc_status)}</td>
+            <td style="padding:10px 14px;">${r.live_mode ? '🟢 Live' : '🟡 Mock'}</td>
+            <td style="padding:10px 14px;">${r.pending_count || 0}</td>
+          </tr>`).join('')}
+          </tbody></table>`;
+      } else {
+        if (!_bgcDriverRows.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No drivers in the system yet.</div>';
+          return;
+        }
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Driver</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Email</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">BGC Status</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Last Checked</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Driver Status</th>
+          </tr></thead><tbody>
+          ${_bgcDriverRows.map(r => `<tr style="border-bottom:1px solid var(--border-subtle);">
+            <td style="padding:10px 14px;"><strong>${escapeHtml(r.full_name||'—')}</strong></td>
+            <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.email||'—')}</td>
+            <td style="padding:10px 14px;">${bgcBadge(r.bgc_status)}</td>
+            <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.bgc_checked_at ? new Date(r.bgc_checked_at).toLocaleDateString() : '—'}</td>
+            <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.status||'—')}</td>
+          </tr>`).join('')}
+          </tbody></table>`;
+      }
+    }
+
+    globalThis.loadBgcDashboard = loadBgcDashboard;
+
+    // ── Referral Tracking Dashboard ──────────────────────────────────────────
+    let _refTab = 'provider-codes';
+    let _refProviderCodes = [];
+    let _refFounderProfiles = [];
+
+    document.addEventListener('click', e => {
+      const tab = e.target.closest('[data-ref-tab]');
+      if (!tab) return;
+      _refTab = tab.dataset.refTab;
+      document.querySelectorAll('[data-ref-tab]').forEach(t => t.classList.toggle('active', t === tab));
+      const titleEl = document.getElementById('ref-tab-title');
+      if (titleEl) titleEl.textContent = _refTab === 'provider-codes' ? 'Provider Referral Codes' : 'Member Founder Activity';
+      renderReferralContent();
+    });
+
+    async function loadReferralDashboard() {
+      const content = document.getElementById('referrals-content');
+      if (content) content.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
+      try {
+        const [codesRes, foundersRes] = await Promise.all([
+          supabaseClient
+            .from('provider_referral_codes')
+            .select('id, code, provider_id, type, uses_count, fee_exempt, skip_identity_verification, is_active, created_at, profiles!provider_referral_codes_provider_id_fkey(full_name, email)')
+            .order('created_at', { ascending: false }),
+          supabaseClient
+            .from('member_founder_profiles')
+            .select('id, full_name, email, referral_code, total_provider_referrals, total_member_referrals, total_commissions_earned, status')
+            .eq('status', 'active')
+            .order('total_provider_referrals', { ascending: false })
+        ]);
+
+        _refProviderCodes   = codesRes.data   || [];
+        _refFounderProfiles = foundersRes.data || [];
+
+        const totalUses        = _refProviderCodes.reduce((s, r) => s + (r.uses_count || 0), 0);
+        const foundersWithCode = _refFounderProfiles.filter(f => f.referral_code).length;
+        const totalCommissions = _refFounderProfiles.reduce((s, f) => s + (f.total_commissions_earned || 0), 0);
+
+        const dEl = id => document.getElementById(id);
+        if (dEl('ref-provider-codes'))   dEl('ref-provider-codes').textContent   = _refProviderCodes.length;
+        if (dEl('ref-total-uses'))        dEl('ref-total-uses').textContent        = totalUses;
+        if (dEl('ref-member-founders'))   dEl('ref-member-founders').textContent   = foundersWithCode;
+        if (dEl('ref-total-commissions')) dEl('ref-total-commissions').textContent = `$${(totalCommissions/100).toFixed(0)}`;
+
+        renderReferralContent();
+      } catch (err) {
+        const content = document.getElementById('referrals-content');
+        if (content) content.innerHTML = `<div style="padding:32px;color:var(--accent-red);">Error: ${escapeHtml(err.message)}</div>`;
+      }
+    }
+
+    function renderReferralContent() {
+      const content = document.getElementById('referrals-content');
+      if (!content) return;
+
+      const badge = (val, trueColor = '#10b981', falseColor = '#6b7280') => {
+        const on = val === true;
+        return `<span style="padding:2px 8px;border-radius:9999px;font-size:0.72rem;font-weight:600;background:${on?trueColor:falseColor}22;color:${on?trueColor:falseColor};border:1px solid ${on?trueColor:falseColor}55;">${on?'Yes':'No'}</span>`;
+      };
+
+      if (_refTab === 'provider-codes') {
+        if (!_refProviderCodes.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No provider referral codes on record.</div>';
+          return;
+        }
+        const siteUrl = 'https://www.mycarconcierge.com';
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Code</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Provider</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Type</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Uses</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Fee Exempt</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Skip ID</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Active</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Created</th>
+            <th style="padding:10px 14px;"></th>
+          </tr></thead><tbody>
+          ${_refProviderCodes.map(r => {
+            const p = r.profiles || {};
+            const qrUrl = `${siteUrl}/signup-provider.html?ref=${encodeURIComponent(r.code||'')}`;
+            return `<tr style="border-bottom:1px solid var(--border-subtle);">
+              <td style="padding:10px 14px;font-family:monospace;font-weight:600;">${escapeHtml(r.code||'—')}</td>
+              <td style="padding:10px 14px;">
+                <div style="font-weight:500;">${escapeHtml(p.full_name||'—')}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(p.email||'')}</div>
+              </td>
+              <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(r.type||'—')}</td>
+              <td style="padding:10px 14px;text-align:center;font-weight:600;">${r.uses_count||0}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.fee_exempt)}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.skip_identity_verification)}</td>
+              <td style="padding:10px 14px;text-align:center;">${badge(r.is_active)}</td>
+              <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
+              <td style="padding:10px 14px;"><button class="btn btn-secondary btn-sm" onclick="showAdminQr(${JSON.stringify(qrUrl)},${JSON.stringify(r.code||'')},${JSON.stringify(p.full_name||'Provider')})">QR</button></td>
+            </tr>`;
+          }).join('')}
+          </tbody></table>`;
+      } else {
+        if (!_refFounderProfiles.length) {
+          content.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);">No active member founder profiles on record.</div>';
+          return;
+        }
+        const siteUrl2 = 'https://www.mycarconcierge.com';
+        content.innerHTML = `<table style="width:100%;border-collapse:collapse;font-size:0.88rem;">
+          <thead><tr style="border-bottom:2px solid var(--border-subtle);">
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Name</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Email</th>
+            <th style="padding:10px 14px;text-align:left;color:var(--text-muted);">Referral Code</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Provider Refs</th>
+            <th style="padding:10px 14px;text-align:center;color:var(--text-muted);">Member Refs</th>
+            <th style="padding:10px 14px;text-align:right;color:var(--text-muted);">Commissions</th>
+            <th style="padding:10px 14px;"></th>
+          </tr></thead><tbody>
+          ${_refFounderProfiles.map(f => {
+            const qrUrl = f.referral_code ? `${siteUrl2}/signup-provider.html?ref=${encodeURIComponent(f.referral_code)}` : '';
+            return `<tr style="border-bottom:1px solid var(--border-subtle);">
+              <td style="padding:10px 14px;font-weight:500;">${escapeHtml(f.full_name||'—')}</td>
+              <td style="padding:10px 14px;font-size:0.82rem;">${escapeHtml(f.email||'—')}</td>
+              <td style="padding:10px 14px;font-family:monospace;font-size:0.82rem;">${f.referral_code ? escapeHtml(f.referral_code) : '<span style="color:var(--text-muted);">—</span>'}</td>
+              <td style="padding:10px 14px;text-align:center;">${f.total_provider_referrals||0}</td>
+              <td style="padding:10px 14px;text-align:center;">${f.total_member_referrals||0}</td>
+              <td style="padding:10px 14px;text-align:right;font-weight:600;">$${((f.total_commissions_earned||0)/100).toFixed(2)}</td>
+              <td style="padding:10px 14px;">${qrUrl ? `<button class="btn btn-secondary btn-sm" onclick="showAdminQr(${JSON.stringify(qrUrl)},${JSON.stringify(f.referral_code||'')},${JSON.stringify(f.full_name||'Founder')})">QR</button>` : ''}</td>
+            </tr>`;
+          }).join('')}
+          </tbody></table>`;
+      }
+    }
+
+    // ── Admin QR Modal ──────────────────────────────────────────────────────
+    let _adminQrCurrentLink = '';
+
+    async function showAdminQr(url, code, name) {
+      _adminQrCurrentLink = url;
+      const modal = document.getElementById('admin-qr-modal');
+      const titleEl = document.getElementById('admin-qr-modal-title');
+      const nameEl  = document.getElementById('admin-qr-modal-name');
+      const linkEl  = document.getElementById('admin-qr-modal-link');
+      if (titleEl) titleEl.textContent = `QR — ${code}`;
+      if (nameEl)  nameEl.textContent  = name;
+      if (linkEl)  linkEl.textContent  = url;
+      if (modal)   modal.style.display = 'flex';
+      const canvas = document.getElementById('admin-qr-canvas');
+      if (canvas && typeof QRCode !== 'undefined') {
+        try { await QRCode.toCanvas(canvas, url, { width: 200, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } }); } catch {}
+      }
+    }
+    function closeAdminQrModal() {
+      const modal = document.getElementById('admin-qr-modal');
+      if (modal) modal.style.display = 'none';
+    }
+    function downloadAdminQr() {
+      const canvas = document.getElementById('admin-qr-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = 'mcc-referral-qr.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+    }
+    function copyAdminQrLink() {
+      if (!_adminQrCurrentLink) return;
+      navigator.clipboard.writeText(_adminQrCurrentLink).then(() => showToast('Link copied!', 'success')).catch(() => {});
+    }
+    globalThis.showAdminQr      = showAdminQr;
+    globalThis.closeAdminQrModal = closeAdminQrModal;
+    globalThis.downloadAdminQr  = downloadAdminQr;
+    globalThis.copyAdminQrLink  = copyAdminQrLink;
+
+    globalThis.loadReferralDashboard = loadReferralDashboard;
+
+    async function reviewPromoterDraft(id, decision) {
+      const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+      const card = document.querySelector(`[data-draft-id="${id}"]`);
+      if (card) card.querySelectorAll('button').forEach(b => { b.disabled = true; b.style.opacity = '0.5'; });
+      try {
+        const r = await fetch(`${apiBase}/api/admin/agent-fleet/actions/${id}/review`, {
+          method: 'POST',
+          headers: { ...getAiOpsHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ decision })
+        });
+        const j = await r.json();
+        if (!r.ok) throw new Error(j.error || `HTTP ${r.status}`);
+        if (card) {
+          card.style.opacity = '0.4';
+          card.style.transition = 'opacity 0.3s';
+          setTimeout(() => { loadPromoterDrafts(); loadAgentFleetBadge(); }, 400);
+        } else {
+          loadPromoterDrafts(); loadAgentFleetBadge();
+        }
+      } catch (e) {
+        if (card) card.querySelectorAll('button').forEach(b => { b.disabled = false; b.style.opacity = ''; });
+        alert(`Failed to ${decision === 'approved' ? 'approve' : 'reject'} draft: ${e.message}`);
+      }
+    }
+    globalThis.reviewPromoterDraft = reviewPromoterDraft;
 
     async function loadDashboardAgentTile() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
@@ -11609,7 +14157,8 @@
       }
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         globalThis.renderAgentActivityPanel('dashboard-agent-recent', {
-          limit: 10, title: 'Recent Agent Actions', showEmpty: true
+          limit: 10, title: 'Recent Agent Actions', showEmpty: true,
+          linkContext: { section: 'dashboard' }
         });
       }
     }
@@ -12065,9 +14614,10 @@
       contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;">Loading…</div>';
       try {
         const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
+        // Task #355 — adminFetch surfaces auth failures with NO_ADMIN_AUTH /
+        // ADMIN_AUTH_REJECTED codes so the catch can render the "Sign in
+        // again" prompt instead of a dead-end "Failed" message.
+        const data = await adminFetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
         const rows = data.completions || [];
         if (!rows.length) {
           contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;font-size:0.9rem;">No completions found.</div>';
@@ -12116,7 +14666,13 @@
           <div style="color:var(--text-muted);font-size:0.78rem;padding:8px;">${rows.length} record${rows.length === 1 ? '' : 's'} · Capture/Refund actions hit Stripe live — held funds get released immediately.</div>
         `;
       } catch (err) {
-        contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${err.message}</div>`;
+        // Task #355 — auth failures route to the shared "Sign in again"
+        // prompt; everything else falls back to the inline red error.
+        if (err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED') && typeof globalThis.renderAdminAuthError === 'function') {
+          globalThis.renderAdminAuthError(contentEl, err, loadCarePlanCompletions);
+        } else {
+          contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+        }
       }
     }
     globalThis.loadCarePlanCompletions = loadCarePlanCompletions;
@@ -12362,7 +14918,7 @@
         if (statusFilter) params.set('status', statusFilter);
         if (typeFilter) params.set('type', typeFilter);
         const data = await safeFetch(`/api/admin/sms-log?${params}`, {
-          headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
+          headers: getAdminHeaders()
         });
 
         const { rows = [], total = 0, summary = {} } = data;
@@ -12426,7 +14982,15 @@
         }
       } catch (err) {
         console.error('[SMS_LOG] Load error:', err);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${err.message}</td></tr>`;
+        // Task #355 — surface auth failures with the shared "Sign in again"
+        // prompt instead of leaving the bare error message in the table.
+        if (tbody) {
+          if (isAdminAuthError(err)) {
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadSmsLog(smsLogPage));
+          } else {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${escapeHtml(err.message)}</td></tr>`;
+          }
+        }
       }
     }
 
@@ -12436,11 +15000,7 @@
       try {
         const res = await fetch('/api/admin/sms-log/refresh-status', {
           method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'x-admin-password': localStorage.getItem('adminPassword') || '',
-            'x-admin-token': localStorage.getItem('adminTeamToken') || ''
-          },
+          headers: getAdminHeaders(),
           body: JSON.stringify({ sids: [sid] })
         });
         const data = await res.json();
@@ -12469,7 +15029,7 @@
       container.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading subscription data…</div>';
       try {
         const resp = await safeFetch('/api/admin/saas/subscriptions', {
-          headers: { 'x-admin-token': globalThis.__adminToken || '' }
+          headers: getAiOpsHeaders()
         });
 
         const { subscriptions = [], stats = {}, by_product = {}, recent_churns = [] } = resp;
@@ -12599,7 +15159,7 @@
           </div>
         `;
       } catch (err) {
-        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
+        renderAiOpsAuthError(container, err, loadSaasSubscriptions);
       }
     }
 
@@ -12616,13 +15176,8 @@
       const contentEl = document.getElementById('white-label-content');
       if (!statsEl || !contentEl) return;
 
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = token ? { 'x-admin-token': token } : {};
-
       try {
-        const res = await fetch('/api/admin/white-label/tenants', { headers });
-        if (!res.ok) throw new Error('Failed to load tenants');
-        const { tenants, meta } = await res.json();
+        const { tenants, meta } = await aiOpsFetch('/api/admin/white-label/tenants', { headers: getAiOpsHeaders() });
 
         const active = tenants.filter(t => t.status === 'active').length;
         const byPlan = { starter: 0, pro: 0, business: 0 };
@@ -12701,7 +15256,7 @@
         // Store for edit lookups
         globalThis._wlTenants = tenants;
       } catch (err) {
-        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
+        renderAiOpsAuthError(contentEl, err, loadWhiteLabelTenants);
       }
     }
 
@@ -12829,8 +15384,8 @@
       }
       const nextBtn = document.getElementById('tenant-wz-next-btn');
       if (nextBtn) { nextBtn.disabled = true; nextBtn.textContent = 'Creating…'; }
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      const authHeaders = await getAdminAuthHeader().catch(() => ({}));
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       try {
         const res = await fetch('/api/admin/white-label/tenants', { method: 'POST', headers, body: JSON.stringify(body) });
         const data = await res.json();
@@ -12916,8 +15471,8 @@
       if (!body.name || !body.brand_name) { if (errEl) { errEl.textContent = 'Name and brand name required.'; errEl.style.display = 'block'; } return; }
       const btn = document.getElementById('save-tenant-edit-btn');
       if (btn) { btn.disabled = true; btn.textContent = 'Saving…'; }
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      const authHeaders = await getAdminAuthHeader().catch(() => ({}));
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       try {
         const res = await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify(body) });
         const data = await res.json();
@@ -12937,8 +15492,8 @@
 
     async function deactivateTenant(id) {
       if (!confirm('Suspend this tenant? They will lose access to white-label features.')) return;
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = { 'Content-Type': 'application/json', ...(token ? { 'x-admin-token': token } : {}) };
+      const authHeaders = await getAdminAuthHeader().catch(() => ({}));
+      const headers = { 'Content-Type': 'application/json', ...authHeaders };
       try {
         await fetch(`/api/admin/white-label/tenants/${id}`, { method: 'PUT', headers, body: JSON.stringify({ status: 'suspended' }) });
         loadedSections['white-label'] = false;
@@ -12947,11 +15502,11 @@
     }
 
     async function previewTenantBranding(domain) {
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      if (!token) { alert('Admin auth required to preview branding.'); return; }
+      const authHeaders = await getAdminAuthHeader().catch(() => null);
+      if (!authHeaders) { alert('Admin auth required to preview branding.'); return; }
       try {
         const res = await fetch(`/api/white-label/config?preview_domain=${encodeURIComponent(domain)}`, {
-          headers: { 'x-admin-token': token }
+          headers: authHeaders
         });
         const data = await res.json();
         if (!data.is_white_label || !data.tenant) {
@@ -13012,8 +15567,7 @@
       if (!modal || !contentEl) return;
       contentEl.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading tenant data…</div>';
       modal.style.display = 'flex';
-      const token = adminTeamToken || (adminPasswordVerified ? adminPassword : null);
-      const headers = token ? { 'x-admin-token': token } : {};
+      const headers = await getAdminAuthHeader().catch(() => ({}));
       try {
         const res = await fetch(`/api/admin/white-label/tenants/${tenantId}/portal`, { headers });
         if (!res.ok) throw new Error('Failed to load tenant portal');
@@ -13098,18 +15652,24 @@
     // ========== AI API USAGE DASHBOARD (Task #90) ==========
     let _apiUsageChart = null;
     async function loadApiUsage() {
-      const adminPassword = sessionStorage.getItem('adminPassword');
-      if (!adminPassword) return;
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
       const revenueEl = document.getElementById('api-stat-revenue');
       const monthEl = document.getElementById('api-stat-month');
       const tableEl = document.getElementById('api-keys-table');
+      // Task #355 — missing admin session surfaces the shared "Sign in again"
+      // prompt instead of silently returning.
+      if (!_adminBearer && !adminTeamToken) {
+        if (tableEl) {
+          const err = new Error('No admin session — please sign in again to view API usage.');
+          err.code = 'NO_ADMIN_AUTH';
+          renderAdminAuthErrorInto(tableEl, err, loadApiUsage);
+        }
+        return;
+      }
       if (callsEl) callsEl.textContent = '…';
       try {
-        const resp = await fetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
-        if (!resp.ok) throw new Error('Failed to load API usage');
-        const data = await resp.json();
+        const data = await aiOpsFetch('/api/admin/api-usage', { headers: getAiOpsHeaders() });
         if (keysEl) keysEl.textContent = data.active_keys ?? '--';
         if (callsEl) callsEl.textContent = (data.total_calls_this_month || 0).toLocaleString();
         if (revenueEl) revenueEl.textContent = '$' + ((data.estimated_revenue_cents || 0) / 100).toFixed(2);
@@ -13171,19 +15731,21 @@
       } catch (err) {
         if (callsEl) callsEl.textContent = 'Error';
         console.error('[Admin] API usage load error:', err.message);
+        // Task #355 — auth-expiry surfaces the shared "Sign in again" prompt.
+        if (isAdminAuthError(err) && tableEl) renderAdminAuthErrorInto(tableEl, err, loadApiUsage);
       }
     }
     globalThis.loadApiUsage = loadApiUsage;
 
     async function adminRevokeApiKey(keyId, btn) {
       if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
-      const adminPassword = sessionStorage.getItem('adminPassword');
-      if (!adminPassword) { alert('Admin session not found. Please refresh.'); return; }
+      const authHeaders = await getAdminAuthHeader().catch(() => null);
+      if (!authHeaders) { alert('Admin session not found. Please sign in again.'); return; }
       btn.disabled = true; btn.textContent = 'Revoking…';
       try {
         const res = await fetch(`/api/admin/api-keys/${encodeURIComponent(keyId)}/revoke`, {
           method: 'POST',
-          headers: { 'x-admin-password': adminPassword }
+          headers: authHeaders
         });
         const data = await res.json();
         if (res.ok) {
@@ -13239,11 +15801,8 @@
 
     async function loadSurveyAnalytics() {
       try {
-        const headers = getAdminHeaders();
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const res = await fetch(apiBase + '/api/admin/survey-stats', { headers });
-        if (!res.ok) throw new Error('Stats fetch failed');
-        const data = await res.json();
+        const data = await aiOpsFetch(apiBase + '/api/admin/survey-stats', { headers: getAdminHeaders() });
 
         const el = id => document.getElementById(id);
         if (el('sl-total'))          el('sl-total').textContent          = (data.total_responses || 0).toLocaleString();
@@ -13321,16 +15880,22 @@
       const banner = el('ms-error-banner');
       // Reset banner on every load
       if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
+      // Read date-range selector (default all-time preserves prior behavior)
+      const rangeSel = el('ms-range-select');
+      const range = (rangeSel && rangeSel.value) || 'all';
+      const RANGE_LABELS = { '7d': 'Last 7 days', '30d': 'Last 30 days', '90d': 'Last 90 days', 'all': 'All time' };
+      // Update headline-card labels so admins can see which window the numbers reflect
+      const totalLabelEl = el('ms-total') && el('ms-total').parentElement && el('ms-total').parentElement.querySelector('.stat-label');
+      if (totalLabelEl) totalLabelEl.textContent = range === 'all' ? 'Total Responses' : `Responses (${RANGE_LABELS[range]})`;
+      // "This Week" is still last 7 days within the active window — clarify when window < 7d or > 7d
+      const weekLabelEl = el('ms-week') && el('ms-week').parentElement && el('ms-week').parentElement.querySelector('.stat-label');
+      if (weekLabelEl) weekLabelEl.textContent = range === '7d' ? 'This Week (full window)' : 'This Week';
       try {
         const headers = getAdminHeaders();
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
-        if (!res.ok) {
-          let serverMsg = '';
-          try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch { /* Intentionally silent */ }
-          throw new Error(`HTTP ${res.status}${serverMsg ? ' — ' + serverMsg : ''}`);
-        }
-        const data = await res.json();
+        // Always include ?range for explicitness and server-side telemetry
+        const url = apiBase + '/api/admin/survey-analytics?range=' + encodeURIComponent(range);
+        const data = await aiOpsFetch(url, { headers: getAdminHeaders() });
 
         if (el('ms-total')) el('ms-total').textContent = (data.total || 0).toLocaleString();
         if (el('ms-week')) el('ms-week').textContent = (data.recent_week || 0).toLocaleString();
@@ -13341,19 +15906,15 @@
         const topSat = Object.entries(data.by_provider_satisfaction || {}).sort((a,b) => b[1]-a[1])[0];
         if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topSat ? (MS_LABELS.provider_satisfaction[topSat[0]] || topSat[0]) : '—';
 
-        // Render every survey dimension. Order matches the visual groups in admin.html
-        // (Discovery & Satisfaction → Service Habits → Spending → Trust → Tracking & Comms → Adoption).
-        // Canvases are named `ms-chart-<key>` so adding a new dimension only requires
-        // appending the key here AND a matching canvas card in admin.html.
-        const CHART_KEYS = [
-          'provider_discovery','provider_satisfaction','top_priority',
-          'service_frequency','service_types','vehicle_count',
-          'annual_spend','pricing_confidence','estimate_surprise','quote_behavior',
-          'provider_honesty','provider_vetting','maintenance_avoidance','dispute_history',
-          'history_tracking','job_status_updates','maintenance_reminders',
-          'competitive_bids','app_usage','payment_comfort','decision_maker','near_term_need'
-        ];
-        for (const key of CHART_KEYS) {
+        // Render every survey dimension. The list of keys is the single source of
+        // truth in www/shared/survey-questions.js (MCCSurvey.KEYS); we iterate it
+        // directly so adding a new question there automatically renders a chart.
+        // Each key needs a matching <canvas id="ms-chart-<key>"> card in admin.html
+        // (the survey-questions-drift smoke test enforces that mapping).
+        const surveyKeys = (globalThis.MCCSurvey && Array.isArray(globalThis.MCCSurvey.KEYS))
+          ? globalThis.MCCSurvey.KEYS
+          : [];
+        for (const key of surveyKeys) {
           buildMsDoughnut('ms-chart-' + key, MS_LABELS[key] || {}, data['by_' + key] || {});
         }
 
@@ -13366,16 +15927,21 @@
           banner.textContent = 'survey_responses table is missing expected columns. Apply supabase/migrations/20260428_survey_responses_columns_fix.sql in Supabase SQL Editor, then refresh this page.';
         }
       } catch (err) {
-        console.error('[MemberSurveys] load error:', err.message);
-        if (banner) {
-          banner.style.display = 'block';
-          banner.textContent = 'Could not load survey analytics: ' + err.message + '. Check server logs and try Refresh.';
+        const isAuthErr = err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED');
+        if (isAuthErr && banner) {
+          renderAiOpsAuthError(banner, err, loadMemberSurveyAnalytics);
+        } else {
+          console.error('[MemberSurveys] load error:', err.message);
+          if (banner) {
+            banner.style.display = 'block';
+            banner.textContent = 'Could not load survey analytics: ' + err.message + '. Check server logs and try Refresh.';
+          }
+          // Reset headline cards to a clear "error" sentinel rather than stale numbers
+          if (el('ms-total')) el('ms-total').textContent = '—';
+          if (el('ms-week')) el('ms-week').textContent = '—';
+          if (el('ms-top-pain')) el('ms-top-pain').textContent = '—';
+          if (el('ms-top-improvement')) el('ms-top-improvement').textContent = '—';
         }
-        // Reset headline cards to a clear "error" sentinel rather than stale numbers
-        if (el('ms-total')) el('ms-total').textContent = '—';
-        if (el('ms-week')) el('ms-week').textContent = '—';
-        if (el('ms-top-pain')) el('ms-top-pain').textContent = '—';
-        if (el('ms-top-improvement')) el('ms-top-improvement').textContent = '—';
       }
     }
     globalThis.loadMemberSurveyAnalytics = loadMemberSurveyAnalytics;
@@ -13489,7 +16055,10 @@
       const search  = (document.getElementById('sl-search')?.value || '').trim();
       const filter  = document.getElementById('sl-filter')?.value || 'all';
       const sortDir = surveyLeadsState.sortDir || 'desc';
-      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir });
+      // Thread the active Survey Analytics range so the list reflects the same window
+      // as the charts. Falls back to 'all' when the selector hasn't been rendered yet.
+      const range   = document.getElementById('ms-range-select')?.value || 'all';
+      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir, range });
       const tbody   = document.getElementById('sl-table-body');
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
       try {
@@ -13666,11 +16235,12 @@
     function exportSurveyLeads() {
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const headers = getAdminHeaders();
-      const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
-      const url     = apiBase + '/api/admin/survey-leads/export';
+      // Thread the active Survey Analytics range so the CSV matches the charts/list window.
+      const range   = document.getElementById('ms-range-select')?.value || 'all';
+      const url     = apiBase + '/api/admin/survey-leads/export?range=' + encodeURIComponent(range);
       const a       = document.createElement('a');
-      a.href = url + (pw ? '?_t=' + Date.now() : '');
-      // Pass password via fetch and redirect to blob URL
+      a.href = url;
+      // Pass auth via fetch and redirect to blob URL
       fetch(url, { headers }).then(r => r.blob()).then(blob => {
         const blobUrl = URL.createObjectURL(blob);
         a.href = blobUrl;

@@ -619,7 +619,7 @@
       
       try {
         const { data: payments } = await supabaseClient.from('payments')
-          .select('package_id, status, escrow_payment_intent_id, escrow_captured, amount_total')
+          .select('package_id, status, stripe_payment_intent_id, amount_total')
           .in('package_id', packageIds);
         
         packagePaymentStatuses = {};
@@ -643,11 +643,11 @@
         return '';
       }
       
-      if (payment.escrow_captured === true || payment.status === 'released' || payment.status === 'completed') {
+      if (payment.status === 'released' || payment.status === 'completed') {
         return `<span class="payment-status-badge complete" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-green-soft);color:var(--accent-green);border:1px solid rgba(52,211,153,0.3);">${mccIcon('check', 16)} Payment Complete</span>`;
       }
       
-      if (payment.escrow_payment_intent_id && payment.escrow_captured === false) {
+      if (payment.stripe_payment_intent_id && payment.status === 'held') {
         return `<span class="payment-status-badge held" style="display:inline-flex;align-items:center;gap:4px;padding:4px 10px;border-radius:100px;font-size:0.72rem;font-weight:600;background:var(--accent-blue-soft);color:var(--accent-blue);border:1px solid rgba(56,189,248,0.3);">${mccIcon('lock', 16)} Payment Held</span>`;
       }
       
@@ -708,8 +708,7 @@
         let confirmCompleteButton = '';
         const payment = packagePaymentStatuses[p.id];
         if ((p.status === 'in_progress' || p.status === 'completed') && payment && 
-            (payment.status === 'held' || payment.status === 'authorized') && 
-            !payment.escrow_captured) {
+            (payment.status === 'held' || payment.status === 'authorized')) {
           confirmCompleteButton = `<button class="btn btn-success btn-sm" onclick="openReleasePaymentModal('${p.id}')">${mccIcon('check', 16)} Confirm Complete</button>`;
         }
         
@@ -1318,6 +1317,106 @@
       if (status) status.style.display = 'none';
     }
 
+    // ── AI Care Plan (care-plans section) ─────────────────────────────────────
+    let _aiCarePlanResult = null;
+
+    function toggleAiCarePlanPanel() {
+      const body = document.getElementById('ai-care-plan-body');
+      const chevron = document.getElementById('ai-care-plan-chevron');
+      if (!body) return;
+      const open = body.style.display === 'none';
+      body.style.display = open ? 'block' : 'none';
+      if (chevron) chevron.style.transform = open ? 'rotate(180deg)' : '';
+      if (open) document.getElementById('ai-care-plan-input')?.focus();
+    }
+
+    async function aiCreateCarePlan() {
+      const input = document.getElementById('ai-care-plan-input');
+      const text = (input?.value || '').trim();
+      if (!text) { showToast('Please describe your car problem first.', 'error'); return; }
+
+      const btn = document.getElementById('ai-care-plan-btn');
+      const status = document.getElementById('ai-care-plan-status');
+      const result = document.getElementById('ai-care-plan-result');
+      btn.disabled = true;
+      btn.textContent = 'Thinking...';
+      if (status) { status.style.display = 'inline'; status.textContent = 'AI is analyzing...'; status.style.color = 'var(--accent-teal)'; }
+      if (result) result.style.display = 'none';
+
+      try {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const resp = await fetch(`${apiBase}/api/ai/create-care-plan`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...(session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {}) },
+          body: JSON.stringify({ description: text, member_id: session?.user?.id || null })
+        });
+        if (!resp.ok) {
+          let errMsg = 'Server error';
+          try { const d = await resp.json(); errMsg = d.error || errMsg; } catch (_) {}
+          throw new Error(errMsg);
+        }
+        const data = await resp.json();
+        _aiCarePlanResult = data.care_plan;
+
+        // Populate preview
+        const cp = _aiCarePlanResult;
+        const titleEl = document.getElementById('ai-care-plan-result-title');
+        const urgEl   = document.getElementById('ai-care-plan-result-urgency');
+        const descEl  = document.getElementById('ai-care-plan-result-desc');
+        const costEl  = document.getElementById('ai-care-plan-result-cost');
+        const safeEl  = document.getElementById('ai-care-plan-result-safety');
+
+        if (titleEl) titleEl.textContent = cp.title || '';
+        if (descEl)  descEl.textContent  = cp.detailed_description || '';
+        if (costEl)  costEl.textContent  = cp.estimated_cost_range || 'Est. unknown';
+        if (urgEl) {
+          const urgColor = { critical: '#ef4444', high: '#f97316', medium: '#eab308', low: '#22c55e' }[cp.urgency] || 'var(--accent-teal)';
+          urgEl.textContent = cp.urgency?.toUpperCase() || '';
+          urgEl.style.background = urgColor + '22';
+          urgEl.style.color = urgColor;
+        }
+        if (safeEl) {
+          if (cp.safety_note) { safeEl.textContent = '⚠ ' + cp.safety_note; safeEl.style.display = 'block'; }
+          else { safeEl.style.display = 'none'; }
+        }
+        if (result) result.style.display = 'block';
+        if (status) { status.textContent = 'Care plan ready — review below.'; status.style.color = 'var(--accent-green)'; }
+      } catch (err) {
+        console.error('[ai-care-plan]', err);
+        if (status) { status.textContent = err.message || 'Could not process — please try again.'; status.style.color = 'var(--accent-red)'; }
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg> Create Care Plan with AI';
+      }
+    }
+
+    function aiCarePlanToModal() {
+      if (!_aiCarePlanResult) return;
+      const cp = _aiCarePlanResult;
+      openPackageModal();
+      setTimeout(() => {
+        const titleEl = document.getElementById('p-title');
+        const descEl  = document.getElementById('p-description');
+        const catEl   = document.getElementById('p-category');
+        if (titleEl) titleEl.value = cp.title || '';
+        if (descEl)  descEl.value  = cp.detailed_description || '';
+        if (catEl && cp.category) {
+          const match = Array.from(catEl.options).find(o => o.value === cp.category);
+          if (match) catEl.value = cp.category;
+        }
+        // Collapse the care plan panel
+        const body = document.getElementById('ai-care-plan-body');
+        const chevron = document.getElementById('ai-care-plan-chevron');
+        if (body) body.style.display = 'none';
+        if (chevron) chevron.style.transform = '';
+      }, 50);
+    }
+
+    window.toggleAiCarePlanPanel = toggleAiCarePlanPanel;
+    window.aiCreateCarePlan      = aiCreateCarePlan;
+    window.aiCarePlanToModal     = aiCarePlanToModal;
+
     async function savePackage() {
       const vehicleId = document.getElementById('p-vehicle').value;
       const title = document.getElementById('p-title').value.trim();
@@ -1825,20 +1924,10 @@
         showToast('Error loading bids: ' + bidsError.message, 'error');
       }
 
-      // Load provider profiles separately
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: profiles } = await supabaseClient
-          .from('profiles')
-          .select('id, provider_alias, business_name')
-          .in('id', providerIds);
-        
-        // Attach profile info to bids
-        bids.forEach(bid => {
-          const profile = profiles?.find(p => p.id === bid.provider_id);
-          bid.profiles = profile || null;
-        });
-      }
+      // Populate bid.profiles from denormalized columns — no profiles query needed
+      bids?.forEach(bid => {
+        bid.profiles = { provider_alias: bid.provider_alias, business_name: bid.business_name };
+      });
 
       // Store bids for acceptBid function
       currentPackageBids = bids || [];
@@ -1848,17 +1937,19 @@
 
       const priceEstimate = await fetchPriceEstimate(pkg.category, pkg.member_zip, packageId);
 
-      // Load provider application data for enhanced transparency
+      // Build credential map from denormalized bid columns — no provider_applications query
       const providerApplications = {};
-      if (bids?.length) {
-        const providerIds = bids.map(b => b.provider_id);
-        const { data: applications } = await supabaseClient
-          .from('provider_applications')
-          .select('user_id, business_name, years_in_business, services_offered, brand_specializations, license_verified, insurance_verified, certifications_verified, background_verified')
-          .in('user_id', providerIds)
-          .eq('status', 'approved');
-        applications?.forEach(app => providerApplications[app.user_id] = app);
-      }
+      bids?.forEach(bid => {
+        providerApplications[bid.provider_id] = {
+          business_name:           bid.business_name,
+          years_in_business:       bid.years_in_business,
+          services_offered:        bid.services_offered,
+          brand_specializations:   bid.brand_specializations,
+          license_verified:        bid.license_verified,
+          insurance_verified:      bid.insurance_verified,
+          certifications_verified: bid.certifications_verified,
+        };
+      });
 
       const vehicle = pkg.vehicles;
       const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
@@ -1919,7 +2010,7 @@
                 const brands = appData.brand_specializations || [];
                 const specialties = [...services.slice(0, 2), ...brands.slice(0, 1)].slice(0, 3);
                 const bidPrice = bid.price || 0;
-                const isBackgroundVerified = appData.background_verified === true;
+                const isBackgroundVerified = false;
                 
                 // Performance data
                 const tier = perf?.tier || 'bronze';
@@ -1982,7 +2073,7 @@
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 16)} Availability: ${bid.available_dates}</div>` : ''}
                     ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
-                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}')">${mccIcon('message-square', 16)} Message</button>
+                      <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}', '${bid.profiles?.provider_alias || ''}')">${mccIcon('message-square', 16)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check', 16)} Accept Bid</button>` : ''}
                     </div>
                   </div>
@@ -2176,7 +2267,7 @@
             overall_score: perf?.overall_score ? Math.round(perf.overall_score) : null,
             tier: perf?.tier || null,
             is_verified: isVerified,
-            is_background_verified: appData.background_verified === true,
+            is_background_verified: false,
             years_in_business: appData.years_in_business || null,
             estimated_duration: bid.estimated_duration || null,
             badges: perf?.badges || [],
@@ -3013,6 +3104,12 @@
           if (errorEl) {
             errorEl.textContent = event.error ? event.error.message : '';
           }
+          const submitBtn = document.getElementById('approve-additional-work-btn');
+          if (submitBtn) {
+            const ready = !!event.complete && !event.error;
+            submitBtn.disabled = !ready;
+            submitBtn.setAttribute('aria-disabled', ready ? 'false' : 'true');
+          }
         });
       } catch (err) {
         console.error('Error mounting card element:', err);
@@ -3383,7 +3480,7 @@
               </div>
             </div>
             
-            <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;margin-bottom:12px;">
+            <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;margin-bottom:12px;" disabled aria-disabled="true">
               ${mccIcon('lock', 16)} Authorize Payment ($${amount.toFixed(2)})
             </button>
             <button class="btn btn-secondary" onclick="openSplitPaymentModal('${pkg.id}', ${Math.round(amount * 100)})" style="width:100%;">
@@ -3408,7 +3505,7 @@
       
       // Only show for packages with payment held and not yet checked in
       const payment = packagePaymentStatuses[pkg.id];
-      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized') && !payment.escrow_captured;
+      const paymentHeld = payment && (payment.status === 'held' || payment.status === 'authorized');
       const isInProgress = pkg.status === 'in_progress';
       const isAccepted = pkg.status === 'accepted';
       const isCheckedIn = !!pkg.checked_in_at;
@@ -3677,6 +3774,12 @@
             const errorEl = document.getElementById(`escrow-card-errors-${packageId}`);
             if (errorEl) {
               errorEl.textContent = event.error ? event.error.message : '';
+            }
+            const submitBtn = document.getElementById(`authorize-payment-btn-${packageId}`);
+            if (submitBtn) {
+              const ready = !!event.complete && !event.error;
+              submitBtn.disabled = !ready;
+              submitBtn.setAttribute('aria-disabled', ready ? 'false' : 'true');
             }
           });
           
@@ -3960,8 +4063,17 @@
           member_confirmed_at: new Date().toISOString()
         }).eq('id', packageId);
 
-        // Release payment
-        await supabaseClient.rpc('member_release_payment', { p_package_id: packageId });
+        // Capture Stripe PaymentIntent and mark released
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const releaseResp = await fetch('/api/payment/release', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session?.access_token}` },
+          body: JSON.stringify({ packageId }),
+        });
+        if (!releaseResp.ok) {
+          const releaseErr = await releaseResp.json().catch(() => ({}));
+          throw new Error(releaseErr.error || 'Payment release failed');
+        }
 
         // Record commission for member founder (if member was referred)
         // The RPC function fetches the actual platform fee from the database for security
@@ -4239,7 +4351,7 @@
 
       const pkg = packages.find(p => p.id === currentReviewPackageId);
       const vehicle = vehicles.find(v => v.id === pkg?.vehicle_id);
-      const { data: bid } = await supabaseClient.from('bids').select('price_estimate').eq('package_id', currentReviewPackageId).eq('status', 'accepted').single();
+      const { data: bid } = await supabaseClient.from('bids').select('price').eq('package_id', currentReviewPackageId).eq('status', 'accepted').single();
 
       const reviewData = {
         provider_id: currentReviewProviderId,
@@ -4256,7 +4368,7 @@
         complaint_reason_other: complaintReasonOther,
         service_type: pkg?.service_type,
         vehicle_info: vehicle ? `${vehicle.year} ${vehicle.make} ${vehicle.model}` : null,
-        amount_paid: bid?.price_estimate,
+        amount_paid: bid?.price,
         status: 'published',
         verified_purchase: true
       };
@@ -7199,9 +7311,13 @@
 
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session: splitSession } } = await supabaseClient.auth.getSession();
         const response = await fetch(`${apiBase}/api/split/create`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${splitSession?.access_token}`
+          },
           body: JSON.stringify({
             package_id: packageId,
             participants: splitParticipantRows.map(p => ({
@@ -7592,8 +7708,43 @@
     window.generateAppointmentDebrief = generateAppointmentDebrief;
     window.showCounterSuggestion = showCounterSuggestion;
     window.askServiceHistoryChat = typeof askServiceHistoryChat !== 'undefined' ? askServiceHistoryChat : null;
-    window.toggleBudgetForecast = typeof toggleBudgetForecast !== 'undefined' ? toggleBudgetForecast : null;
-    window.loadBudgetForecast = typeof loadBudgetForecast !== 'undefined' ? loadBudgetForecast : null;
+
+    const _isNativeForForecast = typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform && Capacitor.isNativePlatform();
+
+    // Show the card always; web shows the mobile-only message, native gets the full flow.
+    (function initBudgetForecastCard() {
+      const card = document.getElementById('budget-forecast-card');
+      if (!card) return;
+      card.style.display = 'block';
+      if (!_isNativeForForecast) {
+        const content = document.getElementById('budget-forecast-content');
+        if (content) {
+          content.innerHTML = '<div style="text-align:center;padding:20px 0;color:var(--text-muted);">' +
+            '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="margin-bottom:10px;opacity:0.5;"><rect width="5" height="6" x="3" y="14"/><rect width="5" height="10" x="8" y="10"/><rect width="5" height="14" x="13" y="6"/><path d="M22 20H2"/></svg>' +
+            '<p style="font-size:0.9rem;font-weight:500;margin:0 0 4px;">Available in the mobile app</p>' +
+            '<p style="font-size:0.8rem;margin:0;opacity:0.7;">Download the MCC app to generate your 12-month cost forecast.</p>' +
+            '</div>';
+        }
+      }
+    })();
+
+    function toggleBudgetForecast() {
+      const body = document.getElementById('budget-forecast-body');
+      const chevron = document.getElementById('forecast-chevron');
+      if (!body) return;
+      const open = body.style.display !== 'none';
+      body.style.display = open ? 'none' : 'block';
+      if (chevron) chevron.style.transform = open ? '' : 'rotate(180deg)';
+    }
+
+    function loadBudgetForecast() {
+      if (!_isNativeForForecast) return; // already replaced with static message
+      const content = document.getElementById('budget-forecast-content');
+      if (content) content.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text-muted);">Loading forecast…</div>';
+    }
+
+    window.toggleBudgetForecast = toggleBudgetForecast;
+    window.loadBudgetForecast = loadBudgetForecast;
 
     function getBookingGuidance() {
       const stored = localStorage.getItem('mcc_booking_guidance');

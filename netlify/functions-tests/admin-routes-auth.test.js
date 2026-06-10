@@ -10,9 +10,9 @@
 // Each route is hit twice:
 //   1) Without admin credentials. The handler must return a non-2xx
 //      (specifically 401) so any future refactor that drops the
-//      handler-level `authenticateAdmin` guard fails the test.
+//      handler-level authenticateBearerAdmin guard fails the test.
 //   2) The four Task #146 routes additionally re-assert their happy-path
-//      shape with valid `x-admin-password` headers — the dashboard relies
+//      shape with a valid Bearer admin token — the dashboard relies
 //      on those exact JSON keys.
 //
 // Plus a completeness check: the test scans the two handler source files
@@ -45,17 +45,31 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub-service-role-key';
 // ---------------------------------------------------------------------------
 
 function makeSupabaseStub() {
-  const emptyResult = { data: [], count: 0, error: null };
-  const chain = {};
-  const passthrough = ['from','select','order','range','limit','eq','neq','gt',
-    'gte','lt','lte','is','in','or','filter','match','not','contains','overlaps',
-    'textSearch','update','delete','upsert'];
-  for (const fn of passthrough) chain[fn] = () => chain;
-  chain.maybeSingle = () => Promise.resolve({ data: null, error: null });
-  chain.single      = () => Promise.resolve({ data: null, error: null });
-  chain.insert      = () => Promise.resolve({ data: null, error: null });
-  chain.then = (resolve, reject) => Promise.resolve(emptyResult).then(resolve, reject);
-  return chain;
+  function makeChain(table) {
+    const emptyResult = { data: [], count: 0, error: null };
+    const chain = {};
+    const passthrough = ['select','order','range','limit','eq','neq','gt',
+      'gte','lt','lte','is','in','or','filter','match','not','contains','overlaps',
+      'textSearch','update','delete','upsert'];
+    for (const fn of passthrough) chain[fn] = () => chain;
+    chain.maybeSingle = () => Promise.resolve({ data: null, error: null });
+    chain.single = () => {
+      if (table === 'profiles') return Promise.resolve({ data: { role: 'admin' }, error: null });
+      return Promise.resolve({ data: null, error: null });
+    };
+    chain.insert = () => Promise.resolve({ data: null, error: null });
+    chain.then = (resolve, reject) => Promise.resolve(emptyResult).then(resolve, reject);
+    return chain;
+  }
+  return {
+    from: (t) => makeChain(t),
+    auth: {
+      getUser: async (token) => {
+        if (!token) return { data: { user: null }, error: { message: 'no token' } };
+        return { data: { user: { id: 'stub-admin-uid' } }, error: null };
+      }
+    }
+  };
 }
 
 // IMPORTANT: netlify/functions/ has its OWN node_modules (a nested install
@@ -130,6 +144,12 @@ const AGENT_FLEET_ROUTES = [
       assert.ok(Array.isArray(body.actions), 'actions/by-target.actions must be an array');
       assert.strictEqual(body.target_id, SAMPLE_UUID);
       assert.strictEqual(body.target_kind, 'provider');
+    }
+  },
+  { method: 'GET',    subPath: 'actions/audit-mismatches',
+    shape(body) {
+      assert.ok(Array.isArray(body.mismatches), 'audit-mismatches.mismatches must be an array');
+      assert.strictEqual(typeof body.scanned, 'number', 'audit-mismatches.scanned must be a number');
     }
   },
   { method: 'GET',    subPath: `actions/${SAMPLE_NUM_ID}` },
@@ -300,7 +320,7 @@ function assertCompleteness() {
   // Counted from the current source. Bump these when you add or remove a
   // public route on either handler — and add/remove the matching entry in
   // AGENT_FLEET_ROUTES / AI_OPS_ROUTES at the top of this file.
-  const EXPECTED_FLEET_ROUTES = 47;
+  const EXPECTED_FLEET_ROUTES = 48;
   // ai-ops-admin.js: the GET /escalations branch uses a compound condition
   // (`path === 'escalations' || path.startsWith(...)`) that the simple regex
   // above doesn't catch, so the count is 12 even though there are 13 routes.
@@ -359,7 +379,7 @@ async function run() {
     if (!route.shape) continue;
     try {
       const ev = route.event();
-      ev.headers['x-admin-password'] = ADMIN_PASSWORD;
+      ev.headers['authorization'] = 'Bearer stub-admin-bearer';
       const res = await route.handler(ev);
       assert.ok(res && typeof res.statusCode === 'number',
         `${route.label}: handler must return { statusCode }`);

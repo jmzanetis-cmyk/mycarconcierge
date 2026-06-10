@@ -274,8 +274,123 @@ endpoint in v1.
 }
 ```
 
-`kind` is one of `base|tip|bonus|adjustment`. v1 only records earnings;
-actual payout disbursement (Stripe Connect) is a follow-up.
+`kind` is one of `base|tip|bonus|adjustment`. Earnings are accrued into the
+driver's wallet at `payout_status='available'` (or `pending_account` if
+Stripe Connect onboarding hasn't completed). Money only leaves MCC when the
+driver calls `POST /me/cashout` — see Wallet & cash-out below.
+
+---
+
+### `POST /me/stripe/onboard`
+
+Returns a short-lived Stripe Connect Express onboarding URL. Creates the
+Connect account if the driver doesn't have one yet.
+
+```json
+{ "url": "https://connect.stripe.com/setup/e/acct_xxx/...", "account_id": "acct_xxx" }
+```
+
+### `GET /me/stripe/status`
+
+Retrieves the live Stripe Connect account status and mirrors
+`payouts_enabled` onto the local driver row. Side-effect: if Stripe just
+enabled payouts, any `pending_account` earnings auto-promote to
+`available` (so they're immediately cashable).
+
+```json
+{
+  "connected": true, "account_id": "acct_xxx",
+  "details_submitted": true, "charges_enabled": false,
+  "payouts_enabled": true,
+  "requirements": { "currently_due": [], "past_due": [], "disabled_reason": null }
+}
+```
+
+### `GET /me/wallet`
+
+Wallet snapshot for the home screen — balance breakdown + recent earnings +
+recent cash-outs.
+
+```json
+{
+  "balance": {
+    "available_cents": 12500,
+    "pending_account_cents": 0,
+    "failed_cents": 0,
+    "in_flight_cents": 4500,
+    "lifetime_paid_cents": 87000
+  },
+  "cashout_minimum_cents": 100,
+  "instant_fee_pct": 0.015,
+  "can_cash_out": true,
+  "connect_status": { "connected": true, "payouts_enabled": true },
+  "recent_earnings": [
+    { "id": "uuid", "job_id": "uuid", "amount_cents": 4500,
+      "kind": "base", "payout_status": "available",
+      "recorded_at": "2026-05-16T14:00:00Z", "cashout_id": null,
+      "notes": "Auto-credited on concierge.job_completed (role=primary)" }
+  ],
+  "recent_cashouts": [
+    { "id": "uuid", "amount_cents": 4500, "fee_cents": 0,
+      "method": "standard", "status": "processing",
+      "stripe_transfer_id": "tr_xxx", "stripe_payout_id": null,
+      "requested_at": "2026-05-15T20:00:00Z", "completed_at": null,
+      "error": null }
+  ]
+}
+```
+
+### `POST /me/cashout`
+
+Sweeps the driver's full `available` balance into one Stripe transfer
+(platform → connected account) plus — for instant cash-outs — one Stripe
+Instant Payout on the connected account.
+
+Request:
+```json
+{ "method": "standard" }   // or "instant"
+```
+
+Success (200):
+```json
+{
+  "success": true,
+  "cashout_id": "uuid",
+  "amount_cents": 10000,
+  "fee_cents": 150,
+  "net_cents": 9850,
+  "method": "instant",
+  "transfer_id": "tr_xxx",
+  "payout_id": "po_xxx"
+}
+```
+
+Rules:
+- **Minimum** balance: `$1.00` (100 cents). Below that → 409
+  `INSUFFICIENT_BALANCE`.
+- **Standard** (ACH): `fee_cents = 0`. Funds land in the driver's bank via
+  the connected account's default automatic payout schedule (usually next
+  business day in the US).
+- **Instant**: fee is `max($0.50, 1.5% × balance)`. Funds land in minutes
+  on eligible debit cards.
+- Earnings are **reserved** (flipped to `payout_status='paid'` + linked to
+  the cashout row) **before** the Stripe call, so a second concurrent
+  cashout can't double-spend the same balance.
+- On transfer failure: earnings are rolled back to `available`; cashout
+  row marked `failed`. Driver can retry.
+- On instant-payout failure (after the transfer succeeded): cashout row
+  marked `failed` but earnings stay paid — funds are sitting in the
+  driver's Stripe balance and an admin can manually retry the payout from
+  the Stripe Dashboard.
+
+Errors:
+- `NO_CONNECT_ACCOUNT` (409) — driver hasn't onboarded.
+- `PAYOUTS_DISABLED` (409) — Stripe Connect onboarding incomplete (or
+  flagged).
+- `INSUFFICIENT_BALANCE` (409) — < `$1.00` available.
+- `TRANSFER_FAILED` (502) — Stripe transfer failed; earnings rolled back.
+- `INSTANT_PAYOUT_FAILED` (502) — transfer succeeded, payout failed.
+  Funds are in driver's Stripe balance; admin must retry.
 
 ---
 

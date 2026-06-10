@@ -18,13 +18,13 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <!-- Preload critical resources -->
-  <link rel="preload" href="/members-core.js" as="script" />
-  <link rel="preload" href="/supabaseclient.js" as="script" />
-  <link rel="preload" href="/logo.png" as="image" />
+  <link rel="preload" href="members-core.js?v=20260529" as="script" />
+  <link rel="preload" href="supabaseclient.js" as="script" />
+  <link rel="preload" href="logo.png" as="image" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Preconnect to external services -->
@@ -33,7 +33,7 @@
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="dns-prefetch" href="https://supabase.co">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css?v=20260213">
+  <link rel="stylesheet" href="shared-styles.css?v=20260213">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js" defer></script>
@@ -227,7 +227,7 @@
     .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
     .sidebar::-webkit-scrollbar { display: none; }
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
-    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
+    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
     .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
     .sidebar-brand-text { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); font-size: 1.05rem; }
     .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
@@ -1032,7 +1032,27 @@
     .section-icon { display: inline-flex; align-items: center; color: inherit; }
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/members.html" />
+  <meta name="robots" content="index, follow, max-image-preview:large" />
+  <meta name="description" content="My Car Concierge for vehicle owners: get quotes, manage vehicles, schedule maintenance, and shop smarter from one app." />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="My Car Concierge" />
+  <meta property="og:url" content="https://www.mycarconcierge.com/members.html" />
+  <meta property="og:title" content="My Garage – My Car Concierge" />
+  <meta property="og:description" content="My Car Concierge for vehicle owners: get quotes, manage vehicles, schedule maintenance, and shop smarter from one app." />
+  <meta property="og:image" content="https://www.mycarconcierge.com/og-card.png" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
+  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:locale" content="en_US" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:site" content="@mycarconcierge" />
+  <meta name="twitter:title" content="My Garage – My Car Concierge" />
+  <meta name="twitter:description" content="My Car Concierge for vehicle owners: get quotes, manage vehicles, schedule maintenance, and shop smarter from one app." />
+  <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <!-- Sidebar -->
@@ -1062,7 +1082,8 @@
     <div class="nav-item" data-section="fleet" onclick="showSection('fleet')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span> Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="reminders" onclick="showSection('reminders')"><span data-i18n="member.reminders"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Reminders</span> <span class="nav-badge" id="reminder-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="referrals" onclick="showSection('referrals')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg></span> Refer a Friend</span> <span class="nav-badge" id="referral-credits-badge" style="display:none;background:var(--accent-green);">$0</span></div>
-    
+    <div class="nav-item" data-section="founder" onclick="showSection('founder')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Refer a Provider</span> <span class="nav-badge" id="founder-earn-badge" style="display:none;background:var(--accent-gold);color:#000;"></span></div>
+
     <div class="nav-label" data-i18n="member.navServices">Services</div>
     <div class="nav-item" data-section="packages" onclick="showSection('packages')"><span data-i18n="member.maintenancePackages"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> Maintenance Packages</span></div>
     <div class="nav-item" data-section="group-services" onclick="showSection('group-services')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Group Services</span> <span class="nav-badge" id="group-services-count" style="display:none;background:var(--accent-blue);">0</span></div>
@@ -1132,6 +1153,9 @@
     <div class="mobile-header">
       <button class="mobile-menu-btn" onclick="toggleSidebar()"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" x2="20" y1="12" y2="12"/><line x1="4" x2="20" y1="6" y2="6"/><line x1="4" x2="20" y1="18" y2="18"/></svg></button>
       <span style="font-weight: 600;">My Car Concierge</span>
+      <button class="header-bell-btn" onclick="goToMyReferralQr()" title="My Referral QR" aria-label="My Referral QR" style="margin-right:4px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+      </button>
       <button class="header-bell-btn" onclick="showSection('notifications')" title="Notifications" aria-label="Notifications">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
         <span id="header-notif-count" class="header-bell-badge" style="display:none;">0</span>
@@ -1143,6 +1167,9 @@
       <button class="header-theme-toggle" onclick="toggleTheme()" title="Toggle theme">
         <span class="theme-icon-sun"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2"/><path d="M12 20v2"/><path d="m4.93 4.93 1.41 1.41"/><path d="m17.66 17.66 1.41 1.41"/><path d="M2 12h2"/><path d="M20 12h2"/><path d="m6.34 17.66-1.41 1.41"/><path d="m19.07 4.93-1.41 1.41"/></svg> Day</span>
         <span class="theme-icon-moon"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg> Night</span>
+      </button>
+      <button class="header-bell-btn" onclick="goToMyReferralQr()" title="My Referral QR" aria-label="My Referral QR" style="margin-left:12px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
       </button>
       <button class="header-bell-btn" onclick="showSection('notifications')" title="Notifications" aria-label="Notifications" style="margin-left:12px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
@@ -1173,6 +1200,14 @@
       <strong><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Action Required:</strong> A provider has found additional issues that need your approval. <span style="text-decoration:underline;">Review now →</span>
     </div>
 
+    <!-- 2FA Enrollment Required Banner -->
+    <div id="2fa-enrollment-required-banner" style="display:none;background:linear-gradient(135deg,#1a1a2e,#16213e);border:2px solid var(--accent-gold);border-radius:var(--radius-lg);padding:16px 24px;margin-bottom:24px;text-align:center;">
+      <div style="max-width:600px;margin:0 auto;">
+        <div style="font-weight:700;font-size:1rem;color:var(--accent-gold);margin-bottom:4px;">Two-Factor Authentication Required</div>
+        <div style="font-size:0.88rem;color:var(--text-secondary);">All MCC accounts must have 2FA enabled. Set up your authenticator app in the Security section below to continue.</div>
+      </div>
+    </div>
+
     <!-- Overview Section -->
     <section id="overview" class="section active">
       <div class="page-header" style="margin-bottom: 32px;">
@@ -1188,8 +1223,120 @@
         <button class="btn btn-secondary" onclick="openPackageModal()" style="padding: 12px 24px; font-weight: 600; border-radius: 100px; border: 2px solid var(--accent-gold); background: transparent; color: var(--accent-gold);">
           <span data-i18n="member.newMaintenancePackage">+ New Service Request</span>
         </button>
+        <button class="btn btn-secondary" onclick="openTransportModal()" style="padding: 12px 24px; font-weight: 600; border-radius: 100px; border: 2px solid var(--accent-blue); background: transparent; color: var(--accent-blue);">
+          <span><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Request Vehicle Pickup</span>
+        </button>
       </div>
-      
+      <p style="font-size:0.78rem;color:var(--text-muted);margin-top:-20px;margin-bottom:20px;line-height:1.5;">Vehicle pickup &amp; delivery coming soon. We're completing licensing and insurance requirements. Request a pickup now and we'll notify you when the service is live in your area.</p>
+
+      <!-- Transport Tracking -->
+      <div id="transport-tracking-section" style="margin-bottom:24px;display:none;"></div>
+
+      <!-- Driver Launch Fundraising Card — web only; not shown in native app (Guideline 3.1.1) -->
+      <div id="driver-fund-card" class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(201,162,39,0.07),rgba(26,32,42,0.95));border:1px solid rgba(201,162,39,0.25);position:relative;">
+        <button onclick="dismissDriverFundCard()" title="Dismiss" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:4px 8px;">×</button>
+        <div style="display:flex;align-items:flex-start;gap:16px;flex-wrap:wrap;">
+          <div style="font-size:2rem;flex-shrink:0;">🚗</div>
+          <div style="flex:1;min-width:200px;">
+            <div style="font-weight:700;font-size:1rem;margin-bottom:4px;color:var(--text-primary);">Help us bring vehicle pickup to your neighborhood</div>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:12px;line-height:1.5;">We're raising $60,000 on Wefunder to fund TNC licensing, insurance, and driver onboarding. Backers get early access once we launch.</p>
+            <!-- Current milestone label -->
+            <div id="mem-fund-milestone" style="font-size:0.78rem;color:var(--accent-gold);font-weight:600;margin-bottom:5px;"></div>
+            <!-- Mini milestone progress bar -->
+            <div style="height:4px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;margin-bottom:10px;">
+              <div id="mem-milestone-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#c9a227,#e6b84a);border-radius:999px;transition:width 1.2s ease;"></div>
+            </div>
+            <!-- Overall progress bar -->
+            <div style="margin-bottom:14px;">
+              <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">
+                <span id="mem-fund-raised">$0 of $60,000 raised</span><span id="mem-fund-pct">0%</span>
+              </div>
+              <div style="height:6px;background:rgba(160,168,184,0.12);border-radius:999px;overflow:hidden;">
+                <div id="mem-fund-bar" style="height:100%;width:0%;background:linear-gradient(90deg,#c9a227,#e6b84a);border-radius:999px;transition:width 1.2s ease;"></div>
+              </div>
+            </div>
+            <a id="mem-wefunder-btn" href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" style="display:inline-flex;align-items:center;gap:6px;padding:9px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#0a0a0f;font-weight:700;font-size:0.85rem;border-radius:10px;text-decoration:none;">
+              Back MCC on Wefunder →
+            </a>
+            <button onclick="memDonate(100)" style="margin-top:10px;background:none;border:none;color:var(--accent-blue);font-size:0.82rem;font-family:inherit;cursor:pointer;padding:0;text-decoration:underline;text-underline-offset:2px;">Buy the team a coffee ☕ ($1)</button>
+            <div style="font-size:0.76rem;color:var(--text-muted);margin-top:8px;">Join <span id="mem-donor-count">0</span> backers supporting this launch</div>
+          </div>
+        </div>
+      </div>
+      <script>
+        if (window.Capacitor && window.Capacitor.isNativePlatform && window.Capacitor.isNativePlatform()) {
+          // Native app: remove card from DOM — Wefunder and Stripe donation paths must not appear (Guideline 3.1.1)
+          var _dfc = document.getElementById('driver-fund-card');
+          if (_dfc) _dfc.parentNode.removeChild(_dfc);
+        } else {
+        (function() {
+          if (localStorage.getItem('mcc_driver_fund_dismissed') === '1') {
+            var el = document.getElementById('driver-fund-card');
+            if (el) el.style.display = 'none';
+          }
+          function applyMemFund(cfg) {
+            var raised  = cfg.DRIVER_FUND_RAISED      || 0;
+            var goal    = cfg.DRIVER_FUND_GOAL        || 60000;
+            var wef     = cfg.WEFUNDER_URL            || 'https://wefunder.com/mycarconcierge';
+            var donors  = cfg.DRIVER_FUND_DONOR_COUNT || 0;
+            var pct     = goal > 0 ? Math.min(100, Math.round((raised / goal) * 100)) : 0;
+            var defM    = [
+              { name: 'TNC Licensing & Legal', goal: 25000 },
+              { name: 'Commercial Auto Insurance', goal: 18000 },
+              { name: 'Driver Onboarding & Training', goal: 10000 },
+              { name: 'Marketing & Launch', goal: 7000 }
+            ];
+            var milestones = cfg.DRIVER_FUND_MILESTONES || defM;
+            var remaining  = raised;
+            var computed   = milestones.map(function(m) {
+              var mR = Math.min(remaining, m.goal);
+              remaining = Math.max(0, remaining - m.goal);
+              return { name: m.name, goal: m.goal, raised: mR, status: mR >= m.goal ? 'funded' : mR > 0 ? 'in_progress' : 'not_started' };
+            });
+            var active  = computed.find(function(m) { return m.status !== 'funded'; }) || computed[computed.length - 1];
+            var mPct    = active && active.goal > 0 ? Math.min(100, Math.round((active.raised / active.goal) * 100)) : 0;
+            var mLabel  = active ? 'Currently funding: ' + active.name + ' — $' + active.raised.toLocaleString() + ' of $' + active.goal.toLocaleString() : '';
+
+            var raEl   = document.getElementById('mem-fund-raised');
+            var barEl  = document.getElementById('mem-fund-bar');
+            var pctEl  = document.getElementById('mem-fund-pct');
+            var mBar   = document.getElementById('mem-milestone-bar');
+            var mEl    = document.getElementById('mem-fund-milestone');
+            var btnEl  = document.getElementById('mem-wefunder-btn');
+            var cntEl  = document.getElementById('mem-donor-count');
+            if (raEl)   raEl.textContent  = '$' + raised.toLocaleString() + ' of $60,000 raised';
+            if (pctEl)  pctEl.textContent = pct + '%';
+            if (mEl)    mEl.textContent   = mLabel;
+            if (btnEl)  btnEl.href = wef;
+            if (cntEl)  cntEl.textContent = donors.toLocaleString();
+            setTimeout(function() {
+              if (barEl) barEl.style.width = pct + '%';
+              if (mBar)  mBar.style.width  = mPct + '%';
+            }, 400);
+          }
+          if (window.MCC_CONFIG) { applyMemFund(window.MCC_CONFIG); }
+          window.addEventListener('mcc-config-loaded', function(e) { applyMemFund(e.detail); });
+        })();
+        function dismissDriverFundCard() {
+          try { localStorage.setItem('mcc_driver_fund_dismissed', '1'); } catch(_) {}
+          var el = document.getElementById('driver-fund-card');
+          if (el) { el.style.opacity = '0'; el.style.transition = 'opacity 0.3s'; setTimeout(function() { el.style.display = 'none'; }, 300); }
+        }
+        async function memDonate(amountCents) {
+          try {
+            var res = await fetch('/api/support-donation', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ amount_cents: amountCents })
+            });
+            var data = await res.json();
+            if (data.url) { window.location.href = data.url; return; }
+          } catch (e) { /* fall through */ }
+          alert('Could not start checkout. Please try again.');
+        }
+        } // end: web-only block
+      </script>
+
       <!-- Onboarding Checklist - Shows for new users -->
       <div id="onboarding-checklist" class="card onboarding-card" style="margin-bottom: 32px; display: none;">
         <div class="card-header">
@@ -1227,7 +1374,7 @@
           <div class="progress-bar">
             <div class="progress-fill" id="onboarding-progress-fill" style="width: 0%;"></div>
           </div>
-          <span class="progress-text" id="onboarding-progress-text">0 of 3 complete</span>
+          <span class="progress-text" id="onboarding-progress-text">1 of 5 complete</span>
         </div>
       </div>
 
@@ -1238,7 +1385,22 @@
             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#12161c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
           </div>
           <div style="flex:1;min-width:200px;">
-            <div style="display:inline-block;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-size:0.65rem;font-weight:700;padding:3px 10px;border-radius:100px;letter-spacing:0.08em;text-transform:uppercase;margin-bottom:6px;">Limited Time</div>
+            <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:4px;">Become a Member Founder</h3>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Refer providers to the platform and earn lifetime commissions on their bid credit purchases. Free to join — we're onboarding founders now.</p>
+          </div>
+          <div style="flex-shrink:0;">
+            <a href="member-founder.html" style="display:inline-block;padding:10px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-weight:600;border-radius:100px;text-decoration:none;font-size:0.85rem;white-space:nowrap;">Learn More</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="founder-promo-banner-2" class="card" style="display:none;margin-bottom:32px;background:linear-gradient(135deg,rgba(201,162,39,0.08),rgba(201,162,39,0.02));border:1px solid rgba(201,162,39,0.3);position:relative;overflow:hidden;">
+        <button onclick="dismissFounderPromo()" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);cursor:pointer;font-size:1.2rem;padding:4px 8px;" title="Dismiss">&times;</button>
+        <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+          <div style="flex:0 0 48px;height:48px;border-radius:50%;background:linear-gradient(135deg,#c9a227,#e6b84a);display:flex;align-items:center;justify-content:center;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#12161c" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          </div>
+          <div style="flex:1;min-width:200px;">
             <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:4px;">Become a Member Founder</h3>
             <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Refer providers to the platform and earn lifetime commissions on their bid credit purchases. Free to join — we're onboarding founders now.</p>
           </div>
@@ -1978,46 +2140,82 @@
     </div>
 
     <!-- Add Prospect Vehicle Modal -->
-    <div id="add-prospect-modal" class="modal" style="display:none;">
-      <div class="modal-content" style="max-width: 600px;">
+    <div id="add-prospect-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);z-index:100;align-items:center;justify-content:center;padding:24px;overflow-y:auto;">
+      <div class="modal" style="max-width:720px;display:flex;flex-direction:column;max-height:90vh;overflow:hidden;">
         <div class="modal-header">
-          <h2>Add Prospect Vehicle</h2>
+          <h2 style="display:flex;align-items:center;gap:10px;">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--accent-gold)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21 8-2 2-1.5-3.7A2 2 0 0 0 15.646 5H8.4a2 2 0 0 0-1.903 1.257L5 10 3 8"/><path d="M7 14h.01"/><path d="M17 14h.01"/><rect width="18" height="8" x="3" y="10" rx="2"/><path d="M5 18v2"/><path d="M19 18v2"/></svg>
+            Add Prospect Vehicle
+          </h2>
           <button class="modal-close" onclick="closeAddProspectModal()">×</button>
         </div>
-        <div class="modal-body" style="max-height: 70vh; overflow-y: auto;">
-          <div style="margin-bottom: 20px; padding: 16px; background: var(--bg-input); border-radius: var(--radius-md); border: 1px solid var(--border-subtle);">
-            <h4 style="font-size: 0.9rem; font-weight: 600; margin-bottom: 12px;">Quick VIN Lookup (Optional)</h4>
-            <div style="display: flex; gap: 12px;">
-              <input type="text" id="prospect-vin-lookup" placeholder="Enter VIN to auto-fill specs" maxlength="17" style="flex: 1; padding: 12px; background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); text-transform: uppercase;">
-              <button type="button" class="btn btn-secondary" onclick="lookupProspectVIN()" id="vin-lookup-btn">
-                <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Lookup
-              </button>
-            </div>
-            <p style="font-size: 0.78rem; color: var(--text-muted); margin-top: 8px;">Uses free NHTSA database - fills year, make, model, and specs.</p>
-          </div>
 
-          <form id="add-prospect-form" onsubmit="saveProspectVehicle(event)">
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin-bottom: 16px; color: var(--accent-gold);">Vehicle Details</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+        <form id="add-prospect-form" onsubmit="saveProspectVehicle(event)" style="display:flex;flex-direction:column;flex:1;overflow:hidden;">
+          <div class="modal-body" style="overflow-y:auto;flex:1;">
+            <!-- VIN Lookup -->
+            <div style="margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <h4 style="font-size:0.9rem;font-weight:600;margin-bottom:12px;">Quick VIN Lookup (Optional)</h4>
+              <div style="display:flex;gap:12px;">
+                <input type="text" id="prospect-vin-lookup" placeholder="Enter VIN to auto-fill specs" maxlength="17" style="flex:1;padding:12px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);text-transform:uppercase;">
+                <button type="button" class="btn btn-secondary" onclick="lookupProspectVIN()" id="vin-lookup-btn">
+                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg></span> Lookup
+                </button>
+              </div>
+              <p style="font-size:0.78rem;color:var(--text-muted);margin-top:8px;">Uses free NHTSA database — fills year, make, model, and specs.</p>
+            </div>
+
+            <!-- Section divider -->
+            <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
+              <div style="flex:1;height:1px;background:var(--border-subtle);"></div>
+              <span style="font-size:0.72rem;font-weight:600;color:var(--text-muted);letter-spacing:0.06em;text-transform:uppercase;">Vehicle Details</span>
+              <div style="flex:1;height:1px;background:var(--border-subtle);"></div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
               <div class="form-group">
                 <label>Year *</label>
-                <input type="number" id="prospect-year" required min="1900" max="2030" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-year" required style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+                  <option value="">Select year...</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Make *</label>
-                <input type="text" id="prospect-make" required placeholder="e.g. Toyota" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-make" required onchange="loadProspectModels()" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+                  <option value="">Select make...</option>
+                  <option>Toyota</option><option>Honda</option><option>Ford</option>
+                  <option>Chevrolet</option><option>BMW</option><option>Mercedes-Benz</option>
+                  <option>Audi</option><option>Nissan</option><option>Hyundai</option>
+                  <option>Kia</option><option>Subaru</option><option>Jeep</option>
+                  <option>Ram</option><option>GMC</option><option>Cadillac</option>
+                  <option>Lexus</option><option>Acura</option><option>Infiniti</option>
+                  <option>Volvo</option><option>Mazda</option><option>Porsche</option>
+                  <option>Tesla</option><option>Rivian</option><option>Lucid</option>
+                  <option>Volkswagen</option><option>MINI</option><option>Land Rover</option>
+                  <option>Jaguar</option><option>Alfa Romeo</option><option>Maserati</option>
+                  <option>Ferrari</option><option>Lamborghini</option><option>Rolls-Royce</option>
+                  <option>Bentley</option><option>Mitsubishi</option><option>Chrysler</option>
+                  <option>Dodge</option><option>Lincoln</option><option>Buick</option>
+                  <option>Genesis</option><option>Polestar</option><option>Fisker</option>
+                  <option>Scout</option><option>Fiat</option><option>Pontiac</option>
+                  <option>Saturn</option><option>Oldsmobile</option><option>Scion</option>
+                  <option>Saab</option><option>Suzuki</option><option>Isuzu</option>
+                  <option>Hummer</option>
+                  <option value="Other">Other</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Model *</label>
-                <input type="text" id="prospect-model" required placeholder="e.g. Camry" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-model" required style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
+                  <option value="">Select a make first</option>
+                </select>
               </div>
               <div class="form-group">
                 <label>Trim</label>
-                <input type="text" id="prospect-trim" placeholder="e.g. XLE, Sport" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-trim" placeholder="e.g. XLE, Sport" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Body Style</label>
-                <select id="prospect-body-style" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-body-style" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
                   <option value="">Select...</option>
                   <option value="Sedan">Sedan</option>
                   <option value="SUV">SUV</option>
@@ -2032,11 +2230,11 @@
               </div>
               <div class="form-group">
                 <label>Engine</label>
-                <input type="text" id="prospect-engine" placeholder="e.g. 2.5L 4-cyl" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-engine" placeholder="e.g. 2.5L 4-cyl" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Fuel Type</label>
-                <select id="prospect-fuel-type" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-fuel-type" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
                   <option value="">Select...</option>
                   <option value="Gasoline">Gasoline</option>
                   <option value="Diesel">Diesel</option>
@@ -2047,31 +2245,31 @@
               </div>
               <div class="form-group">
                 <label>Mileage</label>
-                <input type="number" id="prospect-mileage" placeholder="e.g. 45000" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-mileage" placeholder="e.g. 45000" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Asking Price ($)</label>
-                <input type="number" id="prospect-price" placeholder="e.g. 25000" step="0.01" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-price" placeholder="e.g. 25000" step="0.01" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Exterior Color</label>
-                <input type="text" id="prospect-ext-color" placeholder="e.g. Silver" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-ext-color" placeholder="e.g. Silver" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Interior Color</label>
-                <input type="text" id="prospect-int-color" placeholder="e.g. Black leather" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-int-color" placeholder="e.g. Black leather" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>VIN (if known)</label>
-                <input type="text" id="prospect-vin" placeholder="17-character VIN" maxlength="17" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); text-transform: uppercase;">
+                <input type="text" id="prospect-vin" placeholder="17-character VIN" maxlength="17" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);text-transform:uppercase;">
               </div>
             </div>
 
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Seller Information</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 16px;">
+            <h4 style="font-size:0.95rem;font-weight:600;margin:24px 0 16px;color:var(--accent-gold);">Seller Information</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
               <div class="form-group">
                 <label>Seller Type</label>
-                <select id="prospect-seller-type" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <select id="prospect-seller-type" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
                   <option value="">Select...</option>
                   <option value="dealer">Dealer</option>
                   <option value="private">Private Seller</option>
@@ -2081,63 +2279,63 @@
               </div>
               <div class="form-group">
                 <label>Seller Name</label>
-                <input type="text" id="prospect-seller-name" placeholder="Dealer or seller name" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-seller-name" placeholder="Dealer or seller name" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
-              <div class="form-group" style="grid-column: 1 / -1;">
+              <div class="form-group" style="grid-column:1/-1;">
                 <label>Location</label>
-                <input type="text" id="prospect-location" placeholder="City, State or Address" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="text" id="prospect-location" placeholder="City, State or Address" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
-              <div class="form-group" style="grid-column: 1 / -1;">
+              <div class="form-group" style="grid-column:1/-1;">
                 <label>Listing URL</label>
-                <input type="url" id="prospect-listing-url" placeholder="https://..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="url" id="prospect-listing-url" placeholder="https://..." style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
             </div>
 
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Carfax / History (Manual Entry)</h4>
-            <div style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 16px;">
+            <h4 style="font-size:0.95rem;font-weight:600;margin:24px 0 16px;color:var(--accent-gold);">Carfax / History (Manual Entry)</h4>
+            <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;">
               <div class="form-group">
                 <label>Accidents</label>
-                <input type="number" id="prospect-accidents" placeholder="0" min="0" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-accidents" placeholder="0" min="0" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
               <div class="form-group">
                 <label>Previous Owners</label>
-                <input type="number" id="prospect-owners" placeholder="1" min="1" style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary);">
+                <input type="number" id="prospect-owners" placeholder="1" min="1" style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);">
               </div>
-              <div class="form-group" style="display: flex; flex-direction: column; justify-content: center;">
-                <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                  <input type="checkbox" id="prospect-service-records" style="width: 18px; height: 18px; accent-color: var(--accent-gold);">
+              <div class="form-group" style="display:flex;flex-direction:column;justify-content:center;">
+                <label style="display:flex;align-items:center;gap:8px;cursor:pointer;">
+                  <input type="checkbox" id="prospect-service-records" style="width:18px;height:18px;accent-color:var(--accent-gold);">
                   <span>Has Service Records</span>
                 </label>
               </div>
             </div>
-            <div class="form-group" style="margin-top: 12px;">
+            <div class="form-group" style="margin-top:12px;">
               <label>Carfax/History Notes</label>
-              <textarea id="prospect-carfax-notes" rows="2" placeholder="Any notes from the Carfax report..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+              <textarea id="prospect-carfax-notes" rows="2" placeholder="Any notes from the Carfax report..." style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);resize:vertical;"></textarea>
             </div>
 
-            <h4 style="font-size: 0.95rem; font-weight: 600; margin: 24px 0 16px; color: var(--accent-gold);">Your Assessment</h4>
+            <h4 style="font-size:0.95rem;font-weight:600;margin:24px 0 16px;color:var(--accent-gold);">Your Assessment</h4>
             <div class="form-group">
               <label>Your Rating</label>
-              <div id="prospect-rating-stars" style="display: flex; gap: 8px; margin-top: 8px;">
-                <span class="rating-star" data-rating="1" onclick="setProspectRating(1)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="2" onclick="setProspectRating(2)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="3" onclick="setProspectRating(3)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="4" onclick="setProspectRating(4)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
-                <span class="rating-star" data-rating="5" onclick="setProspectRating(5)" style="font-size: 28px; cursor: pointer; opacity: 0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+              <div id="prospect-rating-stars" style="display:flex;gap:8px;margin-top:8px;">
+                <span class="rating-star" data-rating="1" onclick="setProspectRating(1)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="2" onclick="setProspectRating(2)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="3" onclick="setProspectRating(3)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="4" onclick="setProspectRating(4)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
+                <span class="rating-star" data-rating="5" onclick="setProspectRating(5)" style="font-size:28px;cursor:pointer;opacity:0.3;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg></span></span>
               </div>
               <input type="hidden" id="prospect-rating" value="">
             </div>
-            <div class="form-group" style="margin-top: 16px;">
+            <div class="form-group" style="margin-top:16px;">
               <label>Personal Notes</label>
-              <textarea id="prospect-notes" rows="3" placeholder="Your thoughts on this vehicle..." style="width: 100%; padding: 12px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); resize: vertical;"></textarea>
+              <textarea id="prospect-notes" rows="3" placeholder="Your thoughts on this vehicle..." style="width:100%;padding:12px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-primary);resize:vertical;"></textarea>
             </div>
+          </div>
 
-            <div style="margin-top: 24px; display: flex; gap: 12px; justify-content: flex-end;">
-              <button type="button" class="btn btn-secondary" onclick="closeAddProspectModal()">Cancel</button>
-              <button type="submit" class="btn btn-primary">Save Prospect</button>
-            </div>
-          </form>
-        </div>
+          <div class="modal-footer">
+            <button type="button" class="btn btn-secondary" onclick="closeAddProspectModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary">Save Prospect</button>
+          </div>
+        </form>
       </div>
     </div>
 
@@ -2257,6 +2455,67 @@
           </div>
         </div>
       </div>
+    </section>
+
+    <!-- Care Plans Section (Task #156) -->
+    <section id="care-plans" class="section">
+      <div class="page-header">
+        <h1 class="page-title" data-i18n="member.carePlans">Care Plans</h1>
+        <p class="page-subtitle" data-i18n="member.carePlansSubtitle">Manage your care-plan bids, accept providers, and release escrow when work is complete.</p>
+      </div>
+
+      <!-- AI Care Plan Helper -->
+      <div id="ai-care-plan-panel" style="margin-bottom:20px;border:1px solid rgba(34,211,238,0.25);border-radius:var(--radius-lg);overflow:hidden;background:rgba(34,211,238,0.04);">
+        <button type="button" onclick="toggleAiCarePlanPanel()" style="width:100%;display:flex;align-items:center;gap:10px;padding:14px 18px;background:none;border:none;cursor:pointer;color:var(--accent-teal);font-family:inherit;font-size:0.92rem;font-weight:600;text-align:left;">
+          <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+          <span>Describe your car problem — AI creates your care plan</span>
+          <svg id="ai-care-plan-chevron" xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left:auto;transition:transform 0.2s;"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div id="ai-care-plan-body" style="display:none;padding:0 18px 18px;">
+          <p style="color:var(--text-muted);font-size:0.84rem;margin-bottom:10px;">Describe what's going on with your car and AI will generate a ready-to-submit care plan.</p>
+          <textarea id="ai-care-plan-input" class="form-textarea" rows="3" placeholder='e.g. "My brakes squeal when I slow down" or "Engine light came on and car feels sluggish"' style="margin-bottom:10px;resize:vertical;"></textarea>
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+            <button type="button" id="ai-care-plan-btn" class="btn btn-primary btn-sm" onclick="aiCreateCarePlan()" style="white-space:nowrap;">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z"/></svg>
+              Create Care Plan with AI
+            </button>
+            <span id="ai-care-plan-status" style="font-size:0.82rem;color:var(--text-muted);display:none;"></span>
+          </div>
+          <!-- AI result preview -->
+          <div id="ai-care-plan-result" style="display:none;padding:14px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid var(--accent-teal);">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
+              <strong id="ai-care-plan-result-title" style="font-size:0.95rem;color:var(--text-primary);"></strong>
+              <span id="ai-care-plan-result-urgency" style="font-size:0.75rem;padding:2px 8px;border-radius:100px;font-weight:600;"></span>
+            </div>
+            <p id="ai-care-plan-result-desc" style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 8px;line-height:1.5;"></p>
+            <div style="display:flex;gap:16px;font-size:0.82rem;color:var(--text-muted);margin-bottom:12px;flex-wrap:wrap;">
+              <span>Est. cost: <strong id="ai-care-plan-result-cost" style="color:var(--text-primary);"></strong></span>
+            </div>
+            <div id="ai-care-plan-result-safety" style="display:none;padding:8px 12px;background:rgba(239,68,68,0.08);border:1px solid rgba(239,68,68,0.25);border-radius:var(--radius-sm);font-size:0.82rem;color:#ef4444;margin-bottom:12px;"></div>
+            <button type="button" class="btn btn-primary btn-sm" onclick="aiCarePlanToModal()" style="width:100%;">
+              Review &amp; Submit This Care Plan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div id="care-plans-toolbar" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+        <button class="btn" id="care-plans-refresh-btn" type="button">
+          <span data-i18n="member.refresh">Refresh</span>
+        </button>
+        <a class="btn btn-primary" href="/job-board.html" data-i18n="member.browseJobBoard">Browse Job Board</a>
+        <button class="btn btn-secondary" onclick="openTransportModal()" style="border:2px solid var(--accent-blue);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Request Vehicle Pickup</button>
+      </div>
+
+      <div id="care-plans-list">
+        <div class="empty-state">
+          <div class="empty-state-icon"><svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 11.12a8.5 8.5 0 1 1-9.91-9.91"/><path d="M22 4 12 14.01l-3-3"/></svg></div>
+          <p data-i18n="member.carePlansLoading">Loading your care plans…</p>
+        </div>
+      </div>
+
+      <!-- Detail / accept / complete / dispute panel renders inline here -->
+      <div id="care-plan-detail" style="display:none;margin-top:24px;"></div>
     </section>
 
     <!-- Shop Section -->
@@ -3168,6 +3427,89 @@
         </div>
       </div>
 
+      <!-- Refer a Provider QR -->
+      <div class="card" style="margin-top:24px;background:linear-gradient(135deg,rgba(52,211,153,0.08),rgba(52,211,153,0.03));border:1px solid rgba(52,211,153,0.3);">
+        <div class="card-header" style="border-bottom:none;margin-bottom:0;">
+          <h2 class="card-title" style="color:var(--accent-green);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+            Refer a Provider — Earn Commissions
+          </h2>
+          <p style="color:var(--text-secondary);font-size:0.9rem;margin-top:6px;">Share this with any auto shop, mechanic, or body shop. When they sign up and buy bid credits, you earn commissions.</p>
+        </div>
+        <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;padding-top:8px;">
+          <div style="text-align:center;flex-shrink:0;">
+            <div style="display:inline-block;background:#fff;padding:14px;border-radius:12px;border:2px solid rgba(52,211,153,0.5);">
+              <canvas id="ref-provider-qr-canvas" width="160" height="160"></canvas>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="downloadReferralQr('provider')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download QR
+              </button>
+            </div>
+          </div>
+          <div style="flex:1;min-width:220px;">
+            <div style="margin-bottom:14px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Your referral link</div>
+              <div id="ref-provider-link" style="font-size:0.82rem;background:var(--bg-deep);padding:10px 14px;border-radius:8px;border:1px solid var(--border-subtle);word-break:break-all;color:var(--text-secondary);font-family:monospace;">Loading…</div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="copyReferralProviderLink()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copy Link
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="shareReferralProviderSMS()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Text
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="shareReferralProviderEmail()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> Email
+              </button>
+            </div>
+            <div style="margin-top:14px;padding:12px;background:var(--bg-deep);border-radius:8px;border:1px solid var(--border-subtle);">
+              <div style="font-size:0.82rem;color:var(--text-secondary);">
+                <strong style="color:var(--accent-green);">💰 How you earn:</strong><br>
+                When the provider signs up with your code and purchases bid credits, a commission is recorded to your founder account.
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Recruit a Driver QR -->
+      <div class="card" style="margin-top:18px;background:linear-gradient(135deg,rgba(56,189,248,0.08),rgba(56,189,248,0.03));border:1px solid rgba(56,189,248,0.3);">
+        <div class="card-header" style="border-bottom:none;margin-bottom:0;">
+          <h2 class="card-title" style="color:var(--accent-blue);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>
+            Know Someone Who Wants to Drive?
+          </h2>
+          <p style="color:var(--text-secondary);font-size:0.9rem;margin-top:6px;">Refer drivers and earn Founding Driver referral credit when they complete their first trip.</p>
+        </div>
+        <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;padding-top:8px;">
+          <div style="text-align:center;flex-shrink:0;">
+            <div style="display:inline-block;background:#fff;padding:14px;border-radius:12px;border:2px solid rgba(56,189,248,0.5);">
+              <canvas id="ref-driver-qr-canvas" width="160" height="160"></canvas>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="downloadReferralQr('driver')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download QR
+              </button>
+            </div>
+          </div>
+          <div style="flex:1;min-width:220px;">
+            <div style="margin-bottom:14px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Driver signup link</div>
+              <div id="ref-driver-link" style="font-size:0.82rem;background:var(--bg-deep);padding:10px 14px;border-radius:8px;border:1px solid var(--border-subtle);word-break:break-all;color:var(--text-secondary);font-family:monospace;">Loading…</div>
+            </div>
+            <div style="display:flex;gap:10px;flex-wrap:wrap;">
+              <button class="btn btn-secondary btn-sm" onclick="copyReferralDriverLink()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copy Link
+              </button>
+              <button class="btn btn-secondary btn-sm" onclick="shareReferralDriverSMS()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Text
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
       <!-- How it Works -->
       <div class="card" style="margin-top:24px;">
         <div class="card-header">
@@ -3206,6 +3548,222 @@
           <p style="color:var(--text-muted);font-size:0.9rem;">Share your referral code with friends to start earning credits!</p>
         </div>
         <div id="referrals-list" style="display:none;flex-direction:column;gap:12px;"></div>
+      </div>
+    </section>
+
+    <!-- Founder / Refer a Provider Section -->
+    <section id="founder" class="section">
+      <div id="founder-loading-state" style="display:flex;align-items:center;justify-content:center;flex-direction:column;padding:80px 20px;gap:12px;color:var(--text-muted);">
+        <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-gold);border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+        Loading…
+      </div>
+
+      <!-- NOT YET APPROVED -->
+      <div id="founder-not-approved-state" style="display:none;">
+        <div class="page-header">
+          <h1 class="page-title" style="display:flex;align-items:center;gap:12px;"><span class="section-icon" style="color:var(--accent-gold);"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Become a Founding Member</h1>
+          <p class="page-subtitle">Refer auto shops and earn 50% commission on every bid credit they buy — forever.</p>
+        </div>
+
+        <!-- Blurred teaser stats with overlay -->
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px;position:relative;">
+          <div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;z-index:2;pointer-events:none;">
+            <div style="background:rgba(0,0,0,0.65);border:1px solid var(--accent-gold);padding:12px 24px;border-radius:12px;text-align:center;">
+              <div style="font-weight:700;color:var(--accent-gold);font-size:0.85rem;text-transform:uppercase;letter-spacing:0.08em;">Approved Founders Only</div>
+              <div style="font-size:0.78rem;color:var(--text-secondary);margin-top:4px;">Apply below to unlock your dashboard</div>
+            </div>
+          </div>
+          <div class="stat-card" style="filter:blur(5px);pointer-events:none;user-select:none;"><div class="stat-icon gold"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="stat-value">$1,240</div><div class="stat-label">Cleared Earnings</div></div>
+          <div class="stat-card" style="filter:blur(5px);pointer-events:none;user-select:none;"><div class="stat-icon blue"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value">$320</div><div class="stat-label">Maturing</div></div>
+          <div class="stat-card" style="filter:blur(5px);pointer-events:none;user-select:none;"><div class="stat-icon green"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div><div class="stat-value">$920</div><div class="stat-label">Payable Balance</div></div>
+          <div class="stat-card" style="filter:blur(5px);pointer-events:none;user-select:none;"><div class="stat-icon" style="background:rgba(168,85,247,0.15);color:#a855f7;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value">7</div><div class="stat-label">Providers Referred</div></div>
+        </div>
+
+        <!-- Value props -->
+        <div class="card" style="background:linear-gradient(135deg,rgba(212,168,85,0.15),rgba(74,200,140,0.05));border:1px solid rgba(212,168,85,0.35);margin-bottom:24px;">
+          <div class="card-header" style="border-bottom:none;padding-bottom:0;">
+            <h2 class="card-title" style="color:var(--accent-gold);">Founding Member Program</h2>
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;padding:8px 0 16px;">
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div style="width:36px;height:36px;border-radius:50%;background:rgba(212,168,85,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent-gold);font-weight:700;font-size:0.75rem;">50%</div>
+              <div><div style="font-weight:600;margin-bottom:4px;">50% Commission Rate</div><div style="font-size:0.85rem;color:var(--text-secondary);">Earn half of every bid-credit purchase your referred providers make — indefinitely.</div></div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div style="width:36px;height:36px;border-radius:50%;background:rgba(74,200,140,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent-green);font-size:1.1rem;">∞</div>
+              <div><div style="font-weight:600;margin-bottom:4px;">Lifetime Attribution</div><div style="font-size:0.85rem;color:var(--text-secondary);">Providers you refer are linked to your account forever. Every future purchase earns you commission.</div></div>
+            </div>
+            <div style="display:flex;gap:12px;align-items:flex-start;">
+              <div style="width:36px;height:36px;border-radius:50%;background:rgba(56,189,248,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent-blue);font-size:1rem;">$</div>
+              <div><div style="font-weight:600;margin-bottom:4px;">Monthly Payouts</div><div style="font-size:0.85rem;color:var(--text-secondary);">Commissions clear after 7 days and pay out on the 1st of each month via direct deposit.</div></div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Apply form -->
+        <div class="card">
+          <div class="card-header">
+            <h2 class="card-title">Apply Now — Get Approved in 24 Hours</h2>
+          </div>
+          <div id="founder-apply-success" style="display:none;background:rgba(74,200,140,0.1);border:1px solid rgba(74,200,140,0.4);border-radius:12px;padding:24px;text-align:center;margin-bottom:20px;">
+            <div style="font-size:2.5rem;margin-bottom:8px;color:var(--accent-green);">✓</div>
+            <div style="font-size:1.1rem;font-weight:600;color:var(--accent-green);margin-bottom:8px;">Application Submitted!</div>
+            <p style="color:var(--text-secondary);font-size:0.9rem;margin:0;">We review all applications within 24 hours and will contact you at your email address when approved.</p>
+          </div>
+          <form id="founder-apply-form" onsubmit="submitFounderApplication(event)" style="display:flex;flex-direction:column;gap:16px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:16px;">
+              <div>
+                <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Full Name *</label>
+                <input id="founder-apply-name" type="text" class="form-input" placeholder="Your full name" required>
+              </div>
+              <div>
+                <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Email *</label>
+                <input id="founder-apply-email" type="email" class="form-input" placeholder="your@email.com" required>
+              </div>
+              <div>
+                <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Phone *</label>
+                <input id="founder-apply-phone" type="tel" class="form-input" placeholder="(555) 555-5555" required>
+              </div>
+              <div>
+                <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">City / Zip *</label>
+                <input id="founder-apply-location" type="text" class="form-input" placeholder="City, State or Zip" required>
+              </div>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">How will you promote MCC? *</label>
+              <select id="founder-apply-promo" class="form-input" required>
+                <option value="">Select a method…</option>
+                <option value="Social Media">Social Media (Instagram, TikTok, Facebook)</option>
+                <option value="Word of Mouth">Word of Mouth / Personal Network</option>
+                <option value="Text & Email">Text & Email Outreach</option>
+                <option value="Community Groups">Community / Car Club Groups</option>
+                <option value="Auto Events">Auto Shows / Events</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Why do you want to join? *</label>
+              <textarea id="founder-apply-motivation" class="form-input" rows="3" placeholder="Tell us a bit about yourself and why you'd be a great Founding Member…" required style="resize:vertical;"></textarea>
+            </div>
+            <!-- Agreements -->
+            <div style="display:flex;flex-direction:column;gap:10px;padding:16px;background:var(--bg-deep);border-radius:10px;border:1px solid var(--border-subtle);">
+              <div style="font-size:0.82rem;font-weight:700;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:4px;">Agreements</div>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-terms" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">I agree to the MCC <a href="/founder-program-terms.html" target="_blank" style="color:var(--accent-gold);">Founder Program Terms</a> and Terms of Service.</span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-contractor" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">I understand I am an independent contractor, not an employee of MCC.</span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-commission" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">I understand commissions are held for 7 days and paid in monthly batches — payout is not instant, and I may earn $0.</span>
+              </label>
+              <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;">
+                <input id="founder-agree-accurate" type="checkbox" style="margin-top:2px;width:16px;height:16px;flex-shrink:0;accent-color:var(--accent-gold);">
+                <span style="font-size:0.85rem;color:var(--text-secondary);line-height:1.5;">The information I provided is accurate and truthful.</span>
+              </label>
+            </div>
+            <button id="founder-apply-btn" type="submit" class="btn btn-primary" style="width:100%;padding:16px;">Submit Application</button>
+          </form>
+        </div>
+      </div>
+
+      <!-- APPROVED -->
+      <div id="founder-approved-state" style="display:none;">
+        <div class="page-header">
+          <h1 class="page-title" style="display:flex;align-items:center;gap:12px;"><span class="section-icon" style="color:var(--accent-gold);"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Your Founder Hub</h1>
+          <p class="page-subtitle">Commission rate: <strong id="founder-commission-rate" style="color:var(--accent-gold);">50%</strong> &nbsp;·&nbsp; Next payout: <strong id="founder-next-payout" style="color:var(--accent-green);">—</strong></p>
+        </div>
+
+        <!-- Stats -->
+        <div class="stats-grid" style="grid-template-columns:repeat(auto-fit,minmax(160px,1fr));margin-bottom:24px;">
+          <div class="stat-card"><div class="stat-icon gold"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></div><div class="stat-value" id="founder-stat-cleared">$0.00</div><div class="stat-label">Cleared Earnings</div></div>
+          <div class="stat-card"><div class="stat-icon blue"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg></div><div class="stat-value" id="founder-stat-maturing">$0.00</div><div class="stat-label">Maturing (7 days)</div></div>
+          <div class="stat-card"><div class="stat-icon green"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></div><div class="stat-value" id="founder-stat-payable">$0.00</div><div class="stat-label">Payable Balance</div></div>
+          <div class="stat-card"><div class="stat-icon" style="background:rgba(168,85,247,0.15);color:#a855f7;"><svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></div><div class="stat-value" id="founder-stat-providers">0</div><div class="stat-label">Providers Referred</div></div>
+        </div>
+
+        <!-- Referral code + QR -->
+        <div class="card" style="background:linear-gradient(135deg,rgba(212,168,85,0.12),rgba(212,168,85,0.04));border:1px solid rgba(212,168,85,0.3);margin-bottom:24px;">
+          <div class="card-header" style="border-bottom:none;padding-bottom:0;">
+            <h2 class="card-title" style="color:var(--accent-gold);">Your Referral Code &amp; Link</h2>
+          </div>
+          <div style="display:flex;gap:32px;flex-wrap:wrap;align-items:flex-start;padding-top:8px;">
+            <div style="text-align:center;flex-shrink:0;">
+              <div style="display:inline-block;background:#fff;padding:14px;border-radius:12px;border:2px solid rgba(212,168,85,0.5);">
+                <canvas id="founder-qr-canvas" width="160" height="160"></canvas>
+              </div>
+              <div style="margin-top:10px;">
+                <button class="btn btn-secondary btn-sm" onclick="downloadFounderQr()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download QR
+                </button>
+              </div>
+            </div>
+            <div style="flex:1;min-width:220px;">
+              <div style="display:flex;align-items:center;gap:12px;margin-bottom:16px;flex-wrap:wrap;">
+                <div id="founder-code-display" style="font-size:1.8rem;font-weight:700;letter-spacing:0.12em;font-family:monospace;background:var(--bg-deep);padding:12px 24px;border-radius:10px;border:2px dashed var(--accent-gold);color:var(--accent-gold);">—</div>
+                <button class="btn btn-primary" onclick="copyFounderCode()" style="padding:12px 20px;">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copy Code
+                </button>
+              </div>
+              <div style="margin-bottom:12px;">
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Provider signup link</div>
+                <div id="founder-provider-link" style="font-size:0.8rem;background:var(--bg-deep);padding:10px 14px;border-radius:8px;border:1px solid var(--border-subtle);word-break:break-all;color:var(--text-secondary);font-family:monospace;">Loading…</div>
+              </div>
+              <div style="display:flex;gap:10px;flex-wrap:wrap;">
+                <button class="btn btn-secondary btn-sm" onclick="copyFounderProviderLink()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copy Link
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="shareFounderProviderSMS()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg> Text
+                </button>
+                <button class="btn btn-secondary btn-sm" onclick="shareFounderProviderEmail()">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="16" x="2" y="4" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg> Email
+                </button>
+              </div>
+              <p style="font-size:0.75rem;color:var(--text-muted);margin:10px 0 0;line-height:1.5;"><strong>Disclosure:</strong> you earn a commission when referred providers purchase bid credits. Providers are informed of this at signup.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Personal invite form -->
+        <div class="card" style="margin-bottom:24px;">
+          <div class="card-header">
+            <h2 class="card-title">Send a Personal Invite</h2>
+          </div>
+          <form id="founder-invite-form" onsubmit="sendFounderInvite(event)" style="display:flex;flex-direction:column;gap:12px;">
+            <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;">
+              <div>
+                <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Email</label>
+                <input id="founder-invite-email" type="email" class="form-input" placeholder="provider@shop.com">
+              </div>
+              <div style="opacity:0.5;pointer-events:none;">
+                <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Phone <span style="font-size:0.75rem;font-weight:400;text-transform:none;">(coming soon)</span></label>
+                <input id="founder-invite-phone" type="tel" class="form-input" placeholder="SMS invite requires consent infrastructure" disabled>
+              </div>
+            </div>
+            <div>
+              <label style="display:block;font-size:0.82rem;font-weight:600;margin-bottom:6px;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;">Personal Message (optional)</label>
+              <input id="founder-invite-message" type="text" class="form-input" placeholder="Hey, I use this platform and think you'd love it…">
+            </div>
+            <button id="founder-invite-btn" type="submit" class="btn btn-primary">
+              <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg> Send Invite
+            </button>
+          </form>
+        </div>
+
+        <!-- Commission activity + full dashboard link -->
+        <div class="card">
+          <div class="card-header" style="display:flex;align-items:center;justify-content:space-between;">
+            <h2 class="card-title">Commission Activity</h2>
+            <a href="founder-dashboard.html" class="btn btn-secondary btn-sm" style="text-decoration:none;">View Full Dashboard →</a>
+          </div>
+          <div id="founder-activity-feed" style="min-height:80px;">
+            <div style="text-align:center;padding:40px;color:var(--text-muted);">Loading activity…</div>
+          </div>
+        </div>
       </div>
     </section>
 
@@ -3676,39 +4234,89 @@
             <span id="2fa-status-badge" class="package-status" style="background:rgba(239,95,95,0.15);color:var(--accent-red);">Disabled</span>
           </div>
           
-          <!-- Enable 2FA Section (shown when disabled) -->
+          <!-- Enable 2FA Section (shown when not enrolled) -->
           <div id="2fa-enable-section">
-            <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
-              Enable 2FA to receive a verification code via SMS each time you log in. This helps protect your account even if your password is compromised.
-            </p>
-            
-            <div class="form-group">
-              <label class="form-label">Phone Number for 2FA</label>
-              <div style="display:flex;gap:12px;align-items:flex-start;">
-                <input type="tel" class="form-input" id="2fa-phone-input" placeholder="(555) 555-5555" style="max-width:200px;" oninput="format2FAPhoneInput(this)">
-                <button class="btn btn-primary" id="2fa-enable-btn" onclick="initiate2FAEnable()">
-                  <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Enable 2FA
+
+            <!-- Step 0: initial prompt -->
+            <div id="totp-enroll-step0">
+              <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;line-height:1.6;">
+                Use an authenticator app (Google Authenticator, Authy, 1Password, etc.) to generate time-based codes. No phone number required.
+              </p>
+              <button class="btn btn-primary" id="totp-start-btn" onclick="startTotpEnroll()">
+                <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span>
+                Enable Authenticator App
+              </button>
+            </div>
+
+            <!-- Step 1: QR + code entry -->
+            <div id="totp-enroll-step1" style="display:none;">
+              <p style="color:var(--text-secondary);margin-bottom:12px;font-size:0.9rem;">
+                Open your authenticator app and scan this QR code:
+              </p>
+              <div style="text-align:center;margin:0 0 16px;">
+                <div style="display:inline-block;background:#fff;padding:12px;border-radius:8px;">
+                  <canvas id="totp-qr-canvas"></canvas>
+                </div>
+              </div>
+              <details style="margin-bottom:16px;font-size:0.88rem;">
+                <summary style="cursor:pointer;color:var(--accent-blue);user-select:none;">Can't scan? Enter the key manually</summary>
+                <div style="margin-top:10px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+                  <div style="color:var(--text-muted);margin-bottom:6px;">Account: My Car Concierge</div>
+                  <code id="totp-secret-display" style="display:block;font-family:monospace;font-size:0.95rem;letter-spacing:2px;word-break:break-all;color:var(--text-primary);user-select:all;cursor:text;"></code>
+                  <div style="color:var(--text-muted);margin-top:6px;font-size:0.8rem;">Click/tap the key to select all, then copy it into your app.</div>
+                </div>
+              </details>
+              <p style="color:var(--text-secondary);margin-bottom:8px;font-size:0.9rem;">Enter the 6-digit code from your app:</p>
+              <div style="display:flex;gap:8px;justify-content:center;margin-bottom:12px;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-1" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-2" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-3" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-4" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-5" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+                <input type="text" class="form-input totp-enroll-digit" id="totp-enroll-6" maxlength="1" inputmode="numeric" pattern="[0-9]" style="width:48px;height:56px;text-align:center;font-size:1.4rem;font-weight:600;padding:0;">
+              </div>
+              <div id="totp-enroll-error" style="display:none;margin-bottom:12px;padding:10px 14px;background:rgba(239,95,95,0.1);border:1px solid rgba(239,95,95,0.3);border-radius:var(--radius-md);color:var(--accent-red);font-size:0.88rem;"></div>
+              <div style="display:flex;gap:12px;">
+                <button class="btn btn-primary" id="totp-confirm-btn" onclick="confirmTotpEnroll()" disabled>
+                  Verify &amp; Enable
                 </button>
+                <button class="btn btn-secondary" onclick="cancelTotpEnroll()">Cancel</button>
               </div>
-              <p class="form-hint">We'll send a verification code to this number.</p>
             </div>
+
+            <!-- Step 2: backup codes — shown once, must acknowledge -->
+            <div id="totp-backup-panel" style="display:none;">
+              <div style="padding:16px;background:rgba(201,168,76,0.08);border:2px solid rgba(201,168,76,0.4);border-radius:var(--radius-md);margin-bottom:16px;">
+                <div style="font-weight:700;font-size:1rem;margin-bottom:6px;color:var(--accent-gold);">
+                  ⚠ Save Your Backup Codes — They Will NOT Be Shown Again
+                </div>
+                <p style="font-size:0.88rem;color:var(--text-secondary);margin-bottom:16px;line-height:1.6;">
+                  If you lose access to your authenticator app, these 10 one-time backup codes are your only way back in. Store them somewhere safe (password manager, printed copy, etc.).
+                </p>
+                <div id="totp-backup-codes-grid" style="display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-bottom:16px;font-family:monospace;font-size:0.95rem;"></div>
+                <label style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;font-size:0.9rem;color:var(--text-secondary);">
+                  <input type="checkbox" id="totp-backup-ack" onchange="toggleTotpBackupAck()" style="margin-top:2px;flex-shrink:0;">
+                  I have saved these backup codes in a safe place and understand they will not be shown again.
+                </label>
+              </div>
+              <button class="btn btn-primary" id="totp-backup-done-btn" onclick="acknowledgeBackupCodes()" disabled>
+                Done — I've saved my codes
+              </button>
+            </div>
+
           </div>
-          
-          <!-- Disable 2FA Section (shown when enabled) -->
+
+          <!-- Enrolled status (shown when TOTP is active) -->
           <div id="2fa-disable-section" style="display:none;">
-            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);margin-bottom:20px;">
-              <span style="font-size:1.5rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg></span></span>
+            <div style="display:flex;align-items:center;gap:16px;padding:16px;background:var(--accent-green-soft);border:1px solid rgba(74,200,140,0.3);border-radius:var(--radius-md);">
+              <span style="font-size:1.5rem;color:var(--accent-green);">✓</span>
               <div style="flex:1;">
-                <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">2FA is Active</div>
-                <div style="font-size:0.9rem;color:var(--text-secondary);">Verification codes are sent to: <strong id="2fa-masked-phone">***-***-1234</strong></div>
+                <div style="font-weight:600;color:var(--accent-green);margin-bottom:2px;">Authenticator App is Active</div>
+                <div style="font-size:0.88rem;color:var(--text-secondary);">Your account requires a code from your authenticator app at each login.</div>
               </div>
             </div>
-            
-            <button class="btn btn-danger" onclick="open2FADisableModal()">
-              <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Disable 2FA
-            </button>
             <p style="font-size:0.82rem;color:var(--text-muted);margin-top:12px;">
-              Disabling 2FA will make your account less secure. You'll only need your password to log in.
+              To remove 2FA from your account, contact support. Self-service disable is coming soon.
             </p>
           </div>
         </div>
@@ -3731,7 +4339,7 @@
           </div>
         </div>
         
-        <div id="login-activity-loading" style="text-align:center;padding:24px;">
+        <div id="login-activity-loading" style="text-align:center;padding:24px;display:none;">
           <div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 12px;"></div>
           <p style="color:var(--text-muted);font-size:0.9rem;">Loading login activity...</p>
         </div>
@@ -3763,6 +4371,141 @@
             <button class="btn btn-secondary btn-sm" onclick="loadLoginActivity()"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/></svg></span> Refresh</button>
             <span style="font-size:0.82rem;color:var(--text-muted);margin-left:12px;">Showing last 30 days (up to 50 entries)</span>
           </div>
+        </div>
+      </div>
+
+      <!-- SaaS Subscriptions / Billing -->
+      <div class="card" style="margin-top:20px;" id="billing-settings-card">
+        <div class="card-header">
+          <h2 class="card-title">📦 Platform Subscriptions</h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Manage your Fleet Management and other subscription add-ons.</p>
+        </div>
+        <div id="billing-subscriptions-list">
+        </div>
+        <div style="margin-top:16px;display:flex;gap:10px;flex-wrap:wrap;">
+          <button class="btn btn-secondary" onclick="openSaasPricingModal()">Explore Plans</button>
+          <button class="btn btn-ghost" onclick="openBillingPortal()" id="billing-portal-btn" style="display:none;">Manage Billing</button>
+        </div>
+      </div>
+
+      <!-- Developer API Key Management Card (Task #90) -->
+      <div class="card" style="margin-top:24px;display:none;" id="developer-api-card">
+        <div class="card-header" style="align-items:flex-start;">
+          <div>
+            <h2 class="card-title">🔑 Developer API Keys</h2>
+            <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">Use MCC's Automotive AI API to integrate VIN decodes, recall lookups, and OBD analysis into your own apps.</p>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="generateApiKey()" id="generate-key-btn" style="white-space:nowrap;margin-left:auto;">+ Generate Key</button>
+        </div>
+        <div id="api-keys-list" style="margin-top:4px;">
+          <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading API keys…</div>
+        </div>
+        <div id="new-key-reveal" style="display:none;margin-top:16px;padding:16px;background:var(--accent-green-soft);border-radius:8px;border:1px solid var(--accent-green);">
+          <div style="font-weight:600;color:var(--accent-green);margin-bottom:6px;">✅ New API Key Created — Save it now!</div>
+          <div style="font-size:0.82rem;color:var(--text-secondary);margin-bottom:8px;">This key will only be shown once. Copy it to a safe place.</div>
+          <div style="display:flex;gap:8px;align-items:center;">
+            <code id="new-key-value" style="flex:1;background:var(--surface-3);padding:8px 12px;border-radius:6px;font-size:0.85rem;overflow:auto;word-break:break-all;"></code>
+            <button class="btn btn-sm btn-secondary" onclick="copyApiKey()">Copy</button>
+          </div>
+          <button class="btn btn-sm btn-ghost" onclick="document.getElementById('new-key-reveal').style.display='none'" style="margin-top:8px;">Dismiss</button>
+        </div>
+        <div style="margin-top:12px;padding-top:12px;border-top:1px solid var(--border-subtle);">
+          <div style="font-size:0.8rem;color:var(--text-muted);">
+            Endpoints: <code>GET /api/v1/vin/:vin</code> · <code>GET /api/v1/recalls/:vin</code> · <code>POST /api/v1/obd-codes</code> · <code>POST /api/v1/price-estimate</code>
+          </div>
+          <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">Include your key as <code>x-api-key: mcc_...</code> header. AI features require Pro plan.</div>
+        </div>
+      </div>
+
+      <!-- Outreach Engine SaaS Card (Task #91) -->
+      <div class="card" style="margin-top:24px;display:none;" id="outreach-saas-card">
+        <div class="card-header">
+          <h2 class="card-title">📡 Outreach Engine</h2>
+          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">AI-powered lead discovery and outreach campaigns, scoped to your subscription plan.</p>
+        </div>
+        <div id="outreach-saas-status">
+          <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading outreach status…</div>
+        </div>
+      </div>
+
+      <!-- White-label Tenant Admin Portal Card (Task #87) -->
+      <div class="card" id="wl-tenant-portal-card" style="margin-top:24px;display:none;">
+        <div class="card-header">
+          <h2 class="card-title">🏢 White-label Tenant Portal</h2>
+          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">Manage your branded platform instance, roster, analytics, and billing.</p>
+        </div>
+        <!-- Portal Tabs -->
+        <div style="display:flex;gap:4px;margin-bottom:20px;border-bottom:1px solid var(--border-subtle);padding-bottom:0;" id="wl-portal-tabs">
+          <button class="wl-ptab wl-ptab-active" data-tab="overview" onclick="wlSwitchPortalTab('overview')">Overview</button>
+          <button class="wl-ptab" data-tab="roster" onclick="wlSwitchPortalTab('roster')">Roster</button>
+          <button class="wl-ptab" data-tab="analytics" onclick="wlSwitchPortalTab('analytics')">Analytics</button>
+          <button class="wl-ptab" data-tab="settings" onclick="wlSwitchPortalTab('settings')">Settings</button>
+        </div>
+        <style>
+          .wl-ptab { background:none; border:none; border-bottom:2px solid transparent; padding:8px 16px; font-size:0.88rem; color:var(--text-muted); cursor:pointer; font-weight:500; transition:all 0.2s; }
+          .wl-ptab:hover { color:var(--text-primary); }
+          .wl-ptab-active { color:var(--accent-gold); border-bottom-color:var(--accent-gold); }
+        </style>
+        <div id="wl-tab-overview">
+          <div id="wl-tenant-portal-content">
+            <div style="color:var(--text-muted);font-size:0.9rem;padding:8px 0;">Loading tenant info…</div>
+          </div>
+        </div>
+        <div id="wl-tab-roster" style="display:none;">
+          <div id="wl-roster-content"><div style="color:var(--text-muted);font-size:0.9rem;">Loading roster…</div></div>
+        </div>
+        <div id="wl-tab-analytics" style="display:none;">
+          <div id="wl-analytics-content"><div style="color:var(--text-muted);font-size:0.9rem;">Loading analytics…</div></div>
+        </div>
+        <div id="wl-tab-settings" style="display:none;">
+          <div id="wl-settings-content"></div>
+        </div>
+      </div>
+
+      <!-- My Referral QR Code -->
+      <div class="card" id="settings-ref-qr-card" style="margin-top:24px;background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(201,168,76,0.03));border:1px solid rgba(201,168,76,0.3);">
+        <div class="card-header" style="border-bottom:none;padding-bottom:0;">
+          <h2 class="card-title" style="color:var(--accent-gold);">
+            <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:8px;"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
+            My Referral QR Code
+          </h2>
+          <p style="font-size:0.85rem;color:var(--text-secondary);margin-top:6px;">Refer an auto shop — earn commission when they join and buy bid credits.</p>
+        </div>
+        <div style="display:flex;gap:28px;flex-wrap:wrap;align-items:flex-start;padding-top:12px;">
+          <div style="text-align:center;flex-shrink:0;">
+            <div style="display:inline-block;background:#fff;padding:14px;border-radius:12px;border:2px solid rgba(201,168,76,0.4);">
+              <canvas id="settings-ref-qr-canvas" width="160" height="160"></canvas>
+            </div>
+            <div style="margin-top:10px;">
+              <button class="btn btn-secondary btn-sm" onclick="downloadSettingsReferralQr()">
+                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/></svg> Download QR
+              </button>
+            </div>
+          </div>
+          <div style="flex:1;min-width:220px;">
+            <div style="margin-bottom:14px;">
+              <div style="font-size:0.8rem;color:var(--text-muted);margin-bottom:6px;text-transform:uppercase;letter-spacing:0.06em;">Your referral link</div>
+              <div id="settings-ref-link" style="font-size:0.82rem;background:var(--bg-deep);padding:10px 14px;border-radius:8px;border:1px solid var(--border-subtle);word-break:break-all;color:var(--text-secondary);font-family:monospace;">Loading…</div>
+            </div>
+            <button class="btn btn-secondary btn-sm" onclick="copyReferralProviderLink()">
+              <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg> Copy Link
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Commission Opt-Out -->
+      <div class="card" id="commission-opt-out-card" style="margin-top:24px;display:none;">
+        <div class="card-header">
+          <h2 class="card-title">Referral Commission Attribution</h2>
+          <p style="font-size:0.88rem;color:var(--text-secondary);margin-top:4px;">If you were referred to MCC by a Member Founder or Driver Founder, their commission is earned from your bid credit purchases at no cost to you. You can opt out of this attribution at any time.</p>
+        </div>
+        <div style="padding:4px 0 8px;">
+          <label style="display:flex;align-items:center;gap:12px;cursor:pointer;">
+            <input type="checkbox" id="commission-opt-out-toggle" onchange="saveCommissionOptOut(this.checked)" style="width:18px;height:18px;accent-color:var(--accent-gold);">
+            <span style="font-size:0.9rem;color:var(--text-secondary);line-height:1.5;">Opt out of referral commission attribution — my bid credit purchases will no longer generate commissions for the person who referred me.</span>
+          </label>
+          <p style="font-size:0.78rem;color:var(--text-muted);margin-top:10px;">Opting out does not affect commissions already paid or currently in the maturation window. See the <a href="/founder-program-terms.html" target="_blank" style="color:var(--accent-gold);">Founder Program Terms</a> for details.</p>
         </div>
       </div>
 
@@ -6002,11 +6745,94 @@
         </div>
 
         <div id="registration-result" style="display:none;margin-top:20px;"></div>
+
+        <div style="margin-top:16px;">
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:6px;">Context note <span style="font-style:italic;">(optional)</span></label>
+          <textarea id="registration-context-note" class="form-input" rows="2" style="resize:vertical;font-size:0.88rem;" placeholder="e.g. 'leased vehicle', 'spouse's car', 'recently married — maiden name on registration'"></textarea>
+        </div>
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('registration-modal')">Cancel</button>
         <button class="btn btn-primary" id="verify-registration-btn" onclick="submitRegistrationVerification()" disabled>
           <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg> Verify Registration
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Insurance Card Verification Modal -->
+  <div class="modal-backdrop" id="insurance-modal">
+    <div class="modal" style="max-width:520px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span> Verify Insurance Card</h3>
+        <button class="modal-close" onclick="closeModal('insurance-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <input type="hidden" id="insurance-vehicle-id">
+
+        <div id="insurance-current-status" style="display:none;margin-bottom:20px;padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-bottom:8px;">Current Status</div>
+          <div id="insurance-status-display"></div>
+        </div>
+
+        <div style="background:var(--accent-teal-soft);border:1px solid rgba(34,211,238,0.3);border-radius:var(--radius-md);padding:16px;margin-bottom:20px;">
+          <h4 style="margin-bottom:8px;color:var(--accent-teal);font-size:0.95rem;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span> Upload Your Insurance Card</h4>
+          <p style="font-size:0.88rem;color:var(--text-secondary);line-height:1.5;">
+            Upload a clear photo of your current auto insurance card. We verify it's active and the policyholder name matches your account.
+          </p>
+          <p style="font-size:0.8rem;color:var(--text-muted);margin-top:8px;">Accepts JPG, PNG (max 10MB) &nbsp;·&nbsp; Must be current (not expired)</p>
+        </div>
+
+        <div id="insurance-drop-zone" style="border:2px dashed var(--border-medium);border-radius:var(--radius-md);padding:24px;text-align:center;margin-bottom:16px;transition:all 0.2s;cursor:pointer;" ondragover="handleInsuranceDragOver(event)" ondragleave="handleInsuranceDragLeave(event)" ondrop="handleInsuranceDrop(event)" onclick="document.getElementById('insurance-gallery-input').click()">
+          <div style="font-size:32px;margin-bottom:8px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span></div>
+          <div style="font-weight:500;color:var(--text-primary);">Drag & drop your insurance card here</div>
+          <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">or use the buttons below</div>
+        </div>
+
+        <div id="insurance-upload-buttons" style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:16px;">
+          <button type="button" class="btn" onclick="document.getElementById('insurance-camera-input').click()" style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);color:var(--accent-gold);padding:16px;font-size:1rem;">
+            <span style="font-size:24px;margin-right:8px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg></span></span> Take Photo
+          </button>
+          <button type="button" class="btn" onclick="document.getElementById('insurance-gallery-input').click()" style="background:var(--accent-blue-soft);border:1px solid var(--accent-blue);color:var(--accent-blue);padding:16px;font-size:1rem;">
+            <span style="font-size:24px;margin-right:8px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="18" x="3" y="3" rx="2" ry="2"/><circle cx="9" cy="9" r="2"/><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/></svg></span></span> Choose from Gallery
+          </button>
+        </div>
+        <input type="file" id="insurance-camera-input" accept="image/jpeg,image/png" capture="environment" style="display:none;" onchange="handleInsuranceFileSelect(event)">
+        <input type="file" id="insurance-gallery-input" accept="image/jpeg,image/png,image/jpg" style="display:none;" onchange="handleInsuranceFileSelect(event)">
+
+        <div class="registration-upload-area" id="insurance-upload-area" style="display:none;">
+          <img id="insurance-preview-img" class="registration-preview-img" alt="Insurance card preview" style="max-width:100%;max-height:300px;border-radius:var(--radius-md);">
+        </div>
+
+        <div id="insurance-file-info" style="display:none;margin-top:12px;padding:12px;background:var(--bg-elevated);border-radius:var(--radius-md);display:flex;align-items:center;gap:12px;">
+          <span style="font-size:24px;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span></span>
+          <div style="flex:1;">
+            <div id="insurance-file-name" style="font-weight:500;"></div>
+            <div id="insurance-file-size" style="font-size:0.82rem;color:var(--text-muted);"></div>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="removeInsuranceFile()" style="color:var(--accent-red);"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:2px;"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg> Remove</button>
+        </div>
+
+        <div id="insurance-loading" style="display:none;text-align:center;padding:30px;">
+          <div style="font-size:32px;margin-bottom:12px;animation:pulse 1.5s infinite;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg></span></div>
+          <div style="font-weight:500;" id="insurance-loading-text">Uploading insurance card...</div>
+          <div style="font-size:0.88rem;color:var(--text-muted);margin-top:4px;" id="insurance-loading-subtext">Our AI is reading your card</div>
+          <div style="margin-top:16px;height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden;">
+            <div id="insurance-progress-bar" style="width:0%;height:100%;background:var(--accent-teal);border-radius:3px;transition:width 0.3s ease;"></div>
+          </div>
+        </div>
+
+        <div id="insurance-result" style="display:none;margin-top:20px;"></div>
+
+        <div style="margin-top:16px;">
+          <label style="font-size:0.82rem;color:var(--text-muted);display:block;margin-bottom:6px;">Context note <span style="font-style:italic;">(optional)</span></label>
+          <textarea id="insurance-context-note" class="form-input" rows="2" style="resize:vertical;font-size:0.88rem;" placeholder="e.g. 'policy in spouse's name', 'company fleet insurance', 'recently renewed — new card coming'"></textarea>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('insurance-modal')">Cancel</button>
+        <button class="btn btn-primary" id="verify-insurance-btn" onclick="submitInsuranceVerification()" disabled style="background:var(--accent-teal);border-color:var(--accent-teal);">
+          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg> Verify Insurance
         </button>
       </div>
     </div>
@@ -7323,67 +8149,6 @@
     </div>
   </div>
 
-  <!-- 2FA Verification Modal -->
-  <div class="modal-backdrop" id="2fa-verify-modal">
-    <div class="modal" style="max-width:420px;">
-      <div class="modal-header">
-        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Verify Your Phone</h3>
-        <button class="modal-close" onclick="close2FAVerifyModal()">×</button>
-      </div>
-      <div class="modal-body" style="text-align:center;">
-        <div style="margin-bottom:16px;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2"/><path d="M12 18h.01"/></svg></div>
-        <p style="color:var(--text-secondary);margin-bottom:8px;">We sent a verification code to</p>
-        <p id="2fa-verify-phone-display" style="font-weight:600;font-size:1.1rem;margin-bottom:24px;color:var(--accent-blue);">(555) 555-5555</p>
-        
-        <div class="form-group" style="margin-bottom:20px;">
-          <label class="form-label" style="text-align:center;">Enter 6-digit code</label>
-          <div style="display:flex;justify-content:center;gap:8px;">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-1" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 1)" onkeydown="handle2FAKeydown(event, 1)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-2" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 2)" onkeydown="handle2FAKeydown(event, 2)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-3" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 3)" onkeydown="handle2FAKeydown(event, 3)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-4" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 4)" onkeydown="handle2FAKeydown(event, 4)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-5" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 5)" onkeydown="handle2FAKeydown(event, 5)">
-            <input type="text" class="form-input 2fa-digit" id="2fa-digit-6" maxlength="1" style="width:48px;height:56px;text-align:center;font-size:1.5rem;font-weight:600;" oninput="handle2FADigitInput(this, 6)" onkeydown="handle2FAKeydown(event, 6)">
-          </div>
-        </div>
-        
-        <div id="2fa-verify-error" style="display:none;color:var(--accent-red);margin-bottom:16px;font-size:0.9rem;"></div>
-        
-        <button class="btn btn-primary" id="2fa-verify-btn" onclick="verify2FACode()" style="width:100%;margin-bottom:16px;" disabled>
-          Verify & Enable 2FA
-        </button>
-        
-        <div style="font-size:0.85rem;color:var(--text-muted);">
-          Didn't receive the code? 
-          <button onclick="resend2FACode()" style="background:none;border:none;color:var(--accent-blue);cursor:pointer;font-size:0.85rem;text-decoration:underline;" id="2fa-resend-btn">Resend Code</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <!-- 2FA Disable Confirmation Modal -->
-  <div class="modal-backdrop" id="2fa-disable-modal">
-    <div class="modal" style="max-width:420px;">
-      <div class="modal-header">
-        <h3 class="modal-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span> Disable 2FA</h3>
-        <button class="modal-close" onclick="close2FADisableModal()">×</button>
-      </div>
-      <div class="modal-body" style="text-align:center;">
-        <div style="margin-bottom:16px;"><svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></div>
-        <h4 style="margin-bottom:12px;">Are you sure?</h4>
-        <p style="color:var(--text-secondary);margin-bottom:24px;line-height:1.6;">
-          Disabling two-factor authentication will make your account less secure. 
-          Anyone with your password will be able to access your account.
-        </p>
-        
-        <div style="display:flex;gap:12px;justify-content:center;">
-          <button class="btn btn-secondary" onclick="close2FADisableModal()">Cancel</button>
-          <button class="btn btn-danger" onclick="confirm2FADisable()">Yes, Disable 2FA</button>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- Release Payment Confirmation Modal -->
   <div class="modal-backdrop" id="release-payment-modal">
     <div class="modal" style="max-width:520px;">
@@ -7489,7 +8254,7 @@
         
         <div style="display:flex;gap:12px;">
           <button class="btn btn-secondary" onclick="closeModal('approve-additional-work-modal')" style="flex:1;">Cancel</button>
-          <button class="btn btn-success" id="approve-additional-work-btn" onclick="confirmApproveAdditionalWork()" style="flex:1;">
+          <button class="btn btn-success" id="approve-additional-work-btn" onclick="confirmApproveAdditionalWork()" style="flex:1;" disabled aria-disabled="true">
             <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg> Authorize Payment
           </button>
         </div>
@@ -7498,18 +8263,106 @@
   </div>
 
   <!-- Toast Container -->
+  <!-- Transport Request Modal -->
+  <div class="modal-backdrop" id="transport-modal">
+    <div class="modal" style="max-width:540px;">
+      <div class="modal-header">
+        <h3 class="modal-title"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:6px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Request Vehicle Pickup</h3>
+        <button class="modal-close" onclick="closeModal('transport-modal')">×</button>
+      </div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:16px;">
+
+        <div style="background:rgba(56,189,248,0.08);border:1px solid rgba(56,189,248,0.25);border-radius:10px;padding:10px 14px;font-size:0.82rem;color:var(--text-secondary);line-height:1.5;">
+          <strong style="color:var(--accent-blue);">Vehicle transport only.</strong> MCC provides vehicle pickup &amp; delivery service. Your driver will transport your vehicle — this is not a passenger ride service.
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Vehicle</label>
+          <select class="form-select" id="tr-vehicle" onchange="updateTransportEstimate()">
+            <option value="">Select a vehicle...</option>
+          </select>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Pickup Address</label>
+          <input type="text" class="form-input" id="tr-pickup" placeholder="Where should the driver pick up your vehicle?" oninput="scheduleTransportEstimateUpdate()">
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Drop-off Destination</label>
+          <input type="text" class="form-input" id="tr-dropoff" placeholder="Address or destination" oninput="scheduleTransportEstimateUpdate()">
+          <div style="margin-top:8px;">
+            <select class="form-select" id="tr-provider-select" onchange="prefillTransportProviderAddress()" style="font-size:0.85rem;">
+              <option value="">Or select a provider from your history...</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">When</label>
+          <div style="display:flex;gap:8px;margin-bottom:8px;">
+            <button class="btn btn-primary btn-sm" id="tr-asap-btn" onclick="setTransportTiming('asap')" style="flex:1;">ASAP</button>
+            <button class="btn btn-secondary btn-sm" id="tr-schedule-btn" onclick="setTransportTiming('schedule')" style="flex:1;">Schedule</button>
+          </div>
+          <div id="tr-schedule-field" style="display:none;">
+            <input type="datetime-local" class="form-input" id="tr-scheduled-at">
+          </div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Driver Mode</label>
+          <div style="display:flex;gap:8px;margin-bottom:6px;">
+            <button class="btn btn-primary btn-sm" id="tr-solo-btn" onclick="setTransportMode('solo')" style="flex:1;">Solo</button>
+            <button class="btn btn-secondary btn-sm" id="tr-tandem-btn" onclick="setTransportMode('tandem')" style="flex:1;">Tandem (+50%)</button>
+          </div>
+          <div id="tr-solo-desc" style="font-size:0.8rem;color:var(--text-muted);">One driver delivers your vehicle. You arrange your own return.</div>
+          <div id="tr-tandem-desc" style="font-size:0.8rem;color:var(--text-muted);display:none;">A second driver follows in their own car to bring you or the first driver back.</div>
+        </div>
+
+        <div class="form-group" style="margin:0;">
+          <label class="form-label">Notes for Driver</label>
+          <textarea class="form-input" id="tr-notes" rows="2" placeholder="Gate code, parking instructions, anything the driver should know..." style="resize:vertical;"></textarea>
+        </div>
+
+        <div id="tr-estimate" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:14px 16px;display:none;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div id="tr-estimate-distance" style="font-size:0.8rem;color:var(--text-muted);margin-bottom:2px;"></div>
+              <div id="tr-estimate-fare" style="font-size:1.4rem;font-weight:700;color:var(--accent-gold);"></div>
+            </div>
+            <div style="font-size:0.75rem;color:var(--text-muted);text-align:right;line-height:1.4;">
+              ★ 100% of tips go<br>directly to your driver
+            </div>
+          </div>
+        </div>
+
+        <div id="tr-geocoding-note" style="font-size:0.8rem;color:var(--text-muted);display:none;">
+          Calculating distance estimate...
+        </div>
+
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-muted);text-align:center;padding:8px 16px 0;">Your vehicle is inspected before and after transport.</div>
+      <div class="modal-footer">
+        <button class="btn btn-secondary" onclick="closeModal('transport-modal')">Cancel</button>
+        <button class="btn btn-primary" id="tr-submit-btn" onclick="submitTransportRequest()">Request Pickup</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast-container" id="toast-container"></div>
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260213"></script>
   <script src="mcc-config.js?v=20260213"></script>
+  <script src="white-label-client.js"></script>
   <script src="tos-modal.js?v=20260213"></script>
   <script src="emailService.js?v=20260213"></script>
   <script src="mobile-pay.js?v=20260213"></script>
   <script src="stripeutils.js?v=20260213"></script>
   <script src="mcc-icons.js?v=20260213"></script>
-  <script src="members-core.js?v=20260213"></script>
-  <script src="members-extras.js?v=20260213"></script>
+  <script src="members-core.js?v=20260529"></script>
+  <script src="members-care-plans.js?v=20260604"></script>
+  <script src="members-extras.js?v=20260604"></script>
   <script src="members-vehicles.js?v=20260213"></script>
   <script>
     // Expose members-vehicles.js functions that need global window access
@@ -7518,12 +8371,13 @@
     }
   </script>
   <script src="members-packages.js?v=20260213"></script>
-  <script>globalThis._mccPushContext = 'member';</script>
+  <script src="custody-capture.js"></script>
+  <script>window._mccPushContext = 'member';</script>
   <script src="members-push.js?v=20260319"></script>
-  <script src="/pwa-init.js?v=20260213"></script>
-  <script src="/chat-widget-base.js?v=20260213"></script>
-  <script src="/ai-chat.js?v=20260213"></script>
-  <script src="/helpdesk-widget.js?v=20260213"></script>
+  <script src="pwa-init.js?v=20260213"></script>
+  <script src="chat-widget-base.js?v=20260213"></script>
+  <script src="ai-chat.js?v=20260213"></script>
+  <script src="helpdesk-widget.js?v=20260213"></script>
   <script>
     function toggleTheme() {
       const html = document.documentElement;
@@ -7537,6 +8391,24 @@
         metaTheme.content = newTheme === 'dark' ? '#12161c' : '#ffffff';
       }
       setTimeout(() => html.classList.remove('theme-transition'), 300);
+    }
+
+    function goToMyReferralQr() {
+      showSection('settings');
+      setTimeout(() => {
+        const card = document.getElementById('settings-ref-qr-card');
+        if (card) card.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 200);
+    }
+
+    function downloadSettingsReferralQr() {
+      const canvas = document.getElementById('settings-ref-qr-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = 'mcc-referral-qr.png';
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      if (typeof showToast === 'function') showToast('QR code downloaded!', 'success');
     }
 
     let helpdeskInstance = null;
@@ -7662,8 +8534,8 @@
         <div style="padding:16px 24px 0;">
           <div style="display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;">
             <button class="btn btn-sm" id="saas-tab-fleet" onclick="switchSaasTab('fleet')" style="background:var(--accent-gold);color:#000;">Fleet</button>
-            <button class="btn btn-sm btn-secondary" id="saas-tab-shop" onclick="switchSaasTab('shop')">Provider Shop</button>
-            <button class="btn btn-sm btn-secondary" id="saas-tab-ai_api" onclick="switchSaasTab('ai_api')">AI API</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-shop" onclick="switchSaasTab('shop')" style="display:none;">Provider Shop</button>
+            <button class="btn btn-sm btn-secondary" id="saas-tab-ai_api" onclick="switchSaasTab('ai_api')" style="display:none;">AI API</button>
             <button class="btn btn-sm btn-secondary" id="saas-tab-outreach" onclick="switchSaasTab('outreach')">Outreach</button>
             <button class="btn btn-sm btn-secondary" id="saas-tab-white_label" onclick="switchSaasTab('white_label')">White-label</button>
           </div>
@@ -7893,14 +8765,18 @@
       if (!container) return;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return;
+        if (!session) {
+          if (container) container.innerHTML = '<div style="color:var(--text-muted);font-size:0.85rem;">Sign in to view subscription info.</div>';
+          return;
+        }
         const resp = await fetch('/api/saas/subscription/status', {
           headers: { 'Authorization': 'Bearer ' + session.access_token }
         });
         if (!resp.ok) throw new Error('Failed');
         const data = await resp.json();
-        const subs = data.by_product || {};
-        const productLabels = { fleet: 'Fleet Management', shop: 'Provider Shop', ai_api: 'AI API', outreach: 'Outreach Engine', white_label: 'White-label' };
+        const MEMBER_PRODUCTS = ['fleet', 'outreach', 'white_label'];
+        const subs = Object.fromEntries(Object.entries(data.by_product || {}).filter(([p]) => MEMBER_PRODUCTS.includes(p)));
+        const productLabels = { fleet: 'Fleet Management', outreach: 'Outreach Engine', white_label: 'White-label' };
         const statusColors = { active: 'var(--accent-green)', trialing: 'var(--accent-blue)', canceled: 'var(--text-muted)', past_due: 'var(--accent-red)' };
 
         if (Object.keys(subs).length === 0) {
@@ -8020,6 +8896,8 @@
     // ========== DEVELOPER API KEY MANAGEMENT (Task #90) ==========
 
     async function loadApiKeys() {
+      const card = document.getElementById('developer-api-card');
+      if (card) card.style.display = '';
       const listEl = document.getElementById('api-keys-list');
       if (!listEl) return;
       try {
@@ -8124,6 +9002,8 @@
     // ========== OUTREACH SAAS STATUS (Task #91) ==========
 
     async function loadOutreachStatus() {
+      const card = document.getElementById('outreach-saas-card');
+      if (card) card.style.display = '';
       const el = document.getElementById('outreach-saas-status');
       if (!el) return;
       try {
@@ -8644,6 +9524,57 @@
     // ========== END SaaS UI TASKS ==========
   </script>
 
+  <!-- Custody Accept / Dispute Modal -->
+  <div class="modal-backdrop" id="custody-accept-modal">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Verify Vehicle Return</h3>
+        <button class="modal-close" onclick="closeCustodyAcceptModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- Binary choice -->
+        <div id="custody-choice-section">
+          <p style="color:var(--text-secondary);margin-bottom:20px;">Did everything go as expected with the vehicle?</p>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <button class="btn btn-success" style="justify-content:center;padding:14px;" onclick="submitCustodyAccept()">
+              ✓ Everything looks good
+            </button>
+            <button class="btn btn-secondary" style="justify-content:center;padding:14px;" onclick="showCustodyDisputeForm()">
+              ⚠ I see a problem
+            </button>
+          </div>
+        </div>
+        <!-- Dispute form (hidden until "I see a problem") -->
+        <div id="custody-dispute-section" style="display:none;">
+          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;">What issue did you find?</p>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="new_damage"> New damage found
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="missing_item"> Missing item
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="condition_mismatch"> Condition mismatch
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="cleaning_revealed"> Cleaning revealed damage
+            </label>
+          </div>
+          <textarea id="custody-dispute-notes" class="form-input" rows="3" placeholder="Additional notes (optional)" style="margin-bottom:12px;resize:vertical;"></textarea>
+          <div style="margin-bottom:16px;">
+            <button class="btn btn-secondary btn-sm" onclick="captureCustodyDisputePhotos()">📷 Add Photo Evidence</button>
+            <div id="custody-dispute-photo-status" style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="custody-modal-footer-dispute" style="display:none;">
+        <button class="btn btn-secondary" onclick="showCustodyChoiceSection()">← Back</button>
+        <button class="btn btn-danger" onclick="submitCustodyDispute()">Submit Dispute</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Vehicle Photos Modal -->
   <div id="vehicle-photos-modal" class="modal-backdrop" style="display:none;position:fixed;inset:0;z-index:1100;background:rgba(0,0,0,0.7);backdrop-filter:blur(4px);align-items:center;justify-content:center;padding:16px;">
     <div style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-lg);width:100%;max-width:600px;max-height:90vh;overflow-y:auto;padding:24px;position:relative;">
@@ -8663,6 +9594,6 @@
   <div id="vp-lightbox" style="display:none;position:fixed;inset:0;z-index:1200;background:rgba(0,0,0,0.92);align-items:center;justify-content:center;cursor:zoom-out;" onclick="closePhotoLightbox()">
     <img src="" alt="Vehicle photo" style="max-width:94vw;max-height:90vh;object-fit:contain;border-radius:8px;">
   </div>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

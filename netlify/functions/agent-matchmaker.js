@@ -38,7 +38,13 @@ const SYSTEM_PROMPT =
   'You weigh price, provider rating, completion rate, BGC verification status, ' +
   'and any explicit notes from the bid. You NEVER take action directly — you only ' +
   'recommend; the operator must approve before notifying any provider. ' +
-  'Be transparent about trade-offs. Always reply with valid JSON in this exact shape:\n' +
+  'Be transparent about trade-offs.\n\n' +
+  'TRANSPORT FACTOR: MCC now offers on-demand vehicle pickup & delivery. ' +
+  'When comparing bids, treat a provider who offers free or subsidised vehicle pickup as a meaningful differentiator — ' +
+  'all else being equal, a provider who removes the friction of dropping off a vehicle should rank higher. ' +
+  'If a bid note indicates the provider offers free pickup, add a positive signal in their score rationale. ' +
+  'If the care plan member is located far from the shortlisted providers and none offer pickup, flag this as a concern.\n\n' +
+  'Always reply with valid JSON in this exact shape:\n' +
   '{"recommended_winner_bid_id": <bid_id_string|null>, "confidence": 0.0-1.0, ' +
   '"reasoning": "2-4 sentence rationale citing concrete fields", ' +
   '"ranked_bids":[{"bid_id":<bid_id_string>,"score":0.0-1.0,"why":"short rationale"}], ' +
@@ -126,25 +132,74 @@ async function loadProviders(supabase, providerIds) {
   return map;
 }
 
+// Load provider match preferences and return a map of provider_id → prefs.
+// Providers with matches_paused=true are flagged so the matchmaker can
+// deprioritise or exclude them. match_categories and match_radius_miles are
+// included in the prompt as context for Claude.
+async function loadMatchPreferences(supabase, providerIds) {
+  if (!providerIds.length) return {};
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from('provider_match_preferences')
+    .select('provider_id, match_categories, match_radius_miles, matches_paused, matches_paused_until')
+    .in('provider_id', providerIds);
+  const map = {};
+  for (const p of data || []) {
+    // Treat paused_until in the past as unpaused
+    const paused = p.matches_paused && (!p.matches_paused_until || p.matches_paused_until > now);
+    map[p.provider_id] = { ...p, effectively_paused: paused };
+  }
+  return map;
+}
+
 async function buildPrompt(supabase, payload, preloadedCarePlan = null) {
   const carePlanId = payload.care_plan_id;
   const carePlan = preloadedCarePlan || await loadCarePlan(supabase, carePlanId);
-  const bids = await loadBids(supabase, carePlanId);
-  const providers = await loadProviders(supabase, [...new Set(bids.map(b => b.provider_id).filter(Boolean))]);
+  const allBids = await loadBids(supabase, carePlanId);
+  const providerIds = [...new Set(allBids.map(b => b.provider_id).filter(Boolean))];
 
-  const enriched = bids.map(b => ({
-    bid_id: b.id,
-    provider_id: b.provider_id,
-    amount: b.amount,
-    is_auto_bid: b.is_auto_bid,
-    notes: b.note,
-    status: b.status,
-    submitted_at: b.created_at,
-    provider: providers[b.provider_id] || { id: b.provider_id, missing: true }
-  }));
+  const [providers, matchPrefs] = await Promise.all([
+    loadProviders(supabase, providerIds),
+    loadMatchPreferences(supabase, providerIds),
+  ]);
+
+  // Filter out providers who have paused matching — they submitted a bid but
+  // have since indicated they are unavailable. Flag in the prompt rather than
+  // silently dropping them so the operator is aware.
+  const enriched = allBids.map(b => {
+    const prefs = matchPrefs[b.provider_id] || {};
+    const planCats = Array.isArray(carePlan.service_types) ? carePlan.service_types : [];
+    const provCats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
+    const categoryMismatch = provCats.length > 0 && planCats.length > 0 &&
+      !planCats.some(c => provCats.map(x => x.toLowerCase()).includes(c.toLowerCase()));
+
+    return {
+      bid_id: b.id,
+      provider_id: b.provider_id,
+      amount: b.amount,
+      is_auto_bid: b.is_auto_bid,
+      notes: b.note,
+      status: b.status,
+      submitted_at: b.created_at,
+      provider: providers[b.provider_id] || { id: b.provider_id, missing: true },
+      match_flags: {
+        paused: prefs.effectively_paused || false,
+        category_mismatch: categoryMismatch,
+        preferred_radius_miles: prefs.match_radius_miles || null,
+        preferred_categories: provCats,
+      },
+    };
+  });
+
+  const pausedCount = enriched.filter(b => b.match_flags.paused).length;
+  const mismatchCount = enriched.filter(b => b.match_flags.category_mismatch).length;
+
+  const prefNotes = [];
+  if (pausedCount > 0) prefNotes.push(`${pausedCount} provider(s) have paused matching — deprioritise them.`);
+  if (mismatchCount > 0) prefNotes.push(`${mismatchCount} provider(s) have category preferences that don't overlap with this care plan's service types — factor this in.`);
 
   return {
-    bidCount: bids.length,
+    bidCount: allBids.length,
     text: [
       `EVENT: care_plan.auction_closed (bidding has closed; pick a winner).`,
       `Rank the bids and recommend ONE winner_bid_id (or null if every bid should be rejected).`,
@@ -152,11 +207,12 @@ async function buildPrompt(supabase, payload, preloadedCarePlan = null) {
       `Heuristics: lowest reasonable price wins ties on quality; verified BGC providers ` +
       `outrank non-verified at the same price; rating below 3.5 with >= 5 reviews is a yellow flag; ` +
       `missing/incomplete provider profile = manual review.`,
+      prefNotes.length ? `\nMATCH PREFERENCE NOTES:\n${prefNotes.join('\n')}` : '',
       ``,
       `CARE PLAN:\n${JSON.stringify(carePlan, null, 2)}`,
       ``,
-      `BIDS (${bids.length} total):\n${JSON.stringify(enriched, null, 2)}`
-    ].join('\n')
+      `BIDS (${allBids.length} total, with match_flags showing provider preferences):\n${JSON.stringify(enriched, null, 2)}`
+    ].filter(Boolean).join('\n')
   };
 }
 

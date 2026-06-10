@@ -15,19 +15,19 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       /* Automotive Theme - Warmer, garage-inspired */
       --bg-deep: #12161c;
       --bg-card: rgba(26, 32, 42, 0.9);
-      --bg-elevated: rgba(28, 28, 42, 0.95);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
       --bg-input: rgba(30, 38, 48, 0.9);
       --text-primary: #f5f5f7;
       --text-secondary: #a0a8b8;
@@ -48,19 +48,21 @@
     }
 
     [data-theme="light"] {
-      --bg-deep: #f8fafc;
+      --bg-deep: #fefdfb;
       --bg-card: #ffffff;
       --bg-elevated: #ffffff;
-      --bg-input: #f1f5f9;
-      --text-primary: #1e293b;
-      --text-secondary: #475569;
-      --text-muted: #64748b;
-      --border-subtle: rgba(30, 58, 95, 0.12);
-      --border-medium: rgba(30, 58, 95, 0.2);
-      --accent-gold: #c9a962;
-      --accent-gold-soft: rgba(201, 169, 98, 0.15);
+      --bg-input: #f0f1f3;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --border-focus: rgba(184, 148, 45, 0.5);
+      --accent-gold: #b8942d;
+      --accent-gold-soft: rgba(184, 148, 45, 0.12);
       --accent-teal: #0d7377;
       --accent-blue: #1e3a5f;
+      --accent-green: #059669;
     }
 
     html.theme-transition,
@@ -84,17 +86,17 @@
 
     .header { text-align: center; margin-bottom: 40px; }
     .header-brand { display: inline-flex; align-items: center; gap: 14px; text-decoration: none; margin-bottom: 24px; }
-    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
+    .header-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: auto; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
     .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
-    .header h1 { font-family: 'Playfair Display', serif; font-size: 2rem; margin-bottom: 12px; }
-    .header p { color: var(--text-secondary); font-size: 1rem; max-width: 500px; margin: 0 auto; }
+    .header h1 { font-family: 'Playfair Display', serif; font-size: var(--text-4xl); margin-bottom: 12px; }
+    .header p { color: var(--text-secondary); font-size: var(--text-md); max-width: 500px; margin: 0 auto; }
 
     .benefits { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 20px; }
     .benefit { background: linear-gradient(135deg, var(--bg-card) 0%, rgba(212, 168, 85, 0.05) 100%); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 12px 14px; display: flex; align-items: center; gap: 10px; text-align: left; transition: all 0.3s ease; }
     .benefit:hover { border-color: var(--accent-gold); }
     .benefit-icon { font-size: 20px; flex-shrink: 0; }
-    .benefit-title { font-weight: 600; font-size: 0.88rem; color: var(--text-primary); line-height: 1.2; }
-    .benefit-desc { font-size: 0.75rem; color: var(--text-muted); }
+    .benefit-title { font-weight: 600; font-size: var(--text-base); color: var(--text-primary); line-height: 1.2; }
+    .benefit-desc { font-size: var(--text-xs); color: var(--text-muted); }
     .benefit-link:hover .benefit { border-color: var(--accent-gold); }
 
     .form-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-xl); padding: 40px; }
@@ -107,22 +109,22 @@
     .step-dot.active { background: var(--accent-gold); border-color: var(--accent-gold); }
     .step-dot.completed { background: var(--accent-green); border-color: var(--accent-green); }
 
-    .step-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 8px; }
+    .step-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 8px; }
     .step-subtitle { color: var(--text-secondary); margin-bottom: 28px; }
 
     .form-section { margin-bottom: 28px; }
     .form-section-title { font-weight: 600; margin-bottom: 16px; padding-bottom: 8px; border-bottom: 1px solid var(--border-subtle); }
 
     .form-group { margin-bottom: 20px; }
-    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
     .form-label .required { color: var(--accent-gold); }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: 0.95rem; transition: all 0.15s; }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 14px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-family: inherit; font-size: var(--text-base); transition: all 0.15s; }
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(212, 168, 85, 0.1); }
     .form-input::placeholder, .form-textarea::placeholder { color: var(--text-muted); }
     .form-textarea { min-height: 100px; resize: vertical; }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
     .form-row.three { grid-template-columns: 1fr 1fr 1fr; }
-    .form-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 6px; }
+    .form-hint { font-size: var(--text-sm); color: var(--text-muted); margin-top: 6px; }
 
     .checkbox-group { display: flex; flex-wrap: wrap; gap: 12px; }
     .checkbox-item { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); cursor: pointer; transition: all 0.15s; }
@@ -133,11 +135,11 @@
     .file-upload { border: 2px dashed var(--border-subtle); border-radius: var(--radius-md); padding: 24px; text-align: center; cursor: pointer; transition: all 0.15s; }
     .file-upload:hover { border-color: var(--accent-gold); background: var(--accent-gold-soft); }
     .file-upload-icon { font-size: 32px; margin-bottom: 8px; }
-    .file-upload-text { color: var(--text-secondary); font-size: 0.9rem; }
+    .file-upload-text { color: var(--text-secondary); font-size: var(--text-base); }
     .file-upload input { display: none; }
 
     .uploaded-files { margin-top: 12px; }
-    .uploaded-file { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-elevated); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.88rem; }
+    .uploaded-file { display: flex; align-items: center; justify-content: space-between; padding: 10px 14px; background: var(--bg-elevated); border-radius: var(--radius-md); margin-bottom: 8px; font-size: var(--text-base); }
     .uploaded-file button { background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 16px; }
 
     .reference-card { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 16px; }
@@ -148,16 +150,16 @@
     .review-link { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 16px; margin-bottom: 12px; }
     .review-link .form-row { margin-bottom: 0; }
 
-    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 28px; font-family: inherit; font-size: 0.95rem; font-weight: 600; border: none; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
-    .btn-primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
-    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-ghost { background: transparent; color: var(--text-secondary); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 14px 28px; font-family: inherit; font-size: var(--text-base); font-weight: 600; border: none; border-radius: var(--radius-lg); cursor: pointer; transition: all 0.2s; }
+    .btn--primary { background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #0a0a0f; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35); }
+    .btn--secondary { background: var(--bg-elevated); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--ghost { background: transparent; color: var(--text-secondary); }
+    .btn--primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
 
     .form-nav { display: flex; justify-content: space-between; margin-top: 32px; padding-top: 24px; border-top: 1px solid var(--border-subtle); }
 
-    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: 0.9rem; display: none; }
+    .message { padding: 16px 20px; border-radius: var(--radius-md); margin-bottom: 20px; font-size: var(--text-base); display: none; }
     .message.show { display: block; }
     .message.error { background: rgba(239, 95, 95, 0.1); border: 1px solid rgba(239, 95, 95, 0.3); color: #ef5f5f; }
     .message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
@@ -165,16 +167,16 @@
 
     .success-screen { text-align: center; padding: 40px 20px; }
     .success-icon { font-size: 64px; margin-bottom: 24px; }
-    .success-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; margin-bottom: 16px; }
+    .success-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); margin-bottom: 16px; }
     .success-text { color: var(--text-secondary); margin-bottom: 32px; max-width: 400px; margin-left: auto; margin-right: auto; }
 
-    .footer { text-align: center; margin-top: 32px; font-size: 0.88rem; color: var(--text-muted); }
+    .footer { text-align: center; margin-top: 32px; font-size: var(--text-base); color: var(--text-muted); }
     .footer a { color: var(--text-secondary); }
 
     .referral-banner { background: linear-gradient(135deg, rgba(201, 162, 39, 0.15), rgba(205, 127, 50, 0.1)); border: 1px solid rgba(201, 162, 39, 0.3); border-radius: var(--radius-lg); padding: 16px 20px; text-align: center; margin-bottom: 24px; display: none; }
     .referral-banner.show { display: block; }
-    .referral-banner .referred-text { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; }
-    .referral-banner .provider-name { font-family: 'Playfair Display', serif; font-size: 1.2rem; color: var(--accent-gold); font-weight: 600; }
+    .referral-banner .referred-text { font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 6px; }
+    .referral-banner .provider-name { font-family: 'Playfair Display', serif; font-size: var(--text-xl); color: var(--accent-gold); font-weight: 600; }
 
     @media (max-width: 600px) {
       .form-row, .form-row.three { grid-template-columns: 1fr; }
@@ -184,7 +186,7 @@
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/signup-provider.html" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -206,7 +208,7 @@
   <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
 <!-- SEO-INJECT:END -->
   <meta name="mcc-fb-event" content="Lead|signup_provider_view|signup_provider">
-  <script src="/auth-theme-toggle.js" defer></script>
+  <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="container">
@@ -218,9 +220,10 @@
       <div class="referral-banner" id="referral-banner">
         <div class="referred-text">You've been referred by</div>
         <div class="provider-name" id="referring-provider-name">Loading...</div>
+        <div style="font-size:0.75rem;color:rgba(255,255,255,0.75);margin-top:6px;line-height:1.4;">Disclosure: the person who referred you earns a commission on bid credit purchases you make. This is at no extra cost to you. You may sign up without a referral code by removing <code style="font-size:0.7rem;">?ref=…</code> from the URL.</div>
       </div>
-      <h1>Become a Provider</h1>
-      <p>Join our network of vetted automotive professionals and grow your business with quality customers.</p>
+      <h1 id="signup-page-title">Become a Provider</h1>
+      <p id="signup-page-subtitle">Join our network of vetted automotive professionals and grow your business with quality customers.</p>
     </div>
 
     <div class="benefits" id="benefits-section">
@@ -252,10 +255,10 @@
         <div class="benefit" style="background:linear-gradient(135deg, rgba(52,211,153,0.08) 0%, rgba(201,162,39,0.1) 100%);border-color:rgba(52,211,153,0.3);padding:16px 20px;">
           <div class="benefit-icon" style="font-size:24px;">🏆</div>
           <div style="flex:1;">
-            <div class="benefit-title" style="font-size:0.95rem;color:var(--accent-green);">Your Customers Stay YOUR Customers</div>
+            <div class="benefit-title" style="font-size:var(--text-base);color:var(--accent-green);">Your Customers Stay YOUR Customers</div>
             <div class="benefit-desc" style="font-size:0.8rem;margin-top:2px;">Car Club loyalty program — build loyalty programs, earn free bids, keep your regulars. Your existing clients stay connected to you.</div>
           </div>
-          <div style="font-size:0.75rem;color:var(--accent-gold);font-weight:600;white-space:nowrap;">Learn More →</div>
+          <div style="font-size:var(--text-xs);color:var(--accent-gold);font-weight:600;white-space:nowrap;">Learn More →</div>
         </div>
       </a>
     </div>
@@ -284,23 +287,32 @@
              offered, so any future social login on this surface must
              also be added here. -->
         <button type="button" id="apple-signup-btn" onclick="signUpWithAppleProvider()"
-                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#000;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:12px;">
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#000;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:12px;">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0;">
             <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
           </svg>
           <span>Sign in with Apple</span>
         </button>
-        <!-- Task #318 — Facebook OAuth shortcut. Mirrors login.html and
-             onboarding-provider.html. Sets mcc_signup_intent='provider'
+        <button type="button" id="google-signup-btn" onclick="signUpWithGoogleProvider()"
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#fff;border:1.5px solid #dadce0;border-radius:14px;color:#3c4043;font-family:inherit;font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:12px;">
+          <svg viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg" style="flex-shrink:0;">
+            <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+            <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+            <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+            <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+          </svg>
+          <span>Continue with Google</span>
+        </button>
+        <!-- Facebook OAuth shortcut. Sets mcc_signup_intent='provider'
              so login.js routes the callback to the provider survey. -->
         <button type="button" id="facebook-signup-btn" onclick="signUpWithFacebookProvider()"
-                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#1877F2;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:0.95rem;font-weight:600;cursor:pointer;margin-bottom:16px;">
+                style="display:flex;align-items:center;justify-content:center;gap:10px;width:100%;padding:14px 24px;background:#1877F2;border:none;border-radius:14px;color:#fff;font-family:inherit;font-size:var(--text-base);font-weight:600;cursor:pointer;margin-bottom:16px;">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor" style="flex-shrink:0;">
             <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
           </svg>
           <span>Continue with Facebook</span>
         </button>
-        <div style="display:flex;align-items:center;gap:12px;margin:0 0 18px;color:#9ca3af;font-size:0.78rem;text-transform:uppercase;letter-spacing:0.08em;">
+        <div style="display:flex;align-items:center;gap:12px;margin:0 0 18px;color:#9ca3af;font-size:var(--text-sm);text-transform:uppercase;letter-spacing:0.08em;">
           <span style="flex:1;height:1px;background:rgba(156,163,175,0.35);"></span>
           <span>or</span>
           <span style="flex:1;height:1px;background:rgba(156,163,175,0.35);"></span>
@@ -336,6 +348,7 @@
         <input type="hidden" id="provider-referral-code" value="">
         <input type="hidden" id="provider-referral-id" value="">
 
+        <div id="provider-only-fields">
         <hr style="border:none;border-top:1px solid var(--border-subtle);margin:28px 0 20px;">
 
         <div class="form-group">
@@ -454,7 +467,7 @@
 
         <div class="form-nav">
           <div></div>
-          <button class="btn btn-primary" onclick="nextStep(1)">Continue →</button>
+          <button class="btn btn--primary" onclick="nextStep(1)">Continue →</button>
         </div>
       </div>
 
@@ -510,7 +523,7 @@
 
         <div class="form-section">
           <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Loaner Vehicle Program</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
           
           <div class="form-group">
             <label class="form-label">Google Maps Link</label>
@@ -560,7 +573,7 @@
 
         <div class="form-section">
           <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Pickup & Delivery Services</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
           
           <div class="form-group">
             <label class="form-label">Yelp Profile</label>
@@ -574,8 +587,8 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-secondary" onclick="prevStep(2)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(2)">Continue →</button>
+          <button class="btn btn--secondary" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(2)">Continue →</button>
         </div>
       </div>
 
@@ -603,7 +616,7 @@
           <div class="form-section-title">Insurance Acknowledgment <span class="required">*</span></div>
           <label class="checkbox-item" style="display:flex;align-items:flex-start;gap:10px;cursor:pointer;padding:16px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-sm);">
             <input type="checkbox" id="insurance-acknowledgment" style="margin-top:4px;min-width:18px;min-height:18px;accent-color:var(--accent-gold);">
-            <span style="font-size:0.92rem;line-height:1.5;color:var(--text-secondary);">I confirm that I maintain sufficient liability insurance coverage to conduct regular business operations for the services I provide. I understand that I am responsible for keeping my insurance current and adequate at all times while active on the My Car Concierge platform.</span>
+            <span style="font-size:var(--text-base);line-height:1.5;color:var(--text-secondary);">I confirm that I maintain sufficient liability insurance coverage to conduct regular business operations for the services I provide. I understand that I am responsible for keeping my insurance current and adequate at all times while active on the My Car Concierge platform.</span>
           </label>
         </div>
 
@@ -630,15 +643,15 @@
 
         <div class="form-section" style="background:var(--bg-input);padding:24px;border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
           <div class="form-section-title" style="border:none;margin-bottom:12px;">The Provider Pledge</div>
-          <ul style="font-size:0.9rem;color:var(--text-secondary);margin-left:20px;margin-bottom:20px;display:grid;gap:8px;">
+          <ul style="font-size:var(--text-base);color:var(--text-secondary);margin-left:20px;margin-bottom:20px;display:grid;gap:8px;">
             <li>I will provide honest, professional service to all members.</li>
             <li>I will honor the bids I place on the platform.</li>
             <li>I will maintain active liability insurance.</li>
             <li>I will communicate promptly with members regarding their vehicles.</li>
           </ul>
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(4)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(4)">Continue →</button>
+          <button class="btn btn--ghost" onclick="prevStep(4)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(4)">Continue →</button>
         </div>
       </div>
 
@@ -649,7 +662,7 @@
 
         <div class="form-section">
           <div class="form-section-title">External Reviews</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Link to your business profiles so we can verify your ratings.</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Link to your business profiles so we can verify your ratings.</p>
           
           <div class="review-link">
             <div class="form-row">
@@ -679,7 +692,7 @@
 
         <div class="form-section">
           <div class="form-section-title">References</div>
-          <p style="color:var(--text-muted);font-size:0.9rem;margin-bottom:16px;">Provide 2-3 references we can contact (customers, suppliers, partners).</p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Provide 2-3 references we can contact (customers, suppliers, partners).</p>
           
           <div id="references-container">
             <div class="reference-card">
@@ -711,12 +724,12 @@
             </div>
           </div>
           
-          <button class="btn btn-secondary" onclick="addReference()" style="margin-top:8px;">+ Add Another Reference</button>
+          <button class="btn btn--secondary" onclick="addReference()" style="margin-top:8px;">+ Add Another Reference</button>
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-ghost" onclick="prevStep(2)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(2)">Continue to Agreement →</button>
+          <button class="btn btn--ghost" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(2)">Continue to Agreement →</button>
         </div>
       </div>
 
@@ -725,7 +738,7 @@
         <h2 class="step-title">Provider Partnership Agreement</h2>
         <p class="step-subtitle">Review our partnership terms — we're here to help you grow your business.</p>
 
-        <div class="agreement-container" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:24px;max-height:400px;overflow-y:auto;margin-bottom:24px;font-size:0.9rem;line-height:1.7;">
+        <div class="agreement-container" style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:24px;max-height:400px;overflow-y:auto;margin-bottom:24px;font-size:var(--text-base);line-height:1.7;">
           <h3 style="margin-bottom:16px;color:var(--accent-gold);">MY CAR CONCIERGE PROVIDER PARTNERSHIP AGREEMENT</h3>
           
           <p style="margin-bottom:16px;"><strong>Effective Date:</strong> Upon acceptance of this agreement</p>
@@ -810,12 +823,12 @@
 
           <div class="form-group">
             <label class="form-label">Sign Below <span class="required">*</span></label>
-            <p style="font-size:0.85rem;color:var(--text-muted);margin-bottom:12px;">Use your mouse or finger to sign in the box below</p>
+            <p style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:12px;">Use your mouse or finger to sign in the box below</p>
             <div style="position:relative;border:2px solid var(--border-subtle);border-radius:var(--radius-md);background:#fff;">
               <canvas id="signature-pad" width="500" height="150" style="width:100%;height:150px;cursor:crosshair;touch-action:none;"></canvas>
               <button type="button" onclick="clearSignature()" style="position:absolute;top:8px;right:8px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:4px;padding:4px 12px;font-size:0.8rem;cursor:pointer;color:var(--text-secondary);">Clear</button>
             </div>
-            <p id="signature-error" style="display:none;color:var(--accent-red);font-size:0.85rem;margin-top:8px;">Please sign above to continue</p>
+            <p id="signature-error" style="display:none;color:var(--accent-red);font-size:var(--text-sm);margin-top:8px;">Please sign above to continue</p>
           </div>
 
           <div class="agreement-checkboxes" style="margin-top:20px;">
@@ -851,8 +864,8 @@
         </div>
 
         <div class="form-nav">
-          <button class="btn btn-secondary" onclick="prevStep(3)">← Back</button>
-          <button class="btn btn-primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
+          <button class="btn btn--secondary" onclick="prevStep(3)">← Back</button>
+          <button class="btn btn--primary" id="submit-btn" onclick="submitApplication()">Submit Application</button>
         </div>
       </div>
 
@@ -863,8 +876,8 @@
           <h3 style="color:var(--accent-gold);margin-bottom:16px;">You're Approved!</h3>
           <p class="success-text">Congratulations! Your provider account is now active.</p>
           <div style="background:var(--accent-gold-soft);border:1px solid var(--accent-gold);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:center;">
-            <p style="font-size:1.1rem;margin-bottom:8px;"><strong><span class="icon-inline" data-icon="ticket"></span> You have 3 FREE bids to get started!</strong></p>
-            <p style="color:var(--text-secondary);font-size:0.9rem;">Use them to bid on service requests and win your first jobs.</p>
+            <p style="font-size:var(--text-lg);margin-bottom:8px;"><strong><span class="icon-inline" data-icon="ticket"></span> You have 3 FREE bids to get started!</strong></p>
+            <p style="color:var(--text-secondary);font-size:var(--text-base);">Use them to bid on service requests and win your first jobs.</p>
           </div>
           <div style="background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;margin:24px 0;text-align:left;">
             <p style="margin-bottom:12px;"><strong>What's next?</strong></p>
@@ -876,8 +889,8 @@
               <li><strong style="color:var(--accent-gold);">Maintain a 4+ star rating to stay active on the platform</strong></li>
             </ul>
           </div>
-          <a href="login.html" class="btn btn-primary" style="margin-right:12px;">Log In Now</a>
-          <a href="index.html" class="btn btn-ghost">Return Home</a>
+          <a href="login.html" class="btn btn--primary" style="margin-right:12px;">Log In Now</a>
+          <a href="index.html" class="btn btn--ghost">Return Home</a>
       </div>
     </div>
 
@@ -890,9 +903,9 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
   <script src="signup-provider.js"></script>
-  <script src="/footer.js"></script>
-  <script src="/utils.js"></script>
-  <script src="/pwa-init.js?v=20260202"></script>
+  <script src="footer.js"></script>
+  <script src="utils.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
   <script>
     // Task #318 — Facebook OAuth shortcut on the legacy provider form.
     // Defined in its OWN <script> tag so it stays available even if the
@@ -968,165 +981,58 @@
         }
       }
       globalThis.signUpWithAppleProvider = signUpWithAppleProvider;
-    })();
-  </script>
-  <script>
-    let currentStep = 1;
-    const uploadedFiles = { insurance: [], certs: [] };
 
-    function nextStep(step) {
-      if (!validateStep(step)) return;
-      document.getElementById(`step-${step}`).classList.remove('active');
-      currentStep = step + 1;
-      document.getElementById(`step-${currentStep}`).classList.add('active');
-      updateDots();
-      window.scrollTo(0, 0);
-    }
-
-    function prevStep(step) {
-      document.getElementById(`step-${step}`).classList.remove('active');
-      currentStep = step - 1;
-      document.getElementById(`step-${currentStep}`).classList.add('active');
-      updateDots();
-      window.scrollTo(0, 0);
-    }
-
-    function updateDots() {
-      document.querySelectorAll('.step-dot').forEach(dot => {
-        const dotStep = parseInt(dot.dataset.step);
-        dot.classList.remove('active', 'completed');
-        if (dotStep === currentStep) dot.classList.add('active');
-        if (dotStep < currentStep) dot.classList.add('completed');
-      });
-    }
-
-    function validateStep(step) {
-      const inputs = document.getElementById(`step-${step}`).querySelectorAll('[required]');
-      let valid = true;
-      inputs.forEach(input => {
-        if (!input.value) {
-          input.style.borderColor = '#ef5f5f';
-          valid = false;
-        } else {
-          input.style.borderColor = '';
-        }
-      });
-      if (step === 1) {
-        const pass = document.getElementById('password').value;
-        const confirm = document.getElementById('password-confirm').value;
-        if (pass !== confirm) {
-          showMessage('Passwords do not match', 'error');
-          valid = false;
-        }
-      }
-      return valid;
-    }
-
-    function handleFileUpload(input, type) {
-      const list = document.getElementById(`${type}-list`);
-      Array.from(input.files).forEach(file => {
-        uploadedFiles[type].push(file);
-        const item = document.createElement('div');
-        item.className = 'uploaded-file';
-        item.innerHTML = `<span>${file.name}</span><button onclick="removeFile('${type}', '${file.name}')">&times;</button>`;
-        list.appendChild(item);
-      });
-    }
-
-    function removeFile(type, name) {
-      uploadedFiles[type] = uploadedFiles[type].filter(f => f.name !== name);
-      const list = document.getElementById(`${type}-list`);
-      list.innerHTML = '';
-      uploadedFiles[type].forEach(file => {
-        const item = document.createElement('div');
-        item.className = 'uploaded-file';
-        item.innerHTML = `<span>${file.name}</span><button onclick="removeFile('${type}', '${file.name}')">&times;</button>`;
-        list.appendChild(item);
-      });
-    }
-
-    async function submitApplication() {
-      if (!document.getElementById('terms-agree').checked) {
-        showMessage('Please agree to the terms to continue', 'error');
-        return;
-      }
-
-      const btn = document.getElementById('submit-btn');
-      btn.disabled = true;
-      btn.textContent = 'Submitting...';
-
-      try {
-        const email = document.getElementById('email').value;
-        const password = document.getElementById('password').value;
-        
-        const { data: authData, error: authError } = await supabase.auth.signUp({
-          email,
-          password,
-          options: {
-            data: {
-              role: 'provider_pending',
-              business_name: document.getElementById('business-name').value,
-              full_name: document.getElementById('contact-name').value
-            }
-          }
-        });
-
-        if (authError) throw authError;
-
-        document.getElementById('step-3').classList.remove('active');
-        document.getElementById('success-step').classList.add('active');
-        updateDots();
-
-      } catch (err) {
-        showMessage(err.message, 'error');
-        btn.disabled = false;
-        btn.textContent = 'Submit Application';
-      }
-    }
-
-    function showMessage(text, type) {
-      const el = document.getElementById('message');
-      el.textContent = text;
-      el.className = `message show ${type}`;
-      window.scrollTo(0, 0);
-    }
-
-    document.querySelectorAll('.checkbox-item input').forEach(input => {
-      input.addEventListener('change', () => {
-        input.parentElement.classList.toggle('selected', input.checked);
-      });
-    });
-
-    async function checkProviderReferral() {
-      const urlParams = new URLSearchParams(window.location.search);
-      const refCode = urlParams.get('provider_ref');
-      if (refCode) {
+      async function signUpWithGoogleProvider() {
+        const googleBtn = document.getElementById('google-signup-btn');
+        if (googleBtn) googleBtn.disabled = true;
         try {
-          const response = await fetch(`/api/provider-referral/lookup/${refCode}`);
-          const data = await response.json();
-          if (data && data.provider_name) {
-            document.getElementById('referring-provider-name').textContent = data.provider_name;
-            document.getElementById('referral-banner').classList.add('show');
-            document.getElementById('provider-referral-code').value = refCode;
-            document.getElementById('provider-referral-id').value = data.provider_id;
+          localStorage.setItem('mcc_signup_intent', 'provider');
+        } catch (_e) { /* ignore */ }
+        try {
+          const { error } = await client.auth.signInWithOAuth({
+            provider: 'google',
+            options: {
+              redirectTo: window.location.origin + '/login.html?oauth=google',
+            }
+          });
+          if (error) {
+            console.error('Google signup error:', error);
+            alert('Failed to connect to Google. Please try again.');
+            if (googleBtn) googleBtn.disabled = false;
           }
         } catch (err) {
-          console.error('Error looking up referral:', err);
+          console.error('Google signup exception:', err);
+          if (googleBtn) googleBtn.disabled = false;
         }
       }
-    }
-
-    /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
-
-    document.addEventListener('DOMContentLoaded', async () => {
-      checkProviderReferral();
-      const icon = document.querySelector('.theme-icon');
-      if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
-      I18n.createLanguageSwitcher('language-switcher');
-    });
-
+      globalThis.signUpWithGoogleProvider = signUpWithGoogleProvider;
+    })();
   </script>
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <!--
+    Task #348: A duplicate inline <script> block used to live here that
+    re-declared `currentStep`, `uploadedFiles`, `nextStep`, `prevStep`,
+    `updateDots`, `validateStep`, `handleFileUpload`, `removeFile`,
+    `submitApplication`, `showMessage`, and `checkProviderReferral`.
+    Because signup-provider.js (loaded above) already declares those
+    identifiers at top level, the inline block threw
+    `SyntaxError: Identifier 'currentStep' has already been declared`
+    every page load and was effectively dead code — none of its
+    functions/DOMContentLoaded handler ever registered. It was also
+    a strictly inferior implementation (used the wrong upload field
+    set {insurance, certs} vs the real {license, certs, portfolio},
+    skipped the signature pad + legal-name validation, and went
+    straight to supabase.auth.signUp instead of POSTing to
+    /api/provider/apply). signup-provider.js is the source of truth.
+
+    The inline DOMContentLoaded did call I18n.createLanguageSwitcher
+    and set the theme icon, but since it never executed those calls
+    weren't happening either — the page has been shipping without
+    them. They were not restored to keep this change minimal and
+    focused on the crash; if a missing language switcher needs to be
+    fixed, it should go through signup-provider.js's existing
+    DOMContentLoaded path.
+  -->
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');
@@ -1134,6 +1040,6 @@
       if (svg) el.innerHTML = svg;
     });
   </script>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

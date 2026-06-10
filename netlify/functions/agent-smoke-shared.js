@@ -174,24 +174,20 @@ async function sendSmokeFailureSms(supabase, run, { agentLabel } = {}) {
   const body = `${summary}\n${adminUrl}`;
 
   try {
-    const clean = String(toPhone).replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    if (!r.ok) {
-      const txt = await r.text();
-      const errMsg = `Twilio ${r.status}: ${txt.slice(0, 200)}`;
+    // Task #429 — route through the shared sender so STOP / sms_opt_out on
+    // the admin's profile is honored even for ops alerts.
+    const { sendSms: sharedSendSms } = require('./_shared/sms');
+    const result = await sharedSendSms({ supabase, toPhone, body });
+    if (!result.sent) {
+      const errMsg = result.reason === 'sms_opt_out'
+        ? 'admin phone opted out (sms_opt_out)'
+        : (result.error || result.reason || 'send_failed');
       try {
         await supabase.from('agent_smoke_runs')
           .update({ alert_sms_error: errMsg })
           .eq('id', run.id);
       } catch (_) { /* swallow */ }
-      return { sent: false, reason: 'twilio_error', error: errMsg };
+      return { sent: false, reason: result.reason || 'twilio_error', error: errMsg };
     }
     try {
       await supabase.from('agent_smoke_runs')

@@ -41,3 +41,4 @@ android/app/src/main/assets/public/replit.md
 android/app/src/main/assets/public/*.bak
 android/app/src/main/assets/public/*.sql
 android/app/src/main/assets/public/*.pptx
+.github/workflows/

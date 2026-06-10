@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <title>Quick Question — My Car Concierge</title>
   <meta name="description" content="A quick 5-question discovery survey about how you find auto service. Takes about 90 seconds." />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
@@ -54,9 +54,9 @@
     /* ===== HEADER ===== */
     .survey-header { padding: 14px 24px 14px; display: flex; align-items: center; gap: 14px; background: var(--white); border-bottom: 1px solid var(--border); margin-top: 34px; }
     .survey-logo { height: 40px; border-radius: 8px; }
-    .survey-header-text h1 { font-family: 'Playfair Display', serif; font-size: 1rem; font-weight: 600; color: var(--navy); line-height: 1.2; }
-    .survey-header-text p { font-size: 0.75rem; color: var(--text-muted); margin-top: 1px; }
-    .step-indicator { margin-left: auto; font-size: 0.82rem; color: var(--text-muted); font-weight: 500; white-space: nowrap; }
+    .survey-header-text h1 { font-family: 'Playfair Display', serif; font-size: var(--text-md); font-weight: 600; color: var(--navy); line-height: 1.2; }
+    .survey-header-text p { font-size: var(--text-xs); color: var(--text-muted); margin-top: 1px; }
+    .step-indicator { margin-left: auto; font-size: var(--text-sm); color: var(--text-muted); font-weight: 500; white-space: nowrap; }
 
     /* ===== MAIN ===== */
     .survey-main { flex: 1; display: flex; flex-direction: column; align-items: center; padding: 32px 20px 60px; }
@@ -70,16 +70,16 @@
     .step { display: none; }
     .step.active { display: block; }
 
-    .step-label { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dark); margin-bottom: 12px; }
+    .step-label { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--gold-dark); margin-bottom: 12px; }
     .step-heading { font-family: 'Playfair Display', serif; font-size: 1.7rem; font-weight: 600; color: var(--navy); margin-bottom: 10px; line-height: 1.25; }
-    .step-sub { font-size: 0.95rem; color: var(--text-mid); margin-bottom: 28px; line-height: 1.6; }
+    .step-sub { font-size: var(--text-base); color: var(--text-mid); margin-bottom: 28px; line-height: 1.6; }
 
     /* ===== CHOICE BUTTONS (multi-select and single-select) ===== */
     .choice-list { display: flex; flex-direction: column; gap: 10px; margin-bottom: 28px; }
     .choice-btn {
       width: 100%; text-align: left; padding: 14px 18px; border: 2px solid var(--border);
       border-radius: var(--radius-sm); background: var(--cream); font-family: inherit;
-      font-size: 0.93rem; font-weight: 500; color: var(--text-mid); cursor: pointer;
+      font-size: var(--text-base); font-weight: 500; color: var(--text-mid); cursor: pointer;
       transition: all 0.15s ease; display: flex; align-items: center; gap: 10px;
     }
     .choice-btn:hover { border-color: var(--gold); color: var(--navy); background: var(--gold-soft); }
@@ -95,48 +95,48 @@
     .scale-btn {
       width: 100%; text-align: left; padding: 13px 18px; border: 2px solid var(--border);
       border-radius: var(--radius-sm); background: var(--cream); font-family: inherit;
-      font-size: 0.9rem; font-weight: 500; color: var(--text-mid); cursor: pointer;
+      font-size: var(--text-base); font-weight: 500; color: var(--text-mid); cursor: pointer;
       transition: all 0.15s ease; display: flex; align-items: center; gap: 12px;
     }
     .scale-btn:hover { border-color: var(--gold); color: var(--navy); background: var(--gold-soft); }
     .scale-btn.selected { border-color: var(--gold); background: var(--gold-soft); color: var(--navy); }
-    .scale-num { width: 28px; height: 28px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: 0.78rem; font-weight: 700; color: var(--text-muted); flex-shrink: 0; transition: all 0.15s; }
+    .scale-num { width: 28px; height: 28px; border-radius: 50%; background: var(--border); display: flex; align-items: center; justify-content: center; font-size: var(--text-sm); font-weight: 700; color: var(--text-muted); flex-shrink: 0; transition: all 0.15s; }
     .scale-btn.selected .scale-num { background: var(--gold); color: var(--navy); }
 
     /* ===== CTA AREA ===== */
     .cta-area { display: flex; flex-direction: column; align-items: center; gap: 10px; margin-top: 4px; padding-top: 20px; border-top: 1px solid var(--border); }
-    .cta-note { font-size: 0.78rem; color: var(--text-muted); text-align: center; }
+    .cta-note { font-size: var(--text-sm); color: var(--text-muted); text-align: center; }
 
     /* ===== BUTTONS ===== */
     .btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 13px 26px; border-radius: 12px; font-family: inherit; font-size: 0.97rem; font-weight: 600; cursor: pointer; border: none; transition: all 0.2s; text-decoration: none; }
-    .btn-gold { background: linear-gradient(135deg, var(--gold), #e8c56a); color: var(--navy); box-shadow: 0 4px 14px rgba(201,168,76,0.35); width: 100%; max-width: 380px; }
-    .btn-gold:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201,168,76,0.45); }
-    .btn-gold:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
-    .btn-ghost { background: transparent; color: var(--text-muted); font-weight: 500; font-size: 0.88rem; padding: 9px 18px; border: none; cursor: pointer; font-family: inherit; }
-    .btn-ghost:hover { color: var(--navy); }
+    .btn--primary { background: linear-gradient(135deg, var(--gold), #e8c56a); color: var(--navy); box-shadow: 0 4px 14px rgba(201,168,76,0.35); width: 100%; max-width: 380px; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(201,168,76,0.45); }
+    .btn--primary:disabled { opacity: 0.5; transform: none; cursor: not-allowed; }
+    .btn--ghost { background: transparent; color: var(--text-muted); font-weight: 500; font-size: var(--text-base); padding: 9px 18px; border: none; cursor: pointer; font-family: inherit; }
+    .btn--ghost:hover { color: var(--navy); }
     .btn-navy { background: var(--navy); color: var(--white); box-shadow: 0 4px 14px rgba(27,42,74,0.22); width: 100%; max-width: 380px; }
     .btn-navy:hover { background: var(--navy-light); transform: translateY(-2px); }
-    .btn-outline { background: transparent; border: 2px solid var(--navy); color: var(--navy); font-size: 0.92rem; padding: 11px 22px; width: 100%; max-width: 380px; }
-    .btn-outline:hover { background: var(--navy); color: var(--white); }
+    .btn--secondary { background: transparent; border: 2px solid var(--navy); color: var(--navy); font-size: var(--text-base); padding: 11px 22px; width: 100%; max-width: 380px; }
+    .btn--secondary:hover { background: var(--navy); color: var(--white); }
 
     /* ===== FORM STYLES ===== */
     .form-group { display: flex; flex-direction: column; gap: 5px; margin-bottom: 16px; }
-    .form-label { font-size: 0.83rem; font-weight: 600; color: var(--navy); }
+    .form-label { font-size: var(--text-sm); font-weight: 600; color: var(--navy); }
     .form-label .req { color: var(--gold-dark); }
-    .form-input { padding: 13px 16px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: 0.95rem; color: var(--text-dark); background: var(--cream); transition: border-color 0.15s; width: 100%; }
+    .form-input { padding: 13px 16px; border: 1.5px solid var(--border); border-radius: var(--radius-sm); font-family: inherit; font-size: var(--text-base); color: var(--text-dark); background: var(--cream); transition: border-color 0.15s; width: 100%; }
     .form-input:focus { outline: none; border-color: var(--gold); background: var(--white); }
-    .form-input.big { font-size: 1.2rem; padding: 16px 18px; font-weight: 600; }
+    .form-input.big { font-size: var(--text-xl); padding: 16px 18px; font-weight: 600; }
     .sms-opt { display: flex; align-items: flex-start; gap: 10px; margin-top: 4px; }
     .sms-opt input[type=checkbox] { width: 18px; height: 18px; margin-top: 2px; accent-color: var(--gold); flex-shrink: 0; cursor: pointer; }
-    .sms-opt label { font-size: 0.82rem; color: var(--text-muted); line-height: 1.5; cursor: pointer; }
-    .privacy-note { font-size: 0.78rem; color: var(--text-muted); margin-top: 14px; text-align: center; line-height: 1.5; opacity: 0.85; }
+    .sms-opt label { font-size: var(--text-sm); color: var(--text-muted); line-height: 1.5; cursor: pointer; }
+    .privacy-note { font-size: var(--text-sm); color: var(--text-muted); margin-top: 14px; text-align: center; line-height: 1.5; opacity: 0.85; }
     .vehicle-row { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 10px; }
     @media (max-width: 480px) { .vehicle-row { grid-template-columns: 1fr; } }
-    .skip-link { font-size: 0.82rem; color: var(--text-muted); text-decoration: underline; cursor: pointer; text-align: center; display: block; margin-top: 6px; }
+    .skip-link { font-size: var(--text-sm); color: var(--text-muted); text-decoration: underline; cursor: pointer; text-align: center; display: block; margin-top: 6px; }
     .skip-link:hover { color: var(--navy); }
 
     /* ===== MSG ===== */
-    .msg { padding: 11px 15px; border-radius: var(--radius-sm); font-size: 0.86rem; margin-bottom: 14px; display: none; }
+    .msg { padding: 11px 15px; border-radius: var(--radius-sm); font-size: var(--text-sm); margin-bottom: 14px; display: none; }
     .msg.error { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: #dc2626; }
     .msg.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #16a34a; }
     .msg.visible { display: block; }
@@ -152,42 +152,42 @@
       margin-bottom: 22px;
     }
     .reveal-logo { height: 80px; border-radius: 14px; margin-bottom: 16px; }
-    .reveal-panel h2 { font-family: 'Playfair Display', serif; font-size: 1.75rem; color: var(--navy); margin-bottom: 8px; line-height: 1.2; }
-    .reveal-panel .tagline { font-size: 1rem; color: var(--text-mid); margin-bottom: 20px; line-height: 1.6; max-width: 500px; margin-left: auto; margin-right: auto; }
+    .reveal-panel h2 { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); color: var(--navy); margin-bottom: 8px; line-height: 1.2; }
+    .reveal-panel .tagline { font-size: var(--text-md); color: var(--text-mid); margin-bottom: 20px; line-height: 1.6; max-width: 500px; margin-left: auto; margin-right: auto; }
     .reveal-stats {
       display: flex; justify-content: center; gap: 24px; flex-wrap: wrap;
       margin-bottom: 28px; padding: 18px; background: var(--cream);
       border-radius: var(--radius-sm); border: 1px solid var(--border);
     }
     .reveal-stat { text-align: center; }
-    .reveal-stat .val { font-size: 1.4rem; font-weight: 700; color: var(--navy); }
-    .reveal-stat .lbl { font-size: 0.74rem; color: var(--text-muted); margin-top: 2px; }
+    .reveal-stat .val { font-size: var(--text-2xl); font-weight: 700; color: var(--navy); }
+    .reveal-stat .lbl { font-size: var(--text-xs); color: var(--text-muted); margin-top: 2px; }
     .reveal-cta { display: flex; flex-direction: column; align-items: center; gap: 12px; }
 
     /* ===== CONFIRM SCREEN ===== */
     .confirm-panel { text-align: center; padding: 10px 0; }
     .confirm-icon { font-size: 56px; margin-bottom: 16px; }
     .confirm-panel h2 { font-family: 'Playfair Display', serif; font-size: 1.7rem; color: var(--navy); margin-bottom: 10px; }
-    .confirm-panel > p { color: var(--text-mid); font-size: 0.95rem; line-height: 1.65; max-width: 460px; margin: 0 auto 24px; }
+    .confirm-panel > p { color: var(--text-mid); font-size: var(--text-base); line-height: 1.65; max-width: 460px; margin: 0 auto 24px; }
     .referral-box {
       background: var(--cream); border-radius: var(--radius-sm); border: 1px solid var(--border);
       padding: 20px 22px; margin-bottom: 24px; text-align: left;
     }
-    .referral-box h4 { font-size: 0.88rem; font-weight: 700; color: var(--navy); margin-bottom: 6px; }
-    .referral-box p { font-size: 0.82rem; color: var(--text-mid); margin-bottom: 12px; }
+    .referral-box h4 { font-size: var(--text-base); font-weight: 700; color: var(--navy); margin-bottom: 6px; }
+    .referral-box p { font-size: var(--text-sm); color: var(--text-mid); margin-bottom: 12px; }
     .referral-link-row { display: flex; gap: 8px; }
-    .referral-link-input { flex: 1; padding: 10px 13px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: 0.85rem; background: var(--white); color: var(--text-dark); }
-    .copy-btn { padding: 10px 16px; border-radius: 8px; border: none; background: var(--navy); color: var(--white); font-family: inherit; font-size: 0.82rem; font-weight: 600; cursor: pointer; white-space: nowrap; }
+    .referral-link-input { flex: 1; padding: 10px 13px; border: 1.5px solid var(--border); border-radius: 8px; font-family: inherit; font-size: var(--text-sm); background: var(--white); color: var(--text-dark); }
+    .copy-btn { padding: 10px 16px; border-radius: 8px; border: none; background: var(--navy); color: var(--white); font-family: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; white-space: nowrap; }
     .copy-btn:hover { background: var(--navy-light); }
     .share-row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
-    .share-btn { flex: 1; min-width: 90px; padding: 9px 12px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--cream); font-family: inherit; font-size: 0.78rem; font-weight: 600; color: var(--text-mid); cursor: pointer; transition: all 0.15s; }
+    .share-btn { flex: 1; min-width: 90px; padding: 9px 12px; border-radius: 8px; border: 1.5px solid var(--border); background: var(--cream); font-family: inherit; font-size: var(--text-sm); font-weight: 600; color: var(--text-mid); cursor: pointer; transition: all 0.15s; }
     .share-btn:hover { border-color: var(--gold); color: var(--navy); }
 
     /* ===== NOT-INTERESTED PANEL ===== */
     .ni-panel { text-align: center; padding: 10px 0; }
     .ni-panel .ni-icon { font-size: 50px; margin-bottom: 14px; }
-    .ni-panel h2 { font-family: 'Playfair Display', serif; font-size: 1.5rem; color: var(--navy); margin-bottom: 8px; }
-    .ni-panel p { color: var(--text-mid); font-size: 0.93rem; margin-bottom: 24px; line-height: 1.55; }
+    .ni-panel h2 { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); color: var(--navy); margin-bottom: 8px; }
+    .ni-panel p { color: var(--text-mid); font-size: var(--text-base); margin-bottom: 24px; line-height: 1.55; }
     .ni-email-row { display: flex; gap: 10px; max-width: 440px; margin: 0 auto 16px; }
     .ni-email-row .form-input { flex: 1; }
 
@@ -223,7 +223,7 @@
 
   <!-- Header -->
   <header class="survey-header">
-    <img src="/icons/icon-192.png" alt="My Car Concierge" class="survey-logo" />
+    <img src="icons/icon-192.png" alt="My Car Concierge" class="survey-logo" />
     <div class="survey-header-text">
       <h1>My Car Concierge</h1>
       <p>Quick question about your car care</p>
@@ -264,7 +264,7 @@
         <div class="msg error" id="q1-error">Please select at least one option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ1()">Next &rarr;</button>
+          <button class="btn btn--primary" onclick="nextFromQ1()">Next &rarr;</button>
           <p class="cta-note">No account needed &bull; About 90 seconds</p>
         </div>
       </div>
@@ -296,8 +296,8 @@
         <div class="msg error" id="q2-error">Please select an option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ2()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q1')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromQ2()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q1')">&#8592; Back</button>
         </div>
       </div>
 
@@ -322,8 +322,8 @@
         <div class="msg error" id="q3-error">Please select an option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ3()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q2')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromQ3()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q2')">&#8592; Back</button>
         </div>
       </div>
 
@@ -360,8 +360,8 @@
         <div class="msg error" id="q4-error">Please select at least one option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromQ4()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q3')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromQ4()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q3')">&#8592; Back</button>
         </div>
       </div>
 
@@ -395,8 +395,8 @@
         <div class="msg error" id="q5-error">Please select at least one option.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" id="btn-finish-discovery" onclick="nextFromQ5()">See What We Found &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('q4')">&#8592; Back</button>
+          <button class="btn btn--primary" id="btn-finish-discovery" onclick="nextFromQ5()">See What We Found &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('q4')">&#8592; Back</button>
         </div>
       </div>
 
@@ -404,7 +404,7 @@
       <div class="step" id="step-reveal">
         <div class="reveal-panel">
           <div class="reveal-badge">&#10003; Good news</div>
-          <img src="/icons/icon-192.png" alt="My Car Concierge" class="reveal-logo" />
+          <img src="icons/icon-192.png" alt="My Car Concierge" class="reveal-logo" />
           <h2>That platform already exists.</h2>
           <p class="tagline">
             <strong>My Car Concierge</strong> lets vehicle owners get competing bids from vetted providers, track their full service history, and never overpay again.
@@ -426,10 +426,10 @@
           </div>
 
           <div class="reveal-cta">
-            <button class="btn btn-gold" onclick="goToStep('ob1')">
+            <button class="btn btn--primary" onclick="goToStep('ob1')">
               I want in &rarr; Create my free profile
             </button>
-            <button class="btn-ghost" onclick="goToStep('ni')">
+            <button class="btn--ghost" onclick="goToStep('ni')">
               Just notify me when it launches near me
             </button>
           </div>
@@ -449,8 +449,8 @@
         <div class="msg error" id="ob1-error">Please enter your first name.</div>
 
         <div class="cta-area">
-          <button class="btn btn-gold" onclick="nextFromOb1()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('reveal')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromOb1()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('reveal')">&#8592; Back</button>
         </div>
         <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Your answers are kept private. We never sell your data.</p>
       </div>
@@ -484,8 +484,8 @@
         <div class="msg error" id="ob2-error">Please enter a valid email address.</div>
 
         <div class="cta-area" style="margin-top:20px;">
-          <button class="btn btn-gold" onclick="nextFromOb2()">Next &rarr;</button>
-          <button class="btn-ghost" onclick="goToStep('ob1')">&#8592; Back</button>
+          <button class="btn btn--primary" onclick="nextFromOb2()">Next &rarr;</button>
+          <button class="btn--ghost" onclick="goToStep('ob1')">&#8592; Back</button>
         </div>
         <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>We use your email only to notify you when MCC launches near you. We never sell or share your personal information. <a href="/privacy.html" target="_blank" rel="noopener noreferrer" style="color:var(--gold-dark);text-decoration:underline;">Privacy Policy</a>.</p>
       </div>
@@ -514,9 +514,9 @@
         <div class="msg error" id="ob3-error"></div>
 
         <div class="cta-area" style="margin-top:20px;">
-          <button class="btn btn-gold" id="btn-create-profile" onclick="createProfile()">Create My Free Profile &rarr;</button>
+          <button class="btn btn--primary" id="btn-create-profile" onclick="createProfile()">Create My Free Profile &rarr;</button>
           <span class="skip-link" onclick="createProfile()">Skip for now</span>
-          <button class="btn-ghost" onclick="goToStep('ob2')">&#8592; Back</button>
+          <button class="btn--ghost" onclick="goToStep('ob2')">&#8592; Back</button>
         </div>
         <p class="privacy-note"><svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:5px;"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>Vehicle info is optional and stored privately in your profile. You can add or update it anytime.</p>
       </div>
@@ -570,7 +570,7 @@
             </button>
           </div>
 
-          <button class="btn-ghost" id="ni-back-btn" onclick="goToStep('reveal')" style="margin-top:6px;">
+          <button class="btn--ghost" id="ni-back-btn" onclick="goToStep('reveal')" style="margin-top:6px;">
             &#8592; Actually, tell me more
           </button>
         </div>
@@ -931,7 +931,7 @@
       const d = await r.json();
       if (bodyEl) bodyEl.textContent = 'Your profile is set up. ' + d.message;
       if (ctaArea && d.live) {
-        ctaArea.innerHTML = '<a href="/signup-member.html" class="btn btn-gold" style="text-decoration:none; display:inline-flex;">Join the Platform Now &rarr;</a>';
+        ctaArea.innerHTML = '<a href="/signup-member.html" class="btn btn--primary" style="text-decoration:none; display:inline-flex;">Join the Platform Now &rarr;</a>';
       }
     } catch (e) {
       if (bodyEl) bodyEl.textContent = 'Your profile is set up. We\'ll notify you the moment My Car Concierge launches near you.';
@@ -1040,6 +1040,6 @@
     }
   });
 </script>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

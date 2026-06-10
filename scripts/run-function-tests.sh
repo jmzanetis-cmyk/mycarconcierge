@@ -32,6 +32,7 @@ extra=(
   scripts/queue-flush-skip-test.js
   scripts/queue-flush-followup-test.js
   scripts/paused-digest-rendering-test.js
+  scripts/check-driver-tokens.js
 )
 files+=("${extra[@]}")
 

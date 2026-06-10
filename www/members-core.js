@@ -497,12 +497,24 @@ window.addEventListener('load', async () => {
         const accepted = await TosModal.accept(supabaseClient, user.id);
         if (accepted) {
           await initializeDashboard();
+          const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
+            .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
+          if (window.MCC_CONFIG?.mandatory2faEnabled && !_2faExempt && !userProfile?.two_factor_enabled) {
+            _show2FAGate();
+          }
         }
       });
       return;
     }
-    
+
     await initializeDashboard();
+
+    // Mandatory 2FA enrollment gate — runs after loadProfile() sets userProfile
+    const _2faExempt = (window.MCC_CONFIG?.mandatory2faExemptEmails || [])
+      .some(e => e.toLowerCase() === (user.email || '').toLowerCase());
+    if (window.MCC_CONFIG?.mandatory2faEnabled && !_2faExempt && !userProfile?.two_factor_enabled) {
+      _show2FAGate();
+    }
   } catch (err) {
     console.error('Page initialization error:', err);
     showToast('Error loading page. Check console for details.', 'error');
@@ -523,7 +535,8 @@ async function initializeDashboard() {
     loadUpsellRequests(),
     loadConversations(),
     loadNotifications(),
-    typeof checkActiveEmergency === 'function' ? checkActiveEmergency() : Promise.resolve()
+    typeof checkActiveEmergency === 'function' ? checkActiveEmergency() : Promise.resolve(),
+    typeof loadCustodyFlag === 'function' ? loadCustodyFlag() : Promise.resolve()
   ]);
   
   updateStats();
@@ -761,9 +774,10 @@ let vehiclePredictions = {};
 let _predictionsLoading = false;
 
 async function fetchVehiclePredictions(vehicleId) {
+  const empty = { health_summary: null, predictions: [], generated_at: null, cached: false };
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    if (!session) return null;
+    if (!session) { vehiclePredictions[vehicleId] = empty; return null; }
 
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/vehicle/${vehicleId}/predictions`, {
@@ -780,9 +794,11 @@ async function fetchVehiclePredictions(vehicleId) {
       };
       return vehiclePredictions[vehicleId];
     }
+    vehiclePredictions[vehicleId] = empty;
     return null;
   } catch (error) {
     console.error('Error fetching predictions:', error);
+    vehiclePredictions[vehicleId] = empty;
     return null;
   }
 }
@@ -919,8 +935,13 @@ function renderVehicles() {
   grid.innerHTML = vehicles.map(v => {
     const displayName = v.nickname || `${v.year} ${v.make} ${v.model}`;
     const trimInfo = v.trim_version ? `<span class="vehicle-trim">${escapeHtml(v.trim_version)}</span>` : '';
+    const recallCount = vehicleRecalls[v.id]?.activeCount || 0;
+    const recallBadge = recallCount > 0
+      ? `<span class="recall-badge" onclick="openRecallsModal('${v.id}')" title="${recallCount} active recall${recallCount > 1 ? 's' : ''}">⚠ ${recallCount} Recall${recallCount > 1 ? 's' : ''}</span>`
+      : '';
     return `
-      <div class="vehicle-card" data-id="${v.id}">
+      <div class="vehicle-card" data-id="${v.id}" style="position:relative;">
+        ${recallBadge}
         <div class="vehicle-card-header">
           <h3>${escapeHtml(displayName)}</h3>
           ${trimInfo}
@@ -973,7 +994,7 @@ function renderServiceHistory() {
           <div class="history-date">${date}</div>
           ${h.notes ? `<div class="history-notes">${escapeHtml(h.notes)}</div>` : ''}
         </div>
-        ${h.cost ? `<div class="history-cost">$${h.cost.toFixed(2)}</div>` : ''}
+        ${h.total_cost ? `<div class="history-cost">$${Number(h.total_cost).toFixed(2)}</div>` : ''}
       </div>
     `;
   }).join('');
@@ -1016,7 +1037,18 @@ async function loadProfile() {
   } else {
     userProfile = data;
   }
-  
+
+  // Redirect non-members who don't have cross-role member access
+  const _role = userProfile?.role;
+  if (_role === 'provider' && !userProfile?.is_also_member) {
+    window.location.replace('providers.html');
+    return;
+  }
+  if (_role === 'driver') {
+    window.location.replace('driver-dispatch.html');
+    return;
+  }
+
   const name = userProfile?.full_name || 'Member';
   const initials = name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   document.getElementById('user-name').textContent = name;
@@ -1072,7 +1104,7 @@ async function checkFounderAccess() {
       .select('id, status')
       .eq('user_id', currentUser.id)
       .eq('status', 'active')
-      .single();
+      .maybeSingle();
     
     if (founderRecord) {
       document.getElementById('founder-nav').style.display = 'block';
@@ -1085,17 +1117,22 @@ async function checkFounderAccess() {
 }
 
 function showFounderPromoBanner() {
-  const banner = document.getElementById('founder-promo-banner');
-  if (!banner) return;
-  const dismissed = localStorage.getItem('founderPromoDismissed');
+  const uid = currentUser?.id || 'anon';
+  const dismissed = localStorage.getItem(`founderPromoDismissed_${uid}`);
   if (dismissed) return;
-  banner.style.display = 'block';
+  for (const id of ['founder-promo-banner', 'founder-promo-banner-2']) {
+    const banner = document.getElementById(id);
+    if (banner) banner.style.display = 'block';
+  }
 }
 
 window.dismissFounderPromo = function() {
-  const banner = document.getElementById('founder-promo-banner');
-  if (banner) banner.style.display = 'none';
-  localStorage.setItem('founderPromoDismissed', Date.now().toString());
+  const uid = currentUser?.id || 'anon';
+  for (const id of ['founder-promo-banner', 'founder-promo-banner-2']) {
+    const banner = document.getElementById(id);
+    if (banner) banner.style.display = 'none';
+  }
+  localStorage.setItem(`founderPromoDismissed_${uid}`, Date.now().toString());
 };
 
 async function displayLoyaltyBadges(profile) {
@@ -1142,13 +1179,14 @@ async function displayLoyaltyBadges(profile) {
 async function checkProviderAccess() {
   try {
     const { data: providerRecord } = await supabaseClient
-      .from('service_providers')
+      .from('provider_applications')
       .select('id, status')
       .eq('user_id', currentUser.id)
-      .single();
-    
+      .eq('status', 'approved')
+      .maybeSingle();
+
     // Only show dual access if user has an approved provider record
-    if (providerRecord && providerRecord.status === 'approved') {
+    if (providerRecord) {
       document.getElementById('switch-portal-container').style.display = 'block';
     } else {
       document.getElementById('switch-portal-container').style.display = 'none';
@@ -1570,13 +1608,16 @@ async function loadConversations() {
       return;
     }
 
-    // Group by package_id and get the other party
+    // Group by package_id and get the other party.
+    // provider_alias is denormalized onto provider-sent messages at insert time;
+    // pick the first non-null value in each thread. Threads where the provider
+    // has not yet replied fall back to Provider #XXXX until their first message.
     const conversationMap = new Map();
-    
+
     for (const msg of messages || []) {
       const key = msg.package_id;
       const otherPartyId = msg.sender_id === currentUser.id ? msg.recipient_id : msg.sender_id;
-      
+
       if (!conversationMap.has(key)) {
         conversationMap.set(key, {
           packageId: msg.package_id,
@@ -1584,29 +1625,18 @@ async function loadConversations() {
           otherPartyId,
           lastMessage: msg.content,
           lastMessageTime: msg.created_at,
-          unread: msg.recipient_id === currentUser.id && !msg.read_at
+          unread: msg.recipient_id === currentUser.id && !msg.read_at,
+          providerAlias: msg.provider_alias || null,
         });
+      } else if (!conversationMap.get(key).providerAlias && msg.provider_alias) {
+        conversationMap.get(key).providerAlias = msg.provider_alias;
       }
     }
 
-    // Fetch provider alias for each conversation
     const conversations = Array.from(conversationMap.values());
-    const providerIds = [...new Set(conversations.map(c => c.otherPartyId))];
-    
-    if (providerIds.length > 0) {
-      const { data: providers } = await supabaseClient
-        .from('profiles')
-        .select('id, provider_alias')
-        .in('id', providerIds);
-
-      const providerMap = new Map(providers?.map(p => [p.id, p]) || []);
-      
-      conversations.forEach(c => {
-        const provider = providerMap.get(c.otherPartyId);
-        // Use alias, never real business name
-        c.providerName = provider?.provider_alias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
-      });
-    }
+    conversations.forEach(c => {
+      c.providerName = c.providerAlias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
+    });
 
     renderConversations(conversations);
     
@@ -1633,7 +1663,7 @@ function renderConversations(conversations) {
   }
 
   container.innerHTML = conversations.map(c => `
-    <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
+    <div class="conversation-card" onclick="openMessageWithProvider('${c.packageId}', '${c.otherPartyId}', '${c.providerName}')" style="background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:16px 20px;margin-bottom:12px;cursor:pointer;transition:all 0.15s;">
       <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:8px;">
         <div>
           <div style="font-weight:600;margin-bottom:2px;">${c.providerName}</div>
@@ -1882,6 +1912,7 @@ async function saveReminder() {
   }
   
   const reminderData = {
+    user_id: currentUser.id,
     vehicle_id: vehicleId,
     title: title,
     reminder_type: reminderType,
@@ -2693,23 +2724,29 @@ function setupEventListeners() {
 
 // ========== MODULE LOADER ==========
 const loadedModules = {};
+const pendingModules = {};
 async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
-  return new Promise((resolve, reject) => {
+  if (pendingModules[name]) return pendingModules[name];
+  const promise = new Promise((resolve, reject) => {
     const script = document.createElement('script');
     script.src = `/members-${name}.js`;
     script.async = true;
     script.onload = () => {
       loadedModules[name] = true;
+      delete pendingModules[name];
       console.log(`[Module] Loaded ${name} module`);
       resolve();
     };
     script.onerror = (e) => {
+      delete pendingModules[name];
       console.error(`[Module] Failed to load ${name} module`, e);
       reject(e);
     };
     document.body.appendChild(script);
   });
+  pendingModules[name] = promise;
+  return promise;
 }
 
 function loadModuleForSection(section) {
@@ -2758,7 +2795,28 @@ function loadModuleForSection(section) {
 }
 
 // ========== NAVIGATION ==========
+// ========== MANDATORY 2FA GATE ==========
+function _show2FAGate() {
+  window._2faGateActive = true;
+  const banner = document.getElementById('2fa-enrollment-required-banner');
+  if (banner) banner.style.display = '';
+  showSection('settings');
+}
+
+function _dismiss2FAGate() {
+  window._2faGateActive = false;
+  const banner = document.getElementById('2fa-enrollment-required-banner');
+  if (banner) banner.style.display = 'none';
+  showSection('learn');
+}
+
 async function showSection(sectionId) {
+  // Block navigation away from settings while mandatory 2FA enrollment is pending
+  if (window._2faGateActive && sectionId !== 'settings') {
+    showToast('Please complete your 2FA setup before accessing other sections.', 'warning');
+    return;
+  }
+
   // Load required module first
   await loadModuleForSection(sectionId);
 
@@ -2803,6 +2861,18 @@ async function showSection(sectionId) {
     if (typeof initPushNotifications === 'function') initPushNotifications();
     if (typeof loadLoginActivity === 'function') loadLoginActivity();
     if (typeof load2FAStatus === 'function') load2FAStatus();
+    // Reflect active booking guidance tile from localStorage
+    const _curGuidance = localStorage.getItem('mcc_booking_guidance') || 'full';
+    document.querySelectorAll('.guidance-tile').forEach(t => {
+      t.setAttribute('data-active', t.getAttribute('data-value') === _curGuidance ? 'true' : 'false');
+    });
+    // Load subscription/billing data
+    if (typeof window.loadBillingSubscriptions === 'function') window.loadBillingSubscriptions();
+    // Developer API Keys and Outreach Engine are admin/developer tools — hide from standard members
+    if (userProfile?.role === 'admin') {
+      if (typeof window.loadApiKeys === 'function') window.loadApiKeys();
+      if (typeof window.loadOutreachStatus === 'function') window.loadOutreachStatus();
+    }
   }
   if (sectionId === 'order-history' && typeof loadOrderHistory === 'function') {
     loadOrderHistory();
@@ -3423,6 +3493,8 @@ async function mountContributeCardElement() {
     });
   } catch (err) {
     console.error('[ContributeModal] Stripe init error:', err);
+    const errorEl = document.getElementById('contribute-card-error');
+    if (errorEl) { errorEl.textContent = 'Payment system unavailable. Please refresh and try again.'; errorEl.style.display = 'block'; }
   }
 }
 
@@ -3487,7 +3559,6 @@ async function submitContribution(packageId) {
 }
 
 // Reset community board when switching away from it
-const _origShowSection = typeof showSection === 'function' ? showSection : null;
 function patchShowSectionForCommunityBoard(fn) {
   return function(sectionId) {
     if (sectionId !== 'packages') {
@@ -3518,3 +3589,269 @@ window.loadCommunityBoard = loadCommunityBoard;
 window.openContributeModal = openContributeModal;
 window.submitContribution = submitContribution;
 window.loadCrowdFundedProgress = loadCrowdFundedProgress;
+
+// ========== TOTP 2FA FUNCTIONS ==========
+let totpPendingFactorId = null;
+
+async function load2FAStatus() {
+  if (!currentUser) return;
+
+  const loadingEl = document.getElementById('2fa-loading');
+  const contentEl = document.getElementById('2fa-content');
+
+  if (loadingEl) loadingEl.style.display = 'block';
+  if (contentEl) contentEl.style.display = 'none';
+
+  try {
+    // Use the same signal as the login gate: a verified native TOTP factor.
+    const { data: factorsData } = await supabaseClient.auth.mfa.listFactors();
+    const enrolled = (factorsData?.totp || []).some(f => f.status === 'verified');
+    update2FADisplay(enrolled);
+  } catch (error) {
+    console.error('Error loading 2FA status:', error);
+    update2FADisplay(false);
+  } finally {
+    if (loadingEl) loadingEl.style.display = 'none';
+    if (contentEl) contentEl.style.display = 'block';
+  }
+}
+
+function update2FADisplay(enrolled) {
+  const statusText  = document.getElementById('2fa-status-text');
+  const statusDesc  = document.getElementById('2fa-status-desc');
+  const statusBadge = document.getElementById('2fa-status-badge');
+  const enableSec   = document.getElementById('2fa-enable-section');
+  const disableSec  = document.getElementById('2fa-disable-section');
+
+  if (enrolled) {
+    if (statusText)  statusText.textContent  = '2FA is Enabled';
+    if (statusDesc)  statusDesc.textContent  = 'Your account is protected with an authenticator app.';
+    if (statusBadge) {
+      statusBadge.textContent        = 'Enabled';
+      statusBadge.style.background   = 'var(--accent-green-soft)';
+      statusBadge.style.color        = 'var(--accent-green)';
+    }
+    if (enableSec)  enableSec.style.display  = 'none';
+    if (disableSec) disableSec.style.display = 'block';
+  } else {
+    if (statusText)  statusText.textContent  = '2FA is Disabled';
+    if (statusDesc)  statusDesc.textContent  = 'Your account is protected by password only.';
+    if (statusBadge) {
+      statusBadge.textContent        = 'Disabled';
+      statusBadge.style.background   = 'rgba(239,95,95,0.15)';
+      statusBadge.style.color        = 'var(--accent-red)';
+    }
+    if (enableSec)  enableSec.style.display  = 'block';
+    if (disableSec) disableSec.style.display = 'none';
+    // Reset enroll UI to step 0 whenever status reloads to disabled
+    totpShowStep(0);
+  }
+}
+
+function totpShowStep(n) {
+  ['totp-enroll-step0', 'totp-enroll-step1', 'totp-backup-panel'].forEach((id, i) => {
+    const el = document.getElementById(id);
+    if (el) el.style.display = (i === n) ? 'block' : 'none';
+  });
+}
+
+function totpShowEnrollError(msg) {
+  const el = document.getElementById('totp-enroll-error');
+  if (!el) return;
+  el.textContent = msg;
+  el.style.display = 'block';
+}
+
+function totpHideEnrollError() {
+  const el = document.getElementById('totp-enroll-error');
+  if (el) el.style.display = 'none';
+}
+
+function getTotpEnrollCode() {
+  let code = '';
+  for (let i = 1; i <= 6; i++) code += document.getElementById(`totp-enroll-${i}`)?.value || '';
+  return code;
+}
+
+function setupTotpEnrollInputs() {
+  // Clone to flush any stale listeners from a prior enroll attempt.
+  document.querySelectorAll('.totp-enroll-digit').forEach(input => {
+    const fresh = input.cloneNode(true);
+    input.parentNode.replaceChild(fresh, input);
+  });
+  const inputs = Array.from(document.querySelectorAll('.totp-enroll-digit'));
+  inputs.forEach((input, idx) => {
+    input.value = '';
+    input.addEventListener('input', (e) => {
+      const v = e.target.value.replace(/\D/g, '').slice(0, 1);
+      e.target.value = v;
+      if (v && idx < 5) inputs[idx + 1].focus();
+      const btn = document.getElementById('totp-confirm-btn');
+      if (btn) btn.disabled = getTotpEnrollCode().length !== 6;
+      totpHideEnrollError();
+    });
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Backspace' && !e.target.value && idx > 0) inputs[idx - 1].focus();
+    });
+    input.addEventListener('paste', (e) => {
+      e.preventDefault();
+      const digits = (e.clipboardData || window.clipboardData).getData('text')
+        .replace(/\D/g, '').slice(0, 6);
+      digits.split('').forEach((d, i) => { if (inputs[i]) inputs[i].value = d; });
+      if (digits.length > 0) inputs[Math.min(digits.length, 5)].focus();
+      const btn = document.getElementById('totp-confirm-btn');
+      if (btn) btn.disabled = getTotpEnrollCode().length !== 6;
+    });
+  });
+}
+
+async function startTotpEnroll() {
+  const btn = document.getElementById('totp-start-btn');
+  const orig = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = `${mccIcon('clock', 14)} Starting...`; }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { showToast('Session expired. Please log in again.', 'error'); return; }
+
+    const res  = await fetch('/api/2fa/totp/enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` }
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.factorId) {
+      showToast(data.error || 'Could not start enrollment. Please try again.', 'error');
+      return;
+    }
+
+    totpPendingFactorId = data.factorId;
+
+    // Render QR client-side using the already-loaded qrcode@1.5.3 library.
+    // QRCode.toCanvas() runs entirely in-browser — the TOTP secret never
+    // leaves the device, unlike the api.qrserver.com approach used elsewhere.
+    const canvas = document.getElementById('totp-qr-canvas');
+    if (canvas && typeof QRCode !== 'undefined') {
+      QRCode.toCanvas(canvas, data.uri, { width: 200, margin: 1, color: { dark: '#000000', light: '#ffffff' } }, (err) => {
+        if (err) console.error('QR render error:', err);
+      });
+    }
+
+    const secretEl = document.getElementById('totp-secret-display');
+    if (secretEl) secretEl.textContent = data.secret;
+
+    setupTotpEnrollInputs();
+    totpHideEnrollError();
+    totpShowStep(1);
+    setTimeout(() => document.getElementById('totp-enroll-1')?.focus(), 100);
+  } catch (err) {
+    console.error('startTotpEnroll error:', err);
+    showToast('Network error. Please try again.', 'error');
+  } finally {
+    if (btn) { btn.disabled = false; btn.innerHTML = orig; }
+  }
+}
+
+function cancelTotpEnroll() {
+  totpPendingFactorId = null;
+  totpHideEnrollError();
+  totpShowStep(0);
+}
+
+async function confirmTotpEnroll() {
+  const code = getTotpEnrollCode();
+  if (code.length !== 6) return;
+
+  const btn  = document.getElementById('totp-confirm-btn');
+  const orig = btn?.innerHTML;
+  if (btn) { btn.disabled = true; btn.innerHTML = `${mccIcon('clock', 14)} Verifying...`; }
+  totpHideEnrollError();
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { totpShowEnrollError('Session expired. Please log in again.'); return; }
+
+    const res  = await fetch('/api/2fa/totp/confirm-enroll', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ factorId: totpPendingFactorId, code })
+    });
+    const data = await res.json();
+
+    if (!res.ok || !data.success) {
+      if (res.status === 429) {
+        totpShowEnrollError(data.error || 'Too many attempts. Please wait before trying again.');
+      } else {
+        totpShowEnrollError(data.error || 'Invalid code. Please try again.');
+      }
+      return;
+    }
+
+    // Success: show backup codes panel (one-time display)
+    const grid = document.getElementById('totp-backup-codes-grid');
+    if (grid && Array.isArray(data.backupCodes)) {
+      grid.innerHTML = data.backupCodes.map(c =>
+        `<div style="padding:8px 10px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:6px;font-size:0.95rem;letter-spacing:1px;user-select:all;">${c}</div>`
+      ).join('');
+    }
+
+    const ack = document.getElementById('totp-backup-ack');
+    const doneBtn = document.getElementById('totp-backup-done-btn');
+    if (ack) ack.checked = false;
+    if (doneBtn) doneBtn.disabled = true;
+
+    totpShowStep(2);
+  } catch (err) {
+    console.error('confirmTotpEnroll error:', err);
+    totpShowEnrollError('Network error. Please check your connection and try again.');
+  } finally {
+    if (btn) { btn.disabled = (getTotpEnrollCode().length !== 6); btn.innerHTML = orig; }
+  }
+}
+
+function toggleTotpBackupAck() {
+  const ack    = document.getElementById('totp-backup-ack');
+  const doneBtn = document.getElementById('totp-backup-done-btn');
+  if (doneBtn) doneBtn.disabled = !ack?.checked;
+}
+
+function acknowledgeBackupCodes() {
+  totpPendingFactorId = null;
+  totpShowStep(0);
+  if (window._2faGateActive) {
+    _dismiss2FAGate();
+  } else {
+    load2FAStatus();
+  }
+}
+
+
+window.startTotpEnroll = startTotpEnroll;
+window.cancelTotpEnroll = cancelTotpEnroll;
+window.confirmTotpEnroll = confirmTotpEnroll;
+window.acknowledgeBackupCodes = acknowledgeBackupCodes;
+window.toggleTotpBackupAck = toggleTotpBackupAck;
+
+// ========== LOGOUT ==========
+// Moved from members-settings.js: must be globally available immediately since the
+// Log Out button is in the sidebar and visible before the settings module ever loads.
+async function logout() {
+  try {
+    const storedToken = localStorage.getItem('mcc_fcm_token');
+    if (storedToken) {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (session) {
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        await fetch(`${apiBase}/api/push/unregister-device`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ token: storedToken })
+        }).catch(() => {});
+        localStorage.removeItem('mcc_fcm_token');
+      }
+    }
+  } catch {}
+  await supabaseClient.auth.signOut();
+  window.location.href = 'login.html';
+}
+window.logout = logout;

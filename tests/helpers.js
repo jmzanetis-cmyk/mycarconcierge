@@ -11,8 +11,8 @@ const TEST_MEMBER_EMAIL = process.env.MEMBER_TEST_EMAIL || 'testmember@mcc-test.
 const TEST_MEMBER_PASS = process.env.MEMBER_TEST_PASSWORD || 'TestPass123!';
 const TEST_PROVIDER_EMAIL = process.env.PROVIDER_TEST_EMAIL || 'testprovider_a@mcc-test.com';
 const TEST_PROVIDER_PASS = process.env.PROVIDER_TEST_PASSWORD || 'TestPass123!';
-const TEST_ADMIN_EMAIL = 'testadmin@mcc-test.com';
-const TEST_ADMIN_PASS = 'TestAdminPass123!';
+const TEST_ADMIN_EMAIL = process.env.TEST_ADMIN_EMAIL;
+const TEST_ADMIN_PASS = process.env.TEST_ADMIN_PASS;
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || 'jm.zanetis@gmail.com';
 
 function getSupabaseAdmin() {

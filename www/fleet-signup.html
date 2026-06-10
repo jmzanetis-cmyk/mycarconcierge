@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#12161c" />
   <script>(function(){var t='dark';try{t=localStorage.getItem('theme')||'dark';}catch(e){}document.documentElement.setAttribute('data-theme',t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='dark'?'#12161c':'#f5f2ed';})();</script>
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
@@ -40,7 +40,7 @@
     .container { width: 100%; max-width: 560px; }
     .logo-wrap { text-align: center; margin-bottom: 32px; }
     .logo-wrap img { height: 72px; }
-    .logo-wrap p { color: var(--text-muted); font-size: 0.88rem; margin-top: 8px; }
+    .logo-wrap p { color: var(--text-muted); font-size: var(--text-base); margin-top: 8px; }
 
     /* Progress */
     .progress-bar { display: flex; justify-content: center; gap: 8px; margin-bottom: 32px; }
@@ -67,10 +67,10 @@
       font-size: 1.7rem; font-weight: 500;
       margin-bottom: 8px;
     }
-    .step-sub { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 28px; line-height: 1.5; }
+    .step-sub { color: var(--text-secondary); font-size: var(--text-base); margin-bottom: 28px; line-height: 1.5; }
 
     .field { margin-bottom: 18px; }
-    .field label { display: block; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 6px; font-weight: 500; }
+    .field label { display: block; font-size: var(--text-sm); color: var(--text-secondary); margin-bottom: 6px; font-weight: 500; }
     .field input, .field select, .field textarea {
       width: 100%;
       padding: 11px 14px;
@@ -87,7 +87,7 @@
       border-color: var(--accent-gold);
     }
     .field-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-    .field-hint { font-size: 0.78rem; color: var(--text-muted); margin-top: 5px; }
+    .field-hint { font-size: var(--text-sm); color: var(--text-muted); margin-top: 5px; }
 
     .plan-cards { display: flex; flex-direction: column; gap: 12px; margin-bottom: 8px; }
     .plan-option {
@@ -104,26 +104,26 @@
     .plan-option input[type=radio] { accent-color: var(--accent-gold); }
     .plan-option-body { flex: 1; }
     .plan-option-name { font-weight: 600; margin-bottom: 3px; }
-    .plan-option-meta { font-size: 0.82rem; color: var(--text-muted); }
-    .plan-option-price { font-weight: 700; font-size: 1.1rem; color: var(--accent-gold); white-space: nowrap; }
+    .plan-option-meta { font-size: var(--text-sm); color: var(--text-muted); }
+    .plan-option-price { font-weight: 700; font-size: var(--text-lg); color: var(--accent-gold); white-space: nowrap; }
 
     .btn-row { display: flex; gap: 12px; margin-top: 24px; }
     .btn {
       padding: 12px 28px;
       border-radius: var(--radius-md);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 600;
       cursor: pointer;
       border: none;
       transition: all 0.15s;
       flex: 1;
     }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(201,162,39,0.35); }
-    .btn-ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 6px 18px rgba(201,162,39,0.35); }
+    .btn--ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .alert { padding: 12px 16px; border-radius: var(--radius-md); font-size: 0.9rem; margin-bottom: 16px; }
+    .alert { padding: 12px 16px; border-radius: var(--radius-md); font-size: var(--text-base); margin-bottom: 16px; }
     .alert-error { background: rgba(248,113,113,0.12); border: 1px solid rgba(248,113,113,0.3); color: var(--accent-red); }
     .spinner {
       display: inline-block;
@@ -138,7 +138,7 @@
 
     .success-icon { font-size: 56px; text-align: center; margin-bottom: 16px; }
 
-    .check-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; font-size: 0.9rem; color: var(--text-secondary); }
+    .check-row { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 10px; font-size: var(--text-base); color: var(--text-secondary); }
     .check-row::before { content: '✓'; color: var(--accent-green); font-weight: 700; flex-shrink: 0; }
 
     @media (max-width: 480px) {
@@ -151,12 +151,12 @@
   <link rel="canonical" href="https://www.mycarconcierge.com/fleet-signup.html" />
   <meta name="robots" content="noindex, nofollow" />
 <!-- SEO-INJECT:END -->
-  <script src="/auth-theme-toggle.js" defer></script>
+  <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="container">
     <div class="logo-wrap">
-      <img src="/logo.png" alt="My Car Concierge">
+      <img src="logo.png" alt="My Car Concierge">
       <p>Fleet Management</p>
     </div>
 
@@ -189,10 +189,10 @@
             <div class="field-hint">Minimum 8 characters. You can also use Sign in with Apple or Google from the main login.</div>
           </div>
           <div class="btn-row">
-            <button type="submit" class="btn btn-primary">Continue →</button>
+            <button type="submit" class="btn btn--primary">Continue →</button>
           </div>
         </form>
-        <p style="text-align:center;margin-top:18px;font-size:0.85rem;color:var(--text-muted);">
+        <p style="text-align:center;margin-top:18px;font-size:var(--text-sm);color:var(--text-muted);">
           Already have an account? <a href="/members.html?section=fleet" style="color:var(--accent-gold);text-decoration:none;">Go to fleet dashboard</a>
         </p>
       </div>
@@ -240,8 +240,8 @@
           <input type="tel" id="s2-phone" placeholder="(555) 000-0000" autocomplete="tel">
         </div>
         <div class="btn-row">
-          <button class="btn btn-ghost" onclick="prevStep(2)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(2)">Continue →</button>
+          <button class="btn btn--ghost" onclick="prevStep(2)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(2)">Continue →</button>
         </div>
       </div>
 
@@ -276,8 +276,8 @@
           </label>
         </div>
         <div class="btn-row">
-          <button class="btn btn-ghost" onclick="prevStep(3)">← Back</button>
-          <button class="btn btn-primary" onclick="nextStep(3)">Start Free Trial →</button>
+          <button class="btn btn--ghost" onclick="prevStep(3)">← Back</button>
+          <button class="btn btn--primary" onclick="nextStep(3)">Start Free Trial →</button>
         </div>
       </div>
 
@@ -287,7 +287,7 @@
         <p class="step-sub">Creating your account and fleet workspace. This only takes a moment.</p>
         <div style="text-align:center;padding:24px 0;">
           <div class="spinner" style="width:36px;height:36px;border-width:3px;margin-bottom:16px;"></div>
-          <p id="setup-status" style="color:var(--text-muted);font-size:0.9rem;">Creating account...</p>
+          <p id="setup-status" style="color:var(--text-muted);font-size:var(--text-base);">Creating account...</p>
         </div>
       </div>
 
@@ -304,13 +304,13 @@
           <div class="check-row">Book service for your entire fleet with one click</div>
         </div>
 
-        <a href="/members.html?section=fleet" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;">Go to Fleet Dashboard →</a>
+        <a href="/members.html?section=fleet" class="btn btn--primary" style="display:block;text-align:center;text-decoration:none;">Go to Fleet Dashboard →</a>
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script src="/supabaseclient.js"></script>
+  <script src="supabaseclient.js"></script>
   <script>
     var currentStep = 1;
     var totalSteps = 4;

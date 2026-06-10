@@ -6,7 +6,7 @@
   <title>Developers | My Car Concierge Automotive AI API</title>
   <meta name="description" content="Build smarter auto apps with the MCC Automotive AI API — VIN decode, recall lookup, OBD diagnostics, vehicle health scoring, and fair price estimation.">
   <link rel="stylesheet" href="shared-styles.css">
-  <link rel="icon" href="/icons/icon-192.png" type="image/png">
+  <link rel="icon" href="icons/icon-192.png" type="image/png">
   <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@400;500;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
@@ -26,29 +26,29 @@
     .dev-hero::before { content: ''; position: absolute; inset: 0; background: radial-gradient(ellipse at 50% 0%, rgba(201,168,76,0.08) 0%, transparent 60%); pointer-events: none; }
     .dev-hero .badge { display: inline-flex; align-items: center; gap: 6px; background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); border-radius: 100px; padding: 4px 14px; font-size: 0.8rem; font-weight: 600; letter-spacing: 0.05em; margin-bottom: 20px; }
     .dev-hero h1 { font-family: 'Playfair Display', serif; font-size: clamp(2.2rem, 5vw, 3.6rem); font-weight: 700; line-height: 1.15; margin: 0 0 16px; background: linear-gradient(135deg, #e6c88a 0%, #c9a84c 50%, #f0d080 100%); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text; }
-    .dev-hero p { font-size: 1.15rem; color: var(--dev-muted); max-width: 600px; margin: 0 auto 32px; line-height: 1.7; }
+    .dev-hero p { font-size: var(--text-lg); color: var(--dev-muted); max-width: 600px; margin: 0 auto 32px; line-height: 1.7; }
     .dev-hero-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
-    .btn-gold { background: linear-gradient(135deg, #c9a84c, #b8942d); color: #0a0a0f; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .btn-gold:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
-    .btn-outline { background: transparent; color: var(--dev-teal); border: 1.5px solid var(--dev-teal); padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: 0.95rem; cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
-    .btn-outline:hover { background: rgba(77,182,172,0.1); }
+    .btn--primary { background: linear-gradient(135deg, #c9a84c, #b8942d); color: #0a0a0f; border: none; padding: 12px 28px; border-radius: 8px; font-weight: 700; font-size: var(--text-base); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,168,76,0.3); }
+    .btn--secondary { background: transparent; color: var(--dev-teal); border: 1.5px solid var(--dev-teal); padding: 12px 28px; border-radius: 8px; font-weight: 600; font-size: var(--text-base); cursor: pointer; text-decoration: none; display: inline-flex; align-items: center; gap: 8px; transition: all 0.2s; }
+    .btn--secondary:hover { background: rgba(77,182,172,0.1); }
 
     /* ── Endpoint Badges ── */
     .endpoint-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; max-width: 1100px; margin: 48px auto 0; }
     .endpoint-card { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 12px; padding: 20px; text-align: left; transition: border-color 0.2s; }
     .endpoint-card:hover { border-color: var(--dev-gold); }
-    .endpoint-method { font-size: 0.72rem; font-weight: 700; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 4px; margin-bottom: 10px; display: inline-block; }
+    .endpoint-method { font-size: var(--text-xs); font-weight: 700; letter-spacing: 0.08em; padding: 2px 8px; border-radius: 4px; margin-bottom: 10px; display: inline-block; }
     .method-get { background: rgba(77,182,172,0.15); color: var(--dev-teal); }
     .method-post { background: rgba(201,168,76,0.15); color: var(--dev-gold); }
-    .endpoint-path { font-family: 'Courier New', monospace; font-size: 0.88rem; color: var(--dev-text); margin-bottom: 6px; }
-    .endpoint-desc { font-size: 0.85rem; color: var(--dev-muted); line-height: 1.5; }
-    .endpoint-plan { font-size: 0.75rem; color: var(--dev-muted); margin-top: 8px; }
+    .endpoint-path { font-family: 'Courier New', monospace; font-size: var(--text-base); color: var(--dev-text); margin-bottom: 6px; }
+    .endpoint-desc { font-size: var(--text-sm); color: var(--dev-muted); line-height: 1.5; }
+    .endpoint-plan { font-size: var(--text-xs); color: var(--dev-muted); margin-top: 8px; }
 
     /* ── Layout ── */
     .dev-container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
     .dev-section { padding: 64px 24px; }
     .dev-section-title { font-family: 'Playfair Display', serif; font-size: 1.9rem; font-weight: 700; margin-bottom: 8px; color: var(--dev-text); }
-    .dev-section-sub { color: var(--dev-muted); font-size: 1rem; margin-bottom: 36px; line-height: 1.6; }
+    .dev-section-sub { color: var(--dev-muted); font-size: var(--text-md); margin-bottom: 36px; line-height: 1.6; }
     .divider { border: none; border-top: 1px solid var(--dev-border); margin: 0; }
 
     /* ── Quickstart ── */
@@ -56,19 +56,19 @@
     @media (max-width: 768px) { .quickstart-grid { grid-template-columns: 1fr; } }
     .quickstart-steps { counter-reset: step; }
     .quickstart-step { counter-increment: step; display: flex; gap: 16px; margin-bottom: 28px; }
-    .quickstart-step::before { content: counter(step); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-width: 32px; background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); border-radius: 50%; font-weight: 700; font-size: 0.85rem; }
+    .quickstart-step::before { content: counter(step); display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; min-width: 32px; background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); border-radius: 50%; font-weight: 700; font-size: var(--text-sm); }
     .step-title { font-weight: 600; color: var(--dev-text); margin-bottom: 4px; }
-    .step-desc { font-size: 0.9rem; color: var(--dev-muted); line-height: 1.6; }
+    .step-desc { font-size: var(--text-base); color: var(--dev-muted); line-height: 1.6; }
     .step-desc a { color: var(--dev-teal); text-decoration: none; }
     .step-desc a:hover { text-decoration: underline; }
 
     /* ── Code block ── */
     .code-block { background: var(--dev-code); border: 1px solid var(--dev-border); border-radius: 12px; overflow: hidden; }
     .code-header { display: flex; align-items: center; justify-content: space-between; padding: 10px 16px; background: rgba(255,255,255,0.03); border-bottom: 1px solid var(--dev-border); }
-    .code-lang { font-size: 0.78rem; color: var(--dev-muted); font-weight: 600; letter-spacing: 0.05em; }
-    .code-copy { font-size: 0.78rem; color: var(--dev-teal); cursor: pointer; background: none; border: none; padding: 2px 8px; border-radius: 4px; transition: background 0.15s; }
+    .code-lang { font-size: var(--text-sm); color: var(--dev-muted); font-weight: 600; letter-spacing: 0.05em; }
+    .code-copy { font-size: var(--text-sm); color: var(--dev-teal); cursor: pointer; background: none; border: none; padding: 2px 8px; border-radius: 4px; transition: background 0.15s; }
     .code-copy:hover { background: rgba(77,182,172,0.1); }
-    pre { margin: 0; padding: 20px; overflow-x: auto; font-size: 0.85rem; line-height: 1.6; font-family: 'Courier New', monospace; color: #e6edf3; }
+    pre { margin: 0; padding: 20px; overflow-x: auto; font-size: var(--text-sm); line-height: 1.6; font-family: 'Courier New', monospace; color: #e6edf3; }
     .kw { color: #ff7b72; }
     .str { color: #a5d6ff; }
     .cmt { color: #8b949e; font-style: italic; }
@@ -79,13 +79,13 @@
     .pricing-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 20px; }
     .pricing-card { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 16px; padding: 28px; display: flex; flex-direction: column; }
     .pricing-card.featured { border-color: var(--dev-gold); background: linear-gradient(135deg, rgba(201,168,76,0.06), var(--dev-surface)); position: relative; }
-    .featured-badge { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); background: var(--dev-gold); color: #0a0a0f; font-size: 0.72rem; font-weight: 700; padding: 3px 14px; border-radius: 0 0 8px 8px; letter-spacing: 0.06em; }
-    .plan-name { font-weight: 700; font-size: 1.05rem; margin-bottom: 8px; }
-    .plan-price { font-size: 2.2rem; font-weight: 800; color: var(--dev-gold); line-height: 1; }
-    .plan-price span { font-size: 1rem; font-weight: 400; color: var(--dev-muted); }
-    .plan-calls { color: var(--dev-teal); font-size: 0.9rem; font-weight: 600; margin: 8px 0 16px; }
+    .featured-badge { position: absolute; top: -1px; left: 50%; transform: translateX(-50%); background: var(--dev-gold); color: #0a0a0f; font-size: var(--text-xs); font-weight: 700; padding: 3px 14px; border-radius: 0 0 8px 8px; letter-spacing: 0.06em; }
+    .plan-name { font-weight: 700; font-size: var(--text-md); margin-bottom: 8px; }
+    .plan-price { font-size: var(--text-4xl); font-weight: 800; color: var(--dev-gold); line-height: 1; }
+    .plan-price span { font-size: var(--text-md); font-weight: 400; color: var(--dev-muted); }
+    .plan-calls { color: var(--dev-teal); font-size: var(--text-base); font-weight: 600; margin: 8px 0 16px; }
     .plan-features { list-style: none; padding: 0; margin: 0 0 24px; flex: 1; }
-    .plan-features li { padding: 7px 0; border-bottom: 1px solid var(--dev-border); font-size: 0.9rem; color: var(--dev-muted); display: flex; align-items: center; gap: 8px; }
+    .plan-features li { padding: 7px 0; border-bottom: 1px solid var(--dev-border); font-size: var(--text-base); color: var(--dev-muted); display: flex; align-items: center; gap: 8px; }
     .plan-features li:last-child { border-bottom: none; }
     .plan-features li::before { content: '✓'; color: var(--dev-teal); font-weight: 700; flex-shrink: 0; }
     .plan-cta { text-align: center; }
@@ -93,26 +93,26 @@
     /* ── Key Management ── */
     #dev-auth-required { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 16px; padding: 48px; text-align: center; }
     .key-item { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 12px; padding: 16px 20px; display: flex; align-items: center; gap: 16px; margin-bottom: 12px; flex-wrap: wrap; }
-    .key-prefix { font-family: 'Courier New', monospace; font-size: 0.9rem; color: var(--dev-teal); flex: 1; }
-    .key-meta { font-size: 0.82rem; color: var(--dev-muted); }
-    .key-badge { font-size: 0.72rem; font-weight: 700; padding: 2px 10px; border-radius: 100px; text-transform: uppercase; }
+    .key-prefix { font-family: 'Courier New', monospace; font-size: var(--text-base); color: var(--dev-teal); flex: 1; }
+    .key-meta { font-size: var(--text-sm); color: var(--dev-muted); }
+    .key-badge { font-size: var(--text-xs); font-weight: 700; padding: 2px 10px; border-radius: 100px; text-transform: uppercase; }
     .badge-starter { background: rgba(77,182,172,0.1); color: var(--dev-teal); }
     .badge-pro { background: rgba(201,168,76,0.1); color: var(--dev-gold); }
     .badge-business { background: rgba(139,91,223,0.1); color: #c084fc; }
     .key-actions { display: flex; gap: 8px; }
-    .btn-sm { padding: 6px 14px; border-radius: 6px; font-size: 0.82rem; font-weight: 600; border: none; cursor: pointer; }
-    .btn-danger { background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
-    .btn-danger:hover { background: rgba(248,81,73,0.2); }
+    .btn--small { padding: 6px 14px; border-radius: 6px; font-size: var(--text-sm); font-weight: 600; border: none; cursor: pointer; }
+    .btn--danger { background: rgba(248,81,73,0.1); color: #f85149; border: 1px solid rgba(248,81,73,0.3); }
+    .btn--danger:hover { background: rgba(248,81,73,0.2); }
     .btn-teal { background: rgba(77,182,172,0.1); color: var(--dev-teal); border: 1px solid rgba(77,182,172,0.3); }
     .btn-teal:hover { background: rgba(77,182,172,0.2); }
     #new-key-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.8); z-index: 9000; align-items: center; justify-content: center; }
     #new-key-modal.open { display: flex; }
     .modal-box { background: var(--dev-surface); border: 1px solid var(--dev-border); border-radius: 16px; padding: 32px; width: min(480px, 94vw); }
-    .modal-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; font-weight: 700; margin-bottom: 16px; }
-    .raw-key-box { background: var(--dev-code); border: 1px solid var(--dev-gold); border-radius: 8px; padding: 16px; font-family: 'Courier New', monospace; font-size: 0.82rem; color: var(--dev-gold); word-break: break-all; margin: 16px 0; }
-    input[type="text"], input[type="email"], input[type="password"] { width: 100%; box-sizing: border-box; background: var(--dev-code); border: 1px solid var(--dev-border); border-radius: 8px; color: var(--dev-text); padding: 10px 14px; font-size: 0.9rem; outline: none; }
+    .modal-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); font-weight: 700; margin-bottom: 16px; }
+    .raw-key-box { background: var(--dev-code); border: 1px solid var(--dev-gold); border-radius: 8px; padding: 16px; font-family: 'Courier New', monospace; font-size: var(--text-sm); color: var(--dev-gold); word-break: break-all; margin: 16px 0; }
+    input[type="text"], input[type="email"], input[type="password"] { width: 100%; box-sizing: border-box; background: var(--dev-code); border: 1px solid var(--dev-border); border-radius: 8px; color: var(--dev-text); padding: 10px 14px; font-size: var(--text-base); outline: none; }
     input:focus { border-color: var(--dev-gold); }
-    label { display: block; font-size: 0.85rem; font-weight: 600; color: var(--dev-muted); margin-bottom: 6px; }
+    label { display: block; font-size: var(--text-sm); font-weight: 600; color: var(--dev-muted); margin-bottom: 6px; }
 
     /* ── Usage bar ── */
     .usage-bar-wrap { background: rgba(255,255,255,0.06); border-radius: 100px; height: 8px; margin: 8px 0 4px; overflow: hidden; }
@@ -120,20 +120,20 @@
 
     /* ── Nav ── */
     .dev-nav { background: var(--dev-surface); border-bottom: 1px solid var(--dev-border); padding: 14px 24px; display: flex; align-items: center; gap: 24px; flex-wrap: wrap; }
-    .dev-nav a { color: var(--dev-muted); text-decoration: none; font-size: 0.9rem; font-weight: 500; transition: color 0.2s; }
+    .dev-nav a { color: var(--dev-muted); text-decoration: none; font-size: var(--text-base); font-weight: 500; transition: color 0.2s; }
     .dev-nav a:hover { color: var(--dev-text); }
-    .dev-nav .brand { font-family: 'Playfair Display', serif; font-weight: 700; color: var(--dev-gold); font-size: 1rem; margin-right: auto; text-decoration: none; }
+    .dev-nav .brand { font-family: 'Playfair Display', serif; font-weight: 700; color: var(--dev-gold); font-size: var(--text-md); margin-right: auto; text-decoration: none; }
     .dev-nav .nav-pill { background: rgba(201,168,76,0.1); border: 1px solid rgba(201,168,76,0.3); color: var(--dev-gold); padding: 5px 14px; border-radius: 100px; font-size: 0.8rem; font-weight: 600; text-decoration: none; }
     .dev-nav .nav-pill:hover { background: rgba(201,168,76,0.2); }
 
     /* ── Flash ── */
-    #dev-flash { display: none; padding: 12px 20px; border-radius: 8px; font-size: 0.88rem; margin-bottom: 16px; }
+    #dev-flash { display: none; padding: 12px 20px; border-radius: 8px; font-size: var(--text-base); margin-bottom: 16px; }
     #dev-flash.success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: #4ade80; display: block; }
     #dev-flash.error { background: rgba(248,81,73,0.1); border: 1px solid rgba(248,81,73,0.3); color: #f87171; display: block; }
 
     /* ── Tabs ── */
     .tab-row { display: flex; gap: 4px; background: var(--dev-code); border-radius: 8px; padding: 4px; margin-bottom: 0; flex-wrap: wrap; }
-    .tab { padding: 6px 16px; border-radius: 6px; font-size: 0.85rem; font-weight: 600; cursor: pointer; color: var(--dev-muted); border: none; background: none; transition: all 0.15s; }
+    .tab { padding: 6px 16px; border-radius: 6px; font-size: var(--text-sm); font-weight: 600; cursor: pointer; color: var(--dev-muted); border: none; background: none; transition: all 0.15s; }
     .tab.active { background: var(--dev-surface); color: var(--dev-text); }
     .tab-content { display: none; }
     .tab-content.active { display: block; }
@@ -178,8 +178,8 @@
   <h1>Build smarter<br>auto experiences</h1>
   <p>AI-powered VIN decode, recall alerts, OBD diagnostics, vehicle health scoring, and fair price intelligence — one API, every automotive need.</p>
   <div class="dev-hero-actions">
-    <a href="#keys" class="btn-gold">Get API Key</a>
-    <a href="#endpoints" class="btn-outline">View Docs →</a>
+    <a href="#keys" class="btn--primary">Get API Key</a>
+    <a href="#endpoints" class="btn--secondary">View Docs →</a>
   </div>
 
   <div class="endpoint-grid" style="padding:0 24px;" id="endpoints">
@@ -351,7 +351,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           <li>Maintenance forecast</li>
           <li>Basic rate limiting</li>
         </ul>
-        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=starter" class="btn-outline" style="width:100%;justify-content:center;">Get Started</a></div>
+        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=starter" class="btn--secondary" style="width:100%;justify-content:center;">Get Started</a></div>
       </div>
       <div class="pricing-card featured">
         <div class="featured-badge">POPULAR</div>
@@ -366,7 +366,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           <li>Webhook support</li>
           <li>Priority support</li>
         </ul>
-        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=pro" class="btn-gold" style="width:100%;justify-content:center;">Upgrade to Pro</a></div>
+        <div class="plan-cta"><a href="/members.html?section=settings&tab=billing&product=ai_api&plan=pro" class="btn--primary" style="width:100%;justify-content:center;">Upgrade to Pro</a></div>
       </div>
       <div class="pricing-card">
         <div class="plan-name">AI Business</div>
@@ -380,7 +380,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
           <li>99.9% SLA</li>
           <li>White-glove onboarding</li>
         </ul>
-        <div class="plan-cta"><a href="mailto:developers@mycarconcierge.com?subject=AI%20Business%20API" class="btn-outline" style="width:100%;justify-content:center;">Contact Sales</a></div>
+        <div class="plan-cta"><a href="mailto:developers@mycarconcierge.com?subject=AI%20Business%20API" class="btn--secondary" style="width:100%;justify-content:center;">Contact Sales</a></div>
       </div>
     </div>
   </div>
@@ -399,18 +399,18 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
     <!-- Not logged in -->
     <div id="dev-auth-required">
       <div style="font-size:2.5rem;margin-bottom:16px;">🔑</div>
-      <div style="font-size:1.15rem;font-weight:600;margin-bottom:8px;">Sign in to manage your keys</div>
+      <div style="font-size:var(--text-lg);font-weight:600;margin-bottom:8px;">Sign in to manage your keys</div>
       <div style="color:var(--dev-muted);margin-bottom:24px;">Your API keys are tied to your MCC account and billing plan.</div>
-      <a href="/login.html?redirect=/developers%23keys" class="btn-gold">Sign In</a>
+      <a href="/login.html?redirect=/developers%23keys" class="btn--primary">Sign In</a>
       <span style="color:var(--dev-muted);margin:0 12px;">or</span>
-      <a href="/signup-member.html" class="btn-outline">Create Account</a>
+      <a href="/signup-member.html" class="btn--secondary">Create Account</a>
     </div>
 
     <!-- Logged in -->
     <div id="dev-key-panel" style="display:none;">
       <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;margin-bottom:20px;">
-        <div id="dev-usage-summary" style="font-size:0.88rem;color:var(--dev-muted);"></div>
-        <button class="btn-gold btn-sm" onclick="openNewKeyModal()" style="padding:10px 20px;">+ Generate Key</button>
+        <div id="dev-usage-summary" style="font-size:var(--text-base);color:var(--dev-muted);"></div>
+        <button class="btn--primary btn--small" onclick="openNewKeyModal()" style="padding:10px 20px;">+ Generate Key</button>
       </div>
       <div id="dev-key-list"><div style="padding:32px;text-align:center;color:var(--dev-muted);">Loading keys…</div></div>
     </div>
@@ -425,16 +425,16 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
       <label for="key-name-input">Key Name (optional)</label>
       <input type="text" id="key-name-input" placeholder="e.g. Production, My App" style="margin-bottom:20px;">
       <div style="display:flex;gap:10px;justify-content:flex-end;">
-        <button class="btn-sm btn-danger" onclick="closeNewKeyModal()">Cancel</button>
-        <button class="btn-gold btn-sm" onclick="generateApiKey()" style="padding:8px 20px;">Generate</button>
+        <button class="btn--small btn--danger" onclick="closeNewKeyModal()">Cancel</button>
+        <button class="btn--primary btn--small" onclick="generateApiKey()" style="padding:8px 20px;">Generate</button>
       </div>
     </div>
     <div id="new-key-result" style="display:none;">
-      <div style="font-size:0.9rem;color:var(--dev-muted);margin-bottom:8px;">⚠️ Save this key now — it will never be shown again.</div>
+      <div style="font-size:var(--text-base);color:var(--dev-muted);margin-bottom:8px;">⚠️ Save this key now — it will never be shown again.</div>
       <div class="raw-key-box" id="raw-key-display"></div>
       <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:16px;">
-        <button class="btn-teal btn-sm" onclick="copyRawKey()">Copy Key</button>
-        <button class="btn-gold btn-sm" onclick="closeNewKeyModal()">Done</button>
+        <button class="btn-teal btn--small" onclick="copyRawKey()">Copy Key</button>
+        <button class="btn--primary btn--small" onclick="closeNewKeyModal()">Done</button>
       </div>
     </div>
   </div>
@@ -443,7 +443,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
 <hr class="divider" style="margin-top:64px;">
 
 <!-- Footer -->
-<footer style="padding:40px 24px;text-align:center;color:var(--dev-muted);font-size:0.85rem;">
+<footer style="padding:40px 24px;text-align:center;color:var(--dev-muted);font-size:var(--text-sm);">
   <div style="margin-bottom:12px;">
     <a href="/" style="color:var(--dev-muted);text-decoration:none;margin:0 12px;">Home</a>
     <a href="#endpoints" style="color:var(--dev-muted);text-decoration:none;margin:0 12px;">API Reference</a>
@@ -455,7 +455,7 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
 </footer>
 
 <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-<script src="/supabaseclient.js"></script>
+<script src="supabaseclient.js"></script>
 <script>
   // ── Tabs ──
   function showTab(id) {
@@ -507,9 +507,9 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
     if (!resp.ok) {
       if (resp.status === 402) {
         listEl.innerHTML = `<div style="background:rgba(201,168,76,0.06);border:1px solid rgba(201,168,76,0.2);border-radius:12px;padding:32px;text-align:center;">
-          <div style="font-size:1.05rem;font-weight:600;margin-bottom:8px;">AI API Subscription Required</div>
+          <div style="font-size:var(--text-md);font-weight:600;margin-bottom:8px;">AI API Subscription Required</div>
           <div style="color:var(--dev-muted);margin-bottom:20px;">Subscribe to a plan to generate API keys and access the endpoints.</div>
-          <a href="/members.html?section=settings&tab=billing" class="btn-gold">View Plans</a>
+          <a href="/members.html?section=settings&tab=billing" class="btn--primary">View Plans</a>
         </div>`;
       } else {
         listEl.innerHTML = '<div style="padding:24px;text-align:center;color:#f87171;">Failed to load keys. Please try again.</div>';
@@ -528,14 +528,14 @@ r = requests.<span class="fn">post</span>(<span class="str">f"{BASE}/vehicle/for
         <div style="flex:1;min-width:0;">
           <div style="display:flex;align-items:center;gap:10px;margin-bottom:4px;">
             <span class="key-badge ${planClass}">${k.plan}</span>
-            <span style="font-weight:600;font-size:0.9rem;">${escH(k.name || 'Unnamed')}</span>
+            <span style="font-weight:600;font-size:var(--text-base);">${escH(k.name || 'Unnamed')}</span>
           </div>
           <div class="key-prefix">${escH(k.key_prefix)}</div>
           <div class="key-meta">Created ${new Date(k.created_at).toLocaleDateString()} · Last used ${k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : 'Never'}</div>
           ${k.calls_limit > 0 ? `<div class="usage-bar-wrap"><div class="usage-bar" style="width:${pct}%"></div></div><div class="key-meta">${(k.calls_made||0).toLocaleString()} / ${k.calls_limit.toLocaleString()} calls (${pct}%)</div>` : `<div class="key-meta">${(k.calls_made||0).toLocaleString()} calls · Unlimited</div>`}
         </div>
         <div class="key-actions">
-          <button class="btn-sm btn-danger" onclick="revokeKey('${k.id}')">Revoke</button>
+          <button class="btn--small btn--danger" onclick="revokeKey('${k.id}')">Revoke</button>
         </div>
       </div>`;
     }).join('');

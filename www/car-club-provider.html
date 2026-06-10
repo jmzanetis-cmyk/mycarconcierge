@@ -18,13 +18,13 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css?v=20260213">
+  <link rel="stylesheet" href="shared-styles.css?v=20260213">
   <style>
     :root {
       --bg-deep: #12161c;
@@ -107,7 +107,7 @@
       border-radius: 10px;
       cursor: pointer;
       font-family: inherit;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       transition: all 0.3s ease;
     }
@@ -118,7 +118,7 @@
       transform: scale(1.02);
       box-shadow: 0 0 20px rgba(201, 162, 39, 0.2);
     }
-    .theme-icon-dark, .theme-icon-light { font-size: 1.2rem; transition: transform 0.3s ease; }
+    .theme-icon-dark, .theme-icon-light { font-size: var(--text-xl); transition: transform 0.3s ease; }
     [data-theme="dark"] .theme-icon-light { display: none; }
     [data-theme="light"] .theme-icon-dark { display: none; }
 
@@ -133,22 +133,19 @@
     .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
     .sidebar::-webkit-scrollbar { display: none; }
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
-    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
+    .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
     .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
-    .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
+    .nav-label { font-size: var(--text-xs); text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
     .nav-label:first-of-type { margin-top: 0; padding-top: 0; }
-    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
+    .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: var(--text-base); color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
     .nav-item:hover { background: rgba(74, 124, 255, 0.08); color: var(--text-primary); border-color: rgba(74, 124, 255, 0.12); }
     .nav-item.active { background: linear-gradient(135deg, rgba(74, 124, 255, 0.15), rgba(74, 124, 255, 0.08)); color: var(--accent-blue); border-color: rgba(74, 124, 255, 0.25); font-weight: 500; }
     .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid rgba(148, 148, 168, 0.08); background: linear-gradient(180deg, transparent, rgba(18, 18, 28, 0.5)); }
 
     .main { flex: 1; margin-left: 260px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .page-header { margin-bottom: 32px; }
-    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
-    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
-
-    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-secondary); text-decoration: none; font-size: 0.88rem; margin-bottom: 20px; transition: color 0.2s; }
-    .back-link:hover { color: var(--accent-gold); }
+    .page-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: var(--text-base); }
 
     .section { display: none; }
     .section.active { display: block; }
@@ -166,36 +163,24 @@
     .reward-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 20px; margin-bottom: 12px; transition: all 0.2s; }
     .reward-card:hover { border-color: var(--border-medium); }
     .reward-card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-    .reward-card-name { font-size: 1rem; font-weight: 600; }
+    .reward-card-name { font-size: var(--text-md); font-weight: 600; }
     .reward-card-actions { display: flex; gap: 8px; align-items: center; }
-    .reward-card-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: 0.85rem; color: var(--text-secondary); }
+    .reward-card-meta { display: flex; gap: 16px; flex-wrap: wrap; font-size: var(--text-sm); color: var(--text-secondary); }
     .reward-card-meta span { display: flex; align-items: center; gap: 5px; }
 
-    .member-row { display: grid; grid-template-columns: 1fr 120px 140px 120px 80px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.9rem; transition: all 0.2s; }
+    .member-row { display: grid; grid-template-columns: 1fr 120px 140px 120px 80px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: var(--text-base); transition: all 0.2s; }
     .member-row:hover { border-color: var(--border-medium); }
     .member-name { font-weight: 500; }
-    .member-date { color: var(--text-secondary); font-size: 0.82rem; }
+    .member-date { color: var(--text-secondary); font-size: var(--text-sm); }
     .member-progress { display: flex; align-items: center; gap: 8px; }
     .punch-bar { flex: 1; height: 6px; background: var(--bg-input); border-radius: 3px; overflow: hidden; }
     .punch-fill { height: 100%; background: linear-gradient(90deg, var(--accent-gold), var(--accent-green)); border-radius: 3px; transition: width 0.3s; }
-    .punch-text { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; }
-
-    .activity-item { display: flex; gap: 16px; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; align-items: flex-start; transition: all 0.2s; }
-    .activity-item:hover { border-color: var(--border-medium); }
-    .activity-icon { width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 16px; }
-    .activity-icon.punch { background: var(--accent-gold-soft); color: var(--accent-gold); }
-    .activity-icon.visit { background: var(--accent-blue-soft); color: var(--accent-blue); }
-    .activity-icon.reward { background: var(--accent-green-soft); color: var(--accent-green); }
-    .activity-icon.spend { background: var(--accent-teal-soft); color: var(--accent-teal); }
-    .activity-content { flex: 1; }
-    .activity-title { font-weight: 500; font-size: 0.9rem; margin-bottom: 2px; }
-    .activity-desc { font-size: 0.82rem; color: var(--text-secondary); }
-    .activity-time { font-size: 0.78rem; color: var(--text-muted); white-space: nowrap; flex-shrink: 0; }
+    .punch-text { font-size: var(--text-sm); color: var(--text-muted); white-space: nowrap; }
 
     .filter-bar { display: flex; gap: 12px; align-items: center; margin-bottom: 20px; flex-wrap: wrap; }
-    .filter-bar .form-input { max-width: 180px; padding: 8px 12px; font-size: 0.85rem; }
+    .filter-bar .form-input { max-width: 180px; padding: 8px 12px; font-size: var(--text-sm); }
 
-    .credit-batch { display: grid; grid-template-columns: 1fr 1fr 100px 120px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: 0.88rem; transition: all 0.2s; }
+    .credit-batch { display: grid; grid-template-columns: 1fr 1fr 100px 120px; gap: 16px; align-items: center; padding: 16px 20px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 8px; font-size: var(--text-base); transition: all 0.2s; }
     .credit-batch:hover { border-color: var(--border-medium); }
 
     .spinner { display: inline-block; width: 18px; height: 18px; border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff; border-radius: 50%; animation: spin 0.6s linear infinite; }
@@ -205,23 +190,23 @@
     #authLoadingOverlay.hidden { display: none; }
     .auth-loading-content { text-align: center; }
     .auth-loading-spinner { width: 48px; height: 48px; border: 3px solid rgba(201, 162, 39, 0.2); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 20px; }
-    .auth-loading-text { color: var(--text-secondary); font-size: 0.95rem; }
+    .auth-loading-text { color: var(--text-secondary); font-size: var(--text-base); }
 
     .sidebar-overlay { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 49; }
     .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle); z-index: 48; padding: 0 16px; align-items: center; gap: 12px; }
     .hamburger { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; }
 
-    .note-text { font-size: 0.82rem; color: var(--text-muted); margin-top: 8px; }
+    .note-text { font-size: var(--text-sm); color: var(--text-muted); margin-top: 8px; }
 
     .how-it-works { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); margin-bottom: 24px; overflow: hidden; }
-    .how-it-works-toggle { width: 100%; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: transparent; border: none; color: var(--accent-gold); font-family: inherit; font-size: 0.95rem; font-weight: 500; cursor: pointer; transition: background 0.2s; }
+    .how-it-works-toggle { width: 100%; display: flex; align-items: center; gap: 10px; padding: 16px 20px; background: transparent; border: none; color: var(--accent-gold); font-family: inherit; font-size: var(--text-base); font-weight: 500; cursor: pointer; transition: background 0.2s; }
     .how-it-works-toggle:hover { background: var(--accent-gold-soft); }
     .how-it-works-body { padding: 0 20px 20px; display: none; }
     .how-it-works-body.open { display: block; }
     .how-it-works-section { margin-bottom: 16px; }
     .how-it-works-section:last-child { margin-bottom: 0; }
-    .how-it-works-section h3 { font-size: 0.9rem; font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
-    .how-it-works-section p { font-size: 0.85rem; color: var(--text-secondary); line-height: 1.6; }
+    .how-it-works-section h3 { font-size: var(--text-base); font-weight: 600; color: var(--accent-gold); margin-bottom: 6px; display: flex; align-items: center; gap: 8px; }
+    .how-it-works-section p { font-size: var(--text-sm); color: var(--text-secondary); line-height: 1.6; }
 
     .logo-upload-area {
       position: relative;
@@ -330,19 +315,19 @@
     }
     .product-card-name {
       font-weight: 600;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       margin-bottom: 4px;
     }
     .product-card-price {
       color: var(--accent-gold);
       font-weight: 600;
-      font-size: 1rem;
+      font-size: var(--text-md);
     }
     .product-card-price .compare-price {
       color: var(--text-muted);
       text-decoration: line-through;
       font-weight: 400;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       margin-left: 8px;
     }
     .product-card-meta {
@@ -358,7 +343,7 @@
       gap: 8px;
       padding: 0 14px 14px;
     }
-    .product-card-actions .btn-sm {
+    .product-card-actions .btn--small {
       padding: 6px 12px;
       font-size: 0.8rem;
     }
@@ -417,7 +402,7 @@
       gap: 8px;
     }
     .order-items-list {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       margin-bottom: 12px;
     }
@@ -450,18 +435,18 @@
       max-height: 90vh;
       overflow-y: auto;
     }
-    .btn-outline {
+    .btn--secondary {
       padding: 10px 20px;
       background: transparent;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
       color: var(--text-secondary);
       font-family: inherit;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       cursor: pointer;
       transition: all 0.2s;
     }
-    .btn-outline:hover {
+    .btn--secondary:hover {
       border-color: var(--text-primary);
       color: var(--text-primary);
     }
@@ -481,9 +466,9 @@
 
     .empty-state-circle { width: 80px; height: 80px; border-radius: 50%; background: var(--accent-gold-soft); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px; }
     .empty-state-circle svg { width: 36px; height: 36px; color: var(--accent-gold); stroke: var(--accent-gold); opacity: 0.8; }
-    .empty-state-title { font-size: 1rem; font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
-    .empty-state-desc { font-size: 0.88rem; color: var(--text-muted); max-width: 360px; margin: 0 auto 16px; line-height: 1.5; }
-    .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: 0.85rem; cursor: pointer; border: none; transition: all 0.2s; }
+    .empty-state-title { font-size: var(--text-md); font-weight: 600; color: var(--text-secondary); margin-bottom: 6px; }
+    .empty-state-desc { font-size: var(--text-base); color: var(--text-muted); max-width: 360px; margin: 0 auto 16px; line-height: 1.5; }
+    .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: var(--text-sm); cursor: pointer; border: none; transition: all 0.2s; }
     .empty-state-cta:hover { opacity: 0.9; transform: translateY(-1px); }
 
     @media (max-width: 900px) {
@@ -524,12 +509,12 @@
     <button class="hamburger" onclick="toggleSidebar()">
       <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
     </button>
-    <span style="font-weight:600;font-size:1rem;">Car Club</span>
+    <span style="font-weight:600;font-size:var(--text-md);">Car Club</span>
   </div>
 
   <aside class="sidebar" id="sidebar">
     <a href="/providers.html" class="sidebar-brand">
-      <img src="/logo.png" alt="My Car Concierge" class="sidebar-brand-icon" />
+      <img src="logo.png" alt="My Car Concierge" class="sidebar-brand-icon" />
     </a>
     <div class="nav-label">Car Club</div>
     <div class="nav-item active" onclick="showSection('setup')">
@@ -571,6 +556,10 @@
     <div class="nav-item" onclick="showSection('analytics')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>
       Analytics
+    </div>
+    <div class="nav-item" onclick="showSection('programs')">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+      Programs
     </div>
     <div class="sidebar-footer">
       <button class="theme-toggle-btn" onclick="toggleTheme()">
@@ -639,8 +628,8 @@
       <div id="setup-create" class="card" style="display:none;">
         <div style="text-align:center;padding:40px 20px;">
           <div style="font-size:48px;margin-bottom:16px;opacity:0.5;">🏁</div>
-          <h2 style="font-size:1.3rem;font-weight:600;margin-bottom:8px;">Create Your Car Club</h2>
-          <p style="color:var(--text-secondary);font-size:0.92rem;margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto;">Start a loyalty program to reward your customers and grow your business.</p>
+          <h2 style="font-size:var(--text-xl);font-weight:600;margin-bottom:8px;">Create Your Car Club</h2>
+          <p style="color:var(--text-secondary);font-size:var(--text-base);margin-bottom:24px;max-width:400px;margin-left:auto;margin-right:auto;">Start a loyalty program to reward your customers and grow your business.</p>
           <div style="max-width:500px;margin:0 auto;text-align:left;">
             <div class="form-group">
               <label class="form-label">Club Name</label>
@@ -653,6 +642,17 @@
             <div class="form-group">
               <label class="form-label">Welcome Message</label>
               <textarea class="form-textarea" id="create-welcome" placeholder="Message shown when members join" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Theme Color</label>
+              <div style="display:flex;align-items:center;gap:10px;">
+                <input type="color" id="create-theme-color" value="#C9A84C" style="width:44px;height:36px;padding:2px 4px;border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;background:var(--bg-input);" />
+                <span style="font-size:var(--text-sm);color:var(--text-secondary);">Club header accent colour</span>
+              </div>
+            </div>
+            <div class="form-group">
+              <label class="form-label">Rules &amp; Terms</label>
+              <textarea class="form-textarea" id="create-rules" placeholder="Earning conditions, redemption terms, expiry rules…" rows="3"></textarea>
             </div>
             <button class="btn btn-metallic" style="width:100%" onclick="createClub()" id="create-btn">
               <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
@@ -698,6 +698,38 @@
             <div class="upload-progress-bar"><div class="upload-progress-fill" id="logo-progress-fill"></div></div>
             <span class="upload-progress-text" id="logo-progress-text">Uploading...</span>
           </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Club Banner</label>
+          <div id="banner-upload-area" class="logo-upload-area" style="height:100px;" onclick="document.getElementById('banner-file-input').click()">
+            <div id="banner-preview" style="display:none;position:relative;height:100%;">
+              <img id="banner-preview-img" src="" alt="Club banner" style="width:100%;height:100%;object-fit:cover;border-radius:8px;" />
+              <button type="button" class="logo-remove-btn" onclick="event.stopPropagation();removeBanner()" style="top:6px;right:6px;">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+            <div id="banner-upload-placeholder">
+              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+              <span>Click to upload banner</span>
+              <span class="upload-hint">PNG, JPG or WebP · 4:1 ratio recommended · max 3MB</span>
+            </div>
+            <input type="file" id="banner-file-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleBannerUpload(this)" />
+          </div>
+          <div id="banner-upload-progress" style="display:none;margin-top:8px;">
+            <div class="upload-progress-bar"><div class="upload-progress-fill" id="banner-progress-fill"></div></div>
+            <span class="upload-progress-text" id="banner-progress-text">Uploading…</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Theme Color</label>
+          <div style="display:flex;align-items:center;gap:10px;">
+            <input type="color" id="edit-theme-color" value="#C9A84C" style="width:44px;height:36px;padding:2px 4px;border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;background:var(--bg-input);" />
+            <span style="font-size:var(--text-sm);color:var(--text-secondary);">Club header accent colour</span>
+          </div>
+        </div>
+        <div class="form-group">
+          <label class="form-label">Rules &amp; Terms</label>
+          <textarea class="form-textarea" id="edit-rules" rows="3" placeholder="Earning conditions, redemption terms, expiry rules…"></textarea>
         </div>
         <div class="form-group">
           <label class="form-check" style="cursor:pointer;">
@@ -748,9 +780,9 @@
       <div id="members-content" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
           <h2 class="card-title">Club Members</h2>
-          <span id="member-count" style="color:var(--text-muted);font-size:0.88rem;"></span>
+          <span id="member-count" style="color:var(--text-muted);font-size:var(--text-base);"></span>
         </div>
-        <div id="members-header" class="member-row" style="background:transparent;border:none;font-size:0.78rem;color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;padding:8px 20px;margin-bottom:4px;">
+        <div id="members-header" class="member-row" style="background:transparent;border:none;font-size:var(--text-sm);color:var(--text-muted);text-transform:uppercase;letter-spacing:0.5px;font-weight:600;padding:8px 20px;margin-bottom:4px;">
           <span>Member</span><span>Joined</span><span>Punch Progress</span><span>Last Activity</span><span></span>
         </div>
         <div id="members-list"></div>
@@ -772,7 +804,7 @@
       <div id="activity-content" style="display:none;">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title">Activity Log</h2>
-          <button class="btn btn-metallic btn-sm" onclick="openLogActivityModal()">
+          <button class="btn btn-metallic btn--small" onclick="openLogActivityModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Log Activity
           </button>
@@ -870,7 +902,7 @@
       <div id="store-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title" style="margin-bottom:0;">Club Store</h2>
-          <button class="btn btn-metallic btn-sm" onclick="showAddProductModal()">
+          <button class="btn btn-metallic btn--small" onclick="showAddProductModal()">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
             Add Product
           </button>
@@ -894,7 +926,7 @@
       <div id="orders-content" style="display:none;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px;flex-wrap:wrap;gap:12px;">
           <h2 class="card-title" style="margin-bottom:0;">Orders</h2>
-          <select id="orders-filter" class="form-input" style="width:auto;padding:8px 12px;font-size:0.85rem;" onchange="loadOrders()">
+          <select id="orders-filter" class="form-input" style="width:auto;padding:8px 12px;font-size:var(--text-sm);" onchange="loadOrders()">
             <option value="">All Orders</option>
             <option value="paid">Paid</option>
             <option value="processing">Processing</option>
@@ -926,11 +958,11 @@
         <h2 class="card-title" style="margin-bottom:20px;">Club Analytics</h2>
         <div class="stats-grid" id="analytics-stats" style="display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:32px;"></div>
         <div class="card" style="margin-bottom:24px;">
-          <h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;">Retention & Growth</h3>
+          <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Retention & Growth</h3>
           <div id="analytics-retention" style="display:grid;grid-template-columns:repeat(3,1fr);gap:16px;"></div>
         </div>
         <div class="card">
-          <h3 style="font-size:1rem;font-weight:600;margin-bottom:16px;">Monthly Activity Trend</h3>
+          <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Monthly Activity Trend</h3>
           <div id="analytics-trend"></div>
           <div id="analytics-trend-empty" class="empty-state" style="display:none;">
             <div class="empty-state-circle"><svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div>
@@ -940,10 +972,151 @@
         </div>
       </div>
     </div>
+    <!-- ── PROGRAMS section ─────────────────────────────────────────────── -->
+    <div id="section-programs" class="section">
+      <div class="section-header">
+        <h2 class="section-title">Loyalty Programs</h2>
+        <p class="section-subtitle">Configure points, coupons, and complimentary services for your members</p>
+      </div>
+      <!-- Feature toggles -->
+      <div class="card" style="margin-bottom:24px;">
+        <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Program Features</h3>
+        <div id="prg-toggles-loading" style="text-align:center;padding:20px;color:var(--text-muted);">Loading…</div>
+        <div id="prg-toggles" style="display:none;">
+          <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px;">
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Points Program</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-points" onchange="saveFeatureToggle('points_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Coupons</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-coupons" onchange="saveFeatureToggle('coupons_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Comp Services</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-comp" onchange="saveFeatureToggle('comp_services_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+            <label style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;background:var(--bg-primary);border-radius:var(--radius-md);cursor:pointer;">
+              <span style="font-size:var(--text-sm);font-weight:500;">Punch Card</span>
+              <div class="toggle-switch"><input type="checkbox" id="toggle-punch" onchange="saveFeatureToggle('punch_card_enabled',this.checked)"><span class="toggle-slider"></span></div>
+            </label>
+          </div>
+        </div>
+      </div>
+      <!-- Points config + rewards -->
+      <div id="prg-points-panel" class="card" style="margin-bottom:24px;display:none;">
+        <h3 style="font-size:var(--text-md);font-weight:600;margin-bottom:16px;">Points Configuration</h3>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px;">
+          <div class="form-group">
+            <label class="form-label">Points per $ Spent</label>
+            <input type="number" class="form-input" id="pts-earn-rate" min="0.01" step="0.01" placeholder="e.g. 10" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Points Label</label>
+            <input type="text" class="form-input" id="pts-label" placeholder="e.g. Tony Bucks" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">Accrual Source</label>
+            <select class="form-input" id="pts-accrual">
+              <option value="mcc_processed">MCC Processed Payments</option>
+              <option value="manual_entry">Manual Entry</option>
+            </select>
+          </div>
+        </div>
+        <button class="btn btn-metallic" onclick="savePtsConfig()">Save Points Config</button>
+        <hr style="margin:24px 0;border-color:var(--border);" />
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h4 style="font-size:var(--text-sm);font-weight:600;">Point Rewards</h4>
+          <button class="btn btn--secondary btn--small" onclick="openRewardForm()">+ Add Reward</button>
+        </div>
+        <div id="prg-rewards-loading" style="text-align:center;padding:16px;color:var(--text-muted);display:none;">Loading…</div>
+        <div id="prg-rewards-list"></div>
+      </div>
+      <!-- Coupons -->
+      <div id="prg-coupons-panel" class="card" style="margin-bottom:24px;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="font-size:var(--text-md);font-weight:600;">Coupons</h3>
+          <button class="btn btn--secondary btn--small" onclick="openCouponForm()">+ Create Coupon</button>
+        </div>
+        <div id="prg-coupons-list"></div>
+      </div>
+      <!-- Comp services -->
+      <div id="prg-comp-panel" class="card" style="margin-bottom:24px;display:none;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;">
+          <h3 style="font-size:var(--text-md);font-weight:600;">Complimentary Services</h3>
+          <button class="btn btn--secondary btn--small" onclick="openCompForm()">+ Add Service</button>
+        </div>
+        <div id="prg-comp-list"></div>
+      </div>
+    </div>
+    <!-- Reward form modal -->
+    <div id="reward-form-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Reward</h3>
+          <button class="btn-icon" onclick="closeRewardForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="form-group"><label class="form-label">Reward Title *</label><input type="text" class="form-input" id="reward-title" placeholder="e.g. Free Oil Change" /></div>
+        <div class="form-group"><label class="form-label">Kind</label>
+          <select class="form-input" id="reward-kind">
+            <option value="other">Other</option>
+            <option value="comp_service">Comp Service</option>
+            <option value="merch">Merch</option>
+          </select>
+        </div>
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="reward-desc" rows="2" placeholder="What does the member receive?"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group"><label class="form-label">Points Cost *</label><input type="number" class="form-input" id="reward-point-cost" min="1" placeholder="e.g. 500" /></div>
+          <div class="form-group"><label class="form-label">Inventory (blank=unlimited)</label><input type="number" class="form-input" id="reward-inventory" min="0" placeholder="∞" /></div>
+        </div>
+        <input type="hidden" id="reward-edit-id" value="" />
+        <button class="btn btn-metallic" style="width:100%;margin-top:8px;" onclick="savePrgReward()">Save Reward</button>
+      </div>
+    </div>
+    <!-- Coupon form modal -->
+    <div id="coupon-form-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Create Coupon</h3>
+          <button class="btn-icon" onclick="closeCouponForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group"><label class="form-label">Coupon Code *</label><input type="text" class="form-input" id="coupon-code" placeholder="e.g. SUMMER20" style="text-transform:uppercase;" /></div>
+          <div class="form-group"><label class="form-label">Title</label><input type="text" class="form-input" id="coupon-title" placeholder="e.g. Summer Special" /></div>
+          <div class="form-group"><label class="form-label">Discount Type</label>
+            <select class="form-input" id="coupon-type">
+              <option value="percent">Percent Off</option>
+              <option value="flat">Flat Amount Off</option>
+            </select>
+          </div>
+          <div class="form-group"><label class="form-label">Value *</label><input type="number" class="form-input" id="coupon-value" min="0.01" step="0.01" placeholder="e.g. 20" /></div>
+          <div class="form-group"><label class="form-label">Expires At</label><input type="date" class="form-input" id="coupon-expires" /></div>
+          <div class="form-group"><label class="form-label">Max Redemptions (blank=∞)</label><input type="number" class="form-input" id="coupon-max-redemptions" min="1" placeholder="∞" /></div>
+        </div>
+        <button class="btn btn-metallic" style="width:100%;margin-top:8px;" onclick="saveCoupon()">Create Coupon</button>
+      </div>
+    </div>
+    <!-- Comp service form modal -->
+    <div id="comp-form-modal" class="modal-overlay" style="display:none;">
+      <div class="modal-content" style="max-width:480px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
+          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Complimentary Service</h3>
+          <button class="btn-icon" onclick="closeCompForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
+        </div>
+        <div class="form-group"><label class="form-label">Service Title *</label><input type="text" class="form-input" id="comp-title" placeholder="e.g. Free Car Wash" /></div>
+        <div class="form-group"><label class="form-label">Description</label><textarea class="form-textarea" id="comp-desc" rows="2"></textarea></div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
+          <div class="form-group"><label class="form-label">Service Type</label><input type="text" class="form-input" id="comp-service-type" placeholder="e.g. car_wash" /></div>
+          <div class="form-group"><label class="form-label">Max per Member</label><input type="number" class="form-input" id="comp-per-member" min="1" placeholder="e.g. 1" /></div>
+          <div class="form-group"><label class="form-label">Expires At</label><input type="date" class="form-input" id="comp-expires" /></div>
+        </div>
+        <button class="btn btn-metallic" style="width:100%;margin-top:8px;" onclick="saveCompService()">Save Service</button>
+      </div>
+    </div>
     <div id="product-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:560px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 id="product-modal-title" style="font-family:'Playfair Display',serif;font-size:1.2rem;">Add Product</h3>
+          <h3 id="product-modal-title" style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Add Product</h3>
           <button class="btn-icon" onclick="closeProductModal()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>
@@ -993,14 +1166,14 @@
           <div class="logo-upload-area" style="padding:16px;" onclick="document.getElementById('product-image-input').click()">
             <div style="display:flex;flex-direction:column;align-items:center;gap:6px;color:var(--text-secondary);">
               <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-              <span style="font-size:0.85rem;">Click to add images</span>
+              <span style="font-size:var(--text-sm);">Click to add images</span>
             </div>
             <input type="file" id="product-image-input" accept="image/png,image/jpeg,image/webp" style="display:none;" onchange="handleProductImageUpload(this)" multiple />
           </div>
         </div>
         <div style="display:flex;gap:12px;margin-top:24px;">
           <button class="btn btn-metallic" id="product-save-btn" onclick="saveProduct()" style="flex:1;">Save Product</button>
-          <button class="btn btn-outline" onclick="closeProductModal()" style="flex:0 0 auto;">Cancel</button>
+          <button class="btn btn--secondary" onclick="closeProductModal()" style="flex:0 0 auto;">Cancel</button>
         </div>
       </div>
     </div>
@@ -1047,7 +1220,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeRewardModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeRewardModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="saveReward()" id="reward-save-btn">Save Reward</button>
       </div>
     </div>
@@ -1060,7 +1233,7 @@
         <button class="modal-close" onclick="closeAdjustModal()">×</button>
       </div>
       <div class="modal-body">
-        <p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:16px;" id="adjust-member-name"></p>
+        <p style="color:var(--text-secondary);font-size:var(--text-base);margin-bottom:16px;" id="adjust-member-name"></p>
         <div class="form-group">
           <label class="form-label">Reward Rule</label>
           <select class="form-input" id="adjust-rule"></select>
@@ -1075,7 +1248,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeAdjustModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeAdjustModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="submitAdjust()" id="adjust-save-btn">Apply</button>
       </div>
     </div>
@@ -1120,7 +1293,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeLogActivityModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closeLogActivityModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="submitLogActivity()" id="log-save-btn">Log Activity</button>
       </div>
     </div>
@@ -1160,7 +1333,7 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closePromoModal()">Cancel</button>
+        <button class="btn btn--secondary" onclick="closePromoModal()">Cancel</button>
         <button class="btn btn-metallic" onclick="savePromo()" id="promo-save-btn">Save Promotion</button>
       </div>
     </div>
@@ -1171,7 +1344,7 @@
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js?v=20260213"></script>
   <script src="mcc-config.js?v=20260213"></script>
-  <script src="/bgc-badge.js?v=20260428"></script>
+  <script src="bgc-badge.js?v=20260428"></script>
   <script>
     function toggleHowItWorks() {
       const body = document.getElementById('howItWorksBody');
@@ -1215,7 +1388,7 @@
           sessionExpiredShown = true;
           const msg = document.createElement('div');
           msg.style.cssText = 'position:fixed;top:50%;left:50%;transform:translate(-50%,-50%);background:var(--bg-card);border:1px solid var(--border-medium);border-radius:var(--radius-md);padding:32px;text-align:center;z-index:101;max-width:320px;box-shadow:0 20px 60px rgba(0,0,0,0.5);';
-          msg.innerHTML = `<div style="font-size:1.1rem;font-weight:600;margin-bottom:12px;">Session Expired</div><p style="color:var(--text-secondary);font-size:0.9rem;margin-bottom:24px;">Your session has expired. Please log in again to continue.</p><a href="/login.html" class="btn btn-metallic" style="display:inline-block;padding:10px 24px;text-decoration:none;border-radius:var(--radius-sm);">Log In</a>`;
+          msg.innerHTML = `<div style="font-size:1.1rem;font-weight:600;margin-bottom:12px;">Session Expired</div><p style="color:var(--text-secondary);font-size:var(--text-base);margin-bottom:24px;">Your session has expired. Please log in again to continue.</p><a href="/login.html" class="btn btn-metallic" style="display:inline-block;padding:10px 24px;text-decoration:none;border-radius:var(--radius-sm);">Log In</a>`;
           document.body.appendChild(msg);
         }
         return null;
@@ -1256,7 +1429,7 @@
       document.getElementById(`section-${name}`).classList.add('active');
       document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
       const navItems = document.querySelectorAll('.nav-item');
-      const map = { setup: 0, rewards: 1, members: 2, activity: 3, freebids: 4, leaderboard: 5, promotions: 6, store: 7, orders: 8, analytics: 9 };
+      const map = { setup: 0, rewards: 1, members: 2, activity: 3, freebids: 4, leaderboard: 5, promotions: 6, store: 7, orders: 8, analytics: 9, programs: 10 };
       if (map[name] !== undefined && navItems[map[name]]) navItems[map[name]].classList.add('active');
       if (name === 'rewards') loadRewards();
       else if (name === 'members') loadMembers();
@@ -1267,6 +1440,7 @@
       else if (name === 'store') loadProducts();
       else if (name === 'orders') loadOrders();
       else if (name === 'analytics') loadAnalytics();
+      else if (name === 'programs') loadPrograms();
       if (window.innerWidth <= 900) toggleSidebar();
     }
 
@@ -1328,7 +1502,10 @@
           document.getElementById('edit-name').value = clubData.name || '';
           document.getElementById('edit-description').value = clubData.description || '';
           document.getElementById('edit-welcome').value = clubData.welcome_message || '';
+          document.getElementById('edit-theme-color').value = clubData.theme_color || '#C9A84C';
+          document.getElementById('edit-rules').value = clubData.rules_text || '';
           window.currentLogoUrl = clubData.logo_url || '';
+          window.currentBannerUrl = clubData.banner_url || '';
           const logoPreview = document.getElementById('logo-preview');
           const logoImg = document.getElementById('logo-preview-img');
           const logoPlaceholder = document.getElementById('logo-upload-placeholder');
@@ -1339,6 +1516,17 @@
           } else {
             logoPreview.style.display = 'none';
             logoPlaceholder.style.display = '';
+          }
+          const bannerPreview = document.getElementById('banner-preview');
+          const bannerImg = document.getElementById('banner-preview-img');
+          const bannerPlaceholder = document.getElementById('banner-upload-placeholder');
+          if (clubData.banner_url) {
+            bannerImg.src = clubData.banner_url;
+            bannerPreview.style.display = '';
+            bannerPlaceholder.style.display = 'none';
+          } else {
+            bannerPreview.style.display = 'none';
+            bannerPlaceholder.style.display = '';
           }
           document.getElementById('edit-active').checked = clubData.is_active !== false;
           const badge = document.getElementById('club-status-badge');
@@ -1368,7 +1556,9 @@
           body: JSON.stringify({
             name,
             description: document.getElementById('create-description').value.trim(),
-            welcome_message: document.getElementById('create-welcome').value.trim()
+            welcome_message: document.getElementById('create-welcome').value.trim(),
+            theme_color: document.getElementById('create-theme-color').value || '#C9A84C',
+            rules_text: document.getElementById('create-rules').value.trim()
           })
         });
         showToast('Car Club created!', 'success');
@@ -1393,6 +1583,9 @@
             description: document.getElementById('edit-description').value.trim(),
             welcome_message: document.getElementById('edit-welcome').value.trim(),
             logo_url: window.currentLogoUrl || '',
+            banner_url: window.currentBannerUrl || '',
+            theme_color: document.getElementById('edit-theme-color').value || '#C9A84C',
+            rules_text: document.getElementById('edit-rules').value.trim(),
             is_active: document.getElementById('edit-active').checked
           })
         });
@@ -1475,6 +1668,64 @@
       }
     }
 
+    async function handleBannerUpload(input) {
+      const file = input.files[0];
+      if (!file) return;
+      const allowedTypes = ['image/png', 'image/jpeg', 'image/webp'];
+      if (!allowedTypes.includes(file.type)) {
+        showToast('Invalid file type. Use PNG, JPG, or WebP.', 'error');
+        input.value = '';
+        return;
+      }
+      if (file.size > 3 * 1024 * 1024) {
+        showToast('File too large. Maximum size is 3MB.', 'error');
+        input.value = '';
+        return;
+      }
+      const progressEl = document.getElementById('banner-upload-progress');
+      const progressFill = document.getElementById('banner-progress-fill');
+      const progressText = document.getElementById('banner-progress-text');
+      progressEl.style.display = '';
+      progressFill.style.width = '30%';
+      progressText.textContent = 'Uploading…';
+      try {
+        const token = await getToken();
+        if (!token) { showToast('Session expired', 'error'); return; }
+        const formData = new FormData();
+        formData.append('file', file);
+        progressFill.style.width = '60%';
+        const base = getApiBase();
+        const res = await fetch(`${base}/api/car-club/upload-banner`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}` },
+          body: formData
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Upload failed');
+        progressFill.style.width = '100%';
+        progressText.textContent = 'Upload complete!';
+        window.currentBannerUrl = data.banner_url || '';
+        document.getElementById('banner-preview-img').src = data.banner_url;
+        document.getElementById('banner-preview').style.display = '';
+        document.getElementById('banner-upload-placeholder').style.display = 'none';
+        showToast('Banner uploaded successfully', 'success');
+        setTimeout(() => { progressEl.style.display = 'none'; progressFill.style.width = '0%'; }, 2000);
+      } catch(e) {
+        showToast(e.message || 'Upload failed', 'error');
+        progressFill.style.width = '0%';
+        progressEl.style.display = 'none';
+      }
+      input.value = '';
+    }
+
+    async function removeBanner() {
+      window.currentBannerUrl = '';
+      document.getElementById('banner-preview').style.display = 'none';
+      document.getElementById('banner-upload-placeholder').style.display = '';
+      document.getElementById('banner-file-input').value = '';
+      showToast('Banner removed — save to apply', 'success');
+    }
+
     async function loadTemplates() {
       try {
         const data = await apiFetch('/api/car-club/reward-templates');
@@ -1527,11 +1778,11 @@
                   <span class="badge ${r.is_active ? 'badge-success' : 'badge-warning'}" style="margin-top:4px;">${r.is_active ? 'Active' : 'Inactive'}</span>
                 </div>
                 <div class="reward-card-actions">
-                  <button class="btn btn-secondary btn-sm" onclick="editReward('${r.id}')">
+                  <button class="btn btn--secondary btn--small" onclick="editReward('${r.id}')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Edit
                   </button>
-                  <button class="btn ${r.is_active ? 'btn-danger' : 'btn-success'} btn-sm" onclick="toggleReward('${r.id}', ${r.is_active})">
+                  <button class="btn ${r.is_active ? 'btn--danger' : 'btn--success'} btn--small" onclick="toggleReward('${r.id}', ${r.is_active})">
                     ${r.is_active ? 'Deactivate' : 'Activate'}
                   </button>
                 </div>
@@ -1681,7 +1932,7 @@
               <div class="member-date">${formatDate(m.joined_at)}</div>
               <div class="member-progress"><div class="punch-bar"><div class="punch-fill" style="width:${pct}%"></div></div><span class="punch-text">${punchCount}/${punchesReq}</span></div>
               <div class="member-date">${lastAct ? formatDate(lastAct) : '—'}</div>
-              <div><button class="btn btn-secondary btn-sm" onclick="openAdjustModal('${m.member_id}')">Adjust</button></div>
+              <div><button class="btn btn--secondary btn--small" onclick="openAdjustModal('${m.member_id}')">Adjust</button></div>
             </div>`;
           }).join('');
         }
@@ -1843,20 +2094,20 @@
             <table style="width:100%;border-collapse:collapse;">
               <thead>
                 <tr style="text-align:left;border-bottom:2px solid var(--border-color);">
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Rank</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Member</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Punches</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Visits</th>
-                  <th style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">Joined</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Rank</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Member</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Punches</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Visits</th>
+                  <th style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">Joined</th>
                 </tr>
               </thead>
               <tbody>
                 ${list.map((m, i) => `<tr style="border-bottom:1px solid var(--border-color);">
-                  <td style="padding:10px 12px;font-size:1.1rem;">${i < 3 ? medals[i] : (i + 1)}</td>
-                  <td style="padding:10px 12px;font-family:monospace;font-size:0.85rem;">${escHtml((m.member_id || '').substring(0, 8))}</td>
+                  <td style="padding:10px 12px;font-size:var(--text-lg);">${i < 3 ? medals[i] : (i + 1)}</td>
+                  <td style="padding:10px 12px;font-family:monospace;font-size:var(--text-sm);">${escHtml((m.member_id || '').substring(0, 8))}</td>
                   <td style="padding:10px 12px;font-weight:600;">${parseInt(m.total_punches) || 0}</td>
                   <td style="padding:10px 12px;">${parseInt(m.total_visits) || 0}</td>
-                  <td style="padding:10px 12px;font-size:0.85rem;color:var(--text-secondary);">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                  <td style="padding:10px 12px;font-size:var(--text-sm);color:var(--text-secondary);">${m.joined_at ? new Date(m.joined_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
                 </tr>`).join('')}
               </tbody>
             </table>
@@ -1967,11 +2218,11 @@
                   <div style="margin-top:4px;">${statusBadge}</div>
                 </div>
                 <div class="reward-card-actions">
-                  <button class="btn btn-secondary btn-sm" onclick="editPromo('${p.id}')">
+                  <button class="btn btn--secondary btn--small" onclick="editPromo('${p.id}')">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
                     Edit
                   </button>
-                  ${p.is_active ? `<button class="btn btn-danger btn-sm" onclick="deletePromo('${p.id}')">Deactivate</button>` : ''}
+                  ${p.is_active ? `<button class="btn btn--danger btn--small" onclick="deletePromo('${p.id}')">Deactivate</button>` : ''}
                 </div>
               </div>
               <div class="reward-card-meta">
@@ -2100,16 +2351,16 @@
           </div>`;
         document.getElementById('analytics-retention').innerHTML = `
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-green);">${a.new_members_30d}</div>
-            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">New Members (30d)</div>
+            <div style="font-size:var(--text-2xl);font-weight:700;color:var(--accent-green);">${a.new_members_30d}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;">New Members (30d)</div>
           </div>
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-teal);">${a.retention_rate}%</div>
-            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Retention Rate</div>
+            <div style="font-size:var(--text-2xl);font-weight:700;color:var(--accent-teal);">${a.retention_rate}%</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;">Retention Rate</div>
           </div>
           <div style="background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:var(--radius-md);padding:20px;text-align:center;">
-            <div style="font-size:1.5rem;font-weight:700;color:var(--accent-gold);">${a.avg_punches_per_member}</div>
-            <div style="font-size:0.82rem;color:var(--text-secondary);margin-top:4px;">Avg Punches / Member</div>
+            <div style="font-size:var(--text-2xl);font-weight:700;color:var(--accent-gold);">${a.avg_punches_per_member}</div>
+            <div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:4px;">Avg Punches / Member</div>
           </div>`;
         const trend = a.monthly_trend || [];
         if (trend.length === 0) {
@@ -2125,11 +2376,11 @@
             const parts = t.month.split('-');
             const label = monthNames[parseInt(parts[1]) - 1] + ' ' + parts[0];
             return `<div style="display:flex;align-items:center;gap:12px;margin-bottom:10px;">
-              <div style="width:70px;font-size:0.82rem;color:var(--text-secondary);text-align:right;flex-shrink:0;">${escHtml(label)}</div>
+              <div style="width:70px;font-size:var(--text-sm);color:var(--text-secondary);text-align:right;flex-shrink:0;">${escHtml(label)}</div>
               <div style="flex:1;height:28px;background:var(--bg-input);border-radius:6px;overflow:hidden;">
                 <div style="height:100%;width:${pct}%;background:linear-gradient(90deg, var(--accent-gold), var(--accent-bronze));border-radius:6px;transition:width 0.5s ease;"></div>
               </div>
-              <div style="width:40px;font-size:0.85rem;font-weight:600;color:var(--text-primary);flex-shrink:0;">${count}</div>
+              <div style="width:40px;font-size:var(--text-sm);font-weight:600;color:var(--text-primary);flex-shrink:0;">${count}</div>
             </div>`;
           }).join('');
         }
@@ -2240,8 +2491,8 @@
               '<div class="product-card-meta"><span>' + escHtml(cat) + '</span><span>' + inv + '</span></div>' +
             '</div>' +
             '<div class="product-card-actions">' +
-              '<button class="btn btn-metallic btn-sm" onclick="editProduct(\'' + p.id + '\')">Edit</button>' +
-              '<button class="btn btn-outline btn-sm" style="color:var(--accent-red);border-color:var(--accent-red-soft);" onclick="deleteProduct(\'' + p.id + '\',\'' + escHtml(p.name).replace(/'/g, "\\'") + '\')">Delete</button>' +
+              '<button class="btn btn-metallic btn--small" onclick="editProduct(\'' + p.id + '\')">Edit</button>' +
+              '<button class="btn btn--secondary btn--small" style="color:var(--accent-red);border-color:var(--accent-red-soft);" onclick="deleteProduct(\'' + p.id + '\',\'' + escHtml(p.name).replace(/'/g, "\\'") + '\')">Delete</button>' +
             '</div>' +
           '</div>';
         }).join('');
@@ -2441,12 +2692,12 @@
 
           let actionsHtml = '';
           if (o.status === 'paid') {
-            actionsHtml = '<button class="btn btn-metallic btn-sm" onclick="updateOrderStatus(\'' + o.id + '\', \'processing\')">Mark Processing</button>';
+            actionsHtml = '<button class="btn btn-metallic btn--small" onclick="updateOrderStatus(\'' + o.id + '\', \'processing\')">Mark Processing</button>';
           } else if (o.status === 'processing') {
-            actionsHtml = '<input type="text" class="form-input" id="tracking-' + o.id + '" placeholder="Tracking number" style="width:160px;padding:6px 10px;font-size:0.82rem;" />' +
-              '<button class="btn btn-metallic btn-sm" onclick="shipOrder(\'' + o.id + '\')">Mark Shipped</button>';
+            actionsHtml = '<input type="text" class="form-input" id="tracking-' + o.id + '" placeholder="Tracking number" style="width:160px;padding:6px 10px;font-size:var(--text-sm);" />' +
+              '<button class="btn btn-metallic btn--small" onclick="shipOrder(\'' + o.id + '\')">Mark Shipped</button>';
           } else if (o.status === 'shipped') {
-            actionsHtml = '<button class="btn btn-metallic btn-sm" onclick="updateOrderStatus(\'' + o.id + '\', \'delivered\')">Mark Delivered</button>';
+            actionsHtml = '<button class="btn btn-metallic btn--small" onclick="updateOrderStatus(\'' + o.id + '\', \'delivered\')">Mark Delivered</button>';
           }
           if (o.tracking_number) {
             actionsHtml += '<span style="font-size:0.8rem;color:var(--text-muted);">Tracking: ' + escHtml(o.tracking_number) + '</span>';
@@ -2454,12 +2705,12 @@
 
           return '<div class="order-card">' +
             '<div class="order-card-header">' +
-              '<div><strong>Order #' + o.id.substring(0, 8) + '</strong> <span style="font-size:0.82rem;color:var(--text-muted);">' + date + '</span></div>' +
+              '<div><strong>Order #' + o.id.substring(0, 8) + '</strong> <span style="font-size:var(--text-sm);color:var(--text-muted);">' + date + '</span></div>' +
               '<div style="display:flex;align-items:center;gap:8px;"><span class="badge ' + statusClass + '">' + o.status + '</span><span style="font-weight:600;">' + total + '</span></div>' +
             '</div>' +
             '<div class="order-items-list">' + itemsHtml + '</div>' +
-            (o.shipping_name ? '<div style="font-size:0.82rem;color:var(--text-muted);margin-bottom:8px;">Ship to: ' + escHtml(o.shipping_name) + (o.shipping_city ? ', ' + escHtml(o.shipping_city) : '') + (o.shipping_state ? ', ' + escHtml(o.shipping_state) : '') + '</div>' : '') +
-            '<div style="font-size:0.78rem;color:var(--text-muted);margin-bottom:8px;">Platform fee: ' + fee + '</div>' +
+            (o.shipping_name ? '<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px;">Ship to: ' + escHtml(o.shipping_name) + (o.shipping_city ? ', ' + escHtml(o.shipping_city) : '') + (o.shipping_state ? ', ' + escHtml(o.shipping_state) : '') + '</div>' : '') +
+            '<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:8px;">Platform fee: ' + fee + '</div>' +
             '<div class="order-actions">' + actionsHtml + '</div>' +
           '</div>';
         }).join('');
@@ -2493,6 +2744,289 @@
         });
         showToast('Order marked as shipped', 'success');
         await loadOrders();
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    // ── Programs ────────────────────────────────────────────────────────────
+    async function loadPrograms() {
+      if (!clubData) return;
+      const cid = clubData.id;
+      document.getElementById('prg-toggles-loading').style.display = '';
+      document.getElementById('prg-toggles').style.display = 'none';
+      try {
+        const data = await apiFetch(`/api/car-clubs/${cid}`);
+        const club = data.club;
+        document.getElementById('toggle-points').checked  = !!club.points_enabled;
+        document.getElementById('toggle-coupons').checked = !!club.coupons_enabled;
+        document.getElementById('toggle-comp').checked    = !!club.comp_services_enabled;
+        document.getElementById('toggle-punch').checked   = !!club.punch_card_enabled;
+        const ptsPanel    = document.getElementById('prg-points-panel');
+        const couponPanel = document.getElementById('prg-coupons-panel');
+        const compPanel   = document.getElementById('prg-comp-panel');
+        ptsPanel.style.display    = club.points_enabled ? '' : 'none';
+        couponPanel.style.display = club.coupons_enabled ? '' : 'none';
+        compPanel.style.display   = club.comp_services_enabled ? '' : 'none';
+        if (club.points_enabled)         { await loadPtsConfig(cid); await loadPrgRewards(cid); }
+        if (club.coupons_enabled)        await loadPrgCoupons(cid);
+        if (club.comp_services_enabled)  await loadPrgComp(cid);
+      } catch(e) {
+        showToast(e.message, 'error');
+      } finally {
+        document.getElementById('prg-toggles-loading').style.display = 'none';
+        document.getElementById('prg-toggles').style.display = '';
+      }
+    }
+
+    async function saveFeatureToggle(field, value) {
+      if (!clubData) return;
+      try {
+        await apiFetch(`/api/car-clubs/${clubData.id}/features`, {
+          method: 'PATCH',
+          body: JSON.stringify({ [field]: value })
+        });
+        showToast('Saved', 'success');
+        const panelMap = {
+          points_enabled: 'prg-points-panel',
+          coupons_enabled: 'prg-coupons-panel',
+          comp_services_enabled: 'prg-comp-panel'
+        };
+        if (panelMap[field]) {
+          document.getElementById(panelMap[field]).style.display = value ? '' : 'none';
+          if (value) {
+            const cid = clubData.id;
+            if (field === 'points_enabled')        { await loadPtsConfig(cid); await loadPrgRewards(cid); }
+            if (field === 'coupons_enabled')        await loadPrgCoupons(cid);
+            if (field === 'comp_services_enabled')  await loadPrgComp(cid);
+          }
+        }
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPtsConfig(cid) {
+      try {
+        const data = await apiFetch(`/api/car-clubs/${cid}/points-config`);
+        const c = data.config || {};
+        document.getElementById('pts-earn-rate').value = c.points_per_dollar ?? '';
+        document.getElementById('pts-label').value     = c.points_label ?? '';
+        document.getElementById('pts-accrual').value   = c.accrual_source ?? 'mcc_processed';
+      } catch { /* no config yet */ }
+    }
+
+    async function savePtsConfig() {
+      if (!clubData) return;
+      const payload = {
+        points_per_dollar: parseFloat(document.getElementById('pts-earn-rate').value) || 1,
+        points_label:      document.getElementById('pts-label').value.trim() || 'points',
+        accrual_source:    document.getElementById('pts-accrual').value
+      };
+      try {
+        await apiFetch(`/api/car-clubs/${clubData.id}/points-config`, {
+          method: 'PUT',
+          body: JSON.stringify(payload)
+        });
+        showToast('Points config saved', 'success');
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPrgRewards(cid) {
+      const el      = document.getElementById('prg-rewards-list');
+      const loading = document.getElementById('prg-rewards-loading');
+      loading.style.display = '';
+      try {
+        const data    = await apiFetch(`/api/car-clubs/${cid}/rewards`);
+        const rewards = data.rewards || [];
+        loading.style.display = 'none';
+        if (!rewards.length) {
+          el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No rewards yet.</p>';
+          return;
+        }
+        el.innerHTML = rewards.map(r => `
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:500;font-size:var(--text-sm);">${escHtml(r.title)}</div>
+              <div style="font-size:var(--text-xs);color:var(--text-muted);">${r.point_cost} pts · ${escHtml(r.kind)}${r.inventory_qty != null ? ` · ${r.inventory_qty} left` : ''}</div>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;">
+              <div class="toggle-switch" style="transform:scale(0.85);">
+                <input type="checkbox" ${r.active ? 'checked' : ''} onchange="togglePrgReward('${r.id}',this.checked)">
+                <span class="toggle-slider"></span>
+              </div>
+              <button class="btn btn--secondary btn--small"
+                onclick="openRewardForm('${r.id}','${escHtml(r.title)}','${escHtml(r.description||'')}','${r.kind}',${r.point_cost},${r.inventory_qty ?? ''})">
+                Edit
+              </button>
+            </div>
+          </div>`).join('');
+      } catch(e) {
+        loading.style.display = 'none';
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function openRewardForm(id='', title='', desc='', kind='other', pts='', inv='') {
+      document.getElementById('reward-edit-id').value    = id;
+      document.getElementById('reward-title').value      = title;
+      document.getElementById('reward-desc').value       = desc;
+      document.getElementById('reward-kind').value       = kind;
+      document.getElementById('reward-point-cost').value = pts;
+      document.getElementById('reward-inventory').value  = inv;
+      document.getElementById('reward-form-modal').style.display = 'flex';
+    }
+    function closeRewardForm() { document.getElementById('reward-form-modal').style.display = 'none'; }
+
+    async function savePrgReward() {
+      if (!clubData) return;
+      const cid  = clubData.id;
+      const id   = document.getElementById('reward-edit-id').value;
+      const invVal = document.getElementById('reward-inventory').value;
+      const payload = {
+        title:         document.getElementById('reward-title').value.trim(),
+        description:   document.getElementById('reward-desc').value.trim(),
+        kind:          document.getElementById('reward-kind').value,
+        point_cost:    parseFloat(document.getElementById('reward-point-cost').value),
+        inventory_qty: invVal !== '' ? parseInt(invVal) : null
+      };
+      if (!payload.title || isNaN(payload.point_cost)) {
+        showToast('Title and points cost are required', 'error');
+        return;
+      }
+      try {
+        if (id) {
+          await apiFetch(`/api/car-clubs/${cid}/rewards/${id}`, { method: 'PATCH', body: JSON.stringify(payload) });
+        } else {
+          await apiFetch(`/api/car-clubs/${cid}/rewards`, { method: 'POST', body: JSON.stringify(payload) });
+        }
+        closeRewardForm();
+        showToast('Reward saved', 'success');
+        await loadPrgRewards(cid);
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function togglePrgReward(rewardId, active) {
+      if (!clubData) return;
+      try {
+        await apiFetch(`/api/car-clubs/${clubData.id}/rewards/${rewardId}`, {
+          method: 'PATCH',
+          body: JSON.stringify({ active })
+        });
+        showToast(active ? 'Reward enabled' : 'Reward disabled', 'success');
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPrgCoupons(cid) {
+      const el = document.getElementById('prg-coupons-list');
+      try {
+        const data    = await apiFetch(`/api/car-clubs/${cid}/coupons`);
+        const coupons = data.coupons || [];
+        if (!coupons.length) {
+          el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No coupons yet.</p>';
+          return;
+        }
+        el.innerHTML = coupons.map(c => {
+          const disc = c.discount_type === 'percent' ? `${c.discount_value}% off` : `$${c.discount_value} off`;
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 0;border-bottom:1px solid var(--border);">
+            <div>
+              <div style="font-weight:500;font-size:var(--text-sm);">${escHtml(c.title || c.code)} <code style="font-size:var(--text-xs);background:var(--bg-primary);padding:2px 6px;border-radius:4px;">${escHtml(c.code)}</code></div>
+              <div style="font-size:var(--text-xs);color:var(--text-muted);">${disc}${c.expires_at ? ` · Expires ${new Date(c.expires_at).toLocaleDateString()}` : ''}</div>
+            </div>
+            <span style="font-size:var(--text-xs);padding:2px 8px;border-radius:999px;background:${c.active ? 'rgba(34,197,94,.15)' : 'var(--bg-primary)'};color:${c.active ? '#22c55e' : 'var(--text-muted)'};">${c.active ? 'Active' : 'Inactive'}</span>
+          </div>`;
+        }).join('');
+      } catch(e) {
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function openCouponForm() { document.getElementById('coupon-form-modal').style.display = 'flex'; }
+    function closeCouponForm() {
+      document.getElementById('coupon-form-modal').style.display = 'none';
+      ['coupon-code','coupon-title','coupon-value','coupon-expires','coupon-max-redemptions'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+    }
+
+    async function saveCoupon() {
+      if (!clubData) return;
+      const cid  = clubData.id;
+      const code = document.getElementById('coupon-code').value.trim().toUpperCase();
+      const val  = parseFloat(document.getElementById('coupon-value').value);
+      if (!code) { showToast('Coupon code is required', 'error'); return; }
+      if (!val || val <= 0) { showToast('Discount value must be positive', 'error'); return; }
+      const maxR = document.getElementById('coupon-max-redemptions').value;
+      const payload = {
+        code,
+        title:           document.getElementById('coupon-title').value.trim() || null,
+        discount_type:   document.getElementById('coupon-type').value,
+        discount_value:  val,
+        expires_at:      document.getElementById('coupon-expires').value || null,
+        max_redemptions: maxR ? parseInt(maxR) : null
+      };
+      try {
+        await apiFetch(`/api/car-clubs/${cid}/coupons`, { method: 'POST', body: JSON.stringify(payload) });
+        closeCouponForm();
+        showToast('Coupon created', 'success');
+        await loadPrgCoupons(cid);
+      } catch(e) {
+        showToast(e.message, 'error');
+      }
+    }
+
+    async function loadPrgComp(cid) {
+      const el = document.getElementById('prg-comp-list');
+      try {
+        const data     = await apiFetch(`/api/car-clubs/${cid}/comp-services`);
+        const services = data.comp_services || [];
+        if (!services.length) {
+          el.innerHTML = '<p style="color:var(--text-muted);font-size:var(--text-sm);">No complimentary services yet.</p>';
+          return;
+        }
+        el.innerHTML = services.map(s => `
+          <div style="padding:12px 0;border-bottom:1px solid var(--border);">
+            <div style="font-weight:500;font-size:var(--text-sm);">${escHtml(s.title)}${s.service_type ? ` <span style="font-size:var(--text-xs);color:var(--text-muted);">(${escHtml(s.service_type)})</span>` : ''}</div>
+            ${s.description ? `<div style="font-size:var(--text-xs);color:var(--text-muted);margin-top:2px;">${escHtml(s.description)}</div>` : ''}
+            ${s.per_member_limit ? `<div style="font-size:var(--text-xs);color:var(--text-muted);">Max ${s.per_member_limit} per member</div>` : ''}
+          </div>`).join('');
+      } catch(e) {
+        el.innerHTML = `<p style="color:var(--text-muted);">${escHtml(e.message)}</p>`;
+      }
+    }
+
+    function openCompForm() { document.getElementById('comp-form-modal').style.display = 'flex'; }
+    function closeCompForm() {
+      document.getElementById('comp-form-modal').style.display = 'none';
+      ['comp-title','comp-desc','comp-service-type','comp-per-member','comp-expires'].forEach(id => {
+        document.getElementById(id).value = '';
+      });
+    }
+
+    async function saveCompService() {
+      if (!clubData) return;
+      const cid   = clubData.id;
+      const title = document.getElementById('comp-title').value.trim();
+      if (!title) { showToast('Service title is required', 'error'); return; }
+      const perM = document.getElementById('comp-per-member').value;
+      const payload = {
+        title,
+        description:    document.getElementById('comp-desc').value.trim() || null,
+        service_type:   document.getElementById('comp-service-type').value.trim() || null,
+        per_member_limit: perM ? parseInt(perM) : null,
+        expires_at:     document.getElementById('comp-expires').value || null
+      };
+      try {
+        await apiFetch(`/api/car-clubs/${cid}/comp-services`, { method: 'POST', body: JSON.stringify(payload) });
+        closeCompForm();
+        showToast('Complimentary service added', 'success');
+        await loadPrgComp(cid);
       } catch(e) {
         showToast(e.message, 'error');
       }

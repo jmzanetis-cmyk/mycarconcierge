@@ -25,6 +25,25 @@
 //   7. checkFunnelDrop           — last-24h signups < 50% of trailing 7d
 //                                  daily avg → top-of-funnel anomaly.
 //
+// TRANSPORT CHECKS:
+//   8. checkTransportRidesStalled — rides stuck in 'searching' >20 min
+//                                   with no driver assignment → supply gap.
+//   9. checkDriverPayoutFailing  — driver_earnings rows with payout_status
+//                                  'failed' in last 6h → drivers not getting paid.
+//  10. checkDriverSupplyLow      — zero active drivers AND ≥1 ride in last 24h
+//                                  → transport platform has no supply.
+//  11. checkScheduledRidesReadyForDispatch   — scheduled rides within 30 min
+//                                  of pickup time are transitioned to
+//                                  'requested' so the normal dispatch
+//                                  pipeline picks them up. Complements
+//                                  transport-scheduled-dispatch (belt-and-
+//                                  suspenders).
+//  12. checkReservedRidesReadyForConfirmation — reserved rides within 30 min
+//                                  of pickup time (driver already claimed)
+//                                  are moved to 'driver_accepted' to enter
+//                                  the standard en-route / arrived / trip
+//                                  progression.
+//
 // Daily digest at 11:00 UTC (~7am ET): one summary text + email even on
 // quiet days so silence is unambiguous ("3 leads, 1 provider approved,
 // 0 new members yesterday").
@@ -61,13 +80,17 @@ const DEFAULTS = {
   digest_hour_utc: 11,
   dedupe_repage_hours: 6,
   thresholds: {
-    gatekeeper_error_min_in_6h: 2,
-    promoter_drafts_pile_min:   5,
-    promoter_idle_days:         7,
-    hunter_unscored_min_2h:     1,
-    social_dry_window_h:        24,
-    matchmaker_unranked_min_h:  1,
-    signup_drop_pct:            50
+    gatekeeper_error_min_in_6h:    2,
+    promoter_drafts_pile_min:      5,
+    promoter_idle_days:            7,
+    hunter_unscored_min_2h:        1,
+    social_dry_window_h:           24,
+    matchmaker_unranked_min_h:     1,
+    signup_drop_pct:               50,
+    // Transport
+    ride_stalled_searching_min:    20,  // minutes a ride can sit in 'searching' before alert
+    driver_payout_fail_min_in_6h:  1,   // failed payout records in 6h before alert
+    driver_supply_min_rides_24h:   1    // min rides in 24h before "zero drivers" is alarming
   }
 };
 
@@ -307,6 +330,92 @@ async function checkFunnelDrop(supabase, t) {
 }
 
 // ---------------------------------------------------------------------------
+// Transport health checks
+// ---------------------------------------------------------------------------
+
+async function checkTransportRidesStalled(supabase, t) {
+  const stalledSince = new Date(Date.now() - t.ride_stalled_searching_min * 60 * 1000).toISOString();
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, status, created_at')
+      .in('status', ['searching', 'requested'])
+      .lte('created_at', stalledSince)
+      .limit(20);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+  if (!rides || rides.length === 0) return null;
+
+  return {
+    alert_key: 'transport_rides_stalled',
+    severity: 'critical',
+    title: `${rides.length} ride${rides.length === 1 ? '' : 's'} waiting ${t.ride_stalled_searching_min}+ min for a driver`,
+    body: `${rides.length} ride request${rides.length === 1 ? '' : 's'} ${rides.length === 1 ? 'has' : 'have'} been in "searching" status for over ${t.ride_stalled_searching_min} minutes without a driver assignment. Members are waiting. This usually means driver supply is too low for current demand, or dispatch is broken.`,
+    next_action: `Check driver availability at ${MCC_APP_URL}/admin (filter profiles by role=driver). If supply is low, share the Founding Driver Program link (mycarconcierge.com/drivers) immediately. If drivers are available but not being dispatched, check the ride dispatch function for errors.`,
+    payload: { stalled_count: rides.length, stalled_since_minutes: t.ride_stalled_searching_min, sample_ride_ids: rides.slice(0, 5).map(r => r.id) }
+  };
+}
+
+async function checkDriverPayoutFailing(supabase, t) {
+  let failCount = 0;
+  try {
+    const { count, error } = await supabase
+      .from('driver_earnings')
+      .select('id', { count: 'exact', head: true })
+      .eq('payout_status', 'failed')
+      .gte('created_at', isoMinusHours(6));
+    if (error) return null;
+    failCount = count || 0;
+  } catch { return null; }
+  if (failCount < t.driver_payout_fail_min_in_6h) return null;
+
+  return {
+    alert_key: 'driver_payout_failing',
+    severity: 'critical',
+    title: `${failCount} driver payout${failCount === 1 ? '' : 's'} failed in the last 6h`,
+    body: `${failCount} driver earnings record${failCount === 1 ? '' : 's'} show payout_status = 'failed' in the last 6 hours. Drivers completed real trips and are not getting paid — this is urgent. Failing to pay drivers erodes trust and will kill supply.`,
+    next_action: `Check driver_earnings in Supabase for failed rows. Verify the Stripe payout configuration and that driver Stripe Connect accounts are active. Retry failed payouts manually from the admin console and contact affected drivers directly.`,
+    payload: { failed_payout_count: failCount, window_hours: 6 }
+  };
+}
+
+async function checkDriverSupplyLow(supabase, t) {
+  // Only fire if rides have been requested (demand exists)
+  let recentRides = 0;
+  try {
+    const { count, error } = await supabase
+      .from('rides')
+      .select('id', { count: 'exact', head: true })
+      .gte('created_at', isoMinusHours(24));
+    if (error) return null;
+    recentRides = count || 0;
+  } catch { return null; }
+  if (recentRides < t.driver_supply_min_rides_24h) return null;
+
+  let activeDrivers = 0;
+  try {
+    const { count, error } = await supabase
+      .from('profiles')
+      .select('id', { count: 'exact', head: true })
+      .eq('role', 'driver');
+    if (error) return null;
+    activeDrivers = count || 0;
+  } catch { return null; }
+  if (activeDrivers > 0) return null;
+
+  return {
+    alert_key: 'driver_supply_zero',
+    severity: 'warning',
+    title: 'Transport platform has zero registered drivers',
+    body: `${recentRides} ride request${recentRides === 1 ? '' : 's'} came in over the last 24h but there are 0 registered drivers on the platform. Every request is going unfulfilled. The Founding Driver Program needs to be actively promoted.`,
+    next_action: `Run a driver recruitment push immediately: share mycarconcierge.com/drivers on social, text current contacts who drive for Uber/Lyft, and trigger Promoter to draft a driver acquisition post for LinkedIn and Instagram.`,
+    payload: { active_driver_count: 0, recent_rides_24h: recentRides }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Daily digest — one always-fires summary at the morning slot so silence is
 // never ambiguous. Builds the same KPIs the operator would scan manually.
 // ---------------------------------------------------------------------------
@@ -325,27 +434,34 @@ async function buildDailyDigest(supabase) {
     } catch { return null; }
   }
 
-  const [signups, leads, gkReviews, mmRanks, completed, errors] = await Promise.all([
+  const [signups, leads, gkReviews, mmRanks, completed, errors,
+         newRides, completedRides, activeDrivers] = await Promise.all([
     safeCount('profiles',        { _gte: since24 }),
     safeCount('social_leads',    { _gte: since24 }),
     safeCount('agent_actions',   { _gte: since24, agent_slug: 'gatekeeper', action_type: 'review', status: 'proposed' }),
     safeCount('agent_actions',   { _gte: since24, agent_slug: 'matchmaker' }),
     safeCount('agent_actions',   { _gte: since24, status: 'completed' }),
-    safeCount('agent_actions',   { _gte: since24, status: 'error' })
+    safeCount('agent_actions',   { _gte: since24, status: 'error' }),
+    // Transport KPIs
+    safeCount('rides',           { _gte: since24 }),
+    safeCount('rides',           { _gte: since24, status: 'completed' }),
+    safeCount('profiles',        { role: 'driver' })
   ]);
 
   const today = new Date().toISOString().slice(0, 10);
   const fmt = n => n == null ? '—' : String(n);
 
+  const transportLine = `• Transport: ${fmt(newRides)} ride${newRides === 1 ? '' : 's'} requested, ${fmt(completedRides)} completed, ${fmt(activeDrivers)} active driver${activeDrivers === 1 ? '' : 's'}`;
+
   return {
     alert_key: `daily_digest_${today}`,
     severity: 'digest',
     title: 'Good morning — your fleet + funnel digest',
-    body: `Last 24h:\n• ${fmt(signups)} new member${signups === 1 ? '' : 's'}\n• ${fmt(leads)} social leads found\n• ${fmt(gkReviews)} provider applications reviewed by Gatekeeper\n• ${fmt(mmRanks)} bid auctions evaluated by Matchmaker\n• ${fmt(completed)} total agent actions completed\n• ${fmt(errors)} agent error${errors === 1 ? '' : 's'} (open alerts will follow if any are still unresolved)`,
+    body: `Last 24h:\n• ${fmt(signups)} new member${signups === 1 ? '' : 's'}\n• ${fmt(leads)} social leads found\n• ${fmt(gkReviews)} provider applications reviewed by Gatekeeper\n• ${fmt(mmRanks)} bid auctions evaluated by Matchmaker\n• ${fmt(completed)} total agent actions completed\n• ${fmt(errors)} agent error${errors === 1 ? '' : 's'} (open alerts will follow if any are still unresolved)\n${transportLine}`,
     next_action: errors && errors > 0
       ? `Open ${MCC_APP_URL}/admin/agent-fleet.html to see which agents errored.`
       : null,
-    payload: { signups, leads, gatekeeper_reviews: gkReviews, matchmaker_ranks: mmRanks, completed_actions: completed, errors_24h: errors }
+    payload: { signups, leads, gatekeeper_reviews: gkReviews, matchmaker_ranks: mmRanks, completed_actions: completed, errors_24h: errors, transport: { new_rides: newRides, completed_rides: completedRides, active_drivers: activeDrivers } }
   };
 }
 
@@ -402,7 +518,7 @@ async function _insertAlert(supabase, alert_key, severity, finding) {
 
 // Send SMS+email and persist their results onto the alert row.
 async function _dispatchAndRecord(supabase, alertId, finding) {
-  const [smsResult, emailResult] = await Promise.all([sendSms(finding), sendEmail(finding)]);
+  const [smsResult, emailResult] = await Promise.all([sendSms(finding, supabase), sendEmail(finding)]);
 
   if (alertId) {
     const update = {};
@@ -454,34 +570,26 @@ function _severityHeaderColor(severity) {
   return '#b8942d';
 }
 
-async function sendSms(finding) {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from  = process.env.TWILIO_PHONE_NUMBER;
-  const to    = process.env.ADMIN_ALERT_PHONE;
-  if (!sid || !token || !from || !to) return { sent: false, error: 'twilio_not_configured' };
+// Task #429: route admin alerts through the shared SMS helper so we
+// honor profiles.sms_opt_out (TCPA STOP) by phone-number lookup. The
+// admin shouldn't normally be opted out, but the same code path is used
+// for any number set in ADMIN_ALERT_PHONE, so the check applies
+// uniformly.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
+async function sendSms(finding, supabase = null) {
+  const to = process.env.ADMIN_ALERT_PHONE;
+  if (!to) return { sent: false, error: 'twilio_not_configured' };
 
   const tag = _severityTag(finding.severity);
   let body = `${tag} ${finding.title}\n\n${finding.body}`;
   if (finding.next_action) body += `\n\nNext: ${finding.next_action}`;
   if (body.length > 1500) body = body.slice(0, 1497) + '...';
 
-  try {
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    if (!r.ok) {
-      const txt = await r.text().catch(() => '');
-      return { sent: false, error: `twilio_${r.status}: ${txt.slice(0, 200)}` };
-    }
-    return { sent: true };
-  } catch (e) {
-    return { sent: false, error: e.message };
-  }
+  const res = await sharedSendSms({ supabase, toPhone: to, body });
+  if (res.sent) return { sent: true };
+  if (res.reason === 'sms_opt_out') return { sent: false, error: 'sms_opt_out' };
+  if (res.reason === 'not_configured') return { sent: false, error: 'twilio_not_configured' };
+  return { sent: false, error: res.reason || 'send_failed' };
 }
 
 async function sendEmail(finding) {
@@ -577,6 +685,254 @@ async function loadConfig(supabase) {
 }
 
 // ---------------------------------------------------------------------------
+// Scheduled-ride dispatch checks — run alongside the transport health checks.
+// ---------------------------------------------------------------------------
+
+async function checkScheduledRidesReadyForDispatch(supabase) {
+  const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, scheduled_pickup_at, status, pickup_address, dropoff_address, estimated_fare')
+      .in('status', ['scheduled'])
+      .lte('scheduled_pickup_at', thirtyMinFromNow)
+      .gte('scheduled_pickup_at', now);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+
+  if (!rides || rides.length === 0) return null;
+
+  const transitioned = [];
+  for (const ride of rides) {
+    const { error: updateError } = await supabase
+      .from('rides')
+      .update({ status: 'requested', updated_at: now })
+      .eq('id', ride.id)
+      .eq('status', 'scheduled'); // optimistic lock
+    if (!updateError) transitioned.push(ride.id);
+  }
+
+  if (transitioned.length === 0) return null;
+
+  return {
+    alert_key: `scheduled_dispatch_${now.slice(0, 10)}_${Date.now()}`,
+    severity: 'info',
+    title: `${transitioned.length} scheduled ride${transitioned.length === 1 ? '' : 's'} moved to dispatch`,
+    body: `${transitioned.length} ride${transitioned.length === 1 ? '' : 's'} approaching ${transitioned.length === 1 ? 'its' : 'their'} scheduled pickup time ${transitioned.length === 1 ? 'was' : 'were'} transitioned from 'scheduled' to 'requested' for driver assignment: ${transitioned.map(id => id.slice(0, 8)).join(', ')}.`,
+    next_action: null,
+    payload: { ride_ids: transitioned, count: transitioned.length }
+  };
+}
+
+async function checkReservedRidesReadyForConfirmation(supabase) {
+  const thirtyMinFromNow = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, scheduled_pickup_at')
+      .eq('status', 'reserved')
+      .lte('scheduled_pickup_at', thirtyMinFromNow)
+      .gte('scheduled_pickup_at', now);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+
+  if (!rides || rides.length === 0) return null;
+
+  const activated = [];
+  for (const ride of rides) {
+    const { error: rideErr } = await supabase
+      .from('rides')
+      .update({ status: 'driver_accepted', updated_at: now })
+      .eq('id', ride.id)
+      .eq('status', 'reserved');
+
+    if (!rideErr) {
+      activated.push(ride.id);
+      // Assignment was already set to 'accepted' at claim time; this is a
+      // no-op guard in case the assignment was somehow left in 'reserved'.
+      await supabase.from('driver_assignments')
+        .update({ status: 'accepted', accepted_at: now, updated_at: now })
+        .eq('ride_id', ride.id)
+        .eq('status', 'reserved');
+    }
+  }
+
+  if (activated.length === 0) return null;
+
+  return {
+    alert_key: `reserved_confirm_${now.slice(0, 10)}_${Date.now()}`,
+    severity: 'info',
+    title: `${activated.length} reserved ride${activated.length === 1 ? '' : 's'} activated for pickup`,
+    body: `${activated.length} driver${activated.length === 1 ? '' : 's'} with reserved rides approaching their pickup time ${activated.length === 1 ? 'has been moved' : 'have been moved'} to 'driver_accepted' status.`,
+    next_action: null,
+    payload: { ride_ids: activated, count: activated.length }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// checkRidesStuckInPendingDispatch — transition stale pending_dispatch rides
+// Return legs sit in pending_dispatch until the provider calls vehicle-ready.
+// If a ride has been there >15 min it may mean the event was missed; move it
+// to requested so dispatch can retry assignment.
+// ---------------------------------------------------------------------------
+async function checkRidesStuckInPendingDispatch(supabase) {
+  const fifteenMinAgo = new Date(Date.now() - 15 * 60 * 1000).toISOString();
+  const now = new Date().toISOString();
+
+  let rides;
+  try {
+    const { data, error } = await supabase
+      .from('rides')
+      .select('id, updated_at, pickup_address, dropoff_address')
+      .eq('status', 'pending_dispatch')
+      .lte('updated_at', fifteenMinAgo);
+    if (error) return null;
+    rides = data;
+  } catch { return null; }
+
+  if (!rides || rides.length === 0) return null;
+
+  const transitioned = [];
+  for (const ride of rides) {
+    const { error: updateError } = await supabase
+      .from('rides')
+      .update({ status: 'requested', updated_at: now })
+      .eq('id', ride.id)
+      .eq('status', 'pending_dispatch');
+    if (!updateError) transitioned.push(ride.id);
+  }
+
+  if (transitioned.length === 0) return null;
+
+  return {
+    alert_key: `pending_dispatch_recovery_${now.slice(0, 10)}_${Date.now()}`,
+    severity: 'medium',
+    title: `${transitioned.length} return leg${transitioned.length === 1 ? '' : 's'} recovered from pending_dispatch`,
+    body: `${transitioned.length} ride${transitioned.length === 1 ? '' : 's'} stuck in pending_dispatch >15 min ${transitioned.length === 1 ? 'was' : 'were'} moved to requested for driver re-assignment: ${transitioned.map(id => id.slice(0, 8)).join(', ')}.`,
+    next_action: 'check_vehicle_ready_events',
+    payload: { ride_ids: transitioned, count: transitioned.length }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// checkPaymentAutoRelease — capture Stripe PIs for payments past auto_release_date
+// ---------------------------------------------------------------------------
+async function checkPaymentAutoRelease(supabase) {
+  const now = new Date().toISOString();
+  let payments;
+  try {
+    const { data, error } = await supabase
+      .from('payments')
+      .select('id, package_id, member_id, stripe_payment_intent_id, stripe_payment_intent, stripe_payment_id')
+      .not('auto_release_date', 'is', null)
+      .lte('auto_release_date', now)
+      .not('status', 'eq', 'released');
+    if (error) return null;
+    payments = data;
+  } catch { return null; }
+
+  if (!payments || payments.length === 0) return null;
+
+  const stripeKey = process.env.STRIPE_SECRET_KEY;
+  const stripe = stripeKey ? require('stripe')(stripeKey, { apiVersion: require('../../lib/stripe-api-version').STRIPE_API_VERSION }) : null;
+
+  const captured = [];
+  const failed   = [];
+
+  for (const pmt of payments) {
+    const piId = pmt.stripe_payment_intent_id || pmt.stripe_payment_intent || pmt.stripe_payment_id;
+    if (piId && stripe) {
+      try {
+        await stripe.paymentIntents.capture(piId);
+      } catch (e) {
+        if (e?.code !== 'payment_intent_unexpected_state') {
+          failed.push({ payment_id: pmt.id, error: e.message });
+          continue;
+        }
+      }
+    }
+    await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+    captured.push(pmt.id);
+  }
+
+  if (captured.length === 0 && failed.length === 0) return null;
+
+  return {
+    alert_key: `payment_auto_release_${now.slice(0, 10)}`,
+    severity: failed.length > 0 ? 'high' : 'info',
+    title: `Payment auto-release: ${captured.length} captured, ${failed.length} failed`,
+    body: `${captured.length} overdue payment${captured.length === 1 ? '' : 's'} auto-released via Stripe capture.${failed.length > 0 ? ` ${failed.length} capture${failed.length === 1 ? '' : 's'} failed — manual review required.` : ''}`,
+    next_action: failed.length > 0 ? 'review_failed_captures' : null,
+    payload: { captured, failed }
+  };
+}
+
+// ---------------------------------------------------------------------------
+// checkCommissionReconciliation — drain commission_reconciliation_queue.
+//
+// bid-credit-reconciler-scheduled.js inserts a pending row here whenever it
+// records a founder commission. We consume those rows: verify the matching
+// founder_commissions row exists with the expected amount, then mark the
+// queue entry 'verified' or 'mismatch'. Returns a finding only when at least
+// one mismatch is found so the admin is alerted.
+// ---------------------------------------------------------------------------
+async function checkCommissionReconciliation(supabase) {
+  let pending;
+  try {
+    const { data, error } = await supabase
+      .from('commission_reconciliation_queue')
+      .select('id, commission_id, founder_id, amount')
+      .eq('status', 'pending')
+      .limit(50);
+    if (error) return null;
+    pending = data || [];
+  } catch { return null; }
+
+  if (pending.length === 0) return null;
+
+  const mismatches = [];
+  for (const row of pending) {
+    let verified = false;
+    try {
+      const { data: comm } = await supabase
+        .from('founder_commissions')
+        .select('id, commission_amount')
+        .eq('id', row.commission_id)
+        .maybeSingle();
+      verified = comm != null && Math.abs((comm.commission_amount || 0) - (row.amount || 0)) < 0.01;
+    } catch { /* treat as mismatch */ }
+
+    const newStatus = verified ? 'verified' : 'mismatch';
+    await supabase
+      .from('commission_reconciliation_queue')
+      .update({ status: newStatus, updated_at: new Date().toISOString() })
+      .eq('id', row.id)
+      .catch(() => {});
+
+    if (!verified) mismatches.push({ queue_id: row.id, commission_id: row.commission_id, founder_id: row.founder_id, amount: row.amount });
+  }
+
+  if (mismatches.length === 0) return null;
+
+  return {
+    alert_key: 'commission_reconciliation_mismatch',
+    severity: 'high',
+    title: `${mismatches.length} founder commission reconciliation mismatch${mismatches.length === 1 ? '' : 'es'}`,
+    body: `${mismatches.length} queue row${mismatches.length === 1 ? '' : 's'} in commission_reconciliation_queue could not be matched to a valid founder_commissions record. This means a Stripe checkout completed but the commission row is missing or has the wrong amount — founders may be underpaid.`,
+    next_action: 'Review commission_reconciliation_queue for mismatch rows and cross-check against Stripe sessions in founder_commissions. Reconcile manually and re-run bid-credit-reconciler-scheduled if needed.',
+    payload: { mismatches, processed: pending.length }
+  };
+}
+
+// ---------------------------------------------------------------------------
 // Handler phases (extracted from the main handler so each phase has a single
 // responsibility — see Task #262).
 // ---------------------------------------------------------------------------
@@ -588,7 +944,20 @@ async function _runChecks(supabase, cfg) {
     checkHunterStalled,
     checkSocialMonitorDry,
     checkMatchmakerSilent,
-    checkFunnelDrop
+    checkFunnelDrop,
+    // Transport
+    checkTransportRidesStalled,
+    checkDriverPayoutFailing,
+    checkDriverSupplyLow,
+    // Scheduled ride auto-dispatch
+    checkScheduledRidesReadyForDispatch,
+    checkReservedRidesReadyForConfirmation,
+    // Return leg recovery
+    checkRidesStuckInPendingDispatch,
+    // Payment auto-release
+    checkPaymentAutoRelease,
+    // Commission reconciliation queue consumer
+    checkCommissionReconciliation
   ];
   const findings = [];
   const checkErrors = [];

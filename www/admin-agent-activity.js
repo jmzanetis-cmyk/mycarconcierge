@@ -28,6 +28,7 @@
   // one stamps the other.
   function authHeaders() {
     const h = { 'Accept': 'application/json' };
+    if (globalThis._adminBearer) h['Authorization'] = 'Bearer ' + globalThis._adminBearer;
     // Check both legacy key names — admin.js writes `adminTeamToken`,
     // admin-outreach.js reads `mcc_admin_team_token`. Take whichever is
     // populated so the helper survives either page's storage convention.
@@ -130,6 +131,86 @@
       ? `<div style="font-size:0.82rem;color:var(--text-secondary);">${bits.join('')}</div>` : '';
   }
 
+  // ----- Copyable <pre> wrapper (Task #276) --------------------------------
+  // Renders a <pre> with a small "Copy" button in the corner. The raw text
+  // is stashed on a data-attribute (base64-encoded so quotes/newlines can't
+  // break out of the attribute) and pulled back on click. Click handling is
+  // bound once per panel container in bindCopyButtons() via event delegation.
+  function renderCopyablePre(text) {
+    const raw = text == null ? '' : String(text);
+    let encoded;
+    try {
+      encoded = btoa(unescape(encodeURIComponent(raw)));
+    } catch {
+      encoded = '';
+    }
+    return `<div class="aap-drawer-pre-wrap">
+      <button type="button" class="aap-copy-btn" data-aap-copy="${encoded}" title="Copy to clipboard">Copy</button>
+      <pre class="aap-drawer-pre">${esc(raw)}</pre>
+    </div>`;
+  }
+
+  function decodeCopyPayload(encoded) {
+    try {
+      return decodeURIComponent(escape(atob(encoded || '')));
+    } catch {
+      return '';
+    }
+  }
+
+  function flashCopyButton(btn, label, state) {
+    const original = btn.getAttribute('data-aap-copy-label') || btn.textContent;
+    if (!btn.getAttribute('data-aap-copy-label')) {
+      btn.setAttribute('data-aap-copy-label', original);
+    }
+    btn.textContent = label;
+    btn.setAttribute('data-aap-copy-state', state);
+    if (btn.__aapCopyTimer) clearTimeout(btn.__aapCopyTimer);
+    btn.__aapCopyTimer = setTimeout(() => {
+      btn.textContent = btn.getAttribute('data-aap-copy-label') || 'Copy';
+      btn.removeAttribute('data-aap-copy-state');
+    }, 1400);
+  }
+
+  async function handleCopyClick(btn) {
+    const text = decodeCopyPayload(btn.getAttribute('data-aap-copy'));
+    if (!text) {
+      flashCopyButton(btn, 'Empty', 'error');
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers / non-secure contexts.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      flashCopyButton(btn, 'Copied', 'success');
+    } catch {
+      flashCopyButton(btn, 'Failed', 'error');
+    }
+  }
+
+  function bindCopyButtons(rootEl) {
+    if (!rootEl || rootEl.__aapCopyBound) return;
+    rootEl.__aapCopyBound = true;
+    rootEl.addEventListener('click', (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest('.aap-copy-btn');
+      if (!btn || !rootEl.contains(btn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      handleCopyClick(btn);
+    });
+  }
+
   // ----- Details drawer (Task #144) ----------------------------------------
   // Built into every card. Reasoning + decision JSON are rendered from data we
   // already have (the list endpoint returns them). The "Source / Prompt"
@@ -150,7 +231,7 @@
     const decisionBlock = `
       <div class="aap-drawer-section">
         <div class="aap-drawer-label">Decision (JSON)</div>
-        <pre class="aap-drawer-pre">${esc(decisionPretty)}</pre>
+        ${renderCopyablePre(decisionPretty)}
       </div>`;
     const sourceBlock = `
       <div class="aap-drawer-section" data-source-slot="1">
@@ -231,6 +312,95 @@
       </div>`;
   }
 
+  // ----- Deep-link "Copy link" button (Task #406) --------------------------
+  // Each card gets a small "Copy link" button in its header. Clicking it
+  // copies a URL that, when opened, restores the same admin view (section
+  // or per-record modal) and auto-expands this card's drawer. The
+  // linkContext (panel-level — same for every card in a panel) is read
+  // from bodyEl.__aapOpts inside the click handler so we don't have to
+  // serialize it into every card's HTML.
+  function linkButtonHtml(src, id) {
+    return `<button type="button" class="aap-link-btn"
+              data-aap-link-src="${esc(src)}"
+              data-aap-link-id="${esc(String(id))}"
+              title="Copy a shareable link that opens this card with the drawer expanded"
+              style="font-size:0.7rem;font-weight:600;padding:3px 8px;border-radius:4px;cursor:pointer;border:1px solid var(--border-subtle, #2a2f37);background:var(--bg-tertiary, #2a2f37);color:var(--text-primary, #e5e7eb);opacity:0.7;">Copy link</button>`;
+  }
+
+  function buildDeepLinkUrl(linkContext, src, id) {
+    let url;
+    try { url = new URL(globalThis.location.href); }
+    catch { return ''; }
+    // Strip any existing aap_* params so re-copies don't accumulate stale
+    // navigation hints from a previous deep-link visit.
+    ['aap_src', 'aap_id', 'aap_section', 'aap_modal'].forEach(k => url.searchParams.delete(k));
+    url.searchParams.set('aap_src', src);
+    url.searchParams.set('aap_id', String(id));
+    if (linkContext && linkContext.section) {
+      url.searchParams.set('aap_section', String(linkContext.section));
+    }
+    if (linkContext && linkContext.modal &&
+        linkContext.modal.type && linkContext.modal.id != null) {
+      url.searchParams.set('aap_modal',
+        `${linkContext.modal.type}:${linkContext.modal.id}`);
+    }
+    url.hash = '';
+    return url.toString();
+  }
+
+  function flashLinkButton(btn, label, state) {
+    const original = btn.getAttribute('data-aap-link-label') || btn.textContent;
+    if (!btn.getAttribute('data-aap-link-label')) {
+      btn.setAttribute('data-aap-link-label', original);
+    }
+    btn.textContent = label;
+    btn.setAttribute('data-aap-link-state', state);
+    if (btn.__aapLinkTimer) clearTimeout(btn.__aapLinkTimer);
+    btn.__aapLinkTimer = setTimeout(() => {
+      btn.textContent = btn.getAttribute('data-aap-link-label') || 'Copy link';
+      btn.removeAttribute('data-aap-link-state');
+    }, 1600);
+  }
+
+  async function copyTextToClipboard(text) {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      await navigator.clipboard.writeText(text);
+      return;
+    }
+    const ta = document.createElement('textarea');
+    ta.value = text;
+    ta.setAttribute('readonly', '');
+    ta.style.position = 'absolute';
+    ta.style.left = '-9999px';
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+  }
+
+  function bindLinkButtons(rootEl) {
+    if (!rootEl || rootEl.__aapLinkBound) return;
+    rootEl.__aapLinkBound = true;
+    rootEl.addEventListener('click', async (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest('.aap-link-btn');
+      if (!btn || !rootEl.contains(btn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      const src = btn.getAttribute('data-aap-link-src');
+      const id  = btn.getAttribute('data-aap-link-id');
+      if (!src || !id) { flashLinkButton(btn, 'Missing id', 'error'); return; }
+      const linkContext = (rootEl.__aapOpts && rootEl.__aapOpts.linkContext) || null;
+      const url = buildDeepLinkUrl(linkContext, src, id);
+      if (!url) { flashLinkButton(btn, 'Failed', 'error'); return; }
+      try {
+        await copyTextToClipboard(url);
+        flashLinkButton(btn, 'Link copied', 'success');
+      } catch {
+        flashLinkButton(btn, 'Copy failed', 'error');
+      }
+    });
+  }
+
   function renderFleetCard(a, dlqByEventId) {
     const sc = statusColor(a.status);
     const reviewBadge = a.needs_review
@@ -255,7 +425,7 @@
       }
     }
     return `
-      <div class="agent-activity-card" style="border:1px solid var(--border-subtle);border-left:3px solid #3b82f6;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
+      <div class="agent-activity-card" data-aap-src="fleet" data-aap-id="${esc(String(a.id))}" style="border:1px solid var(--border-subtle);border-left:3px solid #3b82f6;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="background:#3b82f6;color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;">FLEET</span>
@@ -265,7 +435,10 @@
             <span style="background:${sc.bg};color:${sc.fg};font-size:0.7rem;padding:2px 8px;border-radius:999px;">${esc(a.status || 'pending')}</span>
             ${reviewBadge}${reviewedBadge}${dlqBadge}
           </div>
-          <span style="color:var(--text-muted);font-size:0.78rem;">${fmtTime(a.created_at)}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${linkButtonHtml('fleet', a.id)}
+            <span style="color:var(--text-muted);font-size:0.78rem;">${fmtTime(a.created_at)}</span>
+          </div>
         </div>
         ${recommendationLine(a.decision)}
         ${a.reasoning ? `<div style="font-size:0.86rem;color:var(--text-secondary);line-height:1.5;margin-bottom:6px;">${esc(a.reasoning)}</div>` : ''}
@@ -285,7 +458,7 @@
     const sc = statusColor(a.outcome);
     const legacyReasoning = (a.decision && a.decision.reasoning) || '';
     return `
-      <div class="agent-activity-card" style="border:1px solid var(--border-subtle);border-left:3px solid #7c3aed;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
+      <div class="agent-activity-card" data-aap-src="legacy" data-aap-id="${esc(String(a.id))}" style="border:1px solid var(--border-subtle);border-left:3px solid #7c3aed;border-radius:10px;padding:14px;margin-bottom:10px;background:var(--bg-secondary, #1a1d23);">
         <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:8px;">
           <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
             <span style="background:#7c3aed;color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;">AI OPS</span>
@@ -296,7 +469,10 @@
             ${a.auto_executed ? '<span style="background:var(--accent-green);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;">AUTO</span>' : ''}
             ${a.escalated ? '<span style="background:var(--accent-gold);color:#fff;font-size:0.7rem;padding:2px 8px;border-radius:999px;">ESCALATED</span>' : ''}
           </div>
-          <span style="color:var(--text-muted);font-size:0.78rem;">${fmtTime(a.created_at)}</span>
+          <div style="display:flex;align-items:center;gap:8px;">
+            ${linkButtonHtml('legacy', a.id)}
+            <span style="color:var(--text-muted);font-size:0.78rem;">${fmtTime(a.created_at)}</span>
+          </div>
         </div>
         ${recommendationLine(a.decision)}
         ${legacyReasoning ? `<div style="font-size:0.86rem;color:var(--text-secondary);line-height:1.5;margin-bottom:6px;">${esc(legacyReasoning)}</div>` : ''}
@@ -384,7 +560,7 @@
             ${ev.source ? ` · source: ${esc(ev.source)}` : ''}
             · ${esc(fmtTime(ev.created_at))}
           </div>
-          <pre class="aap-drawer-pre">${esc(payloadPretty)}</pre>`;
+          ${renderCopyablePre(payloadPretty)}`;
       } else {
         // ai_action_log has no separate event — the inputs the agent saw are
         // captured (when at all) in `decision`. Show a clear note + the
@@ -467,6 +643,25 @@
       .aap-drawer-section { background: var(--bg-tertiary, #2a2f37); border-radius: 6px; padding: 8px 10px; }
       .aap-drawer-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted, #9ca3af); margin-bottom: 4px; font-weight: 600; }
       .aap-drawer-text { font-size: 0.84rem; color: var(--text-primary, #e5e7eb); white-space: pre-wrap; line-height: 1.5; }
+      .aap-drawer-pre-wrap { position: relative; }
+      .aap-drawer-pre-wrap > .aap-copy-btn {
+        position: absolute; top: 6px; right: 6px;
+        font-size: 0.7rem; font-weight: 600;
+        padding: 3px 8px; border-radius: 4px; cursor: pointer;
+        border: 1px solid var(--border-subtle, #2a2f37);
+        background: var(--bg-tertiary, #2a2f37);
+        color: var(--text-primary, #e5e7eb);
+        opacity: 0.65; transition: opacity 0.12s ease, background 0.12s ease;
+        z-index: 1;
+      }
+      .aap-drawer-pre-wrap:hover > .aap-copy-btn { opacity: 1; }
+      .aap-drawer-pre-wrap > .aap-copy-btn:hover { background: var(--bg-secondary, #1f2329); }
+      .aap-drawer-pre-wrap > .aap-copy-btn[data-aap-copy-state="success"] {
+        background: var(--accent-green, #10b981); color: #fff; opacity: 1; border-color: transparent;
+      }
+      .aap-drawer-pre-wrap > .aap-copy-btn[data-aap-copy-state="error"] {
+        background: var(--accent-red, #c0392b); color: #fff; opacity: 1; border-color: transparent;
+      }
       .aap-drawer-pre {
         margin: 0; font-size: 0.76rem; line-height: 1.4;
         color: var(--text-primary, #e5e7eb);
@@ -499,6 +694,17 @@
       }
       .aap-action-status[data-aap-state="error"]   { color: var(--accent-red, #c0392b); }
       .aap-action-status[data-aap-state="success"] { color: var(--accent-green, #10b981); }
+      .aap-link-btn:hover { opacity: 1 !important; background: var(--bg-secondary, #1f2329) !important; }
+      .aap-link-btn[data-aap-link-state="success"] {
+        background: var(--accent-green, #10b981) !important; color: #fff !important; opacity: 1 !important; border-color: transparent !important;
+      }
+      .aap-link-btn[data-aap-link-state="error"] {
+        background: var(--accent-red, #c0392b) !important; color: #fff !important; opacity: 1 !important; border-color: transparent !important;
+      }
+      .agent-activity-card.aap-deep-link-highlight {
+        box-shadow: 0 0 0 2px var(--accent-gold, #b8942d), 0 0 18px rgba(184, 148, 45, 0.45);
+        transition: box-shadow 0.4s ease;
+      }
     `;
     document.head.appendChild(style);
   }
@@ -689,6 +895,8 @@
     bodyEl.__aapOpts = opts;
     bindDrawerToggles(bodyEl);
     bindActionButtons(bodyEl, containerId);
+    bindCopyButtons(bodyEl);
+    bindLinkButtons(bodyEl);
 
     try {
       // Fetch fleet + legacy in parallel, then DLQ filtered by the
@@ -718,11 +926,122 @@
         m.__src === 'fleet' ? renderFleetCard(m.row, dlqByEventId) : renderLegacyCard(m.row)
       ).join('');
       countEl.textContent = `${merged.length} ${merged.length === 1 ? 'entry' : 'entries'}`;
+      // Task #406 — let a pending deep-link target try to claim this panel.
+      tryConsumePendingTarget(bodyEl);
     } catch (e) {
       bodyEl.innerHTML = `<div style="padding:14px;color:var(--accent-red);font-size:0.85rem;">Failed to load agent activity: ${esc(e.message)}</div>`;
       countEl.textContent = '';
     }
   }
 
+  // ----- Deep-link consumer (Task #406) ------------------------------------
+  // The pending target is set by consumeAgentActivityDeepLink() before
+  // navigation. Every newly-rendered panel checks whether its cards contain
+  // the targeted src+id; the first panel to match wins, opens the drawer,
+  // scrolls into view, and clears the target so later panel renders don't
+  // re-trigger.
+  function tryConsumePendingTarget(bodyEl) {
+    const t = window.__aapPendingTarget;
+    if (!t || !t.src || !t.id) return;
+    if (Date.now() > (t.expiresAt || 0)) {
+      window.__aapPendingTarget = null;
+      return;
+    }
+    let safeId;
+    try { safeId = (window.CSS && CSS.escape) ? CSS.escape(t.id) : t.id.replace(/"/g, '\\"'); }
+    catch { safeId = t.id; }
+    const card = bodyEl.querySelector(
+      `.agent-activity-card[data-aap-src="${t.src}"][data-aap-id="${safeId}"]`);
+    if (!card) return;
+    const details = card.querySelector('details.agent-activity-details');
+    if (details && !details.open) {
+      details.open = true;
+      // The `toggle` listener won't fire when we set .open programmatically
+      // before bind; call the loader directly so the Source panel populates.
+      try { loadSourceForCard(details); } catch { /* non-fatal */ }
+    }
+    try { card.scrollIntoView({ behavior: 'smooth', block: 'center' }); }
+    catch { /* older browsers */ }
+    card.classList.add('aap-deep-link-highlight');
+    setTimeout(() => card.classList.remove('aap-deep-link-highlight'), 4000);
+    window.__aapPendingTarget = null;
+  }
+
+  // Per-modal-type metadata — viewApplication/viewDispute/viewTicket each
+  // require their parent section's list to have been loaded (the openers
+  // pull the record from an in-memory cache by id). We trigger the section
+  // navigation first so showSection runs the lazy loadSectionIfNeeded(),
+  // then await the opener.
+  const MODAL_ROUTING = {
+    application: { section: 'applications', opener: 'viewApplication' },
+    dispute:     { section: 'disputes',     opener: 'viewDispute'     },
+    ticket:      { section: 'tickets',      opener: 'viewTicket'      }
+  };
+
+  // Public entry point — called from admin.js once admin verification +
+  // dashboard loadAllData() have completed. Reads aap_src / aap_id /
+  // aap_section / aap_modal from window.location.search, navigates to
+  // the right section/modal, and queues the matching card to auto-expand
+  // the next time renderAgentActivityPanel finishes rendering one.
+  // Returns true when a deep link was detected (regardless of whether
+  // the target card was found), false otherwise.
+  async function consumeAgentActivityDeepLink() {
+    let params;
+    try { params = new URLSearchParams(globalThis.location.search); }
+    catch { return false; }
+    const src = params.get('aap_src');
+    const id  = params.get('aap_id');
+    if (!src || !id) return false;
+    if (src !== 'fleet' && src !== 'legacy') return false;
+    // 30s window — generous so slow loads / nested modal fetches still land.
+    window.__aapPendingTarget = { src, id, expiresAt: Date.now() + 30000 };
+
+    const modal   = params.get('aap_modal');
+    const section = params.get('aap_section');
+
+    // Strip the aap_* params from the URL so a manual reload (or a copy
+    // of the now-current URL) doesn't keep retriggering the deep-link
+    // open. We keep the rest of the query/hash untouched.
+    try {
+      const url = new URL(globalThis.location.href);
+      ['aap_src','aap_id','aap_section','aap_modal'].forEach(k => url.searchParams.delete(k));
+      globalThis.history.replaceState(null, '', url.pathname +
+        (url.search ? url.search : '') + url.hash);
+    } catch { /* non-fatal */ }
+
+    if (modal) {
+      const idx = modal.indexOf(':');
+      const type = idx > -1 ? modal.slice(0, idx) : modal;
+      const recordId = idx > -1 ? modal.slice(idx + 1) : '';
+      const routing = MODAL_ROUTING[type];
+      if (!routing || !recordId) return true;
+      const opener = window[routing.opener];
+      if (typeof opener !== 'function') return true;
+      // Make sure the parent section's data is loaded — admin.js
+      // lazy-loads applications/disputes/tickets the first time
+      // showSection() is called for the section, so without this
+      // viewApplication(id) would find an empty in-memory array.
+      if (typeof window.showSection === 'function') {
+        try { await window.showSection(routing.section); }
+        catch (e) { console.warn('[aap] deep-link section preload failed:', e); }
+      }
+      // SERIAL primary keys are numeric in admin's in-memory cache; UUIDs
+      // stay strings. Pass through whichever form matches what the list
+      // loaders store.
+      const numId = Number(recordId);
+      const arg = (!Number.isNaN(numId) && /^[0-9]+$/.test(recordId)) ? numId : recordId;
+      try { await opener(arg); }
+      catch (e) { console.warn('[aap] deep-link modal open failed:', e); }
+      return true;
+    }
+    if (section && typeof window.showSection === 'function') {
+      try { await window.showSection(section); }
+      catch (e) { console.warn('[aap] deep-link section nav failed:', e); }
+      return true;
+    }
+    return true;
+  }
+
   window.renderAgentActivityPanel = renderAgentActivityPanel;
+  window.consumeAgentActivityDeepLink = consumeAgentActivityDeepLink;
 })();

@@ -41,14 +41,91 @@
     // them instead of falling through to the generic empty-state row that
     // makes failures look like "no data".
     let loadErrors = { providers: null, members: null, payments: null, disputes: null, tickets: null, applications: null };
+    // Task #355 — preserve the error `code` (NO_ADMIN_AUTH / ADMIN_AUTH_REJECTED
+    // from adminFetch) alongside the human message so renderTableLoadErrorRow
+    // can swap the dead-end Retry button for an actionable "Sign in again"
+    // prompt when the failure was a session expiry. Stored as a parallel map
+    // so the existing `loadErrors[key]` string lookups keep working.
+    const loadErrorCodes = {};
     function setLoadError(key, err) {
       const msg = err && (err.message || err.error || err.hint) ? (err.message || err.error || err.hint) : (err ? String(err) : 'Unknown error');
       loadErrors[key] = msg;
+      loadErrorCodes[key] = err && err.code ? err.code : null;
     }
+    // Task #355 — single canonical renderer for an "admin session expired"
+    // table-row banner. Every admin loader that pours an error into a table
+    // calls this so the prompt copy, color, and Sign-in-again behavior stay
+    // identical. `retryFn` may be a function or a string (HTML onclick form
+    // used by `renderTableLoadErrorRow`).
+    function renderAdminAuthErrorRow(tbody, colspan, err, retryFn) {
+      if (!tbody) return;
+      const stashKey = '_adminAuthRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[stashKey] = function () {
+        try { delete globalThis[stashKey]; } catch { globalThis[stashKey] = null; }
+        const fn = (typeof retryFn === 'function')
+          ? retryFn
+          : (typeof retryFn === 'string'
+              ? () => { try { new Function(retryFn)(); } catch (e) { console.error('Auth retry failed:', e); } }
+              : null);
+        if (typeof globalThis.openAdminReauth === 'function') globalThis.openAdminReauth(fn);
+        else if (typeof globalThis.openAiOpsReauth === 'function') globalThis.openAiOpsReauth(fn);
+      };
+      const msg = (err && err.message) ? err.message : (typeof err === 'string' ? err : 'Your admin session is no longer valid.');
+      tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(245,158,11,0.06);border-left:3px solid var(--accent-gold);">
+        <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+          <div style="flex:1;min-width:240px;">
+            <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">⚠ Your admin session expired</div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(msg)}</div>
+          </div>
+          <button class="btn btn-sm btn-primary" onclick="globalThis['${stashKey}']()">Sign in again</button>
+        </div>
+      </td></tr>`;
+    }
+    globalThis.renderAdminAuthErrorRow = renderAdminAuthErrorRow;
+
+    // Task #355 — same "Sign in again" prompt as the table-row variant but
+    // rendered into an arbitrary container element (e.g. a card body, a
+    // summary div) so non-table loaders share the exact same UI and copy.
+    function renderAdminAuthErrorInto(el, err, retryFn) {
+      if (!el) return;
+      const stashKey = '_adminAuthRetry_' + Math.random().toString(36).slice(2, 10);
+      globalThis[stashKey] = function () {
+        try { delete globalThis[stashKey]; } catch { globalThis[stashKey] = null; }
+        const fn = (typeof retryFn === 'function')
+          ? retryFn
+          : (typeof retryFn === 'string'
+              ? () => { try { new Function(retryFn)(); } catch (e) { console.error('Auth retry failed:', e); } }
+              : null);
+        if (typeof globalThis.openAdminReauth === 'function') globalThis.openAdminReauth(fn);
+        else if (typeof globalThis.openAiOpsReauth === 'function') globalThis.openAiOpsReauth(fn);
+      };
+      const msg = (err && err.message) ? err.message : (typeof err === 'string' ? err : 'Your admin session is no longer valid.');
+      el.innerHTML = `<div style="padding:18px 16px;background:rgba(245,158,11,0.06);border-left:3px solid var(--accent-gold);display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div style="flex:1;min-width:240px;">
+          <div style="font-weight:600;color:var(--accent-gold);margin-bottom:4px;">⚠ Your admin session expired</div>
+          <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(msg)}</div>
+        </div>
+        <button class="btn btn-sm btn-primary" onclick="globalThis['${stashKey}']()">Sign in again</button>
+      </div>`;
+    }
+    globalThis.renderAdminAuthErrorInto = renderAdminAuthErrorInto;
+
+    // Task #355 — helper that lets non-table loaders decide auth vs non-auth
+    // without each one duplicating the `err.code === ...` boilerplate.
+    function isAdminAuthError(err) {
+      return !!(err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED'));
+    }
+    globalThis.isAdminAuthError = isAdminAuthError;
+
     function renderTableLoadErrorRow(tbodyId, colspan, key, retryFn) {
       const tbody = document.getElementById(tbodyId);
       if (!tbody) return;
       const msg = loadErrors[key] || 'Unknown error';
+      const code = loadErrorCodes[key];
+      if (code === 'NO_ADMIN_AUTH' || code === 'ADMIN_AUTH_REJECTED') {
+        renderAdminAuthErrorRow(tbody, colspan, { message: msg, code }, retryFn);
+        return;
+      }
       tbody.innerHTML = `<tr><td colspan="${colspan}" style="padding:18px 16px;background:rgba(220,53,69,0.06);border-left:3px solid #dc3545;">
         <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:12px;flex-wrap:wrap;">
           <div style="flex:1;min-width:240px;">
@@ -328,6 +405,7 @@
       'commission-payouts': async () => { await loadFounderPayouts(); },
       packages: async () => { await loadAllPackages(); },
       payments: async () => { await loadPayments(); },
+      'driver-payouts': async () => { await loadDriverPayouts(); },
       disputes: async () => { await loadDisputes(); },
       refunds: async () => { await loadRefunds(); },
       'registration-verifications': async () => { await loadRegistrationVerifications(); },
@@ -346,6 +424,7 @@
       'ai-ops': async () => { await initAiOps(); },
       'agent-fleet': async () => { await loadAgentFleetSection(); },
       'sms-log': async () => { await loadSmsLog(1); },
+      'audit-log': async () => { if (typeof globalThis.loadAdminAuditLog === 'function') await globalThis.loadAdminAuditLog(); },
       'saas-subscriptions': async () => { await loadSaasSubscriptions(); },
       'white-label': async () => { await loadWhiteLabelTenants(); },
       'api-usage': async () => { await loadApiUsage(); },
@@ -1333,7 +1412,16 @@
       const { data, error } = await supabaseClient.from('provider_applications').select('*').order('created_at', { ascending: false });
       if (error) {
         console.error('loadApplications failed:', error);
-        setLoadError('applications', error);
+        // Task #355 — Supabase 401/JWT-expired errors tag the load with the
+        // ADMIN_AUTH_REJECTED code so the shared table-row renderer surfaces
+        // the "Sign in again" prompt instead of just "Failed to load".
+        const isAuth = error && (
+          error.status === 401 || error.status === 403 ||
+          /jwt|token|unauthor|expired/i.test(error.message || '')
+        );
+        const wrapped = new Error(error.message || 'Failed to load applications');
+        if (isAuth) wrapped.code = 'ADMIN_AUTH_REJECTED';
+        setLoadError('applications', wrapped);
         applications = [];
         renderApplications();
         document.getElementById('app-count').textContent = '!';
@@ -1495,7 +1583,9 @@
 
     async function loadProviders(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { setLoadError('providers', 'No active admin session — sign in again.'); renderProviders(); return; }
+      // Task #355 — flag this as an auth failure so renderTableLoadErrorRow
+      // surfaces the "Sign in again" prompt instead of a generic Retry.
+      if (!session) { setLoadError('providers', { message: 'No active admin session — sign in again.', code: 'NO_ADMIN_AUTH' }); renderProviders(); return; }
 
       const state = paginationState.providers;
       state.page = page;
@@ -1515,7 +1605,14 @@
         const response = await fetch(`${apiBase}/api/admin/providers?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`); }
+        if (!response.ok) {
+          let e; try { e = await response.json(); } catch { /* Intentionally silent */ }
+          const err = new Error((e && (e.error || e.message)) || `Failed to load providers (${response.status})`);
+          // Task #355 — preserve auth-failure code so renderTableLoadErrorRow
+          // can swap Retry for "Sign in again".
+          if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -1546,8 +1643,13 @@
                 bgc_pending_count: liveMap[p.id].pending_count,
                 bgc_completed_count: liveMap[p.id].completed_count
               }) : p);
+              // Task #373 — render the BGC Mode visibility panel above
+              // the providers table from the same payload.
+              renderBgcModePanel(bgcJson);
+            } else {
+              renderBgcModePanel({ error: `HTTP ${bgcResp.status}` });
             }
-          } catch { /* non-fatal */ }
+          } catch (e) { renderBgcModePanel({ error: e?.message || 'fetch failed' }); }
           renderProviders();
         } else {
           console.error('Failed to load providers:', result.error);
@@ -1605,8 +1707,9 @@
       if (error) { console.error('loadPayments failed:', error); setLoadError('payments', error); payments = []; renderPayments(); return; }
       payments = data || [];
       renderPayments();
-      // Task #246 — load Stripe key expiry pill alongside the payments table.
-      try { await loadStripeKeyExpiry(); } catch (err) { console.error('loadStripeKeyExpiry failed:', err); }
+      // Task #246 / Task #353 — load critical API key expiry tracker
+      // alongside the payments table.
+      try { await loadApiKeyExpiry(); } catch (err) { console.error('loadApiKeyExpiry failed:', err); }
       // Task #139 — Treasurer agent + legacy payment_tracker module both touch payments.
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel('payments-agent-activity', {
@@ -1617,84 +1720,349 @@
       }
     }
 
-    // Task #246 — Stripe secret key expiry pill (in Payments section).
-    async function loadStripeKeyExpiry() {
-      const pill = document.getElementById('stripe-key-expiry-pill');
-      const dateEl = document.getElementById('stripe-key-expiry-date');
-      const input = document.getElementById('stripe-key-expiry-input');
-      if (!pill || !dateEl) return;
+    // Task #246 / Task #353 — Critical API key expiry tracker (multi-key
+    // generalization of the original Stripe-only pill). Renders one row per
+    // tracked secret into #api-key-expiry-rows with a colored status pill,
+    // an inline YYYY-MM-DD input, and an Update button. The same idempotent
+    // alert ladder fires for each one (3-day / 1-day / 0-day email reminders).
+    function apiKeyExpiryPillFor(data) {
+      if (!data.configured) {
+        return { cls: 'status-badge muted', label: 'Not configured' };
+      }
+      const days = data.days_until;
+      if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
+        return { cls: 'status-badge red', label: 'Invalid date' };
+      }
+      if (data.level === 'expired' || days <= 0) {
+        return { cls: 'status-badge red', label: `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}` };
+      }
+      if (data.level === 'critical' || days <= 1) {
+        return { cls: 'status-badge red', label: days === 1 ? 'Expires in 1 day' : `Expires in ${days} days` };
+      }
+      if (data.level === 'warning' || days <= 3) {
+        return { cls: 'status-badge orange', label: `Expires in ${days} days` };
+      }
+      return { cls: 'status-badge approved', label: `Healthy · ${days} days` };
+    }
+
+    function renderApiKeyExpiryRows(keys) {
+      const host = document.getElementById('api-key-expiry-rows');
+      if (!host) return;
+      if (!Array.isArray(keys) || keys.length === 0) {
+        host.innerHTML = '<div style="padding:12px;color:var(--text-muted);font-size:0.9rem;">No tracked keys configured.</div>';
+        return;
+      }
+      host.innerHTML = keys.map(k => {
+        const pill = apiKeyExpiryPillFor(k);
+        const dateStr = k.expiry_date ? escapeHtml(k.expiry_date) : '—';
+        const dateVal = k.expiry_date && /^\d{4}-\d{2}-\d{2}$/.test(k.expiry_date) ? escapeHtml(k.expiry_date) : '';
+        const feature = escapeHtml(k.feature || '');
+        return `
+          <div style="padding:12px 14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;">
+              <div style="min-width:240px;flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+                  <span style="font-weight:600;color:var(--text-primary);">${escapeHtml(k.label)}</span>
+                  <span class="${pill.cls}">${escapeHtml(pill.label)}</span>
+                  <span style="font-size:0.78rem;color:var(--text-muted);">env <code>${escapeHtml(k.env_var)}</code></span>
+                </div>
+                <div style="font-size:0.8rem;color:var(--text-muted);margin-top:4px;">${feature}</div>
+                <div style="font-size:0.78rem;color:var(--text-muted);margin-top:2px;">Expiry: ${dateStr}</div>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+                <input type="date" data-api-key-input="${escapeHtml(k.id)}" class="form-input" style="width:auto;padding:6px 10px;font-size:0.85rem;" value="${dateVal}" />
+                <button class="btn btn-primary btn-sm" onclick="saveApiKeyExpiry('${escapeHtml(k.id)}')">Update</button>
+              </div>
+            </div>
+          </div>`;
+      }).join('');
+    }
+
+    async function loadApiKeyExpiry() {
+      const host = document.getElementById('api-key-expiry-rows');
+      if (!host) return;
       try {
-        const res = await fetch('/api/admin/stripe-key-expiry', { headers: getAdminHeaders() });
-        if (!res.ok) {
-          pill.className = 'status-badge muted';
-          pill.textContent = 'Unavailable';
-          dateEl.textContent = '';
-          return;
-        }
-        const data = await res.json();
-        if (!data.configured) {
-          pill.className = 'status-badge muted';
-          pill.textContent = 'Not configured';
-          dateEl.textContent = 'Set the date your Stripe secret key expires.';
-          return;
-        }
-        const days = data.days_until;
-        if (typeof days !== 'number' || !Number.isFinite(days) || !data.expiry_date) {
-          pill.className = 'status-badge red';
-          pill.textContent = 'Invalid configuration';
-          dateEl.textContent = `Stored value "${data.expiry_date ?? ''}" is not a valid YYYY-MM-DD date. Re-enter below.`;
-          if (input && !input.value && data.expiry_date) input.value = data.expiry_date;
-          return;
-        }
-        let cls = 'status-badge approved'; // green
-        let label = `Healthy · expires in ${days} days`;
-        if (data.level === 'expired' || days <= 0) {
-          cls = 'status-badge red';
-          label = `EXPIRED ${days < 0 ? `${Math.abs(days)}d ago` : 'today'}`;
-        } else if (data.level === 'critical' || days <= 1) {
-          cls = 'status-badge red';
-          label = days === 1 ? 'Expires in 1 day' : `Expires in ${days} days`;
-        } else if (data.level === 'warning' || days <= 3) {
-          cls = 'status-badge orange';
-          label = `Expires in ${days} days`;
-        }
-        pill.className = cls;
-        pill.textContent = label;
-        dateEl.textContent = `Date: ${data.expiry_date}`;
-        if (input && !input.value) input.value = data.expiry_date;
+        // Task #355 — adminFetch surfaces 401/403 with auth codes so the
+        // catch can render the shared "Sign in again" prompt instead of a
+        // dead-end red error string.
+        const data = await adminFetch('/api/admin/api-key-expiry', { headers: getAdminHeaders() });
+        renderApiKeyExpiryRows(data.keys || []);
       } catch (err) {
-        console.error('loadStripeKeyExpiry error:', err);
-        pill.className = 'status-badge muted';
-        pill.textContent = 'Error';
+        console.error('loadApiKeyExpiry error:', err);
+        if (err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED') && typeof globalThis.renderAdminAuthError === 'function') {
+          globalThis.renderAdminAuthError(host, err, loadApiKeyExpiry);
+        } else {
+          host.innerHTML = `<div style="padding:12px;color:var(--accent-red);font-size:0.9rem;">Error loading API key expiry data: ${escapeHtml(err.message || String(err))}</div>`;
+        }
       }
     }
 
-    async function saveStripeKeyExpiry() {
-      const input = document.getElementById('stripe-key-expiry-input');
+    async function saveApiKeyExpiry(keyId) {
+      const input = document.querySelector(`[data-api-key-input="${keyId}"]`);
       const value = (input?.value || '').trim();
       if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
         alert('Enter the expiry date in YYYY-MM-DD format.');
         return;
       }
       try {
-        const res = await fetch('/api/admin/stripe-key-expiry', {
+        const res = await fetch('/api/admin/api-key-expiry', {
           method: 'POST',
           headers: getAdminHeaders(),
-          body: JSON.stringify({ expiry_date: value })
+          body: JSON.stringify({ key_id: keyId, expiry_date: value })
         });
         const data = await res.json();
         if (!res.ok) {
           alert(`Failed to update: ${data.error || res.statusText}`);
           return;
         }
-        await loadStripeKeyExpiry();
-        if (typeof showToast === 'function') showToast('Stripe key expiry updated. Alert state reset.');
+        await loadApiKeyExpiry();
+        if (typeof showToast === 'function') showToast(`Expiry updated for ${data.key?.label || keyId}. Alert state reset.`);
       } catch (err) {
-        console.error('saveStripeKeyExpiry error:', err);
-        alert('Failed to update Stripe key expiry.');
+        console.error('saveApiKeyExpiry error:', err);
+        alert('Failed to update API key expiry.');
       }
     }
-    globalThis.saveStripeKeyExpiry = saveStripeKeyExpiry;
+
+    globalThis.loadApiKeyExpiry = loadApiKeyExpiry;
+    globalThis.saveApiKeyExpiry = saveApiKeyExpiry;
+
+    // ========================================================================
+    // Task #334 — Driver Payouts admin section
+    // ========================================================================
+    let driverPayoutsCache = null;
+
+    function dollars(cents) {
+      const n = Number(cents || 0) / 100;
+      return (n < 0 ? '-$' : '$') + Math.abs(n).toFixed(2);
+    }
+
+    function escapeHtml(s) {
+      return String(s == null ? '' : s).replace(/[&<>"']/g, c =>
+        ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+    }
+
+    async function loadDriverPayouts() {
+      const tbody = document.getElementById('driver-payouts-table');
+      const earningsBody = document.getElementById('driver-payouts-earnings-table');
+      const cashoutsBody = document.getElementById('driver-cashouts-table');
+      if (tbody) tbody.innerHTML = '<tr><td colspan="8" class="empty-state">Loading…</td></tr>';
+      if (cashoutsBody) cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">Loading…</td></tr>';
+      let data;
+      try {
+        // Task #355 — adminFetch routes 401/403 through the shared "Sign in
+        // again" prompt instead of leaving a dead-end "Failed to load: 401"
+        // string in the table.
+        data = await adminFetch('/api/admin/driver-payouts', { headers: getAdminHeaders() });
+      } catch (err) {
+        console.error('loadDriverPayouts error:', err);
+        // Task #355 — single shared "Sign in again" renderer for auth errors
+        // (NO_ADMIN_AUTH / ADMIN_AUTH_REJECTED).
+        if (isAdminAuthError(err)) {
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, loadDriverPayouts);
+          if (cashoutsBody) renderAdminAuthErrorRow(cashoutsBody, 7, err, loadDriverPayouts);
+        } else if (tbody) {
+          tbody.innerHTML = `<tr><td colspan="8" class="empty-state">Failed to load: ${escapeHtml(err.message || String(err))}</td></tr>`;
+        }
+        return;
+      }
+      try {
+        driverPayoutsCache = data;
+
+        const drivers = data.drivers || [];
+        let available = 0, inflight = 0, paid = 0, blocked = 0, failed = 0;
+        drivers.forEach(d => {
+          available += d.available_cents || 0;
+          inflight  += d.in_flight_cents || 0;
+          paid      += (d.paid_cents || 0) + (d.manual_cents || 0);
+          blocked   += d.pending_account_cents || 0;
+          failed    += d.failed_cents || 0;
+        });
+        document.getElementById('driver-payouts-available-total').textContent = dollars(available);
+        document.getElementById('driver-payouts-inflight-total').textContent  = dollars(inflight);
+        document.getElementById('driver-payouts-paid-total').textContent      = dollars(paid);
+        document.getElementById('driver-payouts-failed-total').textContent    = dollars(blocked + failed);
+
+        // Badge in nav: drivers with failed/blocked balance OR cash-outs awaiting attention.
+        const badge = document.getElementById('driver-payouts-badge');
+        const attentionCount = drivers.filter(d => (d.failed_cents + d.pending_account_cents) > 0).length;
+        if (badge) {
+          badge.textContent = attentionCount;
+          badge.style.display = attentionCount > 0 ? 'inline-block' : 'none';
+        }
+
+        if (tbody) {
+          if (drivers.length === 0) {
+            tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No drivers configured</td></tr>';
+          } else {
+            tbody.innerHTML = drivers.map(d => {
+              const drv = d.driver || {};
+              const connectBadge = drv.stripe_connect_account_id
+                ? (drv.stripe_payouts_enabled
+                    ? '<span class="status-badge approved">Payouts ON</span>'
+                    : '<span class="status-badge orange">Onboarding</span>')
+                : '<span class="status-badge red">Not connected</span>';
+              const canCashOut = !!(drv.stripe_connect_account_id && drv.stripe_payouts_enabled) && (d.available_cents || 0) >= 100;
+              return `<tr>
+                <td><strong>${escapeHtml(drv.full_name || '—')}</strong><div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(drv.phone || '')}</div></td>
+                <td>${connectBadge}</td>
+                <td><strong>${dollars(d.available_cents)}</strong></td>
+                <td>${dollars(d.in_flight_cents)}</td>
+                <td>${dollars((d.paid_cents || 0) + (d.manual_cents || 0))}</td>
+                <td>${dollars(d.pending_account_cents)}</td>
+                <td>${dollars(d.failed_cents)}</td>
+                <td>${canCashOut
+                  ? `<button class="btn btn-sm btn-primary" onclick="adminCashoutDriver('${drv.id}','standard')">Cash Out (ACH)</button>
+                     <button class="btn btn-sm" onclick="adminCashoutDriver('${drv.id}','instant')">Instant</button>`
+                  : '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        // Recent cash-outs (driver_cashouts is included in the same payload).
+        const cashouts = data.cashouts || [];
+        if (cashoutsBody) {
+          if (cashouts.length === 0) {
+            cashoutsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No cash-outs yet</td></tr>';
+          } else {
+            const driverNameById = {};
+            drivers.forEach(d => { if (d.driver) driverNameById[d.driver.id] = d.driver.full_name || d.driver.phone || d.driver.id; });
+            cashoutsBody.innerHTML = cashouts.map(c => {
+              const when = c.requested_at ? new Date(c.requested_at).toLocaleString() : '—';
+              const statusClass = ({ paid: 'approved', processing: 'orange', failed: 'red', cancelled: 'muted' })[c.status] || 'muted';
+              return `<tr>
+                <td style="font-size:0.8rem;">${escapeHtml(when)}</td>
+                <td>${escapeHtml(driverNameById[c.driver_id] || (c.driver_id || '').slice(0, 8))}</td>
+                <td><span class="status-badge ${c.method === 'instant' ? 'orange' : 'muted'}">${escapeHtml(c.method)}</span></td>
+                <td>${dollars(c.amount_cents)}</td>
+                <td>${c.fee_cents ? dollars(c.fee_cents) : '—'}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(c.status)}</span>${c.error ? `<div style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(c.error)}</div>` : ''}</td>
+                <td style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(c.stripe_transfer_id || '')}<br/>${escapeHtml(c.stripe_payout_id || '')}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+
+        // Populate adjustment driver dropdown.
+        const sel = document.getElementById('driver-payout-adjust-driver');
+        if (sel) {
+          sel.innerHTML = '<option value="">Select driver…</option>' +
+            drivers.map(d => `<option value="${escapeHtml(d.driver.id)}">${escapeHtml(d.driver.full_name || d.driver.phone || d.driver.id)}</option>`).join('');
+        }
+
+        // Recent earnings table — flatten across drivers, take latest 50.
+        const all = [];
+        drivers.forEach(d => {
+          (d.recent || []).forEach(r => all.push({ ...r, driver_name: d.driver?.full_name || d.driver?.phone || d.driver?.id }));
+        });
+        all.sort((a, b) => new Date(b.recorded_at) - new Date(a.recorded_at));
+        const top = all.slice(0, 50);
+        if (earningsBody) {
+          if (top.length === 0) {
+            earningsBody.innerHTML = '<tr><td colspan="7" class="empty-state">No earnings recorded yet</td></tr>';
+          } else {
+            earningsBody.innerHTML = top.map(r => {
+              const when = r.recorded_at ? new Date(r.recorded_at).toLocaleString() : '—';
+              const statusClass = ({
+                paid: 'approved', pending: 'orange', pending_account: 'red',
+                failed: 'red', manual: 'muted'
+              })[r.payout_status] || 'muted';
+              const canRetry  = r.payout_status === 'failed' || r.payout_status === 'pending_account';
+              const canManual = r.payout_status !== 'paid' && r.payout_status !== 'manual';
+              const actions = [
+                canRetry  ? `<button class="btn btn-sm btn-secondary" onclick="retryDriverPayout('${r.id}')">Retry</button>` : '',
+                canManual ? `<button class="btn btn-sm" onclick="markDriverPayoutPaid('${r.id}')">Mark Paid</button>` : ''
+              ].filter(Boolean).join(' ');
+              return `<tr>
+                <td style="font-size:0.8rem;">${escapeHtml(when)}</td>
+                <td>${escapeHtml(r.driver_name)}</td>
+                <td>${escapeHtml(r.kind)}</td>
+                <td>${dollars(r.amount_cents)}</td>
+                <td><span class="status-badge ${statusClass}">${escapeHtml(r.payout_status)}</span>${r.payout_error ? `<div style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml(r.payout_error)}</div>` : ''}</td>
+                <td style="font-size:0.7rem;color:var(--text-muted);">${escapeHtml((r.job_id || '').slice(0, 8))}</td>
+                <td>${actions || '<span style="color:var(--text-muted);font-size:0.75rem;">—</span>'}</td>
+              </tr>`;
+            }).join('');
+          }
+        }
+      } catch (err) {
+        console.error('loadDriverPayouts error:', err);
+        if (tbody) tbody.innerHTML = `<tr><td colspan="7" class="empty-state">Error: ${escapeHtml(err.message)}</td></tr>`;
+      }
+    }
+
+    async function submitDriverPayoutAdjustment() {
+      const driverId = document.getElementById('driver-payout-adjust-driver').value;
+      const amountStr = document.getElementById('driver-payout-adjust-amount').value;
+      const kind = document.getElementById('driver-payout-adjust-kind').value;
+      const notes = document.getElementById('driver-payout-adjust-notes').value;
+      if (!driverId) { alert('Pick a driver.'); return; }
+      const amountCents = Math.round(parseFloat(amountStr) * 100);
+      if (!Number.isFinite(amountCents) || amountCents === 0) { alert('Enter a nonzero amount.'); return; }
+      try {
+        const res = await fetch('/api/admin/driver-payouts/adjust', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ driver_id: driverId, amount_cents: amountCents, kind, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Failed: ${data.error || res.statusText}`); return; }
+        document.getElementById('driver-payout-adjust-amount').value = '';
+        document.getElementById('driver-payout-adjust-notes').value = '';
+        await loadDriverPayouts();
+      } catch (err) {
+        alert('Adjustment failed: ' + err.message);
+      }
+    }
+
+    async function retryDriverPayout(earningsId) {
+      if (!confirm('Retry Stripe transfer for this earnings row?')) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(earningsId)}/retry`, {
+          method: 'POST', headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Retry failed: ${data.error || res.statusText}`); return; }
+        await loadDriverPayouts();
+      } catch (err) { alert('Retry failed: ' + err.message); }
+    }
+
+    async function markDriverPayoutPaid(earningsId) {
+      const notes = prompt('Notes (e.g. "paid via Zelle ref 123")', 'Marked paid out-of-band');
+      if (notes === null) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(earningsId)}/mark-paid`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ notes })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Failed: ${data.error || res.statusText}`); return; }
+        await loadDriverPayouts();
+      } catch (err) { alert('Failed: ' + err.message); }
+    }
+
+    async function adminCashoutDriver(driverId, method) {
+      const label = method === 'instant' ? 'Instant Payout (1.5% fee)' : 'standard ACH cash-out';
+      if (!confirm(`Trigger ${label} for this driver's full available balance?`)) return;
+      try {
+        const res = await fetch(`/api/admin/driver-payouts/${encodeURIComponent(driverId)}/cashout`, {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ method })
+        });
+        const data = await res.json();
+        if (!res.ok) { alert(`Cash-out failed: ${(data.error && data.error.message) || data.error || res.statusText}`); return; }
+        alert(`Cash-out queued: ${dollars(data.amount_cents)} (${method}${data.fee_cents ? ', fee ' + dollars(data.fee_cents) : ''})`);
+        await loadDriverPayouts();
+      } catch (err) { alert('Cash-out failed: ' + err.message); }
+    }
+
+    globalThis.loadDriverPayouts = loadDriverPayouts;
+    globalThis.submitDriverPayoutAdjustment = submitDriverPayoutAdjustment;
+    globalThis.retryDriverPayout = retryDriverPayout;
+    globalThis.markDriverPayoutPaid = markDriverPayoutPaid;
+    globalThis.adminCashoutDriver = adminCashoutDriver;
 
     async function loadDisputes() {
       // Task #281 — surface load errors instead of silently rendering "No disputes".
@@ -1718,7 +2086,9 @@
 
     async function loadMembers(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) { setLoadError('members', 'No active admin session — sign in again.'); renderMembers(); return; }
+      // Task #355 — auth-coded error so the "Sign in again" prompt appears
+      // instead of a dead-end Retry button.
+      if (!session) { setLoadError('members', { message: 'No active admin session — sign in again.', code: 'NO_ADMIN_AUTH' }); renderMembers(); return; }
 
       const state = paginationState.members;
       state.page = page;
@@ -1737,7 +2107,13 @@
         const response = await fetch(`${apiBase}/api/admin/members?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
-        if (!response.ok) { let e; try { e = await response.json(); } catch { /* Intentionally silent */ } throw new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`); }
+        if (!response.ok) {
+          let e; try { e = await response.json(); } catch { /* Intentionally silent */ }
+          const err = new Error((e && (e.error || e.message)) || `Failed to load members (${response.status})`);
+          // Task #355 — preserve auth code for the "Sign in again" prompt.
+          if (response.status === 401 || response.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
 
         if (result.success) {
@@ -1789,7 +2165,17 @@
 
     async function loadAgreements(page = 1) {
       const { data: { session } } = await supabaseClient.auth.getSession();
-      if (!session) return;
+      // Task #355 — missing/expired admin session surfaces the shared "Sign
+      // in again" prompt instead of silently returning.
+      if (!session) {
+        const tbody = document.getElementById('agreements-tbody');
+        if (tbody) {
+          const err = new Error('No admin session — please sign in again to view agreements.');
+          err.code = 'NO_ADMIN_AUTH';
+          renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
+        }
+        return;
+      }
       
       const state = paginationState.agreements;
       state.page = page;
@@ -1811,6 +2197,12 @@
         const response = await fetch(`${apiBase}/api/admin/agreements?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — 401/403 routes through the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/agreements (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -1825,6 +2217,11 @@
         }
       } catch (err) {
         console.error('Error loading agreements:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('agreements-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
+          return;
+        }
         agreements = [];
         renderAgreements();
       }
@@ -2211,6 +2608,12 @@
         const response = await fetch(`${apiBase}/api/admin/packages?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/packages (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -2226,6 +2629,11 @@
         }
       } catch (err) {
         console.error('Error loading packages:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('all-packages-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAllPackages(page));
+          return;
+        }
         allPackages = [];
         renderAllPackages();
       }
@@ -2729,6 +3137,102 @@
       return `<span style="display:inline-flex;align-items:center;gap:4px;padding:3px 8px;border-radius:100px;font-size:0.72rem;font-weight:600;background:${s.bg};color:${s.color};border:1px solid ${s.border};" ${title}>${s.icon} ${s.label}</span>`;
     }
 
+    // Task #373 — BackgroundChecks.com Mode visibility panel. Renders a
+    // header card with the global BGC_LIVE_MODE flag + platform-fallback
+    // status, and a per-provider table showing each provider's Live/Mock
+    // pill, mode_reason, pending/completed counts, and bgchecks_account_id.
+    // Source data: GET /api/admin/bgc/providers (already fetched by
+    // loadProviders so the same payload is reused — no extra round-trip).
+    function renderBgcModePanel(bgcJson) {
+      const host = document.getElementById('bgc-mode-panel');
+      if (!host) return;
+      if (bgcJson && bgcJson.error) {
+        host.innerHTML = `
+          <div class="card" style="padding:16px 20px;border:1px solid var(--border-subtle);">
+            <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+              <div>
+                <div style="font-weight:600;font-size:0.95rem;">BackgroundChecks.com Mode</div>
+                <div style="font-size:0.8rem;color:var(--accent-red);">Failed to load: ${escapeHtml(String(bgcJson.error))}</div>
+              </div>
+              <button class="btn btn-sm btn-secondary" onclick="loadProviders(paginationState.providers.page||1)">Retry</button>
+            </div>
+          </div>`;
+        return;
+      }
+      const rows = (bgcJson && bgcJson.providers) || [];
+      const liveGlobal = !!(bgcJson && bgcJson.live_mode_global);
+      const hasFallback = !!(bgcJson && bgcJson.platform_fallback);
+      const liveCount = rows.filter(r => r.live_mode).length;
+      const mockCount = rows.length - liveCount;
+
+      const headerPill = (label, color, bg, border) =>
+        `<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:100px;font-size:0.72rem;font-weight:700;background:${bg};color:${color};border:1px solid ${border};">${label}</span>`;
+
+      const globalPill = liveGlobal
+        ? headerPill('BGC_LIVE_MODE ON', 'var(--accent-green)', 'rgba(74,200,140,0.15)', 'rgba(74,200,140,0.3)')
+        : headerPill('BGC_LIVE_MODE OFF', 'var(--text-muted)', 'rgba(100,100,120,0.15)', 'var(--border-subtle)');
+      const fallbackPill = hasFallback
+        ? headerPill('Platform fallback token present', 'var(--accent-blue)', 'rgba(56,189,248,0.12)', 'rgba(56,189,248,0.25)')
+        : headerPill('No platform fallback token', 'var(--accent-orange)', 'rgba(245,158,11,0.12)', 'rgba(245,158,11,0.25)');
+
+      const bodyHtml = rows.length === 0
+        ? `<div class="empty-state" style="padding:18px;">No providers have BGC activity yet.</div>`
+        : `
+          <div style="overflow-x:auto;">
+            <table style="width:100%;">
+              <thead>
+                <tr>
+                  <th style="text-align:left;">Provider</th>
+                  <th style="text-align:left;">Mode</th>
+                  <th style="text-align:left;">Reason</th>
+                  <th style="text-align:right;">Pending</th>
+                  <th style="text-align:right;">Completed</th>
+                  <th style="text-align:left;">BGC account ID</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${rows.map(r => {
+                  const livePill = r.live_mode
+                    ? '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(74,200,140,0.15);color:var(--accent-green);border:1px solid rgba(74,200,140,0.3);">LIVE</span>'
+                    : '<span style="display:inline-flex;align-items:center;padding:2px 8px;border-radius:100px;font-size:0.7rem;font-weight:700;background:rgba(100,100,120,0.15);color:var(--text-muted);border:1px solid var(--border-subtle);">MOCK</span>';
+                  const name = escapeHtml(r.business_name || 'Unnamed');
+                  const email = r.email ? `<div style="font-size:0.78rem;color:var(--text-muted);">${escapeHtml(r.email)}</div>` : '';
+                  const reason = escapeHtml(r.mode_reason || '—');
+                  const acct = r.bgchecks_account_id
+                    ? `<code style="font-size:0.78rem;">${escapeHtml(String(r.bgchecks_account_id))}</code>`
+                    : '<span style="color:var(--text-muted);">—</span>';
+                  return `
+                    <tr>
+                      <td><div><strong>${name}</strong></div>${email}</td>
+                      <td>${livePill}</td>
+                      <td style="font-size:0.82rem;color:var(--text-muted);">${reason}</td>
+                      <td style="text-align:right;">${r.pending_count || 0}</td>
+                      <td style="text-align:right;">${r.completed_count || 0}</td>
+                      <td>${acct}</td>
+                    </tr>`;
+                }).join('')}
+              </tbody>
+            </table>
+          </div>`;
+
+      host.innerHTML = `
+        <div class="card" style="padding:0;overflow:hidden;">
+          <div style="padding:16px 20px;border-bottom:1px solid var(--border-subtle);display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+            <div>
+              <div style="font-weight:600;font-size:0.95rem;">BackgroundChecks.com Mode</div>
+              <div style="font-size:0.8rem;color:var(--text-muted);">Which providers are hitting the real BGC API vs. the mock path.</div>
+            </div>
+            <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
+              ${globalPill}
+              ${fallbackPill}
+              ${headerPill(`${liveCount} live`, 'var(--accent-green)', 'rgba(74,200,140,0.1)', 'rgba(74,200,140,0.25)')}
+              ${headerPill(`${mockCount} mock`, 'var(--text-muted)', 'rgba(100,100,120,0.1)', 'var(--border-subtle)')}
+            </div>
+          </div>
+          ${bodyHtml}
+        </div>`;
+    }
+
     function renderProviders() {
       const tbody = document.getElementById('providers-table');
       // Task #281 — show load error before falling through to "No providers match filters",
@@ -3176,6 +3680,12 @@
         const response = await fetch(`${apiBase}/api/admin/refunds?${params}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
+        if (response.status === 401 || response.status === 403) {
+          const err = new Error(`Admin session rejected on /api/admin/refunds (HTTP ${response.status}). Sign in again.`);
+          err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const result = await response.json();
         
         if (result.success) {
@@ -3191,6 +3701,11 @@
         }
       } catch (err) {
         console.error('Error loading refunds:', err);
+        if (isAdminAuthError(err)) {
+          const tbody = document.getElementById('refunds-tbody');
+          if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadRefunds(page));
+          return;
+        }
         allRefunds = [];
         renderRefunds();
       }
@@ -7698,9 +8213,18 @@
 
     // ========== REGISTRATION VERIFICATIONS ==========
     async function loadRegistrationVerifications(status = null) {
+      const tbody = document.getElementById('registration-verifications-tbody');
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) return;
+        // Task #355 — surface auth state via the shared "Sign in again" prompt.
+        if (!session) {
+          if (tbody) {
+            const err = new Error('No admin session — please sign in again to view verifications.');
+            err.code = 'NO_ADMIN_AUTH';
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadRegistrationVerifications(status));
+          }
+          return;
+        }
 
         let url = '/api/registration/verifications';
         if (status && status !== 'all') {
@@ -7713,6 +8237,12 @@
 
         if (!response.ok) {
           console.error('Failed to load registration verifications');
+          if ((response.status === 401 || response.status === 403) && tbody) {
+            const err = new Error(`Admin session rejected on /api/registration/verifications (HTTP ${response.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadRegistrationVerifications(status));
+            return;
+          }
           registrationVerifications = [];
           renderRegistrationVerifications();
           return;
@@ -9091,11 +9621,9 @@
 
     async function loadChatInsights() {
       try {
-        const resp = await fetch('/api/admin/chat-insights', {
-          headers: getAdminHeaders()
-        });
-        if (!resp.ok) throw new Error('Failed to load chat insights');
-        const data = await resp.json();
+        // Task #355 — adminFetch routes 401/403 through the shared "Sign in
+        // again" prompt instead of failing silently in console.
+        const data = await adminFetch('/api/admin/chat-insights', { headers: getAdminHeaders() });
         
         document.getElementById('chat-stat-total-sessions').textContent = data.totalSessions || 0;
         document.getElementById('chat-stat-total-messages').textContent = data.totalMessages || 0;
@@ -9125,6 +9653,9 @@
         
       } catch (err) {
         console.error('Failed to load chat insights:', err);
+        if (isAdminAuthError(err)) {
+          renderAdminAuthErrorInto(document.getElementById('chat-recent-activity'), err, loadChatInsights);
+        }
       }
     }
 
@@ -9254,16 +9785,21 @@
 
     async function loadTeamMembers() {
       try {
+        // Task #355 — adminFetch surfaces 401/403 as coded auth errors that
+        // we route through the shared "Sign in again" prompt below.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
-        if (!response.ok) throw new Error('Failed to fetch');
-        const data = await response.json();
+        const data = await adminFetch(`${apiBase}/api/admin/team-members`, { headers: getAdminHeaders() });
         teamMembers = Array.isArray(data) ? data : (data.members || []);
         renderTeamMembers();
         loadPendingInvites();
       } catch (err) {
         console.error('Failed to load team members:', err);
-        document.getElementById('team-members-body').innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+        const tbody = document.getElementById('team-members-body');
+        if (isAdminAuthError(err) && tbody) {
+          renderAdminAuthErrorRow(tbody, 6, err, loadTeamMembers);
+        } else if (tbody) {
+          tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load team members</td></tr>';
+        }
       }
     }
 
@@ -9626,10 +10162,9 @@
       const tbody = document.getElementById('pending-invites-body');
       if (!tbody) return;
       try {
+        // Task #355 — adminFetch routes 401/403 through the shared auth row.
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
-        if (!response.ok) throw new Error('Failed to fetch');
-        const invites = await response.json();
+        const invites = await adminFetch(`${apiBase}/api/admin/team-invites`, { headers: getAdminHeaders() });
 
         const roleBadgeClass = {
           super_admin: 'badge-green', crm_manager: 'badge-blue', marketing: 'badge-purple',
@@ -9668,7 +10203,8 @@
         }).join('');
       } catch (err) {
         console.error('Failed to load invites:', err);
-        tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
+        if (isAdminAuthError(err)) renderAdminAuthErrorRow(tbody, 6, err, loadPendingInvites);
+        else tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">Failed to load invites</td></tr>';
       }
     }
 
@@ -10209,7 +10745,15 @@
         ]);
 
         if (!statsRes.ok) {
-          summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          // Task #355 — auth failures route through the shared "Sign in again"
+          // prompt instead of a dead-end status string.
+          if ((statsRes.status === 401 || statsRes.status === 403) && typeof globalThis.renderAdminAuthError === 'function') {
+            const err = new Error(`Admin session rejected on /api/admin/launch-broadcast-stats (HTTP ${statsRes.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            globalThis.renderAdminAuthError(summary, err, loadLaunchBroadcastStats);
+          } else {
+            summary.textContent = `Failed to load stats (HTTP ${statsRes.status}).`;
+          }
           return;
         }
         const stats = await statsRes.json();
@@ -10258,7 +10802,14 @@
         grid.innerHTML = cells.join('') || '<div style="padding:8px;color:var(--text-muted);">No audience data.</div>';
 
         if (!bouncesRes.ok) {
-          list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          // Task #355 — auth-expiry surfaces the shared "Sign in again" prompt.
+          if ((bouncesRes.status === 401 || bouncesRes.status === 403)) {
+            const err = new Error(`Admin session rejected on /api/admin/launch-broadcast/bounces (HTTP ${bouncesRes.status}). Sign in again.`);
+            err.code = 'ADMIN_AUTH_REJECTED';
+            renderAdminAuthErrorInto(list, err, loadLaunchBroadcastStats);
+          } else {
+            list.innerHTML = `<div style="padding:12px;color:var(--text-muted);">Failed to load bounces (HTTP ${bouncesRes.status}).</div>`;
+          }
           return;
         }
         const bounces = await bouncesRes.json();
@@ -11362,7 +11913,7 @@
       // token still authenticates correctly.
       const headers = {};
       if (adminTeamToken) headers['x-admin-token'] = adminTeamToken;
-      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass') || localStorage.getItem('adminPassword');
+      const pw = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       if (pw) headers['x-admin-password'] = pw;
       return headers;
     }
@@ -11495,6 +12046,10 @@
       if (input) { input.value = ''; setTimeout(() => input.focus(), 50); }
     }
     globalThis.openAiOpsReauth = openAiOpsReauth;
+    // Task #355 — generic alias so non-AI-Ops admin loaders (Provider /
+    // Member / BGC / Care Plans / Marketing Hub / SMS log / etc.) can call
+    // the same re-login modal without reading as if they belong to AI Ops.
+    globalThis.openAdminReauth = openAiOpsReauth;
 
     function renderAiOpsAuthError(containerEl, err, retryFn) {
       if (!containerEl) return;
@@ -11519,6 +12074,11 @@
       </div>`;
     }
     globalThis.renderAiOpsAuthError = renderAiOpsAuthError;
+    // Task #355 — generic alias. Non-AI-Ops admin loaders should call
+    // `renderAdminAuthError(container, err, retryFn)` so a 401/403 always
+    // surfaces the same actionable "Sign in again" prompt instead of a
+    // dead-end error string.
+    globalThis.renderAdminAuthError = renderAiOpsAuthError;
 
     // ========== AGENT FLEET (Task #139) ==========
     // Lightweight glue that exposes the agent-fleet output in the main admin
@@ -12065,9 +12625,10 @@
       contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;">Loading…</div>';
       try {
         const qs = status ? `?status=${encodeURIComponent(status)}` : '';
-        const res = await fetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
-        const data = await res.json();
-        if (!res.ok) throw new Error(data.error || 'Failed');
+        // Task #355 — adminFetch surfaces auth failures with NO_ADMIN_AUTH /
+        // ADMIN_AUTH_REJECTED codes so the catch can render the "Sign in
+        // again" prompt instead of a dead-end "Failed" message.
+        const data = await adminFetch(`${apiBase}/api/admin/ai-ops/care-plan-completions${qs}`, { headers: getAiOpsHeaders() });
         const rows = data.completions || [];
         if (!rows.length) {
           contentEl.innerHTML = '<div style="color:var(--text-muted);padding:24px;text-align:center;font-size:0.9rem;">No completions found.</div>';
@@ -12116,7 +12677,13 @@
           <div style="color:var(--text-muted);font-size:0.78rem;padding:8px;">${rows.length} record${rows.length === 1 ? '' : 's'} · Capture/Refund actions hit Stripe live — held funds get released immediately.</div>
         `;
       } catch (err) {
-        contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${err.message}</div>`;
+        // Task #355 — auth failures route to the shared "Sign in again"
+        // prompt; everything else falls back to the inline red error.
+        if (err && (err.code === 'NO_ADMIN_AUTH' || err.code === 'ADMIN_AUTH_REJECTED') && typeof globalThis.renderAdminAuthError === 'function') {
+          globalThis.renderAdminAuthError(contentEl, err, loadCarePlanCompletions);
+        } else {
+          contentEl.innerHTML = `<div style="color:var(--accent-red);padding:16px;font-size:0.85rem;">Error: ${escapeHtml(err && err.message ? err.message : String(err))}</div>`;
+        }
       }
     }
     globalThis.loadCarePlanCompletions = loadCarePlanCompletions;
@@ -12362,7 +12929,7 @@
         if (statusFilter) params.set('status', statusFilter);
         if (typeFilter) params.set('type', typeFilter);
         const data = await safeFetch(`/api/admin/sms-log?${params}`, {
-          headers: { 'x-admin-password': localStorage.getItem('adminPassword') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
+          headers: { 'x-admin-password': localStorage.getItem('mcc_admin_pass') || '', 'x-admin-token': localStorage.getItem('adminTeamToken') || '' }
         });
 
         const { rows = [], total = 0, summary = {} } = data;
@@ -12426,7 +12993,15 @@
         }
       } catch (err) {
         console.error('[SMS_LOG] Load error:', err);
-        if (tbody) tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${err.message}</td></tr>`;
+        // Task #355 — surface auth failures with the shared "Sign in again"
+        // prompt instead of leaving the bare error message in the table.
+        if (tbody) {
+          if (isAdminAuthError(err)) {
+            renderAdminAuthErrorRow(tbody, 7, err, () => loadSmsLog(smsLogPage));
+          } else {
+            tbody.innerHTML = `<tr><td colspan="7" style="text-align:center;color:var(--accent-red);padding:40px;">${escapeHtml(err.message)}</td></tr>`;
+          }
+        }
       }
     }
 
@@ -12438,7 +13013,7 @@
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'x-admin-password': localStorage.getItem('adminPassword') || '',
+            'x-admin-password': localStorage.getItem('mcc_admin_pass') || '',
             'x-admin-token': localStorage.getItem('adminTeamToken') || ''
           },
           body: JSON.stringify({ sids: [sid] })
@@ -12599,7 +13174,9 @@
           </div>
         `;
       } catch (err) {
-        container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
+        // Task #355 — auth-expiry routes to the shared "Sign in again" prompt.
+        if (isAdminAuthError(err)) renderAdminAuthErrorInto(container, err, loadSaasSubscriptions);
+        else container.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Failed to load subscriptions: ${err.message}</div>`;
       }
     }
 
@@ -12620,8 +13197,13 @@
       const headers = token ? { 'x-admin-token': token } : {};
 
       try {
+        // Task #355 — route 401/403 to the shared "Sign in again" prompt.
         const res = await fetch('/api/admin/white-label/tenants', { headers });
-        if (!res.ok) throw new Error('Failed to load tenants');
+        if (!res.ok) {
+          const err = new Error(`Failed to load tenants (HTTP ${res.status})`);
+          if (res.status === 401 || res.status === 403) err.code = 'ADMIN_AUTH_REJECTED';
+          throw err;
+        }
         const { tenants, meta } = await res.json();
 
         const active = tenants.filter(t => t.status === 'active').length;
@@ -12701,7 +13283,10 @@
         // Store for edit lookups
         globalThis._wlTenants = tenants;
       } catch (err) {
-        contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
+        // Task #355 — surface auth-expiry with the shared "Sign in again"
+        // prompt instead of a dead-end error string.
+        if (isAdminAuthError(err)) renderAdminAuthErrorInto(contentEl, err, loadWhiteLabelTenants);
+        else contentEl.innerHTML = `<div style="padding:32px;text-align:center;color:var(--accent-red);">Error: ${err.message}</div>`;
       }
     }
 
@@ -13098,18 +13683,31 @@
     // ========== AI API USAGE DASHBOARD (Task #90) ==========
     let _apiUsageChart = null;
     async function loadApiUsage() {
-      const adminPassword = sessionStorage.getItem('adminPassword');
-      if (!adminPassword) return;
+      // Task #464 — read the canonical admin password key set by the login
+      // flow (mcc_admin_pass, with adminPasswordVerified as in-memory fallback).
+      // The previous read used a sessionStorage key that nothing writes to,
+      // so password-only admins always saw the "session not found" branch
+      // even with a valid session.
+      const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       const keysEl = document.getElementById('api-stat-keys');
       const callsEl = document.getElementById('api-stat-calls');
       const revenueEl = document.getElementById('api-stat-revenue');
       const monthEl = document.getElementById('api-stat-month');
       const tableEl = document.getElementById('api-keys-table');
+      // Task #355 — missing admin session surfaces the shared "Sign in again"
+      // prompt instead of silently returning.
+      if (!adminPassword) {
+        if (tableEl) {
+          const err = new Error('No admin session — please sign in again to view API usage.');
+          err.code = 'NO_ADMIN_AUTH';
+          renderAdminAuthErrorInto(tableEl, err, loadApiUsage);
+        }
+        return;
+      }
       if (callsEl) callsEl.textContent = '…';
       try {
-        const resp = await fetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
-        if (!resp.ok) throw new Error('Failed to load API usage');
-        const data = await resp.json();
+        // Task #355 — adminFetch routes 401/403 to the shared "Sign in again" prompt.
+        const data = await adminFetch('/api/admin/api-usage', { headers: { 'x-admin-password': adminPassword } });
         if (keysEl) keysEl.textContent = data.active_keys ?? '--';
         if (callsEl) callsEl.textContent = (data.total_calls_this_month || 0).toLocaleString();
         if (revenueEl) revenueEl.textContent = '$' + ((data.estimated_revenue_cents || 0) / 100).toFixed(2);
@@ -13171,13 +13769,16 @@
       } catch (err) {
         if (callsEl) callsEl.textContent = 'Error';
         console.error('[Admin] API usage load error:', err.message);
+        // Task #355 — auth-expiry surfaces the shared "Sign in again" prompt.
+        if (isAdminAuthError(err) && tableEl) renderAdminAuthErrorInto(tableEl, err, loadApiUsage);
       }
     }
     globalThis.loadApiUsage = loadApiUsage;
 
     async function adminRevokeApiKey(keyId, btn) {
       if (!keyId || !confirm('Revoke this API key? This cannot be undone.')) return;
-      const adminPassword = sessionStorage.getItem('adminPassword');
+      // Task #464 — canonical admin password key (see loadApiUsage above).
+      const adminPassword = adminPasswordVerified || localStorage.getItem('mcc_admin_pass');
       if (!adminPassword) { alert('Admin session not found. Please refresh.'); return; }
       btn.disabled = true; btn.textContent = 'Revoking…';
       try {
@@ -13321,10 +13922,22 @@
       const banner = el('ms-error-banner');
       // Reset banner on every load
       if (banner) { banner.style.display = 'none'; banner.textContent = ''; }
+      // Read date-range selector (default all-time preserves prior behavior)
+      const rangeSel = el('ms-range-select');
+      const range = (rangeSel && rangeSel.value) || 'all';
+      const RANGE_LABELS = { '7d': 'Last 7 days', '30d': 'Last 30 days', '90d': 'Last 90 days', 'all': 'All time' };
+      // Update headline-card labels so admins can see which window the numbers reflect
+      const totalLabelEl = el('ms-total') && el('ms-total').parentElement && el('ms-total').parentElement.querySelector('.stat-label');
+      if (totalLabelEl) totalLabelEl.textContent = range === 'all' ? 'Total Responses' : `Responses (${RANGE_LABELS[range]})`;
+      // "This Week" is still last 7 days within the active window — clarify when window < 7d or > 7d
+      const weekLabelEl = el('ms-week') && el('ms-week').parentElement && el('ms-week').parentElement.querySelector('.stat-label');
+      if (weekLabelEl) weekLabelEl.textContent = range === '7d' ? 'This Week (full window)' : 'This Week';
       try {
         const headers = getAdminHeaders();
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
-        const res = await fetch(apiBase + '/api/admin/survey-analytics', { headers });
+        // Always include ?range for explicitness and server-side telemetry
+        const url = apiBase + '/api/admin/survey-analytics?range=' + encodeURIComponent(range);
+        const res = await fetch(url, { headers });
         if (!res.ok) {
           let serverMsg = '';
           try { const j = await res.json(); serverMsg = j.error || j.detail || ''; } catch { /* Intentionally silent */ }
@@ -13341,19 +13954,15 @@
         const topSat = Object.entries(data.by_provider_satisfaction || {}).sort((a,b) => b[1]-a[1])[0];
         if (el('ms-top-improvement')) el('ms-top-improvement').textContent = topSat ? (MS_LABELS.provider_satisfaction[topSat[0]] || topSat[0]) : '—';
 
-        // Render every survey dimension. Order matches the visual groups in admin.html
-        // (Discovery & Satisfaction → Service Habits → Spending → Trust → Tracking & Comms → Adoption).
-        // Canvases are named `ms-chart-<key>` so adding a new dimension only requires
-        // appending the key here AND a matching canvas card in admin.html.
-        const CHART_KEYS = [
-          'provider_discovery','provider_satisfaction','top_priority',
-          'service_frequency','service_types','vehicle_count',
-          'annual_spend','pricing_confidence','estimate_surprise','quote_behavior',
-          'provider_honesty','provider_vetting','maintenance_avoidance','dispute_history',
-          'history_tracking','job_status_updates','maintenance_reminders',
-          'competitive_bids','app_usage','payment_comfort','decision_maker','near_term_need'
-        ];
-        for (const key of CHART_KEYS) {
+        // Render every survey dimension. The list of keys is the single source of
+        // truth in www/shared/survey-questions.js (MCCSurvey.KEYS); we iterate it
+        // directly so adding a new question there automatically renders a chart.
+        // Each key needs a matching <canvas id="ms-chart-<key>"> card in admin.html
+        // (the survey-questions-drift smoke test enforces that mapping).
+        const surveyKeys = (globalThis.MCCSurvey && Array.isArray(globalThis.MCCSurvey.KEYS))
+          ? globalThis.MCCSurvey.KEYS
+          : [];
+        for (const key of surveyKeys) {
           buildMsDoughnut('ms-chart-' + key, MS_LABELS[key] || {}, data['by_' + key] || {});
         }
 
@@ -13489,7 +14098,10 @@
       const search  = (document.getElementById('sl-search')?.value || '').trim();
       const filter  = document.getElementById('sl-filter')?.value || 'all';
       const sortDir = surveyLeadsState.sortDir || 'desc';
-      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir });
+      // Thread the active Survey Analytics range so the list reflects the same window
+      // as the charts. Falls back to 'all' when the selector hasn't been rendered yet.
+      const range   = document.getElementById('ms-range-select')?.value || 'all';
+      const params  = new URLSearchParams({ page, limit: surveyLeadsState.limit, search, filter, sort_dir: sortDir, range });
       const tbody   = document.getElementById('sl-table-body');
       if (tbody) tbody.innerHTML = '<tr><td colspan="8" style="text-align:center;padding:24px;color:var(--text-muted);">Loading…</td></tr>';
       try {
@@ -13667,9 +14279,11 @@
       const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
       const headers = getAdminHeaders();
       const pw      = headers['x-admin-password'] || headers['x-admin-token'] || '';
-      const url     = apiBase + '/api/admin/survey-leads/export';
+      // Thread the active Survey Analytics range so the CSV matches the charts/list window.
+      const range   = document.getElementById('ms-range-select')?.value || 'all';
+      const url     = apiBase + '/api/admin/survey-leads/export?range=' + encodeURIComponent(range);
       const a       = document.createElement('a');
-      a.href = url + (pw ? '?_t=' + Date.now() : '');
+      a.href = url + (pw ? '&_t=' + Date.now() : '');
       // Pass password via fetch and redirect to blob URL
       fetch(url, { headers }).then(r => r.blob()).then(blob => {
         const blobUrl = URL.createObjectURL(blob);

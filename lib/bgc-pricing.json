@@ -1,0 +1,4 @@
+{
+  "_comment": "MCC Background Check pricing — THE single source of truth. This is the only file in the repo that holds the literal BGC per-employee price. Both lib/bgc-pricing.js (Node, used by the email send pipeline) and www/bgc-pricing.js (browser, used by marketing/onboarding pages) read from this file: lib/bgc-pricing.js requires it directly, and www/bgc-pricing.js is generated from it by scripts/generate-bgc-pricing.js (rerun on `npm run generate:bgc-pricing`). The drift guard at netlify/functions-tests/bgc-pricing-sync.test.js fails CI if www/bgc-pricing.js disagrees with this file, so a price change really is a one-line edit here followed by `npm run generate:bgc-pricing`.",
+  "display": "$70"
+}

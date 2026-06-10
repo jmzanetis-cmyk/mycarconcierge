@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
@@ -92,7 +92,7 @@
 
     .shop-name {
       font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 500;
       color: var(--accent-gold);
       margin-bottom: 8px;
@@ -126,7 +126,7 @@
 
     .screen-title {
       font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
+      font-size: var(--text-3xl);
       font-weight: 500;
       text-align: center;
       margin-bottom: 12px;
@@ -134,7 +134,7 @@
 
     .screen-subtitle {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       text-align: center;
       margin-bottom: 40px;
     }
@@ -156,7 +156,7 @@
 
     .form-label {
       display: block;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 500;
       margin-bottom: 10px;
       color: var(--text-secondary);
@@ -170,7 +170,7 @@
       border-radius: var(--radius-md);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       transition: all 0.2s ease;
     }
 
@@ -185,7 +185,7 @@
     }
 
     .form-input.large {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       padding: 24px;
       text-align: center;
       letter-spacing: 0.2em;
@@ -207,7 +207,7 @@
 
     .form-hint {
       display: block;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
       margin-top: 8px;
       text-align: center;
@@ -222,7 +222,7 @@
       min-height: 64px;
       padding: 18px 32px;
       font-family: inherit;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       border: none;
       border-radius: var(--radius-lg);
@@ -231,39 +231,39 @@
       touch-action: manipulation;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), #c49a45);
       color: #0a0a0f;
     }
 
-    .btn-primary:hover:not(:disabled) {
+    .btn--primary:hover:not(:disabled) {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(212, 168, 85, 0.35);
     }
 
-    .btn-primary:disabled {
+    .btn--primary:disabled {
       opacity: 0.6;
       cursor: not-allowed;
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 2px solid var(--border-subtle);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       border-color: var(--accent-gold);
     }
 
-    .btn-ghost {
+    .btn--ghost {
       background: transparent;
       color: var(--text-secondary);
       min-height: auto;
       padding: 12px;
     }
 
-    .btn-ghost:hover {
+    .btn--ghost:hover {
       color: var(--text-primary);
     }
 
@@ -278,7 +278,7 @@
 
     .otp-label {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       margin-bottom: 8px;
     }
 
@@ -320,7 +320,7 @@
     }
 
     .vehicle-icon {
-      font-size: 2rem;
+      font-size: var(--text-4xl);
     }
 
     .vehicle-info {
@@ -329,13 +329,13 @@
 
     .vehicle-name {
       font-weight: 600;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       margin-bottom: 4px;
     }
 
     .vehicle-details {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
     }
 
     .vehicle-check {
@@ -370,7 +370,7 @@
 
     .add-vehicle-form .form-input {
       padding: 14px 16px;
-      font-size: 1rem;
+      font-size: var(--text-md);
     }
 
     .vehicle-form-row {
@@ -402,7 +402,7 @@
 
     .queue-position {
       text-align: center;
-      font-size: 1.3rem;
+      font-size: var(--text-xl);
       color: var(--text-secondary);
       margin-bottom: 24px;
     }
@@ -419,11 +419,11 @@
     }
 
     .wait-time-icon {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
     }
 
     .wait-time-text {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--text-primary);
     }
 
@@ -496,7 +496,7 @@
     .restart-link a {
       color: var(--text-muted);
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
     }
 
     .restart-link a:hover {
@@ -513,7 +513,7 @@
       }
       
       .screen-title {
-        font-size: 1.5rem;
+        font-size: var(--text-2xl);
       }
       
       .vehicle-form-row {
@@ -522,7 +522,7 @@
       
       .btn {
         min-height: 56px;
-        font-size: 1rem;
+        font-size: var(--text-md);
       }
     }
   
@@ -538,7 +538,7 @@
 
   <div class="kiosk-container">
     <div class="kiosk-header">
-      <img src="/logo.png" alt="My Car Concierge" class="brand-logo">
+      <img src="logo.png" alt="My Car Concierge" class="brand-logo">
       <div class="shop-name" id="shop-name">Loading...</div>
     </div>
 
@@ -550,7 +550,7 @@
         <p class="screen-subtitle">Tap below to start your check-in</p>
         <div class="screen-content"></div>
         <div class="screen-footer">
-          <button class="btn btn-primary" onclick="startCheckin()">
+          <button class="btn btn--primary" onclick="startCheckin()">
             Begin Check-In
           </button>
         </div>
@@ -566,7 +566,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="phone-next-btn" onclick="submitPhone()" disabled>
+          <button class="btn btn--primary" id="phone-next-btn" onclick="submitPhone()" disabled>
             Next
           </button>
           <div class="restart-link">
@@ -595,7 +595,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="otp-verify-btn" onclick="verifyOtp()" disabled>
+          <button class="btn btn--primary" id="otp-verify-btn" onclick="verifyOtp()" disabled>
             Verify
           </button>
           <div class="restart-link">
@@ -609,7 +609,7 @@
         <p class="screen-subtitle">Choose a vehicle or add a new one</p>
         <div class="screen-content">
           <div class="vehicle-list" id="vehicle-list"></div>
-          <button class="btn btn-secondary" id="add-vehicle-btn" onclick="toggleAddVehicle()">
+          <button class="btn btn--secondary" id="add-vehicle-btn" onclick="toggleAddVehicle()">
             + Add New Vehicle
           </button>
           <div class="add-vehicle-form" id="add-vehicle-form" style="display: none;">
@@ -634,7 +634,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="vehicle-next-btn" onclick="submitVehicle()" disabled>
+          <button class="btn btn--primary" id="vehicle-next-btn" onclick="submitVehicle()" disabled>
             Next
           </button>
           <div class="restart-link">
@@ -667,7 +667,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="service-next-btn" onclick="submitService()" disabled>
+          <button class="btn btn--primary" id="service-next-btn" onclick="submitService()" disabled>
             Next
           </button>
           <div class="restart-link">
@@ -704,7 +704,7 @@
           </div>
         </div>
         <div class="screen-footer">
-          <button class="btn btn-primary" id="complete-btn" onclick="completeCheckin()">
+          <button class="btn btn--primary" id="complete-btn" onclick="completeCheckin()">
             Complete Check-In
           </button>
           <div class="restart-link">
@@ -724,7 +724,7 @@
         </div>
         <p class="screen-subtitle">Please have a seat. We'll call you when it's your turn.</p>
         <div class="screen-footer">
-          <button class="btn btn-secondary" onclick="resetKiosk()">
+          <button class="btn btn--secondary" onclick="resetKiosk()">
             Done
           </button>
         </div>
@@ -733,7 +733,7 @@
   </div>
 
   <script src="check-in.js"></script>
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');

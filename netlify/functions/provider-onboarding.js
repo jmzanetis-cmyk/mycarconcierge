@@ -158,14 +158,22 @@ async function handleDocument(event, supabase, user) {
   if (typeof body.file_url !== 'string' ||
       body.file_url.length === 0 ||
       body.file_url.length > 2000)                     errors.push('file_url (1-2000 chars) required');
-  // The file_url should be a Supabase storage URL inside our project — defend
-  // against the client posting arbitrary external URLs into our docs table.
+  // The file_url should be a Supabase storage URL inside our project, pointing
+  // at the provider-documents bucket under this user's own prefix. Defends
+  // against the client posting arbitrary external URLs — or URLs that target
+  // another bucket / another tenant's prefix on the same Supabase host — into
+  // our docs table.
   if (!errors.length) {
     try {
       const u = new URL(body.file_url);
       const supabaseHost = (() => { try { return new URL(process.env.SUPABASE_URL || '').hostname; } catch { return ''; } })();
       if (supabaseHost && u.hostname !== supabaseHost) {
         errors.push('file_url must be on the configured Supabase storage host');
+      } else {
+        const expectedPrefix = `/storage/v1/object/public/provider-documents/${user.id}/`;
+        if (!u.pathname.startsWith(expectedPrefix) || u.pathname.length <= expectedPrefix.length) {
+          errors.push('file_url must point at the provider-documents bucket under this user\'s own prefix');
+        }
       }
     } catch { errors.push('file_url must be a valid URL'); }
   }
@@ -275,6 +283,17 @@ async function handleReference(event, supabase, user) {
 async function handleFinalize(event, supabase, user) {
   const body = _parseBody(event);
   if (body === null) return jsonResponse(400, { error: 'invalid JSON body' });
+
+  // Guard: if the profile is already a provider, re-finalizing would reset
+  // counters (e.g. free_trial_bids) — reject idempotently instead.
+  const { data: existingProfile } = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', user.id)
+    .single();
+  if (existingProfile?.role === 'provider') {
+    return jsonResponse(409, { error: 'already_provider' });
+  }
 
   const errors = [];
   if (!strLen(body.full_name, 2, 200))      errors.push('full_name (2-200 chars) required');

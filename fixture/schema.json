@@ -1,0 +1,42 @@
+{
+  "profiles": [
+    "id","email","role","full_name","phone","address","city","state","zip_code",
+    "business_name","provider_alias","services_offered","years_experience",
+    "certifications","insurance_info","bid_credits","free_trial_bids",
+    "total_bids_used","total_bids_purchased","stripe_customer_id",
+    "stripe_account_id","sms_notifications","sms_bid_received",
+    "sms_work_completed","sms_new_message","sms_bidding_ending",
+    "is_also_member","is_also_provider","created_at","updated_at",
+    "tos_accepted","tos_accepted_at","is_founding_provider","business_address",
+    "referred_by_code","referred_by_founder_id","background_check_status",
+    "background_check_cleared_at","background_check_id","phone_verified_at",
+    "phone_login_method","is_founding_member","referred_by","suspended",
+    "suspension_reason","qr_code_token","pos_enabled","is_sales_partner",
+    "dealership_name","dealer_license","brands_carried","sales_partner_verified",
+    "sales_settings","emergency_settings","utm_source","utm_medium",
+    "utm_campaign","utm_content","utm_term","referral_source",
+    "two_factor_enabled","two_factor_secret","two_factor_expires_at",
+    "phone_verified","two_factor_verified_at","team_provider_id","sms_consent",
+    "sms_consent_date","account_type","qr_checkin_enabled","suspended_at",
+    "application_status","outreach_lead_id","outreach_source",
+    "outreach_converted_at","directory_opt_in","directory_slug",
+    "auto_bid_enabled","auto_bid_max_distance_miles","auto_bid_service_types",
+    "auto_bid_percent_of_estimate","bgc_total_employees","bgc_compliant_employees",
+    "bgc_compliance_pct","bgc_badge_verified","bgc_last_computed_at","strikes",
+    "sms_opt_out","sms_opt_out_at","member_referral_code","identity_verified",
+    "stripe_identity_session_id","identity_verified_at","bid_credits_unlimited",
+    "booking_guidance","preferred_language"
+  ],
+  "vehicles": [
+    "id","owner_id","year","make","model","trim","color","vin","license_plate",
+    "mileage","notes","created_at","updated_at","health_score","image_url",
+    "nickname","last_service_date","next_service_date","photo_url",
+    "last_oil_change_date","last_oil_change_mileage","last_tire_rotation_date",
+    "last_tire_rotation_mileage","last_brake_service_date",
+    "last_brake_service_mileage","last_transmission_service_date",
+    "last_coolant_flush_date","current_mileage","mileage_updated_at",
+    "fuel_injection_type","identity_verified_at_add","registration_verified",
+    "registration_verification_id","vin_decoded","insurance_verified",
+    "insurance_verification_id","insurance_carrier","insurance_policy_number"
+  ]
+}

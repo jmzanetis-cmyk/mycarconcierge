@@ -271,16 +271,55 @@ Run through every item below before clicking **Submit for Review** in App Store 
 
 ### Review Demo Account
 
-Apple reviewers need a working test account to verify the app. Create a dedicated reviewer account before submission:
+Apple reviewers need working test accounts to verify both the member and provider flows.
+`scripts/seed-app-store-reviewer.js` creates a **single combined account** (`demo@mycarconcierge.com`)
+whose profile has `role='provider'` and `is_also_member=true`. At login, the app shows
+the "Choose Your Portal" screen, letting the reviewer switch between member and provider
+views without signing out.
 
-- [ ] Demo member account created at `https://mycarconcierge.com` with email and password (not SSO)
-- [ ] Account has at least one vehicle added
-- [ ] Account has at least one past or pending service request (so reviewers can see the bid flow)
-- [ ] Demo credentials entered in App Store Connect → App Review Information:
-  - **Username:** `reviewer@mycarconcierge.com` (or your chosen reviewer email)
-  - **Password:** *(set in App Store Connect — do not commit to git)*
+- [ ] Demo account seeded in production Supabase (run `scripts/seed-app-store-reviewer.js`)
+- [ ] App Store Connect → App Review Information → Sign-In Information:
+  - **Email:** `demo@mycarconcierge.com`
+  - **Password:** *(stored in App Store Connect only — set via `REVIEWER_PASSWORD` env var; never commit to git)*
 - [ ] Notes to Apple reviewer filled in — explain any features that require special setup:
-  > "This is an automotive service marketplace. Use the provided demo account to browse service requests, view provider bids, and test the vehicle management features. Payment flows use Stripe; tap 'Pay' and use test card 4242 4242 4242 4242. Push notifications require accepting the prompt on first launch."
+  > "This is an automotive service marketplace. Sign in with the demo account above. After login you will see a 'Choose Your Portal' screen — tap Member Portal to see vehicles, service requests, and incoming bids; tap Provider Portal to browse the job board and submit bids. Payment flows use Stripe test mode; use card 4242 4242 4242 4242, any future expiry, any CVC. Push notifications require accepting the prompt on first launch."
+- [ ] App Privacy section updated to reflect no iOS tracking (see App Store Connect → App Privacy; Guideline 5.1.2 addressed in commit `b4a7b2a`)
+
+#### Running the seed script
+
+```bash
+# Generate a strong password and note it down — you will enter it in App Store Connect
+REVIEWER_PASSWORD=$(openssl rand -base64 16)
+echo "$REVIEWER_PASSWORD"
+
+# Run the seed (safe to re-run; all operations are idempotent)
+SUPABASE_SERVICE_ROLE_KEY=<your-key> REVIEWER_PASSWORD="$REVIEWER_PASSWORD" \
+  node scripts/seed-app-store-reviewer.js
+```
+
+The script creates/updates:
+- `demo@mycarconcierge.com` — **primary App Store Connect credential**; role=provider + is_also_member=true; 2022 Toyota Camry, open care plan, approved provider application, 10 bid credits, $149 incoming bid
+- `reviewer-member@mycarconcierge.com` — backup member account (internal QA only)
+- `reviewer-provider@mycarconcierge.com` — backup provider account (internal QA only)
+
+### App Privacy / ATT declaration (App Store Connect)
+
+After gating Facebook Pixel in iOS builds (Guideline 5.1.2), update the
+App Privacy section in App Store Connect before resubmitting:
+
+1. Go to App Store Connect → Your App → App Privacy
+2. Under "Data Collection" confirm "We do not collect data from this app"
+   OR if the app collects any first-party data (e.g. account email for
+   authentication), set that category to "Data Used to Identify You" and
+   mark it as not used for tracking.
+3. Remove or update any "Tracking" data-type declarations that were
+   previously set (Facebook Pixel events no longer fire on iOS).
+4. **NSUserTrackingUsageDescription is NOT required** — because Path B
+   disables tracking rather than requesting permission, the ATT prompt
+   is never shown and the plist key is not needed.
+5. Re-answer the data use questionnaire and click "Publish".
+
+This is a manual dashboard step; there is no code artifact.
 
 ### Final Review
 

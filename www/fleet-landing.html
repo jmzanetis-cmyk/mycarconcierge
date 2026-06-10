@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" content="Manage your business fleet with My Car Concierge. Vehicle tracking, maintenance scheduling, driver management, and spending analytics — all in one platform." />
   <meta name="theme-color" content="#12161c" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
@@ -41,9 +41,9 @@
     }
     nav img { height: 48px; }
     .nav-links { display: flex; align-items: center; gap: 28px; }
-    .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: 0.92rem; transition: color 0.15s; }
+    .nav-links a { color: var(--text-secondary); text-decoration: none; font-size: var(--text-base); transition: color 0.15s; }
     .nav-links a:hover { color: var(--text-primary); }
-    .btn-nav { background: var(--accent-gold); color: #12161c; padding: 9px 22px; border-radius: var(--radius-md); font-weight: 600; font-size: 0.88rem; text-decoration: none; }
+    .btn-nav { background: var(--accent-gold); color: #12161c; padding: 9px 22px; border-radius: var(--radius-md); font-weight: 600; font-size: var(--text-base); text-decoration: none; }
 
     .hero {
       padding: 160px 40px 100px;
@@ -58,7 +58,7 @@
       color: var(--accent-gold);
       padding: 6px 16px;
       border-radius: 20px;
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       font-weight: 500;
       margin-bottom: 28px;
       letter-spacing: 0.3px;
@@ -72,7 +72,7 @@
     }
     h1 span { color: var(--accent-gold); }
     .hero-sub {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
       line-height: 1.7;
       max-width: 600px;
@@ -82,7 +82,7 @@
     .btn {
       padding: 14px 32px;
       border-radius: var(--radius-md);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 600;
       cursor: pointer;
       border: none;
@@ -90,10 +90,10 @@
       transition: all 0.2s;
       display: inline-flex; align-items: center; gap: 8px;
     }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,162,39,0.35); }
-    .btn-ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
-    .btn-ghost:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 8px 24px rgba(201,162,39,0.35); }
+    .btn--ghost { background: transparent; color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--ghost:hover { border-color: var(--accent-gold); color: var(--accent-gold); }
 
     .stats-strip {
       display: flex;
@@ -105,13 +105,13 @@
       flex-wrap: wrap;
     }
     .stat-item { text-align: center; }
-    .stat-num { font-size: 2rem; font-weight: 700; color: var(--accent-gold); }
-    .stat-lbl { font-size: 0.85rem; color: var(--text-muted); margin-top: 4px; }
+    .stat-num { font-size: var(--text-4xl); font-weight: 700; color: var(--accent-gold); }
+    .stat-lbl { font-size: var(--text-sm); color: var(--text-muted); margin-top: 4px; }
 
     section { padding: 80px 40px; max-width: 1100px; margin: 0 auto; }
 
     .section-label {
-      font-size: 0.78rem; font-weight: 600; letter-spacing: 1.2px;
+      font-size: var(--text-sm); font-weight: 600; letter-spacing: 1.2px;
       text-transform: uppercase; color: var(--accent-gold);
       margin-bottom: 12px;
     }
@@ -122,7 +122,7 @@
       margin-bottom: 16px;
       line-height: 1.2;
     }
-    .section-sub { color: var(--text-secondary); line-height: 1.7; max-width: 560px; font-size: 1rem; }
+    .section-sub { color: var(--text-secondary); line-height: 1.7; max-width: 560px; font-size: var(--text-md); }
 
     .features-grid {
       display: grid;
@@ -146,8 +146,8 @@
       font-size: 22px;
       margin-bottom: 18px;
     }
-    .feature-title { font-weight: 600; font-size: 1.05rem; margin-bottom: 8px; }
-    .feature-desc { color: var(--text-secondary); font-size: 0.9rem; line-height: 1.6; }
+    .feature-title { font-weight: 600; font-size: var(--text-md); margin-bottom: 8px; }
+    .feature-desc { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.6; }
 
     .plans-grid {
       display: grid;
@@ -169,24 +169,24 @@
     .plan-badge {
       position: absolute; top: -12px; left: 50%; transform: translateX(-50%);
       background: var(--accent-gold); color: #12161c;
-      padding: 4px 16px; border-radius: 10px; font-size: 0.78rem; font-weight: 600;
+      padding: 4px 16px; border-radius: 10px; font-size: var(--text-sm); font-weight: 600;
       white-space: nowrap;
     }
-    .plan-name { font-family: 'Playfair Display', serif; font-size: 1.3rem; margin-bottom: 8px; }
+    .plan-name { font-family: 'Playfair Display', serif; font-size: var(--text-xl); margin-bottom: 8px; }
     .plan-price { font-size: 2.4rem; font-weight: 700; margin-bottom: 4px; }
-    .plan-price-note { font-size: 0.82rem; color: var(--text-muted); margin-bottom: 20px; }
+    .plan-price-note { font-size: var(--text-sm); color: var(--text-muted); margin-bottom: 20px; }
     .plan-limits { display: flex; gap: 16px; margin-bottom: 20px; flex-wrap: wrap; }
     .plan-limit-item {
       background: var(--accent-gold-soft);
       border-radius: var(--radius-sm);
       padding: 6px 12px;
-      font-size: 0.82rem; font-weight: 500; color: var(--accent-gold);
+      font-size: var(--text-sm); font-weight: 500; color: var(--accent-gold);
     }
     .plan-features { list-style: none; }
     .plan-features li {
       padding: 8px 0;
       border-bottom: 1px solid var(--border-subtle);
-      font-size: 0.88rem; color: var(--text-secondary);
+      font-size: var(--text-base); color: var(--text-secondary);
       display: flex; align-items: center; gap: 10px;
     }
     .plan-features li:last-child { border-bottom: none; }
@@ -207,11 +207,11 @@
       border-radius: 50%;
       display: flex; align-items: center; justify-content: center;
       font-family: 'Playfair Display', serif;
-      font-size: 1.4rem; font-weight: 600; color: var(--accent-gold);
+      font-size: var(--text-2xl); font-weight: 600; color: var(--accent-gold);
       margin: 0 auto 16px;
     }
     .step-title { font-weight: 600; margin-bottom: 8px; }
-    .step-desc { color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; }
+    .step-desc { color: var(--text-muted); font-size: var(--text-base); line-height: 1.6; }
 
     .cta-section {
       text-align: center;
@@ -232,9 +232,9 @@
     }
     footer img { height: 36px; }
     .footer-links { display: flex; gap: 24px; flex-wrap: wrap; }
-    .footer-links a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+    .footer-links a { color: var(--text-muted); text-decoration: none; font-size: var(--text-sm); }
     .footer-links a:hover { color: var(--accent-gold); }
-    .footer-copy { color: var(--text-muted); font-size: 0.82rem; }
+    .footer-copy { color: var(--text-muted); font-size: var(--text-sm); }
 
     @media (max-width: 768px) {
       nav { padding: 14px 20px; }
@@ -268,7 +268,7 @@
 </head>
 <body>
   <nav>
-    <a href="/"><img src="/logo.png" alt="My Car Concierge"></a>
+    <a href="/"><img src="logo.png" alt="My Car Concierge"></a>
     <div class="nav-links">
       <a href="/index.html">Home</a>
       <a href="/members.html?section=fleet">Dashboard</a>
@@ -286,8 +286,8 @@
       Keep every company vehicle maintained, every driver accountable, and every dollar tracked — without the spreadsheets. My Car Concierge gives your business a command center for the entire fleet.
     </p>
     <div class="hero-actions">
-      <a href="/fleet/signup" class="btn btn-primary">Start Your Free Trial</a>
-      <a href="#plans" class="btn btn-ghost">See Plans & Pricing</a>
+      <a href="/fleet/signup" class="btn btn--primary">Start Your Free Trial</a>
+      <a href="#plans" class="btn btn--ghost">See Plans & Pricing</a>
     </div>
   </div>
 
@@ -391,7 +391,7 @@
     <div class="plans-grid">
       <div class="plan-card">
         <div class="plan-name">Fleet Starter</div>
-        <div class="plan-price">$49<span style="font-size:1rem;font-weight:400;color:var(--text-muted);">/mo</span></div>
+        <div class="plan-price">$49<span style="font-size:var(--text-md);font-weight:400;color:var(--text-muted);">/mo</span></div>
         <div class="plan-price-note">or $399/year — save 32%</div>
         <div class="plan-limits">
           <span class="plan-limit-item">5 Vehicles</span>
@@ -405,14 +405,14 @@
           <li>Spending reports</li>
         </ul>
         <div class="plan-cta">
-          <a href="/fleet/signup" class="btn btn-ghost" style="width:100%;justify-content:center;">Start Free Trial</a>
+          <a href="/fleet/signup" class="btn btn--ghost" style="width:100%;justify-content:center;">Start Free Trial</a>
         </div>
       </div>
 
       <div class="plan-card featured">
         <div class="plan-badge">Most Popular</div>
         <div class="plan-name">Fleet Pro</div>
-        <div class="plan-price">$99<span style="font-size:1rem;font-weight:400;color:var(--text-muted);">/mo</span></div>
+        <div class="plan-price">$99<span style="font-size:var(--text-md);font-weight:400;color:var(--text-muted);">/mo</span></div>
         <div class="plan-price-note">or $899/year — save 24%</div>
         <div class="plan-limits">
           <span class="plan-limit-item">25 Vehicles</span>
@@ -427,13 +427,13 @@
           <li>Custom workflows</li>
         </ul>
         <div class="plan-cta">
-          <a href="/fleet/signup?plan=pro" class="btn btn-primary" style="width:100%;justify-content:center;">Start Free Trial</a>
+          <a href="/fleet/signup?plan=pro" class="btn btn--primary" style="width:100%;justify-content:center;">Start Free Trial</a>
         </div>
       </div>
 
       <div class="plan-card">
         <div class="plan-name">Fleet Business</div>
-        <div class="plan-price">$249<span style="font-size:1rem;font-weight:400;color:var(--text-muted);">/mo</span></div>
+        <div class="plan-price">$249<span style="font-size:var(--text-md);font-weight:400;color:var(--text-muted);">/mo</span></div>
         <div class="plan-price-note">or $2,299/year — save 23%</div>
         <div class="plan-limits">
           <span class="plan-limit-item">Unlimited Vehicles</span>
@@ -448,7 +448,7 @@
           <li>Enterprise billing</li>
         </ul>
         <div class="plan-cta">
-          <a href="mailto:fleet@mycarconcierge.com?subject=Fleet+Business+Inquiry" class="btn btn-ghost" style="width:100%;justify-content:center;">Contact Sales</a>
+          <a href="mailto:fleet@mycarconcierge.com?subject=Fleet+Business+Inquiry" class="btn btn--ghost" style="width:100%;justify-content:center;">Contact Sales</a>
         </div>
       </div>
     </div>
@@ -458,12 +458,12 @@
   <div class="cta-section">
     <div class="section-label" style="text-align:center;">Ready to get organized?</div>
     <h2 class="section-title" style="text-align:center;max-width:600px;margin:0 auto 20px;">Your fleet deserves better than a spreadsheet.</h2>
-    <p style="color:var(--text-secondary);margin-bottom:36px;font-size:1rem;">Set up your fleet dashboard in minutes. No credit card required to explore.</p>
-    <a href="/fleet/signup" class="btn btn-primary" style="font-size:1.05rem;padding:16px 40px;">Start Your Free Trial →</a>
+    <p style="color:var(--text-secondary);margin-bottom:36px;font-size:var(--text-md);">Set up your fleet dashboard in minutes. No credit card required to explore.</p>
+    <a href="/fleet/signup" class="btn btn--primary" style="font-size:var(--text-md);padding:16px 40px;">Start Your Free Trial →</a>
   </div>
 
   <footer>
-    <img src="/logo.png" alt="My Car Concierge">
+    <img src="logo.png" alt="My Car Concierge">
     <div class="footer-links">
       <a href="/index.html">Home</a>
       <a href="/members.html">Dashboard</a>
@@ -474,6 +474,6 @@
     </div>
     <div class="footer-copy">© 2026 My Car Concierge. All rights reserved.</div>
   </footer>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

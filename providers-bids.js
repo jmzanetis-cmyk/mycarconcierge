@@ -57,10 +57,10 @@ async function loadOpenPackages() {
       try {
         const { data: matchedNotifs } = await supabaseClient
           .from('notifications')
-          .select('entity_id')
+          .select('link_id')
           .eq('user_id', currentUser.id)
           .eq('type', 'matched_package');
-        matchedPackageIds = new Set((matchedNotifs || []).map(n => n.entity_id).filter(Boolean));
+        matchedPackageIds = new Set((matchedNotifs || []).map(n => n.link_id).filter(Boolean));
       } catch (e) {
         matchedPackageIds = new Set();
       }

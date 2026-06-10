@@ -4,8 +4,7 @@ const { createSupabaseClient } = require('./outreach-engine-core');
 function verifyResendWebhookSignature(rawBody, headers) {
   const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
   if (!webhookSecret) {
-    console.info('[OutreachEngine] RESEND_WEBHOOK_SECRET not configured; add to Netlify env vars to enable signature verification');
-    return { valid: true, reason: null };
+    return { valid: false, reason: 'RESEND_WEBHOOK_SECRET not configured' };
   }
 
   const svixId = headers['svix-id'];
@@ -72,7 +71,8 @@ exports.handler = async function(event, context) {
 
   const supabase = createSupabaseClient();
   if (!supabase) {
-    return { statusCode: 200, body: 'ok' };
+    console.error('[outreach-resend-webhook] database not configured');
+    return { statusCode: 500, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ error: 'database not configured' }) };
   }
 
   try {

@@ -26,6 +26,8 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
+const { notifySensitiveAuditAction } = require('./_shared/sensitive-audit-alert');
+const utils = require('./utils');
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
@@ -80,15 +82,6 @@ function getSupabase() {
   const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
   if (!url || !key) return null;
   return createClient(url, key, { auth: { persistSession: false } });
-}
-
-function authenticateAdmin(event) {
-  const headers = event.headers || {};
-  const pw = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
-  const tk = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || tk === adminPassword;
 }
 
 function jsonResponse(statusCode, data) {
@@ -228,6 +221,13 @@ async function approveApplication(supabase, body) {
     },
     performed_by: 'admin'
   });
+  // Task #427 — admin notification for sensitive action
+  await notifySensitiveAuditAction({
+    action: 'approve_provider_application',
+    target: app.business_name || app.email || applicationId,
+    performedBy: reviewedBy || 'admin',
+    metadata: { application_id: applicationId, user_id: app.user_id }
+  });
 
   // Task #238 — best-effort applicant notification (email + in-app row).
   // Failures must not roll back the approval; we already have the status
@@ -293,6 +293,14 @@ async function rejectApplicationFn(supabase, body) {
       reviewed_at: reviewedAt
     },
     performed_by: 'admin'
+  });
+  // Task #427 — admin notification for sensitive action
+  await notifySensitiveAuditAction({
+    action: 'reject_provider_application',
+    target: app.business_name || app.email || applicationId,
+    reason,
+    performedBy: reviewedBy || 'admin',
+    metadata: { application_id: applicationId, user_id: app.user_id }
   });
 
   // Task #238 — best-effort applicant notification (email + in-app row).
@@ -403,12 +411,14 @@ async function listOutreachLeads(supabase, body) {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  // TODO: add auth test coverage (test-debt, no existing test to update)
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) {
+    return jsonResponse(401, { error: 'Unauthorized' });
+  }
 
   // Strip both the netlify-functions prefix and the proxy prefix so the same
   // handler works from either entry point.

@@ -171,7 +171,31 @@ exports.handler = async function(event) {
     mocked = true;
     mode = 'mock';
     reportId = 'mock_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
-    console.warn('[BGC initiate] BGC_LIVE_MODE not enabled — using mock report id', reportId);
+    console.error(
+      '[BGC initiate] CRITICAL: BGC_LIVE_MODE is not enabled — background check is MOCKED.' +
+      ' Provider will appear screened but no real check was ordered.' +
+      ' Set BGC_LIVE_MODE=true in Netlify environment variables to activate live checks.'
+    );
+    // Alert admin so the mock-mode gap is surfaced in production logs/email
+    const _adminTo   = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
+    const _resendKey = process.env.RESEND_API_KEY;
+    if (_adminTo && _resendKey) {
+      fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${_resendKey}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          from: process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com',
+          to:   _adminTo,
+          subject: '[MCC] CRITICAL: Background check ordered in MOCK mode',
+          html: `<h2>Background Check Mocked</h2>
+                 <p>A background check initiation was requested but <strong>BGC_LIVE_MODE is not enabled</strong>.</p>
+                 <p>A mock report ID was returned and the provider will appear screened without any real check being ordered.</p>
+                 <p><strong>Action required:</strong> Set <code>BGC_LIVE_MODE=true</code> in Netlify environment variables, then re-initiate this check manually.</p>
+                 <p><strong>Mock report ID:</strong> ${reportId}</p>
+                 <p><strong>Provider ID:</strong> ${employee?.provider_id || 'unknown'}</p>`,
+        }),
+      }).catch(() => {});
+    }
   } else {
     // Live mode: employee email is required because BGC sends the applicant
     // invite to that address (and the widget resolves SSN/DOB intake against

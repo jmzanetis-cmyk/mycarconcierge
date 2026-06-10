@@ -135,10 +135,35 @@ exports.handler = async function(event) {
     console.error('[BGC webhook] DB update failed:', updErr.message);
     return { statusCode: 500, body: JSON.stringify({ error: 'db_update_failed' }) };
   }
+
+  // If no employee_background_checks row matched, try the drivers table.
   if (!rec) {
-    console.warn('[BGC webhook] No record found for report', reportId);
-    // Still 200 so BGC stops retrying; we just don't know about this one.
-    return { statusCode: 200, body: JSON.stringify({ received: true, error: 'unknown_report' }) };
+    const driverBgcStatus = { clear: 'passed', consider: 'consider', pending: 'pending_check', expired: 'failed' }[status] ?? 'failed';
+    const driverUpdate = { bgc_status: driverBgcStatus };
+    if (status !== 'pending') driverUpdate.bgc_checked_at = completedAt;
+
+    const { data: driverRec, error: driverErr } = await supabase
+      .from('drivers')
+      .update(driverUpdate)
+      .eq('bgc_report_id', reportId)
+      .select('profile_id')
+      .maybeSingle();
+
+    if (driverErr) {
+      console.error('[BGC webhook] drivers DB update failed:', driverErr.message);
+      return { statusCode: 500, body: JSON.stringify({ error: 'db_update_failed' }) };
+    }
+    if (!driverRec) {
+      console.warn('[BGC webhook] No record found for report', reportId);
+      return { statusCode: 200, body: JSON.stringify({ received: true, error: 'unknown_report' }) };
+    }
+
+    console.log('[BGC webhook] Driver BGC updated:', driverRec.profile_id, driverBgcStatus);
+    return {
+      statusCode: 200,
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ received: true, status: driverBgcStatus, driver_profile_id: driverRec.profile_id })
+    };
   }
 
   const { error: rpcErr } = await supabase.rpc('calculate_provider_compliance', {

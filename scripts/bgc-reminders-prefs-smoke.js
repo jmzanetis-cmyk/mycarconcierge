@@ -68,6 +68,18 @@ function applyOps(rows, ops) {
       out = out.filter(r => r[op.col] != null && r[op.col] >= op.val);
     } else if (op.kind === 'lt') {
       out = out.filter(r => r[op.col] != null && r[op.col] <  op.val);
+    } else if (op.kind === 'or') {
+      // Task #429 — the shared SMS helper does:
+      //   .or(`phone.eq.${e164},phone.eq.${digits}`).eq('sms_opt_out', true).limit(1)
+      // Parse simple OR expressions of the form `col.eq.val,col.eq.val,…`
+      const clauses = String(op.val).split(',').map(c => c.trim()).filter(Boolean);
+      out = out.filter(r => clauses.some(c => {
+        const m = /^([^.]+)\.eq\.(.+)$/.exec(c);
+        if (!m) return false;
+        return String(r[m[1]]) === String(m[2]);
+      }));
+    } else if (op.kind === 'limit') {
+      out = out.slice(0, op.val);
     }
   }
   return out;
@@ -126,6 +138,8 @@ function makeQuery(name) {
     is(col, val)      { ops.push({ kind: 'is',  col, val }); return builder; },
     gte(col, val)     { ops.push({ kind: 'gte', col, val }); return builder; },
     lt(col, val)      { ops.push({ kind: 'lt',  col, val }); return builder; },
+    or(expr)          { ops.push({ kind: 'or',  val: expr }); return builder; },
+    limit(n)          { ops.push({ kind: 'limit', val: n }); return builder; },
     insert(row)       { pendingInsert = Array.isArray(row) ? row : [row]; return builder; },
     update(patch)     { pendingUpdate = patch; return builder; },
     maybeSingle()     { return Promise.resolve(exec('maybeSingle')); },

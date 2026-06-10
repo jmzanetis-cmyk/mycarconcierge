@@ -1,4 +1,9 @@
 const { createClient } = require('@supabase/supabase-js');
+// Task #254: shared AI Ops helpers (logAiAction, aiOpsSendSMS, callAI,
+// getAiOpsSettings) live in `_shared/ai-ops.js` so the three Netlify Functions
+// that use them stop drifting. esbuild inlines this require into the bundle.
+const { getAiOpsSettings, callAI, logAiAction, aiOpsSendSMS } = require('./_shared/ai-ops');
+const utils = require('./utils');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -21,92 +26,6 @@ function jsonResponse(statusCode, data) {
   };
 }
 
-function authenticateAdmin(event) {
-  // Accept either x-admin-password (single owner session) or x-admin-token
-  // (team-admin session). Mirrors admin-team.js — both headers are validated
-  // against ADMIN_PASSWORD because the team-admin login flow currently mints
-  // a token equal to the admin password.
-  const pw    = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const token = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || token === adminPassword;
-}
-
-async function getAiOpsSettings(supabase) {
-  const threshold = Number.parseFloat(process.env.AI_CONFIDENCE_THRESHOLD || '1.0');
-  const maxRefund = Number.parseFloat(process.env.AI_MAX_AUTO_REFUND || '500');
-  try {
-    const { data: rows } = await supabase.from('ai_ops_settings').select('key,value');
-    if (rows) {
-      const s = {};
-      for (const r of rows) {
-        if (r.key === 'confidence_threshold') s.threshold = Number.parseFloat(r.value);
-        if (r.key === 'max_auto_refund') s.maxRefund = Number.parseFloat(r.value);
-      }
-      return { threshold: s.threshold ?? threshold, maxRefund: s.maxRefund ?? maxRefund };
-    }
-  } catch {}
-  return { threshold, maxRefund };
-}
-
-async function callAI(prompt, maxTokens = 512) {
-  const anthropicKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
-  if (anthropicKey) {
-    try {
-      const r = await fetch('https://api.anthropic.com/v1/messages', {
-        method: 'POST',
-        headers: { 'x-api-key': anthropicKey, 'anthropic-version': '2023-06-01', 'content-type': 'application/json' },
-        body: JSON.stringify({ model: 'claude-sonnet-4-20250514', max_tokens: maxTokens, messages: [{ role: 'user', content: prompt }] })
-      });
-      const data = await r.json();
-      return { text: data.content?.[0]?.text || '' };
-    } catch {}
-  }
-  const geminiKey = process.env.GEMINI_API_KEY;
-  if (geminiKey) {
-    try {
-      const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent?key=${geminiKey}`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-      const data = await r.json();
-      return { text: data.candidates?.[0]?.content?.parts?.[0]?.text || '' };
-    } catch {}
-  }
-  throw new Error('No AI provider available');
-}
-
-async function logAiAction(supabase, { module, actionType, targetId, decision, confidence = 0, autoExecuted = false, escalated = false, outcome = 'pending', errorDetails = null, executionTimeMs = 0 }) {
-  try {
-    await supabase.from('ai_action_log').insert({
-      module, action_type: actionType, target_id: String(targetId || ''), decision,
-      confidence, auto_executed: autoExecuted, escalated, outcome,
-      error_details: errorDetails, execution_time_ms: executionTimeMs,
-      created_at: new Date().toISOString()
-    });
-  } catch {}
-}
-
-async function aiOpsSendSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return { sent: false };
-  try {
-    const clean = toPhone.replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    return r.ok ? { sent: true } : { sent: false };
-  } catch { return { sent: false }; }
-}
 
 // Task #150 Light fix: rewritten against care_plan_completions + care_plans
 // + plan_bids. No Stripe refund (no payment integration in Light) — the AI
@@ -232,10 +151,10 @@ Rules:
   }).eq('id', completionId);
 
   if (memberProfile.phone && result.member_message) {
-    await aiOpsSendSMS(memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`);
+    await aiOpsSendSMS(supabase, memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`, memberProfile.id);
   }
   if (providerProfile.phone && result.provider_message) {
-    await aiOpsSendSMS(providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`);
+    await aiOpsSendSMS(supabase, providerProfile.phone, `My Car Concierge: A dispute involving your job has been reviewed. ${result.provider_message}`, providerProfile.id);
   }
 
   return { success: true, action: result.recommendation, confidence, reasoning: result.reasoning, admin_action_required: result.admin_action_required, auto_executed: true };
@@ -417,7 +336,7 @@ async function runDailyDigest(supabase) {
     smsLines.unshift(`🛑 Engine paused${enginePaused.reason ? ': ' + enginePaused.reason : ''}`);
   }
   if (adminPhone) {
-    const smsResult = await aiOpsSendSMS(adminPhone, smsLines.join('\n'));
+    const smsResult = await aiOpsSendSMS(supabase, adminPhone, smsLines.join('\n'));
     smsSent = smsResult.sent;
     if (smsSent) {
       await supabase.from('ai_daily_digests').update({ sent_sms: true }).eq('date', today);
@@ -439,14 +358,13 @@ exports.handler = async function(event, context) {
     return jsonResponse(204, '');
   }
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
   const supabase = getSupabase();
   if (!supabase) {
     return jsonResponse(500, { error: 'Database not configured' });
   }
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const rawPath = event.path || '';
   const path = rawPath

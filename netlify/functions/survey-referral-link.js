@@ -38,74 +38,6 @@
 
 var utils = require('./utils');
 
-var RATE_LIMIT_MAX = 30;
-var RATE_LIMIT_WINDOW_MS = 60000;
-var EMAIL_RATE_MAX = 30;
-var EMAIL_RATE_WINDOW_MS = 60000;
-var rateBuckets = new Map();
-var emailRateBuckets = new Map();
-
-function getClientIp(event) {
-  var headers = event.headers || {};
-  var fwd = headers['x-forwarded-for'] || headers['X-Forwarded-For'] || '';
-  if (fwd) return String(fwd).split(',')[0].trim();
-  return headers['x-nf-client-connection-ip']
-      || headers['client-ip']
-      || (event.clientContext && event.clientContext.ip)
-      || 'unknown';
-}
-
-function checkRateLimit(prefix, ip) {
-  var now = Date.now();
-  var key = prefix + ':' + ip;
-  var bucket = rateBuckets.get(key);
-  if (!bucket || now - bucket.start > RATE_LIMIT_WINDOW_MS) {
-    rateBuckets.set(key, { start: now, count: 1 });
-    if (rateBuckets.size > 1000) {
-      for (var k of rateBuckets.keys()) {
-        var b = rateBuckets.get(k);
-        if (now - b.start > RATE_LIMIT_WINDOW_MS) rateBuckets.delete(k);
-      }
-    }
-    return { allowed: true };
-  }
-  if (bucket.count >= RATE_LIMIT_MAX) {
-    return { allowed: false, retryAfterMs: RATE_LIMIT_WINDOW_MS - (now - bucket.start) };
-  }
-  bucket.count += 1;
-  return { allowed: true };
-}
-
-function checkEmailRateLimit(emailLower) {
-  var now = Date.now();
-  var bucket = emailRateBuckets.get(emailLower);
-  if (!bucket || now - bucket.start > EMAIL_RATE_WINDOW_MS) {
-    emailRateBuckets.set(emailLower, { start: now, count: 1 });
-    if (emailRateBuckets.size > 1000) {
-      for (var k of emailRateBuckets.keys()) {
-        var b = emailRateBuckets.get(k);
-        if (now - b.start > EMAIL_RATE_WINDOW_MS) emailRateBuckets.delete(k);
-      }
-    }
-    return { allowed: true };
-  }
-  if (bucket.count >= EMAIL_RATE_MAX) {
-    return { allowed: false, retryAfterMs: EMAIL_RATE_WINDOW_MS - (now - bucket.start) };
-  }
-  bucket.count += 1;
-  return { allowed: true };
-}
-
-function rateLimited(rl) {
-  return {
-    statusCode: 429,
-    headers: Object.assign({}, utils.headers, {
-      'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000))
-    }),
-    body: JSON.stringify({ error: 'Too many requests. Please try again shortly.' })
-  };
-}
-
 // Mirrors www/server.js generateReferralCode (~line 10584). Same
 // alphabet (no I, O, 0, 1 — visually unambiguous) and same length
 // so codes issued by either path are indistinguishable downstream.
@@ -122,8 +54,8 @@ exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
   if (event.httpMethod !== 'POST')    return utils.errorResponse(405, 'Method not allowed');
 
-  var rl = checkRateLimit('survey-referral', getClientIp(event));
-  if (!rl.allowed) return rateLimited(rl);
+  var rl = utils.publicRateLimit('survey-referral', utils.getClientIp(event));
+  if (!rl.allowed) return utils.rateLimitedResponse(rl);
 
   var body;
   try { body = JSON.parse(event.body || '{}'); }
@@ -143,8 +75,8 @@ exports.handler = async function (event) {
   if (!emailRegex.test(email)) return utils.errorResponse(400, 'Valid email is required');
 
   var cleanEmail = String(email).trim().toLowerCase();
-  var emailRl = checkEmailRateLimit(cleanEmail);
-  if (!emailRl.allowed) return rateLimited(emailRl);
+  var emailRl = utils.publicRateLimit('survey-referral-email', cleanEmail);
+  if (!emailRl.allowed) return utils.rateLimitedResponse(emailRl);
 
   var supabase = utils.createSupabaseClient();
   if (!supabase) {

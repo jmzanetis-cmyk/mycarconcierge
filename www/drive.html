@@ -1,0 +1,537 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Driver Founder Program — My Car Concierge</title>
+  <meta name="description" content="MCC Driver Founders earn 50% of every bid-credit purchase from the auto-service providers they refer — for life. Join the founding cohort.">
+  <meta property="og:title" content="Earn 50% for life — MCC Driver Founder Program">
+  <meta property="og:description" content="Refer auto-service providers to My Car Concierge. Earn 50% of their bid-credit purchases — every purchase, for life.">
+  <meta property="og:image" content="https://app.mycarconcierge.co/icons/og-image.png">
+  <meta name="twitter:card" content="summary_large_image">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;1,400&family=DM+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <style>
+    :root {
+      --gold: #c9a227;
+      --gold-light: #d9b855;
+      --gold-soft: rgba(201, 162, 39, 0.12);
+      --dark: #12161c;
+      --dark-card: rgba(26, 32, 42, 0.9);
+      --dark-elevated: rgba(36, 44, 56, 0.95);
+      --cream: #f5f5f7;
+      --text-muted: #a0a8b8;
+      --accent-green: #34d399;
+      --border: rgba(160, 168, 184, 0.15);
+    }
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    html { scroll-behavior: smooth; -webkit-text-size-adjust: 100%; }
+    body {
+      font-family: 'DM Sans', sans-serif;
+      background: var(--dark);
+      color: var(--cream);
+      overflow-x: hidden;
+      line-height: 1.6;
+    }
+    /* subtle grain overlay */
+    body::before {
+      content: '';
+      position: fixed; inset: 0;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+      opacity: 0.03; pointer-events: none; z-index: 9999;
+    }
+
+    /* ── nav ── */
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      padding: 14px 20px;
+      display: flex; justify-content: space-between; align-items: center;
+      background: rgba(18,22,28,0.85);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border);
+      z-index: 100;
+    }
+    .hero-brand {
+      width: 280px; height: auto; border-radius: 20px;
+      margin-bottom: 40px; display: block;
+      box-shadow: 0 20px 60px rgba(201, 162, 39, 0.2);
+      animation: fadeInUp 0.6s ease forwards;
+    }
+    @keyframes fadeInUp {
+      from { opacity: 0; transform: translateY(30px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+    @media (max-width: 768px) {
+      .hero-brand { width: 200px; margin-bottom: 30px; }
+    }
+    @media (min-width: 1024px) {
+      .hero-brand { width: 320px; }
+    }
+    .nav-link {
+      font-size: 13px; font-weight: 500; color: var(--text-muted);
+      text-decoration: none; transition: color 0.2s;
+    }
+    .nav-link:hover { color: var(--gold); }
+
+    /* ── hero ── */
+    .hero {
+      min-height: 100vh;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      text-align: center;
+      padding: 100px 20px 60px;
+      background: radial-gradient(ellipse 80% 60% at 50% 0%, rgba(201,162,39,0.1) 0%, transparent 60%);
+    }
+    .eyebrow {
+      display: inline-block;
+      font-size: 11px; font-weight: 700; letter-spacing: 0.15em;
+      text-transform: uppercase; color: var(--gold);
+      background: var(--gold-soft);
+      border: 1px solid rgba(201,162,39,0.25);
+      padding: 5px 14px; border-radius: 20px; margin-bottom: 20px;
+    }
+    .hero h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(36px, 8vw, 64px);
+      font-weight: 500; line-height: 1.1;
+      max-width: 640px; margin-bottom: 20px;
+    }
+    .hero h1 em { font-style: italic; color: var(--gold); }
+    .hero-sub {
+      font-size: clamp(15px, 3vw, 18px);
+      color: var(--text-muted); max-width: 480px; margin-bottom: 36px;
+      line-height: 1.7;
+    }
+    .cta-group {
+      display: flex; flex-direction: column; align-items: center; gap: 12px;
+      width: 100%; max-width: 320px;
+    }
+    .btn-primary {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 16px 28px;
+      background: var(--gold); color: #12161c;
+      font-weight: 700; font-size: 16px; letter-spacing: 0.01em;
+      border: none; border-radius: 12px;
+      text-decoration: none; cursor: pointer;
+      transition: background 0.2s, transform 0.15s;
+      -webkit-tap-highlight-color: transparent;
+    }
+    .btn-primary:active { transform: scale(0.97); }
+    .btn-primary:hover { background: var(--gold-light); }
+    /* .btn-store kept for future re-add — see STORE BUTTONS comment in HTML */
+    .btn-store {
+      display: flex; align-items: center; justify-content: center; gap: 10px;
+      width: 100%; padding: 13px 24px;
+      background: transparent; color: var(--cream);
+      font-weight: 600; font-size: 14px;
+      border: 1px solid var(--border); border-radius: 12px;
+      text-decoration: none; cursor: pointer;
+      transition: border-color 0.2s, background 0.2s;
+    }
+    .btn-store:hover { border-color: var(--gold); background: var(--gold-soft); }
+    .store-label { display: flex; flex-direction: column; text-align: left; }
+    .store-label small { font-size: 10px; font-weight: 400; color: var(--text-muted); line-height: 1.2; }
+    .store-label span { font-size: 14px; font-weight: 700; }
+
+    /* coming-soon member CTA (replaces store buttons while apps are in review) */
+    .member-cta-block {
+      width: 100%; max-width: 480px;
+      padding: 24px 28px;
+      background: var(--dark-card);
+      border: 1px solid rgba(201,162,39,0.25);
+      border-radius: 16px;
+      text-align: left;
+    }
+    .member-cta-block .cta-headline {
+      font-family: 'Playfair Display', serif;
+      font-size: 18px; font-weight: 500;
+      color: var(--gold); margin-bottom: 10px;
+    }
+    .member-cta-block .cta-body {
+      font-size: 14px; color: var(--text-muted);
+      line-height: 1.7; margin-bottom: 20px;
+    }
+    .member-cta-block .btn-primary { width: 100%; }
+
+    .hero-note {
+      font-size: 12px; color: var(--text-muted);
+      margin-top: 16px; max-width: 320px; text-align: center; line-height: 1.6;
+    }
+
+    /* ── stat bar ── */
+    .stat-bar {
+      display: flex; justify-content: center; flex-wrap: wrap; gap: 2px;
+      padding: 24px 20px;
+      border-top: 1px solid var(--border); border-bottom: 1px solid var(--border);
+      background: rgba(26,32,42,0.5);
+    }
+    .stat-item {
+      flex: 1 1 120px; min-width: 120px; max-width: 180px;
+      text-align: center; padding: 16px 12px;
+    }
+    .stat-num { font-size: 28px; font-weight: 700; color: var(--gold); }
+    .stat-label { font-size: 12px; color: var(--text-muted); margin-top: 4px; }
+
+    /* ── sections ── */
+    section { padding: 64px 20px; max-width: 640px; margin: 0 auto; }
+    .section-tag {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.12em;
+      text-transform: uppercase; color: var(--gold); margin-bottom: 12px;
+    }
+    h2 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(24px, 5vw, 36px);
+      font-weight: 500; line-height: 1.2; margin-bottom: 16px;
+    }
+    .section-intro { font-size: 16px; color: var(--text-muted); line-height: 1.7; margin-bottom: 36px; }
+
+    /* marketplace flow */
+    .marketplace-flow {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin-top: 28px;
+    }
+    .mf-card {
+      padding: 20px;
+      background: var(--dark-card);
+      border: 1px solid var(--border); border-radius: 16px;
+    }
+    .mf-icon { font-size: 24px; margin-bottom: 10px; }
+    .mf-card h3 { font-size: 14px; font-weight: 700; margin-bottom: 6px; color: var(--cream); }
+    .mf-card p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+    .mf-card.highlight {
+      border-color: rgba(201,162,39,0.35);
+      background: linear-gradient(135deg, rgba(201,162,39,0.08) 0%, rgba(201,162,39,0.03) 100%);
+    }
+    .mf-card.highlight h3 { color: var(--gold); }
+    @media (max-width: 479px) {
+      .marketplace-flow { grid-template-columns: 1fr; }
+    }
+
+    /* how it works */
+    .steps { display: flex; flex-direction: column; gap: 20px; }
+    .step {
+      display: flex; gap: 16px; align-items: flex-start;
+      padding: 20px; background: var(--dark-card);
+      border: 1px solid var(--border); border-radius: 16px;
+    }
+    .step-num {
+      flex-shrink: 0;
+      width: 36px; height: 36px; border-radius: 50%;
+      background: var(--gold-soft); border: 1px solid rgba(201,162,39,0.35);
+      display: flex; align-items: center; justify-content: center;
+      font-weight: 700; font-size: 14px; color: var(--gold);
+    }
+    .step h3 { font-size: 15px; font-weight: 600; margin-bottom: 4px; }
+    .step p { font-size: 13px; color: var(--text-muted); line-height: 1.6; }
+
+    /* earnings example */
+    .earnings-card {
+      background: linear-gradient(135deg, rgba(201,162,39,0.08) 0%, rgba(201,162,39,0.03) 100%);
+      border: 1px solid rgba(201,162,39,0.25);
+      border-radius: 20px; padding: 28px 24px;
+    }
+    .earnings-row {
+      display: flex; justify-content: space-between; align-items: center;
+      padding: 12px 0; border-bottom: 1px solid var(--border);
+      font-size: 14px;
+    }
+    .earnings-row:last-child { border-bottom: none; font-weight: 700; font-size: 16px; }
+    .earnings-row .label { color: var(--text-muted); }
+    .earnings-row .value { color: var(--cream); font-weight: 600; }
+    .earnings-row.highlight .value { color: var(--gold); font-size: 20px; }
+    .earnings-note { font-size: 12px; color: var(--text-muted); margin-top: 16px; line-height: 1.6; }
+    .passive-income-note {
+      margin-top: 20px; padding: 14px 16px;
+      border-radius: 10px;
+      background: rgba(201,162,39,0.07);
+      border: 1px solid rgba(201,162,39,0.25);
+      font-size: 12px; color: var(--text-muted); line-height: 1.7;
+    }
+    .passive-income-note strong { color: var(--gold); }
+
+    /* FTC disclosure */
+    .disclosure {
+      padding: 20px; border-radius: 12px;
+      background: rgba(160,168,184,0.06);
+      border: 1px solid var(--border);
+      font-size: 12px; color: var(--text-muted); line-height: 1.7;
+    }
+    .disclosure strong { color: var(--cream); }
+
+    /* bottom CTA */
+    .bottom-cta {
+      text-align: center; padding: 64px 20px 80px;
+      max-width: 480px; margin: 0 auto;
+    }
+    .bottom-cta h2 { margin-bottom: 12px; }
+    .bottom-cta p { color: var(--text-muted); font-size: 15px; margin-bottom: 32px; }
+
+    /* terms link */
+    a.terms-link { color: var(--gold); text-decoration: underline; text-underline-offset: 3px; }
+    a.terms-link:hover { color: var(--gold-light); }
+
+    /* footer */
+    footer {
+      padding: 24px 20px; text-align: center;
+      border-top: 1px solid var(--border);
+      font-size: 12px; color: var(--text-muted);
+    }
+
+    @media (min-width: 480px) {
+      .cta-group { flex-direction: row; max-width: 420px; }
+      .btn-primary, .btn-store { width: auto; flex: 1; }
+    }
+  </style>
+</head>
+<body>
+
+<nav>
+  <a href="https://www.mycarconcierge.com" class="nav-link" style="font-size:14px;font-weight:600;color:var(--text-muted);">mycarconcierge.com</a>
+  <a href="/founder-program-terms.html" class="nav-link">Program Terms</a>
+</nav>
+
+<!-- ── HERO ── -->
+<section class="hero" id="hero">
+  <a href="https://www.mycarconcierge.com">
+    <img src="logo.png" alt="My Car Concierge" class="hero-brand">
+  </a>
+  <div class="eyebrow">🚗 Driver Founder Program</div>
+  <h1>Earn <em>50%</em> on every auto pro you refer — for&nbsp;life.</h1>
+  <p class="hero-sub">
+    You drive. You know the auto pros. Refer auto-service providers to
+    My Car Concierge and earn half of every bid-credit purchase
+    they ever make on the platform.
+  </p>
+
+  <!-- STORE BUTTONS: re-add once iOS + Android builds are approved, alongside or replacing this member CTA -->
+  <div class="member-cta-block">
+    <p class="cta-headline">The apps are on the way.</p>
+    <p class="cta-body">While we're building out the network, you can get started right now as a member — and begin referring the auto-service providers you know. Every provider you bring in is one you earn 50% on for life once they're active. Help build the network, and you build your own income with it.</p>
+    <a href="/signup-member.html" id="btn-join-member" class="btn-primary">Join as a Member</a>
+  </div>
+
+  <p class="hero-note" id="already-installed-note" style="display:none;">
+    Already have the app? <a href="#" id="deep-link-open" class="terms-link">Open MCC Driver →</a>
+  </p>
+  <p class="hero-note" id="src-display" style="display:none;"></p>
+</section>
+
+<!-- ── STAT BAR ── -->
+<div class="stat-bar">
+  <div class="stat-item">
+    <div class="stat-num">50%</div>
+    <div class="stat-label">Commission rate</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">∞</div>
+    <div class="stat-label">No expiry</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">7d</div>
+    <div class="stat-label">Maturation hold</div>
+  </div>
+  <div class="stat-item">
+    <div class="stat-num">1st</div>
+    <div class="stat-label">Payout every month</div>
+  </div>
+</div>
+
+<!-- ── HOW MCC WORKS (marketplace mechanics) ── -->
+<section>
+  <div class="section-tag">The Marketplace</div>
+  <h2>How MCC connects vehicle owners with auto pros.</h2>
+  <p class="section-intro">
+    Here's the pitch you can give any provider in under a minute.
+  </p>
+
+  <div class="marketplace-flow">
+    <div class="mf-card">
+      <div class="mf-icon">🚗</div>
+      <h3>Members post service jobs</h3>
+      <p>Vehicle owners submit requests — oil changes, brakes, detailing, repairs, whatever their car needs — and set their budget.</p>
+    </div>
+    <div class="mf-card">
+      <div class="mf-icon">🏆</div>
+      <h3>Providers buy bid credits to compete</h3>
+      <p>Providers — whether a shop, mobile mechanic, or detailer — spend bid credits to submit quotes on those jobs. More credits, more opportunities.</p>
+    </div>
+    <div class="mf-card">
+      <div class="mf-icon">✅</div>
+      <h3>Members pick the best offer</h3>
+      <p>They review bids, choose a provider, and payment is handled securely through the platform — no chasing invoices.</p>
+    </div>
+    <div class="mf-card highlight">
+      <div class="mf-icon">💰</div>
+      <h3>That's where your commission comes from</h3>
+      <p>Every time a provider you referred buys bid credits to compete for jobs, you earn 50% of that purchase — automatically, for life.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ── HOW IT WORKS ── -->
+<section>
+  <div class="section-tag">How it works</div>
+  <h2>Three steps to lifetime income.</h2>
+  <p class="section-intro">
+    You already know providers — dealerships, independent mechanics, mobile
+    techs, detailers. Now every referral pays you — forever.
+  </p>
+
+  <div class="steps">
+    <div class="step">
+      <div class="step-num">1</div>
+      <div>
+        <h3>Apply in the MCC Driver app</h3>
+        <p>Sign up as a driver, then open the Founder tab and submit your one-time application.
+           Takes under two minutes — just your name, location, and a short note about how you plan to refer providers.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">2</div>
+      <div>
+        <h3>Get your referral code &amp; QR</h3>
+        <p>Once approved you'll receive a unique referral code and a downloadable QR code.
+           Share it however you work best — text, DM, printed on a card, a sticker on your dash.</p>
+      </div>
+    </div>
+    <div class="step">
+      <div class="step-num">3</div>
+      <div>
+        <h3>Earn 50% every time they buy bid credits</h3>
+        <p>When a provider you referred buys bid credits to bid on member jobs, you earn 50% of
+           their purchase — every time, for as long as they're on the platform. No cap. No expiration.
+           Once you've made the referral, their ongoing activity generates recurring commissions for
+           you — income that continues without repeat referral work, provided they keep buying credits.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ── COMMISSION MECHANICS ── -->
+<section>
+  <div class="section-tag">Commission mechanics</div>
+  <h2>What "50% for life" actually means.</h2>
+
+  <div class="earnings-card">
+    <div class="earnings-row">
+      <span class="label">Your commission rate</span>
+      <span class="value">50%</span>
+    </div>
+    <div class="earnings-row">
+      <span class="label">Earned when</span>
+      <span class="value" style="text-align:right;max-width:220px;line-height:1.4;">A referred provider buys bid credits</span>
+    </div>
+    <div class="earnings-row">
+      <span class="label">Payout schedule</span>
+      <span class="value">Monthly (1st of month)</span>
+    </div>
+    <div class="earnings-row">
+      <span class="label">Hold period</span>
+      <span class="value">7 days per transaction</span>
+    </div>
+    <div class="earnings-row">
+      <span class="label">Minimum payout</span>
+      <span class="value">$25 (rolls to next cycle)</span>
+    </div>
+    <p class="earnings-note">
+      Commissions are paid via Stripe Connect or PayPal.
+    </p>
+    <div class="passive-income-note">
+      <strong>What you can realistically expect:</strong> Your earnings depend entirely on how many
+      providers you refer and whether they buy bid credits. Individual results vary — there is no
+      guaranteed income. Once a provider you referred is active, their ongoing bid-credit purchases
+      generate recurring commissions for you without additional referral work on your part — a form
+      of passive income contingent on their continued platform activity.
+    </div>
+  </div>
+</section>
+
+<!-- ── DISCLOSURE ── -->
+<section>
+  <div class="disclosure">
+    <strong>Disclosure:</strong> My Car Concierge Driver Founders earn a commission when a
+    provider they referred purchases bid credits on the MCC platform. This is a material
+    financial relationship. When sharing your referral code, you must disclose this relationship
+    clearly — for example: <em>"I earn a commission if you purchase bid credits using my referral
+    code."</em> Full program details and independent-contractor terms are in the
+    <a href="/founder-program-terms.html" class="terms-link">Founder Program Terms</a>.
+  </div>
+</section>
+
+<!-- ── BOTTOM CTA ── -->
+<div class="bottom-cta">
+  <div class="eyebrow" style="margin: 0 auto 20px;">Ready?</div>
+  <h2>Join the founding cohort.</h2>
+  <p>Founding-era commission rates lock in for life. Once the program closes to new entrants, existing founders keep their rates — but no new applications are accepted.</p>
+
+  <div class="cta-group" style="margin: 0 auto;">
+    <a href="/signup-member.html" id="btn-join-member-2" class="btn-primary">
+      Join as a Member
+    </a>
+  </div>
+  <p class="hero-note" style="margin-top: 16px;">
+    <a href="/founder-program-terms.html" class="terms-link">Read the Founder Program Terms →</a>
+  </p>
+</div>
+
+<footer>
+  © <script>document.write(new Date().getFullYear())</script> My Car Concierge, LLC.
+  &nbsp;·&nbsp; <a href="/privacy.html" class="terms-link">Privacy</a>
+  &nbsp;·&nbsp; <a href="/founder-program-terms.html" class="terms-link">Program Terms</a>
+</footer>
+
+<script>
+  // ── Attribution ─────────────────────────────────────────────────────────────
+  // Read ?src= from URL and carry it forward into member signup links +
+  // localStorage. The src value persists in localStorage so the driver app
+  // can read it on first sign-in when launched from this page.
+  // ─────────────────────────────────────────────────────────────────────────
+
+  var params = new URLSearchParams(window.location.search);
+  var src = params.get('src') || '';
+
+  if (src) {
+    try {
+      localStorage.setItem('mcc_driver_src', src);
+      localStorage.setItem('mcc_driver_from_founder', '1');
+    } catch(e) {}
+  }
+
+  // ── Member signup links — carry ?src= through for attribution ──────────────
+  var memberSignupHref = '/signup-member.html' + (src ? '?src=' + encodeURIComponent(src) : '');
+  ['btn-join-member', 'btn-join-member-2'].forEach(function(id) {
+    var el = document.getElementById(id);
+    if (el) el.href = memberSignupHref;
+  });
+
+  // ── Deep link (for users with the app already installed) ────────────────────
+  var deepLinkSrc = src ? '&src=' + encodeURIComponent(src) : '';
+  var deepLinkUrl = 'mccdriver://signin?from_founder=1' + deepLinkSrc;
+
+  var ua = navigator.userAgent || '';
+  var isIOS     = /iPhone|iPad|iPod/i.test(ua);
+  var isAndroid = /Android/i.test(ua);
+
+  var deepLinkEl = document.getElementById('deep-link-open');
+  if (deepLinkEl) deepLinkEl.href = deepLinkUrl;
+  if (isIOS || isAndroid) {
+    var note = document.getElementById('already-installed-note');
+    if (note) note.style.display = '';
+  }
+
+  // Show source attribution hint if src is set
+  if (src) {
+    var srcEl = document.getElementById('src-display');
+    if (srcEl) {
+      srcEl.textContent = 'Referred via: ' + src;
+      srcEl.style.display = '';
+    }
+  }
+</script>
+</body>
+</html>

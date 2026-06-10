@@ -1,0 +1,96 @@
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700&family=Playfair+Display:wght@600;700&display=swap');
+
+.mcc-driver {
+  --mcc-bg: #12161c;
+  --mcc-surface: #1a1f27;
+  --mcc-surface-2: #232934;
+  --mcc-border: #2d3540;
+  --mcc-text: #f4f1ea;
+  --mcc-text-dim: #a8b0bd;
+  --mcc-text-muted: #6b7280;
+  --mcc-gold: #c9a227;
+  --mcc-gold-bright: #e0b840;
+  --mcc-teal: #00b8a9;
+  --mcc-success: #4ade80;
+  --mcc-warning: #f59e0b;
+  --mcc-danger: #ef4444;
+
+  font-family: 'Outfit', system-ui, sans-serif;
+  background: var(--mcc-bg);
+  color: var(--mcc-text);
+  min-height: 100vh;
+  width: 100%;
+  -webkit-font-smoothing: antialiased;
+}
+
+.mcc-driver h1, .mcc-driver h2, .mcc-driver .display {
+  font-family: 'Playfair Display', Georgia, serif;
+  letter-spacing: -0.01em;
+}
+
+.mcc-driver .gold-btn {
+  background: linear-gradient(135deg, #c9a227 0%, #b8942d 50%, #c9a227 100%);
+  color: #12161c;
+  font-weight: 600;
+  border-radius: 12px;
+  border: none;
+  box-shadow: 0 2px 8px rgba(201, 162, 39, 0.25), inset 0 1px 0 rgba(255,255,255,0.2);
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+  cursor: pointer;
+}
+.mcc-driver .gold-btn:hover { transform: translateY(-1px); box-shadow: 0 4px 14px rgba(201, 162, 39, 0.4); }
+.mcc-driver .gold-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+
+.mcc-driver .ghost-btn {
+  background: transparent;
+  color: var(--mcc-text);
+  border: 1px solid var(--mcc-border);
+  border-radius: 12px;
+  font-weight: 500;
+  cursor: pointer;
+}
+
+.mcc-driver .card {
+  background: linear-gradient(180deg, var(--mcc-surface) 0%, var(--mcc-surface-2) 100%);
+  border: 1px solid var(--mcc-border);
+  border-radius: 16px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+.mcc-driver .pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.mcc-driver .input {
+  background: var(--mcc-surface);
+  border: 1px solid var(--mcc-border);
+  border-radius: 12px;
+  color: var(--mcc-text);
+  font-family: inherit;
+  font-size: 16px;
+  padding: 14px 16px;
+  width: 100%;
+  outline: none;
+}
+.mcc-driver .input:focus { border-color: var(--mcc-gold); box-shadow: 0 0 0 3px rgba(201, 162, 39, 0.15); }
+
+.mcc-driver .otp-cell {
+  width: 44px; height: 54px;
+  background: var(--mcc-surface);
+  border: 1px solid var(--mcc-border);
+  border-radius: 10px;
+  text-align: center;
+  font-size: 22px;
+  font-weight: 600;
+  color: var(--mcc-text);
+  font-family: inherit;
+}
+.mcc-driver .otp-cell.filled { border-color: var(--mcc-gold); }

@@ -20,51 +20,13 @@
 //   - On unique-email collision (Postgres 23505), looks up the existing
 //     row and returns { ok:true, id, duplicate:true } instead of 500
 //   - Best-effort in-memory rate limit matching the dev "public" tier
-//     (30 requests / 60 s per IP). Per-instance only — Netlify cold
-//     starts will reset the counter, but it still blunts a single
-//     instance being hammered, which is what the dev limiter does too.
+//     (30 requests / 60 s per IP) via utils.publicRateLimit. Per-instance
+//     only — Netlify cold starts will reset the counter, but it still
+//     blunts a single instance being hammered, which is what the dev
+//     limiter does too.
 
 var utils = require('./utils');
-
-// ---- Best-effort per-instance rate limit ---------------------------
-// Matches www/server.js RATE_LIMIT_TIERS.public { limit:30, windowMs:60000 }.
-var RATE_LIMIT_MAX = 30;
-var RATE_LIMIT_WINDOW_MS = 60000;
-var rateBuckets = new Map();
-
-function getClientIp(event) {
-  var headers = event.headers || {};
-  var fwd = headers['x-forwarded-for'] || headers['X-Forwarded-For'] || '';
-  if (fwd) {
-    return String(fwd).split(',')[0].trim();
-  }
-  return headers['x-nf-client-connection-ip']
-      || headers['client-ip']
-      || event.clientContext && event.clientContext.ip
-      || 'unknown';
-}
-
-function checkRateLimit(ip) {
-  var now = Date.now();
-  var key = 'survey-profile:' + ip;
-  var bucket = rateBuckets.get(key);
-  if (!bucket || now - bucket.start > RATE_LIMIT_WINDOW_MS) {
-    rateBuckets.set(key, { start: now, count: 1 });
-    // Opportunistic cleanup so the Map can't grow unbounded between cold starts.
-    if (rateBuckets.size > 1000) {
-      for (var k of rateBuckets.keys()) {
-        var b = rateBuckets.get(k);
-        if (now - b.start > RATE_LIMIT_WINDOW_MS) rateBuckets.delete(k);
-      }
-    }
-    return { allowed: true };
-  }
-  if (bucket.count >= RATE_LIMIT_MAX) {
-    return { allowed: false, retryAfterMs: RATE_LIMIT_WINDOW_MS - (now - bucket.start) };
-  }
-  bucket.count += 1;
-  return { allowed: true };
-}
+var { sendSms } = require('./_shared/sms');
 
 function trim(value, max) {
   if (value === undefined || value === null) return null;
@@ -84,16 +46,8 @@ exports.handler = async function (event) {
     return utils.errorResponse(405, 'Method not allowed');
   }
 
-  var rl = checkRateLimit(getClientIp(event));
-  if (!rl.allowed) {
-    return {
-      statusCode: 429,
-      headers: Object.assign({}, utils.headers, {
-        'Retry-After': String(Math.ceil(rl.retryAfterMs / 1000))
-      }),
-      body: JSON.stringify({ error: 'Too many requests. Please try again shortly.' })
-    };
-  }
+  var rl = utils.publicRateLimit('survey-profile', utils.getClientIp(event));
+  if (!rl.allowed) return utils.rateLimitedResponse(rl);
 
   var body;
   try {
@@ -127,6 +81,7 @@ exports.handler = async function (event) {
   var phoneTrimmed = body.phone ? trim(body.phone, 30) : null;
   var zipTrimmed = body.zip ? trim(body.zip, 20) : null;
   var survey_response_id = body.survey_response_id || null;
+  var smsOptIn = body.sms_opt_in === true || body.sms_opt_in === 'true';
 
   try {
     // Mirror dev behaviour: if we have the survey_responses row, update
@@ -155,7 +110,8 @@ exports.handler = async function (event) {
       zip: zipTrimmed,
       vehicle_year: body.vehicle_year ? trim(body.vehicle_year, 10) : null,
       vehicle_make: body.vehicle_make ? trim(body.vehicle_make, 60) : null,
-      vehicle_model: body.vehicle_model ? trim(body.vehicle_model, 80) : null
+      vehicle_model: body.vehicle_model ? trim(body.vehicle_model, 80) : null,
+      sms_opt_in: smsOptIn,
     }).select('id').single();
 
     if (insertResult.error) {
@@ -175,6 +131,20 @@ exports.handler = async function (event) {
       console.error('[survey-profile] customer_profiles insert error:',
         insertResult.error.message, insertResult.error.details || '');
       return utils.errorResponse(500, 'Failed to save profile');
+    }
+
+    // Send welcome SMS if the prospect opted in and gave a phone number.
+    // Respects sms_opt_out / TCPA fail-closed via the shared sendSms helper.
+    if (smsOptIn && phoneTrimmed) {
+      sendSms({
+        supabase,
+        toPhone: phoneTrimmed,
+        body: 'Welcome to My Car Concierge! Reply STOP at any time to opt out.',
+      }).then(function(res) {
+        if (!res.sent) console.warn('[survey-profile] welcome SMS skipped:', res.reason);
+      }).catch(function(e) {
+        console.warn('[survey-profile] welcome SMS error:', e.message);
+      });
     }
 
     return utils.successResponse({

@@ -10,10 +10,10 @@
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
@@ -119,7 +119,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -131,7 +131,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -152,7 +152,7 @@
       background: var(--accent-gold-soft);
       border: 1px solid rgba(212, 168, 85, 0.2);
       border-radius: 100px;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--accent-gold);
       margin-bottom: 20px;
     }
@@ -174,7 +174,7 @@
 
     .page-header p {
       color: var(--text-secondary);
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       max-width: 600px;
       margin: 0 auto;
     }
@@ -189,7 +189,7 @@
 
     .tip-section h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 500;
       margin-bottom: 20px;
       display: flex;
@@ -206,14 +206,14 @@
       align-items: center;
       justify-content: center;
       font-family: 'Outfit', sans-serif;
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       color: #12161c;
     }
 
     .tip-section p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       line-height: 1.8;
       margin-bottom: 16px;
     }
@@ -231,7 +231,7 @@
       padding-left: 28px;
       position: relative;
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       border-bottom: 1px solid var(--border-subtle);
     }
 
@@ -259,7 +259,7 @@
 
     .highlight-box h4 {
       color: var(--accent-blue);
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin-bottom: 8px;
     }
@@ -294,7 +294,7 @@
 
     .metric-label {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
     }
 
     .cta-section {
@@ -308,7 +308,7 @@
 
     .cta-section h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       margin-bottom: 12px;
     }
 
@@ -323,7 +323,7 @@
       gap: 10px;
       padding: 14px 28px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -332,13 +332,13 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #a8822e 100%);
       color: #12161c;
       box-shadow: 0 8px 32px rgba(201, 162, 39, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
     }
@@ -347,7 +347,7 @@
       header .container { flex-direction: column; gap: 16px; }
       nav { width: 100%; justify-content: center; }
       .tip-section { padding: 32px 24px; }
-      .tip-section h2 { font-size: 1.3rem; }
+      .tip-section h2 { font-size: var(--text-xl); }
     }
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
@@ -380,13 +380,13 @@
   <header>
     <div class="container">
       <a href="/" class="brand">
-        <img src="/logo.png" alt="My Car Concierge" class="brand-icon" />
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon" />
       </a>
       <nav>
         <a href="/">Home</a>
         <a href="/provider-info.html">For Providers</a>
         <a href="/provider-faq.html">Provider FAQ</a>
-        <a href="/login.html" class="btn-login">Sign In</a>
+        <a href="/login.html" class="btn--primary">Sign In</a>
       </nav>
     </div>
   </header>
@@ -490,12 +490,12 @@
     <div class="cta-section">
       <h2>Ready to start winning?</h2>
       <p>Apply these strategies and watch your business grow.</p>
-      <a href="/signup-provider.html" class="btn btn-primary">Join as a Provider</a>
+      <a href="/signup-provider.html" class="btn btn--primary">Join as a Provider</a>
     </div>
   </main>
 
-  <script src="/footer.js"></script>
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="footer.js"></script>
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');

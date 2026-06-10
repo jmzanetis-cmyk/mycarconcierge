@@ -42,39 +42,17 @@ const THRESHOLDS = [
   { days:  1, type: 'reminder_1',  smsType: 'reminder_1_sms',  severity: 'critical', prefCol: 'bgc_reminder_1',  prefColSms: 'bgc_reminder_1_sms',  defaultOn: false, defaultSms: false }
 ];
 
-// ─── Twilio SMS helper (Task #201) ──────────────────────────────────────────
-// Mirrors the small inline helper used by daily-digest-scheduled.js — kept
-// local so this function stays a single drop-in file. Returns true on a
-// successful Twilio 2xx, false otherwise (so callers can decide whether to
-// write the dedupe row). If TWILIO_* env vars are unset we silently no-op
-// and return false, matching the existing "dry run when creds missing"
-// behaviour for emails.
-async function sendSms(toPhone, body) {
-  const sid   = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from  = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return false;
-  try {
-    const clean = String(toPhone).replaceAll(/\D/g, '');
-    if (clean.length < 10) return false;
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method:  'POST',
-      headers: { Authorization: `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body:    form.toString()
-    });
-    if (!r.ok) {
-      const txt = await r.text().catch(() => '');
-      console.error('[BGC reminders] Twilio non-2xx:', r.status, txt.slice(0, 200));
-      return false;
-    }
-    return true;
-  } catch (e) {
-    console.error('[BGC reminders] Twilio send threw:', e.message);
-    return false;
-  }
+// ─── Twilio SMS helper (Task #201, refactored Task #429) ────────────────────
+// Wraps the shared SMS helper so this function continues to honor
+// profiles.sms_opt_out (TCPA STOP). The shared helper checks the opt-out
+// flag by provider profile id AND by phone number before each send, so
+// an opted-out provider stops receiving reminder texts even if the local
+// dedupe cache would otherwise let one through. Returns true on a
+// successful Twilio 2xx, false otherwise.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
+async function sendSms(supabase, toPhone, body, providerId = null) {
+  const res = await sharedSendSms({ supabase, toPhone, body, userId: providerId });
+  return res.sent === true;
 }
 
 function reminderSmsBody({ employeeName, days, expiresAt, renewUrl }) {
@@ -108,10 +86,10 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
   const dayWord = days === 1 ? 'day' : 'days';
   const subject = `${urgency}Background check for ${employeeName} expires in ${days} ${dayWord}`;
   const intro = days <= 7
-    ? `<strong style="color:#c0392b;">Your team member's background check expires in ${days} ${dayWord}.</strong> Falling out of compliance will remove your MCC Verified badge.`
+    ? `<strong style="color:#c0392b;">Your team member's background check expires in ${days} ${dayWord}.</strong> Renewing immediately keeps your <strong>All Staff Verified ✓</strong> badge visible to members comparing bids.`
     : days <= 14
-      ? `Your team member's background check expires in ${days} ${dayWord}. Renew now to keep your MCC Verified badge.`
-      : `Heads up — a background check on your team will expire in ${days} ${dayWord}.`;
+      ? `Your team member's background check expires in ${days} ${dayWord}. Renew now to keep your <strong>All Staff Verified ✓</strong> badge — members can see this on every bid you submit.`
+      : `Heads up — a background check on your team will expire in ${days} ${dayWord}. Renewing keeps your <strong>All Staff Verified ✓</strong> badge shown to members.`;
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;color:#222;">
       <h2 style="color:#1e3a5f;">Background Check Expiring</h2>
@@ -121,6 +99,9 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
         <tr><td style="padding:6px 12px 6px 0;color:#666;">Employee:</td><td style="padding:6px 0;"><strong>${escapeHtml(employeeName)}</strong></td></tr>
         <tr><td style="padding:6px 12px 6px 0;color:#666;">Expires:</td><td style="padding:6px 0;"><strong>${escapeHtml(fmtDate(expiresAt))}</strong></td></tr>
       </table>
+      <p style="background:#fff8e6;border-left:4px solid #b8942d;padding:10px 14px;margin:16px 0;font-size:0.9rem;">
+        The <strong>All Staff Verified ✓</strong> badge is displayed next to your name on every bid card members see. Providers with this badge stand out and are more likely to be selected.
+      </p>
       <p style="margin:24px 0;">
         <a href="${renewUrl}" style="display:inline-block;background:#b8942d;color:#fff;text-decoration:none;padding:12px 24px;border-radius:8px;font-weight:600;">Renew background check →</a>
       </p>
@@ -131,14 +112,17 @@ function reminderEmail({ providerName, employeeName, days, expiresAt, renewUrl }
 
 function expiredEmail({ providerName, employeeName, expiresAt, renewUrl, badgeLost }) {
   const subject = badgeLost
-    ? `MCC Verified badge removed — ${employeeName}'s background check expired`
+    ? `All Staff Verified badge removed — ${employeeName}'s background check expired`
     : `Background check for ${employeeName} has expired`;
   const lostBadgeBlock = badgeLost
     ? `<p style="background:#fdecea;border-left:4px solid #c0392b;padding:12px 16px;margin:16px 0;">
-         <strong>Your MCC Verified badge has been removed.</strong>
-         Renew this background check to bring your team back above 90% coverage and reinstate the badge.
+         <strong>Your "All Staff Verified ✓" badge has been removed from your bid cards.</strong>
+         Members comparing bids can no longer see this trust signal for your team.
+         Renew this background check to reinstate the badge.
        </p>`
-    : '';
+    : `<p style="background:#fff8e6;border-left:4px solid #b8942d;padding:10px 14px;margin:16px 0;font-size:0.9rem;">
+         Renew promptly to maintain your <strong>All Staff Verified ✓</strong> badge shown to members on every bid.
+       </p>`;
   const html = `
     <div style="font-family:-apple-system,Segoe UI,Roboto,sans-serif;max-width:560px;margin:0 auto;color:#222;">
       <h2 style="color:#c0392b;">Background Check Expired</h2>
@@ -375,7 +359,7 @@ exports.handler = async function() {
           const body = reminderSmsBody({
             employeeName, days: t.days, expiresAt: c.expires_at, renewUrl
           });
-          const okSms = await sendSms(phone, body);
+          const okSms = await sendSms(supabase, phone, body, ctx.prof.id);
           if (okSms) {
             smsSent++;
             await logSent(supabase, c.employee_id, t.smsType, c.id, phone);

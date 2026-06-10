@@ -1,5 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const { Resend } = require('resend');
+// Task #429: shared SMS sender with TCPA STOP / sms_opt_out enforcement.
+const { sendSms: sharedSendSms } = require('./_shared/sms');
 
 let anthropicClient = null;
 let resendClient = null;
@@ -36,7 +38,7 @@ async function callAI(prompt, maxTokens = 4000) {
       aiCircuitBreaker.failures = 0;
       return { text: response.content[0]?.type === 'text' ? response.content[0].text : '', provider: 'anthropic' };
     } catch (err) {
-      const isCreditsOrRate = err.message?.includes('credit balance') || err.message?.includes('rate_limit') || err.status === 429 || err.status === 400;
+      const isCreditsOrRate = err.message?.includes('credit balance') || err.message?.includes('rate_limit') || err.status === 429 || err.status === 400 || err.status === 401;
       if (isCreditsOrRate) {
         console.log('[OutreachEngine] Anthropic unavailable, trying Gemini fallback...');
       } else {
@@ -75,7 +77,7 @@ async function callAI(prompt, maxTokens = 4000) {
   throw new Error('No AI provider available');
 }
 
-const BRAND_INFO = 'Brand: "My Car Concierge" — Your complete auto ownership platform. Tagline: "One app. Every auto need. Zero hassle." IMPORTANT: Always write the full name "My Car Concierge" — never abbreviate. My Car Concierge is in its early startup stage and actively building its founding community. We are looking for founding members and founding providers who want to get in on the ground floor. Founding members and providers get preferred status, early-adopter perks, and the opportunity to shape the platform as it grows. Value proposition: Car owners post what they need and receive competitive bids from vetted, local service providers — no more calling around or overpaying. Providers get a steady stream of pre-qualified customers with secure escrow payments. Key features: competitive bidding from multiple providers, Car Club loyalty rewards (punch cards, exclusive perks), vehicle maintenance tracking, OBD diagnostic scanner, snow removal and property services, merch store, and a referral program with lifetime commissions. No platform fees — providers keep 100% of what they earn. Website: mycarconcierge.com.';
+const BRAND_INFO = 'Brand: "My Car Concierge" — Your complete auto ownership platform. Tagline: "One app. Every auto need. Zero hassle." IMPORTANT: Always write the full name "My Car Concierge" — never abbreviate. My Car Concierge is in its early startup stage and actively building its founding community. We are looking for founding members and founding providers who want to get in on the ground floor. Founding members and providers get preferred status, early-adopter perks, and the opportunity to shape the platform as it grows. Value proposition: Car owners post what they need and receive competitive bids from vetted, local service providers — no more calling around or overpaying. Providers get a steady stream of pre-qualified customers with secure escrow payments. Key features: competitive bidding from multiple providers, Car Club loyalty rewards (punch cards, exclusive perks), vehicle maintenance tracking, OBD diagnostic scanner, snow removal and property services, merch store, and a referral program with 1-year commissions for founders. No platform fees — providers keep 100% of what they earn. Website: mycarconcierge.com.';
 
 const PHYSICAL_ADDRESS = 'My Car Concierge, East Rutherford, NJ 07073';
 const BASE_URL = 'https://mycarconcierge.com';
@@ -1137,36 +1139,24 @@ async function sendMessage(supabase, messageId) {
       error = err.message;
     }
   } else if (msg.channel === 'sms' && lead.phone) {
-    const accountSid = process.env.TWILIO_ACCOUNT_SID;
-    const authToken = process.env.TWILIO_AUTH_TOKEN;
-    const fromPhone = process.env.TWILIO_PHONE_NUMBER;
-
-    if (!accountSid || !authToken || !fromPhone) {
-      return { error: 'SMS service not configured' };
-    }
-
+    // Task #429: route through the shared SMS helper so an outreach lead
+    // whose phone number matches a profiles row with sms_opt_out=true is
+    // skipped. Returns 'sms_opt_out' / 'not_configured' / 'twilio_error:NNN'
+    // / 'invalid_phone' on failure paths, which we map to the existing
+    // error shape so downstream queue-status logic is unchanged.
     const body = bodyBase + SMS_OPT_OUT;
-
-    try {
-      const twilioRes = await fetch(
-        `https://api.twilio.com/2010-04-01/Accounts/${accountSid}/Messages.json`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': 'Basic ' + Buffer.from(`${accountSid}:${authToken}`).toString('base64'),
-            'Content-Type': 'application/x-www-form-urlencoded'
-          },
-          body: new URLSearchParams({ From: fromPhone, To: lead.phone, Body: body })
-        }
-      );
-      const result = await twilioRes.json();
-      if (twilioRes.ok) {
-        externalId = result.sid;
-      } else {
-        error = result.message || 'SMS send failed';
-      }
-    } catch (err) {
-      error = err.message;
+    const res = await sharedSendSms({ supabase, toPhone: lead.phone, body });
+    if (res.sent) {
+      externalId = res.sid;
+    } else if (res.reason === 'not_configured') {
+      return { error: 'SMS service not configured' };
+    } else if (res.reason === 'sms_opt_out') {
+      // Permanent skip — recipient has texted STOP. Mark skipped so the
+      // queue stops looping on this message.
+      await markMessageSkipped(supabase, msg, lead, 'sms_opt_out');
+      return { error: 'Recipient has opted out (STOP)', skipped: true };
+    } else {
+      error = res.reason || 'SMS send failed';
     }
   } else {
     // Permanent: lead has no email for an email-channel message (or no phone
@@ -1307,7 +1297,10 @@ async function runEngineCycle(supabase) {
       results.scored = scored;
     }
 
-    if (state.instantly_auto_sync && process.env.INSTANTLY_API_KEY) {
+    if (state.instantly_auto_sync && process.env.INSTANTLY_API_KEY && !( process.env.INSTANTLY_LIVE === 'true')) {
+      console.log('[OutreachEngine] Instantly batch-sync skipped: INSTANTLY_LIVE env var not set to "true". Set both instantly_auto_sync=true AND INSTANTLY_LIVE=true to enable autonomous enrollment.');
+    }
+    if (state.instantly_auto_sync && process.env.INSTANTLY_API_KEY && process.env.INSTANTLY_LIVE === 'true') {
       try {
         const { data: unsyncedLeads } = await supabase
           .from('outreach_leads')
@@ -1386,7 +1379,14 @@ async function runEngineCycle(supabase) {
       }
 
       const result = await draftMessageWithAI(lead, opp.recommended_channel || 'email', 1);
-      if (!result) break;
+      if (!result) {
+        await supabase.from('outreach_activity_log').insert({
+          lead_id: opp.lead_id,
+          event_type: 'draft_failed',
+          metadata: { channel: opp.recommended_channel || 'email', lead_type: lead.type }
+        }).catch(() => {});
+        continue;
+      }
       {
         const isInvestor = lead.type === 'investor';
         const shouldAutoSend = state.auto_send && !isInvestor;
@@ -1525,23 +1525,13 @@ async function getAiOpsSettings(supabase) {
   return { threshold, maxRefund };
 }
 
-async function sendOutreachSMS(toPhone, body) {
-  const sid = process.env.TWILIO_ACCOUNT_SID;
-  const token = process.env.TWILIO_AUTH_TOKEN;
-  const from = process.env.TWILIO_PHONE_NUMBER;
-  if (!sid || !token || !from || !toPhone) return false;
-  try {
-    const clean = toPhone.replaceAll(/\D/g, '');
-    const to = clean.startsWith('1') ? `+${clean}` : `+1${clean}`;
-    const auth = Buffer.from(`${sid}:${token}`).toString('base64');
-    const form = new URLSearchParams({ To: to, From: from, Body: body });
-    const r = await fetch(`https://api.twilio.com/2010-04-01/Accounts/${sid}/Messages.json`, {
-      method: 'POST',
-      headers: { 'Authorization': `Basic ${auth}`, 'Content-Type': 'application/x-www-form-urlencoded' },
-      body: form.toString()
-    });
-    return r.ok;
-  } catch { return false; }
+// Task #429: shared helper enforces profiles.sms_opt_out (TCPA STOP) by
+// phone lookup before each send, so opted-out leads / admins stop
+// receiving outreach + admin-alert texts even though we don't have a
+// userId for them.
+async function sendOutreachSMS(supabase, toPhone, body) {
+  const res = await sharedSendSms({ supabase, toPhone, body });
+  return res.sent === true;
 }
 
 async function runOutreachAiDecisionLayer(supabase) {
@@ -1587,7 +1577,7 @@ Rules: pipeline_alert if active<3; follow_up_sms if stale>5; re_engagement if in
       const { data: leads } = await leadsQuery;
       let smsSent = 0;
       for (const lead of (leads || [])) {
-        if (lead.phone && await sendOutreachSMS(lead.phone, `${decision.sms_message} Reply STOP to opt out.`)) smsSent++;
+        if (lead.phone && await sendOutreachSMS(supabase, lead.phone, `${decision.sms_message} Reply STOP to opt out.`)) smsSent++;
       }
       executedActions.push(`${action}:sms_sent=${smsSent}`);
     }
@@ -1913,7 +1903,7 @@ async function sendAdminSMS(supabase, message) {
   try {
     const phone = await getAdminNotificationPhone(supabase);
     if (!phone) return false;
-    const ok = await sendOutreachSMS(phone, message);
+    const ok = await sendOutreachSMS(supabase, phone, message);
     if (ok) console.log('[AdminSMS] Notification sent to admin phone');
     else console.warn('[AdminSMS] Failed to send notification (Twilio error)');
     return ok;
@@ -1997,7 +1987,15 @@ async function saveApolloConfig(supabase, updates) {
   }
 }
 
-const APOLLO_LOCK_TTL_MS = 10 * 60 * 1000;
+// Task #444 — raised from the original 10 min to 30 min so the auto-clear
+// path (15 min, with audit row + admin email) becomes the primary recovery
+// mechanism for a wedged Apollo cycle. The TTL reclaim inside
+// tryAcquireApolloLock stays as a silent emergency backstop for the worst
+// case where the scheduled cycle itself stops running for ~30 min. Ordering:
+//   6 min  → real-time stuck-alert email (Task #336)
+//   15 min → auto-clear + audit row + heads-up email (Task #444)
+//   30 min → silent TTL reclaim inside tryAcquireApolloLock (last resort)
+const APOLLO_LOCK_TTL_MS = 30 * 60 * 1000;
 
 async function tryAcquireApolloLock(supabase, { ttlMs = APOLLO_LOCK_TTL_MS } = {}) {
   const now = new Date();
@@ -2069,6 +2067,94 @@ async function releaseApolloLock(supabase, nonce) {
     return false;
   }
 }
+
+// Task #444 — force-release a wedged Apollo lock that has been held past the
+// auto-clear threshold (15 min by default). Uses a compare-and-swap on the
+// wedged lock's running_nonce + running_since so we never clobber a lock that
+// has since been legitimately re-acquired by a different cycle in the gap
+// between the stuck-lock detection read and this write.
+//
+// Two CAS layers:
+//   1. In-memory pre-check after the SELECT — cheap classifier that
+//      distinguishes already_released vs nonce_changed vs running_since_changed
+//      for clear audit-log messaging.
+//   2. Authoritative DB-level CAS — the UPDATE filters on both
+//      `metadata->apollo_config->>running_nonce` AND
+//      `metadata->apollo_config->>running_since` matching the expected
+//      values. PostgREST returns 0 rows when the predicate doesn't match,
+//      which we treat as a `cas_miss` (someone slipped in between our
+//      SELECT and UPDATE).
+//
+// Returns `{ cleared: true }` on success, or `{ cleared: false, reason }`
+// describing why the CAS failed (already_released / nonce_changed /
+// running_since_changed / cas_miss / error).
+async function forceReleaseApolloLock(supabase, { expectedNonce = null, expectedRunningSince = null } = {}) {
+  try {
+    const { data: row } = await supabase.from('engine_state').select('metadata').eq('id', 1).single();
+    const meta = row?.metadata || {};
+    const cfg = meta.apollo_config || {};
+
+    if (!cfg.running_since && !cfg.running_nonce) {
+      return { cleared: false, reason: 'already_released' };
+    }
+    // In-memory fast-path classification (race-prone if treated as
+    // authoritative — the DB-level CAS below is what actually guarantees
+    // safety; these just give us a clearer reason string for the audit
+    // row when the value hasn't changed since the SELECT).
+    if (expectedNonce && cfg.running_nonce && cfg.running_nonce !== expectedNonce) {
+      return { cleared: false, reason: 'nonce_changed' };
+    }
+    if (expectedRunningSince && cfg.running_since && cfg.running_since !== expectedRunningSince) {
+      return { cleared: false, reason: 'running_since_changed' };
+    }
+
+    const newCfg = { ...cfg };
+    delete newCfg.running_since;
+    delete newCfg.running_nonce;
+
+    // Authoritative atomic CAS: the UPDATE filters on the wedged lock's
+    // nonce + running_since via JSONB-path predicates so PostgreSQL itself
+    // enforces "only clear if these fields are still what we saw". If a
+    // fresh owner slipped in between SELECT and UPDATE, the predicate
+    // doesn't match, 0 rows are updated, and we treat it as a CAS miss
+    // (the fresh owner's lock stays intact).
+    let updateQuery = supabase
+      .from('engine_state')
+      .update({ metadata: { ...meta, apollo_config: newCfg } })
+      .eq('id', 1);
+    if (expectedNonce) {
+      updateQuery = updateQuery.eq('metadata->apollo_config->>running_nonce', expectedNonce);
+    }
+    if (expectedRunningSince) {
+      updateQuery = updateQuery.eq('metadata->apollo_config->>running_since', expectedRunningSince);
+    }
+    const { data: updatedRows, error: updateErr } = await updateQuery.select('id');
+    if (updateErr) {
+      console.error('[Apollo] Force-release UPDATE error:', updateErr.message);
+      return { cleared: false, reason: 'error', error: updateErr.message };
+    }
+    if (!updatedRows || updatedRows.length === 0) {
+      // Race: lock changed between our SELECT and UPDATE. The fresh
+      // owner's lock is safe (we didn't write anything) — skip this run.
+      console.warn('[Apollo] Force-release CAS miss — fresh owner slipped in between read and write');
+      return { cleared: false, reason: 'cas_miss' };
+    }
+    return { cleared: true };
+  } catch (err) {
+    console.error('[Apollo] Force-release error:', err.message);
+    return { cleared: false, reason: 'error', error: err.message };
+  }
+}
+
+// Task #444 — if the wedged lock has been held this long, force-release it
+// on the next scheduled cycle instead of just alerting. Set above the 6-min
+// stuck-alert threshold (so admins get one heads-up email before any
+// self-healing kicks in) and BELOW APOLLO_LOCK_TTL_MS (30 min) so the
+// auto-clear branch is the primary recovery mechanism — the TTL reclaim in
+// tryAcquireApolloLock is the silent emergency fallback if auto-clear
+// itself fails for some reason (e.g. CAS miss because a fresh cycle slipped
+// in between read and write).
+const APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS = 15 * 60 * 1000;
 
 async function draftWefunderBlastEmail(lead) {
   const firstName = lead.name?.split(' ')[0] || 'there';
@@ -2214,6 +2300,124 @@ function classifyApolloError({ status, body, networkError } = {}) {
   return 'unknown_error';
 }
 
+// Task #336 — real-time admin alert for stuck Apollo cycles. Rate-limited
+// to one email per 30 minutes via ai_action_log (module='apollo_stuck_alert',
+// outcome='sent') so a wedged lock doesn't spam admins on every scheduled
+// run. The daily digest still includes the stuck-lock banner as a backup;
+// this just surfaces the signal within minutes instead of up to 24h later.
+const APOLLO_STUCK_ALERT_COOLDOWN_MS = 30 * 60 * 1000;
+
+async function maybeSendApolloStuckAlert(supabase, ctx) {
+  // Rate-limit query: Supabase returns { data, error } without throwing on
+  // most DB errors, so we must check `error` explicitly (try/catch alone
+  // would silently disable the cooldown if Postgres rejected the query).
+  try {
+    const sinceIso = new Date(Date.now() - APOLLO_STUCK_ALERT_COOLDOWN_MS).toISOString();
+    const { data: recent, error: rlErr } = await supabase
+      .from('ai_action_log')
+      .select('id')
+      .eq('module', 'apollo_stuck_alert')
+      .eq('action_type', 'stuck_lock')
+      .eq('outcome', 'sent')
+      .gte('created_at', sinceIso)
+      .limit(1);
+    if (rlErr) {
+      console.warn('[Apollo] Stuck-alert rate-limit query returned error (continuing to send):', rlErr.message);
+    } else if (recent && recent.length > 0) {
+      return { sent: false, reason: 'rate_limited' };
+    }
+  } catch (qErr) {
+    console.warn('[Apollo] Stuck-alert rate-limit check threw (continuing to send):', qErr.message);
+  }
+
+  const adminEmail = process.env.ADMIN_EMAIL || process.env.MCC_FROM_EMAIL;
+  const fromEmail = process.env.MCC_FROM_EMAIL || 'no-reply@mycarconcierge.com';
+  const resend = getResend();
+
+  let outcome = 'sent';
+  let errorMessage = null;
+  if (!resend) { outcome = 'failed'; errorMessage = 'no_resend_key'; }
+  else if (!adminEmail) { outcome = 'failed'; errorMessage = 'no_admin_email'; }
+  else {
+    try {
+      // Task #444 — surface whether this cycle auto-cleared the wedged lock
+      // (heldMs >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS) or just detected it.
+      // The subject + banner change so admins can tell at a glance whether
+      // they still need to intervene manually.
+      const autoCleared = ctx.autoCleared === true;
+      const subject = autoCleared
+        ? `✅ Apollo lock auto-cleared after ~${ctx.heldMinutes}m (cycle resuming)`
+        : `🚨 Apollo discovery cycle stuck (~${ctx.heldMinutes}m)`;
+      const bannerColor = autoCleared ? '#22c55e' : '#ef4444';
+      const headline = autoCleared
+        ? 'Apollo cycle lock was auto-cleared'
+        : 'Apollo discovery cycle appears stuck';
+      const summary = autoCleared
+        ? `The Apollo cycle lock had been held for ~${ctx.heldMinutes} minutes (auto-clear threshold: 15 min). A previous run likely crashed without releasing it, so this scheduled cycle force-released the wedged lock and is proceeding with discovery. No manual action is required — this email is a heads-up only.`
+        : `The Apollo cycle lock has been held for ~${ctx.heldMinutes} minutes (alert threshold: 6 min, auto-clear threshold: 15 min). A previous run likely crashed without releasing the lock, so every scheduled discovery cycle is being skipped until the lock is cleared or auto-clears.`;
+      const footer = autoCleared
+        ? 'The prior nonce + running_since are recorded in <code>outreach_activity_log</code> (<code>apollo_lock_auto_cleared</code>) and <code>ai_action_log</code> for audit. Further alerts are suppressed for 30 minutes.'
+        : 'To clear sooner: open admin → Outreach Engine → "Clear Apollo lock", or wait — the next scheduled cycle after 15 minutes will auto-clear the wedged lock. Further alerts are suppressed for 30 minutes.';
+      const html = `<!DOCTYPE html><html><body style="font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',sans-serif;background:#0f1117;color:#e2e8f0;margin:0;padding:24px;">
+  <div style="max-width:560px;margin:0 auto;background:#1e293b;border-left:4px solid ${bannerColor};border-radius:8px;padding:24px;">
+    <div style="font-size:18px;font-weight:700;color:#f1f5f9;margin-bottom:12px;">${headline}</div>
+    <div style="font-size:14px;line-height:1.6;color:#cbd5e1;margin-bottom:16px;">${summary}</div>
+    <div style="background:#0f1117;border-radius:6px;padding:14px 16px;font-size:13px;color:#94a3b8;margin-bottom:16px;">
+      <div>Lock reason: <strong style="color:#f1f5f9;">${ctx.lockReason || 'unknown'}</strong></div>
+      <div>Running since: <strong style="color:#f1f5f9;">${ctx.runningSince || 'unknown'}</strong></div>
+      <div>Held: <strong style="color:#f1f5f9;">~${ctx.heldMinutes} min</strong></div>
+      ${ctx.runningNonce ? `<div>Nonce: <code>${ctx.runningNonce}</code></div>` : ''}
+      <div>Auto-cleared this cycle: <strong style="color:#f1f5f9;">${autoCleared ? 'yes' : 'no'}</strong></div>
+    </div>
+    <div style="font-size:13px;line-height:1.6;color:#94a3b8;">${footer}</div>
+    <div style="margin-top:20px;text-align:center;">
+      <a href="https://mycarconcierge.com/admin.html#outreach" style="display:inline-block;background:linear-gradient(135deg,#c9a84c,#b8942d);color:#0f1117;font-weight:700;font-size:14px;text-decoration:none;padding:12px 28px;border-radius:6px;">Open Outreach Engine →</a>
+    </div>
+  </div>
+  <div style="margin-top:16px;font-size:11px;color:#475569;text-align:center;">My Car Concierge · Apollo stuck-cycle monitor (Task #336)</div>
+</body></html>`;
+      await resend.emails.send({
+        from: `My Car Concierge <${fromEmail}>`,
+        to: [adminEmail],
+        subject,
+        html
+      });
+    } catch (sendErr) {
+      outcome = 'failed';
+      errorMessage = sendErr.message || String(sendErr);
+      console.error('[Apollo] Stuck-alert email send failed:', errorMessage);
+    }
+  }
+
+  try {
+    const { error: insErr } = await supabase.from('ai_action_log').insert({
+      module: 'apollo_stuck_alert',
+      action_type: 'stuck_lock',
+      target_id: 'apollo_discovery_lock',
+      decision: {
+        held_minutes: ctx.heldMinutes,
+        lock_reason: ctx.lockReason,
+        running_since: ctx.runningSince,
+        running_nonce: ctx.runningNonce
+      },
+      confidence: 1.0,
+      auto_executed: outcome === 'sent',
+      escalated: true,
+      outcome,
+      error_message: errorMessage,
+      execution_time_ms: 0,
+      created_at: new Date().toISOString()
+    });
+    if (insErr) {
+      console.warn('[Apollo] ai_action_log insert returned error for stuck-alert (cooldown may not engage):', insErr.message);
+    }
+  } catch (logErr) {
+    console.warn('[Apollo] Failed to record stuck-alert in ai_action_log:', logErr.message);
+  }
+
+  return { sent: outcome === 'sent', reason: errorMessage };
+}
+
 async function runApolloDiscoveryCycle(supabase) {
   const apolloKey = process.env.APOLLO_API_KEY;
   if (!apolloKey) return { skipped: true, reason: 'no_api_key' };
@@ -2232,7 +2436,8 @@ async function runApolloDiscoveryCycle(supabase) {
   // "Run now" from racing each other (double-spending Apollo credits and
   // producing duplicate apollo_discovery_cycle rows). Lock auto-expires
   // after APOLLO_LOCK_TTL_MS so a crashed cycle can't permanently block.
-  const lock = await tryAcquireApolloLock(supabase);
+  let lock = await tryAcquireApolloLock(supabase);
+  let lockAutoCleared = false;
   if (!lock.acquired) {
     // Distinguish "another cycle is genuinely running" from "we couldn't even
     // talk to the lock storage" so operators can tell concurrency from
@@ -2251,39 +2456,142 @@ async function runApolloDiscoveryCycle(supabase) {
     // the consecutive-failures streak.
     const STUCK_LOCK_THRESHOLD_MS = 6 * 60 * 1000;
     let heldMinutes = 0;
+    // Snapshot the wedged lock's identifying fields before any auto-clear +
+    // re-acquire mutates them, so the alert email + audit rows always
+    // describe the wedged cycle (not the fresh one we just acquired).
+    const wedgedRunningSince = lock.running_since;
+    const wedgedRunningNonce = lock.running_nonce || null;
+    const wedgedLockReason   = lock.reason;
     if ((lock.reason === 'already_running' || lock.reason === 'race_lost') && lock.running_since) {
       const heldMs = Date.now() - new Date(lock.running_since).getTime();
       // Floor (not round) so 5m59s never trips a "6m" alert — strict
       // "older than 6 minutes" semantics.
       heldMinutes = Number.isFinite(heldMs) && heldMs > 0 ? Math.floor(heldMs / 60000) : 0;
       if (heldMs >= STUCK_LOCK_THRESHOLD_MS) {
-        try {
-          await supabase.from('outreach_activity_log').insert({
-            event_type: 'apollo_discovery_skipped',
-            metadata: {
-              severity: 'high',
-              error_kind: 'lock_stuck',
-              lock_reason: lock.reason,
-              running_since: lock.running_since,
-              running_nonce: lock.running_nonce || null,
-              held_minutes: heldMinutes,
-              message: `Apollo cycle lock has been held for ~${heldMinutes}m — likely a stuck or crashed prior cycle`
-            }
+        // Task #444 — once the wedged lock has been held past the auto-clear
+        // threshold (15 min), force-release it via a compare-and-swap on the
+        // observed nonce + running_since and then attempt to re-acquire. If
+        // the CAS fails (a fresh cycle slipped in between our read and
+        // write) we leave the new lock alone and skip as before.
+        if (heldMs >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS) {
+          const releaseResult = await forceReleaseApolloLock(supabase, {
+            expectedNonce: wedgedRunningNonce,
+            expectedRunningSince: wedgedRunningSince
           });
-        } catch (logErr) {
-          console.warn('[Apollo] Failed to log stuck-lock skip row:', logErr.message);
+          lockAutoCleared = releaseResult.cleared === true;
+
+          // Record the auto-clear attempt (success OR failure) in
+          // outreach_activity_log + ai_action_log so the operation is fully
+          // auditable per Task #444 acceptance criteria.
+          try {
+            await supabase.from('outreach_activity_log').insert({
+              event_type: 'apollo_lock_auto_cleared',
+              metadata: {
+                severity: 'high',
+                held_minutes: heldMinutes,
+                prior_running_since: wedgedRunningSince,
+                prior_running_nonce: wedgedRunningNonce,
+                cleared: lockAutoCleared,
+                clear_reason: releaseResult.reason || null,
+                message: lockAutoCleared
+                  ? `Apollo cycle lock force-released after ~${heldMinutes}m (threshold: 15 min)`
+                  : `Apollo cycle lock auto-clear attempted but did not run: ${releaseResult.reason || 'unknown'}`
+              }
+            });
+          } catch (logErr) {
+            console.warn('[Apollo] Failed to log apollo_lock_auto_cleared row:', logErr.message);
+          }
+          try {
+            await supabase.from('ai_action_log').insert({
+              module: 'apollo_stuck_alert',
+              action_type: 'lock_auto_cleared',
+              target_id: 'apollo_discovery_lock',
+              decision: {
+                held_minutes: heldMinutes,
+                prior_running_since: wedgedRunningSince,
+                prior_running_nonce: wedgedRunningNonce,
+                cleared: lockAutoCleared,
+                clear_reason: releaseResult.reason || null
+              },
+              confidence: 1.0,
+              auto_executed: lockAutoCleared,
+              escalated: true,
+              outcome: lockAutoCleared ? 'sent' : 'failed',
+              error_message: lockAutoCleared ? null : (releaseResult.reason || 'unknown'),
+              execution_time_ms: 0,
+              created_at: new Date().toISOString()
+            });
+          } catch (logErr) {
+            console.warn('[Apollo] Failed to log apollo_lock_auto_cleared in ai_action_log:', logErr.message);
+          }
+
+          if (lockAutoCleared) {
+            console.warn(`[Apollo] Auto-cleared wedged lock (held ~${heldMinutes}m) — attempting to re-acquire and proceed`);
+            const reLock = await tryAcquireApolloLock(supabase);
+            if (reLock.acquired) {
+              lock = reLock;
+            } else {
+              console.warn(`[Apollo] Re-acquire after auto-clear failed (reason=${reLock.reason}) — skipping this run`);
+            }
+          }
         }
+
+        // Only record the "skipped because stuck" row if we ultimately did
+        // not acquire the lock. If the auto-clear + re-acquire succeeded
+        // we're about to run discovery normally, so logging an
+        // apollo_discovery_skipped row would be misleading.
+        if (!lock.acquired) {
+          try {
+            await supabase.from('outreach_activity_log').insert({
+              event_type: 'apollo_discovery_skipped',
+              metadata: {
+                severity: 'high',
+                error_kind: 'lock_stuck',
+                lock_reason: wedgedLockReason,
+                running_since: wedgedRunningSince,
+                running_nonce: wedgedRunningNonce,
+                held_minutes: heldMinutes,
+                auto_clear_attempted: heldMs >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS,
+                auto_cleared: lockAutoCleared,
+                message: `Apollo cycle lock has been held for ~${heldMinutes}m — likely a stuck or crashed prior cycle`
+              }
+            });
+          } catch (logErr) {
+            console.warn('[Apollo] Failed to log stuck-lock skip row:', logErr.message);
+          }
+        }
+
+        // Task #336 / #444 — real-time admin alert so a stuck cycle is
+        // noticed within minutes rather than waiting for the next daily
+        // digest (up to 24h away). Rate-limited to one alert per 30 minutes
+        // via ai_action_log so a wedged lock doesn't spam admins on every
+        // scheduled run. The autoCleared flag flips the email subject /
+        // banner so admins can tell at a glance whether they still need to
+        // intervene manually.
+        await maybeSendApolloStuckAlert(supabase, {
+          heldMinutes,
+          runningSince: wedgedRunningSince,
+          lockReason: wedgedLockReason,
+          runningNonce: wedgedRunningNonce,
+          autoCleared: lockAutoCleared
+        });
       }
     }
 
-    return {
-      skipped: true,
-      reason: 'already_running',
-      lock_reason: lock.reason || null,
-      running_since: lock.running_since || null,
-      held_minutes: heldMinutes,
-      lock_error: lock.error || null
-    };
+    if (!lock.acquired) {
+      return {
+        skipped: true,
+        reason: 'already_running',
+        lock_reason: wedgedLockReason || null,
+        running_since: wedgedRunningSince || null,
+        held_minutes: heldMinutes,
+        lock_auto_clear_attempted: heldMinutes > 0 && (Date.now() - new Date(wedgedRunningSince || 0).getTime()) >= APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS,
+        lock_auto_cleared: lockAutoCleared,
+        lock_error: lock.error || null
+      };
+    }
+    // Otherwise auto-clear + re-acquire succeeded — fall through to the
+    // main cycle execution below.
   }
 
   console.log('[Apollo] Starting automated discovery cycle...');
@@ -2382,6 +2690,11 @@ async function runApolloDiscoveryCycle(supabase) {
         const apolloPersonId = person.id || null;
         const metadata = { title: person.title, industry: org.industry, apollo_org_id: org.id, domain, apollo_id: apolloPersonId, apollo_profile: profile.name };
 
+        // Angel Investor profiles on Apollo are personal profiles — Apollo never enriches
+        // email addresses for them. Skip no-email investor leads immediately; they pollute
+        // the pipeline and can never be contacted.
+        if (leadType === 'investor' && !email) continue;
+
         const baseScore = leadType === 'investor' ? (email ? 85 : 40) : (email ? 72 : 32);
 
         const leadData = {
@@ -2441,7 +2754,10 @@ async function runApolloDiscoveryCycle(supabase) {
               } catch (_) {}
               await new Promise(r => setTimeout(r, 350));
             }
-            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY) {
+            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY && !(process.env.INSTANTLY_LIVE === 'true')) {
+              console.log(`[Apollo] Instantly first-touch skipped for ${leadData.name}: INSTANTLY_LIVE env var not set to "true". Set both instantly_auto_sync=true AND INSTANTLY_LIVE=true to enable autonomous enrollment.`);
+            }
+            if (leadType === 'provider' && inserted?.id && cfg.instantly_auto_sync && cfg.instantly_provider_campaign_id && process.env.INSTANTLY_API_KEY && process.env.INSTANTLY_LIVE === 'true') {
               try {
                 const pushResult = await pushLeadsToInstantly(supabase, [{ ...leadData, id: inserted.id }], cfg.instantly_provider_campaign_id);
                 if (pushResult.synced > 0) {
@@ -2627,7 +2943,10 @@ module.exports = {
   saveApolloConfig,
   tryAcquireApolloLock,
   releaseApolloLock,
+  forceReleaseApolloLock,
+  maybeSendApolloStuckAlert,
   APOLLO_LOCK_TTL_MS,
+  APOLLO_LOCK_AUTO_CLEAR_THRESHOLD_MS,
   draftWefunderBlastEmail,
   runWefunderBlastForEligible,
   runApolloDiscoveryCycle

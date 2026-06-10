@@ -2,19 +2,13 @@
 // Emergency, fuel, insurance, messaging, fleet, household, spending, shop, referrals, etc.
 
     // ========== MESSAGING ==========
-    async function openMessageWithProvider(packageId, providerId) {
+    let currentMessageProviderAlias = null;
+    async function openMessageWithProvider(packageId, providerId, providerAlias = null) {
       currentViewPackage = packageId;
       currentMessageProvider = providerId;
+      currentMessageProviderAlias = providerAlias;
 
-      // Get provider alias (not real name for privacy)
-      const { data: providerProfile } = await supabaseClient
-        .from('profiles')
-        .select('provider_alias')
-        .eq('id', providerId)
-        .single();
-
-      // Use alias or generate anonymous ID
-      const providerName = providerProfile?.provider_alias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
+      const providerName = providerAlias || `Provider #${providerId.slice(0,4).toUpperCase()}`;
 
       const { data: messages } = await supabaseClient.from('messages').select('*').eq('package_id', packageId).or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`).order('created_at', { ascending: true });
 
@@ -55,7 +49,7 @@
       }
 
       input.value = '';
-      await openMessageWithProvider(currentViewPackage, currentMessageProvider);
+      await openMessageWithProvider(currentViewPackage, currentMessageProvider, currentMessageProviderAlias);
     }
 
 
@@ -320,7 +314,227 @@
     // Load logistics data for a package
     let driverLocationRefreshInterval = null;
     
+    // ========== CUSTODY CHAIN (feature-flagged) ==========
+
+    window._mccCustodyEnabled = false;
+    let _custodyJobSub = null;
+
+    async function loadCustodyFlag() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+        const res = await fetch('/api/me/feature-flags', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) return;
+        const flags = await res.json();
+        window._mccCustodyEnabled = !!(flags.custody_chain_enabled);
+      } catch { /* leave false */ }
+    }
+
+    function subscribeCustodyTimeline(packageId, jobId) {
+      if (_custodyJobSub) { _custodyJobSub.unsubscribe(); _custodyJobSub = null; }
+      _custodyJobSub = supabaseClient
+        .channel(`custody-job-${jobId}`)
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'custody_handoffs', filter: `job_id=eq.${jobId}` }, () => {
+          loadKeyExchangeTimeline(packageId);
+        })
+        .subscribe();
+    }
+
+    function unsubscribeCustodyTimeline() {
+      if (_custodyJobSub) { _custodyJobSub.unsubscribe(); _custodyJobSub = null; }
+    }
+
+    // State for the accept/dispute modal
+    let _custodyHandoffId = null;
+    let _custodyHandoffJobId = null;
+    let _custodyHandoffPackageId = null;
+
+    function openCustodyAcceptModal(handoffId, jobId, packageId) {
+      _custodyHandoffId = handoffId;
+      _custodyHandoffJobId = jobId;
+      _custodyHandoffPackageId = packageId;
+      document.getElementById('custody-choice-section').style.display = '';
+      document.getElementById('custody-dispute-section').style.display = 'none';
+      document.getElementById('custody-dispute-notes').value = '';
+      document.getElementById('custody-dispute-photo-status').textContent = '';
+      const radios = document.querySelectorAll('input[name="custody_dispute_type"]');
+      radios.forEach(r => { r.checked = false; });
+      document.getElementById('custody-accept-modal').classList.add('active');
+    }
+
+    function closeCustodyAcceptModal() {
+      document.getElementById('custody-accept-modal').classList.remove('active');
+    }
+
+    function showCustodyDisputeForm() {
+      document.getElementById('custody-choice-section').style.display = 'none';
+      document.getElementById('custody-dispute-section').style.display = '';
+      document.getElementById('custody-modal-footer-dispute').style.display = '';
+    }
+
+    function showCustodyChoiceSection() {
+      document.getElementById('custody-choice-section').style.display = '';
+      document.getElementById('custody-dispute-section').style.display = 'none';
+      document.getElementById('custody-modal-footer-dispute').style.display = 'none';
+    }
+
+    async function submitCustodyAccept() {
+      if (!_custodyHandoffId) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/handoffs/${_custodyHandoffId}/accept`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to accept handoff', 'error');
+        }
+        closeCustodyAcceptModal();
+        showToast('Vehicle receipt confirmed', 'success');
+        if (_custodyHandoffPackageId) loadLogisticsData(_custodyHandoffPackageId);
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    async function captureCustodyDisputePhotos() {
+      if (!_custodyHandoffId || !_custodyHandoffJobId) return;
+      const statusEl = document.getElementById('custody-dispute-photo-status');
+      statusEl.textContent = 'Starting camera…';
+      try {
+        const result = await window.CustodyCapture.captureHandoffPhotos(
+          _custodyHandoffId, _custodyHandoffJobId, 'member'
+        );
+        if (result && result.photos.length > 0) {
+          statusEl.textContent = `${result.photos.length} photo(s) captured`;
+        } else {
+          statusEl.textContent = 'No photos captured';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Photo capture failed';
+      }
+    }
+
+    async function submitCustodyDispute() {
+      if (!_custodyHandoffId) return;
+      const type = document.querySelector('input[name="custody_dispute_type"]:checked')?.value;
+      if (!type) return showToast('Please select a dispute type', 'error');
+      const notes = document.getElementById('custody-dispute-notes').value.trim();
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/handoffs/${_custodyHandoffId}/dispute`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, description: notes || undefined })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to submit dispute', 'error');
+        }
+        closeCustodyAcceptModal();
+        showToast('Dispute filed — our team has been notified', 'success');
+        if (_custodyHandoffPackageId) loadLogisticsData(_custodyHandoffPackageId);
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    // Pickup: member creates member_to_provider handoff, captures photos, releases
+    async function startCustodyPickup(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const token = session.access_token;
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id, provider_id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) return _confirmVehicleHandoffLegacy(null, packageId, 'pickup');
+
+        const job = jobs[0];
+
+        const createRes = await fetch(`${apiBase}/api/custody/handoffs`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            job_id: job.id,
+            leg: 'member_to_provider',
+            releasing_party_role: 'member',
+            receiving_party_id: job.provider_id,
+            receiving_party_role: 'provider'
+          })
+        });
+
+        if (!createRes.ok) {
+          const err = await createRes.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to create handoff record', 'error');
+        }
+        const { handoff } = await createRes.json();
+
+        const captureResult = await window.CustodyCapture.captureHandoffPhotos(handoff.id, job.id, 'member');
+        if (!captureResult || captureResult.photos.length === 0) {
+          showToast('Photo capture cancelled', 'info');
+          return;
+        }
+
+        const gps = captureResult.photos[0]?.metadata || {};
+        const releaseRes = await fetch(`${apiBase}/api/custody/handoffs/${handoff.id}/release`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ lat: gps.lat || null, lng: gps.lng || null, gps_accuracy_m: gps.accuracy_m || null })
+        });
+
+        if (!releaseRes.ok) {
+          const err = await releaseRes.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to release handoff', 'error');
+        }
+
+        showToast('Vehicle handed off — provider will confirm', 'success');
+        loadLogisticsData(packageId);
+      } catch (e) {
+        console.error('[startCustodyPickup]', e);
+        showToast('Custody handoff failed: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    // Return: find the awaiting provider_to_member handoff and open accept/dispute modal
+    async function startCustodyReturn(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) return _confirmVehicleHandoffLegacy(null, packageId, 'return');
+
+        const jobId = jobs[0].id;
+        const chainRes = await fetch(`${apiBase}/api/custody/jobs/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!chainRes.ok) return _confirmVehicleHandoffLegacy(null, packageId, 'return');
+
+        const chain = await chainRes.json();
+        const pending = (chain.handoffs || []).find(h => h.leg === 'provider_to_member' && h.status === 'awaiting_receiver');
+        if (!pending) {
+          showToast('Provider has not yet released the vehicle', 'info');
+          return;
+        }
+        openCustodyAcceptModal(pending.id, jobId, packageId);
+      } catch (e) {
+        console.error('[startCustodyReturn]', e);
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
     async function loadLogisticsData(packageId) {
+      unsubscribeCustodyTimeline();
       try {
         const [appointmentResult, transferResult, locationResult, driverLocationResult] = await Promise.all([
           getAppointment(packageId),
@@ -473,6 +687,17 @@
       const cancelBtn = (j.status === 'requested' || j.status === 'scheduled')
         ? `<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="window.cancelConciergeJob('${escHtml(j.id)}','${escHtml(opts.packageId || '')}','${escHtml(j.appointment_id || '')}')">Cancel</button>`
         : '';
+      // Task #335 — render a live driver map slot only when the job is
+      // in a trackable state and at least one driver has accepted.
+      const trackable = (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0;
+      const mapHtml = trackable
+        ? `<div id="concierge-map-${escHtml(j.id)}" data-job-id="${escHtml(j.id)}" data-mcc-map="1"
+              style="margin-top:10px;height:200px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-input);position:relative;">
+              <div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
+                ${mccIcon('map-pin', 14)} Locating driver…
+              </div>
+            </div>`
+        : '';
       return `
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
@@ -480,13 +705,215 @@
             <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
           </div>
           ${legHtml}
-          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: ${escHtml(eta)}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: <span data-mcc-eta-for="${escHtml(j.id)}">${escHtml(eta)}</span></div>
           ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
             : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
+          ${mapHtml}
           <div style="margin-top:6px;">${cancelBtn}</div>
         </div>
       `;
     };
+
+    // ---- Task #335: Live driver map (Leaflet + OpenStreetMap, no API key) ----
+    // Lazy-load Leaflet from CDN the first time a map is rendered. Cached
+    // promise so we never download it twice.
+    let _mccLeafletPromise = null;
+    function loadLeafletOnce() {
+      if (_mccLeafletPromise) return _mccLeafletPromise;
+      _mccLeafletPromise = new Promise((resolve, reject) => {
+        if (window.L) return resolve(window.L);
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        css.integrity = 'sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==';
+        css.crossOrigin = '';
+        document.head.appendChild(css);
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        s.integrity = 'sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==';
+        s.crossOrigin = '';
+        s.onload  = () => resolve(window.L);
+        s.onerror = () => reject(new Error('Leaflet failed to load'));
+        document.head.appendChild(s);
+      });
+      return _mccLeafletPromise;
+    }
+
+    // Tracks active map instances + timers + realtime channels keyed by
+    // jobId so we can clean them up when the card is re-rendered or the
+    // job ends. Task #447: each entry now also tracks a Supabase Realtime
+    // broadcast channel (`rtChannel`) that streams live driver pings and
+    // a slow timer (`etaTimer`) that refreshes ETA / catches up on
+    // reconnect.
+    const _mccConciergeMaps = new Map(); // jobId → { map, driverMarker, targetMarker, etaTimer, rtChannel }
+
+    function _mccDisposeMap(jobId) {
+      const m = _mccConciergeMaps.get(jobId);
+      if (!m) return;
+      try { if (m.etaTimer) clearInterval(m.etaTimer); } catch {}
+      try { if (m.rtChannel && globalThis.supabaseClient) globalThis.supabaseClient.removeChannel(m.rtChannel); } catch {}
+      try { if (m.map) m.map.remove(); } catch {}
+      _mccConciergeMaps.delete(jobId);
+    }
+
+    // Apply a single ping payload (from either the HTTP first-paint or a
+    // realtime broadcast event) to the map for `jobId`. Honors the per-job
+    // ownership boundary by ignoring payloads whose job_id doesn't match,
+    // and whose driver_id isn't on the server-issued whitelist for this
+    // job (defense in depth — the server only broadcasts to channels for
+    // jobs the caller owns and only by assigned drivers, but a stray
+    // payload mustn't move the dot).
+    function _mccApplyPing(jobId, ping) {
+      if (!ping || ping.lat == null || ping.lng == null) return;
+      if (ping.job_id && ping.job_id !== jobId) return; // wrong job, refuse
+      const entry = _mccConciergeMaps.get(jobId);
+      if (!entry || !entry.map || !entry.driverMarker) return;
+      // Whitelist check: if we captured the server's driver_ids list,
+      // reject any ping from a driver that isn't on it.
+      if (ping.driver_id && Array.isArray(entry.driverIds) && entry.driverIds.length
+          && !entry.driverIds.includes(ping.driver_id)) return;
+      try { entry.driverMarker.setLatLng([ping.lat, ping.lng]); } catch {}
+    }
+
+    function _mccFormatEta(seconds) {
+      if (seconds == null || !Number.isFinite(seconds)) return 'Awaiting driver';
+      if (seconds < 60)   return 'Arriving now';
+      if (seconds < 3600) return `${Math.round(seconds / 60)} min away`;
+      return `${(seconds / 3600).toFixed(1)} h away`;
+    }
+
+    async function _mccUpdateConciergeMap(jobId) {
+      const slot = document.getElementById('concierge-map-' + jobId);
+      if (!slot) { _mccDisposeMap(jobId); return; }
+      const headers = await getConciergeAuthHeader();
+      if (!headers) return;
+      let data;
+      try {
+        const r = await fetch('/api/concierge/active-job-tracking?job_id=' + encodeURIComponent(jobId), { headers });
+        if (r.status === 429) return; // rate-limited; try again next tick
+        if (!r.ok) return;
+        data = await r.json();
+      } catch (e) { return; }
+      const tr = data && data.tracking;
+      const ping = tr && tr.pings && tr.pings[0];
+      const target = tr && tr.target;
+
+      // Task #447 — open (or re-open) the broadcast channel using the
+      // server-issued descriptor. Idempotent: if we already have a
+      // channel for this job we leave it alone. Done BEFORE first-paint
+      // map init so the channel is live by the time the marker exists.
+      if (tr && tr.realtime && tr.realtime.channel && globalThis.supabaseClient) {
+        const cur = _mccConciergeMaps.get(jobId);
+        // Always refresh the server-issued driver_ids whitelist (it can
+        // change as drivers accept/decline mid-job).
+        const whitelist = Array.isArray(tr.realtime.driver_ids) ? tr.realtime.driver_ids.slice() : [];
+        if (!cur || !cur.rtChannel) {
+          try {
+            const ch = globalThis.supabaseClient
+              .channel(tr.realtime.channel)
+              .on('broadcast', { event: tr.realtime.event || 'driver_ping' }, (msg) => {
+                _mccApplyPing(jobId, msg && msg.payload);
+              })
+              .subscribe();
+            const entry = _mccConciergeMaps.get(jobId) || {};
+            entry.rtChannel = ch;
+            entry.driverIds = whitelist;
+            _mccConciergeMaps.set(jobId, entry);
+          } catch (e) { /* realtime optional — fall back to slow timer */ }
+        } else {
+          cur.driverIds = whitelist;
+        }
+      }
+
+      // ETA text — update even if Leaflet hasn't loaded yet so the user
+      // sees something useful immediately.
+      const etaEl = document.querySelector(`[data-mcc-eta-for="${jobId}"]`);
+      if (etaEl) {
+        if (ping && ping.eta_seconds != null) etaEl.textContent = _mccFormatEta(ping.eta_seconds);
+        else if (!ping) etaEl.textContent = 'Awaiting driver location';
+      }
+      if (!ping) {
+        slot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
+          ${mccIcon('map-pin', 14)} Waiting for driver location…
+        </div>`;
+        return;
+      }
+
+      // Lazy-init the Leaflet map exactly once per job. Task #447: an
+      // entry may already exist holding only `rtChannel` / `etaTimer`
+      // (created by the realtime-subscribe block above and/or
+      // startConciergeTracking), so check for `entry.map` specifically
+      // rather than truthiness — otherwise first paint silently no-ops
+      // and the marker is never created.
+      let entry = _mccConciergeMaps.get(jobId);
+      if (!entry || !entry.map) {
+        try {
+          const L = await loadLeafletOnce();
+          if (!document.getElementById('concierge-map-' + jobId)) return; // gone while loading
+          slot.innerHTML = ''; // clear placeholder
+          const map = L.map(slot, { zoomControl: true, attributionControl: true })
+            .setView([ping.lat, ping.lng], 14);
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          }).addTo(map);
+          const driverMarker = L.marker([ping.lat, ping.lng], { title: 'Driver' }).addTo(map);
+          let targetMarker = null;
+          if (target && target.lat != null) {
+            targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(map);
+            map.fitBounds([[ping.lat, ping.lng], [target.lat, target.lng]], { padding: [24, 24], maxZoom: 15 });
+          }
+          // Merge into any pre-existing entry so we don't clobber
+          // rtChannel / etaTimer that were set before first paint.
+          entry = Object.assign(entry || {}, { map, driverMarker, targetMarker });
+          _mccConciergeMaps.set(jobId, entry);
+        } catch (e) {
+          slot.innerHTML = `<div style="padding:12px;font-size:0.82rem;color:var(--text-muted);">Map unavailable. Driver is moving — refresh to retry.</div>`;
+          return;
+        }
+      } else {
+        try {
+          entry.driverMarker.setLatLng([ping.lat, ping.lng]);
+          if (target && target.lat != null && !entry.targetMarker) {
+            const L = window.L;
+            entry.targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(entry.map);
+          }
+        } catch {}
+      }
+    }
+
+    // Public entry point — call after rendering a concierge status card.
+    // Task #447: dot motion now arrives over a Supabase Realtime broadcast
+    // channel (opened inside _mccUpdateConciergeMap from the server-issued
+    // descriptor), so we no longer poll every 18s. We keep ONE slow timer
+    // at 60s to (a) refresh ETA from the HTTP endpoint and (b) act as a
+    // reconnect catch-up if the websocket dropped silently. Auto-tears
+    // down (map + channel + timer) when the slot is removed from the DOM.
+    window.startConciergeTracking = function(jobId) {
+      if (!jobId) return;
+      _mccDisposeMap(jobId);                  // reset any prior session
+      _mccUpdateConciergeMap(jobId);          // first paint immediately (also opens RT channel)
+      const etaTimer = setInterval(() => {
+        if (!document.getElementById('concierge-map-' + jobId)) {
+          _mccDisposeMap(jobId);
+          return;
+        }
+        _mccUpdateConciergeMap(jobId);
+      }, 60000);
+      // Stash the timer on the entry once the map exists.
+      setTimeout(() => {
+        const e = _mccConciergeMaps.get(jobId);
+        if (e) e.etaTimer = etaTimer;
+        else _mccConciergeMaps.set(jobId, { etaTimer });
+      }, 0);
+    };
+
+    // Test hooks (Task #447 smoke test). Exposed under a single private
+    // namespace so production callers never accidentally depend on them.
+    window.__mccConciergeTracking = window.__mccConciergeTracking || {};
+    window.__mccConciergeTracking.applyPing = _mccApplyPing;
+    window.__mccConciergeTracking.dispose   = _mccDisposeMap;
+    window.__mccConciergeTracking._maps     = _mccConciergeMaps;
 
     // Task #369: render status for vehicle-originated concierge jobs (no
     // appointment_id). Looks up the most recent live job for the member
@@ -507,6 +934,9 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId: 'vehicle-' + vehicleId });
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+          window.startConciergeTracking(job.id);
+        }
       } catch (e) { console.warn('[concierge] vehicle status load failed', e); }
     };
 
@@ -525,6 +955,10 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId });
+        // Task #335 — kick off live tracking poller if the card includes a map.
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+          window.startConciergeTracking(job.id);
+        }
       } catch (e) { console.warn('[concierge] status load failed', e); }
     };
 
@@ -532,11 +966,11 @@
       const reason = window.prompt('Why are you cancelling this driver request?', 'Plans changed');
       if (!reason || reason.trim().length < 3) return;
       const headers = await getConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to cancel.'); return; }
+      if (!headers) { showToast('Please sign in again to cancel.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
       });
-      if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      if (!resp.ok) { showToast('Cancel failed: ' + (await resp.text()), 'error'); return; }
       window.loadConciergeStatusForAppointment(packageId, appointmentId);
     };
 
@@ -551,9 +985,9 @@
           const uid = ses?.user?.id;
           if (uid) {
             const { data: prof } = await supabaseClient.from('profiles')
-              .select('address, city, state, zip').eq('id', uid).maybeSingle();
+              .select('address, city, state, zip_code').eq('id', uid).maybeSingle();
             if (prof?.address) {
-              out.pickup = [prof.address, prof.city, prof.state, prof.zip].filter(Boolean).join(', ');
+              out.pickup = [prof.address, prof.city, prof.state, prof.zip_code].filter(Boolean).join(', ');
             }
           }
           if (appointmentId) {
@@ -561,10 +995,10 @@
               .select('provider_id').eq('id', appointmentId).maybeSingle();
             if (appt?.provider_id) {
               const { data: prov } = await supabaseClient.from('profiles')
-                .select('business_name, address, city, state, zip')
+                .select('business_name, address, city, state, zip_code')
                 .eq('id', appt.provider_id).maybeSingle();
               if (prov?.address) {
-                out.dropoff = [prov.business_name, prov.address, prov.city, prov.state, prov.zip].filter(Boolean).join(', ');
+                out.dropoff = [prov.business_name, prov.address, prov.city, prov.state, prov.zip_code].filter(Boolean).join(', ');
               }
             }
           }
@@ -1046,9 +1480,89 @@
       }
     }
 
+    const LEG_LABELS = {
+      member_to_provider: 'You → Provider (Pickup)',
+      provider_to_member: 'Provider → You (Return)',
+      member_to_driver:   'You → Driver',
+      driver_to_member:   'Driver → You',
+      driver_to_shop:     'Driver → Shop',
+      shop_to_driver:     'Shop → Driver',
+      driver_to_driver:   'Driver Transfer',
+    };
+
+    const HANDOFF_STATUS_BADGE = {
+      pending:          { label: 'Pending',            color: 'var(--accent-gold)' },
+      released:         { label: 'Released',           color: 'var(--accent-blue)' },
+      awaiting_receiver:{ label: 'Awaiting Your Confirmation', color: 'var(--accent-orange)' },
+      accepted:         { label: 'Accepted',           color: 'var(--accent-green)' },
+      disputed:         { label: 'Disputed',           color: 'var(--accent-red)' },
+    };
+
+    async function loadCustodyChainTimeline(packageId, container) {
+      try {
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) {
+          container.innerHTML = '<div style="color:var(--text-muted);font-size:0.9rem;padding:12px;">No custody chain found for this package.</div>';
+          return;
+        }
+        const jobId = jobs[0].id;
+
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return;
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/jobs/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) {
+          container.innerHTML = '<div style="color:var(--accent-red);font-size:0.9rem;">Failed to load custody chain.</div>';
+          return;
+        }
+        const chain = await res.json();
+        const handoffs = chain.handoffs || [];
+
+        if (!handoffs.length) {
+          container.innerHTML = `
+            <div style="padding:16px;background:var(--bg-input);border-radius:var(--radius-md);border:1px dashed var(--border-subtle);">
+              <div style="color:var(--text-muted);font-size:0.9rem;text-align:center;">
+                No custody handoffs recorded yet.
+              </div>
+            </div>`;
+          return;
+        }
+
+        const uid = currentUser?.id || '';
+        container.innerHTML = handoffs.map(h => {
+          const badge = HANDOFF_STATUS_BADGE[h.status] || { label: h.status, color: 'var(--text-muted)' };
+          const isReceiver = h.receiving_party_id === uid && h.status === 'awaiting_receiver';
+          const ts = h.released_at ? new Date(h.released_at).toLocaleString() : (h.created_at ? new Date(h.created_at).toLocaleString() : '');
+          return `
+            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-left:3px solid ${badge.color};margin-bottom:12px;">
+              <div style="flex:1;">
+                <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                  <span style="font-weight:600;font-size:0.9rem;">${LEG_LABELS[h.leg] || h.leg}</span>
+                  <span style="background:${badge.color}22;color:${badge.color};border:1px solid ${badge.color}55;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">${badge.label}</span>
+                </div>
+                ${ts ? `<div style="font-size:0.75rem;color:var(--text-muted);">${ts}</div>` : ''}
+                ${isReceiver ? `<button class="btn btn-success btn-sm" style="margin-top:8px;" onclick="openCustodyAcceptModal('${h.id}','${jobId}','${packageId}')">Review &amp; Confirm Receipt</button>` : ''}
+              </div>
+            </div>`;
+        }).join('');
+
+        subscribeCustodyTimeline(packageId, jobId);
+      } catch (err) {
+        console.error('[loadCustodyChainTimeline]', err);
+        container.innerHTML = '<div style="color:var(--accent-red);font-size:0.9rem;">Failed to load custody chain.</div>';
+      }
+    }
+
     async function loadKeyExchangeTimeline(packageId) {
       const container = document.getElementById(`key-exchange-timeline-${packageId}`);
       if (!container) return;
+
+      if (window._mccCustodyEnabled) {
+        return loadCustodyChainTimeline(packageId, container);
+      }
 
       try {
         const { data: keyExchanges, error } = await supabaseClient
@@ -1712,13 +2226,11 @@
     }
 
     // Confirm vehicle handoff
-    async function confirmVehicleHandoff(transferId, packageId, type) {
-      const confirmMsg = type === 'pickup' 
-        ? 'Confirm that you have handed over your vehicle?' 
+    async function _confirmVehicleHandoffLegacy(transferId, packageId, type) {
+      const confirmMsg = type === 'pickup'
+        ? 'Confirm that you have handed over your vehicle?'
         : 'Confirm that you have received your vehicle back?';
-      
       if (!confirm(confirmMsg)) return;
-
       try {
         let result;
         if (type === 'pickup') {
@@ -1726,17 +2238,21 @@
         } else {
           result = await confirmReturn(transferId, packageId, 'member');
         }
-        
-        if (result.error) {
-          throw new Error(result.error);
-        }
-
+        if (result.error) throw new Error(result.error);
         showToast(type === 'pickup' ? 'Handoff confirmed!' : 'Return confirmed!', 'success');
         loadLogisticsData(packageId);
       } catch (err) {
         console.error('Error confirming handoff:', err);
         showToast('Failed to confirm: ' + err.message, 'error');
       }
+    }
+
+    async function confirmVehicleHandoff(transferId, packageId, type) {
+      if (window._mccCustodyEnabled) {
+        if (type === 'pickup') return startCustodyPickup(packageId);
+        if (type === 'return') return startCustodyReturn(packageId);
+      }
+      return _confirmVehicleHandoffLegacy(transferId, packageId, type);
     }
 
     // Share my location
@@ -2861,7 +3377,7 @@
         const initial = name.charAt(0).toUpperCase();
         const role = member.role || 'member';
         const roleColor = roleColors[role] || roleColors.viewer;
-        const perms = member.permissions || {};
+        const perms = member;
         
         let permsBadges = [];
         if (perms.can_request_services) permsBadges.push('<span style="display:inline-block;padding:2px 8px;border-radius:100px;font-size:0.7rem;background:var(--accent-blue-soft);color:var(--accent-blue);">' + mccIcon('file-text', 16) + ' Can Request</span>');
@@ -3238,7 +3754,7 @@
       
       const user = managingMember.user || {};
       const name = user.full_name || managingMember.email || 'Member';
-      const perms = managingMember.permissions || {};
+      const perms = managingMember;
       
       document.getElementById('manage-member-content').innerHTML = `
         <div style="display:flex;align-items:center;gap:12px;margin-bottom:20px;">
@@ -3483,7 +3999,8 @@
     async function loadFleetSection() {
       if (!currentUser) return;
       
-      const { owned, memberOf } = await getMyFleets(currentUser.id);
+      const { data: { owned, memberOf } = {}, error: fleetsError } = await getMyFleets(currentUser.id);
+      if (fleetsError) console.error('loadFleetSection:', fleetsError);
       const allFleets = [...(owned || []), ...(memberOf || [])];
       
       if (allFleets.length === 0) {
@@ -3529,10 +4046,10 @@
         fleetCountBadge.style.display = fleetVehicles.length > 0 ? 'inline-flex' : 'none';
       }
       
-      if (data.billing_email || data.address || data.tax_id) {
+      if (data.billing_email || data.billing_address || data.tax_id) {
         document.getElementById('fleet-company-info').style.display = 'block';
         document.getElementById('fleet-billing-email-display').innerHTML = data.billing_email ? `${mccIcon('mail', 16)} ${data.billing_email}` : '';
-        document.getElementById('fleet-address-display').innerHTML = data.address ? `${mccIcon('map-pin', 16)} ${data.address}` : '';
+        document.getElementById('fleet-address-display').innerHTML = data.billing_address ? `${mccIcon('map-pin', 16)} ${data.billing_address}` : '';
         const taxIdEl = document.getElementById('fleet-tax-id-display');
         if (taxIdEl) taxIdEl.innerHTML = data.tax_id ? `${mccIcon('store', 16)} Tax ID: ${data.tax_id}` : '';
       } else {
@@ -3916,7 +4433,7 @@
         name,
         business_type: businessType || 'other',
         billing_email: billingEmail || null,
-        address: billingAddress || null,
+        billing_address: billingAddress || null,
         tax_id: taxId || null,
         owner_id: currentUser.id
       });
@@ -4484,7 +5001,7 @@
       document.getElementById('fleet-settings-company-name').value = currentFleet.company_name || '';
       document.getElementById('fleet-settings-business-type').value = currentFleet.business_type || 'other';
       document.getElementById('fleet-settings-billing-email').value = currentFleet.billing_email || '';
-      document.getElementById('fleet-settings-address').value = currentFleet.address || '';
+      document.getElementById('fleet-settings-address').value = currentFleet.billing_address || '';
       const taxIdEl = document.getElementById('fleet-settings-tax-id');
       if (taxIdEl) taxIdEl.value = currentFleet.tax_id || '';
       
@@ -4511,7 +5028,7 @@
           company_name: companyName || null,
           business_type: businessType,
           billing_email: billingEmail || null,
-          address: address || null,
+          billing_address: address || null,
           tax_id: taxId || null
         })
         .eq('id', currentFleet.id);
@@ -5694,7 +6211,7 @@ Note: This assessment was generated by AI and is for informational purposes only
               </div>
               <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                 <button class="btn btn-sm btn-secondary" onclick="openAISearchModal('${search.id}')">${mccIcon('file-text', 16)} Edit</button>
-                <button class="btn btn-sm btn-ghost" onclick="deleteAISearch('${search.id}')">${mccIcon('x', 16)}</button>
+                <button class="btn btn-sm btn-ghost" onclick="deleteDreamCarSearch('${search.id}')">${mccIcon('x', 16)}</button>
               </div>
             </div>
           </div>
@@ -5771,6 +6288,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (tabEl) tabEl.style.display = 'block';
       const tabBtn = document.querySelector(`[data-prospect-tab="${tabName}"]`);
       if (tabBtn) tabBtn.classList.add('active');
+      if (tabName === 'compare') updateCompareSelection();
     };
 
     function viewSearchMatches(searchId) {
@@ -5829,9 +6347,9 @@ Note: This assessment was generated by AI and is for informational purposes only
             make: data.make || '',
             model: data.model || '',
             year: data.year ? Number.parseInt(data.year) : null,
-            max_price: data.price ? Number.parseFloat(data.price) : null,
+            asking_price: data.price ? Number.parseFloat(data.price) : null,
             status: 'considering',
-            notes: 'Saved from Dream Car Finder market intelligence'
+            personal_notes: 'Saved from Dream Car Finder market intelligence'
           }]);
 
         if (error) throw error;
@@ -6248,6 +6766,16 @@ Note: This assessment was generated by AI and is for informational purposes only
       }
     }
 
+    // ========== MY NEXT CAR STATE ==========
+    // Owned here; previously declared in members-settings.js which loaded lazily and
+    // created a fragile cross-module dependency. selectedForComparison especially must
+    // be a Set before renderProspects() reads it.
+    let prospectVehicles = [];
+    let memberCarPreferences = null;
+    let selectedProspectRating = 0;
+    let editingProspectId = null;
+    let selectedForComparison = new Set();
+
     async function loadProspectVehicles() {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -6434,6 +6962,8 @@ Note: This assessment was generated by AI and is for informational purposes only
       editingProspectId = null;
       document.getElementById('add-prospect-form').reset();
       selectedProspectRating = 0;
+      populateProspectYears();
+      document.getElementById('prospect-model').innerHTML = '<option value="" disabled selected>Select a make first</option>';
       updateRatingStars();
       document.getElementById('add-prospect-modal').style.display = 'flex';
     }
@@ -6454,6 +6984,95 @@ Note: This assessment was generated by AI and is for informational purposes only
         const r = Number.parseInt(star.dataset.rating);
         star.style.opacity = r <= selectedProspectRating ? '1' : '0.3';
       });
+    }
+
+    function populateProspectYears() {
+      const sel = document.getElementById('prospect-year');
+      if (!sel || sel.options.length > 1) return;
+      const current = new Date().getFullYear();
+      for (let y = current + 1; y >= 1990; y--) {
+        const opt = document.createElement('option');
+        opt.value = y;
+        opt.textContent = y;
+        sel.appendChild(opt);
+      }
+    }
+
+    function setSelectValueCI(id, value) {
+      const sel = document.getElementById(id);
+      if (!sel || !value) return;
+      const v = String(value).toLowerCase();
+      for (const opt of sel.options) {
+        if (opt.value.toLowerCase() === v) {
+          sel.value = opt.value;
+          return;
+        }
+      }
+      // Value not in list — append it as a custom option and select it
+      const opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = value;
+      opt.selected = true;
+      sel.appendChild(opt);
+    }
+
+    async function loadProspectModels(targetModel) {
+      const makeEl = document.getElementById('prospect-make');
+      const modelEl = document.getElementById('prospect-model');
+      const make = makeEl ? makeEl.value : '';
+
+      if (!make || make === 'Other') {
+        modelEl.innerHTML = '<option value="" disabled selected>Select a make first</option>';
+        if (targetModel) {
+          const opt = document.createElement('option');
+          opt.value = targetModel;
+          opt.textContent = targetModel;
+          opt.selected = true;
+          modelEl.appendChild(opt);
+        }
+        return;
+      }
+
+      modelEl.innerHTML = '<option value="" disabled selected>Loading…</option>';
+      modelEl.disabled = true;
+
+      try {
+        const res = await fetch(`https://vpic.nhtsa.dot.gov/api/vehicles/getmodelsformake/${encodeURIComponent(make)}?format=json`);
+        const data = await res.json();
+        const models = (data.Results || []).map(r => r.Model_Name).sort();
+
+        modelEl.innerHTML = '<option value="" disabled selected>Select a model</option>';
+        let found = false;
+        for (const m of models) {
+          const opt = document.createElement('option');
+          opt.value = m;
+          opt.textContent = m;
+          if (targetModel && m.toLowerCase() === targetModel.toLowerCase()) {
+            opt.selected = true;
+            found = true;
+          }
+          modelEl.appendChild(opt);
+        }
+        if (targetModel && !found) {
+          const opt = document.createElement('option');
+          opt.value = targetModel;
+          opt.textContent = targetModel;
+          opt.selected = true;
+          modelEl.appendChild(opt);
+        }
+      } catch (err) {
+        console.error('[loadProspectModels]', err);
+        modelEl.innerHTML = '<option value="" disabled selected>Select a model</option>';
+        if (targetModel) {
+          const opt = document.createElement('option');
+          opt.value = targetModel;
+          opt.textContent = targetModel;
+          opt.selected = true;
+          modelEl.appendChild(opt);
+        }
+      } finally {
+        modelEl.disabled = false;
+      }
     }
 
     async function lookupProspectVIN() {
@@ -6481,9 +7100,9 @@ Note: This assessment was generated by AI and is for informational purposes only
             return item && item.Value && item.Value !== 'Not Applicable' ? item.Value : '';
           };
 
-          document.getElementById('prospect-year').value = getValue('Model Year');
-          document.getElementById('prospect-make').value = getValue('Make');
-          document.getElementById('prospect-model').value = getValue('Model');
+          setSelectValueCI('prospect-year', getValue('Model Year'));
+          setSelectValueCI('prospect-make', getValue('Make'));
+          await loadProspectModels(getValue('Model'));
           document.getElementById('prospect-trim').value = getValue('Trim');
           document.getElementById('prospect-body-style').value = getValue('Body Class') || '';
           
@@ -6595,11 +7214,11 @@ Note: This assessment was generated by AI and is for informational purposes only
       if (!prospect) return;
 
       editingProspectId = id;
-      
+      populateProspectYears();
+
       document.getElementById('prospect-vin').value = prospect.vin || '';
-      document.getElementById('prospect-year').value = prospect.year || '';
-      document.getElementById('prospect-make').value = prospect.make || '';
-      document.getElementById('prospect-model').value = prospect.model || '';
+      setSelectValueCI('prospect-year', prospect.year ? String(prospect.year) : '');
+      setSelectValueCI('prospect-make', prospect.make || '');
       document.getElementById('prospect-trim').value = prospect.trim || '';
       document.getElementById('prospect-body-style').value = prospect.body_style || '';
       document.getElementById('prospect-engine').value = prospect.engine || '';
@@ -6623,6 +7242,7 @@ Note: This assessment was generated by AI and is for informational purposes only
       updateRatingStars();
 
       document.getElementById('add-prospect-modal').style.display = 'flex';
+      await loadProspectModels(prospect.model || '');
     }
 
     async function deleteProspect(id) {
@@ -7639,17 +8259,29 @@ Note: This assessment was generated by AI and is for informational purposes only
           if (codeData.success && codeData.referral_code) {
             memberReferralCode = codeData.referral_code;
             document.getElementById('referral-code-display').textContent = memberReferralCode;
+            renderMemberReferralQrCodes();
+          } else {
+            document.getElementById('referral-code-display').textContent = '—';
           }
+        } else {
+          document.getElementById('referral-code-display').textContent = 'Unavailable';
+          const settingsLinkEl = document.getElementById('settings-ref-link');
+          if (settingsLinkEl) settingsLinkEl.textContent = 'Referral link unavailable';
         }
-        
+
         if (referralsRes.ok) {
           const referralsData = await referralsRes.json();
           if (referralsData.success) {
             memberReferrals = referralsData.referrals || [];
             renderReferrals();
           }
+        } else {
+          const loadingEl = document.getElementById('referrals-loading');
+          const emptyEl = document.getElementById('referrals-empty');
+          if (loadingEl) loadingEl.style.display = 'none';
+          if (emptyEl) emptyEl.style.display = 'block';
         }
-        
+
         if (creditsRes.ok) {
           const creditsData = await creditsRes.json();
           if (creditsData.success) {
@@ -7658,10 +8290,14 @@ Note: This assessment was generated by AI and is for informational purposes only
             updateReferralStats();
           }
         }
-        
+
       } catch (error) {
         console.error('Error loading referral data:', error);
-        document.getElementById('referral-code-display').textContent = 'Error';
+        document.getElementById('referral-code-display').textContent = 'Unavailable';
+        const loadingEl = document.getElementById('referrals-loading');
+        if (loadingEl) loadingEl.style.display = 'none';
+        const emptyEl = document.getElementById('referrals-empty');
+        if (emptyEl) emptyEl.style.display = 'block';
       }
     }
 
@@ -7849,10 +8485,91 @@ See you there!`);
     window.shareReferralEmail = shareReferralEmail;
     window.shareReferralSMS = shareReferralSMS;
 
+    // ── Provider & Driver referral QR helpers ──────────────────────────────
+    function _providerReferralUrl() {
+      return `https://www.mycarconcierge.com/signup-provider.html?ref=${memberReferralCode}`;
+    }
+    function _driverReferralUrl() {
+      return `https://www.mycarconcierge.com/signup-driver.html?ref=${memberReferralCode}`;
+    }
+
+    async function renderMemberReferralQrCodes() {
+      if (!memberReferralCode) return;
+      const provUrl = _providerReferralUrl();
+      const drvUrl  = _driverReferralUrl();
+      const provLinkEl = document.getElementById('ref-provider-link');
+      const drvLinkEl  = document.getElementById('ref-driver-link');
+      const settingsLinkEl = document.getElementById('settings-ref-link');
+      if (provLinkEl) provLinkEl.textContent = provUrl;
+      if (drvLinkEl)  drvLinkEl.textContent  = drvUrl;
+      if (settingsLinkEl) settingsLinkEl.textContent = provUrl;
+      const opts = { width: 160, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } };
+      const provCanvas     = document.getElementById('ref-provider-qr-canvas');
+      const drvCanvas      = document.getElementById('ref-driver-qr-canvas');
+      const settingsCanvas = document.getElementById('settings-ref-qr-canvas');
+      if (typeof QRCode !== 'undefined') {
+        if (provCanvas)     try { await QRCode.toCanvas(provCanvas, provUrl, opts); } catch {}
+        if (drvCanvas)      try { await QRCode.toCanvas(drvCanvas, drvUrl, opts); } catch {}
+        if (settingsCanvas) try { await QRCode.toCanvas(settingsCanvas, provUrl, opts); } catch {}
+      }
+    }
+
+    function downloadReferralQr(type) {
+      if (!memberReferralCode) { showToast('Referral code not loaded', 'error'); return; }
+      const canvasId = type === 'provider' ? 'ref-provider-qr-canvas' : 'ref-driver-qr-canvas';
+      const canvas = document.getElementById(canvasId);
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `mcc-${type}-referral-${memberReferralCode}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('QR code downloaded!', 'success');
+    }
+
+    function copyReferralProviderLink() {
+      if (!memberReferralCode) { showToast('Referral code not loaded', 'error'); return; }
+      navigator.clipboard.writeText(_providerReferralUrl()).then(
+        () => showToast('Provider link copied!', 'success'),
+        () => showToast('Failed to copy', 'error')
+      );
+    }
+    function copyReferralDriverLink() {
+      if (!memberReferralCode) { showToast('Referral code not loaded', 'error'); return; }
+      navigator.clipboard.writeText(_driverReferralUrl()).then(
+        () => showToast('Driver link copied!', 'success'),
+        () => showToast('Failed to copy', 'error')
+      );
+    }
+    function shareReferralProviderEmail() {
+      if (!memberReferralCode) return;
+      const link = _providerReferralUrl();
+      window.open(`mailto:?subject=${encodeURIComponent('Join My Car Concierge as a Provider')}&body=${encodeURIComponent('Hey — I\'d love for you to join the My Car Concierge provider network!\n\nSign up here: ' + link + '\n\nWhen you join and purchase bid credits I earn a commission, so I really appreciate it.')}`);
+    }
+    function shareReferralProviderSMS() {
+      if (!memberReferralCode) return;
+      const msg = encodeURIComponent(`Join My Car Concierge as a provider and grow your shop! ${_providerReferralUrl()}`);
+      window.open(/iPhone|iPad|iPod/i.test(navigator.userAgent) ? `sms:&body=${msg}` : `sms:?body=${msg}`);
+    }
+    function shareReferralDriverSMS() {
+      if (!memberReferralCode) return;
+      const msg = encodeURIComponent(`Apply to drive with My Car Concierge! Earn more, keep more. ${_driverReferralUrl()}`);
+      window.open(/iPhone|iPad|iPod/i.test(navigator.userAgent) ? `sms:&body=${msg}` : `sms:?body=${msg}`);
+    }
+
+    window.downloadReferralQr         = downloadReferralQr;
+    window.copyReferralProviderLink    = copyReferralProviderLink;
+    window.copyReferralDriverLink      = copyReferralDriverLink;
+    window.shareReferralProviderEmail  = shareReferralProviderEmail;
+    window.shareReferralProviderSMS    = shareReferralProviderSMS;
+    window.shareReferralDriverSMS      = shareReferralDriverSMS;
+
     const originalShowSectionForReferrals = showSection;
     showSection = function(sectionId) {
-      if (sectionId === 'referrals') {
+      if (sectionId === 'referrals' || sectionId === 'settings') {
         loadReferralData();
+      }
+      if (sectionId === 'settings') {
+        loadCommissionOptOutCard();
       }
       if (sectionId === 'fuel-tracker') {
         loadFuelLogs();
@@ -7860,8 +8577,48 @@ See you there!`);
       if (sectionId === 'insurance') {
         loadInsuranceDocuments();
       }
+      if (sectionId === 'founder') {
+        loadFounderSection();
+      }
       originalShowSectionForReferrals(sectionId);
     };
+
+    async function loadCommissionOptOutCard() {
+      if (!currentUser) return;
+      const card = document.getElementById('commission-opt-out-card');
+      const toggle = document.getElementById('commission-opt-out-toggle');
+      if (!card || !toggle) return;
+      try {
+        const { data } = await supabaseClient
+          .from('profiles')
+          .select('referred_by_founder_id, commission_opt_out')
+          .eq('id', currentUser.id)
+          .maybeSingle();
+        if (data && data.referred_by_founder_id) {
+          card.style.display = 'block';
+          toggle.checked = !!data.commission_opt_out;
+        }
+      } catch(e) {
+        console.warn('[opt-out] loadCommissionOptOutCard error:', e.message);
+      }
+    }
+
+    async function saveCommissionOptOut(optOut) {
+      if (!currentUser) return;
+      try {
+        const { error } = await supabaseClient
+          .from('profiles')
+          .update({ commission_opt_out: optOut })
+          .eq('id', currentUser.id);
+        if (error) throw error;
+        showToast(optOut ? 'Commission attribution disabled.' : 'Commission attribution re-enabled.', 'success');
+      } catch(e) {
+        console.error('[opt-out] saveCommissionOptOut error:', e.message);
+        showToast('Could not save preference. Try again.', 'error');
+      }
+    }
+
+    window.saveCommissionOptOut = saveCommissionOptOut;
 
 
     // ========== FUEL TRACKER SECTION ==========
@@ -8745,3 +9502,245 @@ See you there!`);
       }
     }
 
+    // ── Founder Inline Section ─────────────────────────────────────────────
+    let _founderProfile = null;
+    let _founderSectionInit = false;
+
+    async function loadFounderSection() {
+      if (_founderSectionInit) return;
+      _founderSectionInit = true;
+      const loading = document.getElementById('founder-loading-state');
+      const notApproved = document.getElementById('founder-not-approved-state');
+      const approved = document.getElementById('founder-approved-state');
+      if (!loading) return;
+      loading.style.display = 'flex';
+      notApproved.style.display = 'none';
+      approved.style.display = 'none';
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        if (!token) { loading.style.display = 'none'; renderFounderNotApproved(); return; }
+        const res = await fetch('/api/member-founder/me', { headers: { 'Authorization': `Bearer ${token}` } });
+        loading.style.display = 'none';
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.profile) { _founderProfile = data.profile; renderFounderApproved(data.profile); return; }
+        }
+        renderFounderNotApproved();
+      } catch(e) {
+        const loadingEl = document.getElementById('founder-loading-state');
+        if (loadingEl) loadingEl.style.display = 'none';
+        renderFounderNotApproved();
+      }
+    }
+
+    function renderFounderNotApproved() {
+      document.getElementById('founder-not-approved-state').style.display = 'block';
+      document.getElementById('founder-approved-state').style.display = 'none';
+      const emailEl = document.getElementById('founder-apply-email');
+      if (emailEl && !emailEl.value && currentUser?.email) emailEl.value = currentUser.email;
+      const nameEl = document.getElementById('founder-apply-name');
+      if (nameEl && !nameEl.value && typeof userProfile !== 'undefined' && userProfile?.full_name) nameEl.value = userProfile.full_name;
+    }
+
+    async function renderFounderApproved(profile) {
+      document.getElementById('founder-not-approved-state').style.display = 'none';
+      document.getElementById('founder-approved-state').style.display = 'block';
+      const bd = profile.balance_breakdown || {};
+      const cleared = (bd.payable_amount || 0) + (bd.paid_amount_ytd || 0);
+      function _sf(id, v) { const el = document.getElementById(id); if (el) el.textContent = v; }
+      _sf('founder-commission-rate', Math.round((profile.commission_rate || 0.5) * 100) + '%');
+      _sf('founder-stat-cleared', '$' + cleared.toFixed(2));
+      _sf('founder-stat-maturing', '$' + (bd.maturing_amount || 0).toFixed(2));
+      _sf('founder-stat-payable', '$' + (bd.payable_amount || 0).toFixed(2));
+      _sf('founder-stat-providers', profile.total_provider_referrals || 0);
+      if (profile.next_payout_date) {
+        _sf('founder-next-payout', new Date(profile.next_payout_date).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }));
+      }
+      const code = profile.referral_code || '';
+      _sf('founder-code-display', code || '—');
+      const provUrl = code ? `https://www.mycarconcierge.com/signup-provider.html?ref=${code}` : '—';
+      _sf('founder-provider-link', provUrl);
+      const badge = document.getElementById('founder-earn-badge');
+      if (badge && code) { badge.textContent = Math.round((profile.commission_rate || 0.5) * 100) + '%'; badge.style.display = 'inline-block'; }
+      if (code && typeof QRCode !== 'undefined') {
+        const canvas = document.getElementById('founder-qr-canvas');
+        if (canvas) try { await QRCode.toCanvas(canvas, provUrl, { width: 160, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } }); } catch(e) {}
+      }
+      loadFounderCommissions();
+    }
+
+    async function loadFounderCommissions() {
+      const feedEl = document.getElementById('founder-activity-feed');
+      if (!feedEl) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        const res = await fetch('/api/member-founder/commissions?limit=10', { headers: { 'Authorization': `Bearer ${token}` } });
+        if (!res.ok) { feedEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">No activity yet.</p>'; return; }
+        const data = await res.json();
+        const comms = data.commissions || [];
+        if (!comms.length) { feedEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">No commissions yet. Start sharing your link!</p>'; return; }
+        const statusColors = { paid: 'var(--accent-green)', payable: 'var(--accent-gold)', pending: 'var(--accent-blue)', voided: 'var(--text-muted)', clawback_adjustment: 'var(--accent-orange)' };
+        const statusLabels = { paid: 'Paid', payable: 'Payable', pending: 'Maturing', voided: 'Voided', clawback_adjustment: 'Clawback' };
+        feedEl.innerHTML = comms.map(c => {
+          const color = statusColors[c.status] || 'var(--text-muted)';
+          const label = statusLabels[c.status] || c.status;
+          const amt = parseFloat(c.commission_amount || 0);
+          const date = new Date(c.created_at).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+          const prov = c.referred_provider_name || 'Provider';
+          return `<div style="display:flex;align-items:center;justify-content:space-between;padding:12px 16px;border-bottom:1px solid var(--border-subtle);">
+            <div><div style="font-weight:500;font-size:0.9rem;">${prov}</div><div style="font-size:0.78rem;color:var(--text-muted);">${date}</div></div>
+            <div style="text-align:right;"><div style="font-weight:600;color:${color};">$${amt.toFixed(2)}</div><div style="font-size:0.75rem;color:${color};opacity:0.8;">${label}</div></div>
+          </div>`;
+        }).join('');
+      } catch(e) {
+        feedEl.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:24px;">Could not load commissions.</p>';
+      }
+    }
+
+    async function submitFounderApplication(event) {
+      event.preventDefault();
+      const btn = document.getElementById('founder-apply-btn');
+      const form = document.getElementById('founder-apply-form');
+      const successEl = document.getElementById('founder-apply-success');
+      const fullName = document.getElementById('founder-apply-name').value.trim();
+      const email = document.getElementById('founder-apply-email').value.trim();
+      const phone = document.getElementById('founder-apply-phone').value.trim();
+      const location = document.getElementById('founder-apply-location').value.trim();
+      const promoMethod = document.getElementById('founder-apply-promo').value;
+      const motivation = document.getElementById('founder-apply-motivation').value.trim();
+      if (!fullName || !email || !phone || !location || !promoMethod || !motivation) {
+        showToast('Please fill in all required fields', 'error'); return;
+      }
+      const agreeTerms = document.getElementById('founder-agree-terms')?.checked;
+      const agreeContractor = document.getElementById('founder-agree-contractor')?.checked;
+      const agreeCommission = document.getElementById('founder-agree-commission')?.checked;
+      const agreeAccurate = document.getElementById('founder-agree-accurate')?.checked;
+      if (!agreeTerms || !agreeContractor || !agreeCommission || !agreeAccurate) {
+        showToast('Please agree to all terms before submitting', 'error'); return;
+      }
+      btn.disabled = true;
+      btn.textContent = 'Submitting…';
+      try {
+        const { data: settings } = await supabaseClient
+          .from('founder_program_settings')
+          .select('enrollment_open')
+          .eq('id', 1)
+          .maybeSingle();
+        if (settings && settings.enrollment_open === false) {
+          showToast('Applications are currently closed. Check back soon.', 'info');
+          btn.disabled = false;
+          btn.textContent = 'Submit Application';
+          return;
+        }
+        const { error } = await supabaseClient.from('member_founder_applications').insert({
+          full_name: fullName, email, phone, location,
+          promotion_method: promoMethod, motivation, status: 'pending',
+        });
+        if (error && error.code === '23505') {
+          showToast('You already have an application on file.', 'info');
+        } else if (error) {
+          throw error;
+        } else {
+          form.style.display = 'none';
+          successEl.style.display = 'block';
+        }
+      } catch(e) {
+        console.error('founder apply error:', e);
+        showToast('Submission failed. Please try again.', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Submit Application';
+      }
+    }
+
+    function copyFounderCode() {
+      if (!_founderProfile?.referral_code) { showToast('Code not loaded', 'error'); return; }
+      navigator.clipboard.writeText(_founderProfile.referral_code).then(
+        () => showToast('Code copied!', 'success'),
+        () => showToast('Failed to copy', 'error')
+      );
+    }
+
+    function copyFounderProviderLink() {
+      if (!_founderProfile?.referral_code) { showToast('Code not loaded', 'error'); return; }
+      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      navigator.clipboard.writeText(url).then(
+        () => showToast('Link copied!', 'success'),
+        () => showToast('Failed to copy', 'error')
+      );
+    }
+
+    function downloadFounderQr() {
+      const canvas = document.getElementById('founder-qr-canvas');
+      if (!canvas) return;
+      const link = document.createElement('a');
+      link.download = `mcc-founder-${_founderProfile?.referral_code || 'qr'}.png`;
+      link.href = canvas.toDataURL('image/png');
+      link.click();
+      showToast('QR code downloaded!', 'success');
+    }
+
+    function shareFounderProviderEmail() {
+      if (!_founderProfile?.referral_code) return;
+      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      window.open(`mailto:?subject=${encodeURIComponent('Join My Car Concierge as a Provider')}&body=${encodeURIComponent('Hi,\n\nI wanted to invite you to join the My Car Concierge provider network. Sign up here: ' + url)}`);
+    }
+
+    function shareFounderProviderSMS() {
+      if (!_founderProfile?.referral_code) return;
+      const url = `https://www.mycarconcierge.com/signup-provider.html?ref=${_founderProfile.referral_code}`;
+      const msg = encodeURIComponent(`Join My Car Concierge as a provider — grow your auto shop with new clients! ${url}`);
+      window.open(/iPhone|iPad|iPod/i.test(navigator.userAgent) ? `sms:&body=${msg}` : `sms:?body=${msg}`);
+    }
+
+    async function sendFounderInvite(event) {
+      event.preventDefault();
+      const btn = document.getElementById('founder-invite-btn');
+      const emailEl = document.getElementById('founder-invite-email');
+      const phoneEl = document.getElementById('founder-invite-phone');
+      const msgEl = document.getElementById('founder-invite-message');
+      const invEmail = emailEl?.value.trim();
+      const invPhone = phoneEl?.value.trim();
+      if (!invEmail && !invPhone) { showToast('Enter an email or phone number', 'error'); return; }
+      btn.disabled = true;
+      btn.textContent = 'Sending…';
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token;
+        const payload = {};
+        if (invEmail) payload.email = invEmail;
+        if (invPhone) payload.phone = invPhone;
+        const invMsg = msgEl?.value.trim();
+        if (invMsg) payload.message = invMsg;
+        const res = await fetch('/api/member-founder/invite', {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        });
+        const data = await res.json();
+        if (res.ok && data.success) {
+          showToast('Invite sent!', 'success');
+          if (emailEl) emailEl.value = '';
+          if (phoneEl) phoneEl.value = '';
+          if (msgEl) msgEl.value = '';
+        } else {
+          showToast(data.error || 'Failed to send invite', 'error');
+        }
+      } catch(e) {
+        showToast('Failed to send invite', 'error');
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Send Invite';
+      }
+    }
+
+    window.loadFounderSection     = loadFounderSection;
+    window.submitFounderApplication = submitFounderApplication;
+    window.copyFounderCode        = copyFounderCode;
+    window.copyFounderProviderLink = copyFounderProviderLink;
+    window.downloadFounderQr      = downloadFounderQr;
+    window.shareFounderProviderEmail = shareFounderProviderEmail;
+    window.shareFounderProviderSMS = shareFounderProviderSMS;
+    window.sendFounderInvite      = sendFounderInvite;

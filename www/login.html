@@ -8,12 +8,19 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       --bg-deep: #0a0a0f;
@@ -31,6 +38,29 @@
       --radius-md: 12px;
       --radius-lg: 16px;
       --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --bg-input: #f0f1f3;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --accent-gold: #b8942d;
+      --accent-blue: #1e3a5f;
+      --accent-green: #059669;
+      --accent-orange: #c2570c;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+      --border-medium: rgba(30, 58, 95, 0.18);
+      --border-focus: rgba(30, 58, 95, 0.4);
+    }
+
+    html.theme-transition,
+    html.theme-transition *,
+    html.theme-transition *::before,
+    html.theme-transition *::after {
+      transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease !important;
     }
 
     * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -66,8 +96,9 @@
       margin-bottom: 40px;
       text-decoration: none;
     }
-    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-md); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
-    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.3rem; color: var(--text-primary); }
+    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
+    .login-brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
+    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: var(--text-xl); color: var(--text-primary); }
 
     .login-card {
       background: var(--bg-card);
@@ -76,14 +107,12 @@
       padding: 40px 36px;
     }
 
-    .login-header { text-align: center; margin-bottom: 32px;
-      padding-top: env(safe-area-inset-top);
-    }
-    .login-header h1 { font-family: 'Playfair Display', serif; font-size: 1.6rem; font-weight: 500; margin-bottom: 8px; }
-    .login-header p { color: var(--text-secondary); font-size: 0.92rem; }
+    .login-header { text-align: center; margin-bottom: 32px; }
+    .login-header h1 { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
+    .login-header p { color: var(--text-secondary); font-size: var(--text-base); }
 
     .form-group { margin-bottom: 20px; }
-    .form-label { display: block; font-size: 0.85rem; font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
+    .form-label { display: block; font-size: var(--text-sm); font-weight: 500; margin-bottom: 8px; color: var(--text-secondary); }
     .form-input {
       width: 100%;
       padding: 14px 16px;
@@ -92,7 +121,7 @@
       border-radius: var(--radius-md);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       transition: all 0.15s ease;
     }
     .form-input:focus { outline: none; border-color: var(--border-focus); box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.1); }
@@ -102,7 +131,7 @@
       width: 100%;
       padding: 14px 24px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 600;
       border: none;
       border-radius: var(--radius-lg);
@@ -110,15 +139,15 @@
       transition: all 0.2s ease;
       margin-top: 8px;
     }
-    .btn-primary { background: linear-gradient(135deg, var(--accent-blue), #6b9fff); color: white; }
-    .btn-primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(74, 124, 255, 0.35); }
-    .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
+    .btn--primary { background: #C9A84C; color: #0F1923; }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201, 168, 76, 0.35); }
+    .btn--primary:disabled { opacity: 0.7; cursor: not-allowed; transform: none; }
 
     .login-message {
       margin-top: 16px;
       padding: 14px 16px;
       border-radius: var(--radius-md);
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       text-align: center;
       display: none;
     }
@@ -127,11 +156,11 @@
     .login-message.success { background: rgba(74, 200, 140, 0.1); border: 1px solid rgba(74, 200, 140, 0.3); color: var(--accent-green); }
     .login-message.warning { background: rgba(245, 158, 11, 0.1); border: 1px solid rgba(245, 158, 11, 0.3); color: var(--accent-orange); }
 
-    .login-footer { margin-top: 28px; text-align: center; font-size: 0.88rem; color: var(--text-muted); }
+    .login-footer { margin-top: 28px; text-align: center; font-size: var(--text-base); color: var(--text-muted); }
     .login-footer a { color: var(--text-secondary); text-decoration: none; }
     .login-footer a:hover { color: var(--accent-blue); }
 
-    .divider { display: flex; align-items: center; gap: 16px; margin: 24px 0; color: var(--text-muted); font-size: 0.82rem; }
+    .divider { display: flex; align-items: center; gap: 16px; margin: 24px 0; color: var(--text-muted); font-size: var(--text-sm); }
     .divider::before, .divider::after { content: ''; flex: 1; height: 1px; background: var(--border-subtle); }
 
     .social-divider { display: flex; align-items: center; gap: 16px; margin: 20px 0 16px; color: var(--text-muted); font-size: 0.82rem; }
@@ -199,7 +228,7 @@
       text-align: center;
       text-decoration: none;
       color: var(--text-secondary);
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       transition: all 0.15s;
     }
     .signup-link:hover { border-color: var(--accent-blue); color: var(--text-primary); }
@@ -220,14 +249,14 @@
     /* Pending Provider Screen */
     .pending-screen { text-align: center; padding: 20px 0; }
     .pending-icon { font-size: 56px; margin-bottom: 20px; }
-    .pending-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 12px; }
-    .pending-text { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; margin-bottom: 24px; }
-    .pending-status { display: inline-block; padding: 8px 20px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 100px; color: var(--accent-orange); font-weight: 500; font-size: 0.88rem; }
+    .pending-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 12px; }
+    .pending-text { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.6; margin-bottom: 24px; }
+    .pending-status { display: inline-block; padding: 8px 20px; background: rgba(245, 158, 11, 0.15); border: 1px solid rgba(245, 158, 11, 0.3); border-radius: 100px; color: var(--accent-orange); font-weight: 500; font-size: var(--text-base); }
 
     /* Portal Selection Screen */
     .portal-selection { text-align: center; padding: 20px 0; }
-    .portal-title { font-family: 'Playfair Display', serif; font-size: 1.4rem; margin-bottom: 8px; }
-    .portal-subtitle { color: var(--text-secondary); font-size: 0.92rem; margin-bottom: 32px; }
+    .portal-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 8px; }
+    .portal-subtitle { color: var(--text-secondary); font-size: var(--text-base); margin-bottom: 32px; }
     .portal-options { display: flex; flex-direction: column; gap: 16px; }
     .portal-option {
       display: flex;
@@ -244,19 +273,396 @@
     .portal-option:hover { border-color: var(--accent-blue); transform: translateY(-2px); }
     .portal-option-icon { font-size: 36px; }
     .portal-option-content { flex: 1; }
-    .portal-option-name { font-weight: 600; font-size: 1.1rem; margin-bottom: 4px; }
-    .portal-option-desc { color: var(--text-secondary); font-size: 0.85rem; }
+    .portal-option-name { font-weight: 600; font-size: var(--text-lg); margin-bottom: 4px; }
+    .portal-option-desc { color: var(--text-secondary); font-size: var(--text-sm); }
     .portal-option-arrow { color: var(--text-muted); font-size: 20px; }
     .portal-logout { margin-top: 24px; }
-    .portal-logout a { color: var(--text-muted); font-size: 0.88rem; cursor: pointer; }
+    .portal-logout a { color: var(--text-muted); font-size: var(--text-base); cursor: pointer; }
     .portal-logout a:hover { color: var(--accent-blue); }
+
+    /* 2FA Verification Screen */
+    .twofa-screen { text-align: center; padding: 20px 0; }
+    .twofa-icon { font-size: 56px; margin-bottom: 20px; }
+    .twofa-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 12px; }
+    .twofa-text { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.6; margin-bottom: 24px; }
+    .twofa-phone { color: var(--accent-gold); font-weight: 500; }
+    
+    .code-inputs {
+      display: flex;
+      justify-content: center;
+      gap: 8px;
+      margin-bottom: 24px;
+    }
+    .code-input {
+      width: 48px;
+      height: 56px;
+      text-align: center;
+      font-size: var(--text-2xl);
+      font-weight: 600;
+      background: var(--bg-input);
+      border: 2px solid var(--border-subtle);
+      border-radius: var(--radius-md);
+      color: var(--text-primary);
+      font-family: 'Outfit', monospace;
+      transition: all 0.15s ease;
+    }
+    .code-input:focus {
+      outline: none;
+      border-color: var(--accent-blue);
+      box-shadow: 0 0 0 3px rgba(74, 124, 255, 0.2);
+    }
+    .code-input.filled {
+      border-color: var(--accent-green);
+      background: rgba(74, 200, 140, 0.1);
+    }
+    .code-input.error {
+      border-color: #ef5f5f;
+      animation: shake 0.5s ease;
+    }
+    
+    @keyframes shake {
+      0%, 100% { transform: translateX(0); }
+      25% { transform: translateX(-5px); }
+      75% { transform: translateX(5px); }
+    }
+    
+    .twofa-actions { margin-top: 20px; }
+    .twofa-resend {
+      color: var(--text-muted);
+      font-size: var(--text-base);
+      margin-top: 16px;
+    }
+    .twofa-resend a {
+      color: var(--accent-blue);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .twofa-resend a:hover { text-decoration: underline; }
+    .twofa-resend a.disabled {
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .twofa-countdown { color: var(--text-muted); font-size: var(--text-sm); margin-top: 8px; }
+    .twofa-back {
+      margin-top: 20px;
+    }
+    .twofa-back a {
+      color: var(--text-muted);
+      font-size: var(--text-base);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .twofa-back a:hover { color: var(--accent-blue); }
+
+    /* Biometric Auth Styles */
+    .biometric-section {
+      display: none;
+      margin-top: 20px;
+      padding-top: 20px;
+      border-top: 1px solid var(--border-subtle);
+    }
+    .biometric-section.show { display: block; }
+    
+    .biometric-prompt {
+      text-align: center;
+      padding: 20px;
+      background: var(--bg-input);
+      border-radius: var(--radius-lg);
+      margin-bottom: 16px;
+    }
+    .biometric-icon { font-size: 48px; margin-bottom: 12px; }
+    .biometric-title { font-weight: 600; font-size: var(--text-md); margin-bottom: 8px; }
+    .biometric-text { color: var(--text-secondary); font-size: var(--text-base); }
+    
+    .btn-biometric {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: var(--bg-input);
+      border: 2px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-biometric:hover {
+      border-color: var(--accent-gold);
+      background: var(--accent-gold-soft);
+    }
+    .btn-biometric:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-biometric .biometric-btn-icon { font-size: var(--text-2xl); }
+
+    /* Sign in with Apple Button */
+    .social-signin-section { margin-top: 4px; }
+    .social-divider {
+      display: flex;
+      align-items: center;
+      margin-bottom: 16px;
+    }
+    .social-divider::before,
+    .social-divider::after {
+      content: '';
+      flex: 1;
+      height: 1px;
+      background: var(--border-subtle);
+    }
+    .social-divider span {
+      padding: 0 16px;
+      color: var(--text-muted);
+      font-size: var(--text-sm);
+    }
+    .btn-apple-signin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      background: #000000;
+      border: none;
+      border-radius: var(--radius-lg);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-apple-signin:hover {
+      background: #1a1a1a;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+    }
+    .btn-apple-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-apple-signin .apple-icon { flex-shrink: 0; }
+    [data-theme="light"] .btn-apple-signin {
+      background: #000000;
+      color: #ffffff;
+    }
+
+    .btn-facebook-signin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      margin-top: 12px;
+      background: #1877F2;
+      border: none;
+      border-radius: var(--radius-lg);
+      color: #ffffff;
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-facebook-signin:hover {
+      background: #166FE5;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(24, 119, 242, 0.3);
+    }
+    .btn-google-signin {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      width: 100%;
+      padding: 14px 24px;
+      margin-top: 12px;
+      background: #ffffff;
+      border: 1.5px solid #dadce0;
+      border-radius: var(--radius-lg);
+      color: #3c4043;
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn-google-signin:hover {
+      background: #f8f9fa;
+      border-color: #c6c6c6;
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    }
+    .btn-google-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-google-signin .google-icon { flex-shrink: 0; }
+    [data-theme="light"] .btn-google-signin {
+      background: #ffffff;
+      color: #3c4043;
+    }
+
+    .btn-facebook-signin:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+    .btn-facebook-signin .facebook-icon { flex-shrink: 0; }
+    [data-theme="light"] .btn-facebook-signin {
+      background: #1877F2;
+      color: #ffffff;
+    }
+
+    .biometric-toggle-row {
+      display: none;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      margin-top: 16px;
+    }
+    .biometric-toggle-row.show { display: flex; }
+    .biometric-toggle-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+    }
+    .biometric-toggle-label .toggle-icon { font-size: var(--text-xl); }
+    
+    .toggle-switch {
+      position: relative;
+      width: 48px;
+      height: 26px;
+      background: var(--border-medium);
+      border-radius: 13px;
+      cursor: pointer;
+      transition: background 0.2s ease;
+    }
+    .toggle-switch.active { background: var(--accent-green); }
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 22px;
+      height: 22px;
+      background: white;
+      border-radius: 50%;
+      top: 2px;
+      left: 2px;
+      transition: transform 0.2s ease;
+    }
+    .toggle-switch.active::after { transform: translateX(22px); }
+
+    /* Biometric Enrollment Modal */
+    .biometric-enroll-screen { text-align: center; padding: 20px 0; }
+    .biometric-enroll-icon { font-size: 56px; margin-bottom: 20px; }
+    .biometric-enroll-title { font-family: 'Playfair Display', serif; font-size: var(--text-2xl); margin-bottom: 12px; }
+    .biometric-enroll-text { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.6; margin-bottom: 24px; }
+    .biometric-enroll-actions { display: flex; flex-direction: column; gap: 12px; }
+    .btn--secondary {
+      width: 100%;
+      padding: 14px 24px;
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 600;
+      border: 1px solid var(--border-medium);
+      border-radius: var(--radius-lg);
+      background: transparent;
+      color: var(--text-secondary);
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+    .btn--secondary:hover { border-color: var(--text-primary); color: var(--text-primary); }
 
     @media (max-width: 480px) {
       .login-card { padding: 32px 24px; }
       .signup-links { flex-direction: column; }
     }
+  
+    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
+    .login-tabs {
+      display: flex;
+      gap: 8px;
+      margin-top: 4px;
+      margin-bottom: 24px;
+    }
+    .login-tab {
+      flex: 1;
+      padding: 10px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: 100px;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: var(--text-base);
+      font-weight: 500;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-align: center;
+    }
+    .login-tab:hover {
+      border-color: var(--border-medium);
+      color: var(--text-primary);
+    }
+    .login-tab.active {
+      background: linear-gradient(135deg, var(--accent-blue), #6b9fff);
+      border-color: transparent;
+      color: white;
+      font-weight: 600;
+    }
+
+    .magic-link-sent {
+      text-align: center;
+      padding: 20px 0;
+    }
+    .magic-link-sent-icon {
+      font-size: 56px;
+      margin-bottom: 20px;
+      color: var(--accent-green);
+    }
+    .magic-link-sent-title {
+      font-family: 'Playfair Display', serif;
+      font-size: var(--text-2xl);
+      margin-bottom: 12px;
+    }
+    .magic-link-sent-text {
+      color: var(--text-secondary);
+      font-size: var(--text-base);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+    .magic-link-sent-email {
+      color: var(--accent-gold);
+      font-weight: 500;
+    }
+    .magic-link-sent-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      margin-top: 24px;
+    }
+    .magic-link-resend {
+      color: var(--text-muted);
+      font-size: var(--text-base);
+      margin-top: 16px;
+    }
+    .magic-link-resend a {
+      color: var(--accent-blue);
+      cursor: pointer;
+      text-decoration: none;
+    }
+    .magic-link-resend a:hover { text-decoration: underline; }
+    .magic-link-resend a.disabled {
+      color: var(--text-muted);
+      pointer-events: none;
+    }
+    .magic-link-countdown {
+      color: var(--text-muted);
+      font-size: var(--text-sm);
+      margin-top: 8px;
+    }
+
+    .trust-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
+    .trust-item { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--text-muted); }
+    .trust-item svg { color: var(--accent-gold); stroke: var(--accent-gold); flex-shrink: 0; }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/login.html" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -277,7 +683,7 @@
   <meta name="twitter:description" content="Sign in to My Car Concierge. Manage your vehicles, bids, appointments, and providers from one secure account." />
   <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
 <!-- SEO-INJECT:END -->
-  <script src="/auth-theme-toggle.js" defer></script>
+  <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -296,6 +702,39 @@
           <p data-i18n="auth.signInSubtitle">Sign in to your account</p>
         </div>
 
+        <!-- Social Sign In Options — hidden until OAuth providers are configured in Supabase -->
+        <div class="social-signin-section" style="display:none;">
+          <button type="button" class="btn-apple-signin" id="apple-signin-btn" onclick="signInWithApple()">
+            <svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+            </svg>
+            <span data-i18n="auth.signInWithApple">Sign in with Apple</span>
+          </button>
+          <button type="button" class="btn-google-signin" id="google-signin-btn" onclick="signInWithGoogle()">
+            <svg class="google-icon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg">
+              <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+              <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+              <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/>
+              <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+            </svg>
+            <span>Continue with Google</span>
+          </button>
+          <button type="button" class="btn-facebook-signin" id="facebook-signin-btn" onclick="signInWithFacebook()">
+            <svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
+              <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+            </svg>
+            <span data-i18n="auth.signInWithFacebook">Continue with Facebook</span>
+          </button>
+        </div>
+        <div class="social-divider" style="display:none;">
+          <span data-i18n="common.or">or</span>
+        </div>
+
+        <div class="login-tabs">
+          <button type="button" class="login-tab active" id="tab-password" onclick="switchLoginTab('password')">Password</button>
+          <button type="button" class="login-tab" id="tab-magic" onclick="switchLoginTab('magic')">Magic Link</button>
+        </div>
+
         <form id="login-form">
           <div class="form-group">
             <label class="form-label" data-i18n="auth.email">Email</label>
@@ -305,13 +744,19 @@
             <label class="form-label" data-i18n="auth.password">Password</label>
             <input type="password" class="form-input" id="password" placeholder="••••••••" data-i18n="auth.passwordPlaceholder" data-i18n-attr="placeholder" required>
           </div>
-          <button type="submit" class="btn btn-primary" id="login-btn" data-i18n="auth.signInButton">Sign In</button>
+          <div style="text-align:right;margin:-4px 0 4px;"><a href="forgot-password.html" style="font-size:var(--text-sm);color:var(--text-muted);text-decoration:none;">Forgot password?</a></div>
+          <button type="submit" class="btn btn--primary" id="login-btn" data-i18n="auth.signInButton">Sign In</button>
+          <button type="button" class="btn btn--primary" id="magic-link-btn" style="display:none;" onclick="sendMagicLink()">Send Magic Link</button>
         </form>
 
         <div class="login-message" id="message"></div>
 
-        <div class="social-divider">
-          <span data-i18n="common.or">or</span>
+        <!-- Biometric Login Button (shown when enabled) -->
+        <div id="biometric-login-section" class="biometric-section">
+          <button type="button" class="btn-biometric" id="biometric-login-btn" onclick="triggerBiometricLogin()">
+            <span class="biometric-btn-icon" id="biometric-btn-icon"><span class="icon-inline" data-icon="lock"></span></span>
+            <span id="biometric-btn-text">Sign in with Biometrics</span>
+          </button>
         </div>
         <button type="button" class="btn-apple-signin" id="apple-signin-btn" onclick="signInWithApple()">
           <svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true">
@@ -338,6 +783,50 @@
             <span data-i18n="auth.signUpProvider">Apply as Provider</span>
           </a>
         </div>
+
+        <div class="trust-bar">
+          <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/></svg> Payments held in escrow — released only when you approve</div>
+          <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10"/><path d="m9 12 2 2 4-4"/></svg> All providers background-checked annually</div>
+          <div class="trust-item"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg> Your data is encrypted and never sold</div>
+        </div>
+      </div>
+
+      <div id="magic-link-sent" style="display:none;">
+        <div class="magic-link-sent">
+          <div class="magic-link-sent-icon"><span class="icon-inline" data-icon="email"></span></div>
+          <h2 class="magic-link-sent-title">Check Your Email!</h2>
+          <p class="magic-link-sent-text">
+            We sent a sign-in link to<br>
+            <span class="magic-link-sent-email" id="magic-link-email-display"></span>
+          </p>
+          <p class="magic-link-sent-text">Click the link in your email to sign in. It may take a moment to arrive.</p>
+          <div class="magic-link-resend">
+            <a id="magic-resend-link" onclick="resendMagicLink()">Resend magic link</a>
+          </div>
+          <div class="magic-link-countdown" id="magic-resend-countdown"></div>
+          <div class="magic-link-sent-actions">
+            <button class="btn--secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="magic-link-sent" style="display:none;">
+        <div class="magic-link-sent">
+          <div class="magic-link-sent-icon"><span class="icon-inline" data-icon="email"></span></div>
+          <h2 class="magic-link-sent-title">Check Your Email!</h2>
+          <p class="magic-link-sent-text">
+            We sent a sign-in link to<br>
+            <span class="magic-link-sent-email" id="magic-link-email-display"></span>
+          </p>
+          <p class="magic-link-sent-text">Click the link in your email to sign in. It may take a moment to arrive.</p>
+          <div class="magic-link-resend">
+            <a id="magic-resend-link" onclick="resendMagicLink()">Resend magic link</a>
+          </div>
+          <div class="magic-link-countdown" id="magic-resend-countdown"></div>
+          <div class="magic-link-sent-actions">
+            <button class="btn--secondary" onclick="showMagicLinkForm()">← Back to sign in</button>
+          </div>
+        </div>
       </div>
 
       <!-- Pending Provider Screen -->
@@ -349,10 +838,64 @@
             Thank you for applying to join My Car Concierge! Our team is reviewing your application and verifying your credentials.
           </p>
           <div class="pending-status">Status: Pending Review</div>
-          <p style="color:var(--text-muted);font-size:0.85rem;margin-top:20px;">
+          <p style="color:var(--text-muted);font-size:var(--text-sm);margin-top:20px;">
             This typically takes 2-3 business days. You'll receive an email once approved.
           </p>
-          <button class="btn btn-primary" onclick="logout()" style="margin-top:24px;" data-i18n="common.signOut">Sign Out</button>
+          <button class="btn btn--primary" onclick="logout()" style="margin-top:24px;" data-i18n="common.signOut">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Pending Driver Screen -->
+      <div id="pending-driver-screen" style="display:none;">
+        <div class="pending-screen">
+          <div class="pending-icon"><span class="icon-inline" data-icon="clock"></span></div>
+          <h2 class="pending-title">Driver Application Under Review</h2>
+          <p class="pending-text">
+            Your driver application is under review. We'll notify you by email when you're approved.
+          </p>
+          <div class="pending-status" id="pending-driver-status-text">Status: Pending Review</div>
+          <div id="pending-driver-bgc-invite" style="display:none;margin-top:12px;font-size:var(--text-base);"></div>
+          <p style="color:var(--text-muted);font-size:var(--text-sm);margin-top:20px;">
+            This typically takes 1–2 business days. Questions? Email <a href="mailto:support@mycarconcierge.com" style="color:var(--accent-gold);">support@mycarconcierge.com</a>
+          </p>
+          <button class="btn btn--primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Approved Driver Screen -->
+      <div id="driver-approved-screen" style="display:none;">
+        <div class="pending-screen">
+          <div class="pending-icon" style="color:var(--accent-green);">✓</div>
+          <h2 class="pending-title" style="color:var(--accent-green);">You're Approved!</h2>
+          <p class="pending-text">
+            Download the MCC Driver app to start accepting rides and earning money on your schedule.
+          </p>
+          <div style="display:flex;flex-direction:column;gap:12px;margin:24px 0;">
+            <a href="#" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 24px;background:#000;border-radius:12px;color:#fff;text-decoration:none;font-weight:600;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>
+              Download on the App Store
+            </a>
+            <a href="#" style="display:flex;align-items:center;justify-content:center;gap:10px;padding:14px 24px;background:#01875f;border-radius:12px;color:#fff;text-decoration:none;font-weight:600;">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M3.18 23.76c.3.17.64.24.99.2l12.43-12.43L13.24 8l-10.06 15.76zm17.3-11.24L17.94 11 3.64.46A1.17 1.17 0 0 0 2 1.52v20.96c0 .47.26.88.64 1.06l14.3-10.54 3.54-1.02-2.3-1.5-.9 1.04zM20.8 9.1l-2.58-1.5L15.6 9.1l2.62 2.62 2.58-2.62zm-1.44 7.82L7.13 24l-.99-.29 11.71-7.08 1.51.29z"/></svg>
+              Get it on Google Play
+            </a>
+          </div>
+          <button class="btn btn--secondary" onclick="logout()" style="margin-top:8px;">Sign Out</button>
+        </div>
+      </div>
+
+      <!-- Rejected Driver Screen -->
+      <div id="rejected-driver-screen" style="display:none;">
+        <div class="pending-screen">
+          <div class="pending-icon" style="color:var(--accent-red, #f87171);">✕</div>
+          <h2 class="pending-title">Application Not Approved</h2>
+          <p class="pending-text">
+            Unfortunately your driver application was not approved at this time.
+          </p>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-top:16px;">
+            Contact <a href="mailto:support@mycarconcierge.com" style="color:var(--accent-gold);">support@mycarconcierge.com</a> for more information.
+          </p>
+          <button class="btn btn--primary" onclick="logout()" style="margin-top:24px;">Sign Out</button>
         </div>
       </div>
 
@@ -387,266 +930,141 @@
           </div>
         </div>
       </div>
+
+      <!-- Biometric Enrollment Screen -->
+      <div id="biometric-enroll-screen" style="display:none;">
+        <div class="biometric-enroll-screen">
+          <div class="biometric-enroll-icon" id="biometric-enroll-icon"><span class="icon-inline" data-icon="lock"></span></div>
+          <h2 class="biometric-enroll-title" id="biometric-enroll-title">Enable Quick Sign In</h2>
+          <p class="biometric-enroll-text" id="biometric-enroll-text">
+            Would you like to use Face ID / Fingerprint for faster, secure sign-in next time?
+          </p>
+          
+          <div class="biometric-enroll-actions">
+            <button class="btn btn--primary" id="enable-biometric-btn" onclick="enableBiometric()">
+              Enable Biometric Sign In
+            </button>
+            <button class="btn--secondary" onclick="skipBiometricEnrollment()">
+              Not Now
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 2FA Verification Screen -->
+      <div id="twofa-screen" style="display:none;">
+        <div class="twofa-screen">
+          <div class="twofa-icon"><span class="icon-inline" data-icon="lock"></span></div>
+          <h2 class="twofa-title">Two-Factor Authentication</h2>
+          <p class="twofa-text">
+            Enter the 6-digit code sent to your phone<br>
+            <span class="twofa-phone" id="twofa-phone-display">****1234</span>
+          </p>
+          
+          <div class="code-inputs">
+            <input type="text" class="code-input" id="code-1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+            <input type="text" class="code-input" id="code-2" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-3" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-4" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-5" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="code-input" id="code-6" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          </div>
+          
+          <div class="login-message" id="twofa-message"></div>
+          
+          <div class="twofa-actions">
+            <button class="btn btn--primary" id="verify-btn" onclick="verify2faCode()">Verify Code</button>
+          </div>
+          
+          <div class="twofa-resend">
+            Didn't receive the code? <a id="resend-link" onclick="resend2faCode()">Resend code</a>
+          </div>
+          <div class="twofa-countdown" id="resend-countdown"></div>
+          
+          <div class="twofa-back">
+            <a onclick="back2faToLogin()">← Back to login</a>
+          </div>
+        </div>
+      </div>
+
+      <div id="totp-screen" style="display:none;">
+        <div class="twofa-screen">
+          <div class="twofa-icon"><span class="icon-inline" data-icon="lock"></span></div>
+          <h2 class="twofa-title">Two-Factor Authentication</h2>
+          <p class="twofa-text">Enter the 6-digit code from your authenticator app</p>
+
+          <div class="code-inputs">
+            <input type="text" class="totp-code-input" id="totp-code-1" maxlength="1" inputmode="numeric" pattern="[0-9]" autocomplete="one-time-code">
+            <input type="text" class="totp-code-input" id="totp-code-2" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-3" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-4" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-5" maxlength="1" inputmode="numeric" pattern="[0-9]">
+            <input type="text" class="totp-code-input" id="totp-code-6" maxlength="1" inputmode="numeric" pattern="[0-9]">
+          </div>
+
+          <div class="login-message" id="totp-message"></div>
+
+          <div class="twofa-actions">
+            <button class="btn btn--primary" id="verify-totp-btn" onclick="verifyTotpCode()">Verify Code</button>
+          </div>
+
+          <div class="twofa-back">
+            <a onclick="backTotpToLogin()">← Back to login</a>
+          </div>
+
+          <div class="twofa-resend" id="totp-backup-toggle">
+            Lost your authenticator? <a onclick="toggleBackupCodeEntry()">Use a backup code instead</a>
+          </div>
+          <div id="totp-backup-entry" style="display:none;margin-top:16px;">
+            <input type="text" class="form-input" id="totp-backup-input"
+                   placeholder="XXXX-XXXX" autocomplete="off" maxlength="9"
+                   style="text-transform:uppercase;letter-spacing:2px;text-align:center;font-size:var(--text-lg);">
+            <button class="btn btn--primary" id="verify-backup-btn" onclick="verifyBackupCode()" style="margin-top:12px;">
+              Use Backup Code
+            </button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <div class="login-footer">
       <a href="forgot-password.html" data-i18n="auth.forgotPassword">Forgot password?</a>
-      <div style="margin-top:20px;font-size:0.75rem;color:var(--text-muted);">
-        © 2025 My Car Concierge. All rights reserved.
+      <div style="margin-top:12px;font-size:var(--text-sm);">
+        <a href="/contact.html" style="color:var(--accent-blue);text-decoration:none;">Need help? Contact us</a>
+      </div>
+      <div style="margin-top:16px;font-size:var(--text-xs);color:var(--text-muted);">
+        © 2026 My Car Concierge. All rights reserved.
       </div>
     </div>
   </div>
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
-  <script>
-    const form = document.getElementById('login-form');
-    const messageEl = document.getElementById('message');
-    const loginBtn = document.getElementById('login-btn');
-
-    window.addEventListener('load', async () => {
-      const user = await getCurrentUser();
-      if (user) {
-        await handleUserRedirect(user);
-      }
-    });
-
-    function showMessage(text, type = 'error') {
-      messageEl.textContent = text;
-      messageEl.className = `login-message show ${type}`;
-    }
-
-    function setLoading(loading) {
-      loginBtn.disabled = loading;
-      const signingInText = I18n && I18n.t ? I18n.t('auth.signingIn') : 'Signing in...';
-      const signInText = I18n && I18n.t ? I18n.t('auth.signInButton') : 'Sign In';
-      loginBtn.innerHTML = loading ? '<span class="spinner"></span>' + signingInText : signInText;
-    }
-
-    function showScreen(screenId) {
-      document.getElementById('login-form-container').style.display = 'none';
-      document.getElementById('pending-screen').style.display = 'none';
-      document.getElementById('portal-selection-screen').style.display = 'none';
-      document.getElementById(screenId).style.display = 'block';
-    }
-
-    async function handleUserRedirect(user) {
-
-      let { data: profile, error } = await supabaseClient
-        .from('profiles')
-        .select('role, is_also_member, is_also_provider')
-        .eq('id', user.id)
-        .single();
-
-      // New OAuth user (e.g. first Facebook sign-in): no profile row yet.
-      // Create a member profile so existing-email accounts get linked by Supabase
-      // via shared email and brand-new accounts can complete onboarding.
-      if (error && error.code === 'PGRST116') {
-        const fullName = user.user_metadata?.full_name
-          || user.user_metadata?.name
-          || (user.email ? user.email.split('@')[0] : 'Member');
-        const { data: newProfile, error: createError } = await supabaseClient
-          .from('profiles')
-          .insert({
-            id: user.id,
-            email: user.email,
-            role: 'member',
-            full_name: fullName,
-            created_at: new Date().toISOString()
-          })
-          .select('role, is_also_member, is_also_provider')
-          .single();
-
-        if (createError) {
-          console.error('Failed to create profile for OAuth user:', createError);
-          showMessage('Unable to complete sign-in. Please try again.');
-          return;
-        }
-        profile = newProfile;
-        error = null;
-
-        // Send brand-new OAuth signups (Facebook from #183, Apple from #287)
-        // through the onboarding survey first so they land in the same
-        // conversational flow as email signups.
-        const params = new URLSearchParams(window.location.search);
-        const oauthProvider = params.get('oauth');
-        if (oauthProvider === 'facebook' || oauthProvider === 'apple') {
-          localStorage.setItem('mcc_portal', 'member');
-          globalThis.location.href = 'onboarding-member.html?source=' + encodeURIComponent(oauthProvider);
-          return;
-        }
-      }
-
-      if (error || !profile) {
-        showMessage('Unable to load profile. Please try again.');
-        return;
-      }
-
-      const isMember = profile.role === 'member' || profile.role === 'admin' || profile.is_also_member;
-      const isProvider = profile.role === 'provider' || profile.is_also_provider;
-      const isPendingProvider = profile.role === 'pending_provider';
-
-      if (isPendingProvider && !profile.is_also_member) {
-        showScreen('pending-screen');
-        return;
-      }
-
-      if (isMember && isProvider) {
-        showScreen('portal-selection-screen');
-        return;
-      }
-
-      if (isPendingProvider && profile.is_also_member) {
-        globalThis.location.href = 'members.html';
-        return;
-      }
-
-      if (isProvider) {
-        localStorage.setItem('mcc_portal', 'provider');
-        globalThis.location.href = 'providers.html';
-      } else {
-        localStorage.setItem('mcc_portal', 'member');
-        globalThis.location.href = 'members.html';
-      }
-    }
-
-    function selectPortal(portal) {
-      localStorage.setItem('mcc_portal', portal);
-      if (portal === 'provider') {
-        globalThis.location.href = 'providers.html';
-      } else {
-        globalThis.location.href = 'members.html';
-      }
-    }
-
-    form.addEventListener('submit', async (e) => {
-      e.preventDefault();
-
-      const email = document.getElementById('email').value.trim();
-      const password = document.getElementById('password').value;
-
-
-      if (!email || !password) {
-        return showMessage('Please enter email and password.');
-      }
-
-      setLoading(true);
-
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-      });
-
-
-      if (error) {
-        setLoading(false);
-        return showMessage(error.message);
-      }
-
-      if (data.user) {
-        await handleUserRedirect(data.user);
-      }
-
-      setLoading(false);
-    });
-
-    async function logout() {
-      localStorage.removeItem('mcc_portal');
-      await supabaseClient.auth.signOut();
-      showScreen('login-form-container');
-    }
-
-    // Sign in with Apple OAuth — Task #287. Mirrors signInWithFacebook below.
-    const APPLE_BTN_ICON_SVG = '<svg class="apple-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09l.01-.01zM12.03 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>';
-
-    function resetAppleButton(btn) {
-      if (!btn) return;
-      btn.disabled = false;
-      btn.innerHTML = APPLE_BTN_ICON_SVG + '<span data-i18n="auth.signInWithApple">Sign in with Apple</span>';
-      if (typeof I18n !== 'undefined' && I18n.applyToElement) I18n.applyToElement(btn);
-    }
-
-    async function signInWithApple() {
-      const appleBtn = document.getElementById('apple-signin-btn');
-      if (appleBtn) {
-        appleBtn.disabled = true;
-        appleBtn.innerHTML = '<span class="spinner"></span>Connecting...';
-      }
-      try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-          provider: 'apple',
-          options: {
-            redirectTo: globalThis.location.origin + '/login.html?oauth=apple',
-            scopes: 'name email'
-          }
-        });
-        if (error) {
-          console.error('Apple Sign In error:', error);
-          showMessage('Failed to connect to Apple. Please try again.');
-          resetAppleButton(appleBtn);
-        }
-        // On success the browser is redirected to appleid.apple.com.
-      } catch (err) {
-        console.error('Apple Sign In exception:', err);
-        showMessage('An error occurred. Please try again.');
-        resetAppleButton(appleBtn);
-      }
-    }
-
-    globalThis.signInWithApple = signInWithApple;
-
-    const FACEBOOK_BTN_LABEL = 'Continue with Facebook';
-    const FACEBOOK_BTN_ICON_SVG = '<svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor" aria-hidden="true"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>';
-
-    function resetFacebookButton(btn) {
-      if (!btn) return;
-      btn.disabled = false;
-      btn.innerHTML = FACEBOOK_BTN_ICON_SVG + '<span data-i18n="auth.signInWithFacebook">' + FACEBOOK_BTN_LABEL + '</span>';
-      if (typeof I18n !== 'undefined' && I18n.applyToElement) I18n.applyToElement(btn);
-    }
-
-    async function signInWithFacebook() {
-      const fbBtn = document.getElementById('facebook-signin-btn');
-      if (fbBtn) {
-        fbBtn.disabled = true;
-        fbBtn.innerHTML = '<span class="spinner"></span>Connecting...';
-      }
-
-      try {
-        const { error } = await supabaseClient.auth.signInWithOAuth({
-          provider: 'facebook',
-          options: {
-            redirectTo: globalThis.location.origin + '/login.html?oauth=facebook',
-            scopes: 'email,public_profile'
-          }
-        });
-
-        if (error) {
-          console.error('Facebook Sign In error:', error);
-          showMessage('Failed to connect to Facebook. Please try again.');
-          resetFacebookButton(fbBtn);
-        }
-        // On success the browser is redirected to facebook.com.
-      } catch (err) {
-        console.error('Facebook Sign In exception:', err);
-        showMessage('An error occurred. Please try again.');
-        resetFacebookButton(fbBtn);
-      }
-    }
-
-    globalThis.signInWithFacebook = signInWithFacebook;
-  </script>
-  <script src="/pwa-init.js"></script>
-  <script src="/ai-chat.js"></script>
+  <script src="mcc-config.js"></script>
+  <script src="white-label-client.js"></script>
+  <script src="biometric-auth.js"></script>
+  <script src="login.js"></script>
+  <script src="footer.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
+  <script src="chat-widget-base.js"></script>
+  <script src="ai-chat.js"></script>
   <script>
     /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
     document.addEventListener('DOMContentLoaded', async () => {
+      // Fast path: skip login screen for already-authenticated users
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (session) { window.location.replace('members.html'); return; }
+      } catch (_) {}
+
+      const icon = document.querySelector('.theme-icon');
+      if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
     });
   </script>
-  <script src="/utils.js"></script>
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="utils.js"></script>
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');
@@ -655,6 +1073,6 @@
     });
   </script>
   <script src="analytics-tracker.js" defer></script>
-  <script src="/fb-pixel.js" defer></script>
+  <script src="fb-pixel.js" defer></script>
 </body>
 </html>

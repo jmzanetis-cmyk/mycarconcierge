@@ -200,7 +200,7 @@
       pendingBiometricSession = null;
     }
     
-    // Handle redirect from protected pages requiring 2FA verification
+    // Handle redirect from protected pages requiring 2FA verification (TOTP path)
     async function handle2faRequiredRedirect(user) {
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -209,54 +209,7 @@
           showMessage('Session expired. Please log in again.');
           return;
         }
-        
-        // Check 2FA status and get phone
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/status`, {
-          headers: { 'Authorization': `Bearer ${session.access_token}` }
-        });
-        const result = await response.json();
-        
-        if (!result.success || !result.enabled) {
-          // 2FA not enabled, redirect back
-          await handleUserRedirect(user);
-          return;
-        }
-        
-        // If recently verified, redirect back
-        if (result.recently_verified) {
-          await handleUserRedirect(user);
-          return;
-        }
-        
-        // Get phone for 2FA
-        const { data: profile } = await supabaseClient
-          .from('profiles')
-          .select('phone')
-          .eq('id', user.id)
-          .single();
-        
-        if (!profile?.phone) {
-          showMessage('2FA is enabled but no phone number is configured.');
-          await handleUserRedirect(user);
-          return;
-        }
-        
-        pending2faUser = user;
-        pending2faPhone = profile.phone;
-        
-        // Send 2FA code
-        const sendResult = await send2faCode(profile.phone);
-        
-        if (sendResult.success) {
-          document.getElementById('twofa-phone-display').textContent = sendResult.phone || maskPhone(profile.phone);
-          showScreen('twofa-screen');
-          setup2faInputs();
-          clear2faInputs();
-          startResendCountdown();
-        } else {
-          showMessage(sendResult.error || 'Failed to send verification code', 'error');
-        }
+        await check2faAndProceed(user);
       } catch (error) {
         console.error('2FA required redirect error:', error);
         showMessage('Error initiating 2FA verification.');
@@ -284,8 +237,12 @@
     function showScreen(screenId) {
       document.getElementById('login-form-container').style.display = 'none';
       document.getElementById('pending-screen').style.display = 'none';
+      document.getElementById('pending-driver-screen').style.display = 'none';
+      document.getElementById('driver-approved-screen').style.display = 'none';
+      document.getElementById('rejected-driver-screen').style.display = 'none';
       document.getElementById('portal-selection-screen').style.display = 'none';
       document.getElementById('twofa-screen').style.display = 'none';
+      document.getElementById('totp-screen').style.display = 'none';
       document.getElementById('biometric-enroll-screen').style.display = 'none';
       document.getElementById('magic-link-sent').style.display = 'none';
       document.getElementById(screenId).style.display = 'block';
@@ -353,14 +310,10 @@
         profile = newProfile;
         error = null;
 
-        // Brand-new Facebook signups go through the onboarding survey,
+        // Brand-new social OAuth signups go through the onboarding survey,
         // matching the email signup experience. Provider-intent users
         // get routed to the provider survey instead of the member one.
-        // Task #326: Apple OAuth follows the same routing as Facebook
-        // (iOS App Store parity) — provider-intent Apple signups land
-        // on the provider survey with role='pending_provider' instead
-        // of the default member onboarding.
-        if (urlParams.oauth === 'facebook' || urlParams.oauth === 'apple') {
+        if (urlParams.oauth === 'facebook' || urlParams.oauth === 'apple' || urlParams.oauth === 'google') {
           const oauthSource = urlParams.oauth;
           if (isProviderIntent) {
             try { localStorage.removeItem('mcc_signup_intent'); } catch (_e) { /* ignore */ }
@@ -394,6 +347,47 @@
           }).catch(() => {});
         }
       }).catch(() => {});
+
+      if (profile.role === 'pending_driver') {
+        showScreen('pending-driver-screen');
+        // Fetch BGC status to show the right message
+        supabaseClient
+          .from('drivers')
+          .select('bgc_status, bgc_invite_url')
+          .eq('profile_id', profile.id)
+          .maybeSingle()
+          .then(({ data: driverRow }) => {
+            const bgcStatus = driverRow?.bgc_status || 'not_started';
+            const statusEl = document.getElementById('pending-driver-status-text');
+            const inviteEl = document.getElementById('pending-driver-bgc-invite');
+            if (statusEl) {
+              const messages = {
+                not_started: 'Status: Application Received — Background check not yet initiated',
+                pending_check: 'Status: Background Check In Progress',
+                passed: 'Status: Background Check Passed — Pending final review',
+                consider: 'Status: Background Check Under Review',
+                failed: 'Status: Background Check Not Passed — Contact support for details',
+              };
+              statusEl.textContent = messages[bgcStatus] || 'Status: Pending Review';
+            }
+            if (inviteEl && driverRow?.bgc_invite_url && bgcStatus === 'pending_check') {
+              inviteEl.innerHTML = `<a href="${driverRow.bgc_invite_url}" target="_blank" rel="noopener" style="color:var(--accent-gold);">Complete your background check application →</a>`;
+              inviteEl.style.display = 'block';
+            }
+          })
+          .catch(() => {});
+        return;
+      }
+
+      if (profile.role === 'driver') {
+        showScreen('driver-approved-screen');
+        return;
+      }
+
+      if (profile.role === 'rejected_driver') {
+        showScreen('rejected-driver-screen');
+        return;
+      }
 
       const isMember = profile.role === 'member' || profile.role === 'admin' || profile.is_also_member;
       const isProvider = profile.role === 'provider' || profile.is_also_provider;
@@ -708,70 +702,242 @@
       showScreen('login-form-container');
     }
 
+    // ── TOTP challenge state and helpers ─────────────────────────────────────
+
+    let pendingTotpUser = null;
+    let pendingTotpFactorId = null;
+
+    function showTotpMessage(text, type = 'error') {
+      const msgEl = document.getElementById('totp-message');
+      msgEl.textContent = text;
+      msgEl.className = `login-message show ${type}`;
+    }
+
+    function hideTotpMessage() {
+      document.getElementById('totp-message').className = 'login-message';
+    }
+
+    function clearTotpInputs() {
+      for (let i = 1; i <= 6; i++) {
+        const el = document.getElementById(`totp-code-${i}`);
+        if (el) { el.value = ''; el.classList.remove('filled', 'error'); }
+      }
+      document.getElementById('totp-code-1')?.focus();
+    }
+
+    function getTotpCode() {
+      let code = '';
+      for (let i = 1; i <= 6; i++) code += document.getElementById(`totp-code-${i}`)?.value || '';
+      return code;
+    }
+
+    function setupTotpInputs() {
+      // Clone inputs to flush stale event listeners from prior showings.
+      document.querySelectorAll('.totp-code-input').forEach(input => {
+        const fresh = input.cloneNode(true);
+        input.parentNode.replaceChild(fresh, input);
+      });
+      const inputs = document.querySelectorAll('.totp-code-input');
+      inputs.forEach((input, index) => {
+        input.addEventListener('input', (e) => {
+          const value = e.target.value.replace(/[^0-9]/g, '');
+          e.target.value = value;
+          if (value) {
+            e.target.classList.add('filled');
+            if (index < 5) inputs[index + 1].focus();
+          } else {
+            e.target.classList.remove('filled');
+          }
+          if (getTotpCode().length === 6) verifyTotpCode();
+        });
+        input.addEventListener('keydown', (e) => {
+          if (e.key === 'Backspace' && !e.target.value && index > 0) inputs[index - 1].focus();
+        });
+        input.addEventListener('paste', (e) => {
+          e.preventDefault();
+          const digits = (e.clipboardData || window.clipboardData).getData('text')
+            .replace(/[^0-9]/g, '').slice(0, 6);
+          digits.split('').forEach((d, i) => {
+            if (inputs[i]) { inputs[i].value = d; inputs[i].classList.add('filled'); }
+          });
+          if (digits.length > 0) inputs[Math.min(digits.length, 5)].focus();
+          if (digits.length === 6) verifyTotpCode();
+        });
+      });
+    }
+
+    async function verifyTotpCode() {
+      const code = getTotpCode();
+      if (code.length !== 6) { showTotpMessage('Please enter all 6 digits'); return; }
+
+      const btn = document.getElementById('verify-totp-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Verifying...';
+      hideTotpMessage();
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showTotpMessage('Session expired. Please log in again.'); return; }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/totp/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ factorId: pendingTotpFactorId, code })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showTotpMessage('Verification successful!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: { session: currentSession } } = await supabaseClient.auth.getSession();
+          const offered = await checkBiometricEnrollmentOffer(pendingTotpUser, currentSession);
+          if (!offered) await handleUserRedirect(pendingTotpUser);
+        } else {
+          document.querySelectorAll('.totp-code-input').forEach(el => el.classList.add('error'));
+          showTotpMessage(result.error || 'Invalid code. Please try again.');
+          setTimeout(() => document.querySelectorAll('.totp-code-input').forEach(el => el.classList.remove('error')), 500);
+        }
+      } catch (error) {
+        console.error('TOTP verification error:', error);
+        showTotpMessage('Verification failed. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Verify Code';
+      }
+    }
+
+    async function backTotpToLogin() {
+      pendingTotpUser = null;
+      pendingTotpFactorId = null;
+      await supabaseClient.auth.signOut();
+      showScreen('login-form-container');
+      await initBiometricUI();
+    }
+
+    function resetTotpScreen() {
+      clearTotpInputs();
+      const entry  = document.getElementById('totp-backup-entry');
+      const toggle = document.getElementById('totp-backup-toggle');
+      const input  = document.getElementById('totp-backup-input');
+      if (entry)  entry.style.display  = 'none';
+      if (toggle) toggle.style.display = 'block';
+      if (input)  { input.value = ''; input.classList.remove('error'); }
+      hideTotpMessage();
+    }
+
+    function toggleBackupCodeEntry() {
+      const entry  = document.getElementById('totp-backup-entry');
+      const toggle = document.getElementById('totp-backup-toggle');
+      if (!entry) return;
+      const showing = entry.style.display !== 'none';
+      entry.style.display  = showing ? 'none'  : 'block';
+      toggle.style.display = showing ? 'block' : 'none';
+      if (!showing) document.getElementById('totp-backup-input')?.focus();
+    }
+
+    async function verifyBackupCode() {
+      const input = document.getElementById('totp-backup-input');
+      const code  = (input?.value || '').trim().toUpperCase();
+      if (!code) { showTotpMessage('Please enter a backup code'); return; }
+
+      const btn = document.getElementById('verify-backup-btn');
+      btn.disabled = true;
+      btn.innerHTML = '<span class="spinner"></span>Verifying...';
+      hideTotpMessage();
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showTotpMessage('Session expired. Please log in again.'); return; }
+
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/2fa/totp/verify`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({ factorId: pendingTotpFactorId, code })
+        });
+        const result = await response.json();
+
+        if (result.success) {
+          showTotpMessage('Backup code accepted!', 'success');
+          await new Promise(resolve => setTimeout(resolve, 500));
+          const { data: { session: currentSession } } = await supabaseClient.auth.getSession();
+          const offered = await checkBiometricEnrollmentOffer(pendingTotpUser, currentSession);
+          if (!offered) await handleUserRedirect(pendingTotpUser);
+        } else {
+          if (input) input.classList.add('error');
+          showTotpMessage(result.error || 'Invalid backup code. Please try again.');
+          setTimeout(() => { if (input) input.classList.remove('error'); }, 500);
+        }
+      } catch (err) {
+        console.error('Backup code verification error:', err);
+        showTotpMessage('Verification failed. Please try again.');
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = 'Use Backup Code';
+      }
+    }
+
     async function check2faAndProceed(user) {
+      let totpEnrolled = false;
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) {
           showMessage('Session expired. Please log in again.', 'error');
           return;
         }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/status`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`
-          }
-        });
-        const result = await response.json();
-        
-        if (result.success && result.enabled) {
-          // If recently verified (within 1 hour), skip 2FA
-          if (result.recently_verified) {
-            await logLoginActivityClient(session.access_token);
-            const offered = await checkBiometricEnrollmentOffer(user, session);
-            if (!offered) {
-              await handleUserRedirect(user);
-            }
-            return;
-          }
-          
+
+        // Check for a verified TOTP factor via Supabase native MFA.
+        const { data: factorsData } = await supabaseClient.auth.mfa.listFactors();
+        const totpFactor = (factorsData?.totp || []).find(f => f.status === 'verified');
+
+        if (totpFactor) {
+          // Flag and store pending state before any async that could throw,
+          // so the catch block can safely show the TOTP screen on error.
+          totpEnrolled = true;
+          pendingTotpUser = user;
+          pendingTotpFactorId = totpFactor.id;
+
+          // Honour the 1-hour recently-verified window (same column the page
+          // gate reads, so no additional endpoint is needed).
           const { data: profile } = await supabaseClient
             .from('profiles')
-            .select('phone')
+            .select('two_factor_verified_at')
             .eq('id', user.id)
             .single();
-          
-          if (!profile?.phone) {
-            await handleUserRedirect(user);
-            return;
+
+          if (profile?.two_factor_verified_at) {
+            const verifiedAt = new Date(profile.two_factor_verified_at);
+            if (verifiedAt > new Date(Date.now() - 60 * 60 * 1000)) {
+              await logLoginActivityClient(session.access_token);
+              const offered = await checkBiometricEnrollmentOffer(user, session);
+              if (!offered) await handleUserRedirect(user);
+              return;
+            }
           }
-          
-          pending2faUser = user;
-          pending2faPhone = profile.phone;
-          
-          const sendResult = await send2faCode(profile.phone);
-          
-          if (sendResult.success) {
-            document.getElementById('twofa-phone-display').textContent = result.phone;
-            showScreen('twofa-screen');
-            setup2faInputs();
-            clear2faInputs();
-            startResendCountdown();
-          } else {
-            showMessage(sendResult.error || 'Failed to send verification code', 'error');
-            await supabaseClient.auth.signOut();
-          }
-        } else {
-          // No 2FA enabled, log login activity directly
-          await logLoginActivityClient(session.access_token);
-          const offered = await checkBiometricEnrollmentOffer(user, session);
-          if (!offered) {
-            await handleUserRedirect(user);
-          }
+
+          showScreen('totp-screen');
+          setupTotpInputs();
+          resetTotpScreen();
+          return;
         }
+
+        // No enrolled TOTP factor — proceed without 2FA challenge.
+        await logLoginActivityClient(session.access_token);
+        const offered = await checkBiometricEnrollmentOffer(user, session);
+        if (!offered) await handleUserRedirect(user);
       } catch (error) {
         console.error('2FA check error:', error);
-        await handleUserRedirect(user);
+        if (totpEnrolled) {
+          // An enrolled user must never be admitted by an error — show the
+          // TOTP screen so they can retry (or use a backup code).
+          showScreen('totp-screen');
+          showTotpMessage('An error occurred. Please try again.');
+        } else {
+          // No verified factor was found before the error; we cannot enforce
+          // 2FA for a non-enrolled user, so proceed normally.
+          await handleUserRedirect(user);
+        }
       }
     }
     
@@ -813,6 +979,39 @@
     
     // Make signInWithApple available globally
     window.signInWithApple = signInWithApple;
+
+    // Sign in with Google OAuth
+    const GOOGLE_BTN_DEFAULT_HTML = '<svg class="google-icon" viewBox="0 0 24 24" width="20" height="20" xmlns="http://www.w3.org/2000/svg"><path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/><path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/><path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l3.66-2.84z"/><path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/></svg><span>Continue with Google</span>';
+
+    async function signInWithGoogle() {
+      const googleBtn = document.getElementById('google-signin-btn');
+      if (googleBtn) {
+        googleBtn.disabled = true;
+        googleBtn.innerHTML = '<span class="spinner"></span>Connecting...';
+      }
+
+      try {
+        const { data, error } = await supabaseClient.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: window.location.origin + '/login.html?oauth=google',
+          }
+        });
+
+        if (error) {
+          console.error('Google Sign In error:', error);
+          showMessage('Failed to connect to Google. Please try again.', 'error');
+          if (googleBtn) { googleBtn.disabled = false; googleBtn.innerHTML = GOOGLE_BTN_DEFAULT_HTML; }
+        }
+        // If successful, browser redirects to Google
+      } catch (err) {
+        console.error('Google Sign In exception:', err);
+        showMessage('An error occurred. Please try again.', 'error');
+        if (googleBtn) { googleBtn.disabled = false; googleBtn.innerHTML = GOOGLE_BTN_DEFAULT_HTML; }
+      }
+    }
+
+    window.signInWithGoogle = signInWithGoogle;
 
     // Sign in with Facebook OAuth
     const FACEBOOK_BTN_ICON_SVG = '<svg class="facebook-icon" viewBox="0 0 24 24" width="20" height="20" fill="currentColor"><path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/></svg>';

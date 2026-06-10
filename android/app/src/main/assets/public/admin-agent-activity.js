@@ -130,6 +130,86 @@
       ? `<div style="font-size:0.82rem;color:var(--text-secondary);">${bits.join('')}</div>` : '';
   }
 
+  // ----- Copyable <pre> wrapper (Task #276) --------------------------------
+  // Renders a <pre> with a small "Copy" button in the corner. The raw text
+  // is stashed on a data-attribute (base64-encoded so quotes/newlines can't
+  // break out of the attribute) and pulled back on click. Click handling is
+  // bound once per panel container in bindCopyButtons() via event delegation.
+  function renderCopyablePre(text) {
+    const raw = text == null ? '' : String(text);
+    let encoded;
+    try {
+      encoded = btoa(unescape(encodeURIComponent(raw)));
+    } catch {
+      encoded = '';
+    }
+    return `<div class="aap-drawer-pre-wrap">
+      <button type="button" class="aap-copy-btn" data-aap-copy="${encoded}" title="Copy to clipboard">Copy</button>
+      <pre class="aap-drawer-pre">${esc(raw)}</pre>
+    </div>`;
+  }
+
+  function decodeCopyPayload(encoded) {
+    try {
+      return decodeURIComponent(escape(atob(encoded || '')));
+    } catch {
+      return '';
+    }
+  }
+
+  function flashCopyButton(btn, label, state) {
+    const original = btn.getAttribute('data-aap-copy-label') || btn.textContent;
+    if (!btn.getAttribute('data-aap-copy-label')) {
+      btn.setAttribute('data-aap-copy-label', original);
+    }
+    btn.textContent = label;
+    btn.setAttribute('data-aap-copy-state', state);
+    if (btn.__aapCopyTimer) clearTimeout(btn.__aapCopyTimer);
+    btn.__aapCopyTimer = setTimeout(() => {
+      btn.textContent = btn.getAttribute('data-aap-copy-label') || 'Copy';
+      btn.removeAttribute('data-aap-copy-state');
+    }, 1400);
+  }
+
+  async function handleCopyClick(btn) {
+    const text = decodeCopyPayload(btn.getAttribute('data-aap-copy'));
+    if (!text) {
+      flashCopyButton(btn, 'Empty', 'error');
+      return;
+    }
+    try {
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(text);
+      } else {
+        // Fallback for older browsers / non-secure contexts.
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        ta.setAttribute('readonly', '');
+        ta.style.position = 'absolute';
+        ta.style.left = '-9999px';
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+      }
+      flashCopyButton(btn, 'Copied', 'success');
+    } catch {
+      flashCopyButton(btn, 'Failed', 'error');
+    }
+  }
+
+  function bindCopyButtons(rootEl) {
+    if (!rootEl || rootEl.__aapCopyBound) return;
+    rootEl.__aapCopyBound = true;
+    rootEl.addEventListener('click', (ev) => {
+      const btn = ev.target && ev.target.closest && ev.target.closest('.aap-copy-btn');
+      if (!btn || !rootEl.contains(btn)) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      handleCopyClick(btn);
+    });
+  }
+
   // ----- Details drawer (Task #144) ----------------------------------------
   // Built into every card. Reasoning + decision JSON are rendered from data we
   // already have (the list endpoint returns them). The "Source / Prompt"
@@ -150,7 +230,7 @@
     const decisionBlock = `
       <div class="aap-drawer-section">
         <div class="aap-drawer-label">Decision (JSON)</div>
-        <pre class="aap-drawer-pre">${esc(decisionPretty)}</pre>
+        ${renderCopyablePre(decisionPretty)}
       </div>`;
     const sourceBlock = `
       <div class="aap-drawer-section" data-source-slot="1">
@@ -384,7 +464,7 @@
             ${ev.source ? ` · source: ${esc(ev.source)}` : ''}
             · ${esc(fmtTime(ev.created_at))}
           </div>
-          <pre class="aap-drawer-pre">${esc(payloadPretty)}</pre>`;
+          ${renderCopyablePre(payloadPretty)}`;
       } else {
         // ai_action_log has no separate event — the inputs the agent saw are
         // captured (when at all) in `decision`. Show a clear note + the
@@ -467,6 +547,25 @@
       .aap-drawer-section { background: var(--bg-tertiary, #2a2f37); border-radius: 6px; padding: 8px 10px; }
       .aap-drawer-label { font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted, #9ca3af); margin-bottom: 4px; font-weight: 600; }
       .aap-drawer-text { font-size: 0.84rem; color: var(--text-primary, #e5e7eb); white-space: pre-wrap; line-height: 1.5; }
+      .aap-drawer-pre-wrap { position: relative; }
+      .aap-drawer-pre-wrap > .aap-copy-btn {
+        position: absolute; top: 6px; right: 6px;
+        font-size: 0.7rem; font-weight: 600;
+        padding: 3px 8px; border-radius: 4px; cursor: pointer;
+        border: 1px solid var(--border-subtle, #2a2f37);
+        background: var(--bg-tertiary, #2a2f37);
+        color: var(--text-primary, #e5e7eb);
+        opacity: 0.65; transition: opacity 0.12s ease, background 0.12s ease;
+        z-index: 1;
+      }
+      .aap-drawer-pre-wrap:hover > .aap-copy-btn { opacity: 1; }
+      .aap-drawer-pre-wrap > .aap-copy-btn:hover { background: var(--bg-secondary, #1f2329); }
+      .aap-drawer-pre-wrap > .aap-copy-btn[data-aap-copy-state="success"] {
+        background: var(--accent-green, #10b981); color: #fff; opacity: 1; border-color: transparent;
+      }
+      .aap-drawer-pre-wrap > .aap-copy-btn[data-aap-copy-state="error"] {
+        background: var(--accent-red, #c0392b); color: #fff; opacity: 1; border-color: transparent;
+      }
       .aap-drawer-pre {
         margin: 0; font-size: 0.76rem; line-height: 1.4;
         color: var(--text-primary, #e5e7eb);
@@ -689,6 +788,7 @@
     bodyEl.__aapOpts = opts;
     bindDrawerToggles(bodyEl);
     bindActionButtons(bodyEl, containerId);
+    bindCopyButtons(bodyEl);
 
     try {
       // Fetch fleet + legacy in parallel, then DLQ filtered by the

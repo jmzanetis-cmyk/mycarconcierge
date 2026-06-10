@@ -263,10 +263,16 @@ async function transferToProvider(amount, providerConnectId, paymentId) {
  */
 
 // Create card element
-function createCardElement(containerId) {
+//
+// Task #425 (Step 5): the optional `submitButtonId` gates a submit button so
+// it stays disabled until Stripe confirms the card is `complete` and has no
+// error. Callers that don't pass it keep the old behaviour. Buttons gated
+// here MUST start with `disabled` and `aria-disabled="true"` in their
+// markup so the gate is honored even before Stripe.js finishes loading.
+function createCardElement(containerId, submitButtonId) {
   const stripe = initStripe();
   const elements = stripe.elements();
-  
+
   const style = {
     base: {
       color: '#f4f4f6',
@@ -282,10 +288,23 @@ function createCardElement(containerId) {
       iconColor: '#ef5f5f'
     }
   };
-  
+
   const cardElement = elements.create('card', { style });
   cardElement.mount(`#${containerId}`);
-  
+
+  if (submitButtonId && typeof document !== 'undefined') {
+    const btn = document.getElementById(submitButtonId);
+    if (btn) {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      cardElement.on('change', function (ev) {
+        const ready = ev && ev.complete && !ev.error;
+        btn.disabled = !ready;
+        btn.setAttribute('aria-disabled', ready ? 'false' : 'true');
+      });
+    }
+  }
+
   return cardElement;
 }
 

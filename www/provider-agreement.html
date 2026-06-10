@@ -9,13 +9,14 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       --bg-deep: #0a0a0f;
@@ -112,8 +113,8 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      
+      
     }
 
     nav {
@@ -136,7 +137,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -721,5 +722,66 @@
       </div>
     </div>
   </footer>
+
+  <script src="agreement-form.js"></script>
+  <script>
+    document.addEventListener('DOMContentLoaded', function() {
+      const savedTheme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', savedTheme);
+      updateThemeIcons(savedTheme);
+
+      const themeToggle = document.getElementById('themeToggle');
+      if (themeToggle) {
+        themeToggle.addEventListener('click', function() {
+          const currentTheme = document.documentElement.getAttribute('data-theme') || 'dark';
+          const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+          document.documentElement.setAttribute('data-theme', newTheme);
+          localStorage.setItem('theme', newTheme);
+          updateThemeIcons(newTheme);
+        });
+      }
+
+      function updateThemeIcons(theme) {
+        const sunIcon = document.querySelector('.sun-icon');
+        const moonIcon = document.querySelector('.moon-icon');
+        if (sunIcon && moonIcon) {
+          if (theme === 'light') {
+            sunIcon.style.display = 'none';
+            moonIcon.style.display = 'block';
+          } else {
+            sunIcon.style.display = 'block';
+            moonIcon.style.display = 'none';
+          }
+        }
+      }
+
+      if (typeof AgreementForm !== 'undefined') {
+        AgreementForm.createAgreementForm({
+          containerId: 'agreement-form-container',
+          agreementType: 'provider',
+          fields: ['full_name', 'business_name', 'ein_last4'],
+          acknowledgments: [
+            'I have read and understood all terms of this Partnership Agreement',
+            'I agree to maintain appropriate licenses and insurance',
+            'I am an independent contractor and not an employee',
+            'I understand MCC is a customer acquisition tool designed to help grow my business',
+            'I agree to complete platform-booked jobs through the MCC platform'
+          ],
+          onSubmit: function(formData) {
+            console.log('Provider Agreement submitted:', formData);
+            alert('Thank you for signing the Provider Agreement. Your agreement has been recorded.');
+          }
+        });
+      }
+    });
+  </script>
+  <script src="mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
 </body>
 </html>

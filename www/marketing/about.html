@@ -4,7 +4,7 @@
   <meta charset="UTF-8" />
   <title>About Us – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="description" content="Learn about My Car Concierge - our mission to revolutionize automotive service by connecting vehicle owners with vetted service providers." />
+  <meta name="description" content="Learn about My Car Concierge — a three-sided automotive marketplace connecting car owners, service providers, and professional drivers. Members get competing bids. Providers grow with built-in vehicle pickup &amp; delivery. Drivers earn $35–50/hr." />
   <meta name="theme-color" content="#12161c" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
@@ -145,7 +145,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -157,7 +157,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -207,7 +207,7 @@
     .hero-subtitle {
       max-width: 700px;
       margin: 0 auto;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       color: var(--text-secondary);
       line-height: 1.7;
     }
@@ -223,7 +223,7 @@
 
     .section-label {
       display: inline-block;
-      font-size: 0.75rem;
+      font-size: var(--text-xs);
       text-transform: uppercase;
       letter-spacing: 0.15em;
       color: var(--accent-blue);
@@ -274,14 +274,14 @@
 
     .mission-card h3 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.4rem;
+      font-size: var(--text-2xl);
       font-weight: 500;
       margin-bottom: 16px;
     }
 
     .mission-card p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       line-height: 1.7;
     }
 
@@ -317,12 +317,12 @@
       align-items: center;
       justify-content: center;
       font-weight: 700;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: #0a0a0f;
     }
 
     .step-card h3 {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 12px;
       margin-top: 8px;
@@ -330,7 +330,7 @@
 
     .step-card p {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       line-height: 1.6;
     }
 
@@ -365,14 +365,14 @@
     }
 
     .trust-card h3 {
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin-bottom: 8px;
     }
 
     .trust-card p {
       color: var(--text-secondary);
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       line-height: 1.5;
     }
 
@@ -417,7 +417,7 @@
     }
 
     .contact-item h4 {
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 600;
       margin-bottom: 8px;
       color: var(--text-muted);
@@ -427,7 +427,7 @@
 
     .contact-item p, .contact-item a {
       color: var(--text-primary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       text-decoration: none;
     }
 
@@ -456,7 +456,7 @@
 
     .cta-box p {
       color: var(--text-secondary);
-      font-size: 1rem;
+      font-size: var(--text-md);
       margin-bottom: 32px;
       max-width: 500px;
       margin-left: auto;
@@ -476,7 +476,7 @@
       gap: 10px;
       padding: 16px 32px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       text-decoration: none;
       border-radius: var(--radius-lg);
@@ -485,47 +485,47 @@
       transition: all 0.25s ease;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #c49a45 100%);
       color: #0a0a0f;
       box-shadow: 0 8px 32px rgba(212, 168, 85, 0.3);
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 12px 40px rgba(212, 168, 85, 0.4);
     }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-medium);
     }
 
-    .btn-secondary:hover {
+    .btn--secondary:hover {
       background: rgba(38, 38, 52, 0.9);
       border-color: var(--accent-blue);
     }
 
-    [data-theme="light"] .btn-primary {
+    [data-theme="light"] .btn--primary {
       background: linear-gradient(135deg, #b8942d, #d4a63a);
       color: #ffffff;
       box-shadow: 0 3px 14px rgba(184, 148, 45, 0.35);
       font-weight: 600;
     }
 
-    [data-theme="light"] .btn-primary:hover {
+    [data-theme="light"] .btn--primary:hover {
       background: linear-gradient(135deg, #a6852a, #c49a35);
       box-shadow: 0 5px 20px rgba(184, 148, 45, 0.45);
     }
 
-    [data-theme="light"] .btn-secondary {
+    [data-theme="light"] .btn--secondary {
       background: #ffffff;
       color: #1e3a5f;
       border: 2px solid #1e3a5f;
     }
 
-    [data-theme="light"] .btn-secondary:hover {
+    [data-theme="light"] .btn--secondary:hover {
       background: #1e3a5f;
       color: #ffffff;
       border-color: #1e3a5f;
@@ -560,7 +560,7 @@
     }
 
     .footer-links a {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s;
@@ -571,7 +571,7 @@
     }
 
     .footer-copy {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -603,7 +603,7 @@
       color: #0a0a0f;
       text-align: center;
       padding: 10px 48px 10px 20px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 500;
       line-height: 1.4;
     }
@@ -622,7 +622,7 @@
       background: none;
       border: none;
       color: #0a0a0f;
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       cursor: pointer;
       padding: 4px 8px;
       line-height: 1;
@@ -637,7 +637,7 @@
     [data-theme="light"] .onboarding-banner a { color: #ffffff; }
     [data-theme="light"] .onboarding-banner .banner-dismiss { color: #ffffff; }
     @media (max-width: 600px) {
-      .onboarding-banner { font-size: 0.82rem; padding: 8px 40px 8px 12px; }
+      .onboarding-banner { font-size: var(--text-sm); padding: 8px 40px 8px 12px; }
     }
   </style>
 </head>
@@ -664,7 +664,7 @@
         <a href="/marketing/services.html" data-i18n="nav.services">Services</a>
         <a href="/marketing/providers.html" data-i18n="nav.forProviders">For Providers</a>
         <a href="/marketing/about.html" data-i18n="nav.about">How It Works</a>
-        <a href="/login.html" class="btn-login">Log In</a>
+        <a href="/login.html" class="btn--primary">Log In</a>
       </nav>
     </div>
   </header>
@@ -675,7 +675,7 @@
         <div class="hero-badge">About My Car Concierge</div>
         <h1>Reimagining <span class="highlight">Automotive Service</span></h1>
         <p class="hero-subtitle">
-          We're building a better way to maintain your vehicle. By connecting vehicle owners with vetted service professionals, we're bringing transparency, competition, and trust to automotive care.
+          We're building a three-sided automotive marketplace — connecting car owners, service providers, and professional drivers. Members get competing bids from verified professionals. Providers grow with built-in vehicle pickup &amp; delivery. Drivers earn $35–50/hr keeping 75% of every trip.
         </p>
       </div>
     </section>
@@ -686,7 +686,7 @@
           <div class="mission-card">
             <div class="mission-icon">🎯</div>
             <h3>Our Mission</h3>
-            <p>To empower vehicle owners with choice and transparency, while helping automotive professionals grow their businesses through quality connections. We believe everyone deserves access to trustworthy auto care at fair prices.</p>
+            <p>To empower vehicle owners with choice and transparency, while helping automotive professionals grow their businesses through quality connections — including on-demand vehicle pickup &amp; delivery that brings customers to their door. We believe everyone deserves access to trustworthy auto care at fair prices.</p>
           </div>
           <div class="mission-card">
             <div class="mission-icon">🔮</div>
@@ -801,8 +801,8 @@
           <h2>Ready to Experience Better Auto Care?</h2>
           <p>Sign up free to compare quotes from vetted providers and stay on top of maintenance for every vehicle you own.</p>
           <div class="cta-buttons">
-            <a href="/signup-member.html" class="btn btn-primary">Get Started Free</a>
-            <a href="/marketing/services.html" class="btn btn-secondary">View Services</a>
+            <a href="/signup-member.html" class="btn btn--primary">Get Started Free</a>
+            <a href="/marketing/services.html" class="btn btn--secondary">View Services</a>
           </div>
         </div>
       </div>

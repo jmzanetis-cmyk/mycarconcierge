@@ -9,13 +9,20 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       --bg-deep: #0a0a0f;
@@ -56,26 +63,6 @@
       padding-top: env(safe-area-inset-top);
     }
 
-    .ambient-bg {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 0;
-      background:
-        radial-gradient(ellipse 80% 50% at 20% 10%, rgba(212, 168, 85, 0.06), transparent 50%),
-        radial-gradient(ellipse 60% 60% at 80% 80%, rgba(74, 124, 255, 0.05), transparent 50%),
-        radial-gradient(ellipse 100% 100% at 50% 100%, rgba(74, 124, 255, 0.03), transparent 60%);
-    }
-
-    .noise {
-      position: fixed;
-      inset: 0;
-      pointer-events: none;
-      z-index: 1;
-      opacity: 0.025;
-      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
-    }
-
     .container {
       position: relative;
       z-index: 2;
@@ -112,8 +99,8 @@
       height: 120px;
       width: auto;
       border-radius: var(--radius-md);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      
+      
     }
 
     nav {
@@ -124,7 +111,7 @@
 
     nav a {
       padding: 10px 18px;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       text-decoration: none;
       border-radius: var(--radius-sm);
@@ -136,7 +123,7 @@
       background: var(--bg-elevated);
     }
 
-    nav .btn-login {
+    nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -172,7 +159,7 @@
       background: var(--accent-blue-soft);
       border: 1px solid rgba(74, 124, 255, 0.2);
       border-radius: 100px;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--accent-blue);
     }
 
@@ -193,7 +180,7 @@
 
     .intro-box p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       line-height: 1.7;
       margin: 0;
     }
@@ -208,7 +195,7 @@
 
     .privacy-section h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.4rem;
+      font-size: var(--text-2xl);
       font-weight: 500;
       color: var(--text-primary);
       margin-bottom: 16px;
@@ -225,14 +212,14 @@
       text-align: center;
       line-height: 32px;
       font-family: 'Outfit', sans-serif;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 600;
       color: var(--accent-blue);
       margin-right: 12px;
     }
 
     .privacy-section h3 {
-      font-size: 1.05rem;
+      font-size: var(--text-md);
       font-weight: 600;
       color: var(--text-primary);
       margin: 20px 0 12px 0;
@@ -240,7 +227,7 @@
 
     .privacy-section p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       line-height: 1.75;
       margin-bottom: 16px;
     }
@@ -260,7 +247,7 @@
       padding-left: 28px;
       position: relative;
       color: var(--text-secondary);
-      font-size: 0.92rem;
+      font-size: var(--text-base);
       border-bottom: 1px solid var(--border-subtle);
     }
 
@@ -291,7 +278,7 @@
 
     .rights-box h4 {
       color: var(--accent-blue);
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       margin-bottom: 12px;
     }
@@ -394,7 +381,7 @@
     }
 
     .footer-links a {
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
       text-decoration: none;
       transition: color 0.2s;
@@ -405,7 +392,7 @@
     }
 
     .footer-copy {
-      font-size: 0.82rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
     }
 
@@ -425,7 +412,7 @@
       }
 
       .privacy-section h2 {
-        font-size: 1.2rem;
+        font-size: var(--text-xl);
       }
 
       footer .container {
@@ -452,7 +439,7 @@
       </a>
       <nav>
         <a href="index.html">Home</a>
-        <a href="login.html" class="btn-login">Log In</a>
+        <a href="login.html" class="btn--primary">Log In</a>
       </nav>
     </div>
   </header>
@@ -637,6 +624,85 @@
 
           <h3>Exercising Your Rights</h3>
           <p>To exercise any of these rights, please contact us at <a href="mailto:privacy@mycarconcierge.com" style="color:var(--accent-blue);">privacy@mycarconcierge.com</a>. We will respond to your request within 30 days (or as required by applicable law). We may need to verify your identity before processing your request.</p>
+          
+          <h3>Account Deletion</h3>
+          <p>You can delete your account at any time directly from within the app. To delete your account:</p>
+          <ol style="margin-left: 1.5rem; margin-top: 0.5rem;">
+            <li>Log in to your account</li>
+            <li>Navigate to <strong>Settings</strong></li>
+            <li>Scroll to the <strong>Danger Zone</strong> section</li>
+            <li>Click <strong>Delete Account</strong> and confirm by typing "DELETE"</li>
+          </ol>
+          <p style="margin-top: 1rem;">When you delete your account, we permanently remove your personal data including profile information, vehicles, service history, and preferences. Some information (such as anonymized payment records) may be retained for legal, tax, and audit purposes as required by law. After deletion, you will receive a confirmation email.</p>
+        </div>
+
+        <div class="privacy-section" id="data-retention">
+          <h2><span class="section-number">9</span>Data Retention</h2>
+          <p>We retain your information for as long as necessary to fulfill the purposes outlined in this Privacy Policy. The table below provides specific retention periods for each category of data:</p>
+          <div style="overflow-x:auto;margin:20px 0;">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--text-base);">
+              <thead>
+                <tr style="background:rgba(201,168,76,0.1);border-bottom:2px solid rgba(201,168,76,0.25);">
+                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Data Category</th>
+                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Retention Period</th>
+                  <th style="text-align:left;padding:10px 14px;color:#c9a84c;font-weight:600;">Reason</th>
+                </tr>
+              </thead>
+              <tbody style="color:var(--text-secondary);">
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Account Profile &amp; Settings</strong></td>
+                  <td style="padding:10px 14px;">While account is active + 30 days after deletion</td>
+                  <td style="padding:10px 14px;">Account recovery period; then permanently deleted</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Payment &amp; Transaction Records</strong></td>
+                  <td style="padding:10px 14px;">7 years</td>
+                  <td style="padding:10px 14px;">IRS requirements, tax obligations, and financial regulations</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Service Job History</strong></td>
+                  <td style="padding:10px 14px;">5 years after account closure</td>
+                  <td style="padding:10px 14px;">Dispute resolution and warranty reference</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Vehicle Records</strong></td>
+                  <td style="padding:10px 14px;">Duration of account + 30-day grace period</td>
+                  <td style="padding:10px 14px;">Deleted with account unless part of service history</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Communication &amp; Message Logs</strong></td>
+                  <td style="padding:10px 14px;">3 years</td>
+                  <td style="padding:10px 14px;">Dispute resolution, safety investigations, and fraud prevention</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">SMS &amp; Email Consent Records</strong></td>
+                  <td style="padding:10px 14px;">5 years</td>
+                  <td style="padding:10px 14px;">TCPA compliance and regulatory audit trail</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Background Check Records</strong></td>
+                  <td style="padding:10px 14px;">7 years from screening date</td>
+                  <td style="padding:10px 14px;">FCRA compliance and provider verification audit</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Security &amp; Login Logs</strong></td>
+                  <td style="padding:10px 14px;">90 days</td>
+                  <td style="padding:10px 14px;">Fraud detection and account security</td>
+                </tr>
+                <tr style="border-bottom:1px solid rgba(148,148,168,0.1);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Cookie &amp; Analytics Data</strong></td>
+                  <td style="padding:10px 14px;">13 months from collection</td>
+                  <td style="padding:10px 14px;">Platform analytics and performance improvement</td>
+                </tr>
+                <tr style="background:rgba(255,255,255,0.02);">
+                  <td style="padding:10px 14px;"><strong style="color:var(--text-primary);">Anonymized / Aggregated Data</strong></td>
+                  <td style="padding:10px 14px;">Indefinite</td>
+                  <td style="padding:10px 14px;">No personal identifiers; used only for aggregate analytics</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <p>Upon a verified request for deletion, we will remove or anonymize your personal information within 45 days, unless retention is required by law, ongoing legal proceeding, or legitimate business purpose. You will receive a confirmation when deletion is complete.</p>
         </div>
 
         <div class="privacy-section">
@@ -686,23 +752,6 @@
       </div>
     </div>
   </main>
-
-  <footer>
-    <div class="container">
-      <div class="footer-brand">
-        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
-        <span>My Car Concierge</span>
-      </div>
-      <div class="footer-links">
-        <a href="terms.html">Terms of Service</a>
-        <a href="privacy.html">Privacy Policy</a>
-        <a href="data-deletion.html">Data Deletion</a>
-        <a href="index.html">Home</a>
-      </div>
-      <div class="footer-copy">
-        © 2025 My Car Concierge. All rights reserved.
-      </div>
-    </div>
-  </footer>
+  <script src="footer.js"></script>
 </body>
 </html>

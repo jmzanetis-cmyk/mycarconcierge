@@ -74,6 +74,11 @@ class ChatWidgetBase {
         left: 24px;
       }
 
+      body.has-bottom-nav .chat-widget-base.bottom-right,
+      body.has-bottom-nav .chat-widget-base.bottom-left {
+        bottom: 84px;
+      }
+
       .chat-widget-toggle {
         width: 60px;
         height: 60px;

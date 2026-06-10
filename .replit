@@ -1,4 +1,4 @@
-modules = ["nodejs-20", "python-3.11", "postgresql-16"]
+modules = ["nodejs-20", "python-3.11"]
 [workflows]
 runButton = "Project"
 
@@ -28,36 +28,13 @@ localPort = 5000
 externalPort = 80
 
 [[ports]]
-localPort = 5904
-externalPort = 3002
+localPort = 23636
+externalPort = 3000
 
 [agent]
 expertMode = true
-integrations = ["stripe:2.0.0", "hubspot:1.0.0", "github:1.0.0"]
 
 [deployment]
 deploymentTarget = "autoscale"
 run = ["node", "www/server.js"]
-build = ["bash", "-c", "cd outreach-runner && npm install && npm cache clean --force"]
-
-[objectStorage]
-defaultBucketID = "replit-objstore-970c9ce6-a451-4b77-b216-7f5cdd6ab7c7"
-
-[userenv]
-
-[userenv.shared]
-GLOBAL_2FA_ENABLED = "false"
-RUNNER_BASE_URL = "https://my-car-concierge--jmzanetis.replit.app"
-PRINTFUL_STORE_ID = "17600926"
-ADMIN_PHONE_NUMBER = "8458210804"
-ADMIN_ALERT_PHONE = "+18458210804"
-
-[userenv.development]
-
-[nix]
-channel = "stable-25_05"
-packages = ["imagemagick", "glib", "nss", "nspr", "atk", "cups", "dbus", "expat", "libdrm", "libxkbcommon", "pango", "cairo", "alsa-lib", "mesa", "xorg.libX11", "xorg.libXcomposite", "xorg.libXdamage", "xorg.libXext", "xorg.libXfixes", "xorg.libXrandr", "xorg.libxcb"]
-
-[postMerge]
-path = "scripts/post-merge.sh"
-timeoutMs = 60000
+build = ["npm", "install"]

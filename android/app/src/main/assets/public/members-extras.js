@@ -473,6 +473,17 @@
       const cancelBtn = (j.status === 'requested' || j.status === 'scheduled')
         ? `<button class="btn btn-ghost btn-sm" style="margin-left:8px;" onclick="window.cancelConciergeJob('${escHtml(j.id)}','${escHtml(opts.packageId || '')}','${escHtml(j.appointment_id || '')}')">Cancel</button>`
         : '';
+      // Task #335 — render a live driver map slot only when the job is
+      // in a trackable state and at least one driver has accepted.
+      const trackable = (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0;
+      const mapHtml = trackable
+        ? `<div id="concierge-map-${escHtml(j.id)}" data-job-id="${escHtml(j.id)}" data-mcc-map="1"
+              style="margin-top:10px;height:200px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-input);position:relative;">
+              <div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
+                ${mccIcon('map-pin', 14)} Locating driver…
+              </div>
+            </div>`
+        : '';
       return `
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
@@ -480,13 +491,215 @@
             <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
           </div>
           ${legHtml}
-          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: ${escHtml(eta)}</div>
+          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: <span data-mcc-eta-for="${escHtml(j.id)}">${escHtml(eta)}</span></div>
           ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
             : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
+          ${mapHtml}
           <div style="margin-top:6px;">${cancelBtn}</div>
         </div>
       `;
     };
+
+    // ---- Task #335: Live driver map (Leaflet + OpenStreetMap, no API key) ----
+    // Lazy-load Leaflet from CDN the first time a map is rendered. Cached
+    // promise so we never download it twice.
+    let _mccLeafletPromise = null;
+    function loadLeafletOnce() {
+      if (_mccLeafletPromise) return _mccLeafletPromise;
+      _mccLeafletPromise = new Promise((resolve, reject) => {
+        if (window.L) return resolve(window.L);
+        const css = document.createElement('link');
+        css.rel = 'stylesheet';
+        css.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
+        css.integrity = 'sha512-h9FcoyWjHcOcmEVkxOfTLnmZFWIH0iZhZT1H2TbOq55xssQGEJHEaIm+PgoUaZbRvQTNTluNOEfb1ZRy6D3BOw==';
+        css.crossOrigin = '';
+        document.head.appendChild(css);
+        const s = document.createElement('script');
+        s.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
+        s.integrity = 'sha512-BB3hKbKWOc9Ez/TAwyWxNXeoV9c1v6FIeYiBieIWkpLjauysF18NzgR1MBNBXf8/KABdlkX68nAhlwcDFLGPCQ==';
+        s.crossOrigin = '';
+        s.onload  = () => resolve(window.L);
+        s.onerror = () => reject(new Error('Leaflet failed to load'));
+        document.head.appendChild(s);
+      });
+      return _mccLeafletPromise;
+    }
+
+    // Tracks active map instances + timers + realtime channels keyed by
+    // jobId so we can clean them up when the card is re-rendered or the
+    // job ends. Task #447: each entry now also tracks a Supabase Realtime
+    // broadcast channel (`rtChannel`) that streams live driver pings and
+    // a slow timer (`etaTimer`) that refreshes ETA / catches up on
+    // reconnect.
+    const _mccConciergeMaps = new Map(); // jobId → { map, driverMarker, targetMarker, etaTimer, rtChannel }
+
+    function _mccDisposeMap(jobId) {
+      const m = _mccConciergeMaps.get(jobId);
+      if (!m) return;
+      try { if (m.etaTimer) clearInterval(m.etaTimer); } catch {}
+      try { if (m.rtChannel && globalThis.supabaseClient) globalThis.supabaseClient.removeChannel(m.rtChannel); } catch {}
+      try { if (m.map) m.map.remove(); } catch {}
+      _mccConciergeMaps.delete(jobId);
+    }
+
+    // Apply a single ping payload (from either the HTTP first-paint or a
+    // realtime broadcast event) to the map for `jobId`. Honors the per-job
+    // ownership boundary by ignoring payloads whose job_id doesn't match,
+    // and whose driver_id isn't on the server-issued whitelist for this
+    // job (defense in depth — the server only broadcasts to channels for
+    // jobs the caller owns and only by assigned drivers, but a stray
+    // payload mustn't move the dot).
+    function _mccApplyPing(jobId, ping) {
+      if (!ping || ping.lat == null || ping.lng == null) return;
+      if (ping.job_id && ping.job_id !== jobId) return; // wrong job, refuse
+      const entry = _mccConciergeMaps.get(jobId);
+      if (!entry || !entry.map || !entry.driverMarker) return;
+      // Whitelist check: if we captured the server's driver_ids list,
+      // reject any ping from a driver that isn't on it.
+      if (ping.driver_id && Array.isArray(entry.driverIds) && entry.driverIds.length
+          && !entry.driverIds.includes(ping.driver_id)) return;
+      try { entry.driverMarker.setLatLng([ping.lat, ping.lng]); } catch {}
+    }
+
+    function _mccFormatEta(seconds) {
+      if (seconds == null || !Number.isFinite(seconds)) return 'Awaiting driver';
+      if (seconds < 60)   return 'Arriving now';
+      if (seconds < 3600) return `${Math.round(seconds / 60)} min away`;
+      return `${(seconds / 3600).toFixed(1)} h away`;
+    }
+
+    async function _mccUpdateConciergeMap(jobId) {
+      const slot = document.getElementById('concierge-map-' + jobId);
+      if (!slot) { _mccDisposeMap(jobId); return; }
+      const headers = await getConciergeAuthHeader();
+      if (!headers) return;
+      let data;
+      try {
+        const r = await fetch('/api/concierge/active-job-tracking?job_id=' + encodeURIComponent(jobId), { headers });
+        if (r.status === 429) return; // rate-limited; try again next tick
+        if (!r.ok) return;
+        data = await r.json();
+      } catch (e) { return; }
+      const tr = data && data.tracking;
+      const ping = tr && tr.pings && tr.pings[0];
+      const target = tr && tr.target;
+
+      // Task #447 — open (or re-open) the broadcast channel using the
+      // server-issued descriptor. Idempotent: if we already have a
+      // channel for this job we leave it alone. Done BEFORE first-paint
+      // map init so the channel is live by the time the marker exists.
+      if (tr && tr.realtime && tr.realtime.channel && globalThis.supabaseClient) {
+        const cur = _mccConciergeMaps.get(jobId);
+        // Always refresh the server-issued driver_ids whitelist (it can
+        // change as drivers accept/decline mid-job).
+        const whitelist = Array.isArray(tr.realtime.driver_ids) ? tr.realtime.driver_ids.slice() : [];
+        if (!cur || !cur.rtChannel) {
+          try {
+            const ch = globalThis.supabaseClient
+              .channel(tr.realtime.channel)
+              .on('broadcast', { event: tr.realtime.event || 'driver_ping' }, (msg) => {
+                _mccApplyPing(jobId, msg && msg.payload);
+              })
+              .subscribe();
+            const entry = _mccConciergeMaps.get(jobId) || {};
+            entry.rtChannel = ch;
+            entry.driverIds = whitelist;
+            _mccConciergeMaps.set(jobId, entry);
+          } catch (e) { /* realtime optional — fall back to slow timer */ }
+        } else {
+          cur.driverIds = whitelist;
+        }
+      }
+
+      // ETA text — update even if Leaflet hasn't loaded yet so the user
+      // sees something useful immediately.
+      const etaEl = document.querySelector(`[data-mcc-eta-for="${jobId}"]`);
+      if (etaEl) {
+        if (ping && ping.eta_seconds != null) etaEl.textContent = _mccFormatEta(ping.eta_seconds);
+        else if (!ping) etaEl.textContent = 'Awaiting driver location';
+      }
+      if (!ping) {
+        slot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
+          ${mccIcon('map-pin', 14)} Waiting for driver location…
+        </div>`;
+        return;
+      }
+
+      // Lazy-init the Leaflet map exactly once per job. Task #447: an
+      // entry may already exist holding only `rtChannel` / `etaTimer`
+      // (created by the realtime-subscribe block above and/or
+      // startConciergeTracking), so check for `entry.map` specifically
+      // rather than truthiness — otherwise first paint silently no-ops
+      // and the marker is never created.
+      let entry = _mccConciergeMaps.get(jobId);
+      if (!entry || !entry.map) {
+        try {
+          const L = await loadLeafletOnce();
+          if (!document.getElementById('concierge-map-' + jobId)) return; // gone while loading
+          slot.innerHTML = ''; // clear placeholder
+          const map = L.map(slot, { zoomControl: true, attributionControl: true })
+            .setView([ping.lat, ping.lng], 14);
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+          }).addTo(map);
+          const driverMarker = L.marker([ping.lat, ping.lng], { title: 'Driver' }).addTo(map);
+          let targetMarker = null;
+          if (target && target.lat != null) {
+            targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(map);
+            map.fitBounds([[ping.lat, ping.lng], [target.lat, target.lng]], { padding: [24, 24], maxZoom: 15 });
+          }
+          // Merge into any pre-existing entry so we don't clobber
+          // rtChannel / etaTimer that were set before first paint.
+          entry = Object.assign(entry || {}, { map, driverMarker, targetMarker });
+          _mccConciergeMaps.set(jobId, entry);
+        } catch (e) {
+          slot.innerHTML = `<div style="padding:12px;font-size:0.82rem;color:var(--text-muted);">Map unavailable. Driver is moving — refresh to retry.</div>`;
+          return;
+        }
+      } else {
+        try {
+          entry.driverMarker.setLatLng([ping.lat, ping.lng]);
+          if (target && target.lat != null && !entry.targetMarker) {
+            const L = window.L;
+            entry.targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(entry.map);
+          }
+        } catch {}
+      }
+    }
+
+    // Public entry point — call after rendering a concierge status card.
+    // Task #447: dot motion now arrives over a Supabase Realtime broadcast
+    // channel (opened inside _mccUpdateConciergeMap from the server-issued
+    // descriptor), so we no longer poll every 18s. We keep ONE slow timer
+    // at 60s to (a) refresh ETA from the HTTP endpoint and (b) act as a
+    // reconnect catch-up if the websocket dropped silently. Auto-tears
+    // down (map + channel + timer) when the slot is removed from the DOM.
+    window.startConciergeTracking = function(jobId) {
+      if (!jobId) return;
+      _mccDisposeMap(jobId);                  // reset any prior session
+      _mccUpdateConciergeMap(jobId);          // first paint immediately (also opens RT channel)
+      const etaTimer = setInterval(() => {
+        if (!document.getElementById('concierge-map-' + jobId)) {
+          _mccDisposeMap(jobId);
+          return;
+        }
+        _mccUpdateConciergeMap(jobId);
+      }, 60000);
+      // Stash the timer on the entry once the map exists.
+      setTimeout(() => {
+        const e = _mccConciergeMaps.get(jobId);
+        if (e) e.etaTimer = etaTimer;
+        else _mccConciergeMaps.set(jobId, { etaTimer });
+      }, 0);
+    };
+
+    // Test hooks (Task #447 smoke test). Exposed under a single private
+    // namespace so production callers never accidentally depend on them.
+    window.__mccConciergeTracking = window.__mccConciergeTracking || {};
+    window.__mccConciergeTracking.applyPing = _mccApplyPing;
+    window.__mccConciergeTracking.dispose   = _mccDisposeMap;
+    window.__mccConciergeTracking._maps     = _mccConciergeMaps;
 
     // Task #369: render status for vehicle-originated concierge jobs (no
     // appointment_id). Looks up the most recent live job for the member
@@ -507,6 +720,9 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId: 'vehicle-' + vehicleId });
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+          window.startConciergeTracking(job.id);
+        }
       } catch (e) { console.warn('[concierge] vehicle status load failed', e); }
     };
 
@@ -525,6 +741,10 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId });
+        // Task #335 — kick off live tracking poller if the card includes a map.
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+          window.startConciergeTracking(job.id);
+        }
       } catch (e) { console.warn('[concierge] status load failed', e); }
     };
 
@@ -532,11 +752,11 @@
       const reason = window.prompt('Why are you cancelling this driver request?', 'Plans changed');
       if (!reason || reason.trim().length < 3) return;
       const headers = await getConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to cancel.'); return; }
+      if (!headers) { showToast('Please sign in again to cancel.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
       });
-      if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      if (!resp.ok) { showToast('Cancel failed: ' + (await resp.text()), 'error'); return; }
       window.loadConciergeStatusForAppointment(packageId, appointmentId);
     };
 

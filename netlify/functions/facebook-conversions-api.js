@@ -142,6 +142,13 @@ exports.handler = async function(event) {
     return jsonResponse(405, { error: 'method_not_allowed' });
   }
 
+  // Reject events originating from native iOS/Android Capacitor clients — App Store Guideline 5.1.2.
+  // Note: no current client sends this header; this is defense-in-depth for any future caller.
+  var clientPlatform = (event.headers || {})['x-client-platform'] || '';
+  if (clientPlatform === 'capacitor-ios' || clientPlatform === 'capacitor-android') {
+    return jsonResponse(200, { ok: true, skipped: true, reason: 'native_client' });
+  }
+
   var pixelId = process.env.FACEBOOK_PIXEL_ID;
   var token = process.env.FACEBOOK_CAPI_TOKEN;
   if (!pixelId || !token) {

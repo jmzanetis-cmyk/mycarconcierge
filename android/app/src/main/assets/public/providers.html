@@ -925,6 +925,7 @@
     <div class="nav-item" onclick="window.open('/provider/jobs','_self')"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="20" height="14" x="2" y="7" rx="2"/><path d="M16 21V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v16"/></svg></span> Job Board <span class="nav-badge" style="background:var(--accent-teal);color:#0c1a1f;font-size:0.62rem;">NEW</span></div>
     <div class="nav-item" data-section="bids"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> My Bids</div>
     <div class="nav-item" data-section="jobs"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> Active Jobs</div>
+    <div class="nav-item" data-section="care-plans-awarded"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 11.12a8.5 8.5 0 1 1-9.91-9.91"/><path d="M22 4 12 14.01l-3-3"/></svg></span> Awarded Plans <span class="nav-badge" id="care-plans-awarded-count" style="display:none;background:var(--accent-red,#ef4444);">0</span></div>
     <div class="nav-item" data-section="refund-requests"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Refund Requests <span class="nav-badge" id="refund-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="emergencies"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Emergency Queue <span class="nav-badge emergency" id="emergency-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="fleet-services"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></svg></span> Fleet Services <span class="nav-badge" id="fleet-count" style="display:none;background:var(--accent-gold);">0</span></div>
@@ -998,6 +999,20 @@
     <section id="overview" class="section active">
       <div class="page-header">
         <p class="page-subtitle" style="margin-top:4px;">Find jobs and grow your business.</p>
+      </div>
+
+      <!-- Match Pause banner (Task #389) — shown when matches_paused=true -->
+      <div id="match-pause-banner" style="display:none;margin-bottom:18px;padding:14px 16px;border-radius:var(--radius-lg);background:linear-gradient(135deg,rgba(201,162,39,0.18),rgba(201,162,39,0.06));border:1px solid rgba(201,162,39,0.45);">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;">
+          <div style="display:flex;align-items:center;gap:12px;min-width:0;">
+            <span aria-hidden="true" style="font-size:1.4rem;">⏸️</span>
+            <div style="min-width:0;">
+              <div style="font-weight:600;font-size:0.95rem;">Matches paused</div>
+              <div id="match-pause-banner-detail" style="font-size:0.85rem;color:var(--text-secondary);margin-top:2px;">You won't receive new match invitations right now.</div>
+            </div>
+          </div>
+          <button type="button" class="btn btn-secondary" onclick="resumeMatchesFromBanner()" style="white-space:nowrap;">Resume matches</button>
+        </div>
       </div>
 
       <!-- BGC alerts panel (Task #113) — populated by bgc-compliance.js on every dashboard load -->
@@ -1253,6 +1268,17 @@
         </button>
       </div>
       <div id="active-jobs"><div class="empty-state"><div class="empty-state-circle"><svg xmlns="http://www.w3.org/2000/svg" width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></div><div class="empty-state-title">No active jobs right now</div><div class="empty-state-desc">When a member accepts your bid, the job will appear here with all the details you need to get started.</div><button class="empty-state-cta" onclick="showSection('bids')">Check Your Bids</button></div></div>
+    </section>
+
+    <section id="care-plans-awarded" class="section">
+      <div class="page-header">
+        <h1 class="page-title">Awarded Care Plans</h1>
+        <p class="page-subtitle">Care plans where your bid was accepted, with current payment status and any open disputes.</p>
+      </div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px;">
+        <button class="btn" id="care-plans-awarded-refresh" type="button">Refresh</button>
+      </div>
+      <div id="care-plans-awarded-list"></div>
     </section>
 
     <section id="refund-requests" class="section">
@@ -2645,6 +2671,53 @@
         </div>
       </div>
 
+      <!-- Match Preferences (Task #389) -->
+      <div class="card" id="match-preferences-card">
+        <div class="card-header">
+          <h2 class="card-title">🎯 Match Preferences</h2>
+        </div>
+        <p style="color:var(--text-secondary);margin-bottom:20px;font-size:0.9rem;">Control which auto-match invitations you receive. Filters apply to AI-matched packages — your public profile and organic discovery aren't affected.</p>
+
+        <div class="form-group">
+          <label class="form-label">Categories to be matched on</label>
+          <div id="match-categories-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;">
+            <label class="service-checkbox"><input type="checkbox" value="maintenance" class="match-category-check"> <span>Maintenance</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="manufacturer_service" class="match-category-check"> <span>Manufacturer Service</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="accident_repair" class="match-category-check"> <span>Accident Repair</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="performance" class="match-category-check"> <span>Performance</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="cosmetic" class="match-category-check"> <span>Cosmetic</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="offroad" class="match-category-check"> <span>Off-Road</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="snow_removal" class="match-category-check"> <span>Snow Removal</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="other" class="match-category-check"> <span>Other</span></label>
+          </div>
+          <div class="form-hint" style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">Defaults to the categories from your provider application.</div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label" for="match-radius-miles">Match radius (miles)</label>
+            <input type="number" class="form-input" id="match-radius-miles" min="1" max="500" step="1" placeholder="25">
+            <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--text-muted);">Defaults to the radius captured at signup.</div>
+          </div>
+          <div class="form-group">
+            <label style="display:flex;align-items:center;gap:8px;cursor:pointer;margin-top:28px;">
+              <input type="checkbox" id="match-paused-toggle" style="width:18px;height:18px;">
+              <span>Pause match invitations</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="match-paused-until-row" style="display:none;">
+          <label class="form-label" for="match-paused-until">Auto-resume on (optional)</label>
+          <input type="date" class="form-input" id="match-paused-until">
+          <div class="form-hint" style="margin-top:4px;font-size:0.8rem;color:var(--text-muted);">Leave blank to pause until you turn it back on manually. After this date matches resume automatically.</div>
+        </div>
+
+        <div id="match-prefs-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:0.85rem;"></div>
+
+        <button class="btn btn-primary" onclick="saveMatchPreferences()">Save Match Preferences</button>
+      </div>
+
       <!-- Emergency Services Settings -->
       <div class="card" style="border:1px solid rgba(239, 95, 95, 0.3);background:linear-gradient(135deg, var(--bg-card), rgba(239, 95, 95, 0.05));">
         <div class="card-header">
@@ -3366,6 +3439,11 @@
       <!-- Task #114: 4-state Compliance Card (Active / At Risk / Inactive / Not enrolled).
            Populated by bgc-compliance.js using verbatim PDF copy. -->
       <div class="card" id="bgc-state-card" style="margin-bottom:18px;"></div>
+
+      <!-- Task #374: BGC sub-account link status. Populated by
+           bgc-compliance.js → loadSubaccountCard() from the safe public
+           view (no secret leak). -->
+      <div class="card" id="bgc-subaccount-card" style="margin-bottom:18px;display:none;"></div>
 
       <div class="card" id="bgc-summary-card">
         <div style="display:flex;flex-wrap:wrap;align-items:center;gap:24px;justify-content:space-between;">
@@ -4248,12 +4326,8 @@
               <span>ALL-INCLUSIVE:</span>
               <span id="calc-display-total">$0.00</span>
             </div>
-            <div class="calc-breakdown-fee" style="display:none;">
-              <span>Platform Fee:</span>
-              <span id="calc-display-platform-fee">-$0.00</span>
-            </div>
             <div class="calc-breakdown-net">
-              <span>Your Earnings (no platform fee):</span>
+              <span>Your Earnings (MCC charges no platform fee on completed jobs):</span>
               <span id="calc-display-net">$0.00</span>
             </div>
           </div>
@@ -4306,7 +4380,6 @@
                 <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Applicable taxes</div>
                 <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Shop/service fees</div>
                 <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Disposal fees</div>
-                <div><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:middle;margin-right:4px;"><path d="M20 6 9 17l-5-5"/></svg>Platform fees</div>
               </div>
             </div>
           </div>
@@ -6674,6 +6747,7 @@
   <script src="mcc-icons.js?v=20260211"></script>
   <script src="providers-core.js?v=20260202"></script>
   <script src="providers-settings.js?v=20260315"></script>
+  <script src="providers-care-plans.js?v=20260516"></script>
   <script src="/bgc-badge.js?v=20260428"></script>
   <script src="/bgc-pricing.js?v=20260429"></script>
   <script src="/bgc-onboarding.js?v=20260429"></script>

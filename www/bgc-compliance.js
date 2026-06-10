@@ -55,9 +55,10 @@
   //   Not enrolled: total === 0
   // ──────────────────────────────────────────────────────────────────────
   function _clearedLine(compliant, total) {
-    return _stateLang() === 'es'
-      ? compliant + ' de ' + total + ' empleados aprobados'
-      : compliant + ' of ' + total + ' employees cleared';
+    const lang = _stateLang();
+    if (lang === 'es') return compliant + ' de ' + total + ' empleados aprobados';
+    if (lang === 'ar') return compliant + ' من ' + total + ' موظفين معتمدين';
+    return compliant + ' of ' + total + ' employees cleared';
   }
 
   function _stateLang() {
@@ -138,8 +139,42 @@
     }
   };
 
+  const STATE_COPY_AR = {
+    not_enrolled: {
+      title: 'احصل على توثيق MCC',
+      body:  'تميّز عن المنافسين. مزوّدو الخدمة الذين خضعوا للتحقق من الخلفية يحصلون على ضعف عدد العروض من العملاء حتى ثلاث مرات.',
+      cta:   '← ابدأ عملية التحقق',
+      pillText: 'غير مُسجَّل'
+    },
+    active: {
+      title: 'موثّق من MCC — نشط ✓',
+      body:  function (pct) { return 'فريقك ملتزم بنسبة ' + pct.toFixed(0) + '%. شارة "موثّق" مفعّلة وظاهرة للعملاء.'; },
+      cta:   '← عرض تفاصيل الالتزام',
+      pillText: '✓ موثّق من MCC'
+    },
+    activating: {
+      title: 'موثّق من MCC — قيد التفعيل',
+      body:  function (pct) { return 'فريقك ملتزم بنسبة ' + pct.toFixed(0) + '%. ستُفعَّل شارة "موثّق" خلال وقت قصير.'; },
+      cta:   '← عرض تفاصيل الالتزام',
+      pillText: 'قيد التفعيل'
+    },
+    at_risk: {
+      title: 'موثّق من MCC — في خطر',
+      body:  function (pct) { return 'نسبة التزامك ' + pct.toFixed(0) + '%. تحتاج إلى 90% للاحتفاظ بشارة "موثّق".'; },
+      cta:   '← عرض التفاصيل',
+      pillText: '⚠ في خطر'
+    },
+    inactive: {
+      title: 'موثّق من MCC — غير نشط ✗',
+      body:  function (pct) { return 'انخفض التزامك إلى ' + pct.toFixed(0) + '%. تمّت إزالة شارة "موثّق" من صفحتك. جدّد عمليات التحقق المنتهية لاستعادتها.'; },
+      cta:   '← جدّد الآن',
+      pillText: '✗ غير نشط'
+    }
+  };
+
   function _stateCopy(pct, total, badge) {
-    const dict = _stateLang() === 'es' ? STATE_COPY_ES : STATE_COPY_EN;
+    const lang = _stateLang();
+    const dict = lang === 'es' ? STATE_COPY_ES : (lang === 'ar' ? STATE_COPY_AR : STATE_COPY_EN);
     let key;
     if (total === 0) key = 'not_enrolled';
     else if (badge && pct >= 90) key = 'active';
@@ -232,7 +267,7 @@
       }
     } catch { /* non-fatal — keep default mock pill */ }
     slot.innerHTML =
-      '<span title="' + escapeHtml(title) + '" style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + bg + ';color:' + fg + ';margin-left:8px;">' + escapeHtml(label) + '</span>';
+      '<span title="' + escapeHtml(title) + '" style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + bg + ';color:' + fg + ';margin-inline-start:8px;">' + escapeHtml(label) + '</span>';
   }
 
   function _renderStateCard(state, pct, compliant, total) {
@@ -250,12 +285,13 @@
             : '<a href="#compliance" class="btn btn-secondary" style="margin-top:14px;display:inline-block;text-decoration:none;">' + escapeHtml(state.cta) + '</a>'
           ) +
         '</div>' +
-        '<div style="text-align:right;min-width:140px;">' +
-          '<div style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);">' + pct.toFixed(0) + '%</div>' +
+        '<div style="text-align:end;min-width:140px;">' +
+          '<div style="font-size:2.4rem;font-weight:700;color:var(--accent-gold);unicode-bidi:plaintext;">' + pct.toFixed(0) + '%</div>' +
           '<div style="color:var(--text-secondary);font-size:0.88rem;">' + escapeHtml(_clearedLine(compliant, total)) + '</div>' +
         '</div>' +
       '</div>' +
       '<div style="margin-top:18px;height:8px;background:rgba(255,255,255,0.06);border-radius:999px;overflow:hidden;">' +
+        // RTL note (Task #410): 90deg gradient is cosmetic on a width-driven progress bar (intentionally physical). Follow-up #506.
         '<div style="height:100%;width:' + Math.max(0, Math.min(100, pct)) + '%;background:linear-gradient(90deg,var(--accent-gold),var(--accent-teal));transition:width 0.4s ease;"></div>' +
       '</div>';
   }
@@ -263,36 +299,37 @@
   // Resolve the (label, background, color) tuple for the legacy inline badge
   // pill. Pure data — kept separate from the DOM write so loadSummary stays
   // under the cognitive-complexity budget (Task #262).
-  function _legacyBadgePalette(badge, total, pct, isEs) {
+  function _legacyBadgePalette(badge, total, pct, lang) {
+    const pick = (en, es, ar) => lang === 'es' ? es : (lang === 'ar' ? ar : en);
     if (badge) return {
-      text: isEs ? '✓ MCC Verificado' : '✓ MCC Verified',
+      text: pick('✓ MCC Verified', '✓ MCC Verificado', '✓ موثّق من MCC'),
       bg:   'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))',
       fg:   '#2eb88a'
     };
     if (total === 0) return {
-      text: isEs ? 'No inscrito' : 'Not enrolled',
+      text: pick('Not enrolled', 'No inscrito', 'غير مُسجَّل'),
       bg:   'rgba(255,255,255,0.05)',
       fg:   'var(--text-muted)'
     };
     if (pct < 80) return {
-      text: isEs ? '✗ Inactivo' : '✗ Inactive',
+      text: pick('✗ Inactive', '✗ Inactivo', '✗ غير نشط'),
       bg:   'rgba(220, 80, 80, 0.15)',
       fg:   '#dc5050'
     };
     if (pct < 90) return {
-      text: isEs ? '⚠ En riesgo' : '⚠ At Risk',
+      text: pick('⚠ At Risk', '⚠ En riesgo', '⚠ في خطر'),
       bg:   'rgba(212, 168, 85, 0.15)',
       fg:   '#d4a855'
     };
     return {
-      text: isEs ? 'Menos del 90 % — aún no verificado' : 'Below 90% — not yet verified',
+      text: pick('Below 90% — not yet verified', 'Menos del 90 % — aún no verificado', 'أقل من 90% — لم يتم التوثيق بعد'),
       bg:   'rgba(255,255,255,0.05)',
       fg:   'var(--text-muted)'
     };
   }
 
   function _renderLegacyBadgeState(stateEl, badge, total, pct) {
-    const palette = _legacyBadgePalette(badge, total, pct, _stateLang() === 'es');
+    const palette = _legacyBadgePalette(badge, total, pct, _stateLang());
     stateEl.textContent      = palette.text;
     stateEl.style.background = palette.bg;
     stateEl.style.color      = palette.fg;
@@ -364,11 +401,14 @@
   function _renderAlertsHtml(alerts) {
     return alerts.map(a => {
       const palette = SEV[a.severity] || SEV.info;
-      const renewLabel = _stateLang() === 'es' ? 'Renovar ahora →' : 'Renew now →';
+      const _alertLang = _stateLang();
+      const renewLabel = _alertLang === 'es'
+        ? 'Renovar ahora →'
+        : (_alertLang === 'ar' ? '← جدّد الآن' : 'Renew now →');
       const cta = a.action_url
         ? '<a href="' + escapeHtml(a.action_url) + '" style="display:inline-block;margin-top:8px;padding:8px 14px;border-radius:8px;background:' + palette.border + ';color:#fff;text-decoration:none;font-weight:600;font-size:0.85rem;">' + escapeHtml(renewLabel) + '</a>'
         : '';
-      return '<div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;margin-bottom:10px;border-radius:10px;background:' + palette.bg + ';border-left:4px solid ' + palette.border + ';">' +
+      return '<div style="display:flex;gap:14px;align-items:flex-start;padding:14px 18px;margin-bottom:10px;border-radius:10px;background:' + palette.bg + ';border-inline-start:4px solid ' + palette.border + ';">' +
         '<div style="flex:1;">' +
           '<div style="font-weight:600;color:' + palette.fg + ';">' + escapeHtml(a.title) + '</div>' +
           (a.body ? '<div style="margin-top:4px;color:var(--text-secondary);font-size:0.9rem;">' + escapeHtml(a.body) + '</div>' : '') +
@@ -454,7 +494,7 @@
         const d = daysUntil(chk.expires_at);
         if (d != null && d <= 30 && d >= 0) {
           const sev = d <= 7 ? SEV.critical : SEV.warning;
-          expiringPill = ' <span style="margin-left:6px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:600;background:' + sev.bg + ';color:' + sev.fg + ';">in ' + d + 'd</span>';
+          expiringPill = ' <span style="margin-inline-start:6px;padding:2px 8px;border-radius:999px;font-size:0.7rem;font-weight:600;background:' + sev.bg + ';color:' + sev.fg + ';">in ' + d + 'd</span>';
         }
       }
       const actionLabel = (!chk || chk.status === 'expired' || chk.status === 'failed')
@@ -477,7 +517,7 @@
         '<td style="padding:14px 16px;color:var(--text-secondary);">' + escapeHtml(e.role || '—') + '</td>' +
         '<td style="padding:14px 16px;"><span style="padding:4px 10px;border-radius:999px;font-size:0.78rem;font-weight:600;background:' + palette.bg + ';color:' + palette.fg + ';">' + palette.label + '</span></td>' +
         '<td style="padding:14px 16px;color:var(--text-secondary);">' + expires + expiringPill + '</td>' +
-        '<td style="padding:14px 16px;text-align:right;">' +
+        '<td style="padding:14px 16px;text-align:end;">' +
           '<button class="btn btn-secondary" ' + disabled + ' onclick="globalThis.bgcCompliance.initiate(\'' + e.id + '\')">' + actionLabel + '</button>' +
         '</td>' +
       '</tr>';
@@ -523,8 +563,95 @@
       loadSummary(providerId),
       loadEmployees(providerId),
       loadAlerts(providerId),
-      loadNotificationPrefs(providerId)
+      loadNotificationPrefs(providerId),
+      loadSubaccountCard(providerId)
     ]);
+  }
+
+  // ── Task #374: BGC sub-account link card ──────────────────────────────
+  // Reads the safe public view `provider_background_check_accounts_public`
+  // (NEVER the base table — the api_key column is revoked from
+  // authenticated/anon by migration 20260515e). Renders a small card so
+  // providers can see at a glance whether ordered checks will run under
+  // their own BGC sub-account or fall back to the platform credential,
+  // and lets them deep-link to /bgc-enroll-account.html to enroll.
+  async function loadSubaccountCard(providerId) {
+    const slot = document.getElementById('bgc-subaccount-card');
+    if (!slot) return;
+    const sb = getSupabase();
+    if (!sb) return;
+
+    let row = null;
+    try {
+      const { data } = await sb
+        .from('provider_background_check_accounts_public')
+        .select('live_mode, bgchecks_account_id, created_at, updated_at')
+        .eq('provider_id', providerId)
+        .maybeSingle();
+      row = data || null;
+    } catch { row = null; }
+
+    const isEs = _stateLang() === 'es';
+    // The public view deliberately omits the secret api_key column. Per
+    // migration 20260515e the `live_mode` flag is the canonical "is your
+    // sub-account linked?" signal — it's only set true by the enrollment
+    // flow after /token/decrypt succeeds.
+    const linked = !!(row && row.live_mode);
+
+    const title = isEs ? 'Sub-cuenta de BackgroundChecks.com' : 'BackgroundChecks.com sub-account';
+    let pillText; let pillBg; let pillFg; let body; let cta;
+
+    if (linked) {
+      pillText = isEs ? '✓ Vinculada' : '✓ Linked';
+      pillBg = 'linear-gradient(135deg, rgba(46,184,138,0.18), rgba(46,184,138,0.08))';
+      pillFg = '#2eb88a';
+      body = isEs
+        ? 'Las verificaciones que solicites se realizarán bajo tu propia sub-cuenta de BackgroundChecks.com'
+          + (row && row.bgchecks_account_id ? ' (#' + escapeHtml(String(row.bgchecks_account_id)) + ')' : '')
+          + '.'
+        : 'Background checks you order will run under your own BackgroundChecks.com sub-account'
+          + (row && row.bgchecks_account_id ? ' (#' + escapeHtml(String(row.bgchecks_account_id)) + ')' : '')
+          + '.';
+      cta = '<a href="/bgc-enroll-account.html" target="_blank" rel="noopener" class="btn btn-secondary" style="text-decoration:none;display:inline-block;">'
+          + escapeHtml(isEs ? 'Reenrolar / actualizar' : 'Re-enroll / update') + '</a>';
+    } else {
+      pillText = isEs ? 'No vinculada' : 'Not linked';
+      pillBg = 'rgba(212, 168, 85, 0.15)';
+      pillFg = '#d4a855';
+      body = isEs
+        ? 'Aún no has vinculado tu propia sub-cuenta de BackgroundChecks.com. Por ahora, las verificaciones se procesan con la cuenta de respaldo de MCC. Enrólate gratis para tener tu propia consola y facturación.'
+        : 'You haven’t linked your own BackgroundChecks.com sub-account yet. Until you do, ordered checks run against MCC’s fallback account. Enroll for free to get your own console and billing.';
+      cta = '<a href="/bgc-enroll-account.html" target="_blank" rel="noopener" class="btn btn-primary" style="text-decoration:none;display:inline-block;" onclick="globalThis.bgcCompliance.armSubaccountRefresh()">'
+          + escapeHtml(isEs ? 'Enrolar sub-cuenta →' : 'Enroll sub-account →') + '</a>';
+    }
+
+    slot.style.display = '';
+    slot.innerHTML =
+      '<div style="display:flex;flex-wrap:wrap;align-items:flex-start;gap:18px;justify-content:space-between;">' +
+        '<div style="flex:1;min-width:240px;">' +
+          '<div style="display:inline-block;padding:6px 14px;border-radius:999px;font-weight:600;font-size:0.78rem;background:' + pillBg + ';color:' + pillFg + ';">' + escapeHtml(pillText) + '</div>' +
+          '<h3 style="margin:12px 0 6px;font-size:1.05rem;font-weight:600;color:var(--text-primary);">' + escapeHtml(title) + '</h3>' +
+          '<p style="margin:0;color:var(--text-secondary);font-size:0.92rem;line-height:1.5;">' + body + '</p>' +
+        '</div>' +
+        '<div style="display:flex;align-items:center;">' + cta + '</div>' +
+      '</div>';
+  }
+
+  // Called when the provider clicks "Enroll sub-account" so we can
+  // refresh the card the moment they return to this tab (the enrollment
+  // page opens in a new tab, and `handleSuccess` there links the account
+  // via /api/provider/bgc/decrypt-token).
+  let _subaccountRefreshArmed = false;
+  function armSubaccountRefresh() {
+    if (_subaccountRefreshArmed) return;
+    _subaccountRefreshArmed = true;
+    const handler = async function () {
+      if (document.visibilityState !== 'visible') return;
+      const providerId = await getProviderId();
+      if (providerId) await loadSubaccountCard(providerId);
+    };
+    window.addEventListener('focus', handler);
+    document.addEventListener('visibilitychange', handler);
   }
 
   // ── Task #159 (+ Task #201): BGC reminder preferences ─────────────────
@@ -740,7 +867,7 @@
     }
   }
 
-  globalThis.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs };
+  globalThis.bgcCompliance = { refresh, refreshAlertsOnly, openAddEmployee, initiate, dismissAlert, startEnrollment, toggleCustomerFacing, saveNotificationPrefs, loadSubaccountCard, armSubaccountRefresh };
 
   // Auto-refresh whenever the user opens the Compliance section.
   document.addEventListener('click', function (ev) {

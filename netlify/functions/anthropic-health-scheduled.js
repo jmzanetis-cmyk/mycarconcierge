@@ -39,9 +39,11 @@ let {
 // ---------------------------------------------------------------------------
 let MODELS_IN_USE = [
   'claude-sonnet-4-5',
+  'claude-sonnet-4-6',
   'claude-sonnet-4-20250514',
   'claude-haiku-4-5-20251001',
-  'claude-opus-4-5'
+  'claude-opus-4-5',
+  'claude-opus-4-7'
 ];
 
 let MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
@@ -92,14 +94,16 @@ async function probeModel(client, model) {
 // runHealthCheck: probe every model in MODELS_IN_USE in parallel, aggregate.
 // ---------------------------------------------------------------------------
 async function runHealthCheck() {
-  let apiKey = process.env.ANTHROPIC_API_KEY;
+  // Use MCC_FLEET1 first — that's what the outreach engine uses (outreach-engine-core.js:11).
+  // ANTHROPIC_API_KEY is the fallback so a dead fleet key surfaces here, not just in the engine.
+  let apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) {
     return {
       ok: false,
       reason: 'no_api_key',
       results: [],
       failed: MODELS_IN_USE.map(function (m) {
-        return { model: m, ok: false, status: 0, code: 'no_api_key', message: 'ANTHROPIC_API_KEY not set' };
+        return { model: m, ok: false, status: 0, code: 'no_api_key', message: 'ANTHROPIC_API_KEY / ANTHROPIC_API_KEY_MCC_FLEET1 not set' };
       }),
       checked_at: new Date().toISOString()
     };
@@ -237,6 +241,15 @@ exports.handler = async function (event) {
   }
 
   let summary = await runHealthCheck();
+
+  // Twilio health check: surface missing env vars in the same run
+  const { twilioHealthCheck } = require('./_shared/sms');
+  const twilioStatus = twilioHealthCheck();
+  if (!twilioStatus.configured) {
+    console.warn('[anthropic-health] Twilio not configured — missing:', twilioStatus.missing.join(', '));
+  }
+  summary.twilio = twilioStatus;
+
   let supabase = getSupabase();
   await logToAiActionLog(supabase, summary, auth);
 

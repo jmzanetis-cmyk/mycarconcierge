@@ -15,9 +15,9 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
@@ -108,8 +108,8 @@
       height: 100px;
       width: auto;
       border-radius: var(--radius-md);
-      image-rendering: -webkit-optimize-contrast;
-      image-rendering: crisp-edges;
+      
+      
     }
 
     .signup-card {
@@ -130,14 +130,14 @@
     }
 
     .invitation-banner .invited-text {
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-secondary);
       margin-bottom: 6px;
     }
 
     .invitation-banner .provider-name {
       font-family: 'Playfair Display', serif;
-      font-size: 1.4rem;
+      font-size: var(--text-2xl);
       color: var(--accent-gold);
       font-weight: 600;
     }
@@ -150,7 +150,7 @@
       color: #0a0a0f;
       padding: 8px 16px;
       border-radius: 20px;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       font-weight: 600;
       margin-bottom: 20px;
     }
@@ -180,7 +180,7 @@
     .no-fees-badge .text {
       color: var(--accent-green);
       font-weight: 500;
-      font-size: 0.92rem;
+      font-size: var(--text-base);
     }
 
     .verification-bypass {
@@ -212,7 +212,7 @@
     .verification-bypass .text strong {
       color: var(--accent-blue);
       display: block;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
     }
 
     .verification-bypass .text span {
@@ -227,14 +227,14 @@
 
     .signup-header h1 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 500;
       margin-bottom: 8px;
     }
 
     .signup-header p {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
     }
 
     .form-group {
@@ -243,7 +243,7 @@
 
     .form-label {
       display: block;
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       font-weight: 500;
       margin-bottom: 8px;
       color: var(--text-secondary);
@@ -257,7 +257,7 @@
       border-radius: var(--radius-md);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       transition: all 0.15s ease;
     }
 
@@ -278,7 +278,7 @@
     }
 
     .form-hint {
-      font-size: 0.78rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
       margin-top: 6px;
     }
@@ -287,7 +287,7 @@
       width: 100%;
       padding: 14px 24px;
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 600;
       border: none;
       border-radius: var(--radius-lg);
@@ -296,17 +296,17 @@
       margin-top: 8px;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, var(--accent-gold), var(--accent-bronze));
       color: #0a0a0f;
     }
 
-    .btn-primary:hover {
+    .btn--primary:hover {
       transform: translateY(-2px);
       box-shadow: 0 8px 24px rgba(201, 162, 39, 0.35);
     }
 
-    .btn-primary:disabled {
+    .btn--primary:disabled {
       opacity: 0.7;
       cursor: not-allowed;
       transform: none;
@@ -316,7 +316,7 @@
       margin-top: 16px;
       padding: 12px 16px;
       border-radius: var(--radius-md);
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       text-align: center;
       display: none;
     }
@@ -346,7 +346,7 @@
     .signup-footer {
       margin-top: 24px;
       text-align: center;
-      font-size: 0.88rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
     }
 
@@ -387,7 +387,7 @@
 
     .error-state h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.4rem;
+      font-size: var(--text-2xl);
       margin-bottom: 12px;
     }
 
@@ -428,7 +428,7 @@
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/signup-loyal-customer.html" />
   <meta name="robots" content="index, follow, max-image-preview:large" />
@@ -449,7 +449,7 @@
   <meta name="twitter:description" content="Join the My Car Concierge loyalty program through your favorite local shop and start earning rewards on every visit." />
   <meta name="twitter:image" content="https://www.mycarconcierge.com/og-card.png" />
 <!-- SEO-INJECT:END -->
-  <script src="/auth-theme-toggle.js" defer></script>
+  <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="ambient-bg"></div>
@@ -580,7 +580,7 @@
             </label>
           </div>
 
-          <button type="submit" class="btn btn-primary" id="submit-btn">
+          <button type="submit" class="btn btn--primary" id="submit-btn">
             Create VIP Account
           </button>
         </form>
@@ -592,7 +592,7 @@
         </div>
       </div>
 
-      <div style="margin-top:20px;text-align:center;font-size:0.75rem;color:var(--text-muted);">
+      <div style="margin-top:20px;text-align:center;font-size:var(--text-xs);color:var(--text-muted);">
         © 2025 My Car Concierge. All rights reserved.
       </div>
     </div>
@@ -765,8 +765,7 @@
             full_name: name,
             phone: phone,
             is_verified: true,
-            referred_by_provider: providerId,
-            loyalty_status: 'vip',
+            referred_by_provider_id: providerId,
             platform_fee_exempt: true,
             sms_consent: smsConsent,
             sms_consent_date: smsConsent ? new Date().toISOString() : null,
@@ -778,17 +777,13 @@
           }
 
           try {
-            const { data: referralResult, error: referralError } = await supabaseClient
-              .rpc('process_loyal_customer_referral', {
-                p_referral_code: referralCode,
-                p_customer_user_id: data.user.id,
-                p_customer_email: email,
-                p_customer_name: name,
-                p_customer_phone: phone
-              });
-
-            if (referralError) {
-              console.log('Referral processing note:', referralError.message);
+            const referralResp = await fetch('/.netlify/functions/referral-process', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ user_id: data.user.id, referral_code: referralCode })
+            });
+            if (!referralResp.ok) {
+              console.log('Referral processing note:', await referralResp.text());
             }
           } catch (refErr) {
             console.log('Referral processing note:', refErr.message);
@@ -809,8 +804,8 @@
 
     init();
   </script>
-  <script src="/footer.js"></script>
-  <script src="/pwa-init.js?v=20260202"></script>
+  <script src="footer.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
   <script>
     /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
     document.addEventListener('DOMContentLoaded', () => {
@@ -818,7 +813,7 @@
       if (icon) icon.innerHTML = document.documentElement.getAttribute('data-theme') === 'dark' ? '<span class="icon-inline" data-icon="sun"></span>' : '<span class="icon-inline" data-icon="moon"></span>';
     });
   </script>
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');

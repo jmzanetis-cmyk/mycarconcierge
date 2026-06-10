@@ -10,9 +10,12 @@ class AppDelegate: UIResponder, UIApplicationDelegate, MessagingDelegate, UNUser
     var window: UIWindow?
 
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey: Any]?) -> Bool {
-        // Configure Firebase for FCM push notifications
-        FirebaseApp.configure()
-        Messaging.messaging().delegate = self
+        if Bundle.main.path(forResource: "GoogleService-Info", ofType: "plist") != nil {
+            FirebaseApp.configure()
+            Messaging.messaging().delegate = self
+        } else {
+            print("[MCC] GoogleService-Info.plist not found — Firebase/FCM skipped until plist is added")
+        }
         UNUserNotificationCenter.current().delegate = self
         return true
     }

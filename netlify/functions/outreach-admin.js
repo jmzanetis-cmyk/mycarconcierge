@@ -1,3 +1,4 @@
+const utils = require('./utils');
 const {
   createSupabaseClient,
   initEngineState,
@@ -37,11 +38,179 @@ function jsonResponse(statusCode, data) {
   };
 }
 
-function authenticateAdmin(event) {
-  const token = event.headers['x-admin-token'] || event.headers['X-Admin-Token'];
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return token === adminPassword;
+function csvEscape(v) {
+  if (v === null || v === undefined) return '';
+  const s = String(v);
+  if (/[",\r\n]/.test(s)) return '"' + s.replace(/"/g, '""') + '"';
+  return s;
+}
+
+// Task #402 — lead-level CSV export. Pages through outreach_leads honouring
+// the same filters the UI exposes (type / status / crm_status / search) plus
+// optional YYYY-MM-DD date_from / date_to on created_at, then joins the
+// earliest outreach_messages.sent_at, the linked profiles.created_at, and the
+// earliest provider_applications.created_at so the spreadsheet shows the
+// full funnel timeline per lead in one row. Hard-capped at EXPORT_MAX_ROWS
+// so a runaway export can't OOM the function.
+const EXPORT_MAX_ROWS = 50000;
+const EXPORT_CHUNK = 1000;
+
+function parseExportDate(input, endOfDay) {
+  if (input === undefined || input === null || input === '') return { ok: true, value: null };
+  const s = String(input).trim();
+  const m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!m) return { ok: false };
+  const y = Number(m[1]), mo = Number(m[2]), dd = Number(m[3]);
+  const d = new Date(Date.UTC(y, mo - 1, dd));
+  if (
+    Number.isNaN(d.getTime()) ||
+    d.getUTCFullYear() !== y ||
+    d.getUTCMonth() !== mo - 1 ||
+    d.getUTCDate() !== dd
+  ) {
+    return { ok: false };
+  }
+  if (endOfDay) d.setUTCDate(d.getUTCDate() + 1);
+  return { ok: true, value: d.toISOString() };
+}
+
+async function buildLeadsCsv(supabase, params) {
+  const type = params.type || '';
+  const status = params.status || '';
+  const crmStatus = params.crm_status || '';
+  const source = params.source || '';
+  const search = params.search || '';
+
+  const fromParsed = parseExportDate(params.date_from, false);
+  const toParsed = parseExportDate(params.date_to, true);
+  if (!fromParsed.ok || !toParsed.ok) {
+    return { error: 'Invalid date filter. date_from / date_to must be YYYY-MM-DD.', status: 400 };
+  }
+
+  function applyFilters(q) {
+    if (type) q = q.eq('type', type);
+    if (status) q = q.eq('status', status);
+    if (crmStatus) q = q.eq('crm_sync_status', crmStatus);
+    if (source) q = q.eq('source', source);
+    if (search) q = q.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
+    if (fromParsed.value) q = q.gte('created_at', fromParsed.value);
+    if (toParsed.value) q = q.lt('created_at', toParsed.value);
+    return q;
+  }
+
+  const allLeads = [];
+  let offset = 0;
+  while (offset < EXPORT_MAX_ROWS) {
+    const upper = Math.min(offset + EXPORT_CHUNK, EXPORT_MAX_ROWS) - 1;
+    let q = supabase
+      .from('outreach_leads')
+      .select('id, type, name, email, phone, company, location, source, status, crm_sync_status, crm_profile_id, created_at')
+      .order('created_at', { ascending: false })
+      .range(offset, upper);
+    q = applyFilters(q);
+    const { data, error } = await q;
+    if (error) return { error: error.message, status: 500 };
+    const batch = data || [];
+    allLeads.push(...batch);
+    if (batch.length < (upper - offset + 1)) break;
+    offset += EXPORT_CHUNK;
+  }
+
+  const leadIds = allLeads.map(l => l.id);
+  const profileIds = Array.from(new Set(allLeads.map(l => l.crm_profile_id).filter(Boolean)));
+
+  const contactedAt = new Map();
+  const applicationAt = new Map();
+  const profileCreatedAt = new Map();
+
+  async function inChunks(ids, fn) {
+    for (let i = 0; i < ids.length; i += EXPORT_CHUNK) {
+      await fn(ids.slice(i, i + EXPORT_CHUNK));
+    }
+  }
+
+  if (leadIds.length) {
+    await inChunks(leadIds, async (chunk) => {
+      const { data: msgs } = await supabase
+        .from('outreach_messages')
+        .select('lead_id, sent_at')
+        .in('lead_id', chunk)
+        .not('sent_at', 'is', null);
+      for (const m of msgs || []) {
+        const prev = contactedAt.get(m.lead_id);
+        if (!prev || m.sent_at < prev) contactedAt.set(m.lead_id, m.sent_at);
+      }
+    });
+
+    await inChunks(leadIds, async (chunk) => {
+      const { data: apps } = await supabase
+        .from('provider_applications')
+        .select('outreach_lead_id, created_at')
+        .in('outreach_lead_id', chunk);
+      for (const a of apps || []) {
+        const prev = applicationAt.get(a.outreach_lead_id);
+        if (!prev || a.created_at < prev) applicationAt.set(a.outreach_lead_id, a.created_at);
+      }
+    });
+  }
+
+  if (profileIds.length) {
+    await inChunks(profileIds, async (chunk) => {
+      const { data: profiles } = await supabase
+        .from('profiles')
+        .select('id, created_at')
+        .in('id', chunk);
+      for (const p of profiles || []) profileCreatedAt.set(p.id, p.created_at);
+    });
+  }
+
+  const headers = [
+    'id',
+    'type',
+    'name',
+    'email',
+    'phone',
+    'company',
+    'location',
+    'source',
+    'status',
+    'crm_sync_status',
+    'created_at',
+    'contacted_at',
+    'profile_created_at',
+    'application_submitted_at'
+  ];
+  const lines = [headers.join(',')];
+  for (const l of allLeads) {
+    lines.push([
+      l.id,
+      l.type,
+      l.name,
+      l.email,
+      l.phone,
+      l.company,
+      l.location,
+      l.source,
+      l.status,
+      l.crm_sync_status,
+      l.created_at,
+      contactedAt.get(l.id) || '',
+      l.crm_profile_id ? (profileCreatedAt.get(l.crm_profile_id) || '') : '',
+      applicationAt.get(l.id) || ''
+    ].map(csvEscape).join(','));
+  }
+
+  const today = new Date().toISOString().slice(0, 10);
+  const from = params.date_from || 'all';
+  const to = params.date_to || today;
+  const parts = ['outreach-leads'];
+  if (type) parts.push(`type-${type}`);
+  if (status) parts.push(`status-${status}`);
+  if (source) parts.push(`source-${source}`);
+  parts.push(from, to);
+  const filename = parts.join('_').replace(/[^a-zA-Z0-9_.-]/g, '_') + '.csv';
+
+  return { csv: lines.join('\n') + '\n', filename, row_count: allLeads.length };
 }
 
 exports.handler = async function(event, context) {
@@ -49,14 +218,13 @@ exports.handler = async function(event, context) {
     return jsonResponse(204, '');
   }
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
   const supabase = createSupabaseClient();
   if (!supabase) {
     return jsonResponse(500, { error: 'Database not configured' });
   }
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const rawPath = event.path || '';
   const path = rawPath
@@ -265,19 +433,49 @@ exports.handler = async function(event, context) {
       const type = params.type;
       const status = params.status;
       const crmStatus = params.crm_status;
+      const source = params.source;
       const search = params.search;
       const offset = (page - 1) * limit;
+
+      // Task #402 — date filters on outreach_leads.created_at. Same strict
+      // YYYY-MM-DD parsing as /leads/export so the list and the export
+      // always agree about which rows match.
+      const fromParsed = parseExportDate(params.date_from, false);
+      const toParsed   = parseExportDate(params.date_to,   true);
+      if (!fromParsed.ok || !toParsed.ok) {
+        return jsonResponse(400, { error: 'Invalid date filter. date_from / date_to must be YYYY-MM-DD.' });
+      }
 
       let query = supabase.from('outreach_leads').select('*', { count: 'exact' });
       if (type) query = query.eq('type', type);
       if (status) query = query.eq('status', status);
       if (crmStatus) query = query.eq('crm_sync_status', crmStatus);
+      if (source) query = query.eq('source', source);
       if (search) query = query.or(`name.ilike.%${search}%,email.ilike.%${search}%,company.ilike.%${search}%`);
+      if (fromParsed.value) query = query.gte('created_at', fromParsed.value);
+      if (toParsed.value)   query = query.lt('created_at',  toParsed.value);
       query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
 
       const { data, count, error } = await query;
       if (error) return jsonResponse(500, { error: error.message });
       return jsonResponse(200, { data: data || [], total: count, page, limit });
+    }
+
+    if (method === 'GET' && path === 'leads/export') {
+      const result = await buildLeadsCsv(supabase, params);
+      if (result.error) return jsonResponse(result.status || 500, { error: result.error });
+      return {
+        statusCode: 200,
+        headers: {
+          'Content-Type': 'text/csv; charset=utf-8',
+          'Content-Disposition': `attachment; filename="${result.filename}"`,
+          'Cache-Control': 'no-cache',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token',
+          'Access-Control-Allow-Methods': 'GET, OPTIONS'
+        },
+        body: result.csv
+      };
     }
 
     if (method === 'POST' && path === 'leads') {

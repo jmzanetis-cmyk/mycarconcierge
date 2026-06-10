@@ -11,8 +11,8 @@
 //      engine_state.metadata.apollo_config, AND writes the
 //      apollo_lock_force_cleared rows to both outreach_activity_log and
 //      admin_audit_log.
-//   5) GET  /apollo-health rejects without x-admin-token (401).
-//   6) POST /clear-apollo-lock rejects without x-admin-token (401).
+//   5) GET  /apollo-health rejects without Bearer admin token (401).
+//   6) POST /clear-apollo-lock rejects without Bearer admin token (401).
 //
 // Handler runs in-process. Supabase is stubbed with a chainable query mock
 // so the test does not touch a real database.
@@ -67,6 +67,9 @@ function makeChain(table) {
       if (table === 'engine_state') {
         return Promise.resolve({ data: { metadata: dbState.engineMetadata }, error: null });
       }
+      if (table === 'profiles') {
+        return Promise.resolve({ data: { role: 'admin' }, error: null });
+      }
       return Promise.resolve({ data: null, error: null });
     },
     maybeSingle() { return Promise.resolve({ data: null, error: null }); },
@@ -93,7 +96,15 @@ function makeChain(table) {
   return chain;
 }
 
-const supabaseStub = { from: (t) => makeChain(t) };
+const supabaseStub = {
+  from: (t) => makeChain(t),
+  auth: {
+    getUser: async (token) => {
+      if (!token) return { data: { user: null }, error: { message: 'no token' } };
+      return { data: { user: { id: 'stub-admin-uid' } }, error: null };
+    }
+  }
+};
 
 // Stub @supabase/supabase-js at every path Node might resolve it to. The
 // netlify/functions/ tree has its own nested node_modules — see the same
@@ -125,7 +136,7 @@ function makeEvent({ path, method = 'GET', headers = {}, body = null }) {
   };
 }
 function parse(res) { try { return JSON.parse(res.body); } catch { return null; } }
-function adminHeaders() { return { 'x-admin-token': ADMIN_PASSWORD }; }
+function adminHeaders() { return { authorization: 'Bearer stub-admin-bearer' }; }
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -224,7 +235,7 @@ function adminHeaders() { return { 'x-admin-token': ADMIN_PASSWORD }; }
     // no headers
   }));
   assert.strictEqual(res.statusCode, 401, '5: missing admin token must be 401');
-  console.log('  ✓ 5) apollo-health rejects without x-admin-token (401)');
+  console.log('  ✓ 5) apollo-health rejects without Bearer admin token (401)');
 
   // ---- 6) clear-apollo-lock without x-admin-token -> 401 ----
   resetDbState();
@@ -240,7 +251,7 @@ function adminHeaders() { return { 'x-admin-token': ADMIN_PASSWORD }; }
     '6: no outreach_activity_log rows should be written when unauthorized');
   assert.strictEqual(dbState.inserts.admin_audit_log.length, 0,
     '6: no admin_audit_log rows should be written when unauthorized');
-  console.log('  ✓ 6) clear-apollo-lock rejects without x-admin-token (401)');
+  console.log('  ✓ 6) clear-apollo-lock rejects without Bearer admin token (401)');
 
   console.log('\nAll outreach-admin apollo-lock smoke tests passed.');
 })().catch(e => { console.error('TEST FAILURE:', e); process.exit(1); });

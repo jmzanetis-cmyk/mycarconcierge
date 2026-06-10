@@ -13,8 +13,8 @@
       document.documentElement.dataset.theme = theme;
     })();
   </script>
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
-  <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="32x32" href="icons/icon-96.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <!-- Task #259: Google Fonts CSS is intentionally served without SRI — Google
@@ -22,7 +22,7 @@
        so a fixed integrity hash would break the page on different browsers.
        NOSONAR (S5725) -->
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       --bg-deep: #12161c;
@@ -62,18 +62,18 @@
     header .container { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
     .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; color: var(--text-primary); }
     .brand img { width: 44px; height: 44px; }
-    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.1rem; }
+    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: var(--text-lg); }
     nav a {
       color: var(--text-secondary);
       text-decoration: none;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       margin-left: 24px;
     }
     nav a:hover { color: var(--text-primary); }
     main { flex: 1; padding: 64px 0; }
     h1 {
       font-family: 'Playfair Display', serif;
-      font-size: 2rem;
+      font-size: var(--text-4xl);
       margin: 0 0 8px;
     }
     .subtitle { color: var(--text-secondary); margin: 0 0 32px; }
@@ -92,7 +92,7 @@
       background: var(--bg-elevated);
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
     }
     .lookup-form button {
       padding: 12px 22px;
@@ -115,17 +115,17 @@
     .status-block[data-state="pending"] { border-left-color: #c9a227; }
     .status-block[data-state="error"] { border-left-color: #f87171; }
     .status-block[data-state="not_found"] { border-left-color: #6b7280; }
-    .status-label { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
-    .status-headline { font-size: 1.25rem; font-weight: 600; margin: 0 0 8px; color: var(--text-primary); }
-    .status-detail { color: var(--text-secondary); font-size: 0.95rem; margin: 0; line-height: 1.5; }
-    .meta { margin-top: 16px; font-size: 0.85rem; color: var(--text-muted); }
-    .help { margin-top: 32px; font-size: 0.9rem; color: var(--text-secondary); line-height: 1.6; }
+    .status-label { font-size: var(--text-sm); text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-muted); margin-bottom: 8px; }
+    .status-headline { font-size: var(--text-xl); font-weight: 600; margin: 0 0 8px; color: var(--text-primary); }
+    .status-detail { color: var(--text-secondary); font-size: var(--text-base); margin: 0; line-height: 1.5; }
+    .meta { margin-top: 16px; font-size: var(--text-sm); color: var(--text-muted); }
+    .help { margin-top: 32px; font-size: var(--text-base); color: var(--text-secondary); line-height: 1.6; }
     .help a { color: var(--accent-blue); }
     footer { padding: 32px 0; border-top: 1px solid var(--border-subtle); color: var(--text-muted); font-size: 0.8rem; }
     footer .container { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
     @media (max-width: 600px) {
       .lookup-form { flex-direction: column; }
-      h1 { font-size: 1.6rem; }
+      h1 { font-size: var(--text-3xl); }
     }
   </style>
 </head>
@@ -133,7 +133,7 @@
   <header>
     <div class="container">
       <a href="/index.html" class="brand">
-        <img src="/logo.png" alt="My Car Concierge logo" />
+        <img src="logo.png" alt="My Car Concierge logo" />
         <span class="brand-name">My Car Concierge</span>
       </a>
       <nav>

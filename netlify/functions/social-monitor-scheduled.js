@@ -126,7 +126,8 @@ exports.handler = async function(event) {
   // (handy from the admin console once a UI lands).
   const isScheduled = isScheduledInvocation(event);
   const adminPwd = event?.headers?.['x-admin-password'] || event?.headers?.['X-Admin-Password'];
-  const ok = isScheduled || (adminPwd && adminPwd === process.env.ADMIN_PASSWORD);
+  const internalSecret = process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD;
+  const ok = isScheduled || (adminPwd && internalSecret && adminPwd === internalSecret);
   if (!ok) return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   try {
@@ -134,8 +135,10 @@ exports.handler = async function(event) {
     const summary = await runOnce(supabase);
     return { statusCode: 200, body: JSON.stringify({ ok: true, summary }) };
   } catch (e) {
+    // Return 200 so repeated cron invocations don't generate HTTP-500 noise while
+    // the social_channels table or pipeline is not yet wired up in this environment.
     console.error('[social-monitor] failed:', e);
-    return { statusCode: 500, body: JSON.stringify({ error: e.message }) };
+    return { statusCode: 200, body: JSON.stringify({ ok: false, error: e.message }) };
   }
 };
 

@@ -4,7 +4,7 @@
 // Privileged provider lifecycle endpoints. Replaces the browser-side
 // supabaseClient.from('profiles').update({ suspension_reason, suspended_at })
 // calls in www/admin.js so suspend/activate cannot be performed by anyone who
-// just happens to reach the admin page — the ADMIN_PASSWORD header is required
+// just happens to reach the admin page — a valid admin Bearer JWT is required
 // and every action leaves an admin_audit_log row.
 //
 // Routes (mounted at /.netlify/functions/provider-admin/* and proxied from
@@ -15,12 +15,15 @@
 //   POST /check-low-rated   { rating_threshold?: number, autosuspend?: boolean, reason?: string }
 //   POST /adjust-credits    { provider_ids: uuid[], delta: integer, reason?: string }
 //
-// All routes require the x-admin-password header to match ADMIN_PASSWORD.
+// All routes require a Supabase Bearer JWT with role 'admin' (authenticateBearerAdmin).
 // All routes use the service-role Supabase client so they bypass RLS.
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
+const utils = require('./utils');
+const { notifySensitiveAuditAction } = require('./_shared/sensitive-audit-alert');
+const { alertOnAuditFailure } = require('../../lib/audit-warning-alert');
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
@@ -31,14 +34,6 @@ function getSupabase() {
   return createClient(url, key, { auth: { persistSession: false } });
 }
 
-function authenticateAdmin(event) {
-  const headers = event.headers || {};
-  const pw = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
-  const tk = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || tk === adminPassword;
-}
 
 function jsonResponse(statusCode, data) {
   return {
@@ -47,7 +42,7 @@ function jsonResponse(statusCode, data) {
       'Content-Type': 'application/json',
       'Cache-Control': 'no-cache',
       'Access-Control-Allow-Origin': '*',
-      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token, x-admin-token, X-Admin-Password, x-admin-password',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Admin-Token, x-admin-token',
       'Access-Control-Allow-Methods': 'POST, OPTIONS'
     },
     body: typeof data === 'string' ? data : JSON.stringify(data)
@@ -66,6 +61,13 @@ async function audit(supabase, row) {
     await supabase.from('admin_audit_log').insert(row);
   } catch (e) {
     console.error('[provider-admin] audit write failed:', e.message);
+    await alertOnAuditFailure(supabase, {
+      action: row.action || 'unknown',
+      targetType: row.target_type || 'provider',
+      targetId: row.target_id || null,
+      metadata: row.metadata || null,
+      error: e,
+    });
   }
 }
 
@@ -117,12 +119,21 @@ async function suspendProviders(supabase, providerIds, reason, source = 'manual'
 
   // Fan out: audit + email + notification per provider. All best-effort, in
   // parallel. Email failures must not roll back the suspend.
+  const suspendAction = source === 'autosuspend' ? 'autosuspend_low_rated' : 'suspend_provider';
   await Promise.all((data || []).map(async (p) => {
     await audit(supabase, {
-      action: source === 'autosuspend' ? 'autosuspend_low_rated' : 'suspend_provider',
+      action: suspendAction,
       target_id: p.id, target_type: 'profile',
       reason, metadata: { source, suspended_at: suspendedAt },
       performed_by: 'admin'
+    });
+    // Task #427 — admin notification for sensitive action
+    await notifySensitiveAuditAction({
+      action: suspendAction,
+      target: `${p.full_name || p.business_name || p.email || p.id}`,
+      reason,
+      performedBy: 'admin',
+      metadata: { provider_id: p.id, source }
     });
     if (p.email) {
       await sendEmail(p.email,
@@ -184,6 +195,13 @@ async function activateProviders(supabase, providerIds) {
       action: 'activate_provider',
       target_id: p.id, target_type: 'profile',
       performed_by: 'admin'
+    });
+    // Task #427 — admin notification for sensitive action
+    await notifySensitiveAuditAction({
+      action: 'activate_provider',
+      target: `${p.full_name || p.business_name || p.email || p.id}`,
+      performedBy: 'admin',
+      metadata: { provider_id: p.id }
     });
     if (p.email) {
       await sendEmail(p.email,
@@ -510,12 +528,11 @@ const ROUTES = {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const route = (event.path || '')
     .replace(/^\/?\.netlify\/functions\/provider-admin\/?/, '')

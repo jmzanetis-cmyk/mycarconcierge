@@ -18,6 +18,7 @@
 // ============================================================================
 
 const { createClient } = require('@supabase/supabase-js');
+const utils = require('./utils');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -38,14 +39,6 @@ function jsonResponse(statusCode, data) {
     },
     body: JSON.stringify(data)
   };
-}
-
-function authenticateAdmin(event) {
-  const pw    = (event.headers['x-admin-password'] || event.headers['X-Admin-Password'] || '').trim();
-  const token = (event.headers['x-admin-token']    || event.headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || token === adminPassword;
 }
 
 const AUDIENCES = ['customer', 'provider'];
@@ -141,10 +134,13 @@ async function fetchBounces(supabase, limit) {
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
-  if (!authenticateAdmin(event))      return jsonResponse(401, { error: 'Unauthorized' });
 
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  // TODO: add auth test coverage (test-debt, no existing test to update)
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const rawPath = event.path || '';
   const subPath = rawPath

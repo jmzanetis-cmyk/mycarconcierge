@@ -190,7 +190,8 @@
         loadPosIntegrationStatus(),
         loadTeamManagementData(),
         loadLoyaltyNetwork(),
-        loadStripeConnectStatus()
+        loadStripeConnectStatus(),
+        (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve())
       ]);
       
       // Check if returning from Stripe Connect onboarding
@@ -2292,14 +2293,14 @@
     window.transitionConciergeJob = async function(jobId, packageId, appointmentId, toStatus, promptLabel) {
       const note = window.prompt(promptLabel || `Add a note for "${toStatus}" (optional):`, '') || '';
       const headers = await providerConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again.'); return; }
+      if (!headers) { showToast('Please sign in again.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/transition', {
         method: 'POST', headers,
         body: JSON.stringify({ to_status: toStatus, note: note.trim() || null })
       });
       if (!resp.ok) {
         const err = await resp.json().catch(() => ({}));
-        alert('Transition failed: ' + (err.error || resp.status));
+        showToast('Transition failed: ' + (err.error || resp.status), 'error');
         return;
       }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
@@ -2389,11 +2390,11 @@
       const reason = window.prompt('Why are you cancelling this driver request?', 'Coordination changed');
       if (!reason || reason.trim().length < 3) return;
       const headers = await providerConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to cancel.'); return; }
+      if (!headers) { showToast('Please sign in again to cancel.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/cancel', {
         method: 'POST', headers, body: JSON.stringify({ reason: reason.trim() })
       });
-      if (!resp.ok) { alert('Cancel failed: ' + (await resp.text())); return; }
+      if (!resp.ok) { showToast('Cancel failed: ' + (await resp.text()), 'error'); return; }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
     };
 
@@ -2402,14 +2403,14 @@
       const next = window.prompt(`Update ${label} address (drivers haven't accepted yet):`, currentAddress || '');
       if (!next || next.trim().length < 3) return;
       const headers = await providerConciergeAuthHeader();
-      if (!headers) { alert('Please sign in again to edit address.'); return; }
+      if (!headers) { showToast('Please sign in again to edit address.', 'error'); return; }
       const resp = await fetch('/api/concierge/' + jobId + '/update-address', {
         method: 'POST', headers,
         body: JSON.stringify({ field, address: next.trim() })
       });
       if (!resp.ok) {
         const txt = await resp.text();
-        alert('Address update failed: ' + txt);
+        showToast('Address update failed: ' + txt, 'error');
         return;
       }
       window.refreshProviderConciergeJobs(packageId, appointmentId);
@@ -4062,7 +4063,6 @@
       document.getElementById('calc-display-tax-pct').textContent = taxRate.toFixed(1);
       document.getElementById('calc-display-tax').textContent = '$' + tax.toFixed(2);
       document.getElementById('calc-display-total').textContent = '$' + total.toFixed(2);
-      document.getElementById('calc-display-platform-fee').textContent = '-$' + platformFee.toFixed(2);
       document.getElementById('calc-display-net').textContent = '$' + netEarnings.toFixed(2);
       
       // Update competition gauge
@@ -4717,7 +4717,7 @@
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
 
-        const response = await fetch('/api/provider/connect-status', {
+        const response = await fetch(`/api/stripe/connect/status/${session.user.id}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         
@@ -4767,9 +4767,9 @@
           return;
         }
 
-        const response = await fetch('/api/provider/connect-onboard', {
+        const response = await fetch(`/api/stripe/connect/onboard/${session.user.id}`, {
           method: 'POST',
-          headers: { 
+          headers: {
             'Authorization': `Bearer ${session.access_token}`,
             'Content-Type': 'application/json'
           }

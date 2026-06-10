@@ -8,9 +8,9 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
@@ -78,13 +78,13 @@
 
     .logo h1 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.6rem;
+      font-size: var(--text-3xl);
       color: var(--accent-gold);
       font-weight: 600;
     }
 
     .logo p {
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       color: var(--text-muted);
       margin-top: 4px;
     }
@@ -103,14 +103,14 @@
     }
 
     .card-header h2 {
-      font-size: 1.3rem;
+      font-size: var(--text-xl);
       font-weight: 600;
       margin-bottom: 8px;
     }
 
     .card-header p {
       color: var(--text-secondary);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
     }
 
     .amount-display {
@@ -123,13 +123,13 @@
     }
 
     .amount-display .label {
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       color: var(--text-muted);
       margin-bottom: 4px;
     }
 
     .amount-display .amount {
-      font-size: 2rem;
+      font-size: var(--text-4xl);
       font-weight: 700;
       color: var(--accent-gold);
     }
@@ -139,7 +139,7 @@
       justify-content: space-between;
       padding: 12px 0;
       border-bottom: 1px solid var(--border-subtle);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
     }
 
     .info-row:last-child { border-bottom: none; }
@@ -168,7 +168,7 @@
 
     #card-errors {
       color: var(--accent-red);
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
       margin-bottom: 16px;
       min-height: 20px;
     }
@@ -181,7 +181,7 @@
       padding: 14px 24px;
       border-radius: var(--radius-md);
       font-family: inherit;
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       cursor: pointer;
       border: none;
@@ -189,15 +189,15 @@
       width: 100%;
     }
 
-    .btn-primary {
+    .btn--primary {
       background: linear-gradient(135deg, #c9a227 0%, #dbb84a 100%);
       color: #12161c;
     }
 
-    .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(201, 162, 39, 0.4); }
-    .btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 12px rgba(201, 162, 39, 0.4); }
+    .btn--primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
-    .btn-secondary {
+    .btn--secondary {
       background: var(--bg-elevated);
       color: var(--text-primary);
       border: 1px solid var(--border-subtle);
@@ -241,7 +241,7 @@
     }
 
     .success-state .icon {
-      font-size: 3rem;
+      font-size: var(--text-display);
       margin-bottom: 16px;
     }
 
@@ -278,7 +278,7 @@
       padding: 12px;
       margin-bottom: 20px;
       color: var(--text-secondary);
-      font-size: 0.85rem;
+      font-size: var(--text-sm);
     }
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
@@ -305,8 +305,8 @@
 
       <div id="login-state" style="display:none;">
         <div class="login-prompt">
-          <p style="font-size:1.1rem;margin-bottom:16px;">Please log in to pay your share</p>
-          <a href="/members.html" class="btn btn-primary">Log In</a>
+          <p style="font-size:var(--text-lg);margin-bottom:16px;">Please log in to pay your share</p>
+          <a href="/members.html" class="btn btn--primary">Log In</a>
         </div>
       </div>
 
@@ -338,7 +338,7 @@
         <div id="card-element"></div>
         <div id="card-errors"></div>
 
-        <button id="pay-btn" class="btn btn-primary" onclick="handlePay()">
+        <button id="pay-btn" class="btn btn--primary" onclick="handlePay()">
           <span class="icon-inline" data-icon="credit-card"></span> Pay Now
         </button>
       </div>
@@ -349,7 +349,7 @@
           <h2>Payment Complete!</h2>
           <p id="success-message">Your share has been paid successfully.</p>
           <div style="margin-top:24px;">
-            <a href="/" class="btn btn-secondary" id="success-link">Go to Dashboard</a>
+            <a href="/" class="btn btn--secondary" id="success-link">Go to Dashboard</a>
           </div>
         </div>
       </div>
@@ -360,17 +360,17 @@
           <h2>Already Paid</h2>
           <p>You have already paid your share for this split payment.</p>
           <div style="margin-top:24px;">
-            <a href="/members.html" class="btn btn-secondary">Go to Dashboard</a>
+            <a href="/members.html" class="btn btn--secondary">Go to Dashboard</a>
           </div>
         </div>
       </div>
 
       <div id="error-state" style="display:none;">
         <div class="error-state">
-          <p style="font-size:2rem;margin-bottom:12px;"><span class="icon-inline" data-icon="alert-triangle"></span></p>
+          <p style="font-size:var(--text-4xl);margin-bottom:12px;"><span class="icon-inline" data-icon="alert-triangle"></span></p>
           <p id="error-message">Something went wrong.</p>
           <div style="margin-top:24px;">
-            <a href="/members.html" class="btn btn-secondary">Go to Dashboard</a>
+            <a href="/members.html" class="btn btn--secondary">Go to Dashboard</a>
           </div>
         </div>
       </div>
@@ -380,7 +380,7 @@
   <script src="supabaseclient.js"></script>
   <script src="stripeutils.js"></script>
   <script src="split-pay.js"></script>
-  <script src="/mcc-icons.js?v=20260211"></script>
+  <script src="mcc-icons.js?v=20260211"></script>
   <script>
     document.querySelectorAll('[data-icon]').forEach(function(el) {
       var name = el.getAttribute('data-icon');

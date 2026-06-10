@@ -88,7 +88,15 @@ const stubSupabase = {
 };
 
 require.cache[require.resolve(path.join('..', 'functions', 'utils.js'))] = {
-  exports: { createSupabaseClient: () => stubSupabase }
+  exports: {
+    createSupabaseClient: () => stubSupabase,
+    authenticateBearerAdmin: async (event, _supabase) => {
+      const auth = (event.headers && (event.headers.authorization || event.headers.Authorization)) || '';
+      if (!auth.startsWith('Bearer ')) return null;
+      const token = auth.slice(7).trim();
+      return token === 'stub-admin-bearer' ? { id: 'stub-admin-uid' } : null;
+    }
+  }
 };
 
 function fresh(modPath) {
@@ -148,12 +156,17 @@ test('initiate uses mock when BGC_LIVE_MODE not set', async () => {
   });
   dbState['profiles.maybeSingle'] = () => ({ data: { role: 'provider' }, error: null });
   dbState['employee_background_checks.insertSingle'] = () => ({ data: { id: 'bgc1' }, error: null });
+  // Stub fetch before the handler runs: the mock path fires a Resend admin-alert
+  // via fetch() and we must not send real emails from the test suite.
+  const prevFetch = global.fetch;
+  global.fetch = async () => ({ ok: true, status: 200, text: async () => '{}', json: async () => ({}) });
   const mod = fresh('../functions/initiate-background-check.js');
   const resp = await mod.handler({
     httpMethod: 'POST',
     body: JSON.stringify({ employeeId: 'emp1' }),
     headers: { authorization: 'Bearer good' }
   });
+  global.fetch = prevFetch;
   assert.strictEqual(resp.statusCode, 200, 'body: ' + resp.body);
   const parsed = JSON.parse(resp.body);
   assert.strictEqual(parsed.mocked, true);
@@ -400,10 +413,10 @@ test('bgc-admin rejects without auth', async () => {
   assert.strictEqual(resp.statusCode, 401);
 });
 
-test('bgc-admin accepts x-admin-password', async () => {
+test('bgc-admin accepts admin Bearer JWT', async () => {
   dbState = {}; // clear
   const mod = fresh('../functions/bgc-admin.js');
-  const resp = await mod.handler({ httpMethod: 'GET', headers: { 'x-admin-password': 'test-admin-pw' } });
+  const resp = await mod.handler({ httpMethod: 'GET', headers: { authorization: 'Bearer stub-admin-bearer' } });
   assert.strictEqual(resp.statusCode, 200);
   const parsed = JSON.parse(resp.body);
   assert.ok(Array.isArray(parsed.providers));

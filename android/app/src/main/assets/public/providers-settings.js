@@ -47,6 +47,145 @@ async function saveProviderProfile() {
   }
 }
 
+// ========== MATCH PREFERENCES (Task #389) ==========
+async function loadMatchPreferences() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) return;
+    const resp = await fetch('/api/provider/match-preferences', {
+      headers: { 'Authorization': 'Bearer ' + session.access_token }
+    });
+    if (!resp.ok) return;
+    const prefs = await resp.json();
+    if (!prefs) return;
+
+    const cats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
+    document.querySelectorAll('.match-category-check').forEach(cb => {
+      cb.checked = cats.length === 0 ? true : cats.includes(cb.value);
+    });
+
+    const radiusInput = document.getElementById('match-radius-miles');
+    if (radiusInput) radiusInput.value = prefs.match_radius_miles || 25;
+
+    const pausedToggle = document.getElementById('match-paused-toggle');
+    if (pausedToggle) {
+      pausedToggle.checked = !!prefs.matches_paused;
+      pausedToggle.onchange = toggleMatchPausedUntilRow;
+    }
+    const untilInput = document.getElementById('match-paused-until');
+    if (untilInput && prefs.matches_paused_until) {
+      untilInput.value = String(prefs.matches_paused_until).slice(0, 10);
+    } else if (untilInput) {
+      untilInput.value = '';
+    }
+    toggleMatchPausedUntilRow();
+
+    if (typeof updateMatchPauseBanner === 'function') updateMatchPauseBanner(prefs);
+  } catch (err) {
+    console.warn('loadMatchPreferences error:', err.message);
+  }
+}
+
+function toggleMatchPausedUntilRow() {
+  const toggle = document.getElementById('match-paused-toggle');
+  const row = document.getElementById('match-paused-until-row');
+  if (row) row.style.display = toggle?.checked ? '' : 'none';
+}
+
+function showMatchPrefsError(msg) {
+  const box = document.getElementById('match-prefs-error');
+  if (!box) return;
+  if (!msg) { box.style.display = 'none'; box.textContent = ''; return; }
+  box.textContent = msg;
+  box.style.display = '';
+}
+
+async function saveMatchPreferences() {
+  showMatchPrefsError('');
+  const categories = Array.from(document.querySelectorAll('.match-category-check:checked')).map(cb => cb.value);
+  const radiusRaw = document.getElementById('match-radius-miles')?.value;
+  const radius = Number.parseInt(radiusRaw, 10);
+  const paused = !!document.getElementById('match-paused-toggle')?.checked;
+  const untilRaw = document.getElementById('match-paused-until')?.value || null;
+
+  if (!Number.isFinite(radius) || radius <= 0 || radius > 500) {
+    showMatchPrefsError('Match radius must be between 1 and 500 miles.');
+    return;
+  }
+  if (!paused && categories.length === 0) {
+    showMatchPrefsError('Select at least one category, or pause matches.');
+    return;
+  }
+
+  let pausedUntilIso = null;
+  if (paused && untilRaw) {
+    const d = new Date(untilRaw + 'T23:59:59');
+    if (!Number.isNaN(d.getTime())) pausedUntilIso = d.toISOString();
+  }
+
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/match-preferences', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + session.access_token },
+      body: JSON.stringify({
+        match_categories: categories,
+        match_radius_miles: radius,
+        matches_paused: paused,
+        matches_paused_until: pausedUntilIso
+      })
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.error || 'Save failed');
+    showToast('Match preferences saved!', 'success');
+    if (typeof updateMatchPauseBanner === 'function') updateMatchPauseBanner(result.preferences || result);
+  } catch (err) {
+    console.error('saveMatchPreferences error:', err);
+    showMatchPrefsError(err.message || 'Failed to save preferences');
+  }
+}
+
+async function resumeMatchesFromBanner() {
+  try {
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    const resp = await fetch('/api/provider/match-preferences/resume', {
+      method: 'POST',
+      headers: { 'Authorization': 'Bearer ' + session.access_token }
+    });
+    if (!resp.ok) throw new Error('Resume failed');
+    showToast('Matches resumed.', 'success');
+    const banner = document.getElementById('match-pause-banner');
+    if (banner) banner.style.display = 'none';
+    const toggle = document.getElementById('match-paused-toggle');
+    if (toggle) { toggle.checked = false; toggleMatchPausedUntilRow(); }
+    const untilInput = document.getElementById('match-paused-until');
+    if (untilInput) untilInput.value = '';
+  } catch (err) {
+    showToast('Could not resume matches.', 'error');
+  }
+}
+
+function updateMatchPauseBanner(prefs) {
+  const banner = document.getElementById('match-pause-banner');
+  const detail = document.getElementById('match-pause-banner-detail');
+  if (!banner) return;
+  if (!prefs || !prefs.matches_paused) { banner.style.display = 'none'; return; }
+  const until = prefs.matches_paused_until ? new Date(prefs.matches_paused_until) : null;
+  if (until && until.getTime() <= Date.now()) { banner.style.display = 'none'; return; }
+  if (detail) {
+    detail.textContent = until
+      ? `You won't receive new match invitations until ${until.toLocaleDateString()}.`
+      : `You won't receive new match invitations until you resume.`;
+  }
+  banner.style.display = '';
+}
+
+window.loadMatchPreferences = loadMatchPreferences;
+window.saveMatchPreferences = saveMatchPreferences;
+window.toggleMatchPausedUntilRow = toggleMatchPausedUntilRow;
+window.resumeMatchesFromBanner = resumeMatchesFromBanner;
+window.updateMatchPauseBanner = updateMatchPauseBanner;
+
 async function saveEmergencySettings() {
   const enabled = document.getElementById('emergency-accept-calls')?.checked;
   const radius = Number.parseInt(document.getElementById('emergency-radius')?.value) || 15;

@@ -13,7 +13,7 @@
 //   prod authenticates with the env-shared password.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const { createSupabaseClient } = require('./utils');
+const utils = require('./utils');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -22,28 +22,6 @@ const corsHeaders = {
   'Content-Type': 'application/json'
 };
 
-function isAuthorizedByPassword(event) {
-  const expected = process.env.ADMIN_PASSWORD;
-  if (!expected) return false;
-  const provided = event.headers?.['x-admin-password'] || event.headers?.['X-Admin-Password'];
-  return provided && provided === expected;
-}
-
-async function isAuthorizedByJwt(supabase, event) {
-  const auth = event.headers?.authorization || event.headers?.Authorization;
-  if (!auth) return false;
-  const token = String(auth).replace(/^Bearer\s+/i, '').trim();
-  if (!token) return false;
-  const { data, error } = await supabase.auth.getUser(token);
-  if (error || !data?.user) return false;
-  const { data: prof } = await supabase
-    .from('profiles')
-    .select('role')
-    .eq('id', data.user.id)
-    .maybeSingle();
-  return prof && prof.role === 'admin';
-}
-
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 204, headers: corsHeaders, body: '' };
@@ -51,13 +29,12 @@ exports.handler = async function(event) {
   if (event.httpMethod !== 'GET') {
     return { statusCode: 405, headers: corsHeaders, body: JSON.stringify({ error: 'Method not allowed' }) };
   }
-  const supabase = createSupabaseClient();
+  const supabase = utils.createSupabaseClient();
   if (!supabase) {
     return { statusCode: 500, headers: corsHeaders, body: JSON.stringify({ error: 'db_unavailable' }) };
   }
-  if (!isAuthorizedByPassword(event) && !(await isAuthorizedByJwt(supabase, event))) {
-    return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized' }) };
-  }
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return { statusCode: 401, headers: corsHeaders, body: JSON.stringify({ error: 'Unauthorized' }) };
 
   const liveModeFlag = String(process.env.BGC_LIVE_MODE || '').toLowerCase() === 'true';
 
@@ -78,9 +55,20 @@ exports.handler = async function(event) {
   // starts with 'mock_'). Admin needs a true picture of live activity.
   const { data: checks } = await supabase
     .from('employee_background_checks')
-    .select('provider_id, status, bgc_report_id')
+    .select('provider_id, status, bgc_report_id, expires_at')
     .eq('is_current', true)
     .not('bgc_report_id', 'like', 'mock_%');
+
+  // Pre-compute expiring-within-30-days per provider
+  const now = new Date();
+  const in30 = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000).toISOString();
+  const nowIso = now.toISOString();
+  const expiringIn30 = {};
+  (checks || []).forEach(c => {
+    if ((c.status === 'clear' || c.status === 'passed') && c.expires_at && c.expires_at > nowIso && c.expires_at < in30) {
+      expiringIn30[c.provider_id] = (expiringIn30[c.provider_id] || 0) + 1;
+    }
+  });
 
   const acctById = {};
   (accounts || []).forEach(a => { acctById[a.provider_id] = a; });
@@ -141,6 +129,7 @@ exports.handler = async function(event) {
       pending_count: c.pending,
       completed_count: c.clear + c.consider,
       failed_count: c.failed,
+      expiring_within_30_days: expiringIn30[id] || 0,
       account_updated_at: a ? a.updated_at : null
     };
   }).sort((a, b) => (b.pending_count + b.completed_count) - (a.pending_count + a.completed_count));

@@ -6,9 +6,9 @@
   <title>Service Credits - My Car Concierge</title>
   <meta name="description" content="Purchase service credits to win automotive service opportunities on My Car Concierge.">
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
-  <link rel="manifest" href="/manifest.json">
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png">
+  <link rel="manifest" href="manifest.json">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
@@ -72,7 +72,7 @@
 
     .header p {
       color: var(--text-secondary);
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       max-width: 600px;
       margin: 0 auto;
     }
@@ -130,7 +130,7 @@
     }
 
     .pack-name {
-      font-size: 1.2rem;
+      font-size: var(--text-xl);
       font-weight: 600;
       margin-bottom: 4px;
       color: var(--text-heading);
@@ -141,7 +141,7 @@
     }
 
     .pack-bids-count {
-      font-size: 2rem;
+      font-size: var(--text-4xl);
       font-weight: 700;
       color: var(--text-heading);
     }
@@ -152,12 +152,12 @@
 
     .pack-bonus {
       color: var(--accent-green);
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       font-weight: 500;
     }
 
     .pack-price {
-      font-size: 1.5rem;
+      font-size: var(--text-2xl);
       font-weight: 600;
       color: var(--accent-gold);
       margin-bottom: 4px;
@@ -176,7 +176,7 @@
       background: #ffffff;
       color: var(--text-primary);
       font-family: inherit;
-      font-size: 0.95rem;
+      font-size: var(--text-base);
       font-weight: 500;
       border: 1px solid var(--border-subtle);
       border-radius: var(--radius-md);
@@ -213,7 +213,7 @@
 
     .info-section h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.6rem;
+      font-size: var(--text-3xl);
       font-weight: 500;
       margin-bottom: 24px;
       color: var(--text-heading);
@@ -226,7 +226,7 @@
     }
 
     .info-item h3 {
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       margin-bottom: 8px;
       color: var(--text-heading);
@@ -234,7 +234,7 @@
 
     .info-item p {
       color: var(--text-secondary);
-      font-size: 0.95rem;
+      font-size: var(--text-base);
     }
 
     .cta-section {
@@ -247,7 +247,7 @@
 
     .cta-section h2 {
       font-family: 'Playfair Display', serif;
-      font-size: 1.8rem;
+      font-size: var(--text-3xl);
       margin-bottom: 12px;
       color: var(--text-heading);
     }
@@ -266,7 +266,7 @@
       background: linear-gradient(135deg, var(--accent-gold), #d4af37);
       color: #ffffff;
       font-family: inherit;
-      font-size: 1.1rem;
+      font-size: var(--text-lg);
       font-weight: 600;
       border: none;
       border-radius: var(--radius-md);
@@ -286,7 +286,7 @@
       gap: 8px;
       color: var(--text-secondary);
       text-decoration: none;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       margin-bottom: 20px;
       transition: color 0.2s;
     }
@@ -303,7 +303,7 @@
 
     @media (max-width: 768px) {
       .header h1 {
-        font-size: 2rem;
+        font-size: var(--text-4xl);
       }
       
       .info-section {
@@ -422,7 +422,7 @@
 
               <div class="pack-price">$${pack.price.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}</div>
               <div class="pack-per-bid">$${effectivePrice} per credit</div>
-              ${savingsPercent > 0 ? `<div style="color:var(--accent-green);font-size:0.85rem;font-weight:500;margin-bottom:8px;">Save ${savingsPercent}%</div>` : ''}
+              ${savingsPercent > 0 ? `<div style="color:var(--accent-green);font-size:var(--text-sm);font-weight:500;margin-bottom:8px;">Save ${savingsPercent}%</div>` : ''}
 
               <a href="/signup-provider.html" class="pack-btn ${hasBadge ? 'primary' : ''}">
                 Get Started
@@ -439,7 +439,7 @@
         if (morePacks.length > 0) {
           html += `
             <div style="grid-column: 1 / -1;">
-              <button id="toggle-more-packs" onclick="toggleMorePacks()" style="width:100%;padding:12px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;font-size:0.95rem;display:flex;align-items:center;justify-content:center;gap:8px;">
+              <button id="toggle-more-packs" onclick="toggleMorePacks()" style="width:100%;padding:12px;background:var(--bg-card);border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;font-size:var(--text-base);display:flex;align-items:center;justify-content:center;gap:8px;">
                 <span>View ${morePacks.length} more packs</span>
                 <span id="more-packs-arrow" style="transition:transform 0.2s;">▼</span>
               </button>

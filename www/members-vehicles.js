@@ -8,7 +8,11 @@
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         const url = `${apiBase}/api/vehicle/${vehicleId}/recalls${refresh ? '?refresh=true' : ''}`;
-        const response = await fetch(url);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
+        const response = await fetch(url, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
         
         if (data.success) {
@@ -287,9 +291,10 @@
     async function acknowledgeRecall(recallId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session: ackSession } } = await supabaseClient.auth.getSession();
         const response = await fetch(`${apiBase}/api/recalls/${recallId}/acknowledge`, {
           method: 'PUT',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${ackSession?.access_token || ''}` },
           body: JSON.stringify({ user_id: currentUser?.id || null })
         });
         

@@ -44,6 +44,8 @@ function loadModuleForSection(section) {
     case 'pos-analytics':
     case 'pos-integration':
       return loadModule('analytics');
+    case 'my-documents':
+      return loadModule('documents');
     case 'settings':
     case 'profile':
     case 'team':
@@ -363,6 +365,9 @@ async function showSection(id) {
   }
   if (id === 'overview' && typeof loadShopOnboardingChecklist === 'function') {
     loadShopOnboardingChecklist();
+  }
+  if (id === 'my-documents' && typeof loadMyDocuments === 'function') {
+    loadMyDocuments();
   }
 }
 

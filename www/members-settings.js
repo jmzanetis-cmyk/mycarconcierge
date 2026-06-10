@@ -73,11 +73,6 @@
       }
     }
 
-    function toggleSmsOptions() {
-      const enabled = document.getElementById('sms-enabled').checked;
-      document.getElementById('sms-options').style.display = enabled ? 'block' : 'none';
-    }
-
     // ==================== NOTIFICATION PREFERENCES FUNCTIONS ====================
 
     async function loadNotificationPreferences() {
@@ -402,412 +397,6 @@
       return outputArray;
     }
 
-
-    // ========== 2FA FUNCTIONS ==========
-    let pending2FAPhone = '';
-
-    async function load2FAStatus() {
-      if (!currentUser) return;
-      
-      const loadingEl = document.getElementById('2fa-loading');
-      const contentEl = document.getElementById('2fa-content');
-      
-      if (loadingEl) loadingEl.style.display = 'block';
-      if (contentEl) contentEl.style.display = 'none';
-      
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-          update2FADisplay(false, null);
-          return;
-        }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/status`, {
-          headers: {
-            'Authorization': `Bearer ${session.access_token}`
-          }
-        });
-        const data = await response.json();
-        
-        update2FADisplay(data.enabled, data.phone);
-      } catch (error) {
-        console.error('Error loading 2FA status:', error);
-        update2FADisplay(false, null);
-      } finally {
-        if (loadingEl) loadingEl.style.display = 'none';
-        if (contentEl) contentEl.style.display = 'block';
-      }
-    }
-
-    function update2FADisplay(enabled, maskedPhone) {
-      const statusIcon = document.getElementById('2fa-status-icon');
-      const statusText = document.getElementById('2fa-status-text');
-      const statusDesc = document.getElementById('2fa-status-desc');
-      const statusBadge = document.getElementById('2fa-status-badge');
-      const enableSection = document.getElementById('2fa-enable-section');
-      const disableSection = document.getElementById('2fa-disable-section');
-      const maskedPhoneEl = document.getElementById('2fa-masked-phone');
-      
-      if (enabled) {
-        if (statusIcon) statusIcon.innerHTML = mccIcon('lock', 20);
-        if (statusText) statusText.textContent = '2FA is Enabled';
-        if (statusDesc) statusDesc.textContent = 'Your account is protected with two-factor authentication.';
-        if (statusBadge) {
-          statusBadge.textContent = 'Enabled';
-          statusBadge.style.background = 'var(--accent-green-soft)';
-          statusBadge.style.color = 'var(--accent-green)';
-        }
-        if (enableSection) enableSection.style.display = 'none';
-        if (disableSection) disableSection.style.display = 'block';
-        if (maskedPhoneEl) maskedPhoneEl.textContent = maskedPhone || '***-***-****';
-      } else {
-        if (statusIcon) statusIcon.innerHTML = '<span style="opacity:0.5">' + mccIcon('lock', 20) + '</span>';
-        if (statusText) statusText.textContent = '2FA is Disabled';
-        if (statusDesc) statusDesc.textContent = 'Your account is protected by password only.';
-        if (statusBadge) {
-          statusBadge.textContent = 'Disabled';
-          statusBadge.style.background = 'rgba(239,95,95,0.15)';
-          statusBadge.style.color = 'var(--accent-red)';
-        }
-        if (enableSection) enableSection.style.display = 'block';
-        if (disableSection) disableSection.style.display = 'none';
-      }
-    }
-
-    function format2FAPhoneInput(input) {
-      let value = input.value.replace(/\D/g, '');
-      if (value.length > 10) value = value.slice(0, 10);
-      
-      if (value.length >= 6) {
-        input.value = `(${value.slice(0, 3)}) ${value.slice(3, 6)}-${value.slice(6)}`;
-      } else if (value.length >= 3) {
-        input.value = `(${value.slice(0, 3)}) ${value.slice(3)}`;
-      } else if (value.length > 0) {
-        input.value = `(${value}`;
-      }
-    }
-
-    async function initiate2FAEnable() {
-      const phoneInput = document.getElementById('2fa-phone-input');
-      const phone = phoneInput.value.replace(/\D/g, '');
-      
-      if (phone.length !== 10) {
-        showToast('Please enter a valid 10-digit phone number', 'error');
-        return;
-      }
-      
-      const btn = document.getElementById('2fa-enable-btn');
-      const originalText = btn.innerHTML;
-      btn.innerHTML = '⏳ Sending...';
-      btn.disabled = true;
-      
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-          showToast('Session expired. Please log in again.', 'error');
-          return;
-        }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/send-code`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ phone: phone })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          pending2FAPhone = phone;
-          open2FAVerifyModal(phoneInput.value);
-        } else {
-          showToast(data.error || 'Failed to send verification code', 'error');
-        }
-      } catch (error) {
-        console.error('Error sending 2FA code:', error);
-        showToast('Failed to send verification code. Please try again.', 'error');
-      } finally {
-        btn.innerHTML = originalText;
-        btn.disabled = false;
-      }
-    }
-
-    function open2FAVerifyModal(formattedPhone) {
-      const phoneDisplay = document.getElementById('2fa-verify-phone-display');
-      if (phoneDisplay) phoneDisplay.textContent = formattedPhone;
-      
-      // Clear all digit inputs
-      for (let i = 1; i <= 6; i++) {
-        const input = document.getElementById(`2fa-digit-${i}`);
-        if (input) input.value = '';
-      }
-      
-      document.getElementById('2fa-verify-error').style.display = 'none';
-      document.getElementById('2fa-verify-btn').disabled = true;
-      
-      document.getElementById('2fa-verify-modal').classList.add('active');
-      
-      // Focus first input
-      setTimeout(() => {
-        const firstInput = document.getElementById('2fa-digit-1');
-        if (firstInput) firstInput.focus();
-      }, 100);
-    }
-
-    function close2FAVerifyModal() {
-      document.getElementById('2fa-verify-modal').classList.remove('active');
-    }
-
-    function handle2FADigitInput(input, position) {
-      const value = input.value.replace(/\D/g, '');
-      input.value = value.slice(0, 1);
-      
-      if (value && position < 6) {
-        const nextInput = document.getElementById(`2fa-digit-${position + 1}`);
-        if (nextInput) nextInput.focus();
-      }
-      
-      check2FACodeComplete();
-    }
-
-    function handle2FAKeydown(event, position) {
-      if (event.key === 'Backspace' && !event.target.value && position > 1) {
-        const prevInput = document.getElementById(`2fa-digit-${position - 1}`);
-        if (prevInput) {
-          prevInput.focus();
-          prevInput.value = '';
-        }
-      }
-    }
-
-    function check2FACodeComplete() {
-      let code = '';
-      for (let i = 1; i <= 6; i++) {
-        const input = document.getElementById(`2fa-digit-${i}`);
-        code += input ? input.value : '';
-      }
-      
-      const verifyBtn = document.getElementById('2fa-verify-btn');
-      if (verifyBtn) {
-        verifyBtn.disabled = code.length !== 6;
-      }
-    }
-
-    function get2FACode() {
-      let code = '';
-      for (let i = 1; i <= 6; i++) {
-        const input = document.getElementById(`2fa-digit-${i}`);
-        code += input ? input.value : '';
-      }
-      return code;
-    }
-
-    async function verify2FACode() {
-      const code = get2FACode();
-      if (code.length !== 6) return;
-      
-      const btn = document.getElementById('2fa-verify-btn');
-      const errorEl = document.getElementById('2fa-verify-error');
-      
-      btn.innerHTML = '⏳ Verifying...';
-      btn.disabled = true;
-      errorEl.style.display = 'none';
-      
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-          errorEl.textContent = 'Session expired. Please log in again.';
-          errorEl.style.display = 'block';
-          return;
-        }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        // First verify the code
-        const verifyResponse = await fetch(`${apiBase}/api/2fa/verify-code`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ code: code })
-        });
-        
-        const verifyData = await verifyResponse.json();
-        
-        if (!verifyData.success) {
-          errorEl.textContent = verifyData.error || 'Invalid verification code';
-          errorEl.style.display = 'block';
-          btn.innerHTML = 'Verify & Enable 2FA';
-          btn.disabled = false;
-          return;
-        }
-        
-        // Then enable 2FA
-        const enableResponse = await fetch(`${apiBase}/api/2fa/enable`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ phone: pending2FAPhone })
-        });
-        
-        const enableData = await enableResponse.json();
-        
-        if (enableData.success) {
-          close2FAVerifyModal();
-          showToast('Two-factor authentication enabled successfully!', 'success');
-          load2FAStatus();
-          document.getElementById('2fa-phone-input').value = '';
-        } else {
-          errorEl.textContent = enableData.error || 'Failed to enable 2FA';
-          errorEl.style.display = 'block';
-        }
-      } catch (error) {
-        console.error('Error verifying 2FA code:', error);
-        errorEl.textContent = 'An error occurred. Please try again.';
-        errorEl.style.display = 'block';
-      } finally {
-        btn.innerHTML = 'Verify & Enable 2FA';
-        btn.disabled = false;
-      }
-    }
-
-    async function resend2FACode() {
-      const resendBtn = document.getElementById('2fa-resend-btn');
-      if (!pending2FAPhone || !resendBtn) return;
-      
-      resendBtn.textContent = 'Sending...';
-      resendBtn.disabled = true;
-      
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-          showToast('Session expired. Please log in again.', 'error');
-          return;
-        }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/send-code`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({ phone: pending2FAPhone })
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          showToast('Verification code resent!', 'success');
-        } else {
-          showToast(data.error || 'Failed to resend code', 'error');
-        }
-      } catch (error) {
-        console.error('Error resending 2FA code:', error);
-        showToast('Failed to resend code. Please try again.', 'error');
-      } finally {
-        resendBtn.textContent = 'Resend Code';
-        resendBtn.disabled = false;
-      }
-    }
-
-    function open2FADisableModal() {
-      document.getElementById('2fa-disable-modal').classList.add('active');
-    }
-
-    function close2FADisableModal() {
-      document.getElementById('2fa-disable-modal').classList.remove('active');
-    }
-
-    async function confirm2FADisable() {
-      try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (!session) {
-          showToast('Session expired. Please log in again.', 'error');
-          return;
-        }
-        
-        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/2fa/disable`, {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({})
-        });
-        
-        const data = await response.json();
-        
-        if (data.success) {
-          close2FADisableModal();
-          showToast('Two-factor authentication has been disabled.', 'success');
-          load2FAStatus();
-        } else {
-          showToast(data.error || 'Failed to disable 2FA', 'error');
-        }
-      } catch (error) {
-        console.error('Error disabling 2FA:', error);
-        showToast('Failed to disable 2FA. Please try again.', 'error');
-      }
-    }
-
-    async function logout() {
-      try {
-        const storedToken = localStorage.getItem('mcc_fcm_token');
-        if (storedToken) {
-          const { data: { session } } = await supabaseClient.auth.getSession();
-          if (session) {
-            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-            await fetch(`${apiBase}/api/push/unregister-device`, {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-              body: JSON.stringify({ token: storedToken })
-            }).catch(() => {});
-            localStorage.removeItem('mcc_fcm_token');
-          }
-        }
-      } catch {}
-      await supabaseClient.auth.signOut();
-      window.location.href = 'login.html';
-    }
-
-    // =============================================
-    // MY NEXT CAR - Prospect Vehicle Functions
-    // =============================================
-    
-    let prospectVehicles = [];
-    let memberCarPreferences = null;
-    let selectedProspectRating = 0;
-    let editingProspectId = null;
-    let selectedForComparison = new Set();
-
-    function showProspectTab(tabName) {
-      document.querySelectorAll('.prospect-tab-content').forEach(t => t.style.display = 'none');
-      document.querySelectorAll('[data-prospect-tab]').forEach(t => t.classList.remove('active'));
-      
-      document.getElementById(tabName + '-tab').style.display = 'block';
-      document.querySelector(`[data-prospect-tab="${tabName}"]`).classList.add('active');
-      
-      if (tabName === 'compare') {
-        updateCompareSelection();
-      } else if (tabName === 'preferences') {
-        loadCarPreferences();
-      } else if (tabName === 'ai-search') {
-        loadDreamCarSearches();
-      }
-    }
-
-    // =============================================
-    // AI SEARCH - Dream Car Finder Functions
-    // =============================================
-
     // ========== LOGIN ACTIVITY SECTION ==========
     
     let loginActivities = [];
@@ -820,14 +409,17 @@
       const tableEl = document.getElementById('login-activity-table');
       const tbodyEl = document.getElementById('login-activity-tbody');
       
-      if (!currentUser) return;
-      
+      if (!currentUser) {
+        if (loadingEl) loadingEl.style.display = 'none';
+        return;
+      }
+
       if (loadingEl) loadingEl.style.display = 'block';
       if (contentEl) contentEl.style.display = 'none';
       if (alertEl) alertEl.style.display = 'none';
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/member/${currentUser.id}/login-activity`, {
           headers: {
@@ -954,7 +546,7 @@
     
     async function acknowledgeLoginActivity(activityId) {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/login-activity/${activityId}/acknowledge`, {
           method: 'POST',
@@ -984,7 +576,7 @@
       }
       
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         
         const response = await fetch(`/api/login-activity/${activityId}/report-suspicious`, {
           method: 'POST',

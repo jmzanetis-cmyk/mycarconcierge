@@ -1,9 +1,18 @@
 /t/o /.netlify/functions/email-tracking?a=open 200
 /t/c /.netlify/functions/email-tracking?a=click 200
+/api/directory/providers/* /.netlify/functions/directory-providers/:splat 200
+/api/directory/providers   /.netlify/functions/directory-providers 200
+/api/auth/check-access /.netlify/functions/auth-check-access 200
+/api/2fa/totp/enroll          /.netlify/functions/totp-enroll 200
+/api/2fa/totp/confirm-enroll  /.netlify/functions/totp-enroll 200
+/api/2fa/totp/verify          /.netlify/functions/totp-verify 200
 /api/agreements/sign /.netlify/functions/sign-agreement 200
 /api/stripe-key /.netlify/functions/stripe-key 200
 /api/config/stripe /.netlify/functions/stripe-key 200
 /api/stripe-publishable-key /.netlify/functions/stripe-key 200
+/api/split/create /.netlify/functions/split-create 200
+/api/split/my-splits /.netlify/functions/split-my-splits 200
+/api/split/confirm/* /.netlify/functions/split-confirm/:splat 200
 /api/split/guest-details/* /.netlify/functions/split-guest-details/:splat 200
 /api/split/guest-pay/* /.netlify/functions/split-guest-pay/:splat 200
 /api/split/guest-confirm/* /.netlify/functions/split-guest-confirm/:splat 200
@@ -15,13 +24,51 @@
 /api/stripe/connect/onboard/* /.netlify/functions/stripe-connect-onboard/:splat 200
 /api/stripe/connect/callback /.netlify/functions/stripe-connect-callback 200
 /api/stripe/connect/status/* /.netlify/functions/stripe-connect-status/:splat 200
+/api/ai/describe-to-package /.netlify/functions/ai-describe-to-package 200
+/api/ai/photo-diagnose /.netlify/functions/ai-photo-diagnose 200
+/api/ai/create-care-plan /.netlify/functions/ai-care-plan 200
+/api/care-plans /.netlify/functions/care-plans 200
+/api/care-plans/* /.netlify/functions/care-plans 200
+/api/appointments/* /.netlify/functions/appointment-ical 200
+/api/ai/* /.netlify/functions/ai-member/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
+/api/create-bid-checkout-mobile /.netlify/functions/create-bid-checkout-mobile 200
+/api/payment/release /.netlify/functions/member-release-payment 200
+/api/support-donation /.netlify/functions/support-donation 200
 /api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
 /api/helpdesk /.netlify/functions/helpdesk 200
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
+/api/admin/stats/* /.netlify/functions/admin-stats/:splat 200
+/api/admin/providers /.netlify/functions/admin-data/providers 200
+/api/admin/members /.netlify/functions/admin-data/members 200
+/api/admin/packages /.netlify/functions/admin-data/packages 200
+/api/admin/2fa-global-status /.netlify/functions/admin-data/2fa-global-status 200
+/api/admin/2fa-global-toggle /.netlify/functions/admin-data/2fa-global-toggle 200
+/api/admin/mfa-reset         /.netlify/functions/admin-data/mfa-reset 200
+/api/admin/feature-flags              /.netlify/functions/admin-data/feature-flags 200
+/api/admin/feature-flags/*            /.netlify/functions/admin-data/feature-flags/:splat 200
+/api/admin/feature-flag-check-test    /.netlify/functions/feature-flag-check-test 200
+/api/admin/refunds/* /.netlify/functions/admin-refunds/:splat 200
+/api/admin/refunds /.netlify/functions/admin-refunds 200
+/api/admin/agreements/* /.netlify/functions/admin-agreements/:splat 200
+/api/admin/agreements /.netlify/functions/admin-agreements 200
+/api/admin/founders/* /.netlify/functions/admin-founders/:splat 200
+/api/admin/payout-settings /.netlify/functions/admin-founders/payout-settings 200
+/api/admin/milestones/* /.netlify/functions/admin-founders/milestones/:splat 200
+/api/admin/milestones /.netlify/functions/admin-founders/milestones 200
+/api/admin/bonus-reserve/* /.netlify/functions/admin-founders/bonus-reserve/:splat 200
+/api/admin/bonus-reserve /.netlify/functions/admin-founders/bonus-reserve 200
+/api/admin/team-members/* /.netlify/functions/admin-team/members/:splat 200
+/api/admin/team-members /.netlify/functions/admin-team/members 200
+/api/admin/team-invites/* /.netlify/functions/admin-team/invites/:splat 200
+/api/admin/team-invites /.netlify/functions/admin-team/invites 200
+/api/admin/invite-validate /.netlify/functions/admin-invite 200
+/api/admin/invite-accept /.netlify/functions/admin-invite 200
 /api/admin/ai-ops/* /.netlify/functions/ai-ops-admin/:splat 200
 /api/admin/stripe-key-expiry /.netlify/functions/stripe-key-expiry-admin 200
 /api/admin/stripe-key-expiry/* /.netlify/functions/stripe-key-expiry-admin/:splat 200
+/api/admin/api-key-expiry /.netlify/functions/api-key-expiry-admin 200
+/api/admin/api-key-expiry/* /.netlify/functions/api-key-expiry-admin/:splat 200
 /api/admin/launch-broadcast /.netlify/functions/launch-broadcast-admin 200
 /api/admin/launch-broadcast/* /.netlify/functions/launch-broadcast-admin/:splat 200
 /api/admin/agent-fleet/* /.netlify/functions/agent-fleet-admin/:splat 200
@@ -31,26 +78,47 @@
 /api/admin/provider-application/* /.netlify/functions/provider-application-review/:splat 200
 /api/provider-application /.netlify/functions/provider-application 200
 /api/provider/apply /.netlify/functions/provider-application 200
+/api/provider/documents /.netlify/functions/provider-documents 200
+/api/provider/document-url /.netlify/functions/provider-documents 200
 /api/provider/document /.netlify/functions/provider-onboarding/document 200
 /api/provider/external-review /.netlify/functions/provider-onboarding/external-review 200
 /api/provider/reference /.netlify/functions/provider-onboarding/reference 200
 /api/provider/finalize /.netlify/functions/provider-onboarding/finalize 200
 /api/admin/outreach/* /.netlify/functions/outreach-admin/:splat 200
 /api/admin/apollo/* /.netlify/functions/apollo-admin/:splat 200
+/api/admin/audit-log /.netlify/functions/admin-audit-log 200
 /api/outreach/ref /.netlify/functions/outreach-ref 200
 /unsubscribe /.netlify/functions/outreach-unsubscribe 200
+/api/webhooks/stripe /.netlify/functions/stripe-webhook 200
 /api/webhooks/resend /.netlify/functions/outreach-resend-webhook 200
 /api/webhooks/background-check /.netlify/functions/background-check-webhook 200
+/api/webhooks/hubspot /.netlify/functions/hubspot-webhook 200
+/api/provider/match-preferences/resume /.netlify/functions/provider-match-preferences/resume 200
+/api/provider/match-preferences /.netlify/functions/provider-match-preferences 200
 /api/provider/initiate-background-check /.netlify/functions/initiate-background-check 200
 /api/provider/bgc/config /.netlify/functions/bgc-config 200
 /api/provider/bgc/decrypt-token /.netlify/functions/bgc-decrypt-token 200
 /api/admin/bgc/providers /.netlify/functions/bgc-admin 200
+/api/provider-bgc-compliance /.netlify/functions/provider-bgc-compliance 200
 /api/auth/facebook/data-deletion /.netlify/functions/facebook-data-deletion 200
 /api/auth/facebook/data-deletion/status /.netlify/functions/facebook-data-deletion 200
 /api/admin/facebook/* /.netlify/functions/admin-facebook 200
 /api/admin/concierge-jobs/* /.netlify/functions/concierge-jobs-admin/:splat 200
 /api/admin/concierge-jobs /.netlify/functions/concierge-jobs-admin 200
+/api/transport/vehicle-ready /.netlify/functions/transport-request/vehicle-ready 200
+/api/transport/cancel /.netlify/functions/transport-request/cancel 200
+/api/transport/rate /.netlify/functions/transport-request/rate 200
+/api/transport/tip /.netlify/functions/transport-request/tip 200
+/api/transport/provider-requests /.netlify/functions/transport-request/provider-requests 200
+/api/transport/provider-request /.netlify/functions/transport-request/provider-request 200
+/api/transport/requests /.netlify/functions/transport-request/requests 200
+/api/transport /.netlify/functions/transport-request 200
+/api/driver/v1   /.netlify/functions/driver-api 200
 /api/driver/v1/* /.netlify/functions/driver-api/:splat 200
+/api/concierge/active-job-tracking /.netlify/functions/member-job-tracking 200
+/api/admin/driver-payouts /.netlify/functions/driver-payouts-admin 200
+/api/admin/driver-payouts/* /.netlify/functions/driver-payouts-admin/:splat 200
+/api/admin/driver-bgc /.netlify/functions/initiate-driver-bgc 200
 /api/concierge /.netlify/functions/concierge-jobs-public 200
 /api/concierge/* /.netlify/functions/concierge-jobs-public/:splat 200
 /api/survey/profile /.netlify/functions/survey-profile 200
@@ -59,3 +127,160 @@
 /api/survey/area-check /.netlify/functions/survey-area-check 200
 /api/survey/referral-link /.netlify/functions/survey-referral-link 200
 /api/fb/conversions /.netlify/functions/facebook-conversions-api 200
+/api/twilio/sms-inbound /.netlify/functions/twilio-sms-inbound 200
+/api/admin/survey-stats /.netlify/functions/admin-survey/stats 200
+/api/admin/survey-analytics /.netlify/functions/admin-survey/analytics 200
+/api/admin/survey-leads/export /.netlify/functions/admin-survey/leads/export 200
+/api/admin/survey-leads/* /.netlify/functions/admin-survey/leads/:splat 200
+/api/admin/survey-leads /.netlify/functions/admin-survey/leads 200
+/api/admin/survey-not-interested /.netlify/functions/admin-survey/not-interested 200
+/api/admin/send-bulk-welcome-emails /.netlify/functions/admin-welcome-email 200
+/api/admin/hubspot/* /.netlify/functions/admin-hubspot/:splat 200
+/api/admin/marketing/* /.netlify/functions/admin-marketing/:splat 200
+
+# Account deletion (App Store Guideline 5.1.1(v))
+/api/account/delete /.netlify/functions/account-delete 200
+
+# Founder payouts (body-password auth, not Bearer)
+/api/admin/process-founder-payout /.netlify/functions/admin-founders/process-founder-payout 200
+/api/admin/process-bulk-payouts /.netlify/functions/admin-founders/process-bulk-payouts 200
+
+# SMS Log
+/api/admin/sms-log /.netlify/functions/admin-sms-log 200
+/api/admin/sms-log/* /.netlify/functions/admin-sms-log/:splat 200
+
+# SaaS Subscriptions
+/api/admin/saas/subscriptions /.netlify/functions/admin-saas/subscriptions 200
+/api/admin/saas/* /.netlify/functions/admin-saas/:splat 200
+
+# White-label Tenants
+/api/admin/white-label/tenants /.netlify/functions/admin-white-label/tenants 200
+/api/admin/white-label/* /.netlify/functions/admin-white-label/:splat 200
+
+# AI API Usage & Keys
+/api/admin/api-usage /.netlify/functions/admin-api-usage 200
+/api/admin/api-keys/* /.netlify/functions/admin-api-usage/:splat 200
+
+# AI Chat Insights
+/api/admin/chat-insights /.netlify/functions/admin-chat-insights 200
+
+# Merch Manager — Design Library
+/api/admin/designs /.netlify/functions/admin-designs 200
+/api/admin/designs/* /.netlify/functions/admin-designs/:splat 200
+
+# Merch Manager — Printful
+/api/admin/printful/* /.netlify/functions/admin-printful/:splat 200
+
+# Feature: Recall Alerts
+/api/vehicle/*/recalls /.netlify/functions/vehicle-recalls 200
+/api/vehicle/*/predictions/invalidate /.netlify/functions/vehicle-predictions 200
+/api/vehicle/*/predictions /.netlify/functions/vehicle-predictions 200
+
+# Feature: Vehicle Photos
+/api/vehicle-photos/* /.netlify/functions/vehicle-photos/:splat 200
+
+# Feature: Vehicle Health Score
+/api/vehicles/*/compute-health /.netlify/functions/vehicle-health 200
+
+# Feature: OBD Diagnostics
+/api/obd/scan-ocr /.netlify/functions/obd-scan 200
+/api/obd/interpret /.netlify/functions/obd-scan 200
+
+# Feature: Community Board
+/api/community-board /.netlify/functions/community-board 200
+/api/packages/*/contributions /.netlify/functions/package-contributions/:splat 200
+/api/packages/*/contribute /.netlify/functions/package-contribute/:splat 200
+
+# Feature: Dream Car Finder (search CRUD + AI run-search)
+/api/dream-car/* /.netlify/functions/dream-car/:splat 200
+
+# Feature: Member survey (post-signup 22-question survey)
+/api/member/survey /.netlify/functions/member-survey 200
+
+# Feature: Member onboarding checklist
+/api/member/onboarding/step /.netlify/functions/member-onboarding 200
+/api/member/onboarding      /.netlify/functions/member-onboarding 200
+
+# Feature: Referral System
+/api/member/referral/apply /.netlify/functions/member-referral 200
+/api/member/*/referral-code /.netlify/functions/member-referral 200
+/api/member/*/referrals /.netlify/functions/member-referral 200
+/api/member/*/credits /.netlify/functions/member-referral 200
+/api/member/*/login-activity /.netlify/functions/member-login-activity/:splat 200
+/api/login-activity/*/acknowledge /.netlify/functions/member-login-activity/:splat 200
+/api/login-activity/*/report-suspicious /.netlify/functions/member-login-activity/:splat 200
+
+# Feature: Recall acknowledge + AI enrich
+/api/recalls/* /.netlify/functions/recall-actions/:splat 200
+
+# Feature: VIN lookup proxy (NHTSA)
+/api/vin-proxy /.netlify/functions/vin-proxy 200
+
+# Feature: My Next Car (AI suggestions)
+/api/next-car/suggest /.netlify/functions/next-car 200
+
+# Feature: Booking / Scheduling
+/api/booking /.netlify/functions/booking 200
+/api/booking/* /.netlify/functions/booking 200
+
+# Feature: Car Clubs
+/api/auto-bid/settings /.netlify/functions/auto-bid 200
+/api/auto-bid/* /.netlify/functions/auto-bid 200
+/api/car-clubs /.netlify/functions/car-clubs 200
+/api/car-clubs/* /.netlify/functions/car-clubs 200
+/api/car-club/free-bids /.netlify/functions/car-clubs 200
+
+# Feature: Member Founder earnings API
+/api/member-founder /.netlify/functions/member-founder-api 200
+/api/member-founder/* /.netlify/functions/member-founder-api 200
+
+# Feature: Vehicle Ownership Verification (VIN decode + registration AI verify)
+/api/vehicle/decode-vin /.netlify/functions/vehicle-verify/decode-vin 200
+/api/registration/held-rides/*/approve /.netlify/functions/vehicle-verify 200
+/api/registration/held-rides/*/reject /.netlify/functions/vehicle-verify 200
+/api/registration/held-rides /.netlify/functions/vehicle-verify/held-rides 200
+/api/registration/verifications /.netlify/functions/vehicle-verify/verifications 200
+/api/registration/verify /.netlify/functions/vehicle-verify/verify 200
+
+# Feature: Receipt PDF
+/api/receipt/* /.netlify/functions/receipt-pdf/:splat 200
+
+# Feature: Stripe Identity KYC
+/api/identity/session /.netlify/functions/identity-verify/session 200
+/api/identity/status  /.netlify/functions/identity-verify/status 200
+
+# Feature: Insurance Card Verification
+/api/insurance/verify                /.netlify/functions/vehicle-verify/insurance/verify 200
+/api/insurance/verifications         /.netlify/functions/vehicle-verify/insurance/verifications 200
+/api/insurance/verifications/*       /.netlify/functions/vehicle-verify/insurance/verifications/:splat 200
+/api/insurance/name-cross-ref/*      /.netlify/functions/vehicle-verify/insurance/name-cross-ref/:splat 200
+
+# Feature: Member feature-flag resolution (non-admin)
+/api/me/feature-flags /.netlify/functions/me-feature-flags 200
+
+# Feature: Provider Performance (server-side computation)
+/api/provider/performance /.netlify/functions/provider-performance 200
+
+# Feature: Developer API Keys
+/api/developer/keys        /.netlify/functions/developer-api 200
+/api/developer/keys/*      /.netlify/functions/developer-api/:splat 200
+/api/developer/usage       /.netlify/functions/developer-api 200
+
+# Feature: SaaS plans + checkout + billing (member-facing)
+/api/saas/plans               /.netlify/functions/saas 200
+/api/saas/checkout            /.netlify/functions/saas 200
+/api/saas/billing-portal      /.netlify/functions/saas 200
+/api/saas/subscription/status /.netlify/functions/saas-member 200
+/api/saas/outreach/status     /.netlify/functions/saas-member 200
+
+# Feature: Custody Chain
+/api/custody/handoffs          /.netlify/functions/custody/handoffs 200
+/api/custody/handoffs/*        /.netlify/functions/custody/handoffs/:splat 200
+/api/custody/photos            /.netlify/functions/custody/photos 200
+/api/custody/jobs/*            /.netlify/functions/custody/jobs/:splat 200
+
+# Feature: Pre-launch waitlist
+/api/waitlist/join /.netlify/functions/waitlist-join 200
+
+# Driver Founder recruitment landing page
+/drive /drive.html 200

@@ -37,9 +37,11 @@
 // ============================================================================
 
 const {
-  getSupabase, authenticateAdmin, jsonResponse, listAgents, emitEvent,
+  getSupabase, jsonResponse, listAgents, emitEvent,
   sendSpendAlertEmail, clearPromptCache
 } = require('./agent-fleet-runtime');
+const utils = require('./utils');
+const { maybeSendAuditWarningAlert } = require('./_shared/audit-warning-alert');
 const { Resend } = require('resend');
 const crypto = require('node:crypto');
 
@@ -562,7 +564,10 @@ async function listAgentsWithSpend(supabase) {
     supabase.from('agents').select('*').order('slug'),
     supabase.from('agent_daily_spend').select('*').eq('day', today)
   ]);
-  if (agentsRes.error) throw new Error(agentsRes.error.message);
+  if (agentsRes.error) {
+    console.error('[agent-fleet-admin] agents table error:', agentsRes.error.message);
+    return [];
+  }
   const spendBySlug = {};
   for (const s of (spendRes.data || [])) spendBySlug[s.agent_slug] = s;
   return (agentsRes.data || []).map(a => ({
@@ -600,7 +605,7 @@ async function listActions(supabase, { limit = 50, offset = 0, agent = null, sta
   if (reviewOnly) q = q.eq('needs_review', true).is('reviewed_at', null);
   if (since && !isNaN(Date.parse(since))) q = q.gte('created_at', since);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return { actions: [], total: 0, limit: lim, offset: off, error: error.message };
   return { actions: data || [], total: count || 0, limit: lim, offset: off };
 }
 
@@ -704,14 +709,30 @@ function _getStripe() {
   }
 }
 
+// Task #323 — fail-loudly audit writes. The Stripe call has already
+// succeeded by the time this helper runs, so we MUST surface DB errors
+// to the caller instead of swallowing them. Returns `{audit_warning:
+// string|null}`; the caller forwards the warning into its HTTP response
+// so the admin UI can show a recovery banner ("money moved but the
+// review queue still looks open — re-run /actions/audit-mismatches to
+// reconcile"). The Stripe-side idempotency keys mean a follow-up Apply
+// click will not double-charge — it will short-circuit on the
+// `already_captured` / `already_refunded` branches and re-attempt the
+// audit write.
 async function _markTreasurerExecuted(supabase, id, action, summary) {
-  await supabase.from('agent_actions').update({
+  const { error: upErr } = await supabase.from('agent_actions').update({
     review_status: 'executed',
     reviewed_at: new Date().toISOString(),
     reviewed_by: 'admin',
     needs_review: false
   }).eq('id', id);
-  await supabase.from('agent_actions').insert({
+  if (upErr) {
+    const msg = `Audit update failed for action ${id} (review queue still shows it as pending): ${upErr.message}`;
+    console.error('[treasurer apply]', msg);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'treasurer', db_error: msg });
+    return { audit_warning: msg };
+  }
+  const { error: insErr } = await supabase.from('agent_actions').insert({
     agent_slug: 'treasurer',
     action_type: 'apply',
     status: 'executed',
@@ -719,6 +740,13 @@ async function _markTreasurerExecuted(supabase, id, action, summary) {
     decision: { applied_action_id: id, ...summary },
     reasoning: summary._reasoning || `Admin applied Treasurer recommendation "${summary.recommendation}".`
   });
+  if (insErr) {
+    const msg = `Audit-trail insert failed for action ${id} (action is marked executed but the apply row is missing): ${insErr.message}`;
+    console.error('[treasurer apply]', msg);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'treasurer', db_error: msg });
+    return { audit_warning: msg };
+  }
+  return { audit_warning: null };
 }
 
 async function applyTreasurerReview(supabase, id, action) {
@@ -760,6 +788,64 @@ async function applyTreasurerReview(supabase, id, action) {
   /* unreachable */ return { error: 'unhandled recommendation', status: 500 };
 }
 
+// Grant 3 bid credits to a provider whose car club member returns for another service.
+// Idempotent: one bonus per provider+member pair per 30-day window.
+async function _maybeGrantCarClubReturnBonus(supabase, providerId, memberId) {
+  try {
+    // Check whether this provider has any active car clubs
+    const { data: clubs } = await supabase.from('car_clubs')
+      .select('id').eq('provider_id', providerId).eq('is_active', true);
+    if (!clubs?.length) return { granted: false, reason: 'no_clubs' };
+
+    // Check whether the member is enrolled in one of those clubs
+    const clubIds = clubs.map(c => c.id);
+    const { data: membership } = await supabase.from('club_memberships')
+      .select('club_id').eq('member_id', memberId).eq('is_active', true)
+      .in('club_id', clubIds).limit(1).maybeSingle();
+    if (!membership) return { granted: false, reason: 'not_a_member' };
+
+    // 30-day dedup
+    const windowStart = new Date(Date.now() - 30 * 86400 * 1000).toISOString();
+    const { data: recent } = await supabase.from('car_club_return_bonuses')
+      .select('id').eq('provider_id', providerId).eq('member_id', memberId)
+      .gte('created_at', windowStart).limit(1).maybeSingle();
+    if (recent) return { granted: false, reason: 'already_granted_this_month' };
+
+    const BONUS_CREDITS = 3;
+    const clubId = membership.club_id;
+
+    await supabase.from('car_club_return_bonuses').insert({
+      provider_id: providerId, member_id: memberId, club_id: clubId,
+      credits_granted: BONUS_CREDITS,
+    });
+    await supabase.from('bid_credit_purchases').insert({
+      provider_id: providerId, bids_purchased: BONUS_CREDITS,
+      amount_paid: 0, status: 'granted',
+      stripe_session_id: `car_club_return_bonus_${providerId}_${memberId}`,
+    }).catch(() => {}); // non-fatal if duplicate
+
+    const { data: p } = await supabase.from('profiles')
+      .select('bid_credits').eq('id', providerId).single();
+    await supabase.from('profiles')
+      .update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS })
+      .eq('id', providerId);
+
+    await supabase.from('notifications').insert({
+      user_id:  providerId,
+      type:     'car_club_bonus',
+      title:    'You earned 3 bonus bid credits!',
+      body:     'A car club member returned to book your services.',
+      metadata: { member_id: memberId, club_id: clubId, credits: BONUS_CREDITS },
+    }).catch(() => {});
+
+    console.log(`[agent-fleet-admin] car club return bonus granted: provider ${providerId} member ${memberId}`);
+    return { granted: true, credits: BONUS_CREDITS };
+  } catch (e) {
+    console.warn('[agent-fleet-admin] car club return bonus error (non-fatal):', e.message);
+    return { granted: false, reason: 'error', error: e.message };
+  }
+}
+
 async function _treasurerCapture(supabase, stripe, id, action, payload) {
   const carePlanId = payload.care_plan_id;
   if (!carePlanId) return { error: 'payload.care_plan_id required for approve_capture', status: 400 };
@@ -773,11 +859,11 @@ async function _treasurerCapture(supabase, stripe, id, action, payload) {
   if (!cpc) return { error: 'No care_plan_completion for this care_plan_id', status: 404 };
   if (!cpc.stripe_payment_intent_id) return { error: 'Completion missing stripe_payment_intent_id — cannot capture', status: 400 };
   if (cpc.payment_capture_status === 'captured') {
-    await _markTreasurerExecuted(supabase, id, action, {
+    const auditA = await _markTreasurerExecuted(supabase, id, action, {
       recommendation: 'approve_capture', completion_id: cpc.id, already_captured: true,
       _reasoning: 'Treasurer apply: already captured (no-op).'
     });
-    return { ok: true, already_captured: true, completion_id: cpc.id };
+    return { ok: true, already_captured: true, completion_id: cpc.id, audit_warning: auditA.audit_warning };
   }
 
   let captureResult;
@@ -830,15 +916,27 @@ async function _treasurerCapture(supabase, stripe, id, action, payload) {
     }
   }
 
-  await _markTreasurerExecuted(supabase, id, action, {
+  // Car club return bonus (best-effort): if this member is enrolled in one of
+  // the provider's car clubs, grant 3 bid credits on completed payment.
+  let carClubResult = null;
+  if (cpc.provider_id) {
+    const { data: plan } = await supabase.from('care_plans')
+      .select('member_id').eq('id', cpc.care_plan_id).maybeSingle();
+    if (plan?.member_id) {
+      carClubResult = await _maybeGrantCarClubReturnBonus(supabase, cpc.provider_id, plan.member_id);
+    }
+  }
+
+  const auditCap = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'approve_capture',
     completion_id: cpc.id,
     payment_intent_id: cpc.stripe_payment_intent_id,
     captured_amount: capturedAmount,
     commission: commissionResult,
-    _reasoning: `Treasurer apply: captured PI ${cpc.stripe_payment_intent_id} for $${capturedAmount}${commissionResult && commissionResult.transferId ? ` · founder commission ${commissionResult.transferId}` : ''}.`
+    car_club_bonus: carClubResult,
+    _reasoning: `Treasurer apply: captured PI ${cpc.stripe_payment_intent_id} for $${capturedAmount}${commissionResult && commissionResult.transferId ? ` · founder commission ${commissionResult.transferId}` : ''}${carClubResult?.granted ? ' · car club bonus granted' : ''}.`
   });
-  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult };
+  return { ok: true, captured: true, captured_amount: capturedAmount, completion_id: cpc.id, payment_intent_id: cpc.stripe_payment_intent_id, commission: commissionResult, car_club_bonus: carClubResult, audit_warning: auditCap.audit_warning };
 }
 
 async function _treasurerRefund(supabase, stripe, id, action, payload) {
@@ -854,11 +952,11 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
   if (!cpc) return { error: 'No care_plan_completion for this care_plan_id', status: 404 };
   if (!cpc.stripe_payment_intent_id) return { error: 'Completion missing stripe_payment_intent_id — cannot refund', status: 400 };
   if (cpc.payment_capture_status === 'refunded') {
-    await _markTreasurerExecuted(supabase, id, action, {
+    const auditR0 = await _markTreasurerExecuted(supabase, id, action, {
       recommendation: 'approve_refund', completion_id: cpc.id, already_refunded: true,
       _reasoning: 'Treasurer apply: already refunded (no-op).'
     });
-    return { ok: true, already_refunded: true, completion_id: cpc.id };
+    return { ok: true, already_refunded: true, completion_id: cpc.id, audit_warning: auditR0.audit_warning };
   }
 
   // Mirror the cpc admin refund endpoint in www/server.js: branch on the
@@ -896,7 +994,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
     if (planUpErr) {
       return { error: `Stripe cancel + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
     }
-    await _markTreasurerExecuted(supabase, id, action, {
+    const auditCxl = await _markTreasurerExecuted(supabase, id, action, {
       recommendation: 'approve_refund',
       completion_id: cpc.id,
       payment_intent_id: cpc.stripe_payment_intent_id,
@@ -904,7 +1002,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
       refund_amount: 0,
       _reasoning: `Treasurer apply: cancelled uncaptured hold on PI ${cpc.stripe_payment_intent_id}.`
     });
-    return { ok: true, cancelled: true, refunded: true, refund_amount: 0, is_full: true };
+    return { ok: true, cancelled: true, refunded: true, refund_amount: 0, is_full: true, audit_warning: auditCxl.audit_warning };
   }
 
   if (pi.status !== 'succeeded') {
@@ -959,7 +1057,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
     return { error: `Stripe refund + cpc update succeeded but care_plans update failed: ${planUpErr.message}`, status: 500 };
   }
 
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditRef = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'approve_refund',
     completion_id: cpc.id,
     payment_intent_id: cpc.stripe_payment_intent_id,
@@ -968,7 +1066,7 @@ async function _treasurerRefund(supabase, stripe, id, action, payload) {
     is_full: isFull,
     _reasoning: `Treasurer apply: refunded $${refundAmount} (${isFull ? 'full' : 'partial'}) on PI ${cpc.stripe_payment_intent_id}.`
   });
-  return { ok: true, refunded: true, refund_id: refund.id, refund_amount: refundAmount, is_full: isFull };
+  return { ok: true, refunded: true, refund_id: refund.id, refund_amount: refundAmount, is_full: isFull, audit_warning: auditRef.audit_warning };
 }
 
 // Inlined port of processCarePlanFounderCommission from www/server.js so
@@ -995,11 +1093,12 @@ async function _processCarePlanFounderCommission(supabase, stripe, providerId, c
 
     const { data: founder } = await supabase
       .from('member_founder_profiles')
-      .select('id, user_id, full_name, email, stripe_connect_account_id, instant_payout_enabled, payout_preference, referral_code, total_commissions_earned, total_commissions_paid, status')
+      .select('id, user_id, full_name, email, stripe_connect_account_id, instant_payout_enabled, payout_preference, referral_code, total_commissions_earned, total_commissions_paid, status, commission_end_date')
       .eq('user_id', provider.referred_by_founder_id)
       .maybeSingle();
     if (!founder) return { skipped: true, reason: 'founder_not_found' };
     if (founder.status && founder.status !== 'active') return { skipped: true, reason: 'founder_inactive' };
+    if (founder.commission_end_date && new Date(founder.commission_end_date) < new Date()) return { skipped: true, reason: 'commission_term_expired' };
     if (!founder.instant_payout_enabled || founder.payout_preference !== 'instant') return { skipped: true, reason: 'instant_payout_disabled' };
     if (!founder.stripe_connect_account_id) return { skipped: true, reason: 'no_connect_account' };
 
@@ -1098,25 +1197,25 @@ async function _treasurerDenyRefund(supabase, id, action, payload) {
       .update({ status: 'resolved', resolved_at: nowIso, admin_notes: 'Refund denied by admin via Treasurer recommendation.' })
       .eq('care_plan_id', carePlanId);
   }
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditDeny = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'deny_refund', care_plan_id: carePlanId || null,
     _reasoning: 'Treasurer apply: refund denied; completion marked resolved without payout.'
   });
-  return { ok: true, denied: true, care_plan_id: carePlanId || null };
+  return { ok: true, denied: true, care_plan_id: carePlanId || null, audit_warning: auditDeny.audit_warning };
 }
 
 async function _treasurerEscalatePayout(supabase, id, action, payload) {
   // No Stripe op — escalation just records the agent's intent and closes
   // the row. The audit trail (and the operator's followup queue) carries
   // it forward; the actual nudge to the provider happens out-of-band.
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditEsc = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'escalate_payout',
     payout_id: payload.payout_id || null,
     provider_id: payload.provider_id || null,
     failure_code: payload.failure_code || null,
     _reasoning: 'Treasurer apply: payout escalated to admin for hands-on follow-up (provider onboarding gap suspected).'
   });
-  return { ok: true, escalated: true, payout_id: payload.payout_id || null };
+  return { ok: true, escalated: true, payout_id: payload.payout_id || null, audit_warning: auditEsc.audit_warning };
 }
 
 async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
@@ -1145,7 +1244,7 @@ async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
     return { error: `Stripe payout retry failed: ${e.message}`, status: 502 };
   }
 
-  await _markTreasurerExecuted(supabase, id, action, {
+  const auditRetry = await _markTreasurerExecuted(supabase, id, action, {
     recommendation: 'retry_payout',
     provider_id: providerId,
     stripe_account_id: prof.stripe_account_id,
@@ -1155,7 +1254,7 @@ async function _treasurerRetryPayout(supabase, stripe, id, action, payload) {
     original_payout_id: payload.payout_id || null,
     _reasoning: `Treasurer apply: retried payout ($${amount} ${currency}) to ${prof.stripe_account_id} → ${payout.id}.`
   });
-  return { ok: true, retried: true, new_payout_id: payout.id, amount, currency };
+  return { ok: true, retried: true, new_payout_id: payout.id, amount, currency, audit_warning: auditRetry.audit_warning };
 }
 
 async function applyGatekeeperReview(supabase, id, action) {
@@ -1178,23 +1277,39 @@ async function applyGatekeeperReview(supabase, id, action) {
     .from('profiles').update({ role: newRole }).eq('id', providerId);
   if (upErr) return { error: upErr.message, status: 500 };
 
-  await supabase.from('agent_actions').update({
+  // Task #323 — fail-loudly audit writes. The role mutation above has
+  // already committed; if either audit write fails we surface the error
+  // in `audit_warning` so the admin UI can show a recovery banner instead
+  // of falsely toasting "applied" while the review queue still shows the
+  // row as pending.
+  let auditWarning = null;
+  const { error: stampErr } = await supabase.from('agent_actions').update({
     review_status: 'executed',
     reviewed_at: new Date().toISOString(),
     reviewed_by: 'admin',
     needs_review: false
   }).eq('id', id);
+  if (stampErr) {
+    auditWarning = `Provider role updated to ${newRole} but audit update failed for action ${id} (review queue still shows it as pending): ${stampErr.message}`;
+    console.error('[gatekeeper apply]', auditWarning);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'gatekeeper', db_error: auditWarning });
+  } else {
+    const { error: insErr } = await supabase.from('agent_actions').insert({
+      agent_slug: 'gatekeeper',
+      action_type: 'apply',
+      status: 'executed',
+      autonomy_used: 'admin',
+      decision: { applied_action_id: id, provider_id: providerId, prior_role: prof.role, new_role: newRole, recommendation: rec },
+      reasoning: `Admin applied Gatekeeper recommendation "${rec}" — role ${prof.role} -> ${newRole}.`
+    });
+    if (insErr) {
+      auditWarning = `Provider role updated to ${newRole} and action ${id} marked executed, but audit-trail insert failed: ${insErr.message}`;
+      console.error('[gatekeeper apply]', auditWarning);
+      void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'gatekeeper', db_error: auditWarning });
+    }
+  }
 
-  await supabase.from('agent_actions').insert({
-    agent_slug: 'gatekeeper',
-    action_type: 'apply',
-    status: 'executed',
-    autonomy_used: 'admin',
-    decision: { applied_action_id: id, provider_id: providerId, prior_role: prof.role, new_role: newRole, recommendation: rec },
-    reasoning: `Admin applied Gatekeeper recommendation "${rec}" — role ${prof.role} -> ${newRole}.`
-  });
-
-  return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: newRole };
+  return { ok: true, provider_id: providerId, prior_role: prof.role, new_role: newRole, audit_warning: auditWarning };
 }
 
 // Mirrors the existing accept-bid path used by members on the legacy
@@ -1269,12 +1384,24 @@ async function applyMatchmakerRank(supabase, id, action) {
     console.warn(`[matchmaker apply] care_plan ${carePlanId} status update failed: ${planErr.message}`);
   }
 
-  await supabase.from('agent_actions').update({
+  // Task #323 — capture audit-stamp errors so we can return them in
+  // `audit_warning` instead of swallowing. The bid acceptance + losers
+  // sweep above are already committed; failing the stamp here means the
+  // row stays in the review queue and admin will re-click — Matchmaker
+  // re-apply is guarded by the `winner.status !== 'pending'` check at
+  // the top, so the second click 409s instead of double-applying.
+  let auditWarning = null;
+  const { error: stampErr } = await supabase.from('agent_actions').update({
     review_status: 'executed',
     reviewed_at: new Date().toISOString(),
     reviewed_by: 'admin',
     needs_review: false
   }).eq('id', id);
+  if (stampErr) {
+    auditWarning = `Bid ${winnerBidId} accepted but audit update failed for action ${id} (review queue still shows it as pending): ${stampErr.message}`;
+    console.error('[matchmaker apply]', auditWarning);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'matchmaker', db_error: auditWarning });
+  }
 
   // Task #153 — fan out award notifications + emails before we write the
   // audit row so the audit decision can record what was actually delivered.
@@ -1294,7 +1421,7 @@ async function applyMatchmakerRank(supabase, id, action) {
     notifySummary = { error: e.message };
   }
 
-  await supabase.from('agent_actions').insert({
+  const { error: applyInsErr } = await supabase.from('agent_actions').insert({
     agent_slug: 'matchmaker',
     action_type: 'apply',
     status: 'executed',
@@ -1312,6 +1439,11 @@ async function applyMatchmakerRank(supabase, id, action) {
     },
     reasoning: `Admin accepted Matchmaker-recommended bid ${winnerBidId} for care plan ${carePlanId}. ${(losers || []).length} other pending bid(s) rejected.`
   });
+  if (applyInsErr && !auditWarning) {
+    auditWarning = `Bid ${winnerBidId} accepted and action ${id} marked executed, but audit-trail insert failed: ${applyInsErr.message}`;
+    console.error('[matchmaker apply]', auditWarning);
+    void maybeSendAuditWarningAlert({ supabase, action_id: id, slug: 'matchmaker', db_error: auditWarning });
+  }
 
   return {
     ok: true,
@@ -1323,7 +1455,8 @@ async function applyMatchmakerRank(supabase, id, action) {
     prior_plan_status: plan.status,
     new_plan_status: planErr ? plan.status : 'awarded',
     plan_status_warning: planErr ? planErr.message : null,
-    notifications: notifySummary
+    notifications: notifySummary,
+    audit_warning: auditWarning
   };
 }
 
@@ -1359,8 +1492,14 @@ async function spendRollup(supabase) {
     supabase.from('agents').select('slug,display_name,daily_spend_cap_usd,enabled').order('slug'),
     supabase.from('agent_daily_spend').select('*').gte('day', startStr).order('day', { ascending: true })
   ]);
-  if (agentsRes.error) throw new Error(agentsRes.error.message);
-  if (spendRes.error)  throw new Error(spendRes.error.message);
+  if (agentsRes.error) {
+    console.error('[agent-fleet-admin] spend agents error:', agentsRes.error.message);
+    return { agents: [], days: [] };
+  }
+  if (spendRes.error) {
+    console.error('[agent-fleet-admin] agent_daily_spend error:', spendRes.error.message);
+    return { agents: agentsRes.data || [], days: [] };
+  }
   return { agents: agentsRes.data || [], days: spendRes.data || [] };
 }
 
@@ -1373,7 +1512,7 @@ async function latestBriefing(supabase) {
     .eq('kind', 'briefing')
     .eq('key', 'latest')
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) { console.error('[agent-fleet-admin] briefing query error:', error.message); return null; }
   if (data) return data;
   // Fallback for legacy rows written before the 'latest' key existed.
   const fallback = await supabase
@@ -1384,7 +1523,7 @@ async function latestBriefing(supabase) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle();
-  if (fallback.error) throw new Error(fallback.error.message);
+  if (fallback.error) { console.error('[agent-fleet-admin] briefing fallback error:', fallback.error.message); return null; }
   return fallback.data;
 }
 
@@ -1457,7 +1596,7 @@ async function handleActionsByTarget(event, ctx) {
   if (qs.agent) q = q.eq('agent_slug', qs.agent);
   q = q.or(orExpr);
   const { data, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { actions: [], target_id: targetId, target_kind: kind || 'any', error: error.message });
   return jsonResponse(200, { actions: data || [], target_id: targetId, target_kind: kind || 'any' });
 }
 
@@ -1512,11 +1651,11 @@ async function handleStats24h(event, ctx) {
     escEventRes, failEventRes
   ] = await Promise.all([
     supabase.from('agent_actions').select('*', { count: 'exact', head: true })
-      .gte('created_at', since).eq('status', 'executed'),
+      .gte('created_at', since).eq('status', 'completed'),
     supabase.from('agent_actions').select('*', { count: 'exact', head: true })
       .gte('created_at', since).eq('needs_review', true).is('reviewed_at', null),
     supabase.from('agent_actions').select('*', { count: 'exact', head: true })
-      .gte('created_at', since).eq('status', 'errored'),
+      .gte('created_at', since).eq('status', 'error'),
     supabase.from('agent_events').select('payload')
       .gte('created_at', since).eq('event_type', 'agent.escalated'),
     supabase.from('agent_events').select('payload')
@@ -1611,7 +1750,7 @@ async function _proxyAdminRun(event, fnName) {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'x-admin-password': process.env.ADMIN_PASSWORD || ''
+      'x-admin-password': process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD || ''
     },
     body: JSON.stringify({ source: 'admin' })
   });
@@ -1789,7 +1928,7 @@ async function handleSmokeRuns(event, ctx) {
     .eq('agent_slug', slug)
     .order('started_at', { ascending: false })
     .limit(lim);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { agent_slug: slug, runs: [], last_pass: null, last_fail: null, latest: null, error: error.message });
   const runs = data || [];
   const lastPass = runs.find(r => r.status === 'passed') || null;
   const lastFail = runs.find(r => r.status !== 'passed') || null;
@@ -1827,7 +1966,7 @@ async function handleDeadLetter(event, ctx) {
   if (openOnly) q = q.is('replayed_at', null);
   if (eventIdFilter) q = q.in('event_id', eventIdFilter);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { entries: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { entries: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -1859,7 +1998,7 @@ async function handleSpendAlerts(event, ctx) {
     .select('*')
     .gte('day', startDate)
     .order('notified_at', { ascending: false });
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { alerts: [], since: startDate, error: error.message });
   return jsonResponse(200, { alerts: data || [], since: startDate });
 }
 
@@ -1938,7 +2077,7 @@ async function handleEventsTimeseries(event, ctx) {
     .gte('created_at', sinceIso)
     .order('created_at', { ascending: true })
     .limit(20000);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { series: [], days, group_by: groupBy, error: error.message });
   const bucketMs = 60 * 60 * 1000;
   const startBucket = Math.floor(sinceMs / bucketMs) * bucketMs;
   const endBucket   = Math.floor(Date.now() / bucketMs) * bucketMs;
@@ -1999,13 +2138,124 @@ async function handleMemory(event, ctx) {
     .eq('agent_slug', slug)
     .order('created_at', { ascending: false })
     .range(off, off + lim - 1);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
 }
 
 async function handleApplyAction(event, ctx) {
   const r = await applyAction(ctx.supabase, Number.parseInt(ctx.params[1], 10));
   if (r.error) return jsonResponse(r.status || 500, { error: r.error });
+  return jsonResponse(200, r);
+}
+
+// Task #323 — list Treasurer review actions where Stripe-side state shows
+// the money has already moved (capture/refund recorded on the
+// care_plan_completion) but the agent_actions row is still flagged as
+// pending. These are the rows that fell through an audit-write failure
+// and need operator reconciliation. Currently scans `approve_capture`
+async function listAuditMismatches(supabase, stripe) {
+  const { data: actions, error } = await supabase
+    .from('agent_actions')
+    .select('id, decision, review_status, created_at, reviewed_at')
+    .eq('agent_slug', 'treasurer')
+    .eq('action_type', 'review')
+    .neq('review_status', 'executed')
+    .order('created_at', { ascending: false })
+    .limit(500);
+  if (error) return jsonResponse(200, { mismatches: [], error: error.message });
+
+  const mismatches = [];
+  for (const a of actions || []) {
+    let dec = a.decision;
+    if (typeof dec === 'string') { try { dec = JSON.parse(dec); } catch { dec = {}; } }
+    const rec = dec && dec.recommendation;
+
+    // ---- approve_capture / approve_refund: join against care_plan_completions ----
+    if (['approve_capture', 'approve_refund'].includes(rec)) {
+      const carePlanId = dec && dec.payload && dec.payload.care_plan_id;
+      if (!carePlanId) continue;
+
+      const { data: cpc, error: cpcErr } = await supabase
+        .from('care_plan_completions')
+        .select('id, payment_capture_status, captured_at, refunded_at, captured_amount, refund_amount, stripe_payment_intent_id')
+        .eq('care_plan_id', carePlanId)
+        .order('created_at', { ascending: false }).limit(1).maybeSingle();
+      if (cpcErr) {
+        // Fail loud — silently skipping a row would risk a false-negative
+        // "no stuck rows", which defeats the whole point of this scanner.
+        throw new Error(`audit-mismatch scan failed at action ${a.id} / care_plan ${carePlanId}: ${cpcErr.message}`);
+      }
+      if (!cpc) continue;
+
+      const stripeMoved =
+        (rec === 'approve_capture' && cpc.payment_capture_status === 'captured') ||
+        (rec === 'approve_refund' && (cpc.payment_capture_status === 'refunded' || cpc.payment_capture_status === 'partially_refunded'));
+      if (!stripeMoved) continue;
+
+      mismatches.push({
+        action_id: a.id,
+        recommendation: rec,
+        review_status: a.review_status,
+        care_plan_id: carePlanId,
+        completion_id: cpc.id,
+        payment_intent_id: cpc.stripe_payment_intent_id,
+        capture_status: cpc.payment_capture_status,
+        captured_amount: cpc.captured_amount,
+        refund_amount: cpc.refund_amount,
+        captured_at: cpc.captured_at,
+        refunded_at: cpc.refunded_at,
+        action_created_at: a.created_at,
+        hint: 'Stripe shows the money moved but the review queue row is still pending. Re-click Apply on the action — the Stripe idempotency key will short-circuit and the audit row will be re-stamped.'
+      });
+      continue;
+    }
+
+    // ---- retry_payout: no DB handle — probe Stripe payouts API ----
+    if (rec === 'retry_payout' && stripe) {
+      const providerId = dec && dec.payload && dec.payload.provider_id;
+      if (!providerId) continue;
+
+      const { data: prof } = await supabase
+        .from('profiles').select('stripe_account_id').eq('id', providerId).maybeSingle();
+      if (!prof || !prof.stripe_account_id) continue;
+
+      let payouts;
+      try {
+        const result = await stripe.payouts.list(
+          { limit: 100 },
+          { stripeAccount: prof.stripe_account_id }
+        );
+        payouts = result.data || [];
+      } catch {
+        continue; // Stripe unavailable for this account — skip silently
+      }
+
+      const match = payouts.find(
+        p => p.metadata && String(p.metadata.treasurer_action_id) === String(a.id)
+           && ['paid', 'in_transit'].includes(p.status)
+      );
+      if (!match) continue;
+
+      mismatches.push({
+        action_id: a.id,
+        recommendation: 'retry_payout',
+        review_status: a.review_status,
+        provider_id: providerId,
+        stripe_account_id: prof.stripe_account_id,
+        payout_id: match.id,
+        payout_status: match.status,
+        payout_amount: match.amount,
+        payout_currency: match.currency,
+        action_created_at: a.created_at,
+        hint: `Stripe shows payout ${match.id} (${match.status}) for this action, but the review-queue row is still pending. Re-click Apply — the idempotency key will short-circuit and re-stamp the audit row.`
+      });
+    }
+  }
+  return { mismatches, scanned: (actions || []).length };
+}
+
+async function handleAuditMismatches(event, ctx) {
+  const r = await listAuditMismatches(ctx.supabase, _getStripe());
   return jsonResponse(200, r);
 }
 
@@ -2033,7 +2283,7 @@ async function handleSocialLeads(event, ctx) {
     .range(off, off + lim - 1);
   if (status) q = q.eq('status', status);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -2043,28 +2293,57 @@ async function handleSocialLeads(event, ctx) {
 // returned "No Hunter reasoning yet" for older leads. This route does a
 // direct indexed query on agent_actions and returns the latest scoring
 // row for that lead.
+//
+// Task #237: prefer the direct FK (`social_leads.agent_action_id`) which
+// task #178 made authoritative for new rows + backfilled for old ones —
+// that's a single indexed PK lookup instead of a JSONB-extraction filter
+// over agent_actions. The JSONB-filter path is kept as a defensive
+// fallback for any leftover NULL FK rows (and is what the smoke test at
+// step 14b exercises by seeding an action row without setting the FK).
+const REASONING_ACTION_COLUMNS =
+  'id, agent_slug, action_type, status, autonomy_used, decision, ' +
+  'reasoning, confidence, tokens_in, tokens_out, cost_usd, ' +
+  'duration_ms, needs_review, reviewed_at, review_status, ' +
+  'review_notes, error_message, event_id, created_at';
+
 async function handleSocialLeadReasoning(event, ctx) {
   const { supabase, params } = ctx;
   const leadId = params[1];
-  const [actionRes, agentRes] = await Promise.all([
-    supabase.from('agent_actions')
-      .select('id, agent_slug, action_type, status, autonomy_used, decision, ' +
-              'reasoning, confidence, tokens_in, tokens_out, cost_usd, ' +
-              'duration_ms, needs_review, reviewed_at, review_status, ' +
-              'review_notes, error_message, event_id, created_at')
-      .eq('agent_slug', 'hunter')
-      .filter('decision->>social_lead_id', 'eq', leadId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle(),
+  const [leadRes, agentRes] = await Promise.all([
+    supabase.from('social_leads').select('agent_action_id').eq('id', leadId).maybeSingle(),
     supabase.from('agents').select('model').eq('slug', 'hunter').maybeSingle()
   ]);
-  if (actionRes.error) return jsonResponse(500, { error: actionRes.error.message });
-  if (!actionRes.data) return jsonResponse(404, { error: 'no hunter reasoning found for this lead', social_lead_id: leadId });
+  if (leadRes.error) return jsonResponse(500, { error: leadRes.error.message });
+
+  let action = null;
+  const fkId = leadRes.data?.agent_action_id;
+  if (fkId) {
+    const { data, error } = await supabase.from('agent_actions')
+      .select(REASONING_ACTION_COLUMNS).eq('id', fkId).maybeSingle();
+    if (error) return jsonResponse(500, { error: error.message });
+    action = data || null;
+  }
+
+  if (!action) {
+    // Fallback path: pre-T#178 rows where social_leads.agent_action_id
+    // is still NULL. Scan agent_actions by JSONB-extracted social_lead_id.
+    console.log(`[social-lead-reasoning] FK miss for lead=${leadId} — falling back to JSONB scan`);
+    const { data, error } = await supabase.from('agent_actions')
+      .select(REASONING_ACTION_COLUMNS)
+      .eq('agent_slug', 'hunter')
+      .filter('decision->>social_lead_id', 'eq', String(leadId))
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (error) return jsonResponse(500, { error: error.message });
+    action = data || null;
+  }
+
+  if (!action) return jsonResponse(404, { error: 'no hunter reasoning found for this lead', social_lead_id: leadId });
   return jsonResponse(200, {
-    action: actionRes.data,
-    reasoning: actionRes.data.reasoning || null,
-    cost_usd: actionRes.data.cost_usd,
+    action,
+    reasoning: action.reasoning || null,
+    cost_usd: action.cost_usd,
     model: agentRes.data?.model || null,
     social_lead_id: leadId
   });
@@ -2097,7 +2376,7 @@ async function handleSocialPosts(event, ctx) {
     .range(off, off + lim - 1);
   if (status) q = q.eq('status', status);
   const { data, count, error } = await q;
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], total: 0, limit: lim, offset: off, error: error.message });
   return jsonResponse(200, { rows: data || [], total: count || 0, limit: lim, offset: off });
 }
 
@@ -2296,7 +2575,7 @@ async function handleSocialPostPatch(event, ctx) {
 async function handleSocialChannelsList(event, ctx) {
   const { data, error } = await ctx.supabase
     .from('social_channels').select('*').order('platform', { ascending: true });
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { rows: [], error: error.message });
   return jsonResponse(200, { rows: data || [] });
 }
 
@@ -2376,7 +2655,7 @@ async function handlePromptGet(event, ctx) {
     .eq('agent_slug', slug)
     .eq('is_active', true)
     .maybeSingle();
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { active: null, error: error.message });
   return jsonResponse(200, { active: data || null });
 }
 
@@ -2390,7 +2669,7 @@ async function handlePromptHistory(event, ctx) {
     .eq('agent_slug', slug)
     .order('version', { ascending: false })
     .limit(lim);
-  if (error) throw new Error(error.message);
+  if (error) return jsonResponse(200, { versions: [], error: error.message });
   return jsonResponse(200, { versions: data || [] });
 }
 
@@ -2532,6 +2811,7 @@ const ROUTES = [
   // actions  (more-specific subroutes first)
   { method: 'GET',    pattern: 'actions',                                               handler: handleListActions },
   { method: 'GET',    pattern: 'actions/by-target',                                     handler: handleActionsByTarget },
+  { method: 'GET',    pattern: 'actions/audit-mismatches',                              handler: handleAuditMismatches },
   { method: 'POST',   pattern: /^actions\/(\d+)\/review$/,                              handler: handleReviewAction },
   { method: 'POST',   pattern: /^actions\/(\d+)\/apply$/,                               handler: handleApplyAction },
   { method: 'GET',    pattern: /^actions\/(\d+)$/,                                      handler: handleActionDetail },
@@ -2615,10 +2895,12 @@ function _matchRoute(route, method) {
 // The actual behavior of each route lives in its `handle*` function above.
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(200, { ok: true });
-  if (!authenticateAdmin(event)) return jsonResponse(401, { error: 'Unauthorized' });
 
   const supabase = getSupabase();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) return jsonResponse(401, { error: 'Unauthorized' });
 
   const route = parsePath(event);
   const method = event.httpMethod || 'GET';
@@ -2645,5 +2927,16 @@ exports.handler = async function(event) {
 exports.__test = {
   applyMatchmakerRank,
   notifyMatchmakerAward,
-  sendMatchmakerFCMPush
+  sendMatchmakerFCMPush,
+  // Task #324 — Treasurer apply path coverage.
+  applyAction,
+  applyTreasurerReview,
+  _treasurerCapture,
+  _treasurerRefund,
+  _treasurerRetryPayout,
+  _treasurerDenyRefund,
+  _treasurerEscalatePayout,
+  // Task #411/#412 — audit-warning alert + retry_payout mismatch scan.
+  listAuditMismatches,
+  _markTreasurerExecuted
 };

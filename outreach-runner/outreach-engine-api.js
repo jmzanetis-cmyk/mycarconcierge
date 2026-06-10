@@ -1166,6 +1166,39 @@ async function sendMessage(supabase, messageId) {
       return { error: 'SMS service not configured' };
     }
 
+    // Task #436 — TCPA STOP enforcement: check profiles.sms_opt_out by phone
+    // before every send. The Netlify outreach-engine-core.js path already does
+    // this via _shared/sms.js (Task #429); this brings the standalone dev
+    // server in line. Fail-closed: a DB error blocks the send rather than
+    // risking a violation.
+    {
+      const rawDigits = String(lead.phone).replace(/\D/g, '');
+      const e164 = rawDigits.length === 10 ? `+1${rawDigits}`
+                 : rawDigits.startsWith('1') && rawDigits.length === 11 ? `+${rawDigits}`
+                 : lead.phone;
+      try {
+        const { data: optedOut } = await supabase
+          .from('profiles')
+          .select('id')
+          .or(`phone.eq.${e164},phone.eq.${rawDigits}`)
+          .eq('sms_opt_out', true)
+          .limit(1);
+        if (Array.isArray(optedOut) && optedOut.length > 0) {
+          await supabase.from('outreach_messages').update({ status: 'skipped' }).eq('id', messageId);
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: lead.id,
+            message_id: msg.id,
+            event_type: 'skipped',
+            metadata: { reason: 'sms_opt_out' }
+          });
+          return { error: 'Recipient has opted out (STOP)', skipped: true };
+        }
+      } catch (e) {
+        console.warn('[OutreachEngine] sms_opt_out lookup failed — blocking send (TCPA fail-closed):', e.message);
+        return { error: 'Could not verify opt-out status — send blocked (TCPA fail-closed)', skipped: true };
+      }
+    }
+
     const body = bodyBase + SMS_OPT_OUT;
 
     try {
@@ -2473,11 +2506,61 @@ async function handleEmailTracking(req, res, { getSupabaseClient }) {
   return false;
 }
 
+function _verifyResendSig(rawBody, headers) {
+  const crypto = require('node:crypto');
+  const webhookSecret = process.env.RESEND_WEBHOOK_SECRET;
+  const svixId        = headers['svix-id'];
+  const svixTimestamp = headers['svix-timestamp'];
+  const svixSignature = headers['svix-signature'];
+
+  if (!webhookSecret) {
+    if (process.env.NODE_ENV === 'production') {
+      return { valid: false, reason: 'webhook secret not configured' };
+    }
+    console.warn('[outreach-resend-webhook] dev mode: skipping signature check');
+    return { valid: true };
+  }
+
+  if (!svixId || !svixTimestamp || !svixSignature) {
+    return { valid: false, reason: 'Missing Svix signature headers' };
+  }
+
+  const timestampMs = Number.parseInt(svixTimestamp, 10) * 1000;
+  if (Math.abs(Date.now() - timestampMs) > 5 * 60 * 1000) {
+    return { valid: false, reason: 'Webhook timestamp too old or too new' };
+  }
+
+  const signedContent = `${svixId}.${svixTimestamp}.${rawBody}`;
+  const secretBytes   = Buffer.from(webhookSecret.replace(/^whsec_/, ''), 'base64');
+  const hmac          = require('node:crypto').createHmac('sha256', secretBytes);
+  hmac.update(signedContent);
+  const computedSig = `v1,${hmac.digest('base64')}`;
+  const isValid = svixSignature.split(' ').some(sig => {
+    try { return crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(computedSig)); } catch { return false; }
+  });
+  return { valid: isValid, reason: isValid ? null : 'Signature mismatch' };
+}
+
 async function handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders }) {
   if (req.method === 'OPTIONS') {
     setCorsHeaders(res, req);
     res.writeHead(204);
     res.end();
+    return;
+  }
+
+  const rawBodyStr = await new Promise((resolve, reject) => {
+    let data = '';
+    req.on('data', c => { data += c; });
+    req.on('end', () => resolve(data));
+    req.on('error', reject);
+  }).catch(() => '');
+
+  const verification = _verifyResendSig(rawBodyStr, req.headers || {});
+  if (!verification.valid) {
+    console.warn('[OutreachEngine] Resend webhook rejected:', verification.reason);
+    res.writeHead(401, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ error: 'Webhook signature invalid', reason: verification.reason }));
     return;
   }
 
@@ -2489,7 +2572,7 @@ async function handleResendWebhook(req, res, { getSupabaseClient, setCorsHeaders
   }
 
   try {
-    const body = await parseBody(req);
+    const body = JSON.parse(rawBodyStr || '{}');
     const eventType = body.type;
     const data = body.data || {};
 

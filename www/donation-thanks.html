@@ -1,0 +1,192 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Thank You – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="robots" content="noindex, nofollow" />
+  <meta name="theme-color" content="#12161c" />
+  <script>
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.setAttribute('data-theme', theme);
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-green: #34d399;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --radius-xl: 24px;
+    }
+
+    [data-theme="light"] {
+      --bg-deep: #fefdfb;
+      --bg-card: #ffffff;
+      --text-primary: #1a1a2e;
+      --text-secondary: #3d3d5c;
+      --text-muted: #5c5c7a;
+      --accent-gold: #b8942d;
+      --border-subtle: rgba(30, 58, 95, 0.10);
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      min-height: 100vh;
+      font-family: 'Outfit', -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 40px 24px;
+    }
+
+    .card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl);
+      padding: 56px 48px;
+      max-width: 520px;
+      width: 100%;
+      text-align: center;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card::before {
+      content: '';
+      position: absolute;
+      top: -80px; right: -80px;
+      width: 240px; height: 240px;
+      background: radial-gradient(circle, rgba(201,162,39,0.1), transparent 65%);
+      pointer-events: none;
+    }
+
+    .card::after {
+      content: '';
+      position: absolute;
+      bottom: -60px; left: -60px;
+      width: 200px; height: 200px;
+      background: radial-gradient(circle, rgba(52,211,153,0.07), transparent 65%);
+      pointer-events: none;
+    }
+
+    .icon { font-size: 64px; margin-bottom: 24px; line-height: 1; }
+
+    h1 {
+      font-family: 'Playfair Display', serif;
+      font-size: clamp(1.6rem, 4vw, 2rem);
+      margin-bottom: 16px;
+      color: var(--text-primary);
+      line-height: 1.2;
+    }
+
+    .amount-badge {
+      display: inline-block;
+      background: rgba(201,162,39,0.12);
+      border: 1px solid rgba(201,162,39,0.3);
+      color: var(--accent-gold);
+      font-size: var(--text-sm);
+      font-weight: 700;
+      padding: 4px 14px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+      letter-spacing: 0.04em;
+    }
+
+    p {
+      color: var(--text-secondary);
+      font-size: var(--text-md);
+      line-height: 1.7;
+      margin-bottom: 16px;
+    }
+
+    .detail {
+      background: rgba(52,211,153,0.06);
+      border: 1px solid rgba(52,211,153,0.2);
+      border-radius: 14px;
+      padding: 18px 24px;
+      margin: 24px 0 32px;
+      font-size: var(--text-base);
+      color: var(--text-secondary);
+      line-height: 1.6;
+    }
+
+    .detail strong { color: var(--accent-green); }
+
+    .btn {
+      display: inline-flex; align-items: center; justify-content: center;
+      gap: 8px; padding: 13px 28px;
+      font-family: inherit; font-size: var(--text-base); font-weight: 600;
+      border: none; border-radius: 14px; cursor: pointer;
+      text-decoration: none; transition: all 0.2s;
+    }
+    .btn--primary {
+      background: linear-gradient(135deg, var(--accent-gold), #c49a45);
+      color: #0a0a0f;
+    }
+    .btn--primary:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(201,162,39,0.35); }
+    .btn--ghost {
+      background: transparent; color: var(--text-secondary);
+      border: 1px solid var(--border-subtle);
+    }
+    .btn--ghost:hover { color: var(--text-primary); border-color: rgba(160,168,184,0.35); }
+
+    .actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+
+    .footer-note {
+      margin-top: 28px;
+      font-size: var(--text-sm);
+      color: var(--text-muted);
+      line-height: 1.5;
+    }
+
+    @media (max-width: 480px) {
+      .card { padding: 40px 24px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon">🎉</div>
+    <h1>Thank You for Supporting MCC!</h1>
+    <div class="amount-badge" id="amount-badge" style="display:none;"></div>
+    <p>Your contribution helps us bring vehicle pickup &amp; delivery to your neighborhood. Every dollar goes toward TNC licensing, insurance, and driver onboarding.</p>
+
+    <div class="detail">
+      <strong>What happens next?</strong><br>
+      We'll use your support to clear the remaining regulatory hurdles for MCC Driver. Once we launch, you'll be among the first to know — and members in early markets get priority access.
+    </div>
+
+    <div class="actions">
+      <a href="/index.html" class="btn btn--primary">Back to MCC →</a>
+      <a href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" class="btn btn--ghost">Back us on Wefunder</a>
+    </div>
+
+    <p class="footer-note">This is a one-time contribution, not an equity investment. For equity, visit <a href="https://wefunder.com/mycarconcierge" style="color:var(--accent-gold);">Wefunder</a>. Questions? <a href="mailto:support@mycarconcierge.com" style="color:var(--text-secondary);">support@mycarconcierge.com</a></p>
+  </div>
+
+  <script>
+    (function() {
+      var params = new URLSearchParams(window.location.search);
+      var cents = parseInt(params.get('amount'), 10);
+      if (cents && cents >= 100) {
+        var badge = document.getElementById('amount-badge');
+        badge.textContent = '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0 }) + ' contributed';
+        badge.style.display = 'inline-block';
+      }
+    })();
+  </script>
+</body>
+</html>

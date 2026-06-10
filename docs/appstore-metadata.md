@@ -21,10 +21,6 @@ Copy each field exactly into App Store Connect. Character counts are noted where
 ## Subtitle (30 chars max)
 
 ```
-Your Complete Auto Ownership App
-```
-*(33 chars — trim to:)*
-```
 Complete Auto Ownership App
 ```
 *(27 chars ✓)*
@@ -188,7 +184,7 @@ In App Store Connect, under **App Privacy**, declare the following data types. S
 
 ## Screenshot Requirements
 
-Apple requires screenshots for each device size used in submission. A new build requires at minimum the **6.7" display** and **6.1" display** sizes. iPad screenshots are required only if the app is universal (iPad-capable).
+Apple requires screenshots for each device size used in submission. A new build requires at minimum the **6.7" display** and **6.1" display** sizes. The app is iPhone-only (`UIDeviceFamily = [1]`); iPad screenshots are not required or accepted.
 
 ### Required Device Sizes
 
@@ -197,7 +193,16 @@ Apple requires screenshots for each device size used in submission. A new build 
 | **6.7" Super Retina XDR** | 1290 × 2796 | iPhone 15 Pro Max, iPhone 14 Pro Max |
 | **6.1" Super Retina XDR** | 1179 × 2556 | iPhone 15, iPhone 14 |
 | *(Optional)* 5.5" Retina HD | 1242 × 2208 | iPhone 8 Plus |
-| *(Optional)* 12.9" iPad Pro | 2048 × 2732 | iPad Pro 12.9" |
+
+### iPhone-only decision
+
+The app is restricted to iPhone (`UIDeviceFamily = [1]` in `ios/App/App/Info.plist`) as of v1.
+iPad support can be added in a future release if there is demand.
+
+**App Store Connect manual step required on next submission:**
+1. Go to App Store Connect → Your App → App Store → iPhone & iPad screenshots
+2. Delete any existing iPad screenshots from the listing (previously submitted stretched iPhone images)
+3. Under "App Information" → "Availability" confirm Devices shows iPhone only (this follows automatically from `UIDeviceFamily` once the new build is processed)
 
 ### Recommended Screenshots (5–10 per device, minimum 3)
 
@@ -269,3 +274,47 @@ For the initial submission (1.0.0), App Store Connect requires a "What's New" en
 Welcome to My Car Concierge — your complete auto ownership platform. Post service requests and receive competitive bids from vetted local providers, manage your vehicles and maintenance history, scan OBD fault codes with AI-powered explanations, and earn loyalty rewards through Car Club programs. Secure escrow payments protect every transaction. Built for car owners, by car enthusiasts.
 ```
 *(370 chars)*
+
+---
+
+## App Review Notes
+
+### Demo Account for Apple Reviewers
+
+A single combined account gives the reviewer access to both the member and
+provider portals from one login. After signing in, the app shows a
+**"Choose Your Portal"** screen.
+
+**App Store Connect → App Review Information → Sign-In Information:**
+
+| Field | Value |
+|---|---|
+| **Email** | demo@mycarconcierge.com |
+| **Password** | *(stored in App Store Connect only — set via `REVIEWER_PASSWORD` when running `scripts/seed-app-store-reviewer.js`)* |
+| **Account type** | Provider + Member (portal selector shown at login) |
+
+> Seed the account before each submission:
+> ```bash
+> SUPABASE_SERVICE_ROLE_KEY=<key> REVIEWER_PASSWORD=<password-from-app-store-connect> \
+>   node scripts/seed-app-store-reviewer.js
+> ```
+
+**Pre-loaded state (both portals):**
+- **Member portal:** 2022 Toyota Camry, open care plan "Reviewer — Oil Change & Brake Inspection", incoming $149 bid from Reviewer Auto Works
+- **Provider portal:** approved application, 10 bid credits, 4.9-star rating, can submit bids on open care plans
+
+**Key flows to test:**
+1. **Sign in** → "Choose Your Portal" screen appears with Member and Provider options
+2. **Member Portal** → Dashboard shows Toyota Camry; tap "Service Requests" to see the open care plan and the incoming bid
+3. **Provider Portal** → Job board shows open care plans; tap a listing to submit a bid (uses bid credits)
+4. **Payments** → All Stripe flows use test mode. Use card `4242 4242 4242 4242`, any future expiry, any CVC
+5. **Account → Delete Account** → test the deletion flow (account will be re-seeded for continued review)
+
+### Feature Notes for Reviewer
+
+- **Payments**: All Stripe flows are in test mode for the review account. Use card `4242 4242 4242 4242`, any future expiry, any CVC.
+- **Geolocation**: Transport pickup request requires location permission. Tap "Allow Once" when prompted — the app uses precise GPS only for setting the pickup pin.
+- **Camera/Photos**: Used for vehicle registration upload, insurance card upload, and OBD scan photo. All processed by on-device AI; images are not stored beyond the verification flow.
+- **Face ID / Touch ID**: Not required; used only as an optional fast-login shortcut if the user enables it in Settings.
+- **Push Notifications**: Optional. The app functions fully without them.
+- **Admin portal**: The admin interface is a separate web-only tool at a different URL and is not included in this submission.

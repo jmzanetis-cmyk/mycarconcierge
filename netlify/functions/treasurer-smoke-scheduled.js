@@ -316,10 +316,24 @@ exports.handler = async function(event) {
     return jsonResponse(500, { error: 'db_unavailable' });
   }
 
-  const adminPassword = process.env.ADMIN_PASSWORD;
+  const adminPassword = process.env.INTERNAL_API_SECRET || process.env.ADMIN_PASSWORD;
   if (!adminPassword) {
-    console.error('[smoke-scheduled:treasurer] ADMIN_PASSWORD not configured');
-    return jsonResponse(500, { error: 'admin_password_not_configured' });
+    console.error('[smoke-scheduled:treasurer] INTERNAL_API_SECRET not configured');
+    return jsonResponse(500, { error: 'internal_api_secret_not_configured' });
+  }
+
+  // Early exit if Treasurer isn't deployed yet: no row in agents table means
+  // the orchestrator can't route to it, so the smoke would fail on every run
+  // and page the admin with misleading failure emails. Return a clean 200 skip
+  // instead; the full smoke auto-resumes once the agent row is seeded.
+  const { data: agentRow } = await supabase
+    .from('agents')
+    .select('slug')
+    .eq('slug', AGENT_SLUG)
+    .maybeSingle();
+  if (!agentRow) {
+    console.log('[smoke-scheduled:treasurer] agent not found in registry — skipping smoke (not deployed)');
+    return jsonResponse(200, { skipped: true, reason: 'not_deployed', agent_slug: AGENT_SLUG });
   }
 
   const triggeredBy = auth === 'admin' ? 'admin' : 'scheduled';

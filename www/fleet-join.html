@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="theme-color" content="#12161c" />
   <script>(function(){var t='dark';try{t=localStorage.getItem('theme')||'dark';}catch(e){}document.documentElement.setAttribute('data-theme',t);var m=document.querySelector('meta[name="theme-color"]');if(m)m.content=t==='dark'?'#12161c':'#f5f2ed';})();</script>
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
   <style>
@@ -57,7 +57,7 @@
       margin: 0 auto 20px;
     }
     h1 { font-family: 'Playfair Display', serif; font-size: 1.7rem; margin-bottom: 8px; }
-    .subtitle { color: var(--text-secondary); font-size: 0.95rem; line-height: 1.5; margin-bottom: 28px; }
+    .subtitle { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.5; margin-bottom: 28px; }
     .invite-detail {
       background: var(--bg-input);
       border: 1px solid var(--border-subtle);
@@ -66,7 +66,7 @@
       margin-bottom: 24px;
       text-align: left;
     }
-    .invite-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: 0.9rem; }
+    .invite-row { display: flex; justify-content: space-between; margin-bottom: 10px; font-size: var(--text-base); }
     .invite-row:last-child { margin-bottom: 0; }
     .invite-label { color: var(--text-muted); }
     .invite-value { font-weight: 500; color: var(--text-primary); }
@@ -74,7 +74,7 @@
       display: inline-block;
       background: var(--accent-blue);
       color: white;
-      font-size: 0.78rem;
+      font-size: var(--text-sm);
       padding: 3px 10px;
       border-radius: 10px;
       font-weight: 500;
@@ -84,22 +84,22 @@
       width: 100%;
       padding: 14px;
       border-radius: var(--radius-md);
-      font-size: 1rem;
+      font-size: var(--text-md);
       font-weight: 600;
       cursor: pointer;
       border: none;
       margin-bottom: 12px;
       transition: all 0.15s;
     }
-    .btn-primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
-    .btn-primary:hover { opacity: 0.9; }
-    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); }
+    .btn--primary { background: linear-gradient(135deg, #c9a227, #e8b843); color: #12161c; }
+    .btn--primary:hover { opacity: 0.9; }
+    .btn--secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-subtle); }
     .btn:disabled { opacity: 0.5; cursor: not-allowed; }
     .alert {
       padding: 14px 18px;
       border-radius: var(--radius-md);
       margin-bottom: 20px;
-      font-size: 0.9rem;
+      font-size: var(--text-base);
       text-align: left;
     }
     .alert-success { background: rgba(52, 211, 153, 0.12); border: 1px solid rgba(52,211,153,0.3); color: var(--accent-green); }
@@ -117,7 +117,7 @@
     }
     @keyframes spin { to { transform: rotate(360deg); } }
     .divider { border-top: 1px solid var(--border-subtle); margin: 20px 0; }
-    .small-link { font-size: 0.85rem; color: var(--text-muted); text-decoration: none; }
+    .small-link { font-size: var(--text-sm); color: var(--text-muted); text-decoration: none; }
     .small-link:hover { color: var(--accent-gold); }
     #loading-state, #error-state, #invite-state, #accepted-state { display: none; }
     #loading-state.active, #error-state.active, #invite-state.active, #accepted-state.active { display: block; }
@@ -126,11 +126,11 @@
   <link rel="canonical" href="https://www.mycarconcierge.com/fleet-join.html" />
   <meta name="robots" content="noindex, nofollow" />
 <!-- SEO-INJECT:END -->
-  <script src="/auth-theme-toggle.js" defer></script>
+  <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
   <div class="card">
-    <img src="/logo.png" alt="My Car Concierge" class="logo">
+    <img src="logo.png" alt="My Car Concierge" class="logo">
 
     <!-- Loading -->
     <div id="loading-state" class="active">
@@ -144,7 +144,7 @@
       <div class="fleet-icon" style="border-color:var(--accent-red);background:rgba(248,113,113,0.12);">❌</div>
       <h1>Invitation Issue</h1>
       <div id="error-message" class="alert alert-error" style="margin-top:16px;"></div>
-      <a href="/members.html" class="btn btn-secondary" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">Go to Dashboard</a>
+      <a href="/members.html" class="btn btn--secondary" style="display:block;text-align:center;text-decoration:none;margin-top:8px;">Go to Dashboard</a>
     </div>
 
     <!-- Valid Invite -->
@@ -161,7 +161,7 @@
         You'll need to sign in (or create a free account) to accept this invitation.
       </div>
 
-      <button id="accept-btn" class="btn btn-primary" onclick="acceptInvite()">
+      <button id="accept-btn" class="btn btn--primary" onclick="acceptInvite()">
         Accept &amp; Join Fleet
       </button>
       <a href="/members.html" class="small-link">Already have an account? Sign in first</a>
@@ -173,14 +173,14 @@
       <h1>Welcome to the Fleet!</h1>
       <p class="subtitle" id="accepted-subtitle">You've successfully joined the fleet.</p>
       <div class="alert alert-success" id="accepted-detail"></div>
-      <a href="/members.html?section=fleet" class="btn btn-primary" style="display:block;text-align:center;text-decoration:none;margin-top:16px;">
+      <a href="/members.html?section=fleet" class="btn btn--primary" style="display:block;text-align:center;text-decoration:none;margin-top:16px;">
         Go to Fleet Dashboard →
       </a>
     </div>
   </div>
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script src="/supabaseclient.js"></script>
+  <script src="supabaseclient.js"></script>
   <script>
     let inviteToken = null;
     let inviteData = null;

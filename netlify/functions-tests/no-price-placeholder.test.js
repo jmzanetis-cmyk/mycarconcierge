@@ -37,15 +37,23 @@ function check(name, ok, detail) {
   }
 }
 
-const result = spawnSync(
+let result = spawnSync(
   'rg',
   ['--fixed-strings', '--no-heading', '--line-number', PLACEHOLDER, SEARCH_DIR],
   { encoding: 'utf8' },
 );
 
 if (result.error) {
-  console.error(`Could not run ripgrep: ${result.error.message}`);
-  process.exit(2);
+  // rg not installed — fall back to grep (always available, same exit codes)
+  result = spawnSync(
+    'grep',
+    ['-rF', '--line-number', '--exclude-dir=node_modules', PLACEHOLDER, SEARCH_DIR],
+    { encoding: 'utf8' },
+  );
+  if (result.error) {
+    console.error(`Could not run grep: ${result.error.message}`);
+    process.exit(2);
+  }
 }
 
 // rg exit codes: 0 = matches found, 1 = no matches, 2 = error.

@@ -8,11 +8,12 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css">
   <style>
     :root {
       --bg-deep: #0a0a0f;
@@ -52,32 +53,31 @@
 
     /* Sidebar */
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 20px; text-decoration: none; border-bottom: 1px solid var(--border-subtle); }
-    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: -webkit-optimize-contrast; image-rendering: crisp-edges; }
-    .brand-text-sm { font-family: 'Playfair Display', serif; font-size: 1.1rem; color: var(--text-primary); }
-    .brand-fleet { font-size: 0.75rem; color: var(--accent-gold); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
+    .brand-icon { height: 120px; width: auto; border-radius: var(--radius-sm); image-rendering: auto; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: filter 0.3s ease; }
+    .sidebar-brand:hover .brand-icon { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.4)); }
+    .brand-text-sm { font-family: 'Playfair Display', serif; font-size: var(--text-lg); color: var(--text-primary); }
+    .brand-fleet { font-size: var(--text-xs); color: var(--accent-gold); font-weight: 500; text-transform: uppercase; letter-spacing: 0.5px; }
 
-    .nav-label { padding: 20px 20px 8px; font-size: 0.72rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
-    .nav-item { padding: 12px 20px; color: var(--text-secondary); cursor: pointer; font-size: 0.92rem; transition: all 0.15s; display: flex; align-items: center; justify-content: space-between; }
+    .nav-label { padding: 20px 20px 8px; font-size: var(--text-xs); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.8px; }
+    .nav-item { padding: 12px 20px; color: var(--text-secondary); cursor: pointer; font-size: var(--text-base); transition: all 0.15s; display: flex; align-items: center; justify-content: space-between; }
     .nav-item:hover { background: rgba(255,255,255,0.03); color: var(--text-primary); }
     .nav-item.active { background: var(--accent-blue-soft); color: var(--accent-blue); }
-    .nav-badge { background: var(--accent-blue); color: white; font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; }
+    .nav-badge { background: var(--accent-blue); color: white; font-size: var(--text-xs); padding: 2px 8px; border-radius: 10px; }
 
     .sidebar-footer { margin-top: auto; padding: 16px; border-top: 1px solid var(--border-subtle); }
     .user-info { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; }
-    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), var(--accent-blue)); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: 0.85rem; }
-    .user-name { font-weight: 500; font-size: 0.88rem; }
-    .user-email { font-size: 0.78rem; color: var(--text-muted); }
+    .user-avatar { width: 36px; height: 36px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), var(--accent-blue)); display: flex; align-items: center; justify-content: center; font-weight: 600; font-size: var(--text-sm); }
+    .user-name { font-weight: 500; font-size: var(--text-base); }
+    .user-email { font-size: var(--text-sm); color: var(--text-muted); }
 
     /* Cards & Content */
-    .page-header { margin-bottom: 32px;
-      padding-top: env(safe-area-inset-top);
-    }
-    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
-    .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
+    .page-header { margin-bottom: 32px; }
+    .page-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
+    .page-subtitle { color: var(--text-secondary); font-size: var(--text-base); }
 
     .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 24px; margin-bottom: 24px; }
     .card-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-    .card-title { font-size: 1.1rem; font-weight: 600; }
+    .card-title { font-size: var(--text-lg); font-weight: 600; }
 
     /* Stats Grid */
     .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 20px; margin-bottom: 32px; }
@@ -88,41 +88,41 @@
     .stat-icon.green { background: var(--accent-green-soft); }
     .stat-icon.orange { background: var(--accent-orange-soft); }
     .stat-icon.red { background: var(--accent-red-soft); }
-    .stat-value { font-size: 1.8rem; font-weight: 600; margin-bottom: 4px; }
-    .stat-label { font-size: 0.88rem; color: var(--text-secondary); }
-    .stat-change { font-size: 0.82rem; margin-top: 8px; }
+    .stat-value { font-size: var(--text-3xl); font-weight: 600; margin-bottom: 4px; }
+    .stat-label { font-size: var(--text-base); color: var(--text-secondary); }
+    .stat-change { font-size: var(--text-sm); margin-top: 8px; }
     .stat-change.up { color: var(--accent-green); }
     .stat-change.down { color: var(--accent-red); }
 
     /* Tables */
     .data-table { width: 100%; border-collapse: collapse; }
-    .data-table th { text-align: left; font-size: 0.78rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
-    .data-table td { padding: 16px; border-bottom: 1px solid var(--border-subtle); font-size: 0.92rem; }
+    .data-table th { text-align: left; font-size: var(--text-sm); font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; padding: 12px 16px; border-bottom: 1px solid var(--border-subtle); }
+    .data-table td { padding: 16px; border-bottom: 1px solid var(--border-subtle); font-size: var(--text-base); }
     .data-table tbody tr:hover { background: rgba(255,255,255,0.02); }
     .data-table tbody tr:last-child td { border-bottom: none; }
 
     /* Status Badges */
-    .status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: 0.78rem; font-weight: 500; }
+    .status { display: inline-block; padding: 4px 12px; border-radius: 12px; font-size: var(--text-sm); font-weight: 500; }
     .status.active { background: var(--accent-green-soft); color: var(--accent-green); }
     .status.maintenance { background: var(--accent-orange-soft); color: var(--accent-orange); }
     .status.pending { background: var(--accent-blue-soft); color: var(--accent-blue); }
     .status.out { background: var(--accent-red-soft); color: var(--accent-red); }
 
     /* Buttons */
-    .btn { padding: 10px 20px; border-radius: var(--radius-md); font-size: 0.88rem; font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; }
-    .btn-primary { background: var(--accent-blue); color: white; }
-    .btn-primary:hover { background: #5d8aff; }
-    .btn-secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
-    .btn-secondary:hover { background: rgba(255,255,255,0.08); }
-    .btn-success { background: var(--accent-green); color: white; }
-    .btn-sm { padding: 6px 12px; font-size: 0.82rem; }
-    .btn-ghost { background: transparent; color: var(--text-secondary); }
-    .btn-ghost:hover { color: var(--text-primary); }
+    .btn { padding: 10px 20px; border-radius: var(--radius-md); font-size: var(--text-base); font-weight: 500; cursor: pointer; border: none; transition: all 0.15s; display: inline-flex; align-items: center; gap: 8px; }
+    .btn--primary { background: var(--accent-blue); color: white; }
+    .btn--primary:hover { background: #5d8aff; }
+    .btn--secondary { background: var(--bg-input); color: var(--text-primary); border: 1px solid var(--border-medium); }
+    .btn--secondary:hover { background: rgba(255,255,255,0.08); }
+    .btn--success { background: var(--accent-green); color: white; }
+    .btn--small { padding: 6px 12px; font-size: var(--text-sm); }
+    .btn--ghost { background: transparent; color: var(--text-secondary); }
+    .btn--ghost:hover { color: var(--text-primary); }
 
     /* Forms */
     .form-group { margin-bottom: 20px; }
-    .form-label { display: block; font-size: 0.88rem; color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
-    .form-input, .form-select, .form-textarea { width: 100%; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: 0.92rem; font-family: inherit; transition: border-color 0.15s; }
+    .form-label { display: block; font-size: var(--text-base); color: var(--text-secondary); margin-bottom: 8px; font-weight: 500; }
+    .form-input, .form-select, .form-textarea { width: 100%; padding: 12px 16px; background: var(--bg-input); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); font-size: var(--text-base); font-family: inherit; transition: border-color 0.15s; }
     .form-input:focus, .form-select:focus, .form-textarea:focus { outline: none; border-color: var(--accent-blue); }
     .form-row { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 
@@ -130,10 +130,8 @@
     .modal-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: none; align-items: center; justify-content: center; z-index: 200; padding: 24px; }
     .modal-backdrop.active { display: flex; }
     .modal { background: var(--bg-elevated); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); width: 100%; max-width: 600px; max-height: 90vh; overflow-y: auto; }
-    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-subtle);
-      padding-top: calc(20px + env(safe-area-inset-top));
-    }
-    .modal-title { font-size: 1.1rem; font-weight: 600; }
+    .modal-header { display: flex; justify-content: space-between; align-items: center; padding: 20px 24px; border-bottom: 1px solid var(--border-subtle); }
+    .modal-title { font-size: var(--text-lg); font-weight: 600; }
     .modal-close { background: none; border: none; color: var(--text-muted); font-size: 24px; cursor: pointer; }
     .modal-body { padding: 24px; }
     .modal-footer { padding: 16px 24px; border-top: 1px solid var(--border-subtle); display: flex; justify-content: flex-end; gap: 12px; }
@@ -180,7 +178,11 @@
     }
     @media (min-width: 901px) { .mobile-header { display: none; } }
   </style>
-  <script src="/i18n.js"></script>
+  <script src="i18n.js"></script>
+<!-- SEO-INJECT:START -->
+  <link rel="canonical" href="https://www.mycarconcierge.com/fleet.html" />
+  <meta name="robots" content="noindex, nofollow" />
+<!-- SEO-INJECT:END -->
 </head>
 <body>
   <aside class="sidebar" id="sidebar">
@@ -260,7 +262,7 @@
         <div class="card">
           <div class="card-header">
             <h2 class="card-title">Upcoming Maintenance</h2>
-            <button class="btn btn-ghost" onclick="showSection('maintenance')">View All →</button>
+            <button class="btn btn--ghost" onclick="showSection('maintenance')">View All →</button>
           </div>
           <div id="upcoming-maintenance">
             <div class="empty-state">
@@ -280,7 +282,7 @@
             <div class="spending-segment" style="background:var(--accent-orange);width:15%;"></div>
             <div class="spending-segment" style="background:var(--accent-gold);width:10%;"></div>
           </div>
-          <div style="font-size:0.88rem;">
+          <div style="font-size:var(--text-base);">
             <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
               <span><span style="color:var(--accent-blue);">●</span> Maintenance</span>
               <span id="cat-maintenance">$0</span>
@@ -304,7 +306,7 @@
       <div class="card">
         <div class="card-header">
           <h2 class="card-title">Pending Approvals</h2>
-          <button class="btn btn-ghost" onclick="showSection('approvals')">View All →</button>
+          <button class="btn btn--ghost" onclick="showSection('approvals')">View All →</button>
         </div>
         <div id="pending-approvals-preview">
           <div class="empty-state">
@@ -323,8 +325,8 @@
       </div>
 
       <div style="display:flex;gap:12px;margin-bottom:24px;">
-        <button class="btn btn-primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
-        <button class="btn btn-secondary" onclick="showToast('CSV import coming soon.', 'info')">📥 Import CSV</button>
+        <button class="btn btn--primary" onclick="openAddVehicleModal()">+ Add Vehicle</button>
+        <button class="btn btn--secondary" onclick="openFleetCsvImport()"><span class="icon-inline" data-icon="download"></span> Import CSV</button>
       </div>
 
       <div class="card">
@@ -356,7 +358,7 @@
       </div>
 
       <div style="margin-bottom:24px;">
-        <button class="btn btn-primary" onclick="openAddDriverModal()">+ Add Driver</button>
+        <button class="btn btn--primary" onclick="openAddDriverModal()">+ Add Driver</button>
       </div>
 
       <div class="card">
@@ -426,19 +428,19 @@
 
       <div style="display:flex;gap:16px;margin-bottom:24px;">
         <div class="form-group" style="margin-bottom:0;min-width:200px;">
-          <select class="form-select" id="history-vehicle-filter">
+          <select class="form-select" id="history-vehicle-filter" aria-label="Filter service history by vehicle">
             <option value="">All Vehicles</option>
           </select>
         </div>
         <div class="form-group" style="margin-bottom:0;min-width:150px;">
-          <select class="form-select" id="history-period-filter">
+          <select class="form-select" id="history-period-filter" aria-label="Filter service history by period">
             <option value="30">Last 30 Days</option>
             <option value="90">Last 90 Days</option>
             <option value="365">Last Year</option>
             <option value="all">All Time</option>
           </select>
         </div>
-        <button class="btn btn-secondary">📤 Export CSV</button>
+        <button class="btn btn--secondary"><span class="icon-inline" data-icon="upload"></span> Export CSV</button>
       </div>
 
       <div class="card">
@@ -471,13 +473,13 @@
 
       <div style="display:flex;gap:16px;margin-bottom:24px;">
         <div class="form-group" style="margin-bottom:0;min-width:150px;">
-          <select class="form-select" id="spending-period">
+          <select class="form-select" id="spending-period" aria-label="Filter spending by period">
             <option value="month">This Month</option>
             <option value="quarter">This Quarter</option>
             <option value="year">This Year</option>
           </select>
         </div>
-        <button class="btn btn-secondary">📤 Export Report</button>
+        <button class="btn btn--secondary"><span class="icon-inline" data-icon="upload"></span> Export Report</button>
       </div>
 
       <div class="stats-grid">
@@ -508,7 +510,10 @@
           <h2 class="card-title">Spending Trend</h2>
         </div>
         <div class="chart-placeholder">
-          📈 Chart coming soon - spending over time
+          <div style="text-align:center;line-height:1.6;">
+            <div style="margin-bottom:6px;"><span class="icon-inline" data-icon="trending-up"></span></div>
+            Spending trend will appear here as services are completed.
+          </div>
         </div>
       </div>
 
@@ -594,41 +599,41 @@
       <div class="modal-body">
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Year</label>
+            <label class="form-label" for="av-year">Year</label>
             <input type="number" class="form-input" id="av-year" placeholder="2024">
           </div>
           <div class="form-group">
-            <label class="form-label">Make *</label>
+            <label class="form-label" for="av-make">Make *</label>
             <input type="text" class="form-input" id="av-make" placeholder="Toyota">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Model *</label>
+            <label class="form-label" for="av-model">Model *</label>
             <input type="text" class="form-input" id="av-model" placeholder="Camry">
           </div>
           <div class="form-group">
-            <label class="form-label">Fleet Number</label>
+            <label class="form-label" for="av-fleet-num">Fleet Number</label>
             <input type="text" class="form-input" id="av-fleet-num" placeholder="V-001">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">VIN</label>
+            <label class="form-label" for="av-vin">VIN</label>
             <input type="text" class="form-input" id="av-vin" placeholder="1HGBH41JXMN109186">
           </div>
           <div class="form-group">
-            <label class="form-label">License Plate</label>
+            <label class="form-label" for="av-plate">License Plate</label>
             <input type="text" class="form-input" id="av-plate" placeholder="ABC-1234">
           </div>
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Current Mileage</label>
+            <label class="form-label" for="av-mileage">Current Mileage</label>
             <input type="number" class="form-input" id="av-mileage" placeholder="45000">
           </div>
           <div class="form-group">
-            <label class="form-label">Assign to Driver</label>
+            <label class="form-label" for="av-driver">Assign to Driver</label>
             <select class="form-select" id="av-driver">
               <option value="">Unassigned</option>
             </select>
@@ -636,11 +641,11 @@
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Department / Cost Center</label>
+            <label class="form-label" for="av-department">Department / Cost Center</label>
             <input type="text" class="form-input" id="av-department" placeholder="Sales">
           </div>
           <div class="form-group">
-            <label class="form-label">Maintenance Schedule</label>
+            <label class="form-label" for="av-schedule">Maintenance Schedule</label>
             <select class="form-select" id="av-schedule">
               <option value="standard">Standard</option>
               <option value="heavy_use">Heavy Use</option>
@@ -650,8 +655,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('add-vehicle-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="addFleetVehicle()">Add Vehicle</button>
+        <button class="btn btn--secondary" onclick="closeModal('add-vehicle-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="addFleetVehicle()">Add Vehicle</button>
       </div>
     </div>
   </div>
@@ -665,25 +670,25 @@
       </div>
       <div class="modal-body">
         <div class="form-group">
-          <label class="form-label">Full Name *</label>
+          <label class="form-label" for="ad-name">Full Name *</label>
           <input type="text" class="form-input" id="ad-name" placeholder="John Smith">
         </div>
         <div class="form-group">
-          <label class="form-label">Email *</label>
+          <label class="form-label" for="ad-email">Email *</label>
           <input type="email" class="form-input" id="ad-email" placeholder="john@company.com">
         </div>
         <div class="form-row">
           <div class="form-group">
-            <label class="form-label">Phone</label>
+            <label class="form-label" for="ad-phone">Phone</label>
             <input type="tel" class="form-input" id="ad-phone" placeholder="(555) 123-4567">
           </div>
           <div class="form-group">
-            <label class="form-label">Department</label>
+            <label class="form-label" for="ad-department">Department</label>
             <input type="text" class="form-input" id="ad-department" placeholder="Sales">
           </div>
         </div>
         <div class="form-group">
-          <label class="form-label">Assign Vehicle</label>
+          <label class="form-label" for="ad-vehicle">Assign Vehicle</label>
           <select class="form-select" id="ad-vehicle">
             <option value="">No vehicle assigned</option>
           </select>
@@ -693,8 +698,8 @@
         </div>
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="closeModal('add-driver-modal')">Cancel</button>
-        <button class="btn btn-primary" onclick="addDriver()">Add Driver</button>
+        <button class="btn btn--secondary" onclick="closeModal('add-driver-modal')">Cancel</button>
+        <button class="btn btn--primary" onclick="addDriver()">Add Driver</button>
       </div>
     </div>
   </div>
@@ -710,8 +715,8 @@
         <!-- Dynamic content -->
       </div>
       <div class="modal-footer">
-        <button class="btn btn-secondary" onclick="rejectApproval()">Reject</button>
-        <button class="btn btn-success" onclick="confirmApproval()">Approve</button>
+        <button class="btn btn--secondary" onclick="rejectApproval()">Reject</button>
+        <button class="btn btn--success" onclick="confirmApproval()">Approve</button>
       </div>
     </div>
   </div>
@@ -720,6 +725,9 @@
 
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
   <script src="supabaseclient.js"></script>
+  <script src="white-label-client.js"></script>
+  <script src="fleet.js"></script>
+  <script src="pwa-init.js?v=20260202"></script>
   <script>
     let currentUser = null;
     let fleet = null;
@@ -1183,6 +1191,242 @@
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
     });
+  </script>
+  <!-- CSV Import Modal -->
+  <div id="fleet-csv-import-modal" class="modal" style="display:none;" role="dialog" aria-modal="true">
+    <div class="modal-overlay" onclick="closeFleetCsvImport()"></div>
+    <div class="modal-container" style="max-width:560px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Import Vehicles from CSV</h3>
+        <button class="modal-close" onclick="closeFleetCsvImport()" aria-label="Close">✕</button>
+      </div>
+      <div class="modal-body">
+        <p style="font-size:var(--text-base);color:var(--text-secondary);margin-bottom:16px;">
+          Upload a CSV file with one vehicle per row. Required columns: <strong>year</strong>, <strong>make</strong>, <strong>model</strong>. Optional: <em>color, license_plate, vin, mileage, fleet_number, department</em>.
+        </p>
+        <div style="background:var(--bg-input,#1e2630);border:1px solid var(--border-subtle);border-radius:10px;padding:12px 16px;margin-bottom:16px;font-family:monospace;font-size:var(--text-sm);color:var(--text-muted);">
+          year,make,model,color,license_plate,vin,mileage,fleet_number,department<br>
+          2021,Ford,F-150,White,ABC123,1FTFW1ET0MFA12345,42000,F-01,Operations<br>
+          2020,Toyota,Camry,Black,XYZ789,,25000,C-01,Sales
+        </div>
+        <div id="csv-drop-zone" style="border:2px dashed var(--border-medium,rgba(160,168,184,0.3));border-radius:12px;padding:36px;text-align:center;cursor:pointer;transition:border-color 0.2s;"
+          ondragover="event.preventDefault();this.style.borderColor='var(--accent-gold)'"
+          ondragleave="this.style.borderColor=''"
+          ondrop="handleCsvDrop(event)">
+          <div style="font-size:32px;margin-bottom:10px;">📄</div>
+          <div style="font-weight:500;margin-bottom:6px;">Drop your CSV file here</div>
+          <div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:14px;">or</div>
+          <button class="btn btn--secondary" style="font-size:var(--text-sm);padding:8px 20px;" onclick="document.getElementById('csv-file-input').click()">Browse File</button>
+          <input type="file" id="csv-file-input" aria-label="Upload CSV file" accept=".csv,text/csv" style="display:none;" onchange="handleCsvFile(this.files[0])">
+        </div>
+        <div id="csv-preview" style="display:none;margin-top:16px;">
+          <div style="font-weight:600;margin-bottom:10px;" id="csv-preview-title"></div>
+          <div style="max-height:200px;overflow-y:auto;border:1px solid var(--border-subtle);border-radius:10px;background:var(--bg-input,#1e2630);">
+            <table style="width:100%;border-collapse:collapse;font-size:var(--text-sm);">
+              <thead id="csv-preview-head" style="position:sticky;top:0;background:var(--bg-elevated,#242c38);"></thead>
+              <tbody id="csv-preview-body"></tbody>
+            </table>
+          </div>
+        </div>
+        <div id="csv-import-error" style="display:none;margin-top:12px;padding:10px 14px;border-radius:8px;background:rgba(248,113,113,0.12);border:1px solid rgba(248,113,113,0.3);color:#f87171;font-size:var(--text-base);"></div>
+        <div id="csv-import-progress" style="display:none;margin-top:12px;">
+          <div style="display:flex;justify-content:space-between;font-size:var(--text-sm);margin-bottom:6px;">
+            <span id="csv-progress-label">Importing...</span>
+            <span id="csv-progress-pct">0%</span>
+          </div>
+          <div style="background:var(--border-subtle);border-radius:4px;height:8px;">
+            <div id="csv-progress-bar" style="background:var(--accent-gold);border-radius:4px;height:8px;width:0%;transition:width 0.3s;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer">
+        <button class="btn btn--ghost" onclick="closeFleetCsvImport()">Cancel</button>
+        <button class="btn btn--primary" id="csv-import-btn" onclick="runCsvImport()" disabled>Import Vehicles</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="mcc-icons.js?v=20260211"></script>
+  <script>
+    document.querySelectorAll('[data-icon]').forEach(function(el) {
+      var name = el.getAttribute('data-icon');
+      var svg = (typeof MCC_ICONS !== 'undefined') && MCC_ICONS[name];
+      if (svg) el.innerHTML = svg;
+    });
+  </script>
+  <script>
+    // ===== Fleet CSV Import =====
+    var _csvRows = [];
+
+    function openFleetCsvImport() {
+      document.getElementById('fleet-csv-import-modal').style.display = 'flex';
+      _csvRows = [];
+      document.getElementById('csv-preview').style.display = 'none';
+      document.getElementById('csv-import-error').style.display = 'none';
+      document.getElementById('csv-import-progress').style.display = 'none';
+      document.getElementById('csv-import-btn').disabled = true;
+    }
+
+    function closeFleetCsvImport() {
+      document.getElementById('fleet-csv-import-modal').style.display = 'none';
+    }
+
+    function handleCsvDrop(event) {
+      event.preventDefault();
+      document.getElementById('csv-drop-zone').style.borderColor = '';
+      var file = event.dataTransfer.files[0];
+      if (file) handleCsvFile(file);
+    }
+
+    function handleCsvFile(file) {
+      if (!file || !file.name.endsWith('.csv')) {
+        showCsvError('Please upload a .csv file.');
+        return;
+      }
+      var reader = new FileReader();
+      reader.onload = function(e) {
+        parseCsv(e.target.result);
+      };
+      reader.readAsText(file);
+    }
+
+    // RFC-4180-compliant CSV row parser — handles quoted fields with embedded commas/newlines
+    function parseCsvRow(line) {
+      var cols = [];
+      var cur = '';
+      var inQuotes = false;
+      for (var i = 0; i < line.length; i++) {
+        var ch = line[i];
+        if (inQuotes) {
+          if (ch === '"') {
+            if (line[i + 1] === '"') { cur += '"'; i++; } // escaped quote
+            else { inQuotes = false; }
+          } else {
+            cur += ch;
+          }
+        } else {
+          if (ch === '"') {
+            inQuotes = true;
+          } else if (ch === ',') {
+            cols.push(cur.trim()); cur = '';
+          } else {
+            cur += ch;
+          }
+        }
+      }
+      cols.push(cur.trim());
+      return cols;
+    }
+
+    function parseCsv(text) {
+      var lines = text.trim().split(/\r?\n/).filter(l => l.trim());
+      if (lines.length < 2) { showCsvError('CSV must have a header row and at least one data row.'); return; }
+      var headers = parseCsvRow(lines[0]).map(h => h.toLowerCase().replace(/[\s-]/g, '_'));
+      var yearIdx = headers.indexOf('year');
+      var makeIdx = headers.indexOf('make');
+      var modelIdx = headers.indexOf('model');
+      if (yearIdx < 0 || makeIdx < 0 || modelIdx < 0) {
+        showCsvError('CSV must include "year", "make", and "model" columns.');
+        return;
+      }
+      _csvRows = [];
+      var errors = [];
+      lines.slice(1).forEach(function(line, i) {
+        var cols = parseCsvRow(line);
+        var row = {};
+        headers.forEach((h, idx) => { row[h] = cols[idx] || null; });
+        if (!row.year || !row.make || !row.model) {
+          errors.push('Row ' + (i + 2) + ': missing year/make/model');
+          return;
+        }
+        _csvRows.push(row);
+      });
+      if (!_csvRows.length) { showCsvError('No valid rows found. ' + errors.join('; ')); return; }
+
+      document.getElementById('csv-import-error').style.display = 'none';
+      document.getElementById('csv-preview-title').textContent = _csvRows.length + ' vehicles ready to import' + (errors.length ? ' (' + errors.length + ' rows skipped)' : '');
+
+      var previewHeaders = ['year','make','model','color','license_plate','vin','fleet_number','department'].filter(h => headers.includes(h));
+      document.getElementById('csv-preview-head').innerHTML = '<tr>' + previewHeaders.map(h => '<th style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);text-align:left;font-size:var(--text-sm);color:var(--text-muted);">' + h + '</th>').join('') + '</tr>';
+      document.getElementById('csv-preview-body').innerHTML = _csvRows.slice(0, 8).map(row =>
+        '<tr>' + previewHeaders.map(h => '<td style="padding:7px 10px;border-bottom:1px solid var(--border-subtle);font-size:0.8rem;">' + (row[h] || '-') + '</td>').join('') + '</tr>'
+      ).join('');
+      document.getElementById('csv-preview').style.display = 'block';
+      document.getElementById('csv-import-btn').disabled = false;
+    }
+
+    function showCsvError(msg) {
+      var el = document.getElementById('csv-import-error');
+      el.textContent = msg;
+      el.style.display = 'block';
+      _csvRows = [];
+      document.getElementById('csv-import-btn').disabled = true;
+    }
+
+    async function runCsvImport() {
+      if (!_csvRows.length) return;
+      // Guard: if fleet hasn't loaded yet, attempt to load it now (handles early-click race)
+      if (!currentFleet || !currentFleet.id) {
+        await loadCurrentFleet();
+      }
+      if (!currentFleet || !currentFleet.id) {
+        showCsvError('No fleet found for your account. Please ensure you have an active fleet.');
+        return;
+      }
+
+      document.getElementById('csv-import-btn').disabled = true;
+      document.getElementById('csv-import-progress').style.display = 'block';
+      updateCsvProgress(0, _csvRows.length);
+
+      var fleetId = currentFleet.id;
+      var session = await window.supabaseClient.auth.getSession();
+      var token = session?.data?.session?.access_token;
+
+      try {
+        // Use server-side endpoint for authoritative limit enforcement
+        var res = await fetch('/api/fleet/import-vehicles', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(token ? { 'Authorization': 'Bearer ' + token } : {})
+          },
+          body: JSON.stringify({ fleet_id: fleetId, vehicles: _csvRows })
+        });
+        var data = await res.json();
+
+        if (!res.ok) {
+          if (res.status === 402) {
+            document.getElementById('csv-import-progress').style.display = 'none';
+            showCsvError(data.error || 'Vehicle limit reached. Please upgrade your fleet plan.');
+            document.getElementById('csv-import-btn').disabled = false;
+            return;
+          }
+          throw new Error(data.error || 'Import failed');
+        }
+
+        updateCsvProgress(data.imported, _csvRows.length);
+        var label = 'Imported ' + data.imported + '/' + _csvRows.length + ' vehicles';
+        if (data.failed) label += ' (' + data.failed + ' failed)';
+        document.getElementById('csv-progress-label').textContent = label;
+
+        setTimeout(function() {
+          closeFleetCsvImport();
+          if (typeof loadFleetDetails === 'function') loadFleetDetails(fleetId);
+          if (typeof window.loadFleetSubscription === 'function') window.loadFleetSubscription();
+        }, 1200);
+      } catch (err) {
+        document.getElementById('csv-import-progress').style.display = 'none';
+        document.getElementById('csv-import-btn').disabled = false;
+        showCsvError('Import error: ' + err.message);
+      }
+    }
+
+    function updateCsvProgress(done, total) {
+      var pct = Math.round((done / total) * 100);
+      document.getElementById('csv-progress-pct').textContent = pct + '%';
+      document.getElementById('csv-progress-bar').style.width = pct + '%';
+      document.getElementById('csv-progress-label').textContent = 'Imported ' + done + ' of ' + total + '...';
+    }
   </script>
 </body>
 </html>

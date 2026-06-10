@@ -28,6 +28,7 @@ const {
   saveApolloConfig,
   runApolloDiscoveryCycle
 } = require('./outreach-engine-core');
+const utils = require('./utils');
 
 function jsonResponse(statusCode, data) {
   return {
@@ -41,15 +42,6 @@ function jsonResponse(statusCode, data) {
     },
     body: typeof data === 'string' ? data : JSON.stringify(data)
   };
-}
-
-function authenticateAdmin(event) {
-  const headers = event.headers || {};
-  const pw = (headers['x-admin-password'] || headers['X-Admin-Password'] || '').trim();
-  const tk = (headers['x-admin-token']    || headers['X-Admin-Token']    || '').trim();
-  const adminPassword = process.env.ADMIN_PASSWORD;
-  if (!adminPassword) return false;
-  return pw === adminPassword || tk === adminPassword;
 }
 
 // Best-effort audit row writer. Audit failures must not block the privileged
@@ -236,12 +228,13 @@ function applyProfileOverrides(currentCfg, updates) {
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
 
-  if (!authenticateAdmin(event)) {
-    return jsonResponse(401, { error: 'Unauthorized' });
-  }
-
   const supabase = createSupabaseClient();
   if (!supabase) return jsonResponse(500, { error: 'Database not configured' });
+
+  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  if (!admin) {
+    return jsonResponse(401, { error: 'Unauthorized' });
+  }
 
   // Strip both the netlify-functions prefix and the /api/admin/apollo proxy
   // prefix so the same handler works from either entry point.

@@ -40,7 +40,7 @@
   functions  = "netlify/functions"
 
 [build.environment]
-  NODE_VERSION = "18"
+  NODE_VERSION = "20"
   SECRETS_SCAN_ENABLED = "false"
 
 [functions]
@@ -125,6 +125,12 @@
 [functions."anthropic-health-scheduled"]
   schedule = "0 4 * * *"
 
+[functions."integration-health-scheduled"]
+  schedule = "15 4 * * *"
+
+[functions."facebook-deletion-scheduled"]
+  schedule = "0 3 * * *"
+
 # Director agent — acquisition-focused chief-of-staff. Runs every 15 minutes,
 # checks whether the other agents are actually pulling customers through the
 # funnel, and pages the admin (SMS via Twilio + email via Resend) with the
@@ -133,12 +139,73 @@
 [functions."agent-director-scheduled"]
   schedule = "*/15 * * * *"
 
-# Task #246 — daily Stripe secret key expiry check at 12:00 UTC. Reads the
-# configured expiry date from ai_ops_settings, sends 3-day / 1-day / 0-day
-# email reminders to the admin (idempotent via ai_action_log so re-runs in
-# the same day don't double-send).
-[functions."stripe-key-expiry-scheduled"]
+# Task #246 / Task #353 — daily critical-API-key expiry check at 12:00 UTC.
+# The Task #246 Stripe-only checker has been generalized in Task #353 to
+# loop over every secret in lib/api-key-expiry-config.js. Only the new
+# generalized function name is wired to the cron — the legacy
+# stripe-key-expiry-scheduled.js file remains as a manually-invokable
+# shim (for ad-hoc curl runs and backward-compat bookmarks) but is NOT
+# scheduled, to guarantee a single source of truth so two concurrent
+# scheduled invocations can't race past the (non-atomic) idempotency
+# check and double-send the same threshold alert.
+[functions."api-key-expiry-scheduled"]
   schedule = "0 12 * * *"
+
+# Task #333 — Concierge push notifier. Every minute, drains new concierge.*
+# rows from agent_events and dispatches FCM pushes to the right driver(s)
+# and member for assignments / accept-decline / job start / job complete.
+# Cursor lives in ai_ops_settings (key=concierge_push_last_event_id) so this
+# can't race the orchestrator's processed_at column. Anonymous HTTP is 401;
+# POST with x-admin-password runs it on demand.
+[functions."concierge-push-notifier-scheduled"]
+  schedule = "* * * * *"
+
+# Task #394 — Bid credit reconciler. Daily safety net for the Stripe webhook
+# bid-credit path: lists Stripe Checkout Sessions completed in the last 7d
+# with metadata.bids set, cross-checks bid_credit_grants, and alerts admin
+# (Resend + ai_action_log) for any session paid >= 1h ago without a grant
+# row. Runs at 03:30 UTC, after payment-tracker (03:00).
+[functions."bid-credit-reconciler-scheduled"]
+  schedule = "30 3 * * *"
+
+# Auto-bid engine: scans open care plans hourly and places bids for providers
+# with auto-bid enabled (settings saved in provider_auto_bid_settings table).
+[functions."auto-bid-engine-scheduled"]
+  schedule = "0 * * * *"
+
+# Maintenance reminders: checks vehicles due for service and sends email/SMS
+# to members based on their notification preferences. Runs daily at 08:00 UTC.
+[functions."maintenance-reminders-scheduled"]
+  schedule = "0 8 * * *"
+
+# B3 milestone bonuses: daily check at 02:15 UTC. Computes cumulative MCC-retained
+# revenue (bid credits + service platform fees + 18% transport fees) and fires
+# contract §1.3 milestone bonuses for Chris Agrapidis when thresholds are crossed.
+# Idempotent: UNIQUE(founder_id, threshold_amount) prevents double-firing.
+[functions."b3-milestone-check-scheduled"]
+  schedule = "15 2 * * *"
+
+# Monthly founder payout: on the 1st of each month at 14:00 UTC (9am ET).
+# Creates founder_payouts rows for all active founders with pending_balance > 0,
+# auto-processes Stripe Connect founders, flags PayPal-only and no-email founders
+# in an admin summary email. Within 15 business days per founding contract.
+[functions."founder-payout-monthly-scheduled"]
+  schedule = "0 14 1 * *"
+
+# Dream Car Finder — daily sweep at 02:00 UTC. Runs due searches, inserts
+# mock matches, and sends email/SMS notifications when enabled.
+[functions."dream-car-scheduled"]
+  schedule = "0 2 * * *"
+
+# Promotes scheduled rides to 'requested' 30 min before pickup so dispatch fires on time.
+[functions."transport-scheduled-dispatch"]
+  schedule = "*/15 * * * *"
+
+# E28 — daily abandoned-signup recovery email. Sends one email per uncontacted
+# abandoned_signups row (recovery_email_sent_at IS NULL, recovered = false).
+# Sets recovery_email_sent_at after sending so rows are never emailed twice.
+[functions."survey-recovery-scheduled"]
+  schedule = "0 10 * * *"
 
 
 [[headers]]

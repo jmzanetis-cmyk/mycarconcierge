@@ -17,15 +17,15 @@
       document.documentElement.setAttribute('data-theme', theme);
     })();
   </script>
-  <link rel="manifest" href="/manifest.json" />
-  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
-  <link rel="icon" type="image/png" sizes="192x192" href="/icons/icon-192.png" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="/shared-styles.css">
+  <link rel="stylesheet" href="shared-styles.css">
   <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
-  <script src="/bgc-badge.js?v=20260428"></script>
+  <script src="bgc-badge.js?v=20260428"></script>
   <style>
     :root {
       --bg-deep: #12161c;
@@ -71,51 +71,51 @@
     header .container { display: flex; justify-content: space-between; align-items: center; max-width: 1200px; }
     .brand { display: flex; align-items: center; gap: 12px; text-decoration: none; }
     .brand-icon { height: 50px; width: auto; border-radius: var(--radius-sm); }
-    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: 1.1rem; color: var(--text-primary); }
+    .brand-name { font-family: 'Playfair Display', serif; font-weight: 600; font-size: var(--text-lg); color: var(--text-primary); }
     .brand-tagline { font-size: 0.7rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.1em; }
     nav { display: flex; gap: 8px; align-items: center; }
-    nav a { padding: 8px 16px; font-size: 0.88rem; color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-sm); transition: all 0.2s; }
+    nav a { padding: 8px 16px; font-size: var(--text-base); color: var(--text-secondary); text-decoration: none; border-radius: var(--radius-sm); transition: all 0.2s; }
     nav a:hover { color: var(--text-primary); background: var(--bg-elevated); }
-    .btn-cta {
+    .btn--primary {
       padding: 8px 18px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
-      color: #0a0a0f; border-radius: var(--radius-sm); font-weight: 600; font-size: 0.88rem;
+      color: #0a0a0f; border-radius: var(--radius-sm); font-weight: 600; font-size: var(--text-base);
     }
-    [data-theme="light"] .btn-cta { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+    [data-theme="light"] .btn--primary { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
 
-    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); text-decoration: none; font-size: 0.88rem; margin-bottom: 24px; transition: color 0.2s; }
+    .back-link { display: inline-flex; align-items: center; gap: 6px; color: var(--text-muted); text-decoration: none; font-size: var(--text-base); margin-bottom: 24px; transition: color 0.2s; }
     .back-link:hover { color: var(--accent-gold); }
 
     .profile-header { display: flex; gap: 24px; align-items: flex-start; margin-bottom: 32px; flex-wrap: wrap; }
     .profile-avatar {
       width: 100px; height: 100px; border-radius: 50%; background: var(--accent-gold-soft);
-      display: flex; align-items: center; justify-content: center; font-size: 2.2rem; font-weight: 600;
+      display: flex; align-items: center; justify-content: center; font-size: var(--text-4xl); font-weight: 600;
       color: var(--accent-gold); flex-shrink: 0; overflow: hidden;
     }
     .profile-avatar img { width: 100%; height: 100%; object-fit: cover; }
     .profile-info { flex: 1; min-width: 240px; }
-    .profile-info h1 { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 600; margin-bottom: 6px; }
-    .profile-location { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: 0.95rem; margin-bottom: 10px; }
+    .profile-info h1 { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 600; margin-bottom: 6px; }
+    .profile-location { display: flex; align-items: center; gap: 6px; color: var(--text-muted); font-size: var(--text-base); margin-bottom: 10px; }
     .profile-stats { display: flex; gap: 20px; flex-wrap: wrap; }
     .stat-item { display: flex; align-items: center; gap: 6px; }
-    .stat-value { font-weight: 600; font-size: 1rem; }
-    .stat-label { font-size: 0.85rem; color: var(--text-muted); }
+    .stat-value { font-weight: 600; font-size: var(--text-md); }
+    .stat-label { font-size: var(--text-sm); color: var(--text-muted); }
     .stars { color: var(--accent-gold); letter-spacing: 1px; }
 
     .card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 24px; margin-bottom: 20px; }
-    .card h2 { font-size: 1.1rem; font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+    .card h2 { font-size: var(--text-lg); font-weight: 600; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
     .card h2 svg { width: 20px; height: 20px; stroke: var(--accent-gold); }
 
     .services-list { display: flex; flex-wrap: wrap; gap: 8px; }
     .service-tag {
       padding: 6px 14px; background: var(--accent-gold-soft); color: var(--accent-gold);
-      border-radius: 100px; font-size: 0.82rem; font-weight: 500;
+      border-radius: 100px; font-size: var(--text-sm); font-weight: 500;
     }
 
     .cert-list { display: flex; flex-wrap: wrap; gap: 8px; }
     .cert-tag {
       display: flex; align-items: center; gap: 6px; padding: 6px 14px;
       background: rgba(74,222,128,0.08); color: var(--accent-green);
-      border-radius: 100px; font-size: 0.82rem; font-weight: 500; border: 1px solid rgba(74,222,128,0.2);
+      border-radius: 100px; font-size: var(--text-sm); font-weight: 500; border: 1px solid rgba(74,222,128,0.2);
     }
     .cert-tag svg { width: 14px; height: 14px; }
 
@@ -123,7 +123,7 @@
     .badge-card {
       display: flex; align-items: center; gap: 10px; padding: 12px 18px;
       background: var(--bg-elevated); border: 1px solid var(--border-subtle);
-      border-radius: var(--radius-md); font-size: 0.88rem; color: var(--text-secondary);
+      border-radius: var(--radius-md); font-size: var(--text-base); color: var(--text-secondary);
     }
     .badge-card svg { width: 20px; height: 20px; stroke: var(--accent-gold); flex-shrink: 0; }
 
@@ -137,11 +137,11 @@
     .reviews-section .review-card { padding: 20px 0; border-bottom: 1px solid var(--border-subtle); }
     .reviews-section .review-card:last-child { border-bottom: none; }
     .review-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; flex-wrap: wrap; gap: 8px; }
-    .reviewer-name { font-weight: 600; font-size: 0.95rem; }
+    .reviewer-name { font-weight: 600; font-size: var(--text-base); }
     .review-date { font-size: 0.8rem; color: var(--text-muted); }
-    .review-text { color: var(--text-secondary); font-size: 0.92rem; line-height: 1.6; }
+    .review-text { color: var(--text-secondary); font-size: var(--text-base); line-height: 1.6; }
     .review-ratings { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 8px; }
-    .review-sub-rating { font-size: 0.78rem; color: var(--text-muted); }
+    .review-sub-rating { font-size: var(--text-sm); color: var(--text-muted); }
 
     .cta-sticky {
       position: fixed; bottom: 0; left: 0; right: 0; padding: 16px 24px;
@@ -149,20 +149,20 @@
       backdrop-filter: blur(16px); z-index: 50;
     }
     .cta-sticky .container { display: flex; gap: 12px; align-items: center; justify-content: center; max-width: 900px; }
-    .btn-quote {
+    .btn--primary {
       padding: 14px 40px; background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
       color: #0a0a0f; border: none; border-radius: var(--radius-md); font-family: inherit;
-      font-size: 1rem; font-weight: 600; cursor: pointer; transition: all 0.2s; flex: 1; max-width: 400px;
+      font-size: var(--text-md); font-weight: 600; cursor: pointer; transition: all 0.2s; flex: 1; max-width: 400px;
     }
-    .btn-quote:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
-    [data-theme="light"] .btn-quote { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
+    .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.3); }
+    [data-theme="light"] .btn--primary { background: linear-gradient(135deg, #b8942d, #d4a63a); color: #fff; }
 
     .loading-state { text-align: center; padding: 100px 20px; }
     .spinner { width: 40px; height: 40px; border: 3px solid var(--border-subtle); border-top-color: var(--accent-gold); border-radius: 50%; animation: spin 0.8s linear infinite; margin: 0 auto 16px; }
     @keyframes spin { to { transform: rotate(360deg); } }
 
     .error-state { text-align: center; padding: 100px 20px; }
-    .error-state h2 { font-size: 1.4rem; margin-bottom: 8px; }
+    .error-state h2 { font-size: var(--text-2xl); margin-bottom: 8px; }
     .error-state p { color: var(--text-muted); margin-bottom: 20px; }
     .error-state a { color: var(--accent-gold); text-decoration: none; }
 
@@ -175,7 +175,7 @@
     .theme-toggle-pill:hover { border-color: var(--accent-gold); }
 
     footer { padding: 40px 0 100px; border-top: 1px solid var(--border-subtle); text-align: center; }
-    footer a { color: var(--text-muted); text-decoration: none; font-size: 0.85rem; }
+    footer a { color: var(--text-muted); text-decoration: none; font-size: var(--text-sm); }
     footer a:hover { color: var(--accent-gold); }
     .footer-copy { font-size: 0.8rem; color: var(--text-muted); margin-top: 12px; }
 
@@ -183,8 +183,8 @@
       .profile-header { flex-direction: column; align-items: center; text-align: center; }
       .profile-location { justify-content: center; }
       .profile-stats { justify-content: center; }
-      .profile-info h1 { font-size: 1.5rem; }
-      nav a:not(.btn-cta) { display: none; }
+      .profile-info h1 { font-size: var(--text-2xl); }
+      nav a:not(.btn--primary) { display: none; }
       .gallery-grid { grid-template-columns: repeat(auto-fill, minmax(120px, 1fr)); }
     }
   </style>
@@ -197,7 +197,7 @@
   <header>
     <div class="container">
       <a href="/" class="brand">
-        <img src="/logo.png" alt="My Car Concierge" class="brand-icon">
+        <img src="logo.png" alt="My Car Concierge" class="brand-icon">
         <div>
           <div class="brand-name">My Car Concierge</div>
           <div class="brand-tagline">Your Complete Auto Ownership Platform</div>
@@ -210,7 +210,7 @@
           <span id="theme-icon">&#9790;</span>
           <span id="theme-label">Night</span>
         </span>
-        <a href="/login.html" class="btn-cta">Log In</a>
+        <a href="/login.html" class="btn--primary">Log In</a>
       </nav>
     </div>
   </header>
@@ -230,7 +230,7 @@
 
   <div class="cta-sticky" id="cta-sticky" style="display:none;">
     <div class="container">
-      <button class="btn-quote" onclick="requestQuote()">Request a Quote</button>
+      <button class="btn--primary" onclick="requestQuote()">Request a Quote</button>
     </div>
   </div>
 
@@ -522,7 +522,7 @@
                 __aboutCopy.whyBody +
               '</p>' +
             '</details>' +
-            '<p style="margin-top:18px;font-size:0.78rem;color:var(--text-muted);line-height:1.55;">' +
+            '<p style="margin-top:18px;font-size:var(--text-sm);color:var(--text-muted);line-height:1.55;">' +
               (globalThis.MCC_BGC ? globalThis.MCC_BGC.COPY.consumerDisclosure : __aboutCopy.consumerDisclosureFallback) +
             '</p>' +
           '</div>';
@@ -554,7 +554,7 @@
 
           return '<div class="review-card">' +
             '<div class="review-header">' +
-              '<div><span class="reviewer-name">' + escapeHtml(r.reviewer_name) + '</span> <span class="stars" style="font-size:0.85rem;">' + renderStars(r.rating) + '</span></div>' +
+              '<div><span class="reviewer-name">' + escapeHtml(r.reviewer_name) + '</span> <span class="stars" style="font-size:var(--text-sm);">' + renderStars(r.rating) + '</span></div>' +
               '<span class="review-date">' + formatDate(r.created_at) + '</span>' +
             '</div>' +
             (r.comment ? '<div class="review-text">' + escapeHtml(r.comment) + '</div>' : '') +
@@ -574,9 +574,9 @@
             : '<span style="font-size:20px;font-weight:600;color:var(--accent-gold);">' + escapeHtml(tm.name.charAt(0).toUpperCase()) + '</span>';
           let bgcBadge = '';
           if (tm.background_verified) {
-            bgcBadge = '<span class="bgc-badge-verified" style="font-size:0.75rem;margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</span>';
+            bgcBadge = '<span class="bgc-badge-verified" style="font-size:var(--text-xs);margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> MCC Verified</span>';
           } else if (tm.background_check_pending) {
-            bgcBadge = '<span class="bgc-badge-pending" style="font-size:0.75rem;margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending</span>';
+            bgcBadge = '<span class="bgc-badge-pending" style="font-size:var(--text-xs);margin-top:4px;"><svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg> Pending</span>';
           }
           let certsHtml = '';
           const certs = (tm.certifications || []).concat(tm.specialties || []).slice(0, 3);
@@ -586,10 +586,10 @@
           return '<div style="display:flex;align-items:flex-start;gap:12px;padding:16px;background:var(--bg-elevated);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">' +
             '<div style="width:48px;height:48px;min-width:48px;border-radius:50%;background:linear-gradient(135deg,var(--accent-gold-soft),var(--bg-elevated));display:flex;align-items:center;justify-content:center;overflow:hidden;">' + photoEl + '</div>' +
             '<div style="flex:1;min-width:0;">' +
-              '<div style="font-weight:600;font-size:0.95rem;">' + escapeHtml(tm.name) + '</div>' +
-              '<div style="font-size:0.82rem;color:var(--text-muted);">' + (roleLabels[tm.role] || tm.role || 'Team Member') + (tm.years_experience ? ' &middot; ' + tm.years_experience + ' yrs exp' : '') + '</div>' +
+              '<div style="font-weight:600;font-size:var(--text-base);">' + escapeHtml(tm.name) + '</div>' +
+              '<div style="font-size:var(--text-sm);color:var(--text-muted);">' + (roleLabels[tm.role] || tm.role || 'Team Member') + (tm.years_experience ? ' &middot; ' + tm.years_experience + ' yrs exp' : '') + '</div>' +
               bgcBadge +
-              (tm.bio ? '<div style="font-size:0.82rem;color:var(--text-secondary);margin-top:6px;">' + escapeHtml(tm.bio) + '</div>' : '') +
+              (tm.bio ? '<div style="font-size:var(--text-sm);color:var(--text-secondary);margin-top:6px;">' + escapeHtml(tm.bio) + '</div>' : '') +
               certsHtml +
             '</div>' +
           '</div>';
@@ -600,7 +600,7 @@
       let ctaCardHtml = '<div class="card" style="text-align:center;padding:32px;">' +
         '<h2 style="justify-content:center;"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg> Ready to get started?</h2>' +
         '<p style="color:var(--text-secondary);margin-bottom:20px;">Get a competitive quote from ' + escapeHtml(p.business_name) + ' with escrow payment protection and verified reviews.</p>' +
-        '<button class="btn-quote" onclick="requestQuote()" style="max-width:300px;margin:0 auto;">Request a Quote</button>' +
+        '<button class="btn--primary" onclick="requestQuote()" style="max-width:300px;margin:0 auto;">Request a Quote</button>' +
       '</div>';
 
       document.getElementById('profile-content').innerHTML =

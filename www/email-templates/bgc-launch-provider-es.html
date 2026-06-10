@@ -2,8 +2,8 @@
   MCC Verificado — Correo de lanzamiento (Proveedores)
   Plantilla transaccional para Resend. Traducción al español del archivo
   bgc-launch-provider.html (Sección 7 del PDF, "Para Proveedores: Lanzamiento
-  de funcionalidad"). El precio por empleado ($70) debe mantenerse
-  sincronizado con www/bgc-pricing.js (única fuente de verdad) y con
+  de funcionalidad"). El precio por empleado se inyecta vía el token
+  {{bgc_price}} desde lib/bgc-pricing.js (única fuente de verdad) y con
   las demás superficies de marketing y correo — ver el encabezado de ese archivo.
 
   Variables de Resend:
@@ -99,7 +99,7 @@
                 <tr>
                   <td style="padding: 6px 0; font-size: 16px; line-height: 1.65; color: #E5E5E5;">
                     <span style="display:inline-block;width:28px;color:#C9A227;font-weight:600;">3.</span>
-                    Inicia las verificaciones de antecedentes ($70/empleado)
+                    Inicia las verificaciones de antecedentes ({{bgc_price}}/empleado)
                   </td>
                 </tr>
                 <tr>
