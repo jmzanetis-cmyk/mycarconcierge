@@ -3029,9 +3029,6 @@ function toggleSidebar() {
 function openVehicleModal() {
   document.getElementById('vehicle-modal').classList.add('active');
   
-  // Update verification UI when modal opens
-  updateVerificationUI();
-  
   // Reset all form fields
   ['v-year','v-make','v-model','v-trim','v-color','v-nickname','v-mileage','v-vin'].forEach(id => {
     const el = document.getElementById(id);
