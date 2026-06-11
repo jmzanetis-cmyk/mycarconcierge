@@ -140,7 +140,7 @@ async function resolveJob(supabase, userId, jobId) {
   if (jobId) {
     const { data, error } = await supabase
       .from('concierge_jobs')
-      .select('id, member_id, status, dropoff_lat, dropoff_lng, dropoff_address')
+      .select('id, member_id, status, dropoff_lat, dropoff_lng, dropoff_address, live_tracking_enabled')
       .eq('id', jobId)
       .maybeSingle();
     if (error) return { error: jsonResponse(500, { error: error.message }) };
@@ -157,6 +157,8 @@ async function resolveJob(supabase, userId, jobId) {
     .order('status', { ascending: true })          // 'in_progress' < 'scheduled' lex
     .order('updated_at', { ascending: false })
     .limit(1);
+  // Note: auto-pick doesn't select live_tracking_enabled; resolveJob callers
+  // that need it should pass jobId explicitly (member tracking screen always does).
   if (error) return { error: jsonResponse(500, { error: error.message }) };
   if (!data || !data.length) return { job: null };
   return { job: data[0] };
@@ -231,36 +233,73 @@ async function handleTracking(event, supabase, user) {
         ? { lat: job.dropoff_lat, lng: job.dropoff_lng, address: job.dropoff_address }
         : null);
 
-  // Latest ping per driver, within the freshness window AND scoped to this
-  // specific job. Scoping by job_id is critical: we're using the service-
-  // role client to bypass RLS, so without this filter a driver who's also
-  // mid-shift on someone else's job would leak that other job's location
-  // to this caller. driver_location_pings.job_id is indexed.
   const freshCutoff = new Date(Date.now() - TRACKING_FRESHNESS_MS).toISOString();
-  const { data: pingRows, error: pingErr } = await supabase
-    .from('driver_location_pings')
-    .select('id, driver_id, lat, lng, heading, speed_mps, accuracy_m, recorded_at, job_id')
-    .eq('job_id', job.id)
-    .in('driver_id', activeDriverIds)
-    .gte('recorded_at', freshCutoff)
-    .order('recorded_at', { ascending: false })
-    .limit(24);
-  if (pingErr) return jsonResponse(500, { error: pingErr.message });
+  let latestPings = [];
 
-  const latestPerDriver = new Map();
-  for (const p of (pingRows || [])) {
-    if (!latestPerDriver.has(p.driver_id)) latestPerDriver.set(p.driver_id, p);
+  if (job.live_tracking_enabled) {
+    // New tracking system: seed from tracking_pings, return track:job: channel.
+    // tracking_pings uses speed (raw) + speed_smoothed; use smoothed for ETA.
+    const { data: pingRows, error: pingErr } = await supabase
+      .from('tracking_pings')
+      .select('driver_id, lat, lng, heading, speed, speed_smoothed, accuracy, recorded_at, subject, driver_role, event_kind, low_power')
+      .eq('job_id', job.id)
+      .in('driver_id', activeDriverIds)
+      .gte('recorded_at', freshCutoff)
+      .order('recorded_at', { ascending: false })
+      .limit(24);
+    if (pingErr) return jsonResponse(500, { error: pingErr.message });
+
+    // Latest ping per (driver_id, subject) tuple — tandem jobs have two subjects.
+    const latestPerKey = new Map();
+    for (const p of (pingRows || [])) {
+      const key = `${p.driver_id}:${p.subject}`;
+      if (!latestPerKey.has(key)) latestPerKey.set(key, p);
+    }
+    latestPings = [...latestPerKey.values()].map(p => ({
+      driver_id:       p.driver_id,
+      lat:             p.lat,
+      lng:             p.lng,
+      heading:         p.heading,
+      speed_mps:       p.speed,
+      speed_smoothed:  p.speed_smoothed,
+      accuracy_m:      p.accuracy,
+      subject:         p.subject,
+      driver_role:     p.driver_role,
+      event_kind:      p.event_kind,
+      low_power:       p.low_power,
+      recorded_at:     p.recorded_at,
+      eta_seconds:     targetPoint
+        ? estimateEtaSeconds({ ...p, speed_mps: p.speed_smoothed || p.speed }, targetPoint)
+        : null,
+    }));
+  } else {
+    // Legacy system: seed from driver_location_pings, return concierge_job: channel.
+    // Scoping by job_id is critical — see original comment above.
+    const { data: pingRows, error: pingErr } = await supabase
+      .from('driver_location_pings')
+      .select('id, driver_id, lat, lng, heading, speed_mps, accuracy_m, recorded_at, job_id')
+      .eq('job_id', job.id)
+      .in('driver_id', activeDriverIds)
+      .gte('recorded_at', freshCutoff)
+      .order('recorded_at', { ascending: false })
+      .limit(24);
+    if (pingErr) return jsonResponse(500, { error: pingErr.message });
+
+    const latestPerDriver = new Map();
+    for (const p of (pingRows || [])) {
+      if (!latestPerDriver.has(p.driver_id)) latestPerDriver.set(p.driver_id, p);
+    }
+    latestPings = [...latestPerDriver.values()].map(p => ({
+      driver_id:   p.driver_id,
+      lat:         p.lat,
+      lng:         p.lng,
+      heading:     p.heading,
+      speed_mps:   p.speed_mps,
+      accuracy_m:  p.accuracy_m,
+      recorded_at: p.recorded_at,
+      eta_seconds: targetPoint ? estimateEtaSeconds(p, targetPoint) : null,
+    }));
   }
-  const latestPings = [...latestPerDriver.values()].map(p => ({
-    driver_id:   p.driver_id,
-    lat:         p.lat,
-    lng:         p.lng,
-    heading:     p.heading,
-    speed_mps:   p.speed_mps,
-    accuracy_m:  p.accuracy_m,
-    recorded_at: p.recorded_at,
-    eta_seconds: targetPoint ? estimateEtaSeconds(p, targetPoint) : null
-  }));
 
   // Driver name/photo, joined separately (drivers table is small).
   let driverProfiles = [];
@@ -282,18 +321,23 @@ async function handleTracking(event, supabase, user) {
       drivers:      driverProfiles,
       pings:        latestPings,
       freshness_s:  TRACKING_FRESHNESS_MS / 1000,
-      // Task #447 — server-issued Realtime channel descriptor. The client
-      // opens this broadcast channel after first paint so subsequent
-      // pings stream in without polling. Channel name is the job UUID
-      // (unguessable, scoped to a job the caller already proved they
-      // own). Driver-api fires `driver_ping` events into this channel
-      // after each successful ping insert.
-      realtime: {
-        channel:    'concierge_job:' + job.id,
-        event:      'driver_ping',
-        job_id:     job.id,
-        driver_ids: activeDriverIds
-      },
+      // Server-issued Realtime channel descriptor. When live_tracking_enabled,
+      // the publisher fires LocPing events on track:job:{id}; viewers subscribe
+      // to that channel after first paint. Legacy jobs use the concierge_job:
+      // channel (driver-api.js broadcast).
+      realtime: job.live_tracking_enabled
+        ? {
+            channel:    'track:job:' + job.id,
+            event:      'loc_ping',
+            job_id:     job.id,
+            driver_ids: activeDriverIds,
+          }
+        : {
+            channel:    'concierge_job:' + job.id,
+            event:      'driver_ping',
+            job_id:     job.id,
+            driver_ids: activeDriverIds,
+          },
       generated_at: new Date().toISOString()
     }
   });

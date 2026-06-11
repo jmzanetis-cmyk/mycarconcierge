@@ -9,7 +9,10 @@
 --   • No Realtime Authorization (realtime.messages RLS not enabled on this
 --     project) → channel-name-as-secret (unguessable job UUID) is the access
 --     control model, consistent with the existing broadcast pattern.
---   • handoff_leg enum already contains all needed values; no new value added.
+--   • handoff_leg enum has SEVEN values: member_to_driver, driver_to_shop,
+--     shop_to_driver, driver_to_member, driver_to_driver, member_to_provider,
+--     provider_to_member. No new value added. Step 0 report incorrectly omitted
+--     the last two; publisher subject-derivation and member viewer must handle all 7.
 --   • tracking_pings is a new table (does not alter driver_location_pings,
 --     which has a driver-only RLS posture incompatible with member/provider
 --     reads needed here).

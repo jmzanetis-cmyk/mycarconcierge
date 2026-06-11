@@ -71,6 +71,10 @@
 [functions."wefunder-blast-scheduled"]
   schedule = "0 2 * * 0"
 
+# Live Tracking — proximity/arrival SMS notifier
+[functions."tracking-proximity-notifier-scheduled"]
+  schedule = "* * * * *"
+
 # Agent Fleet — Phase 1
 [functions."agent-orchestrator"]
   schedule = "* * * * *"

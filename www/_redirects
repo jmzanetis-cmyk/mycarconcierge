@@ -116,6 +116,9 @@
 /api/driver/v1   /.netlify/functions/driver-api 200
 /api/driver/v1/* /.netlify/functions/driver-api/:splat 200
 /api/concierge/active-job-tracking /.netlify/functions/member-job-tracking 200
+/api/tracking/eta /.netlify/functions/tracking-eta 200
+/api/admin/ops-flags /.netlify/functions/ops-flags-admin 200
+/api/admin/ops-flags/* /.netlify/functions/ops-flags-admin/:splat 200
 /api/admin/driver-payouts /.netlify/functions/driver-payouts-admin 200
 /api/admin/driver-payouts/* /.netlify/functions/driver-payouts-admin/:splat 200
 /api/admin/driver-bgc /.netlify/functions/initiate-driver-bgc 200
