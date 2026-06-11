@@ -310,6 +310,39 @@ async function handleTracking(event, supabase, user) {
     driverProfiles = drivers || [];
   } catch { /* best-effort */ }
 
+  // Detect open hold: most recent custody_hold_event per active handoff is hold_start.
+  let holdState = null;
+  if (job.live_tracking_enabled && activeDriverIds.length > 0) {
+    try {
+      const { data: handoffs } = await supabase
+        .from('custody_handoffs')
+        .select('id')
+        .eq('job_id', job.id);
+      const handoffIds = (handoffs || []).map(h => h.id);
+      if (handoffIds.length > 0) {
+        const { data: holdRows } = await supabase
+          .from('custody_hold_events')
+          .select('kind, lat, lng, created_at, handoff_id')
+          .in('handoff_id', handoffIds)
+          .in('driver_id', activeDriverIds)
+          .order('created_at', { ascending: false })
+          .limit(4);
+        if (holdRows && holdRows.length > 0) {
+          const latestByHandoff = new Map();
+          for (const row of holdRows) {
+            if (!latestByHandoff.has(row.handoff_id)) latestByHandoff.set(row.handoff_id, row);
+          }
+          for (const [, latest] of latestByHandoff) {
+            if (latest.kind === 'hold_start') {
+              holdState = { since: latest.created_at, lat: latest.lat, lng: latest.lng };
+              break;
+            }
+          }
+        }
+      }
+    } catch { /* best-effort — hold detection failure does not block the response */ }
+  }
+
   return jsonResponse(200, {
     job: { id: job.id, status: job.status },
     tracking: {
@@ -320,6 +353,7 @@ async function handleTracking(event, supabase, user) {
       } : null,
       drivers:      driverProfiles,
       pings:        latestPings,
+      hold_state:   holdState,
       freshness_s:  TRACKING_FRESHNESS_MS / 1000,
       // Server-issued Realtime channel descriptor. When live_tracking_enabled,
       // the publisher fires LocPing events on track:job:{id}; viewers subscribe

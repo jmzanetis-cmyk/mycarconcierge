@@ -696,7 +696,9 @@
               <div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
                 ${mccIcon('map-pin', 14)} Locating driver…
               </div>
-            </div>`
+            </div>
+            <div id="mcc-hold-card-${escHtml(j.id)}" style="display:none;margin-top:8px;"></div>
+            <span id="mcc-map-aria-${escHtml(j.id)}" aria-live="polite" aria-atomic="true" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0;"></span>`
         : '';
       return `
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
@@ -752,8 +754,73 @@
       if (!m) return;
       try { if (m.etaTimer) clearInterval(m.etaTimer); } catch {}
       try { if (m.rtChannel && globalThis.supabaseClient) globalThis.supabaseClient.removeChannel(m.rtChannel); } catch {}
+      try { if (m.markers) m.markers.clear(); } catch {}
       try { if (m.map) m.map.remove(); } catch {}
       _mccConciergeMaps.delete(jobId);
+    }
+
+    // Subject-aware Leaflet divIcon. member_vehicle → car emoji; chase → gold-ring car;
+    // event_kind tow → flatbed. Returns a Leaflet DivIcon.
+    function _mccMarkerIcon(L, ping) {
+      let inner;
+      if (ping.event_kind === 'tow') {
+        inner = '🚛';
+      } else if (ping.driver_role === 'chase') {
+        inner = '<span style="background:rgba(201,152,46,0.18);border-radius:50%;padding:2px;">🚗</span>';
+      } else if (ping.subject === 'driver_vehicle') {
+        inner = '🚗';
+      } else {
+        inner = '🚙'; // member_vehicle
+      }
+      return L.divIcon({
+        html: '<div style="font-size:22px;line-height:1;filter:drop-shadow(0 1px 3px rgba(0,0,0,.4));">' + inner + '</div>',
+        className: '',
+        iconSize:   [30, 30],
+        iconAnchor: [15, 15],
+        popupAnchor: [0, -15],
+      });
+    }
+
+    // Look up a driver's display name from the entry's drivers array.
+    function _mccGetDriverName(entry, driverId) {
+      if (!Array.isArray(entry.drivers)) return null;
+      const d = entry.drivers.find(function(dr) { return dr.id === driverId; });
+      return d ? d.name : null;
+    }
+
+    // Inject or update the gold speed chip next to the ETA element.
+    // Applies the same noise-floor / accuracy rules as the publisher
+    // (3 mph floor, hide when accuracy > 25 m).
+    function _mccUpdateSpeedChip(jobId, ping) {
+      var NOISE_MPS  = 3 * 0.44704; // 3 mph
+      var HIDE_ACC_M = 25;
+      var smoothed   = ping.speed_smoothed;
+      // Broadcast pings use `accuracy`; HTTP API pings use `accuracy_m`.
+      var accuracy   = ping.accuracy_m != null ? ping.accuracy_m : (ping.accuracy != null ? ping.accuracy : null);
+      var visible    = smoothed != null && smoothed >= NOISE_MPS
+                    && !(accuracy != null && accuracy > HIDE_ACC_M);
+      var chipId = 'mcc-speed-chip-' + jobId;
+      var chip   = document.getElementById(chipId);
+      if (!visible) { if (chip) chip.style.display = 'none'; return; }
+      var mph = Math.round(smoothed * 2.23694);
+      if (!chip) {
+        var etaEl = document.querySelector('[data-mcc-eta-for="' + jobId + '"]');
+        if (!etaEl || !etaEl.parentElement) return;
+        chip = document.createElement('span');
+        chip.id = chipId;
+        chip.style.cssText = 'display:inline-flex;align-items:baseline;gap:2px;background:var(--accent-gold);color:#1a1200;padding:2px 8px;border-radius:999px;font-size:0.78rem;font-weight:800;margin-left:8px;font-family:monospace;vertical-align:middle;';
+        etaEl.parentElement.appendChild(chip);
+      }
+      chip.style.display = 'inline-flex';
+      chip.setAttribute('aria-label', mph + ' miles per hour');
+      chip.textContent = mph + ' mph';
+    }
+
+    // Update the aria-live region beside the map so screen readers
+    // hear a description of the current map state.
+    function _mccUpdateAriaText(jobId, text) {
+      var el = document.getElementById('mcc-map-aria-' + jobId);
+      if (el) el.textContent = text;
     }
 
     // Apply a single ping payload (from either the HTTP first-paint or a
@@ -767,12 +834,50 @@
       if (!ping || ping.lat == null || ping.lng == null) return;
       if (ping.job_id && ping.job_id !== jobId) return; // wrong job, refuse
       const entry = _mccConciergeMaps.get(jobId);
-      if (!entry || !entry.map || !entry.driverMarker) return;
-      // Whitelist check: if we captured the server's driver_ids list,
-      // reject any ping from a driver that isn't on it.
+      if (!entry || !entry.map) return;
+      // Whitelist check: reject pings from drivers not on the server-issued list.
       if (ping.driver_id && Array.isArray(entry.driverIds) && entry.driverIds.length
           && !entry.driverIds.includes(ping.driver_id)) return;
-      try { entry.driverMarker.setLatLng([ping.lat, ping.lng]); } catch {}
+
+      // New-style ping (subject-aware, multi-marker).
+      if (ping.subject) {
+        const key = (ping.subject) + ':' + (ping.driver_role || 'primary') + ':' + (ping.driver_id || '');
+        const markers = entry.markers || (entry.markers = new Map());
+        let marker = markers.get(key);
+        if (!marker) {
+          try {
+            const L = window.L;
+            if (!L) return;
+            marker = L.marker([ping.lat, ping.lng], { icon: _mccMarkerIcon(L, ping) }).addTo(entry.map);
+            if (ping.driver_role === 'chase') {
+              const dName = _mccGetDriverName(entry, ping.driver_id) || 'Escort driver';
+              marker.bindTooltip(dName, { permanent: true, direction: 'top', offset: [0, -10] });
+            }
+            markers.set(key, marker);
+          } catch { return; }
+        } else {
+          try { marker.setLatLng([ping.lat, ping.lng]); } catch {}
+        }
+        // Gentle pan when the primary marker drifts outside the visible viewport.
+        if (ping.driver_role === 'primary' || ping.subject === 'member_vehicle') {
+          try {
+            if (!entry.map.getBounds().contains([ping.lat, ping.lng])) {
+              entry.map.panTo([ping.lat, ping.lng], { animate: true, duration: 1 });
+            }
+          } catch {}
+        }
+        _mccUpdateSpeedChip(jobId, ping);
+        const mph = ping.speed_smoothed ? Math.round(ping.speed_smoothed * 2.23694) : null;
+        _mccUpdateAriaText(jobId,
+          (ping.subject === 'member_vehicle' ? 'Your vehicle' : 'Driver vehicle')
+          + ' is moving'
+          + (mph && mph >= 3 ? ' at ' + mph + ' mph' : '') + '.'
+        );
+        return;
+      }
+
+      // Legacy-style ping: move single driverMarker.
+      try { if (entry.driverMarker) entry.driverMarker.setLatLng([ping.lat, ping.lng]); } catch {}
     }
 
     function _mccFormatEta(seconds) {
@@ -794,18 +899,18 @@
         if (!r.ok) return;
         data = await r.json();
       } catch (e) { return; }
-      const tr = data && data.tracking;
-      const ping = tr && tr.pings && tr.pings[0];
+      const tr       = data && data.tracking;
+      const allPings = tr && Array.isArray(tr.pings) ? tr.pings : [];
+      // Primary ping: prefer member_vehicle/primary for ETA; fall back to first.
+      const ping   = allPings.find(function(p) { return p.subject === 'member_vehicle' && p.driver_role === 'primary'; })
+                  || allPings[0]
+                  || null;
       const target = tr && tr.target;
+      const isLive = tr && tr.realtime && tr.realtime.event === 'loc_ping';
 
-      // Task #447 — open (or re-open) the broadcast channel using the
-      // server-issued descriptor. Idempotent: if we already have a
-      // channel for this job we leave it alone. Done BEFORE first-paint
-      // map init so the channel is live by the time the marker exists.
+      // Open (or refresh) the Realtime broadcast channel from the server-issued descriptor.
       if (tr && tr.realtime && tr.realtime.channel && globalThis.supabaseClient) {
-        const cur = _mccConciergeMaps.get(jobId);
-        // Always refresh the server-issued driver_ids whitelist (it can
-        // change as drivers accept/decline mid-job).
+        const cur      = _mccConciergeMaps.get(jobId);
         const whitelist = Array.isArray(tr.realtime.driver_ids) ? tr.realtime.driver_ids.slice() : [];
         if (!cur || !cur.rtChannel) {
           try {
@@ -818,67 +923,124 @@
             const entry = _mccConciergeMaps.get(jobId) || {};
             entry.rtChannel = ch;
             entry.driverIds = whitelist;
+            entry.drivers   = tr.drivers || [];
             _mccConciergeMaps.set(jobId, entry);
           } catch (e) { /* realtime optional — fall back to slow timer */ }
         } else {
           cur.driverIds = whitelist;
+          cur.drivers   = tr.drivers || [];
         }
       }
 
-      // ETA text — update even if Leaflet hasn't loaded yet so the user
-      // sees something useful immediately.
-      const etaEl = document.querySelector(`[data-mcc-eta-for="${jobId}"]`);
+      // ETA text — update even if Leaflet hasn't loaded yet.
+      const etaEl = document.querySelector('[data-mcc-eta-for="' + jobId + '"]');
       if (etaEl) {
         if (ping && ping.eta_seconds != null) etaEl.textContent = _mccFormatEta(ping.eta_seconds);
         else if (!ping) etaEl.textContent = 'Awaiting driver location';
       }
+      // Speed chip — first-paint from HTTP data (Realtime updates it in _mccApplyPing).
+      if (ping && isLive) _mccUpdateSpeedChip(jobId, ping);
+
+      // ── Hold state ────────────────────────────────────────────────────────────
+      // When the driver has paused tracking via Secure Hold, hide the map and
+      // show a status card instead.
+      const holdCard = document.getElementById('mcc-hold-card-' + jobId);
+      if (tr && tr.hold_state && holdCard) {
+        holdCard.style.display = '';
+        holdCard.innerHTML = '<div style="padding:10px 14px;background:rgba(201,152,46,0.08);border:1px solid rgba(201,152,46,0.3);border-radius:var(--radius-sm);font-size:0.82rem;color:var(--accent-gold);">'
+          + '🔒 Your car is securely parked — tracking paused while the driver holds the vehicle.</div>';
+        slot.style.display = 'none';
+        _mccUpdateAriaText(jobId, 'Tracking paused: vehicle is in a secure hold.');
+        return;
+      } else if (holdCard) {
+        holdCard.style.display = 'none';
+      }
+      slot.style.display = '';
+
+      // ── No pings: between legs, provider leg, or no driver yet ───────────────
+      // For member_to_provider / provider_to_member legs the publisher emits no
+      // pings (subject → null), so the member naturally sees this state.
       if (!ping) {
-        slot.innerHTML = `<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">
-          ${mccIcon('map-pin', 14)} Waiting for driver location…
-        </div>`;
+        slot.innerHTML = '<div style="display:flex;align-items:center;justify-content:center;height:100%;font-size:0.82rem;color:var(--text-muted);">'
+          + mccIcon('map-pin', 14) + ' Waiting for driver location…</div>';
+        _mccUpdateAriaText(jobId, 'Waiting for driver location.');
         return;
       }
 
-      // Lazy-init the Leaflet map exactly once per job. Task #447: an
-      // entry may already exist holding only `rtChannel` / `etaTimer`
-      // (created by the realtime-subscribe block above and/or
-      // startConciergeTracking), so check for `entry.map` specifically
-      // rather than truthiness — otherwise first paint silently no-ops
-      // and the marker is never created.
+      // ── Map init or update ────────────────────────────────────────────────────
+      // An entry may already exist holding only rtChannel / etaTimer (set by the
+      // channel-subscribe block above), so check entry.map specifically.
       let entry = _mccConciergeMaps.get(jobId);
       if (!entry || !entry.map) {
         try {
           const L = await loadLeafletOnce();
           if (!document.getElementById('concierge-map-' + jobId)) return; // gone while loading
-          slot.innerHTML = ''; // clear placeholder
+          slot.innerHTML = '';
           const map = L.map(slot, { zoomControl: true, attributionControl: true })
             .setView([ping.lat, ping.lng], 14);
           L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
             maxZoom: 19,
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
           }).addTo(map);
-          const driverMarker = L.marker([ping.lat, ping.lng], { title: 'Driver' }).addTo(map);
+
+          // One marker per unique (subject:driver_role:driver_id) key.
+          const markersMap = new Map();
+          const allPoints  = [];
+          const curDrivers = (entry && entry.drivers) || (tr.drivers) || [];
+          for (const p of allPings) {
+            const key  = (p.subject || 'driver_vehicle') + ':' + (p.driver_role || 'primary') + ':' + (p.driver_id || '');
+            const icon = isLive ? _mccMarkerIcon(L, p) : L.icon({ iconUrl: 'https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png', iconSize: [25,41], iconAnchor: [12,41] });
+            const m    = L.marker([p.lat, p.lng], { icon }).addTo(map);
+            if (p.driver_role === 'chase') {
+              const dName = _mccGetDriverName({ drivers: curDrivers }, p.driver_id) || 'Escort driver';
+              m.bindTooltip(dName, { permanent: true, direction: 'top', offset: [0, -10] });
+            }
+            markersMap.set(key, m);
+            allPoints.push([p.lat, p.lng]);
+          }
+
+          // Destination pin.
           let targetMarker = null;
           if (target && target.lat != null) {
-            targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(map);
-            map.fitBounds([[ping.lat, ping.lng], [target.lat, target.lng]], { padding: [24, 24], maxZoom: 15 });
+            targetMarker = L.marker([target.lat, target.lng], {
+              title: target.address || 'Destination', opacity: 0.7
+            }).addTo(map);
+            allPoints.push([target.lat, target.lng]);
           }
-          // Merge into any pre-existing entry so we don't clobber
-          // rtChannel / etaTimer that were set before first paint.
-          entry = Object.assign(entry || {}, { map, driverMarker, targetMarker });
+
+          if (allPoints.length > 1) {
+            map.fitBounds(allPoints, { padding: [24, 24], maxZoom: 15 });
+          }
+
+          // Merge into any pre-existing entry so rtChannel / etaTimer survive.
+          entry = Object.assign(entry || {}, {
+            map, markers: markersMap, targetMarker,
+            // driverMarker kept for legacy callers
+            driverMarker: markersMap.values().next().value || null,
+            drivers: tr.drivers || [],
+          });
           _mccConciergeMaps.set(jobId, entry);
+          _mccUpdateAriaText(jobId, 'Driver location shown on map.');
         } catch (e) {
-          slot.innerHTML = `<div style="padding:12px;font-size:0.82rem;color:var(--text-muted);">Map unavailable. Driver is moving — refresh to retry.</div>`;
+          slot.innerHTML = '<div style="padding:12px;font-size:0.82rem;color:var(--text-muted);">Map unavailable. Driver is moving — refresh to retry.</div>';
           return;
         }
       } else {
-        try {
-          entry.driverMarker.setLatLng([ping.lat, ping.lng]);
-          if (target && target.lat != null && !entry.targetMarker) {
+        // Map already exists — move markers for all current pings.
+        for (const p of allPings) {
+          _mccApplyPing(jobId, p);
+        }
+        if (tr.drivers) entry.drivers = tr.drivers;
+        if (target && target.lat != null && !entry.targetMarker) {
+          try {
             const L = window.L;
-            entry.targetMarker = L.marker([target.lat, target.lng], { title: 'Destination', opacity: 0.7 }).addTo(entry.map);
-          }
-        } catch {}
+            if (L) {
+              entry.targetMarker = L.marker([target.lat, target.lng], {
+                title: target.address || 'Destination', opacity: 0.7
+              }).addTo(entry.map);
+            }
+          } catch {}
+        }
       }
     }
 
