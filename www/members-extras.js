@@ -665,6 +665,9 @@
       const statusLabel = escHtml((j.status || 'requested').replaceAll('_',' ').toUpperCase());
       const tier      = Number.isInteger(j.tier)     ? j.tier     : '?';
       const scenario  = Number.isInteger(j.scenario) ? j.scenario : '?';
+      const demoBadge = j.is_demo
+        ? `<span style="background:rgba(201,152,46,0.15);border:1px solid rgba(201,152,46,0.4);border-radius:50px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--accent-gold);margin-left:6px;">DEMO</span>`
+        : '';
       const accepted  = (j.assignments || []).filter(a => a.accepted_at);
       // Drivers (joined name + photo) — server enriches assignments[].driver
       const driversHtml = accepted.map(a => {
@@ -703,7 +706,7 @@
       return `
         <div style="padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);border:1px solid var(--border-subtle);">
           <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px;">
-            <div><strong>${mccIcon('car', 14)} Driver request</strong> · <span style="text-transform:uppercase;font-size:0.8rem;color:var(--accent-gold);">${statusLabel}</span></div>
+            <div><strong>${mccIcon('car', 14)} Driver request</strong> · <span style="text-transform:uppercase;font-size:0.8rem;color:var(--accent-gold);">${statusLabel}</span>${demoBadge}</div>
             <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
           </div>
           ${legHtml}
