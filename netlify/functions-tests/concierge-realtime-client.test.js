@@ -69,7 +69,7 @@ ok('client listens for tr.realtime.event broadcast events',
 ok('map-init checks !entry.map (not just !entry) — Task #447 ordering fix',
    /if\s*\(\s*!\s*entry\s*\|\|\s*!\s*entry\.map\s*\)/.test(SRC));
 ok('map-init preserves pre-existing entry fields via Object.assign',
-   /Object\.assign\(\s*entry\s*\|\|\s*\{\}\s*,\s*\{\s*map\s*,\s*driverMarker\s*,\s*targetMarker\s*\}\s*\)/.test(SRC));
+   /Object\.assign\(\s*entry\s*\|\|\s*\{\}\s*,\s*\{[\s\S]*?\bmap\b[\s\S]*?\btargetMarker\b[\s\S]*?\bdriverMarker\b[\s\S]*?\}\s*\)/.test(SRC));
 
 // ── 6. Behavioral simulation of the apply/dispose contract ────────────────
 // Mirror the production helpers locally so we can run them under Node.
