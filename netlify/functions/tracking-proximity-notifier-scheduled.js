@@ -129,6 +129,7 @@ async function run(supabase) {
       )
     `)
     .eq('live_tracking_enabled', true)
+    .eq('is_demo', false)
     .eq('status', 'in_progress')
     .eq('concierge_job_legs.status', 'in_progress')
     .not('concierge_job_legs.to_lat', 'is', null);
