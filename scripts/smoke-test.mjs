@@ -231,25 +231,44 @@ if (!concRes.ok) {
 }
 
 // ── Check 7: Notification preferences ─────────────────────────────────────
-section('Check 7 — Notification prefs (Supabase client, direct table query)');
+// 7a: HTTP endpoint — verifies the _redirects fix is live (was a 404 bug).
+//     Client calls this with no Authorization header (members-settings.js:82),
+//     so we match that behaviour exactly.
+// 7b: Supabase table — belt-and-suspenders data layer check.
+section('Check 7 — Notification prefs (HTTP endpoint + table)');
 
-console.log('  ⚠  NOTE: /api/member/{id}/notification-preferences has NO _redirects rule.');
-console.log('     The HTTP path used by Settings page (members-settings.js lines 82 & 128)');
-console.log('     would 404 in production — this is a LIVE BUG. Fix: add the redirect rule.');
-console.log('     Testing via Supabase client directly as an approved workaround.\n');
+const notifHttpRes = await apiGet(`/api/member/${uid}/notification-preferences`);
+
+if (notifHttpRes.status === 404) {
+  fail('GET /api/member/{id}/notification-preferences is NOT 404 (deploy pending?)',
+    'HTTP 404 — _redirects fix not yet live; deploy may still be propagating');
+} else if (!notifHttpRes.ok) {
+  fail('GET /api/member/{id}/notification-preferences returns 2xx', `HTTP ${notifHttpRes.status}`);
+} else {
+  pass(`GET /api/member/{id}/notification-preferences returns 2xx (${notifHttpRes.status}) — _redirects fix confirmed live`);
+  const prefs = notifHttpRes.body?.preferences;
+  if (prefs && typeof prefs === 'object') {
+    pass('response body has preferences object');
+    const EXPECTED = ['follow_up_emails', 'follow_up_sms', 'marketing_emails', 'push_enabled'];
+    const present = EXPECTED.filter(k => k in prefs);
+    if (present.length === EXPECTED.length) {
+      pass(`preferences contains expected boolean fields (${EXPECTED.join(', ')})`);
+    } else {
+      const absent = EXPECTED.filter(k => !(k in prefs));
+      fail('preferences contains expected boolean fields', `missing: ${absent.join(', ')}`);
+    }
+  } else {
+    fail('response body has preferences object', `got: ${JSON.stringify(notifHttpRes.body)?.slice(0, 120)}`);
+  }
+}
 
 const { data: notifPrefs, error: notifErr } =
-  await sb.from('member_notification_preferences').select('*').eq('member_id', uid);
+  await sb.from('member_notification_preferences').select('member_id').eq('member_id', uid);
 
 if (notifErr) {
-  fail('member_notification_preferences query succeeds', notifErr.message);
+  fail('member_notification_preferences table readable', notifErr.message);
 } else {
-  pass('member_notification_preferences query succeeds (Supabase client)');
-  if (notifPrefs.length >= 1) {
-    pass('notification prefs row exists for demo member');
-  } else {
-    pass('notification prefs row absent — defaults will be used (acceptable)');
-  }
+  pass(`member_notification_preferences table readable (${notifPrefs.length > 0 ? 'row exists' : 'no row — defaults served'})`);
 }
 
 // ── Check 8: Referral code ─────────────────────────────────────────────────
