@@ -1483,6 +1483,18 @@ body.has-bottom-nav .sidebar.hide-on-mobile {
   display: none;
 }
 
+body.has-bottom-nav::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: env(safe-area-inset-top);
+  background: var(--bg-deep, #12161c);
+  z-index: 200;
+  pointer-events: none;
+}
+
 body.has-bottom-nav .main {
   padding-top: max(24px, env(safe-area-inset-top));
 }

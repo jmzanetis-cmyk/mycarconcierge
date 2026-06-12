@@ -1126,18 +1126,14 @@ function showFounderPromoBanner() {
   const uid = currentUser?.id || 'anon';
   const dismissed = localStorage.getItem(`founderPromoDismissed_${uid}`);
   if (dismissed) return;
-  for (const id of ['founder-promo-banner', 'founder-promo-banner-2']) {
-    const banner = document.getElementById(id);
-    if (banner) banner.style.display = 'block';
-  }
+  const banner = document.getElementById('founder-promo-banner');
+  if (banner) banner.style.display = 'block';
 }
 
 window.dismissFounderPromo = function() {
   const uid = currentUser?.id || 'anon';
-  for (const id of ['founder-promo-banner', 'founder-promo-banner-2']) {
-    const banner = document.getElementById(id);
-    if (banner) banner.style.display = 'none';
-  }
+  const banner = document.getElementById('founder-promo-banner');
+  if (banner) banner.style.display = 'none';
   localStorage.setItem(`founderPromoDismissed_${uid}`, Date.now().toString());
 };
 

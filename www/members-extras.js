@@ -1242,7 +1242,7 @@
             <button class="modal-close" onclick="document.getElementById('concierge-request-modal').remove()">×</button>
           </div>
           <div class="modal-body" style="display:flex;flex-direction:column;gap:12px;">
-            <p style="font-size:0.9rem;color:var(--text-secondary);margin:0;">Pick a service tier and we'll dispatch one or two MCC drivers to handle the trip.</p>
+            <p style="font-size:0.9rem;color:var(--text-secondary);margin:0;">Pick a service tier and submit your request — our team will match you with available MCC drivers.</p>
             <label style="display:flex;flex-direction:column;gap:4px;">
               <span style="font-size:0.85rem;color:var(--text-muted);">Service</span>
               <select id="concierge-scenario" class="input">${optionsHtml}</select>
