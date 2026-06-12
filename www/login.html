@@ -632,6 +632,13 @@
     .trust-bar { display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border-subtle); }
     .trust-item { display: flex; align-items: center; gap: 6px; font-size: var(--text-sm); color: var(--text-muted); }
     .trust-item svg { color: var(--accent-gold); stroke: var(--accent-gold); flex-shrink: 0; }
+
+    /* ── Native app: hide marketing chrome (Capacitor only) ─────────────── */
+    body.has-bottom-nav .mcc-footer         { display: none !important; }
+    body.has-bottom-nav #mcc-cookie-banner  { display: none !important; }
+    body.has-bottom-nav #login-contact-help { display: none; }
+    /* Status-bar clearance — push login container below the notch/status bar */
+    body.has-bottom-nav .login-container    { padding-top: max(24px, env(safe-area-inset-top)); }
   </style>
   <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
@@ -988,7 +995,7 @@
 
     <div class="login-footer">
       <a href="forgot-password.html" data-i18n="auth.forgotPassword">Forgot password?</a>
-      <div style="margin-top:12px;font-size:var(--text-sm);">
+      <div id="login-contact-help" style="margin-top:12px;font-size:var(--text-sm);">
         <a href="/contact.html" style="color:var(--accent-blue);text-decoration:none;">Need help? Contact us</a>
       </div>
       <div style="margin-top:16px;font-size:var(--text-xs);color:var(--text-muted);">
@@ -1010,6 +1017,11 @@
   <script>
     /* Day/Night toggle handled by /auth-theme-toggle.js (shared across signup pages). */
     document.addEventListener('DOMContentLoaded', async () => {
+      // Mark native shell so CSS can strip marketing chrome (footer, cookie banner, etc.)
+      if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform()) {
+        document.body.classList.add('has-bottom-nav');
+      }
+
       // Fast path: skip login screen for already-authenticated users
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
