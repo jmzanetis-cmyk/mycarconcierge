@@ -334,7 +334,7 @@ async function handleTracking(event, supabase, user) {
           }
           for (const [, latest] of latestByHandoff) {
             if (latest.kind === 'hold_start') {
-              holdState = { since: latest.created_at, lat: latest.lat, lng: latest.lng };
+              holdState = { since: latest.created_at, coarse_lat: Math.round(latest.lat * 100) / 100, coarse_lng: Math.round(latest.lng * 100) / 100 };
               break;
             }
           }
