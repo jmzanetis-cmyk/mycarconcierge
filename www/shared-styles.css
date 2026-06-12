@@ -752,7 +752,11 @@ body {
   gap: 4px;
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 24px;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
 }
+.tabs::-webkit-scrollbar { display: none; }
 
 .tab {
   padding: 12px 20px;
@@ -764,6 +768,8 @@ body {
   cursor: pointer;
   position: relative;
   transition: all 0.2s;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .tab:hover {
@@ -1475,6 +1481,10 @@ body.has-bottom-nav {
 
 body.has-bottom-nav .sidebar.hide-on-mobile {
   display: none;
+}
+
+body.has-bottom-nav .main {
+  padding-top: max(24px, env(safe-area-inset-top));
 }
 
 /* ==========================================================================

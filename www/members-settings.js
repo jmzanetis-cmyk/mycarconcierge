@@ -601,3 +601,133 @@
     }
     
     // ========== END LOGIN ACTIVITY SECTION ==========
+
+    // ========== BIOMETRIC SETTINGS ==========
+
+    async function initBiometricSettings() {
+      const card = document.getElementById('biometric-settings-card');
+      if (!card) return;
+      if (typeof BiometricAuth === 'undefined' || !BiometricAuth.isCapacitor()) {
+        card.style.display = 'none';
+        return;
+      }
+      const availability = await BiometricAuth.isAvailable();
+      if (!availability.available) {
+        card.style.display = 'none';
+        return;
+      }
+      const typeName = BiometricAuth.getBiometryTypeName(availability.biometryType);
+      const label = document.getElementById('biometric-type-label');
+      if (label) label.textContent = typeName;
+      card.style.display = '';
+      _refreshBiometricSettingsUI();
+    }
+
+    function _refreshBiometricSettingsUI() {
+      const enrolled = typeof BiometricAuth !== 'undefined' && BiometricAuth.isBiometricEnabled();
+      const statusEl = document.getElementById('biometric-enroll-status');
+      const btnEl    = document.getElementById('biometric-toggle-btn');
+      if (statusEl) statusEl.textContent = enrolled ? 'Enrolled — tap to disable' : 'Not enrolled';
+      if (btnEl) {
+        btnEl.textContent  = enrolled ? 'Disable' : 'Enable';
+        btnEl.className    = enrolled ? 'btn btn-secondary btn-sm' : 'btn btn-primary btn-sm';
+      }
+    }
+
+    async function toggleBiometricLogin() {
+      if (typeof BiometricAuth === 'undefined') return;
+      if (BiometricAuth.isBiometricEnabled()) {
+        await BiometricAuth.disableBiometric();
+        showToast('Biometric login disabled', 'success');
+        _refreshBiometricSettingsUI();
+        return;
+      }
+      const authResult = await BiometricAuth.authenticate('Enable biometric login for My Car Concierge');
+      if (!authResult.success) {
+        showToast(authResult.error || 'Biometric authentication failed', 'error');
+        return;
+      }
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please sign in first', 'error'); return; }
+        const result = await BiometricAuth.enrollBiometric(session.user.id, session.access_token, session.refresh_token);
+        if (result.success) {
+          showToast('Biometric login enabled', 'success');
+          _refreshBiometricSettingsUI();
+        } else {
+          showToast('Failed to enable biometric login', 'error');
+        }
+      } catch (e) {
+        console.error('BiometricSettings: enroll error', e);
+        showToast('Failed to enable biometric login', 'error');
+      }
+    }
+    window.toggleBiometricLogin = toggleBiometricLogin;
+    window.initBiometricSettings = initBiometricSettings;
+
+    // ========== LOCATION AUTOFILL ==========
+
+    const _STATE_ABBR = {
+      'Alabama':'AL','Alaska':'AK','Arizona':'AZ','Arkansas':'AR','California':'CA',
+      'Colorado':'CO','Connecticut':'CT','Delaware':'DE','Florida':'FL','Georgia':'GA',
+      'Hawaii':'HI','Idaho':'ID','Illinois':'IL','Indiana':'IN','Iowa':'IA','Kansas':'KS',
+      'Kentucky':'KY','Louisiana':'LA','Maine':'ME','Maryland':'MD','Massachusetts':'MA',
+      'Michigan':'MI','Minnesota':'MN','Mississippi':'MS','Missouri':'MO','Montana':'MT',
+      'Nebraska':'NE','Nevada':'NV','New Hampshire':'NH','New Jersey':'NJ','New Mexico':'NM',
+      'New York':'NY','North Carolina':'NC','North Dakota':'ND','Ohio':'OH','Oklahoma':'OK',
+      'Oregon':'OR','Pennsylvania':'PA','Rhode Island':'RI','South Carolina':'SC',
+      'South Dakota':'SD','Tennessee':'TN','Texas':'TX','Utah':'UT','Vermont':'VT',
+      'Virginia':'VA','Washington':'WA','West Virginia':'WV','Wisconsin':'WI','Wyoming':'WY',
+      'District of Columbia':'DC'
+    };
+
+    async function _getCoords() {
+      if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins?.Geolocation) {
+        const pos = await Capacitor.Plugins.Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+        return { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      }
+      return new Promise((resolve, reject) =>
+        navigator.geolocation.getCurrentPosition(
+          p => resolve({ lat: p.coords.latitude, lng: p.coords.longitude }),
+          reject,
+          { enableHighAccuracy: true, timeout: 10000 }
+        )
+      );
+    }
+
+    async function _reverseGeocode(lat, lng) {
+      const resp = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
+        { headers: { 'Accept-Language': 'en' } }
+      );
+      const data = await resp.json();
+      const addr = data.address || {};
+      return {
+        zip:   (addr.postcode || '').slice(0, 5),
+        city:  addr.city || addr.town || addr.village || addr.municipality || '',
+        state: _STATE_ABBR[addr.state] || ''
+      };
+    }
+
+    async function useMyLocationForSettings() {
+      const btn = document.getElementById('use-location-btn');
+      const orig = btn ? btn.textContent : '';
+      try {
+        if (btn) { btn.textContent = 'Locating…'; btn.disabled = true; }
+        const { lat, lng } = await _getCoords();
+        const { zip, city, state } = await _reverseGeocode(lat, lng);
+        if (zip)   { const el = document.getElementById('settings-zip');   if (el) el.value = zip; }
+        if (city)  { const el = document.getElementById('settings-city');  if (el) el.value = city; }
+        if (state) {
+          const sel = document.getElementById('settings-state');
+          if (sel) sel.value = state;
+        }
+        showToast('Location filled — review and save', 'success');
+      } catch (e) {
+        console.warn('useMyLocationForSettings:', e);
+        showToast('Unable to get location. Check location permissions.', 'error');
+      } finally {
+        if (btn) { btn.textContent = orig; btn.disabled = false; }
+      }
+    }
+    window.useMyLocationForSettings = useMyLocationForSettings;

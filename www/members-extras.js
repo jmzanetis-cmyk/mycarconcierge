@@ -1174,6 +1174,35 @@
       return out;
     }
 
+    window.useMyLocationForPickup = async function(inputId) {
+      const input = document.getElementById(inputId);
+      if (!input) return;
+      const btn = input.parentNode?.querySelector('button[onclick*="useMyLocationForPickup"]');
+      const orig = btn ? btn.textContent : '';
+      try {
+        if (btn) { btn.textContent = 'Locating…'; btn.disabled = true; }
+        let lat, lng;
+        if (typeof Capacitor !== 'undefined' && Capacitor.isNativePlatform() && Capacitor.Plugins?.Geolocation) {
+          const pos = await Capacitor.Plugins.Geolocation.getCurrentPosition({ enableHighAccuracy: true });
+          lat = pos.coords.latitude; lng = pos.coords.longitude;
+        } else {
+          await new Promise((resolve, reject) =>
+            navigator.geolocation.getCurrentPosition(p => { lat = p.coords.latitude; lng = p.coords.longitude; resolve(); }, reject, { enableHighAccuracy: true, timeout: 10000 })
+          );
+        }
+        const resp = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`, { headers: { 'Accept-Language': 'en' } });
+        const data = await resp.json();
+        const addr = data.address || {};
+        const parts = [addr.house_number, addr.road, addr.city || addr.town || addr.village, addr.state, (addr.postcode || '').slice(0,5)].filter(Boolean);
+        input.value = parts.join(', ');
+        showToast('Address filled — review before submitting', 'success');
+      } catch (e) {
+        showToast('Unable to get location. Check location permissions.', 'error');
+      } finally {
+        if (btn) { btn.textContent = orig; btn.disabled = false; }
+      }
+    };
+
     window.openConciergeRequestModal = function(packageId, appointmentId) {
       const existing = document.getElementById('concierge-request-modal');
       if (existing) existing.remove();
@@ -1221,6 +1250,10 @@
             <label style="display:flex;flex-direction:column;gap:4px;">
               <span style="font-size:0.85rem;color:var(--text-muted);">Pickup address (your home / origin)</span>
               <input id="concierge-pickup" class="input" type="text" placeholder="123 Home St" />
+              <button type="button" style="margin-top:4px;padding:6px 12px;font-size:0.8rem;background:transparent;border:1px solid var(--border-subtle);border-radius:var(--radius-md);color:var(--text-secondary);cursor:pointer;text-align:left;" onclick="useMyLocationForPickup('concierge-pickup')">
+                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-1px;margin-right:3px;"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+                Use my current location
+              </button>
             </label>
             <label style="display:flex;flex-direction:column;gap:4px;">
               <span style="font-size:0.85rem;color:var(--text-muted);">Dropoff address (the shop)</span>
@@ -8671,24 +8704,36 @@ See you there!`);
       if (drvLinkEl)  drvLinkEl.textContent  = drvUrl;
       if (settingsLinkEl) settingsLinkEl.textContent = provUrl;
       const opts = { width: 160, margin: 2, color: { dark: '#0a0a0f', light: '#ffffff' } };
-      const provCanvas     = document.getElementById('ref-provider-qr-canvas');
-      const drvCanvas      = document.getElementById('ref-driver-qr-canvas');
-      const settingsCanvas = document.getElementById('settings-ref-qr-canvas');
-      if (typeof QRCode !== 'undefined') {
-        if (provCanvas)     try { await QRCode.toCanvas(provCanvas, provUrl, opts); } catch {}
-        if (drvCanvas)      try { await QRCode.toCanvas(drvCanvas, drvUrl, opts); } catch {}
-        if (settingsCanvas) try { await QRCode.toCanvas(settingsCanvas, provUrl, opts); } catch {}
+
+      // Render QR to canvas; fall back to api.qrserver.com img if the deferred
+      // qrcode.js CDN script hasn't loaded yet (timing issue common on native).
+      async function _renderQrToEl(canvas, url) {
+        if (!canvas) return;
+        if (typeof QRCode !== 'undefined') {
+          try { await QRCode.toCanvas(canvas, url, opts); return; } catch {}
+        }
+        const img = document.createElement('img');
+        img.id = canvas.id;
+        img.width = 160; img.height = 160;
+        img.style.display = 'block';
+        img.alt = 'QR Code';
+        img.src = `https://api.qrserver.com/v1/create-qr-code/?size=320x320&data=${encodeURIComponent(url)}&color=0a0a0f&bgcolor=ffffff&margin=4&format=png`;
+        canvas.parentNode.replaceChild(img, canvas);
       }
+
+      await _renderQrToEl(document.getElementById('ref-provider-qr-canvas'), provUrl);
+      await _renderQrToEl(document.getElementById('ref-driver-qr-canvas'),  drvUrl);
+      await _renderQrToEl(document.getElementById('settings-ref-qr-canvas'), provUrl);
     }
 
     function downloadReferralQr(type) {
       if (!memberReferralCode) { showToast('Referral code not loaded', 'error'); return; }
-      const canvasId = type === 'provider' ? 'ref-provider-qr-canvas' : 'ref-driver-qr-canvas';
-      const canvas = document.getElementById(canvasId);
-      if (!canvas) return;
+      const elId = type === 'provider' ? 'ref-provider-qr-canvas' : 'ref-driver-qr-canvas';
+      const el = document.getElementById(elId);
+      if (!el) return;
       const link = document.createElement('a');
       link.download = `mcc-${type}-referral-${memberReferralCode}.png`;
-      link.href = canvas.toDataURL('image/png');
+      link.href = el.tagName === 'CANVAS' ? el.toDataURL('image/png') : el.src;
       link.click();
       showToast('QR code downloaded!', 'success');
     }

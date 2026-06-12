@@ -1081,6 +1081,9 @@ async function loadProfile() {
   // Load notification preferences
   if (typeof loadNotificationPreferences === 'function') loadNotificationPreferences();
 
+  // Initialize biometric settings toggle (native only, no-op on web)
+  if (typeof initBiometricSettings === 'function') initBiometricSettings();
+
   // Show location reminder if ZIP not set
   if (!userProfile?.zip_code) {
     const status = document.getElementById('location-status');

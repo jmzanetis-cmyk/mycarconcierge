@@ -1398,7 +1398,7 @@
           </div>
           <div style="flex:1;min-width:200px;">
             <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:4px;">Become a Member Founder</h3>
-            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Refer providers to the platform and earn lifetime commissions on their bid credit purchases. Free to join — we're onboarding founders now.</p>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Refer providers to the platform and earn 12-month commissions on their bid credit purchases. Free to join — we're onboarding founders now.</p>
           </div>
           <div style="flex-shrink:0;">
             <a href="member-founder.html" style="display:inline-block;padding:10px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-weight:600;border-radius:100px;text-decoration:none;font-size:0.85rem;white-space:nowrap;">Learn More</a>
@@ -1414,7 +1414,7 @@
           </div>
           <div style="flex:1;min-width:200px;">
             <h3 style="font-size:1.1rem;font-weight:600;margin-bottom:4px;">Become a Member Founder</h3>
-            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Refer providers to the platform and earn lifetime commissions on their bid credit purchases. Free to join — we're onboarding founders now.</p>
+            <p style="font-size:0.85rem;color:var(--text-secondary);margin:0;">Refer providers to the platform and earn 12-month commissions on their bid credit purchases. Free to join — we're onboarding founders now.</p>
           </div>
           <div style="flex-shrink:0;">
             <a href="member-founder.html" style="display:inline-block;padding:10px 20px;background:linear-gradient(135deg,#c9a227,#e6b84a);color:#12161c;font-weight:600;border-radius:100px;text-decoration:none;font-size:0.85rem;white-space:nowrap;">Learn More</a>
@@ -3617,7 +3617,7 @@
             </div>
             <div style="display:flex;gap:12px;align-items:flex-start;">
               <div style="width:36px;height:36px;border-radius:50%;background:rgba(74,200,140,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent-green);font-size:1.1rem;">∞</div>
-              <div><div style="font-weight:600;margin-bottom:4px;">Lifetime Attribution</div><div style="font-size:0.85rem;color:var(--text-secondary);">Providers you refer are linked to your account forever. Every future purchase earns you commission.</div></div>
+              <div><div style="font-weight:600;margin-bottom:4px;">1-Year Attribution</div><div style="font-size:0.85rem;color:var(--text-secondary);">Providers you refer are linked to your account for 12 months from sign-up. Every purchase they make in that window earns you commission.</div></div>
             </div>
             <div style="display:flex;gap:12px;align-items:flex-start;">
               <div style="width:36px;height:36px;border-radius:50%;background:rgba(56,189,248,0.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;color:var(--accent-blue);font-size:1rem;">$</div>
@@ -3907,6 +3907,12 @@
         <div class="card-header">
           <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 10c0 4.993-5.539 10.193-7.399 11.799a1 1 0 0 1-1.202 0C9.539 20.193 4 14.993 4 10a8 8 0 0 1 16 0"/><circle cx="12" cy="10" r="3"/></svg></span> Service Location</h2>
           <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">This helps providers in your area find your service requests.</p>
+        </div>
+        <div style="margin-bottom:12px;">
+          <button type="button" class="btn btn-secondary btn-sm" onclick="useMyLocationForSettings()" id="use-location-btn">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M12 2a7 7 0 0 1 7 7c0 5-7 13-7 13S5 14 5 9a7 7 0 0 1 7-7z"/><circle cx="12" cy="9" r="2.5"/></svg>
+            Use my current location
+          </button>
         </div>
         <div class="form-row">
           <div class="form-group">
@@ -4345,6 +4351,20 @@
               To remove 2FA from your account, contact support. Self-service disable is coming soon.
             </p>
           </div>
+        </div>
+      </div>
+
+      <!-- Face ID / Biometric Login — shown/hidden by initBiometricSettings() -->
+      <div class="card" style="margin-top:20px;display:none;" id="biometric-settings-card">
+        <div class="card-header">
+          <h2 class="card-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 10a2 2 0 0 0-2 2c0 1.1.9 2 2 2a2 2 0 0 0 0-4z"/><path d="M10 2a10 10 0 1 0 10 10"/><path d="M13.4 5.1A10 10 0 0 1 19 10"/></svg></span> <span id="biometric-type-label">Face ID</span> / Biometric Login</h2>
+          <p style="font-size:0.9rem;color:var(--text-secondary);margin-top:4px;">Sign in with your face or fingerprint instead of typing your password.</p>
+        </div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:4px 0;">
+          <div>
+            <div id="biometric-enroll-status" style="font-size:0.88rem;color:var(--text-muted);">Not enrolled</div>
+          </div>
+          <button id="biometric-toggle-btn" class="btn btn-primary btn-sm" onclick="toggleBiometricLogin()">Enable</button>
         </div>
       </div>
 
@@ -8551,11 +8571,11 @@
     }
 
     function downloadSettingsReferralQr() {
-      const canvas = document.getElementById('settings-ref-qr-canvas');
-      if (!canvas) return;
+      const el = document.getElementById('settings-ref-qr-canvas');
+      if (!el) return;
       const link = document.createElement('a');
       link.download = 'mcc-referral-qr.png';
-      link.href = canvas.toDataURL('image/png');
+      link.href = el.tagName === 'CANVAS' ? el.toDataURL('image/png') : el.src;
       link.click();
       if (typeof showToast === 'function') showToast('QR code downloaded!', 'success');
     }
