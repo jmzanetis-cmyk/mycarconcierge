@@ -33,7 +33,6 @@
     {"url": "/api/member/:param/insurance-document/:param/download",   "caller": "members-extras.js:8920",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/member/:param/insurance-document/upload-url",        "caller": "members-extras.js:8842",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/member/:param/insurance-documents",                  "caller": "members-extras.js:8546",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
-    {"url": "/api/member/:param/notification-preferences",             "caller": "members-settings.js:87",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/member/:param/orders",                               "caller": "members-extras.js:7701",     "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/member/:param/qr-token",                             "caller": "members.js:5385",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
     {"url": "/api/member/:param/service-history/export",               "caller": "members.js:4080",            "reason": "dev-only: handled by server.js regex route, not yet ported to _redirects", "ticket": ""},
