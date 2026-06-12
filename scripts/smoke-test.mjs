@@ -203,13 +203,15 @@ if (!provRes.ok) {
   fail('GET /api/directory/providers returns 2xx', `HTTP ${provRes.status}`);
 } else {
   pass(`GET /api/directory/providers returns 2xx (${provRes.status})`);
-  const list = Array.isArray(provRes.body)
-    ? provRes.body
-    : (provRes.body?.data ?? provRes.body?.providers ?? []);
-  if (list.length >= 10) {
-    pass(`provider list has ≥ 10 entries (found ${list.length})`);
+  // Response is paginated: { providers, total, page, limit }
+  // Directory filters to directory_opt_in=true + approved + not suspended.
+  // Only live onboarded providers appear — threshold is ≥ 1, not seeded count.
+  const list  = provRes.body?.providers ?? (Array.isArray(provRes.body) ? provRes.body : []);
+  const total = provRes.body?.total ?? list.length;
+  if (list.length >= 1) {
+    pass(`provider list has ≥ 1 entry (${list.length} on page, ${total} total)`);
   } else {
-    fail('provider list has ≥ 10 entries', `found ${list.length} — seeded data may be absent`);
+    fail('provider list has ≥ 1 entry', 'zero results — all providers may be suspended or opted out');
   }
 }
 
