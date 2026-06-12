@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node www/server.js",
     "test": "bash scripts/run-function-tests.sh",
+    "smoke": "node scripts/smoke-test.mjs",
     "stress:new": "bash scripts/run-new-stress-tests.sh",
     "generate:bgc-pricing": "node scripts/generate-bgc-pricing.js",
     "check:www-syntax": "for f in www/*.js; do case \"$f\" in www/stress-test-*.js) continue;; esac; node -c \"$f\" || exit 1; done",
