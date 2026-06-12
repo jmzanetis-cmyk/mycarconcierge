@@ -4,9 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
   <title>Become a Provider | My Car Concierge</title>
-  <meta name="theme-color" content="#12161c">
+  <meta name="theme-color" content="#0a0a0a">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="apple-mobile-web-app-title" content="My Car Concierge">
   <link rel="manifest" href="manifest.json">
@@ -16,31 +15,28 @@
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@400;500;600;700&display=swap" rel="stylesheet">
   <style>
     :root {
-      --bg-deep: #12161c;
-      --bg-card: rgba(26, 32, 42, 0.9);
-      --bg-elevated: rgba(36, 44, 56, 0.95);
-      --bg-input: rgba(30, 38, 48, 0.9);
-      --text-primary: #f5f5f7;
-      --text-secondary: #a0a8b8;
-      --text-muted: #6b7280;
-      --accent-gold: #c9a227;
-      --accent-gold-soft: rgba(201, 162, 39, 0.18);
-      --accent-blue: #38bdf8;
-      --accent-blue-soft: rgba(56, 189, 248, 0.12);
-      --accent-green: #34d399;
-      --accent-red: #f87171;
-      --accent-orange: #fb923c;
-      --border-subtle: rgba(160, 168, 184, 0.15);
-      --border-medium: rgba(160, 168, 184, 0.25);
+      --bg-primary: #0a0a0a;
+      --bg-card: #141414;
+      --bg-elevated: #1a1a1a;
+      --text-primary: #f5f5f5;
+      --text-secondary: #a0a0a0;
+      --text-muted: #666;
+      --accent-gold: #d4a855;
+      --accent-gold-soft: rgba(212, 168, 85, 0.1);
+      --border-subtle: #262626;
       --radius-md: 8px;
       --radius-lg: 12px;
       --radius-xl: 16px;
     }
     
     * { margin: 0; padding: 0; box-sizing: border-box; }
-    body { font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; line-height: 1.6; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-primary); color: var(--text-primary); min-height: 100vh; line-height: 1.6;
+      padding-top: env(safe-area-inset-top);
+    }
     
-    .header { text-align: center; padding: 60px 20px 40px; }
+    .header { text-align: center; padding: 60px 20px 40px;
+      padding-top: calc(60px + env(safe-area-inset-top));
+    }
     .header-brand { display: flex; align-items: center; justify-content: center; gap: 12px; margin-bottom: 24px; text-decoration: none; }
     .header-brand img { height: 160px; width: auto; image-rendering: auto; transition: all 0.3s ease; filter: drop-shadow(0 4px 20px rgba(212, 168, 85, 0.3)); }
     .header-brand:hover img { filter: drop-shadow(0 8px 32px rgba(212, 168, 85, 0.5)); transform: scale(1.03); }
@@ -65,7 +61,7 @@
     
     .steps { counter-reset: step-counter; }
     .step-item { display: flex; gap: 20px; margin-bottom: 24px; }
-    .step-item::before { counter-increment: step-counter; content: counter(step-counter); background: var(--accent-gold); color: var(--bg-deep); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0; }
+    .step-item::before { counter-increment: step-counter; content: counter(step-counter); background: var(--accent-gold); color: var(--bg-primary); width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 600; flex-shrink: 0; }
     .step-content h4 { margin-bottom: 8px; color: var(--text-primary); }
     .step-content p { color: var(--text-secondary); font-size: var(--text-base); }
     
@@ -90,8 +86,6 @@
       .btn { display: block; margin: 10px 0; }
       .btn--secondary { margin-left: 0; }
     }
-  
-    .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
@@ -137,17 +131,17 @@
         <div class="benefit-desc">Keep 100% of what members pay you (minus standard Stripe processing of 2.9% + 30¢). No platform fee on completed jobs and no monthly subscription. You only pay us for bid-credit packs when you want to compete for a job.</div>
       </div>
       <div class="benefit-card">
-        <div class="benefit-icon"><span class="icon-inline" data-icon="shield"></span></div>
+        <div class="benefit-icon">🛡️</div>
         <div class="benefit-title">Guaranteed Payment</div>
-        <div class="benefit-desc">When a member accepts your bid, their full payment is held in escrow — no cash changes hands upfront. You complete the work, and the funds release to you automatically. Zero risk of non-payment.</div>
+        <div class="benefit-desc">Every job is backed by our escrow protection. Funds are secured before work begins and released promptly upon completion. No more chasing payments.</div>
       </div>
       <div class="benefit-card">
-        <div class="benefit-icon"><span class="icon-inline" data-icon="star"></span></div>
-        <div class="benefit-title">Quality Leads</div>
-        <div class="benefit-desc">Detailed job requests from verified vehicle owners. Clear expectations, no guesswork.</div>
+        <div class="benefit-icon">⭐</div>
+        <div class="benefit-title">Quality Customers</div>
+        <div class="benefit-desc">Our members are vetted and verified. Work with serious customers who respect your time and expertise—no tire-kickers or no-shows.</div>
       </div>
       <div class="benefit-card">
-        <div class="benefit-icon"><span class="icon-inline" data-icon="trending-up"></span></div>
+        <div class="benefit-icon">📈</div>
         <div class="benefit-title">Grow Your Business</div>
         <div class="benefit-desc">Build recurring relationships. Access fleet accounts and maintenance contracts.</div>
       </div>
@@ -188,37 +182,38 @@
         <div class="step-item">
           <div class="step-content">
             <h4>Apply & Get Verified</h4>
-            <p>Complete our application with your business credentials, licenses, and insurance.</p>
+            <p>Complete our application with your business credentials, licenses, and insurance. Our team reviews every application to ensure quality providers.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-content">
-            <h4>Receive Job Requests</h4>
-            <p>Browse service requests that match your specialties and location.</p>
+            <h4>Receive Service Requests</h4>
+            <p>Once approved, you'll see service requests from members in your area. Browse opportunities that match your specialties and availability.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-content">
-            <h4>Submit Bids</h4>
-            <p>Review job details, submit your price, and include your timeline.</p>
+            <h4>Submit Competitive Bids</h4>
+            <p>Review the job details and submit your bid. Include your timeline and any relevant notes. Members choose based on price, ratings, and your profile.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-content">
-            <h4>Win & Deliver</h4>
-            <p>When selected, the member's payment is placed in escrow — held securely, not charged upfront. Complete the work, and the funds release to you automatically.</p>
+            <h4>Complete the Work</h4>
+            <p>Once selected, coordinate with the member, complete the service to your high standards, and mark the job complete in your dashboard.</p>
           </div>
         </div>
         <div class="step-item">
           <div class="step-content">
-            <h4>Build Your Reputation</h4>
-            <p>Earn reviews, grow your ratings, and attract more business.</p>
+            <h4>Get Paid</h4>
+            <p>Payment is released from escrow within 3-5 business days of job completion. Simple, secure, and reliable.</p>
           </div>
         </div>
       </div>
     </div>
 
     <div class="section">
+      <h2>Provider Protection</h2>
       <div class="highlight-box">
         <h3><span class="icon-inline" data-icon="lightbulb"></span> Crowd-Funded Jobs</h3>
         <p style="color: var(--text-secondary); margin-bottom: 0;">Members can choose to crowd-fund a job after selecting your winning bid, allowing family or friends to chip in on the cost. You'll be notified when the job is fully funded and ready to schedule. Until then, hold off on starting — the escrow guarantee ensures you'll be paid once you complete the work.</p>
@@ -254,6 +249,7 @@
           <p style="color: var(--text-secondary); font-size: var(--text-base);">Manage jobs, bids, and payments on-the-go with our mobile app.</p>
         </div>
       </div>
+      <p>Our platform is designed to protect both providers and members. With verified customers, secure payments, and professional communication tools, you can focus on what you do best—providing exceptional automotive service.</p>
     </div>
 
     <div class="section">
@@ -264,11 +260,7 @@
       </div>
       <div class="faq-item">
         <h4>How do I get paid?</h4>
-        <p>When a member accepts your bid, their payment is authorized and held in escrow — no money leaves their account upfront. Once you complete the job and the member confirms, the funds are captured and deposited to your bank account within 3-5 business days via Stripe Connect.</p>
-      </div>
-      <div class="faq-item">
-        <h4>What are crowd-funded jobs?</h4>
-        <p>After a member selects your winning bid, they have the option to crowd-fund the job — meaning they can split the cost among family, friends, or others. You'll see a "Crowd Funded" badge on these jobs. Don't schedule the work until the job is fully funded — you'll receive a notification when all payments are collected and it's safe to begin. The escrow guarantee still applies: funds are held securely until the job is complete.</p>
+        <p>Payments are processed via direct deposit within 3-5 business days of job completion. Funds are held in escrow from the moment a member accepts your bid.</p>
       </div>
       <div class="faq-item">
         <h4>What if a customer disputes the work?</h4>
