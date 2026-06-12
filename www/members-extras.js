@@ -692,7 +692,7 @@
         : '';
       // Task #335 — render a live driver map slot only when the job is
       // in a trackable state and at least one driver has accepted.
-      const trackable = (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0;
+      const trackable = (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0 && j.live_tracking_enabled === true;
       const mapHtml = trackable
         ? `<div id="concierge-map-${escHtml(j.id)}" data-job-id="${escHtml(j.id)}" data-mcc-map="1"
               style="margin-top:10px;height:200px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-input);position:relative;">
