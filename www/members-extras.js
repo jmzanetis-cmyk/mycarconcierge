@@ -669,8 +669,9 @@
         ? `<span style="background:rgba(201,152,46,0.15);border:1px solid rgba(201,152,46,0.4);border-radius:50px;padding:2px 8px;font-size:10px;font-weight:800;letter-spacing:1.2px;color:var(--accent-gold);margin-left:6px;">DEMO</span>`
         : '';
       const accepted  = (j.assignments || []).filter(a => a.accepted_at);
-      // Drivers (joined name + photo) — server enriches assignments[].driver
-      const driversHtml = accepted.map(a => {
+      const dispatchEnabled = window.MCC_CONFIG?.PICKUP_DISPATCH_ENABLED === true;
+      // Drivers (joined name + photo) — hidden when dispatch flag is off.
+      const driversHtml = !dispatchEnabled ? '' : accepted.map(a => {
         const d = a.driver || {};
         const initials = (d.name || '?').split(/\s+/).map(p => p[0]).join('').slice(0,2).toUpperCase();
         const avatar = d.avatar_url
@@ -692,7 +693,7 @@
         : '';
       // Task #335 — render a live driver map slot only when the job is
       // in a trackable state and at least one driver has accepted.
-      const trackable = (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0 && j.live_tracking_enabled === true;
+      const trackable = dispatchEnabled && (j.status === 'in_progress' || j.status === 'scheduled') && accepted.length > 0 && j.live_tracking_enabled === true;
       const mapHtml = trackable
         ? `<div id="concierge-map-${escHtml(j.id)}" data-job-id="${escHtml(j.id)}" data-mcc-map="1"
               style="margin-top:10px;height:200px;border-radius:var(--radius-sm);overflow:hidden;background:var(--bg-input);position:relative;">
@@ -710,10 +711,12 @@
             <div style="font-size:0.78rem;color:var(--text-muted);">Tier ${tier} · Scenario ${scenario}</div>
           </div>
           ${legHtml}
-          <div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: <span data-mcc-eta-for="${escHtml(j.id)}">${escHtml(eta)}</span></div>
-          ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
-            : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
-          ${mapHtml}
+          ${dispatchEnabled
+            ? `<div style="font-size:0.82rem;color:var(--text-muted);margin-top:6px;">${mccIcon('clock', 12)} ETA: <span data-mcc-eta-for="${escHtml(j.id)}">${escHtml(eta)}</span></div>
+               ${accepted.length ? `<div style="margin-top:8px;display:flex;flex-wrap:wrap;align-items:center;">${driversHtml}</div>`
+                 : `<div style="margin-top:6px;font-size:0.82rem;color:var(--text-muted);">No driver assigned yet</div>`}
+               ${mapHtml}`
+            : `<div style="font-size:0.85rem;color:var(--text-secondary);margin-top:8px;line-height:1.5;">Our team will review your request and follow up to coordinate scheduling.</div>`}
           <div style="margin-top:6px;">${cancelBtn}</div>
         </div>
       `;
@@ -1099,7 +1102,7 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId: 'vehicle-' + vehicleId });
-        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+        if (window.MCC_CONFIG?.PICKUP_DISPATCH_ENABLED && window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
           window.startConciergeTracking(job.id);
         }
       } catch (e) { console.warn('[concierge] vehicle status load failed', e); }
@@ -1120,8 +1123,7 @@
         const det = await fetch('/api/concierge/' + mine[0].id, { headers });
         const job = det.ok ? (await det.json()).job : mine[0];
         container.innerHTML = window.renderConciergeStatusCard(job, { packageId });
-        // Task #335 — kick off live tracking poller if the card includes a map.
-        if (window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
+        if (window.MCC_CONFIG?.PICKUP_DISPATCH_ENABLED && window.startConciergeTracking && document.getElementById('concierge-map-' + job.id)) {
           window.startConciergeTracking(job.id);
         }
       } catch (e) { console.warn('[concierge] status load failed', e); }
