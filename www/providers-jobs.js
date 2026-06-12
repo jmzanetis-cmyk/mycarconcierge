@@ -221,9 +221,22 @@ window.refreshProviderVehicleTransfers = async function() {
       } catch {}
       return j;
     }));
-    const cards = enriched.map(j => (window.renderConciergeStatusCard
-      ? window.renderConciergeStatusCard(j, { packageId: '' })
-      : '')).join('');
+    const cards = enriched.map(j => {
+      if (!j || !j.id) return '';
+      const cardHtml = window.renderConciergeStatusCard
+        ? window.renderConciergeStatusCard(j, { packageId: '' })
+        : '';
+      const jId = String(j.id).replace(/[^a-zA-Z0-9-]/g, '');
+      const roadTestBtn = j.live_tracking_enabled
+        ? `<button id="ptr-roadtest-btn-${jId}" class="btn btn-sm"
+             style="margin-top:8px;background:var(--accent-blue,#3b82f6);color:#fff;"
+             onclick="window.startProviderRoadTest('${jId}')">&#128663; Start Road Test</button>`
+        : '';
+      return `<div>${cardHtml}
+        <div id="ptr-arrival-${jId}" style="margin-top:4px;"></div>
+        ${roadTestBtn}
+      </div>`;
+    }).join('');
     host.innerHTML = `
       <div style="margin-bottom:18px;padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-elevated);">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px;">
@@ -233,6 +246,18 @@ window.refreshProviderVehicleTransfers = async function() {
         <div style="display:flex;flex-direction:column;gap:8px;">${cards}</div>
       </div>
     `;
+    // Start live tracking maps + inbound arrival watches after cards mount.
+    setTimeout(() => {
+      enriched.forEach(j => {
+        if (!j || !j.id) return;
+        if (window.startConciergeTracking && document.getElementById('concierge-map-' + j.id)) {
+          window.startConciergeTracking(j.id);
+        }
+        if (j.live_tracking_enabled && window.startProviderInboundWatch) {
+          window.startProviderInboundWatch(j.id);
+        }
+      });
+    }, 250);
   } catch (e) {
     host.innerHTML = '';
     console.warn('[concierge] vehicle transfers refresh failed', e);
