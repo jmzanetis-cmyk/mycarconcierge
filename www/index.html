@@ -118,7 +118,6 @@
     
     /* Light mode alternating sections for depth */
     [data-theme="light"] .how-it-works,
-    [data-theme="light"] .founder-programs,
     [data-theme="light"] .cta-section {
       background: var(--bg-section-alt, #eaecf0);
     }
@@ -2180,7 +2179,7 @@
         <div class="hero-free-strip" role="note">
           <span><strong>Free for members.</strong> Always.</span>
         </div>
-        
+
         <div class="social-proof-bar" id="social-proof-bar" style="display:none">
           <span class="social-proof-dot"></span>
           <span id="social-proof-text"></span>
@@ -2832,11 +2831,11 @@
         const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', data.user.id).single();
         
         if (profile?.role === 'admin') {
-          window.location.href = 'admin.html';
+          globalThis.location.href = 'admin.html';
         } else if (profile?.role === 'provider' || profile?.role === 'pending_provider') {
-          window.location.href = 'providers.html';
+          globalThis.location.href = 'providers.html';
         } else {
-          window.location.href = 'members.html';
+          globalThis.location.href = 'members.html';
         }
       } catch (err) {
         console.error('Login error:', err);
