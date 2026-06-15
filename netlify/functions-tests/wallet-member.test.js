@@ -2,15 +2,19 @@
 // wallet-member.test.js
 //
 // Covers:
-//   1) 404 when FEATURE_WALLET not enabled
-//   2) 401 without auth token
-//   3) GET /balance 200 — no wallet row returns zero defaults
-//   4) GET /balance 200 — existing wallet row returns balances
-//   5) POST /load 400 — missing amount_cents
-//   6) POST /load 400 — missing payment_method_id
-//   7) POST /load 402 — Stripe charge fails
-//   8) POST /load 200 — happy path, no bonus (< $25)
-//   9) POST /load 200 — happy path, 10% bonus (>= $25)
+//   1)  404 when FEATURE_WALLET not enabled
+//   2)  401 without auth token
+//   3)  GET /balance 200 — no wallet row returns zero defaults
+//   4)  GET /balance 200 — existing wallet row returns balances
+//   5)  POST /load 400 — missing amount_cents
+//   6)  POST /load 400 — missing payment_method_id
+//   7)  POST /load 402 — Stripe charge fails
+//   8)  POST /load 200 — happy path, no bonus (< $25)
+//   9)  POST /load 200 — happy path, 10% bonus (>= $25)
+//  10)  GET /settings 200 — no wallet row returns null/false defaults
+//  11)  GET /settings 200 — existing wallet row returns auto_reload fields
+//  12)  PUT /settings 400 — no valid fields provided
+//  13)  PUT /settings 200 — valid fields written and echoed back
 // ============================================================================
 'use strict';
 
@@ -82,7 +86,10 @@ function makeStub({ walletRow = null, stripeError = null, piStatus = 'succeeded'
       }
       return Promise.resolve({ data: null, error: null });
     },
-    update() { return { eq: () => Promise.resolve({ error: null }) }; },
+    update() {
+      const chain = { eq() { return chain; }, then(resolve) { return resolve({ error: null }); } };
+      return chain;
+    },
     rpc(name) {
       if (name === 'wallet_load') {
         if (rpcError) return Promise.resolve({ data: null, error: { message: rpcError } });
@@ -219,6 +226,59 @@ async function run() {
     assert.strictEqual(body.bonus_granted_cents, 250, '10% of $25 = $2.50 bonus');
     ok('POST /load 200 happy path at $25 threshold — 10% bonus granted');
   } catch (e) { fail('POST load 200 with bonus', e); }
+
+  // 10) GET /settings — no wallet row → 200 with false/null defaults
+  makeStub({ walletRow: null });
+  try {
+    const res = await handler(event({ token: TOKEN, subpath: 'settings' }));
+    assert.strictEqual(res.statusCode, 200, `expected 200 got ${res.statusCode} body=${res.body}`);
+    const body = parse(res);
+    assert.strictEqual(body.auto_reload_enabled, false);
+    assert.strictEqual(body.auto_reload_threshold_cents, null);
+    assert.strictEqual(body.auto_reload_amount_cents, null);
+    ok('GET /settings 200 returns false/null defaults when no wallet row');
+  } catch (e) { fail('GET settings no row', e); }
+
+  // 11) GET /settings — existing wallet row → 200 with stored values
+  makeStub({
+    walletRow: {
+      cash_balance_cents: 0, bonus_balance_cents: 0,
+      auto_reload_enabled: true, auto_reload_threshold_cents: 500, auto_reload_amount_cents: 2000,
+    },
+  });
+  try {
+    const res = await handler(event({ token: TOKEN, subpath: 'settings' }));
+    assert.strictEqual(res.statusCode, 200, `expected 200 got ${res.statusCode}`);
+    const body = parse(res);
+    assert.strictEqual(body.auto_reload_enabled, true);
+    assert.strictEqual(body.auto_reload_threshold_cents, 500);
+    assert.strictEqual(body.auto_reload_amount_cents, 2000);
+    ok('GET /settings 200 returns stored auto_reload values');
+  } catch (e) { fail('GET settings with row', e); }
+
+  // 12) PUT /settings — no valid fields → 400
+  makeStub();
+  try {
+    const res = await handler(event({ method: 'PUT', token: TOKEN, subpath: 'settings', body: { unknown_field: 'x' } }));
+    assert.strictEqual(res.statusCode, 400, `expected 400 got ${res.statusCode}`);
+    ok('PUT /settings 400 when no valid fields provided');
+  } catch (e) { fail('PUT settings 400 no fields', e); }
+
+  // 13) PUT /settings — valid fields → 200 with success + updated echo
+  makeStub();
+  try {
+    const res = await handler(event({
+      method: 'PUT', token: TOKEN, subpath: 'settings',
+      body: { auto_reload_enabled: true, auto_reload_threshold_cents: 500, auto_reload_amount_cents: 2000 },
+    }));
+    assert.strictEqual(res.statusCode, 200, `expected 200 got ${res.statusCode} body=${res.body}`);
+    const body = parse(res);
+    assert.strictEqual(body.success, true);
+    assert.strictEqual(body.updated.auto_reload_enabled, true);
+    assert.strictEqual(body.updated.auto_reload_threshold_cents, 500);
+    assert.strictEqual(body.updated.auto_reload_amount_cents, 2000);
+    ok('PUT /settings 200 updates and echoes auto_reload fields');
+  } catch (e) { fail('PUT settings 200', e); }
 
   console.log(`\n${passed} passed, ${failed} failed`);
   if (failed > 0) {

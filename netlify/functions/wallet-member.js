@@ -1,10 +1,12 @@
 // ============================================================================
-// wallet-member — member wallet balance + load
+// wallet-member — member wallet balance, load, and auto-reload settings
 // FEATURE_WALLET default OFF: returns 404 { code: 'WALLET_DISABLED' } when off.
 //
 // Routes (via _redirects → /.netlify/functions/wallet-member/:splat):
 //   GET  /api/wallet/balance          — member's current balances
 //   POST /api/wallet/load             — preload cash + optional bonus
+//   GET  /api/wallet/settings         — read auto-reload configuration
+//   PUT  /api/wallet/settings         — update auto-reload configuration
 // ============================================================================
 'use strict';
 
@@ -28,7 +30,7 @@ const cors = {
   'Content-Type': 'application/json',
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-  'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, OPTIONS',
 };
 
 function resp(status, body) {
@@ -168,6 +170,54 @@ exports.handler = async function(event) {
       bonus_balance_cents:    newBalances?.[0]?.bonus_balance_cents ?? 0,
       stripe_payment_intent:  pi.id,
     });
+  }
+
+  // ── GET /settings ─────────────────────────────────────────────────────────
+  if (method === 'GET' && path === 'settings') {
+    const { data: wallet } = await svc
+      .from('wallet_accounts')
+      .select('auto_reload_enabled, auto_reload_threshold_cents, auto_reload_amount_cents')
+      .eq('owner_id', user.id)
+      .eq('owner_type', 'member')
+      .maybeSingle();
+
+    return resp(200, {
+      auto_reload_enabled:         wallet?.auto_reload_enabled         ?? false,
+      auto_reload_threshold_cents: wallet?.auto_reload_threshold_cents ?? null,
+      auto_reload_amount_cents:    wallet?.auto_reload_amount_cents    ?? null,
+    });
+  }
+
+  // ── PUT /settings ─────────────────────────────────────────────────────────
+  if (method === 'PUT' && path === 'settings') {
+    let body;
+    try { body = JSON.parse(event.body || '{}'); } catch { body = {}; }
+
+    const updates = {};
+    if (typeof body.auto_reload_enabled === 'boolean')
+      updates.auto_reload_enabled = body.auto_reload_enabled;
+    if (Number.isInteger(body.auto_reload_threshold_cents) && body.auto_reload_threshold_cents >= 0)
+      updates.auto_reload_threshold_cents = body.auto_reload_threshold_cents;
+    if (Number.isInteger(body.auto_reload_amount_cents) && body.auto_reload_amount_cents >= 0)
+      updates.auto_reload_amount_cents = body.auto_reload_amount_cents;
+
+    if (Object.keys(updates).length === 0) {
+      return resp(400, { error: 'No valid fields provided. Allowed: auto_reload_enabled, auto_reload_threshold_cents, auto_reload_amount_cents' });
+    }
+
+    updates.updated_at = new Date().toISOString();
+
+    const { error: updateErr } = await svc
+      .from('wallet_accounts')
+      .update(updates)
+      .eq('owner_id', user.id)
+      .eq('owner_type', 'member');
+
+    if (updateErr) {
+      return resp(500, { error: 'Failed to update settings' });
+    }
+
+    return resp(200, { success: true, updated: updates });
   }
 
   return resp(404, { error: 'Not found' });

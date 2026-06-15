@@ -119,9 +119,10 @@
 /api/tracking/eta /.netlify/functions/tracking-eta 200
 /api/admin/ops-flags /.netlify/functions/ops-flags-admin 200
 /api/admin/ops-flags/* /.netlify/functions/ops-flags-admin/:splat 200
-/api/wallet/balance /.netlify/functions/wallet-member/balance 200
-/api/wallet/load /.netlify/functions/wallet-member/load 200
-/api/wallet/* /.netlify/functions/wallet-member/:splat 200
+/api/wallet/balance   /.netlify/functions/wallet-member/balance   200
+/api/wallet/load      /.netlify/functions/wallet-member/load      200
+/api/wallet/settings  /.netlify/functions/wallet-member/settings  200
+/api/wallet/*         /.netlify/functions/wallet-member/:splat    200
 /api/admin/driver-payouts /.netlify/functions/driver-payouts-admin 200
 /api/admin/driver-payouts/* /.netlify/functions/driver-payouts-admin/:splat 200
 /api/admin/driver-bgc /.netlify/functions/initiate-driver-bgc 200
