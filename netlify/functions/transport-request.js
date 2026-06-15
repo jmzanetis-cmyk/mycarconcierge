@@ -545,6 +545,8 @@ async function handleGetProviderRequests(event, supabase) {
 
 // ---------------------------------------------------------------------------
 // POST /api/transport/cancel — member cancels a ride
+// FEATURE_CANCELLATION_POLICY (default OFF): when ON, classifies fault,
+// charges the cancellation fee, and writes ride_cancellations records.
 // ---------------------------------------------------------------------------
 async function handleCancel(event, supabase, body) {
   const auth = await authenticate(event, supabase);
@@ -564,6 +566,10 @@ async function handleCancel(event, supabase, body) {
     return jsonResponse(400, { error: 'Ride cannot be cancelled at this stage' });
   }
 
+  if (process.env.FEATURE_CANCELLATION_POLICY === 'true') {
+    return await _cancelWithPolicy(supabase, ride, user);
+  }
+
   const { error } = await supabase.from('rides').update({
     status: 'cancelled_member',
     cancelled_at: new Date().toISOString(),
@@ -572,6 +578,151 @@ async function handleCancel(event, supabase, body) {
 
   if (error) return jsonResponse(500, { error: error.message });
   return jsonResponse(200, { cancelled: true, late_cancel_fee: LATE_CANCEL.includes(ride.status) });
+}
+
+// No-fault reason codes: driver can state these without penalty.
+const NO_FAULT_REASONS = new Set([
+  'safety', 'vehicle_breakdown', 'unsafe_pickup',
+  'wrong_address', 'gps_failure', 'system_error', 'noshow',
+]);
+
+async function _cancelWithPolicy(supabase, ride, user) {
+  const svc = getServiceSupabase();
+
+  // Load policy config
+  const { data: cfgRows } = await svc.from('cancellation_policy_config').select('key, value_int');
+  const cfg = Object.fromEntries((cfgRows || []).map(r => [r.key, r.value_int]));
+  const graceSecs = cfg.grace_seconds ?? 60;
+  const feeCents  = cfg.passenger_cancel_fee_cents ?? 1000;
+
+  // Active assignments for this ride
+  const { data: assignments } = await svc
+    .from('driver_assignments')
+    .select('id, driver_id, status, accepted_at')
+    .eq('ride_id', ride.id)
+    .in('status', ['accepted', 'driver_accepted', 'en_route', 'driver_en_route', 'arrived', 'driver_arrived']);
+
+  // Fault classification
+  const firstAcceptedAt = (assignments || []).reduce((earliest, a) => {
+    if (!a.accepted_at) return earliest;
+    return earliest ? (a.accepted_at < earliest ? a.accepted_at : earliest) : a.accepted_at;
+  }, null);
+  const graceElapsed = firstAcceptedAt
+    ? (Date.now() - new Date(firstAcceptedAt).getTime()) > (graceSecs * 1000)
+    : false;
+  const driverMoving = (assignments || []).some(a =>
+    ['en_route', 'driver_en_route', 'arrived', 'driver_arrived'].includes(a.status)
+  );
+  const activeDriverCount = assignments?.length ?? 0;
+  const fault = (graceElapsed && driverMoving) ? 'passenger' : 'none';
+  const totalFeeCents = fault === 'passenger' ? feeCents * activeDriverCount : 0;
+  const secondsSinceMatch = firstAcceptedAt
+    ? Math.floor((Date.now() - new Date(firstAcceptedAt).getTime()) / 1000) : 0;
+
+  // Write cancellation record (pre-charge notice timestamp set if fee applies)
+  const { data: cancelRow } = await svc.from('ride_cancellations').insert({
+    ride_id:              ride.id,
+    cancelled_by:         'passenger',
+    booker_party:         'member',
+    booker_id:            user.id,
+    fault,
+    grace_elapsed:        graceElapsed,
+    driver_moving:        driverMoving,
+    seconds_since_match:  secondsSinceMatch,
+    active_driver_count:  activeDriverCount,
+    fee_charged_cents:    0,
+    notice_sent_at:       totalFeeCents > 0 ? new Date().toISOString() : null,
+  }).select('id').single();
+
+  // Charge the fee when fault = passenger
+  let feeCharged = 0;
+  let stripePI = null;
+  if (fault === 'passenger' && totalFeeCents > 0 && cancelRow) {
+    // Try wallet first
+    const { error: walletErr } = await svc.rpc('wallet_spend', {
+      p_owner_id:    user.id,
+      p_owner_type:  'member',
+      p_amount_cents: totalFeeCents,
+      p_ref_id:      cancelRow.id,
+      p_description: `Cancellation fee — ride ${ride.id}`,
+    });
+
+    if (!walletErr) {
+      feeCharged = totalFeeCents;
+    } else {
+      // Fall back to saved card
+      const { data: profile } = await svc.from('profiles').select('stripe_customer_id').eq('id', user.id).single();
+      if (profile?.stripe_customer_id) {
+        try {
+          const stripe = getStripe();
+          const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
+          const defaultPM = customer.invoice_settings?.default_payment_method
+            || (await stripe.paymentMethods.list({ customer: profile.stripe_customer_id, type: 'card', limit: 1 })).data[0]?.id
+            || null;
+          if (defaultPM) {
+            const pi = await stripe.paymentIntents.create({
+              amount:         totalFeeCents,
+              currency:       'usd',
+              customer:       profile.stripe_customer_id,
+              payment_method: defaultPM,
+              confirm:        true,
+              off_session:    true,
+              description:    `MCC Cancellation fee — Ride ${ride.id}`,
+              metadata:       { ride_id: ride.id, cancellation_id: cancelRow.id, type: 'cancel_fee' },
+            }, { idempotencyKey: `cancel_fee_${ride.id}` });
+            stripePI  = pi.id;
+            feeCharged = totalFeeCents;
+          }
+        } catch (chargeErr) {
+          console.warn('[transport-request] cancel fee charge failed (non-fatal):', chargeErr.message);
+          // Record as owed — member flagged at next booking attempt
+        }
+      }
+    }
+
+    if (feeCharged > 0) {
+      await svc.from('ride_cancellations')
+        .update({ fee_charged_cents: feeCharged, stripe_payment_intent_id: stripePI })
+        .eq('id', cancelRow.id);
+    }
+
+    // Cancellation payouts: one row + Connect transfer per committed driver
+    const stripe = getStripe();
+    await Promise.allSettled((assignments || []).map(async (assignment) => {
+      const { data: driver } = await svc
+        .from('drivers').select('stripe_connect_account_id').eq('id', assignment.driver_id).single();
+      let transferId = null;
+      if (feeCharged > 0 && driver?.stripe_connect_account_id && stripe) {
+        try {
+          const xfer = await stripe.transfers.create({
+            amount:      feeCents,
+            currency:    'usd',
+            destination: driver.stripe_connect_account_id,
+            description: `Cancellation payout — Ride ${ride.id}`,
+            metadata:    { ride_id: ride.id, cancellation_id: cancelRow.id, driver_id: assignment.driver_id },
+          }, { idempotencyKey: `cancel_xfer_${ride.id}_${assignment.driver_id}` });
+          transferId = xfer.id;
+        } catch (xferErr) {
+          console.warn('[transport-request] cancel transfer failed:', xferErr.message);
+        }
+      }
+      await svc.from('cancellation_payouts').insert({
+        cancellation_id:   cancelRow.id,
+        driver_id:         assignment.driver_id,
+        amount_cents:      feeCents,
+        stripe_transfer_id: transferId,
+      });
+    }));
+  }
+
+  // Cancel the ride
+  await svc.from('rides').update({
+    status:               'cancelled_member',
+    cancelled_at:         new Date().toISOString(),
+    cancellation_reason:  fault === 'passenger' ? 'member_cancelled_at_fault' : 'member_cancelled',
+  }).eq('id', ride.id);
+
+  return jsonResponse(200, { cancelled: true, fault, fee_charged_cents: feeCharged });
 }
 
 // ---------------------------------------------------------------------------

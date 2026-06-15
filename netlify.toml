@@ -75,6 +75,10 @@
 [functions."tracking-proximity-notifier-scheduled"]
   schedule = "* * * * *"
 
+# Wallet — expire bonus lots past their 180-day TTL (runs nightly at 02:30 UTC)
+[functions."wallet-bonus-expiry-scheduled"]
+  schedule = "30 2 * * *"
+
 # Agent Fleet — Phase 1
 [functions."agent-orchestrator"]
   schedule = "* * * * *"

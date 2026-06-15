@@ -87,6 +87,12 @@
     ],
     // Master switch — set to true only after enrollment is proven working end-to-end
     mandatory2faEnabled: false,
+    // Unified Wallet — requires counsel sign-off before flipping true
+    FEATURE_WALLET: false,
+    // Driver Cancellation Policy — requires counsel sign-off before flipping true
+    FEATURE_CANCELLATION_POLICY: false,
+    // Multi-Vehicle Support for drivers — ship alongside cancellation policy
+    FEATURE_MULTI_VEHICLE: false,
     DRIVER_FUND_MILESTONES: [
       { name: 'TNC Licensing & Legal', goal: 25000, description: 'Covers state permits and transportation attorney fees so we can legally operate' },
       { name: 'Commercial Auto Insurance', goal: 18000, description: 'Year 1 hired & non-owned auto policy with $1.5M liability coverage' },

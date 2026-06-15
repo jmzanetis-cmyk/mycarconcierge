@@ -214,18 +214,74 @@ async function handleAcceptBid(event, sb, user, planId) {
     appliedCreditsCents = (rpcData && rpcData[0]?.credit_applied_cents) || creditsCents;
   }
 
-  const chargeAmountCents = Math.max(bidAmountCents - appliedCreditsCents, 50); // Stripe minimum 50¢
+  // FEATURE_WALLET: debit wallet balance before charging card (ships dark — off by default)
+  let walletDeductedCents = 0;
+  if (process.env.FEATURE_WALLET === 'true') {
+    const netBeforeWallet = bidAmountCents - appliedCreditsCents;
+    if (netBeforeWallet > 0) {
+      const { data: walletRow } = await sb
+        .from('wallet_accounts')
+        .select('cash_balance_cents, bonus_balance_cents')
+        .eq('owner_id', user.id)
+        .eq('owner_type', 'member')
+        .maybeSingle();
+      const available = walletRow
+        ? (walletRow.cash_balance_cents || 0) + (walletRow.bonus_balance_cents || 0)
+        : 0;
+      if (available > 0) {
+        walletDeductedCents = Math.min(available, netBeforeWallet);
+        const { error: wErr } = await sb.rpc('wallet_spend', {
+          p_owner_id:     user.id,
+          p_owner_type:   'member',
+          p_amount_cents: walletDeductedCents,
+          p_ref_id:       planId,
+          p_description:  'Care plan ' + planId,
+        });
+        if (wErr) {
+          console.warn('[care-plans] wallet_spend error (non-fatal, falling back to card):', wErr.message);
+          walletDeductedCents = 0;
+        }
+      }
+    }
+  }
+
+  const rawChargeCents = bidAmountCents - appliedCreditsCents - walletDeductedCents;
+
+  // If wallet + credits cover the full charge, mark held without a Stripe PI
+  if (rawChargeCents <= 0) {
+    const { error: updateErr } = await sb.from('care_plans').update({
+      accepted_bid_id: bid_id,
+      provider_id: bid.provider_id,
+      status: 'awarded',
+      payment_status: 'held',
+      escrow_amount: bid.amount,
+      accepted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', planId);
+    if (updateErr) return json(500, { error: updateErr.message });
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', bid_id);
+    await sb.from('plan_bids').update({ status: 'not_selected' })
+      .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
+    return json(200, {
+      success: true,
+      paid_by_wallet: true,
+      credit_applied_cents: appliedCreditsCents + walletDeductedCents,
+    });
+  }
+
+  const chargeAmountCents = Math.max(rawChargeCents, 50); // Stripe minimum 50¢
 
   const piParams = {
     amount: chargeAmountCents,
     currency: 'usd',
     capture_method: 'manual',
     metadata: {
-      care_plan_id: planId,
-      bid_id: bid.id,
-      member_id: user.id,
-      provider_id: bid.provider_id,
+      care_plan_id:         planId,
+      bid_id:               bid.id,
+      member_id:            user.id,
+      provider_id:          bid.provider_id,
       credit_applied_cents: String(appliedCreditsCents),
+      wallet_applied_cents: String(walletDeductedCents),
     },
   };
   if (provProfile?.stripe_account_id) {
@@ -262,6 +318,7 @@ async function handleAcceptBid(event, sb, user, planId) {
     success: true,
     client_secret: pi.client_secret,
     credit_applied_cents: appliedCreditsCents,
+    wallet_applied_cents: walletDeductedCents,
   });
 }
 

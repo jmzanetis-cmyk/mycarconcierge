@@ -241,6 +241,20 @@ async function handleChargeDisputeCreated(dispute, supabase) {
 
 async function handlePaymentIntentSucceeded(pi, supabase) {
   const meta = pi.metadata || {};
+
+  // Wallet top-up: credit cash to wallet and return immediately
+  if (meta.type === 'wallet_load' && meta.wallet_owner_id && meta.wallet_owner_type) {
+    const { error: wErr } = await supabase.rpc('wallet_load', {
+      p_owner_id:              meta.wallet_owner_id,
+      p_owner_type:            meta.wallet_owner_type,
+      p_cash_cents:            pi.amount,
+      p_stripe_payment_intent: pi.id,
+      p_description:           'Wallet top-up via card',
+    });
+    if (wErr) console.error('[stripe-webhook] wallet_load RPC error:', wErr.message);
+    return;
+  }
+
   if (meta.type === 'tip' && meta.ride_id && meta.driver_id) {
     // transport-request.js sets 'charged' synchronously after PI creation,
     // so by the time this webhook fires the status is 'charged', not 'pending'.

@@ -119,6 +119,9 @@
 /api/tracking/eta /.netlify/functions/tracking-eta 200
 /api/admin/ops-flags /.netlify/functions/ops-flags-admin 200
 /api/admin/ops-flags/* /.netlify/functions/ops-flags-admin/:splat 200
+/api/wallet/balance /.netlify/functions/wallet-member/balance 200
+/api/wallet/load /.netlify/functions/wallet-member/load 200
+/api/wallet/* /.netlify/functions/wallet-member/:splat 200
 /api/admin/driver-payouts /.netlify/functions/driver-payouts-admin 200
 /api/admin/driver-payouts/* /.netlify/functions/driver-payouts-admin/:splat 200
 /api/admin/driver-bgc /.netlify/functions/initiate-driver-bgc 200
@@ -287,6 +290,13 @@
 
 # Feature: Pre-launch waitlist
 /api/waitlist/join /.netlify/functions/waitlist-join 200
+
+# Feature: Unified Wallet (FEATURE_WALLET — ships dark)
+/api/admin/wallet/*    /.netlify/functions/wallet-admin 200
+
+# Feature: Ride Cancellation + Multi-Vehicle (FEATURE_CANCELLATION_POLICY — ships dark)
+/api/rides/*/cancellation-notice /.netlify/functions/ride-cancellation 200
+/api/rides/*/cancel              /.netlify/functions/ride-cancellation 200
 
 # Driver Founder recruitment landing page
 /drive /drive.html 200
