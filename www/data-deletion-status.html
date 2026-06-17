@@ -127,9 +127,13 @@
       .lookup-form { flex-direction: column; }
       h1 { font-size: var(--text-3xl); }
     }
+    /* ── Native app: strip marketing chrome ───────────────────────────── */
+    body.native-app header { display: none !important; }
+    body.native-app footer  { display: none !important; }
   </style>
 </head>
 <body>
+  <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
   <header>
     <div class="container">
       <a href="/index.html" class="brand">

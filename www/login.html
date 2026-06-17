@@ -639,6 +639,34 @@
     body.has-bottom-nav #login-contact-help { display: none; }
     /* Status-bar clearance — push login container below the notch/status bar */
     body.has-bottom-nav .login-container    { padding-top: max(24px, env(safe-area-inset-top)); }
+
+    /* ── Native app: compact one-screen login (above-fold without scrolling) ──
+       body.native-app is set by an inline script immediately after <body> so
+       these rules apply before first paint — no layout flash.                  */
+    body.native-app #language-switcher      { display: none !important; }
+    body.native-app #mcc-auth-theme-toggle  { display: none !important; }
+
+    body.native-app .login-brand            { margin-bottom: 16px; }
+    body.native-app .brand-icon             { height: 56px; filter: drop-shadow(0 3px 12px rgba(212,168,85,0.25)); }
+
+    body.native-app .login-card             { padding: 22px 20px; }
+    body.native-app .login-header           { margin-bottom: 14px; }
+    body.native-app .login-header h1        { font-size: var(--text-xl); }
+    body.native-app .login-header p         { font-size: var(--text-sm); }
+
+    body.native-app .login-tabs             { margin-bottom: 14px; }
+    body.native-app .login-tab              { padding: 8px 12px; font-size: var(--text-sm); }
+
+    body.native-app .form-group             { margin-bottom: 10px; }
+    body.native-app .form-label             { margin-bottom: 5px; }
+    body.native-app .form-input             { padding: 11px 14px; }
+    body.native-app .btn                    { padding: 12px 24px; margin-top: 4px; }
+
+    /* Signup links and trust bar are web-only; native users onboard via the app */
+    body.native-app .divider                { display: none; }
+    body.native-app .signup-links           { display: none; }
+    body.native-app .trust-bar              { display: none; }
+    body.native-app .login-footer           { margin-top: 16px; }
   </style>
   <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
@@ -664,6 +692,8 @@
   <script src="auth-theme-toggle.js" defer></script>
 </head>
 <body>
+  <!-- Set native-app class before first paint so compact CSS applies without flash -->
+  <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
   <div class="ambient-bg"></div>
 
   <div class="login-container" id="main-content">

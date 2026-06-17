@@ -530,6 +530,8 @@
     }
   
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
+    /* ── Native app: strip marketing chrome ───────────────────────────── */
+    body.native-app header { display: none !important; }
   </style>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/sms-consent.html" />
@@ -553,6 +555,7 @@
 <!-- SEO-INJECT:END -->
 </head>
 <body>
+  <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 

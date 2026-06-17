@@ -1,4 +1,5 @@
 function renderMCCFooter() {
+  if (window.Capacitor?.isNativePlatform?.()) return document.createDocumentFragment();
   const footer = document.createElement('footer');
   footer.className = 'mcc-footer';
   footer.innerHTML = `
@@ -220,6 +221,7 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 (function loadCookieConsent() {
+  if (window.Capacitor?.isNativePlatform?.()) return;
   if (document.getElementById('mcc-cookie-consent-script')) return;
   const s = document.createElement('script');
   s.id = 'mcc-cookie-consent-script';
