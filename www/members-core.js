@@ -276,6 +276,11 @@ const serviceTypes = {
     'Manufacturer Scheduled Service',
     'Factory Recommended Maintenance'
   ],
+  snow_removal: [
+    'Residential driveway clearing', 'Commercial lot clearing', 'Salting / de-icing',
+    'Sidewalk / walkway clearing', 'Roof snow removal', 'Seasonal contract (per-season)',
+    'Per-storm / on-call', 'Emergency / priority clearing'
+  ],
   other: ['Custom request']
 };
 

@@ -93,8 +93,12 @@ function strLen(v, min, max) {
 const ALLOWED_SERVICES = new Set([
   // canonical keys from www/signup-provider.html
   'oil_change','brakes','tires','engine','transmission','electrical',
-  'diagnostics','paint','detailing','car_wash','glass','exhaust',
-  'suspension','inspection','mobile_service','other',
+  'ac_heating','diagnostics','body_work','paint','detailing','car_wash',
+  'glass','exhaust','suspension','inspection','mobile_service','other',
+  // extended category keys (added alongside new signup-provider.html checkboxes)
+  'audio_electronics','lighting','interior','offroad','ev_hybrid',
+  'classic_vintage','fleet_graphics','premium_protection','convertible',
+  'motorcycle','rv_camper','boat_marine','snow_removal','manufacturer',
   // legacy display strings still present in production data
   'oil change','brake service','tire rotation','tires / alignment',
   'engine repair','engine diagnostics','battery replacement','air filter',
