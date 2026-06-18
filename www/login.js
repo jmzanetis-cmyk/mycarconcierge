@@ -1085,7 +1085,7 @@
 
     const authRedirectBase =
       (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())
-        ? 'https://mycarconcierge.com/login.html'
+        ? 'https://www.mycarconcierge.com/login.html'
         : window.location.origin + '/login.html';
 
     async function sendMagicLink() {
