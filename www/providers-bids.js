@@ -976,12 +976,25 @@ function renderCreditBalance() {
   } else if (totalAvailable <= 3) {
     if (lowWarning) lowWarning.style.display = 'block';
   }
+
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    [lowWarning, noWarning].forEach(function(w) {
+      if (!w) return;
+      const btn = w.querySelector('button');
+      if (btn) btn.style.display = 'none';
+    });
+  }
 }
 
 function renderServiceCredits() {
   const container = document.getElementById('bid-packs-grid');
   if (!container) return;
-  
+
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    container.innerHTML = '<p style="color:var(--text-muted);text-align:center;padding:16px 0;">Service credit purchases are available on the web — sign in at <strong>mycarconcierge.com</strong> to add credits.</p>';
+    return;
+  }
+
   if (!bidPacks.length) {
     container.innerHTML = '<p style="color:var(--text-muted);">No service credit packs available.</p>';
     return;
@@ -1108,6 +1121,11 @@ const USE_STRIPE = true;
 async function purchaseBidPack(packId) {
   const pack = bidPacks.find(p => p.id === packId);
   if (!pack) return;
+
+  if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+    showToast('Bid credits are purchased on the web — visit mycarconcierge.com to add credits.', 'warning');
+    return;
+  }
 
   const totalBids = pack.bid_count + (pack.bonus_bids || 0);
 

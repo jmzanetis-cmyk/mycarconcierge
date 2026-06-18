@@ -667,6 +667,67 @@
     body.native-app .signup-links           { display: none; }
     body.native-app .trust-bar              { display: none; }
     body.native-app .login-footer           { margin-top: 16px; }
+
+    /* ── Native-only intro slides ───────────────────────────────────────── */
+    #mcc-intro {
+      position: fixed; inset: 0; z-index: 9999;
+      background: #0D1B2A;
+      flex-direction: column; align-items: stretch;
+      /* shown via JS — default display:none applied inline */
+    }
+    #mcc-intro-skip {
+      position: absolute;
+      top: calc(20px + env(safe-area-inset-top, 0px));
+      right: 24px;
+      background: none; border: none;
+      color: rgba(245,237,214,0.55); font-size: 0.88rem;
+      cursor: pointer; z-index: 2; padding: 8px 4px;
+      font-family: inherit;
+    }
+    #mcc-intro-track {
+      display: flex; flex: 1;
+      transition: transform 0.36s cubic-bezier(0.4,0,0.2,1);
+      will-change: transform;
+    }
+    .mcc-intro-slide {
+      flex: 0 0 100vw; width: 100vw; box-sizing: border-box;
+      display: flex; flex-direction: column; justify-content: center;
+      padding: calc(env(safe-area-inset-top, 0px) + 88px) 36px
+               calc(env(safe-area-inset-bottom, 0px) + 96px);
+    }
+    .mcc-intro-slide h2 {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-size: 2rem; font-weight: 600; line-height: 1.22;
+      color: #F5EDD6; margin: 0 0 22px; letter-spacing: -0.01em;
+    }
+    .mcc-intro-slide p {
+      font-size: 1rem; line-height: 1.72;
+      color: rgba(245,237,214,0.72); margin: 0;
+    }
+    .mcc-intro-cta {
+      margin-top: 36px; align-self: flex-start;
+      background: var(--accent-gold); color: #0D1B2A;
+      border: none; border-radius: var(--radius-md);
+      padding: 15px 30px; font-size: var(--text-md);
+      font-weight: 600; cursor: pointer; font-family: inherit;
+      letter-spacing: 0.02em;
+    }
+    #mcc-intro-dots {
+      position: absolute;
+      bottom: calc(28px + env(safe-area-inset-bottom, 0px));
+      left: 0; right: 0;
+      display: flex; justify-content: center; gap: 10px;
+    }
+    .mcc-intro-dot {
+      width: 7px; height: 7px; border-radius: 50%;
+      background: rgba(245,237,214,0.25);
+      cursor: pointer; transition: background 0.22s;
+      border: none; padding: 0;
+    }
+    .mcc-intro-dot.active {
+      background: var(--accent-gold);
+      width: 22px; border-radius: 4px;
+    }
   </style>
   <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
@@ -694,6 +755,32 @@
 <body>
   <!-- Set native-app class before first paint so compact CSS applies without flash -->
   <script>(function(){if(typeof Capacitor!=='undefined'&&Capacitor.isNativePlatform&&Capacitor.isNativePlatform()){document.body.classList.add('native-app');}})();</script>
+
+  <!-- Native-only intro slides — hidden by default, shown by mccIntroInit() -->
+  <div id="mcc-intro" style="display:none;" aria-hidden="true" role="dialog" aria-label="Welcome to My Car Concierge">
+    <button id="mcc-intro-skip" onclick="mccIntroSkip()" aria-label="Skip intro">Skip</button>
+    <div id="mcc-intro-track">
+      <div class="mcc-intro-slide">
+        <h2>Auto care.<br>Handled.</h2>
+        <p>My Car Concierge is the marketplace connecting vehicle owners with background-checked providers who compete for the work.</p>
+      </div>
+      <div class="mcc-intro-slide">
+        <h2>Mechanical to cosmetic.<br>Cars to boats.<br>Even snow removal.</h2>
+        <p>Maintenance, detailing, body work, performance, EV, specialty vehicles, and seasonal jobs — all in one place. The right providers come to you.</p>
+      </div>
+      <div class="mcc-intro-slide">
+        <h2>Post it.<br>Bid it.<br>Done.</h2>
+        <p>Owners post what they need and providers compete to win the work. Jobs are chosen by price, rating, and availability — funds stay in escrow until the work is confirmed, with no surprise charges.</p>
+        <button class="mcc-intro-cta" onclick="mccIntroSkip()">Get Started →</button>
+      </div>
+    </div>
+    <div id="mcc-intro-dots" role="tablist" aria-label="Slide navigation">
+      <button class="mcc-intro-dot active" onclick="mccIntroGoTo(0)" role="tab" aria-label="Slide 1"></button>
+      <button class="mcc-intro-dot" onclick="mccIntroGoTo(1)" role="tab" aria-label="Slide 2"></button>
+      <button class="mcc-intro-dot" onclick="mccIntroGoTo(2)" role="tab" aria-label="Slide 3"></button>
+    </div>
+  </div>
+
   <div class="ambient-bg"></div>
 
   <div class="login-container" id="main-content">
@@ -1075,5 +1162,69 @@
   </script>
   <script src="analytics-tracker.js" defer></script>
   <script src="fb-pixel.js" defer></script>
+  <script>
+    /* Native-only intro slide logic — runs only on Capacitor iOS/Android */
+    (async function mccIntroInit() {
+      if (typeof Capacitor === 'undefined' || !Capacitor.isNativePlatform || !Capacitor.isNativePlatform()) return;
+
+      let seen = false;
+      try {
+        if (Capacitor.Plugins && Capacitor.Plugins.Preferences) {
+          const r = await Capacitor.Plugins.Preferences.get({ key: 'mcc_intro_seen' });
+          seen = r.value === '1';
+        } else {
+          seen = localStorage.getItem('mcc_intro_seen') === '1';
+        }
+      } catch (_) { seen = false; }
+      if (seen) return;
+
+      const overlay = document.getElementById('mcc-intro');
+      if (!overlay) return;
+      overlay.style.display = 'flex';
+      overlay.removeAttribute('aria-hidden');
+
+      const track  = document.getElementById('mcc-intro-track');
+      const dots   = document.querySelectorAll('.mcc-intro-dot');
+      let current  = 0;
+
+      function goTo(idx) {
+        idx = Math.max(0, Math.min(dots.length - 1, idx));
+        current = idx;
+        track.style.transform = 'translateX(' + (-idx * 100) + 'vw)';
+        dots.forEach(function(d, i) {
+          d.classList.toggle('active', i === idx);
+          d.setAttribute('aria-selected', i === idx ? 'true' : 'false');
+        });
+      }
+
+      window.mccIntroGoTo = goTo;
+
+      async function markSeen() {
+        try {
+          if (Capacitor.Plugins && Capacitor.Plugins.Preferences) {
+            await Capacitor.Plugins.Preferences.set({ key: 'mcc_intro_seen', value: '1' });
+          } else {
+            localStorage.setItem('mcc_intro_seen', '1');
+          }
+        } catch (_) {}
+      }
+
+      window.mccIntroSkip = async function() {
+        await markSeen();
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden', 'true');
+      };
+
+      /* Touch/swipe — advance or retreat a slide */
+      var _swipeStartX = 0;
+      track.addEventListener('touchstart', function(e) {
+        _swipeStartX = e.touches[0].clientX;
+      }, { passive: true });
+      track.addEventListener('touchend', function(e) {
+        var dx = e.changedTouches[0].clientX - _swipeStartX;
+        if (Math.abs(dx) > 44) goTo(current + (dx < 0 ? 1 : -1));
+      }, { passive: true });
+    })();
+  </script>
 </body>
 </html>

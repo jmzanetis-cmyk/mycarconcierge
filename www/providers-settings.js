@@ -2035,7 +2035,7 @@ async function saveAutoBidSettings() {
       .filter(c => c.classList.contains('active')).map(c => c.dataset.type);
     const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
     const res = await fetch('/api/auto-bid/settings', {
-      method: 'PATCH',
+      method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token },
       body: JSON.stringify({
         auto_bid_enabled: enabled,
