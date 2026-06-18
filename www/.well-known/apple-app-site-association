@@ -1,0 +1,11 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "VNCVGPP9LS.com.zanetisholdings.mycarconcierge",
+        "paths": [ "/login.html", "/login.html*" ]
+      }
+    ]
+  }
+}

@@ -1083,6 +1083,11 @@
       messageEl.className = 'login-message';
     }
 
+    const authRedirectBase =
+      (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform())
+        ? 'https://mycarconcierge.com/login.html'
+        : window.location.origin + '/login.html';
+
     async function sendMagicLink() {
       const email = document.getElementById('email').value.trim();
       if (!email) {
@@ -1098,7 +1103,7 @@
         const { error } = await supabaseClient.auth.signInWithOtp({
           email,
           options: {
-            emailRedirectTo: window.location.origin + '/login.html'
+            emailRedirectTo: authRedirectBase
           }
         });
 
@@ -1158,7 +1163,7 @@
         const { error } = await supabaseClient.auth.signInWithOtp({
           email: lastMagicLinkEmail,
           options: {
-            emailRedirectTo: window.location.origin + '/login.html'
+            emailRedirectTo: authRedirectBase
           }
         });
 
@@ -1189,6 +1194,41 @@
     window.sendMagicLink = sendMagicLink;
     window.resendMagicLink = resendMagicLink;
     window.showMagicLinkForm = showMagicLinkForm;
+
+    // Deep-link handler: completes magic-link sign-in when iOS hands the
+    // Universal Link back to the app via AppDelegate → ApplicationDelegateProxy.
+    // Tokens arrive in the URL fragment (#access_token=...&refresh_token=...).
+    if (window.Capacitor && Capacitor.isNativePlatform && Capacitor.isNativePlatform()) {
+      const CapApp = Capacitor.Plugins && Capacitor.Plugins.App;
+      if (CapApp && typeof CapApp.addListener === 'function') {
+        CapApp.addListener('appUrlOpen', async (event) => {
+          try {
+            const url = event.url || '';
+            // Supabase uses the fragment for tokens; fall back to query string.
+            const hashIdx = url.indexOf('#');
+            const queryIdx = url.indexOf('?');
+            const tokenStr = hashIdx !== -1 ? url.slice(hashIdx + 1)
+              : queryIdx !== -1 ? url.slice(queryIdx + 1)
+              : '';
+            const params = new URLSearchParams(tokenStr);
+            const access_token = params.get('access_token');
+            const refresh_token = params.get('refresh_token');
+
+            if (!access_token || !refresh_token) return; // not an auth link
+
+            const { data, error } = await supabaseClient.auth.setSession({ access_token, refresh_token });
+            if (error || !data?.user) {
+              showMessage('Sign-in link expired or invalid. Please request a new one.');
+              return;
+            }
+            await handleUserRedirect(data.user);
+          } catch (err) {
+            console.error('[MCC] appUrlOpen handler error:', err);
+            showMessage('Something went wrong completing sign-in. Please try again.');
+          }
+        });
+      }
+    }
 
     async function logLoginActivityClient(accessToken, isSuccessful = true, failureReason = null) {
       try {
