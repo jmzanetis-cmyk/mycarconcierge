@@ -317,7 +317,8 @@ async function main() {
     zip_code: '90001',
     bid_credits: 10,
     free_trial_bids: 5,
-    application_status: 'approved'
+    application_status: 'approved',
+    verification_status: 'verified'
   });
   await ensureVehicle(demoId);
   const demoCarePlanId = await ensureCarePlan(demoId);
@@ -356,7 +357,8 @@ async function main() {
     zip_code: '90001',
     bid_credits: 10,
     free_trial_bids: 5,
-    application_status: 'approved'
+    application_status: 'approved',
+    verification_status: 'verified'
   });
   await ensureProviderStats(providerId);
   await ensureProviderApplication(providerId);

@@ -29,6 +29,8 @@
 /api/ai/create-care-plan /.netlify/functions/ai-care-plan 200
 /api/care-plans /.netlify/functions/care-plans 200
 /api/care-plans/* /.netlify/functions/care-plans 200
+/api/plan-bids /.netlify/functions/plan-bids 200
+/api/plan-bids/* /.netlify/functions/plan-bids 200
 /api/appointments/* /.netlify/functions/appointment-ical 200
 /api/ai/* /.netlify/functions/ai-member/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
