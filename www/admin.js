@@ -3433,6 +3433,36 @@
         </div>`;
     }
 
+    // Step 1b — small badge cluster shown in the provider row's Status column.
+    // All four fields are already in the admin-data response — frontend-only.
+    function renderProviderSignals(p) {
+      const b = (cls, text, title) =>
+        `<span class="badge ${cls}" style="font-size:0.65rem;padding:2px 5px;" title="${title}">${text}</span>`;
+
+      const v = p.verification_status;
+      const vBadge = v === 'verified' ? b('badge-success',   'Verified',   'Verified to place bids')
+                   : v === 'pending'  ? b('badge-warning',   'V Pending',  'Verification pending review')
+                   : v === 'rejected' ? b('badge-danger',    'V Rejected', 'Verification rejected')
+                                      : b('badge-secondary', 'Unverified', 'Not yet verified for bidding');
+
+      const idBadge = p.identity_verified
+        ? b('badge-success', 'ID ✓', 'Stripe Identity verified')
+        : b('badge-warning', 'ID —', 'Stripe Identity not verified');
+
+      const bgcBadge = p.bgc_badge_verified
+        ? b('badge-success', 'BGC ✓', 'Background-check badge verified')
+        : b('badge-warning', 'BGC —', 'Background-check badge not verified');
+
+      const a = p.application_status;
+      const aBadge = a === 'approved'         ? b('badge-success',   'App ✓',  'Application approved')
+                   : a === 'pending'          ? b('badge-warning',   'App pending', 'Application pending')
+                   : a === 'rejected'         ? b('badge-danger',    'App ✗',  'Application rejected')
+                   : a === 'more_info_needed' ? b('badge-warning',   'App ?',       'Application needs more info')
+                                              : b('badge-secondary', 'App —',  'No application');
+
+      return vBadge + idBadge + bgcBadge + aBadge;
+    }
+
     function renderProviders() {
       const tbody = document.getElementById('providers-table');
       // Task #281 — show load error before falling through to "No providers match filters",
@@ -3498,7 +3528,10 @@
                 : ''
             }</td>
             <td>${renderApplicationLeadBadge(p)}</td>
-            <td><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span></td>
+            <td>
+              <span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span>
+              <div style="margin-top:6px;display:flex;gap:4px;flex-wrap:wrap;">${renderProviderSignals(p)}</div>
+            </td>
             <td>
               <div style="display:flex;gap:4px;">
                 <button class="btn btn-secondary btn-sm" onclick="viewProvider('${p.id}')">View</button>
@@ -3622,6 +3655,35 @@
         await loadProviders();
       } catch (e) {
         showToast(`Add credits failed: ${e.message}`, 'error');
+      }
+    }
+
+    // Step 1b — Verify Provider bulk action. Mirrors bulkSuspend/bulkActivate.
+    // Reason is OPTIONAL (verify is a positive action); cancel aborts.
+    async function bulkVerify() {
+      const count = selectedProviders.size;
+      if (count < 1) { showToast('Select at least one provider', 'error'); return; }
+      const reason = prompt(`Verify ${count} provider(s) to place bids on My Car Concierge?\n\nOptional notes (cancel to abort):`);
+      if (reason === null) return;
+
+      try {
+        const res = await fetch('/api/admin/provider-actions/verify', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ provider_ids: Array.from(selectedProviders), reason: reason.trim() })
+        });
+        const json = await res.json();
+        if (!res.ok) {
+          showToast(json.error || `Verify failed (${res.status})`, 'error');
+          return;
+        }
+        const ok = json.updated || 0;
+        const failed = (json.failed || []).length;
+        showToast(`Verified ${ok} provider(s)${failed ? ` · ${failed} failed` : ''}`, failed ? 'warning' : 'success');
+        clearSelection();
+        await loadProviders();
+      } catch (e) {
+        showToast(`Verify failed: ${e.message}`, 'error');
       }
     }
 

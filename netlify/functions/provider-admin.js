@@ -222,6 +222,68 @@ async function activateProviders(supabase, providerIds) {
   return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
 }
 
+// Step 1b — verifyProviders mirrors suspendProviders/activateProviders.
+// Sets profiles.verification_status='verified' for the given ids, then fans
+// out audit + sensitive-action notification + email + in-app notification
+// per provider. All side effects are best-effort and non-fatal — the verify
+// itself has already landed by the time any of them fire.
+// Returns the standard contract: { updated, failed: [{id,error}], updated_ids }.
+async function verifyProviders(supabase, providerIds, reason) {
+  const updatedIdsArr = [];
+  const failed = [];
+  const verifiedAt = new Date().toISOString();
+
+  const { data, error } = await supabase
+    .from('profiles')
+    .update({ verification_status: 'verified' })
+    .in('id', providerIds)
+    .select('id, email, full_name, business_name');
+
+  if (error) {
+    return { updated: 0, failed: providerIds.map(id => ({ id, error: error.message })), updated_ids: [] };
+  }
+
+  const returnedIds = new Set((data || []).map(r => r.id));
+  for (const id of providerIds) {
+    if (returnedIds.has(id)) updatedIdsArr.push(id);
+    else failed.push({ id, error: 'profile not found' });
+  }
+
+  await Promise.all((data || []).map(async (p) => {
+    await audit(supabase, {
+      action: 'verify_provider',
+      target_id: p.id, target_type: 'profile',
+      reason: reason || null,
+      metadata: { verified_at: verifiedAt },
+      performed_by: 'admin'
+    });
+    await notifySensitiveAuditAction({
+      action: 'verify_provider',
+      target: `${p.full_name || p.business_name || p.email || p.id}`,
+      reason: reason || null,
+      performedBy: 'admin',
+      metadata: { provider_id: p.id }
+    });
+    if (p.email) {
+      await sendEmail(p.email,
+        "You're verified to place bids on My Car Concierge",
+        `<p>Hi ${p.full_name || p.business_name || 'there'},</p>
+         <p>Your provider account on My Car Concierge has been verified by our team. You can now place bids on open care plans through the provider portal.</p>
+         ${reason ? `<p>Notes from the admin team:</p><blockquote style="border-left:3px solid #4ade80; padding-left:12px; color:#555;">${reason}</blockquote>` : ''}
+         <p>— My Car Concierge</p>`);
+    }
+    try {
+      await supabase.from('notifications').insert({
+        user_id: p.id, type: 'account_verified',
+        title: 'Account Verified',
+        message: "You're verified to place bids on My Car Concierge. Open the provider portal to start bidding."
+      });
+    } catch (e) { /* non-critical */ }
+  }));
+
+  return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
+}
+
 // Apply a signed integer delta to profiles.bid_credits for each provider id.
 // Returns { updated, failed: [{id,error}], updated_ids, results: [{id, before, after, delta}] }.
 // We read current values then write per-row so we can:
@@ -305,6 +367,17 @@ async function _handleActivate(supabase, body) {
   const ids = _collectProviderIds(body);
   if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
   const result = await activateProviders(supabase, ids);
+  return jsonResponse(200, result);
+}
+
+// Step 1b — admin Verify Provider action. Sets verification_status='verified'
+// on profiles, which is the entry gate referenced by plan_bids / care_plans
+// RLS and the /api/plan-bids endpoint. Reason is optional.
+async function _handleVerifyProvider(supabase, body) {
+  const ids = _collectProviderIds(body);
+  if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
+  const reason = (body.reason || '').toString().trim().slice(0, 500);
+  const result = await verifyProviders(supabase, ids, reason);
   return jsonResponse(200, result);
 }
 
@@ -519,6 +592,7 @@ async function _handleAdjustCredits(supabase, body) {
 const ROUTES = {
   'POST suspend':              _handleSuspend,
   'POST activate':             _handleActivate,
+  'POST verify':               _handleVerifyProvider,     // Step 1b — verification entry gate
   'POST check-low-rated':      _handleCheckLowRated,
   'POST adjust-credits':       _handleAdjustCredits,
   'POST approve-application':  _handleApproveApplication, // Task #240
