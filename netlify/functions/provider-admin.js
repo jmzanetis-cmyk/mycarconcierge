@@ -153,14 +153,86 @@ async function suspendProviders(supabase, providerIds, reason, source = 'manual'
         message: `Your provider account has been suspended. Reason: ${reason}. To request reinstatement, submit a Corrective Action Response from your provider portal.`
       });
     } catch (e) { /* non-critical */ }
+    // 1c-CAPA: light up the CAR form by flipping car_required + mirroring
+    // suspension state on provider_stats (Option A — profiles is source of
+    // truth for the bid gate, provider_stats kept in sync for the CAR UI).
+    // Best-effort like the audit/email/notification fan-out — the suspension
+    // itself has already landed on profiles. Not aggregating complaint
+    // reasons in this commit; submit_corrective_action handles null
+    // primary_complaint_reason gracefully ('unspecified' fallback).
+    try {
+      await supabase.from('provider_stats').upsert({
+        provider_id:      p.id,
+        car_required:     true,
+        suspended:        true,
+        suspended_reason: reason,
+        suspended_at:     suspendedAt
+      }, { onConflict: 'provider_id' });
+    } catch (e) {
+      console.error('[suspendProviders] provider_stats CAR upsert failed:', e.message);
+    }
   }));
 
   return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
 }
 
-async function activateProviders(supabase, providerIds) {
+async function activateProviders(supabase, providerIds, opts = {}) {
   const updatedIdsArr = [];
   const failed = [];
+  const adminOverride = !!opts.adminOverride;
+
+  // 1c-CAPA: lenient CAR guard. If a provider has provider_stats.car_required=true
+  // AND no corrective_action_responses row with status='approved', refuse to
+  // reinstate via this route — push into failed[] with a clear message. The
+  // intent is that the CAR review flow (review_corrective_action) is the
+  // canonical reinstatement path; bulk Activate is for clean rollbacks or
+  // admin overrides. adminOverride=true bypasses the guard entirely.
+  if (!adminOverride && providerIds.length > 0) {
+    const { data: statsRows, error: statsErr } = await supabase
+      .from('provider_stats')
+      .select('provider_id, car_required')
+      .in('provider_id', providerIds);
+    if (statsErr) {
+      return {
+        updated: 0,
+        failed: providerIds.map(id => ({ id, error: 'provider_stats check failed: ' + statsErr.message })),
+        updated_ids: []
+      };
+    }
+    const carRequiredIds = new Set(
+      (statsRows || []).filter(r => r.car_required === true).map(r => r.provider_id)
+    );
+
+    let approvedCarProviderIds = new Set();
+    if (carRequiredIds.size > 0) {
+      const { data: carRows, error: carErr } = await supabase
+        .from('corrective_action_responses')
+        .select('provider_id')
+        .in('provider_id', Array.from(carRequiredIds))
+        .eq('status', 'approved');
+      if (carErr) {
+        return {
+          updated: 0,
+          failed: providerIds.map(id => ({ id, error: 'CAR check failed: ' + carErr.message })),
+          updated_ids: []
+        };
+      }
+      approvedCarProviderIds = new Set((carRows || []).map(r => r.provider_id));
+    }
+
+    const allowedIds = [];
+    for (const id of providerIds) {
+      if (carRequiredIds.has(id) && !approvedCarProviderIds.has(id)) {
+        failed.push({ id, error: 'car_required but no approved CAR — pass admin_override to bypass' });
+      } else {
+        allowedIds.push(id);
+      }
+    }
+    if (allowedIds.length === 0) {
+      return { updated: 0, failed, updated_ids: [] };
+    }
+    providerIds = allowedIds;
+  }
 
   // Task #127 — also pull `role` so we can restore profiles whose role was
   // flipped to 'suspended' by the suspend route. Without this the netlify
@@ -219,6 +291,23 @@ async function activateProviders(supabase, providerIds) {
       });
     } catch (e) { /* non-critical */ }
   }));
+
+  // 1c-CAPA: keep provider_stats in sync (Option A — profiles is source of
+  // truth; provider_stats mirrored so the CAR UI stays accurate). Best-effort.
+  // review_corrective_action's approve branch also performs this clear when
+  // it lifts the suspension; running it again here is idempotent.
+  if (updatedIdsArr.length > 0) {
+    try {
+      await supabase.from('provider_stats').update({
+        suspended:            false,
+        suspended_reason:     null,
+        suspension_lifted_at: new Date().toISOString(),
+        car_required:         false
+      }).in('provider_id', updatedIdsArr);
+    } catch (e) {
+      console.error('[activateProviders] provider_stats clear failed:', e.message);
+    }
+  }
 
   return { updated: updatedIdsArr.length, failed, updated_ids: updatedIdsArr };
 }
@@ -367,7 +456,10 @@ async function _handleSuspend(supabase, body) {
 async function _handleActivate(supabase, body) {
   const ids = _collectProviderIds(body);
   if (ids.length < 1 || ids.length > 100) return jsonResponse(400, { error: 'provider_ids must be 1-100 valid uuids' });
-  const result = await activateProviders(supabase, ids);
+  // 1c-CAPA: body.admin_override bypasses the CAR-required guard inside
+  // activateProviders. Admin UI prompt is a follow-up; backend support now.
+  const adminOverride = !!body.admin_override;
+  const result = await activateProviders(supabase, ids, { adminOverride });
   return jsonResponse(200, result);
 }
 
