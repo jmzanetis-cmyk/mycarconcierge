@@ -55,6 +55,67 @@ function getBidIdFromPath(eventPath) {
   return utils.isValidUUID(tail) ? tail : null;
 }
 
+// 1d-1: map plan.service_types (array of strings, mixed vocab in prod —
+// snake_case codes like 'oil_change' AND verbose like 'Oil Change') to the
+// 8 match_categories buckets defined by provider_match_preferences (see
+// supabase/migrations/20260524_provider_match_preferences.sql). Logic
+// mirrors that migration's backfill CASE expression but extends
+// maintenance with battery/transmission/engine/diagnostic/alignment/
+// coolant/spark/filter/inspection/multi-point/a/c/ac (gaps the original
+// SQL classified as 'other'). Priority order: maintenance first, then
+// accident_repair, cosmetic, performance, snow_removal, offroad,
+// manufacturer_service, fallthrough 'other'. Returns DISTINCT bucket set;
+// empty input → empty array.
+function serviceTypesToBuckets(types) {
+  if (!Array.isArray(types) || types.length === 0) return [];
+  const out = new Set();
+
+  // Word-boundary check for the short code 'ac' so 'accident_repair' is
+  // not misclassified as maintenance. Treats anything outside [a-z0-9]
+  // (including _ / - and spaces) as a token boundary, plus a separate
+  // literal check for 'a/c' (which isn't a contiguous 'ac' substring).
+  const hasAc = (s) => /(?:^|[^a-z0-9])ac(?:[^a-z0-9]|$)/.test(s) || s.includes('a/c');
+
+  for (const t of types) {
+    if (typeof t !== 'string') continue;
+    const s = t.toLowerCase();
+
+    if (
+      s.includes('oil') || s.includes('brake') || s.includes('tire') ||
+      s.includes('tune') || s.includes('fluid') || s.includes('battery') ||
+      s.includes('transmission') || s.includes('engine') || s.includes('diagnostic') ||
+      s.includes('alignment') || s.includes('coolant') || s.includes('spark') ||
+      s.includes('filter') || s.includes('inspection') || s.includes('multi-point') ||
+      hasAc(s)
+    ) {
+      out.add('maintenance');
+    } else if (
+      s.includes('body') || s.includes('collision') || s.includes('paint') ||
+      s.includes('dent') || s.includes('glass') || s.includes('windshield')
+    ) {
+      out.add('accident_repair');
+    } else if (s.includes('detail') || s.includes('wrap') || s.includes('tint')) {
+      out.add('cosmetic');
+    } else if (
+      s.includes('exhaust') || s.includes('suspension') ||
+      s.includes('performance') || s.includes('tuning')
+    ) {
+      out.add('performance');
+    } else if (s.includes('snow') || s.includes('plow')) {
+      out.add('snow_removal');
+    } else if (s.includes('lift') || s.includes('off-road') || s.includes('offroad')) {
+      out.add('offroad');
+    } else if (
+      s.includes('warranty') || s.includes('manufacturer') || s.includes('scheduled')
+    ) {
+      out.add('manufacturer_service');
+    } else {
+      out.add('other');
+    }
+  }
+  return Array.from(out);
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers: CORS_HEADERS, body: '' };
@@ -128,9 +189,10 @@ async function handleCreate(supabase, user, body) {
   if (gateFail) return gateFail;
 
   // Care plan must exist, be open, and within its bidding window.
+  // 1d-1: SELECT widened to include service_types for the service-fit check below.
   const planResult = await supabase
     .from('care_plans')
-    .select('id, status, bid_closes_at')
+    .select('id, status, bid_closes_at, service_types')
     .eq('id', careplanId)
     .single();
 
@@ -143,6 +205,39 @@ async function handleCreate(supabase, user, body) {
   }
   if (plan.bid_closes_at && new Date(plan.bid_closes_at) <= new Date()) {
     return jsonResp(400, { error: 'bidding_closed' });
+  }
+
+  // 1d-1: service-fit gate. Admins bypass. Providers must have declared
+  // match_categories AND have at least one bucket overlapping the job's
+  // service_types. Fail-closed on missing/empty prefs (provider must
+  // declare services; prompt UI is part of 1d-3). Pre-RPC so a rejection
+  // never burns a credit. Two parallel reads to avoid serializing on a
+  // role lookup we only need for the admin-bypass decision.
+  const [profileRes, prefRes] = await Promise.all([
+    supabase.from('profiles').select('role').eq('id', user.id).single(),
+    supabase.from('provider_match_preferences').select('match_categories').eq('profile_id', user.id).maybeSingle(),
+  ]);
+  const isAdmin = !profileRes.error && profileRes.data && profileRes.data.role === 'admin';
+
+  if (!isAdmin) {
+    const matchCategories = prefRes.data && prefRes.data.match_categories;
+    if (!matchCategories || matchCategories.length === 0) {
+      return jsonResp(403, { error: 'categories_required' });
+    }
+
+    const jobBuckets = serviceTypesToBuckets(plan.service_types);
+    // Defensive note: if jobBuckets is empty (the plan has no service_types
+    // — schema default is the empty array), we have no service-fit signal
+    // to gate on. Pass through to the RPC rather than reject every bid on
+    // under-specified plans. Strict mode would reject here; revisit if/when
+    // the create-care-plan flow mandates service_types.
+    if (jobBuckets.length > 0) {
+      const provSet = new Set(matchCategories);
+      const overlap = jobBuckets.some(b => provSet.has(b));
+      if (!overlap) {
+        return jsonResp(403, { error: 'service_not_offered' });
+      }
+    }
   }
 
   // Atomic decrement + insert via RPC.
