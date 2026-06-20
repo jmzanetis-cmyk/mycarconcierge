@@ -1579,12 +1579,43 @@
         packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(); // 24 hours from now
       }
 
+      // Care_plans is the primary write — it connects the bidding pipeline (handleMine,
+      // plan-bids gate, provider matching). Write it first; on failure abort with nothing
+      // orphaned. The maintenance_packages write follows as a legacy bridge for the
+      // 15+ surfaces (admin, crowd-fund, splits, receipts, community board, etc.) that
+      // still read it.
+      const carePlanData = {
+        member_id: currentUser.id,
+        vehicle_id: vehicleId || null,
+        title,
+        description: fullDescription,
+        services: [{ name: title }],
+        service_types: _aiCarePlanResult?.service_type
+          ? [_aiCarePlanResult.service_type]
+          : (document.getElementById('p-service-type').value
+              ? [document.getElementById('p-service-type').value]
+              : []),
+        city: userProfile.city || null,
+        state: userProfile.state || null,
+        zip_code: userProfile.zip_code || null,
+        status: 'open'
+        // bid_closes_at omitted — BEFORE INSERT trigger set_care_plan_closes_at sets +72h
+      };
+      const { error: carePlanError } = await supabaseClient.from('care_plans').insert(carePlanData);
+      if (carePlanError) {
+        console.error('Care plan creation error:', carePlanError);
+        return showToast('Failed to publish to job board: ' + (carePlanError.message || 'Unknown error'), 'error');
+      }
+
+      // Legacy bridge — care_plans already succeeded, so any failure here is non-fatal:
+      // the job is already biddable. Side-effects below (destination_services, photos)
+      // need the package id and self-skip via their `data && data[0]` guards.
       const { data, error } = await supabaseClient.from('maintenance_packages').insert(packageData).select();
       if (error) {
-        console.error('Package creation error:', error);
-        return showToast('Failed to create package: ' + (error.message || 'Unknown error'), 'error');
+        console.error('Legacy maintenance_packages write failed (care plan was created):', error);
+        showToast('Job created — some legacy features may not show it. (Bidding is unaffected.)', 'info');
       }
-      
+
       // Create destination service record if applicable
       if (data && data[0] && isDestinationService && destinationType) {
         const destData = buildDestinationServiceData(data[0].id, destinationType);
