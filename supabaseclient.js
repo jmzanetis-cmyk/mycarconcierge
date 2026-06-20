@@ -922,12 +922,13 @@ async function markLocationViewed(shareId) {
 
 // ========== PROVIDER RATING & SUSPENSION ==========
 
-async function checkProviderSuspension(providerId) {
-  const { data, error } = await supabaseClient.rpc('check_provider_suspension', {
-    p_provider_id: providerId
-  });
-  return { data, error };
-}
+// 1c-CAPA: checkProviderSuspension() wrapper REMOVED 2026-06-20.
+// The legacy auto-suspension path it triggered (RPC + DB trigger) is
+// fully disabled — migration 20260621_disable_auto_suspension_trigger.sql
+// drops the trigger and REVOKEs EXECUTE on the RPC from authenticated.
+// New suspension flow is admin-driven via the flag-for-review pipeline:
+// /api/admin/provider-actions/check-low-rated returns candidates; admin
+// manually clicks Suspend.
 
 async function isProviderSuspended(providerId) {
   const { data, error } = await supabaseClient.rpc('is_provider_suspended', {
@@ -960,21 +961,20 @@ async function getProviderReviews(providerId, limit = 10, offset = 0) {
 }
 
 async function submitProviderReview(reviewData) {
+  // 1c-CAPA: previously called checkProviderSuspension(provider_id) after the
+  // insert to fire auto-suspension. That post-insert call has been removed
+  // along with the wrapper above and the trigger on provider_reviews. The
+  // suspensionCheck field is no longer returned; existing callers
+  // (members.js:6924, members-packages.js:4354) only read result.error, so
+  // dropping the field is safe.
   const { data, error } = await supabaseClient
     .from('provider_reviews')
     .insert(reviewData)
     .select()
     .single();
-  
+
   if (error) return { data: null, error };
-  
-  const suspensionResult = await checkProviderSuspension(reviewData.provider_id);
-  
-  return { 
-    data, 
-    error: null, 
-    suspensionCheck: suspensionResult.data 
-  };
+  return { data, error: null };
 }
 
 async function getProviderCreditRefunds(providerId) {
@@ -1025,7 +1025,6 @@ globalThis.deactivateLocationShare = deactivateLocationShare;
 globalThis.markLocationViewed = markLocationViewed;
 
 // Export rating and suspension functions
-globalThis.checkProviderSuspension = checkProviderSuspension;
 globalThis.isProviderSuspended = isProviderSuspended;
 globalThis.getProviderReviewsSummary = getProviderReviewsSummary;
 globalThis.getProviderReviews = getProviderReviews;

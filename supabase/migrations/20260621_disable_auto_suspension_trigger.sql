@@ -1,0 +1,71 @@
+-- ============================================================================
+-- 20260621_disable_auto_suspension_trigger.sql
+-- Disable the legacy auto-suspension path end-to-end.
+--
+-- WHAT THIS CHANGES:
+--   1. DROP TRIGGER check_suspension_after_review ON provider_reviews.
+--      The trigger fired AFTER INSERT and invoked
+--      check_provider_suspension(provider_id) to auto-suspend providers
+--      that had crossed a hardcoded rating threshold.
+--   2. REVOKE EXECUTE ON FUNCTION check_provider_suspension(uuid) FROM
+--      PUBLIC, anon, authenticated. Defense-in-depth backstop: a JS wrapper
+--      at supabaseclient.js:925 (checkProviderSuspension) called this RPC
+--      directly after every member review submission (inside
+--      submitProviderReview at supabaseclient.js:971). The JS-side call
+--      and wrapper are being removed in the companion commit that ships
+--      this migration. Revoking the grant here means even an undiscovered
+--      caller (a future code path or a stale bundle copy not yet
+--      cap-synced) cannot reach the function via a JWT-authed session —
+--      it would return permission_denied. Only service_role retains
+--      EXECUTE, so the function definition stays usable by maintenance
+--      scripts that bypass RLS.
+--
+-- WHY:
+--   The trigger codified the prior (Replit-era) auto-suspension model, which
+--   contradicts every piece of the 2026-06-19 build plan's quality-gate
+--   decisions:
+--
+--     * Threshold: trigger fired at avg rating < 4.0; decided model is < 3.0.
+--     * Minimum reviews: trigger fired at >= 3 reviews; decided model is >= 10.
+--     * Action: trigger AUTO-suspended; decided model is flag-for-admin-review
+--       (admin-as-bouncer), with the admin manually clicking Suspend.
+--     * Side effects: trigger zeroed the suspended provider's bid_credits and
+--       inserted credit_refunds rows at a hardcoded $3.50 per credit; the
+--       decided model has bid-pack pricing of $7-10 per bid (build plan §4.2),
+--       so the refund math was already wrong even before pricing changed.
+--
+--   The flag-for-review pipeline shipped in commits d4884f7 (Step 1c) and
+--   728f442 (low_rated_providers COALESCE fix) replaces this entirely.
+--   Leaving the trigger active alongside the new pipeline would create two
+--   uncoordinated auto-suspension paths firing on different thresholds and
+--   different actions for the same review insert.
+--
+-- WHAT THIS DOES NOT DROP:
+--   The check_provider_suspension(uuid) and calculate_provider_rating(uuid)
+--   FUNCTIONS are left in place intentionally:
+--
+--     * check_provider_suspension — uncallable from non-service-role after
+--       the REVOKE below, but the definition is preserved so service_role
+--       maintenance scripts can still reach it if needed for one-off audit
+--       work. Has no side effects until something explicitly calls it.
+--     * calculate_provider_rating — a read helper. May be reused by the
+--       new admin/CAR review UI later. No side effects; safe to keep.
+--
+-- PROD VERIFICATION (2026-06-21):
+--   The trigger has never fired in this production project:
+--     * provider_stats has 0 rows with suspended=true and 0 rows with
+--       car_required=true.
+--     * credit_refunds is empty.
+--   So dropping the trigger has no compensating side effects to unwind —
+--   we are removing a dormant code path, not undoing actual state. Any
+--   future suspension goes through the new manual flag-for-review pipeline.
+--
+-- IDEMPOTENT: DROP TRIGGER IF EXISTS + REVOKE (which is a no-op when the
+-- grant is already absent). Safe to re-run.
+-- ============================================================================
+
+DROP TRIGGER IF EXISTS check_suspension_after_review ON public.provider_reviews;
+
+REVOKE EXECUTE
+  ON FUNCTION public.check_provider_suspension(uuid)
+  FROM PUBLIC, anon, authenticated;
