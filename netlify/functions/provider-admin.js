@@ -141,15 +141,16 @@ async function suspendProviders(supabase, providerIds, reason, source = 'manual'
         `<p>Hi ${p.full_name || p.business_name || 'there'},</p>
          <p>Your provider account on My Car Concierge has been suspended for the following reason:</p>
          <blockquote style="border-left:3px solid #b8942d; padding-left:12px; color:#555;">${reason}</blockquote>
-         <p>You will not receive new bookings while suspended. Please reply to this email or contact support if you'd like to discuss reinstatement.</p>
+         <p>You will not receive new bookings while suspended.</p>
+         <p><strong>To request reinstatement:</strong> sign in to the provider portal and submit a Corrective Action Response. Our team will review your response and respond with a decision.</p>
          <p>— My Car Concierge</p>`);
     }
     // In-app notification mirrors the email so providers see it on next login.
     try {
       await supabase.from('notifications').insert({
         user_id: p.id, type: 'account_suspended',
-        title: 'Account Suspended',
-        message: `Your provider account has been suspended. Reason: ${reason}`
+        title: 'Account Suspended — Action Required',
+        message: `Your provider account has been suspended. Reason: ${reason}. To request reinstatement, submit a Corrective Action Response from your provider portal.`
       });
     } catch (e) { /* non-critical */ }
   }));
@@ -381,53 +382,61 @@ async function _handleVerifyProvider(supabase, body) {
   return jsonResponse(200, result);
 }
 
+// Step 1c — flag-for-admin-review (no auto-suspend). Aggregates from the live
+// provider_reviews table via the low_rated_providers RPC (migration
+// 20260620_low_rated_providers_rpc.sql). Default thresholds match the build
+// plan: avg rating < 3.0 stars AND at least 10 published reviews. Caller may
+// override either via body.rating_threshold / body.min_reviews. Returns the
+// candidate list only — admins act on it through the existing manual Suspend
+// flow (which sets role='suspended' after the Step 1c admin.js fix).
 async function _handleCheckLowRated(supabase, body) {
-  const threshold = isFinite(body.rating_threshold) ? body.rating_threshold : 4;
-  const autosuspend = !!body.autosuspend;
-  const reason = (body.reason || `Rating below ${threshold} stars - automatic suspension`).toString().trim();
+  const thresholdRaw  = Number(body.rating_threshold);
+  const minReviewsRaw = Number(body.min_reviews);
+  const threshold     = Number.isFinite(thresholdRaw)  && thresholdRaw  > 0 ? thresholdRaw  : 3.0;
+  const minReviews    = Number.isFinite(minReviewsRaw) && minReviewsRaw >= 1
+    ? Math.floor(minReviewsRaw)
+    : 10;
 
-  const { data: stats, error: statsErr } = await supabase
-    .from('provider_stats')
-    .select('provider_id, average_rating, suspended')
-    .lt('average_rating', threshold)
-    .not('average_rating', 'is', null);
-  if (statsErr) return jsonResponse(500, { error: statsErr.message });
+  const { data: candidates, error: rpcErr } = await supabase.rpc('low_rated_providers', {
+    p_threshold:   threshold,
+    p_min_reviews: minReviews
+  });
+  if (rpcErr) return jsonResponse(500, { error: rpcErr.message });
 
-  const candidateIds = (stats || []).filter(s => !s.suspended).map(s => s.provider_id);
-  let profiles = [];
+  let flagged = [];
+  const candidateIds = (candidates || []).map(c => c.provider_id);
   if (candidateIds.length > 0) {
-    const { data, error } = await supabase
+    // Hide providers already suspended — don't re-flag what an admin already actioned.
+    const { data: profiles, error: profErr } = await supabase
       .from('profiles')
-      .select('id, full_name, business_name, email, suspension_reason')
+      .select('id, full_name, business_name, email')
       .in('id', candidateIds)
-      .is('suspension_reason', null);
-    if (error) return jsonResponse(500, { error: error.message });
-    profiles = data || [];
+      .is('suspension_reason', null)
+      .neq('role', 'suspended');
+    if (profErr) return jsonResponse(500, { error: profErr.message });
+
+    const byId = new Map(candidates.map(c => [c.provider_id, c]));
+    flagged = (profiles || []).map(p => ({
+      id:           p.id,
+      name:         p.business_name || p.full_name || 'Unnamed',
+      email:        p.email,
+      avg_rating:   Number(byId.get(p.id).avg_rating),
+      review_count: byId.get(p.id).review_count
+    }));
   }
-  const ratingByProviderId = new Map((stats || []).map(s => [s.provider_id, s.average_rating]));
-  const lowRated = profiles.map(p => ({ ...p, avg_rating: ratingByProviderId.get(p.id) }));
 
   await audit(supabase, {
-    action: 'check_low_rated',
-    target_type: 'profile',
-    metadata: { threshold, found: lowRated.length, autosuspend },
+    action:       'check_low_rated',
+    target_type:  'profile',
+    metadata:     { threshold, min_reviews: minReviews, found: flagged.length },
     performed_by: 'admin'
   });
 
-  const providerSummaries = lowRated.map(p => ({ id: p.id, name: p.business_name || p.full_name, avg_rating: p.avg_rating }));
-  if (autosuspend && lowRated.length > 0) {
-    const result = await suspendProviders(supabase, lowRated.map(p => p.id), reason, 'autosuspend');
-    return jsonResponse(200, {
-      found: lowRated.length, threshold,
-      providers: providerSummaries,
-      autosuspend: true,
-      suspended: result.updated, failed: result.failed
-    });
-  }
   return jsonResponse(200, {
-    found: lowRated.length, threshold,
-    providers: providerSummaries,
-    autosuspend: false
+    found:       flagged.length,
+    threshold,
+    min_reviews: minReviews,
+    providers:   flagged
   });
 }
 

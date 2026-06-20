@@ -3699,7 +3699,10 @@
         const res = await fetch('/api/admin/provider-actions/suspend', {
           method: 'POST',
           headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ provider_ids: Array.from(selectedProviders), reason: reason.trim() })
+          // Step 1c — set_role_suspended:true engages the role-flip belt
+          // (suspended_at is already RLS-gated, but flipping role='suspended'
+          // is the secondary block the bid gate checks).
+          body: JSON.stringify({ provider_ids: Array.from(selectedProviders), reason: reason.trim(), set_role_suspended: true })
         });
         const json = await res.json();
         if (!res.ok) {
@@ -3762,60 +3765,35 @@
       clearSelection();
     }
 
+    // Step 1c — flag-for-admin-review only (no auto-suspend). The endpoint
+    // returns providers under 3.0 ★ with ≥10 published reviews. Admin then
+    // reviews each one and uses the existing manual Suspend action.
     async function checkLowRatedProviders() {
-      // Server-side preview: ask the endpoint for the canonical list (audited
-      // there) instead of trusting the local in-memory copy.
-      let preview;
       try {
         const res = await fetch('/api/admin/provider-actions/check-low-rated', {
           method: 'POST',
           headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rating_threshold: 4, autosuspend: false })
+          body: JSON.stringify({ rating_threshold: 3.0, min_reviews: 10 })
         });
-        preview = await res.json();
+        const data = await res.json();
         if (!res.ok) {
-          showToast(preview.error || `Preview failed (${res.status})`, 'error');
+          showToast(data.error || `Check failed (${res.status})`, 'error');
           return;
         }
-      } catch (e) {
-        showToast(`Preview failed: ${e.message}`, 'error');
-        return;
-      }
 
-      const lowRated = preview.providers || [];
-      if (lowRated.length === 0) {
-        showToast('No providers with ratings below 4 stars found!', 'success');
-        return;
-      }
+        const flagged = data.providers || [];
+        if (flagged.length === 0) {
+          showToast('No providers under 3.0 ★ with ≥10 published reviews.', 'success');
+          return;
+        }
 
-      const names = lowRated.map(p => `• ${p.name} (${(p.avg_rating || 0).toFixed(1)} ${mccIcon('star', 16)})`).join('\n');
-      const action = confirm(`${mccIcon('alert-triangle', 16)} Found ${lowRated.length} provider(s) with ratings below 4 stars:\n\n${names}\n\nDo you want to suspend these providers?`);
-
-      if (!action) {
-        // Just filter to show them
+        // Surface the flagged set via the existing low-rating filter; admin
+        // reviews each provider and Suspends manually.
         document.getElementById('provider-rating-filter').value = 'low';
         filterProviders();
-        showToast(`Showing ${lowRated.length} low-rated provider(s)`, 'info');
-        return;
-      }
-
-      // Confirm step → server autosuspend (emails + audit row per provider).
-      try {
-        const res = await fetch('/api/admin/provider-actions/check-low-rated', {
-          method: 'POST',
-          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rating_threshold: 4, autosuspend: true, reason: 'Rating below 4 stars - automatic suspension' })
-        });
-        const json = await res.json();
-        if (!res.ok) {
-          showToast(json.error || `Auto-suspend failed (${res.status})`, 'error');
-          return;
-        }
-        showToast(`Suspended ${json.suspended || 0} provider(s) with low ratings`, 'success');
-        await loadData();
-        renderProviders();
+        showToast(`Flagged ${flagged.length} provider(s) under 3.0 ${mccIcon('star', 14)} (≥10 reviews). Review and Suspend manually.`, 'info');
       } catch (e) {
-        showToast(`Auto-suspend failed: ${e.message}`, 'error');
+        showToast(`Check failed: ${e.message}`, 'error');
       }
     }
 
