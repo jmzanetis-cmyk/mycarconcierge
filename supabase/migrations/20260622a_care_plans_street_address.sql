@@ -1,0 +1,31 @@
+-- ============================================================================
+-- 20260622a_care_plans_street_address.sql
+-- care_plans.street_address — stored full street address for the job
+-- (Step 1d-1b-1).
+--
+-- PURPOSE:
+--   Step 1d-1b adds a distance dimension to the bid gate. The matchmaker
+--   needs lat/lng for each job; lat/lng already exist on care_plans
+--   (20260328_job_board.sql:29-30). What's missing is the raw street
+--   address the member enters at job creation — useful for:
+--     1. Re-geocoding if Nominatim drift / accuracy improves later.
+--     2. Future fulfillment use (provider routing, on-site arrival).
+--     3. Auditing why a job landed at a given lat/lng.
+--
+--   This migration adds ONLY the column. The create flow (savePackage in
+--   www/members-packages.js, committed b267432) will be repointed to
+--   populate it in Stage 1d-1b-4, when the address-capture UI and the
+--   server-side POST /api/care-plans endpoint ship together.
+--
+-- NULLABILITY:
+--   Nullable, no default. Existing rows (0/7 today have lat/lng either)
+--   are unaffected. Future inserts may pass NULL when the member hasn't
+--   given a street address — the geocode service falls back to
+--   zip-centroid, so a missing street_address never blocks job creation
+--   (per the 1d-1b "never-block" rule).
+--
+-- IDEMPOTENT: ADD COLUMN IF NOT EXISTS — safe to re-run.
+-- ============================================================================
+
+ALTER TABLE public.care_plans
+  ADD COLUMN IF NOT EXISTS street_address text;
