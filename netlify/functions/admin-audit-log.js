@@ -65,13 +65,21 @@ const KNOWN_ACTIONS = [
   'check_low_rated',
   'create_concierge_job',
   'create_provider_application',
+  'delete_payment',
+  'driver_cashout_admin_triggered',
+  'driver_payout_adjustment',
+  'driver_payout_mark_paid',
+  'driver_payout_retry',
+  'driver_payout_retry_failed',
+  'edit_payment',
   'reject_provider_application',
   'request_application_info',
   'suspend_provider',
   'transition_concierge_job',
   'update_apollo_config',
   'update_concierge_job_address',
-  'update_user_role'
+  'update_user_role',
+  'verify_provider'
 ];
 
 exports.handler = async function(event) {
