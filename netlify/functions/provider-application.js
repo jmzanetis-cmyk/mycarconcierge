@@ -140,7 +140,7 @@ function validateAndClean(body) {
   const allowed = [
     'provider_alias', 'business_name', 'business_type', 'contact_name', 'phone', 'email',
     'legal_signatory_name', 'agreement_signed_at', 'agreement_signature',
-    'website', 'street_address', 'city', 'state', 'zip_code',
+    'website', 'address_line1', 'address_line2', 'city', 'state', 'zip',
     'service_area', 'service_radius_miles', 'services_offered',
     'brand_specializations', 'years_in_business', 'employees_count', 'bays_count',
     'vehicles_per_week',

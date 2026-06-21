@@ -4521,7 +4521,7 @@
             <span class="detail-label">Phone:</span><span class="detail-value">${app.phone || 'N/A'}</span>
             <span class="detail-label">Email:</span><span class="detail-value">${app.email || 'N/A'}</span>
             <span class="detail-label">Website:</span><span class="detail-value">${app.website ? `<a href="${app.website}" target="_blank" style="color:var(--accent-blue)">${app.website}</a>` : 'N/A'}</span>
-            <span class="detail-label">Address:</span><span class="detail-value">${app.street_address || ''}, ${app.city || ''}, ${app.state || ''} ${app.zip_code || ''}</span>
+            <span class="detail-label">Address:</span><span class="detail-value">${app.address_line1 || ''}, ${app.city || ''}, ${app.state || ''} ${app.zip || ''}</span>
             <span class="detail-label">Service Area:</span><span class="detail-value">${app.service_area || 'N/A'}</span>
             <span class="detail-label">Years in Business:</span><span class="detail-value">${app.years_in_business || 'N/A'}</span>
             <span class="detail-label">Services:</span><span class="detail-value">${app.services_offered?.join(', ') || 'N/A'}</span>
