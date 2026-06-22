@@ -260,8 +260,13 @@ async function handleAcceptBid(event, sb, user, planId) {
     }).eq('id', planId);
     if (updateErr) return json(500, { error: updateErr.message });
     await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', bid_id);
-    await sb.from('plan_bids').update({ status: 'not_selected' })
+    // Sweep losing bids. plan_bids.status CHECK only allows
+    // ('pending','accepted','rejected','withdrawn') — 'not_selected' was failing
+    // silently and leaving losers stuck on 'pending'. Now writes 'rejected' and
+    // surfaces any error (still non-fatal — the bid is already awarded).
+    const { error: sweepErr } = await sb.from('plan_bids').update({ status: 'rejected' })
       .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
+    if (sweepErr) console.error('[accept-bid] competitor sweep failed:', sweepErr);
     return json(200, {
       success: true,
       paid_by_wallet: true,
@@ -309,10 +314,15 @@ async function handleAcceptBid(event, sb, user, planId) {
 
   if (updateErr) return json(500, { error: updateErr.message });
 
-  // Mark bid as accepted, others as not_selected
+  // Mark winning bid accepted; sweep losing pending bids to 'rejected'.
+  // plan_bids.status CHECK allows ('pending','accepted','rejected','withdrawn');
+  // the prior 'not_selected' literal failed the constraint silently and left
+  // losers stuck on 'pending'. Now we capture + log any sweep error (non-fatal
+  // — the winning bid is already accepted and the care_plan already awarded).
   await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', bid_id);
-  await sb.from('plan_bids').update({ status: 'not_selected' })
+  const { error: sweepErr } = await sb.from('plan_bids').update({ status: 'rejected' })
     .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
+  if (sweepErr) console.error('[accept-bid] competitor sweep failed:', sweepErr);
 
   return json(200, {
     success: true,

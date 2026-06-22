@@ -40,8 +40,12 @@
 //     referred_by_provider_id from member's profiles row): RLS+join
 //     complexity. Undefined values just hide the pill in render — acceptable
 //     for v1.
-//   - _lowestBid / _myBid augmentation: requires per-plan plan_bids
-//     aggregation queries. Defer.
+//   - _lowestBid augmentation: requires per-plan plan_bids aggregation
+//     queries. Defer.
+//   - (Was: _myBid augmentation) — REPLACED by server-side exclusion. The
+//     endpoint now pre-fetches plan_bids the caller owns and drops those
+//     care_plans from the response entirely, so the client never needs to
+//     check "did I already bid?" — bid-on jobs simply aren't in the list.
 //   - Distance gate: 1b-5 dependency. When provider + plan both have lat/lng,
 //     add `point<@>point <= match_radius_miles` filter. Null-safe (per
 //     never-block rule) on either side missing coords.
@@ -128,6 +132,16 @@ exports.handler = async function (event) {
     return jsonResp(200, { packages: [], categories_required: true });
   }
 
+  // Pre-fetch the care_plan ids this provider has already bid on. Option A:
+  // ANY existing plan_bids row (regardless of status — pending, accepted,
+  // rejected, withdrawn) excludes the plan from the browse feed. One bid
+  // removes the job permanently from this provider's view. Admins bypass.
+  const { data: myBidRows } = await supabase
+    .from('plan_bids')
+    .select('care_plan_id')
+    .eq('provider_id', user.id);
+  const excludedPlanIds = new Set((myBidRows || []).map(r => r.care_plan_id));
+
   // SELECT open + non-expired care_plans. RLS additionally enforces
   // verified-non-suspended-provider on this read (post-20260619a), but the
   // explicit gate above is the canonical check — RLS is defense-in-depth.
@@ -150,11 +164,13 @@ exports.handler = async function (event) {
   }
 
   // Service-fit filter — MIRRORS plan-bids.js:228-240 exactly:
+  //   - already-bid (server-side exclusion above) → drop first, before service-fit
   //   - empty service_types on the plan → permissive default, passes
   //   - otherwise → buckets must overlap with provider's match_categories
   //   - admins bypass entirely
   const provSet = new Set(matchCategories);
   const filtered = (plans || []).filter(p => {
+    if (!isAdmin && excludedPlanIds.has(p.id)) return false;
     if (isAdmin) return true;
     const jobBuckets = serviceTypesToBuckets(p.service_types);
     if (jobBuckets.length === 0) return true;
