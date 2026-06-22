@@ -19,8 +19,12 @@ function isDestinationPackage(p) {
   return p.category === 'destination_service' || p.is_destination_service === true || p.pickup_preference === 'destination_service';
 }
 
-let matchedPackageIds = new Set();
 let bidInsightsLoaded = false;
+// 1d-3 v1: when /api/provider/packages returns { categories_required: true },
+// the provider hasn't declared any match_categories yet. renderOpenPackages
+// checks this flag to surface the categories-prompt UI in place of the
+// generic "no packages match" empty state.
+let providerCategoriesRequired = false;
 
 // ========== LOAD OPEN PACKAGES ==========
 async function loadOpenPackages() {
@@ -29,41 +33,31 @@ async function loadOpenPackages() {
     if (!session) {
       console.error('No session for loading packages');
       openPackages = [];
+      providerCategoriesRequired = false;
       renderOpenPackages();
       renderRecentPackages();
       return;
     }
-    
+
     const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const response = await fetch(`${apiBase}/api/provider/packages`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    
+
     if (!response.ok) {
       const errorData = await response.json().catch(() => ({}));
       console.error('Error loading packages:', errorData.error || response.statusText);
       openPackages = [];
+      providerCategoriesRequired = false;
     } else {
       const result = await response.json();
       openPackages = result.packages || [];
+      providerCategoriesRequired = !!result.categories_required;
     }
-    
+
     const locationWarning = document.getElementById('location-warning');
     if (locationWarning) {
       locationWarning.style.display = !providerProfile?.zip_code ? 'block' : 'none';
-    }
-    
-    if (currentUser?.id) {
-      try {
-        const { data: matchedNotifs } = await supabaseClient
-          .from('notifications')
-          .select('link_id')
-          .eq('user_id', currentUser.id)
-          .eq('type', 'matched_package');
-        matchedPackageIds = new Set((matchedNotifs || []).map(n => n.link_id).filter(Boolean));
-      } catch (e) {
-        matchedPackageIds = new Set();
-      }
     }
 
     renderOpenPackages();
@@ -163,7 +157,15 @@ function renderOpenPackages(filtered = null) {
   const packagesToRender = filtered || openPackages;
   
   if (!packagesToRender.length) {
-    container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 40)}</div><p>No packages match your filters. Try adjusting your criteria.</p></div>`;
+    if (providerCategoriesRequired) {
+      container.innerHTML = `<div class="empty-state">
+        <div class="empty-state-icon">${mccIcon('settings', 40)}</div>
+        <p>Set your service categories to see matching jobs.</p>
+        <p style="margin-top:8px;"><a href="#" onclick="showSection('settings');return false;" style="color:var(--accent-gold);text-decoration:underline;">Open match preferences →</a></p>
+      </div>`;
+    } else {
+      container.innerHTML = `<div class="empty-state"><div class="empty-state-icon">${mccIcon('package', 40)}</div><p>No packages match your filters. Try adjusting your criteria.</p></div>`;
+    }
     const filterInfo = document.getElementById('filter-results-info');
     if (filterInfo) filterInfo.textContent = '';
     return;
@@ -258,7 +260,6 @@ function renderPackageCard(p, showBidButton = false) {
         <div style="display:flex;flex-direction:column;align-items:flex-end;gap:4px;">
           <span class="package-badge">${formatCategory(p.category) || 'General'}</span>
           ${p.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
-          ${matchedPackageIds.has(p.id) ? `<span class="package-badge" style="background:rgba(34,211,238,0.15);color:var(--accent-teal);border:1px solid rgba(34,211,238,0.3);">${mccIcon('zap', 14)} Matched for you</span>` : ''}
         </div>
       </div>
       <div class="package-meta">
