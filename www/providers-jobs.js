@@ -163,7 +163,7 @@ window.refreshProviderJobConcierge = async function(packageId) {
   try {
     const resp = await fetch('/api/concierge?role=provider', { headers });
     if (!resp.ok) { host.textContent = 'Driver requests unavailable.'; return; }
-    const { jobs = [] } = await resp.json();
+    const { jobs = [] } = await resp.json().catch(() => ({}));
     const mine = apptId ? jobs.filter(j => j.appointment_id === apptId) : [];
     if (!mine.length) {
       host.innerHTML = '<em style="color:var(--text-muted);font-size:0.85rem;">No driver requests for this job yet.</em>';
@@ -211,7 +211,7 @@ window.refreshProviderVehicleTransfers = async function() {
   try {
     const resp = await fetch('/api/concierge?role=provider', { headers });
     if (!resp.ok) { host.innerHTML = ''; return; }
-    const { jobs = [] } = await resp.json();
+    const { jobs = [] } = await resp.json().catch(() => ({}));
     const live = jobs.filter(j => j.status !== 'cancelled' && j.status !== 'completed');
     if (!live.length) { host.innerHTML = ''; return; }
     const enriched = await Promise.all(live.slice(0, 6).map(async j => {
@@ -572,8 +572,8 @@ async function submitJobCompletion() {
         completion_notes: notes
       })
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to complete job');
     
     closeModal('complete-job-modal');
@@ -665,8 +665,8 @@ async function submitAdditionalWorkRequest() {
         photos
       })
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to submit request');
     
     closeModal('additional-work-modal');
@@ -732,8 +732,8 @@ async function submitDiscountOffer() {
         reason
       })
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to offer discount');
     
     closeModal('discount-modal');
@@ -757,8 +757,8 @@ async function viewAdditionalWorkRequests(packageId) {
     const response = await fetch(`/api/additional-work/${packageId}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to load requests');
     
     const requests = result.requests || result || [];
@@ -806,8 +806,8 @@ async function viewDiscountsOffered(packageId) {
     const response = await fetch(`/api/discounts/${packageId}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    
-    const result = await response.json();
+
+    const result = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(result.error || 'Failed to load discounts');
     
     const discounts = result.discounts || result || [];
@@ -1538,9 +1538,9 @@ async function confirmMemberArrival(packageId, token) {
       },
       body: JSON.stringify({ token })
     });
-    
-    const result = await response.json();
-    
+
+    const result = await response.json().catch(() => ({}));
+
     if (!response.ok) {
       throw new Error(result.error || 'Failed to confirm arrival');
     }
@@ -1596,7 +1596,7 @@ async function loadProviderRefundBadge() {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
     if (!res.ok) return;
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     const refunds = data.refunds || data || [];
     const pendingCount = Array.isArray(refunds) ? refunds.filter(r => r.status === 'pending').length : 0;
     const badge = document.getElementById('refund-count');
@@ -1635,7 +1635,7 @@ async function loadProviderRefunds() {
       throw new Error(`Failed to load refunds: ${res.status}`);
     }
 
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
     const refunds = data.refunds || data || [];
 
     if (!Array.isArray(refunds) || refunds.length === 0) {
@@ -1908,7 +1908,7 @@ async function loadProviderMediations() {
         });
         if (!resp.ok) continue;
 
-        const data = await resp.json();
+        const data = await resp.json().catch(() => ({}));
         if (!data.mediation) continue;
 
         const m = data.mediation;
@@ -1967,7 +1967,7 @@ async function providerGenerateDebrief(packageId) {
       },
       body: JSON.stringify({ package_id: packageId })
     });
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Failed to generate summary');
 
     const summaryText = data.summary || '';
@@ -2016,7 +2016,7 @@ async function saveProviderDebrief(packageId) {
       },
       body: JSON.stringify({ package_id: packageId, summary: summaryText })
     });
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Failed to save summary');
 
     const panel = document.getElementById(`provider-debrief-panel-${packageId}`);

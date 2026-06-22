@@ -50,7 +50,7 @@ async function loadOpenPackages() {
       openPackages = [];
       providerCategoriesRequired = false;
     } else {
-      const result = await response.json();
+      const result = await response.json().catch(() => ({}));
       openPackages = result.packages || [];
       providerCategoriesRequired = !!result.categories_required;
     }
@@ -121,7 +121,7 @@ async function loadBidInsights() {
       return;
     }
 
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     bidInsightsLoaded = true;
 
     if (!data.has_data) {
@@ -1206,7 +1206,10 @@ async function purchaseBidPack(packId) {
           })
         });
 
-        const data = await response.json();
+        const data = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          throw new Error(data.error || `Payment failed (${response.status})`);
+        }
         if (data.success) {
           showToast(`${totalBids} bid credits added to your account!`, 'success');
           await loadSubscription();
@@ -1240,7 +1243,8 @@ async function purchaseBidPack(packId) {
         })
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || `Checkout failed (${response.status})`);
       if (data.error) throw new Error(data.error);
       if (!data.url) throw new Error('No checkout URL returned');
 

@@ -43,7 +43,7 @@
         body: JSON.stringify({ table, doc_id: docId }),
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Could not retrieve document');
 
       window.open(data.url, '_blank', 'noopener,noreferrer');

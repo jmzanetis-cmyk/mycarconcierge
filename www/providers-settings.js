@@ -47,7 +47,7 @@ async function saveProviderProfile() {
       },
       body: JSON.stringify(fields)
     });
-    const result = await resp.json();
+    const result = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(result.error || 'Save failed');
 
     providerProfile = { ...providerProfile, ...fields };
@@ -78,7 +78,7 @@ async function loadMatchPreferences() {
       headers: { 'Authorization': 'Bearer ' + session.access_token }
     });
     if (!resp.ok) return;
-    const prefs = await resp.json();
+    const prefs = await resp.json().catch(() => null);
     if (!prefs) return;
 
     const cats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
@@ -157,7 +157,7 @@ async function saveMatchPreferences() {
         matches_paused_until: pausedUntilIso
       })
     });
-    const result = await resp.json();
+    const result = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(result.error || 'Save failed');
     showToast('Match preferences saved!', 'success');
     if (typeof updateMatchPauseBanner === 'function') updateMatchPauseBanner(result.preferences || result);
@@ -533,7 +533,7 @@ async function loadBackgroundCheckStatus(opts = {}) {
     });
 
     if (!response.ok) throw new Error('Failed to fetch background check status');
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     const lastUpdated = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
     // ---- Provider's own check ----
@@ -781,7 +781,7 @@ async function submitBackgroundCheck() {
       })
     });
 
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Failed to initiate background check');
 
     closeModal('background-check-modal');
@@ -822,7 +822,7 @@ async function viewBgCheckReport(checkId) {
     const response = await fetch(`/api/bgcheck/report-url/${checkId}`, {
       headers: { 'Authorization': `Bearer ${session?.access_token}` }
     });
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
     if (!response.ok) throw new Error(data.error || 'Unable to load report');
 
     if (!data.reportUrl) {
@@ -865,7 +865,7 @@ async function loadVerificationBadgeStatus() {
     });
     
     if (!response.ok) throw new Error('Failed to fetch verification status');
-    const data = await response.json();
+    const data = await response.json().catch(() => ({}));
 
     const badgeIcon = data.badgeEarned ? '✅' : `${mccIcon('lock', 14)}`;
     const badgeColor = data.badgeEarned ? 'var(--accent-green)' : 'var(--text-muted)';
@@ -1213,9 +1213,9 @@ async function toggleQrCheckin(enabled) {
       },
       body: JSON.stringify({ enabled })
     });
-    
-    const data = await response.json();
-    
+
+    const data = await response.json().catch(() => ({}));
+
     if (!response.ok) {
       throw new Error(data.error || 'Failed to update QR check-in setting');
     }
@@ -1263,7 +1263,7 @@ async function toggleDirectoryOptIn() {
       body: JSON.stringify({ opt_in: optIn })
     });
 
-    const data = await resp.json();
+    const data = await resp.json().catch(() => ({}));
     if (!resp.ok) throw new Error(data.error || 'Failed to update');
 
     providerProfile.directory_opt_in = data.directory_opt_in;
@@ -1466,7 +1466,11 @@ async function loadProviderPushPreferences() {
     const resp = await fetch(`${apiBase}/api/provider/${session.user.id}/notification-preferences`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await resp.json();
+    if (!resp.ok) {
+      console.warn('[loadProviderPushPreferences] notification-preferences returned', resp.status);
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
     const prefs = data.preferences || {};
     PROVIDER_PUSH_PREF_FIELDS.forEach(({ id, key }) => {
       const el = document.getElementById(id);
@@ -1511,7 +1515,11 @@ async function loadShopSubscription() {
     const res = await fetch(`${apiBase}/api/saas/shop-status`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[loadShopSubscription] /api/saas/shop-status returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     const planBadge = document.getElementById('shop-sub-plan');
     const statusBadge = document.getElementById('shop-sub-status');
@@ -1603,7 +1611,12 @@ async function selectShopPlan(planKey) {
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
       body: JSON.stringify({ product: 'shop', plan: planKey })
     });
-    const data = await res.json();
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      document.getElementById('shop-upgrade-modal')?.remove();
+      showToast(data.error || 'Failed to start checkout', 'error');
+      return;
+    }
     document.getElementById('shop-upgrade-modal')?.remove();
     if (data.url) {
       window.location.href = data.url;
@@ -1624,7 +1637,11 @@ async function loadMarketplaceVisibility() {
     const res = await fetch(`${apiBase}/api/provider/marketplace-visibility`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[loadMarketplaceVisibility] /api/provider/marketplace-visibility returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
     const toggle = document.getElementById('marketplace-visible-toggle');
     const shopOnlyToggle = document.getElementById('shop-only-mode-toggle');
     const statusText = document.getElementById('marketplace-status-text');
@@ -1676,7 +1693,11 @@ async function walkinLookupByPhone() {
     const res = await fetch(`${apiBase}/api/shop/walkin-lookup?phone=${encodeURIComponent(phone)}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[walkin-lookup phone] returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     const renderCustomerCard = (c) => {
       const vehicles = c.vehicles || [];
@@ -1720,7 +1741,11 @@ async function walkinLookupByName() {
     const res = await fetch(`${apiBase}/api/shop/walkin-lookup?name=${encodeURIComponent(name)}`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[walkin-lookup name] returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     const renderCustomerCard = (c) => {
       const vehicles = c.vehicles || [];
@@ -1777,7 +1802,11 @@ async function loadShopOnboardingChecklist() {
     const res = await fetch(`${apiBase}/api/shop/onboarding-status`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[loadShopOnboardingChecklist] /api/shop/onboarding-status returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
     renderShopOnboardingChecklist(data.steps || {});
   } catch (err) {
     console.error('[Onboarding] Load error:', err);
@@ -1851,7 +1880,11 @@ async function posLookupCustomer() {
     const res = await fetch(`${apiBase}/api/shop/walkin-lookup?phone=${encodeURIComponent(phone)}`, {
       headers: session ? { 'Authorization': `Bearer ${session.access_token}` } : {}
     });
-    const data = await res.json();
+    if (!res.ok) {
+      console.warn('[walkin-save step1] walkin-lookup returned', res.status);
+      return;
+    }
+    const data = await res.json().catch(() => ({}));
 
     // Move to step 2 - verify/info step
     if (typeof posGoToStep === 'function') posGoToStep(2);
@@ -1981,7 +2014,7 @@ async function loadAutoBidSettings() {
       headers: { 'Authorization': 'Bearer ' + (await supabaseClient.auth.getSession()).data.session?.access_token }
     });
     if (!res.ok) return;
-    const d = await res.json();
+    const d = await res.json().catch(() => ({}));
     const enabled = d.auto_bid_enabled || false;
     const toggle = document.getElementById('auto-bid-toggle');
     const slider = document.getElementById('auto-bid-slider');
@@ -2040,7 +2073,7 @@ async function updateAutoBidPreview() {
     const token = (await supabaseClient.auth.getSession()).data.session?.access_token;
     const res = await fetch('/api/care-plans/preview?' + params, { headers: { 'Authorization': 'Bearer ' + token } });
     if (!res.ok) { countEl.textContent = '—'; return; }
-    const d = await res.json();
+    const d = await res.json().catch(() => ({}));
     const n10 = d.count_of_last_10 || 0;
     countEl.textContent = `${n10} of the last 10 plans posted match your settings`;
   } catch (e) {

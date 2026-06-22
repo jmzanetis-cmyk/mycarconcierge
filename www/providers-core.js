@@ -180,8 +180,12 @@ async function checkAccessAuthorization() {
     const response = await fetch(`${apiBase}/api/auth/check-access`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const result = await response.json();
-    
+    if (!response.ok) {
+      console.warn('[checkAccessAuthorization] /api/auth/check-access returned', response.status);
+      return true; // fail-open on a degraded auth check (matches existing catch behavior)
+    }
+    const result = await response.json().catch(() => ({}));
+
     if (!result.authorized && result.reason === '2fa_required') {
       window.location.href = 'login.html?2fa=required&returnTo=' + encodeURIComponent(window.location.pathname);
       return false;
@@ -500,9 +504,12 @@ async function confirmDeleteAccount() {
         'Authorization': `Bearer ${session.access_token}`
       }
     });
-    
-    const result = await response.json();
-    
+
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(result.error || `Failed to delete account (${response.status})`);
+    }
+
     if (result.success) {
       // Sign out and redirect
       await supabaseClient.auth.signOut();
@@ -554,11 +561,16 @@ async function loadPosIntegrationStatus() {
 async function loadCloverStatus() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const headers = session?.access_token 
-      ? { 'Authorization': `Bearer ${session.access_token}` } 
+    const headers = session?.access_token
+      ? { 'Authorization': `Bearer ${session.access_token}` }
       : {};
     const response = await fetch(`/api/clover/status/${currentUser.id}`, { headers });
-    const data = await response.json();
+    if (!response.ok) {
+      console.warn('[loadCloverStatus] /api/clover/status returned', response.status);
+      updateCloverUI({ connected: false });
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
     cloverConnectionStatus = data;
     updateCloverUI(data);
   } catch (error) {
@@ -570,12 +582,18 @@ async function loadCloverStatus() {
 async function loadSquareStatus() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const headers = session?.access_token 
-      ? { 'Authorization': `Bearer ${session.access_token}` } 
+    const headers = session?.access_token
+      ? { 'Authorization': `Bearer ${session.access_token}` }
       : {};
     const response = await fetch(`/api/pos/connections/${currentUser.id}`, { headers });
-    const data = await response.json();
-    
+    if (!response.ok) {
+      console.warn('[loadSquareStatus] /api/pos/connections returned', response.status);
+      squareConnectionStatus = { connected: false };
+      updateSquareUI(squareConnectionStatus);
+      return;
+    }
+    const data = await response.json().catch(() => ({}));
+
     const squareConnection = data.connections?.find(c => c.pos_provider === 'square');
     if (squareConnection) {
       squareConnectionStatus = { connected: true, ...squareConnection };
@@ -943,7 +961,11 @@ async function loadCarClubCard() {
     const resp = await fetch(`${apiBase}/api/car-club/my-club`, {
       headers: { 'Authorization': `Bearer ${session.access_token}` }
     });
-    const data = await resp.json();
+    if (!resp.ok) {
+      console.warn('[loadCarClubCard] /api/car-club/my-club returned', resp.status);
+      return;
+    }
+    const data = await resp.json().catch(() => ({}));
     if (data.club) {
       const club = data.club;
       const rules = club.reward_rules || [];
