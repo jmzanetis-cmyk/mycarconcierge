@@ -253,7 +253,7 @@ function buildStubSupabase({ callerId, bidRow }) {
       getUser: async () => ({ data: { user: { id: callerId } }, error: null }),
     },
     from(table) {
-      if (table === 'bids') {
+      if (table === 'plan_bids') {
         return {
           select() { return this; },
           eq() { return this; },
@@ -311,8 +311,8 @@ check('bid-accepted-push: self-award returns self_award_skipped without token lo
     bidId,
     bidRow: {
       id: bidId, provider_id: sharedId, status: 'accepted',
-      package_id: 'pkg', price: 100,
-      maintenance_packages: { member_id: sharedId, title: 'Test' },
+      care_plan_id: 'pkg', amount: 100,
+      care_plans: { member_id: sharedId, title: 'Test' },
     },
   });
   assert.strictEqual(res.statusCode, 200);
@@ -335,8 +335,8 @@ check('bid-accepted-push: cross-account award proceeds past the self-skip guard'
       callerId: memberId, providerId, bidId,
       bidRow: {
         id: bidId, provider_id: providerId, status: 'accepted',
-        package_id: 'pkg', price: 100,
-        maintenance_packages: { member_id: memberId, title: 'Test' },
+        care_plan_id: 'pkg', amount: 100,
+        care_plans: { member_id: memberId, title: 'Test' },
       },
     });
     assert.strictEqual(res.statusCode, 200);

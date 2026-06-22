@@ -18,8 +18,8 @@
 // Auth: Supabase JWT (member's bearer token from the browser session).
 // Body: { provider_id, bid_id }
 //   (Task #351: package_title / bid_amount in the body are now ignored —
-//    the handler reads them authoritatively from bids.price and
-//    maintenance_packages.title using the same lookup it already does for
+//    the handler reads them authoritatively from plan_bids.amount and
+//    care_plans.title using the same lookup it already does for
 //    authz, so the member can no longer inject misleading wording into
 //    the provider's push payload.)
 // Response: { ok: true, sent, success, failure, reason? }
@@ -218,7 +218,7 @@ exports.handler = async function(event) {
   }
 
   // Authorization gate (Task #257 hardening): verify the caller is the
-  // member who owns the package this bid belongs to, the bid is actually
+  // member who owns the care plan this bid belongs to, the bid is actually
   // accepted, and bid.provider_id matches the requested provider. Without
   // this, any authenticated user could trigger high-priority push spam at
   // arbitrary providers (with partly attacker-controlled message content
@@ -227,8 +227,8 @@ exports.handler = async function(event) {
   let bidRow;
   try {
     const { data, error } = await supabase
-      .from('bids')
-      .select('id, provider_id, status, package_id, price, maintenance_packages!inner(member_id, title)')
+      .from('plan_bids')
+      .select('id, provider_id, status, care_plan_id, amount, care_plans!inner(member_id, title)')
       .eq('id', bidId)
       .maybeSingle();
     if (error) return utils.errorResponse(500, 'Bid lookup failed');
@@ -243,9 +243,9 @@ exports.handler = async function(event) {
   if (bidRow.status !== 'accepted') {
     return utils.errorResponse(409, 'Bid is not in accepted state');
   }
-  const memberId = bidRow.maintenance_packages?.member_id;
+  const memberId = bidRow.care_plans?.member_id;
   if (!memberId || memberId !== callerId) {
-    return utils.errorResponse(403, 'Only the package owner can trigger this push');
+    return utils.errorResponse(403, 'Only the care plan owner can trigger this push');
   }
 
   // Task #408: skip self-notification when QA / dual-role accounts act as
@@ -258,8 +258,8 @@ exports.handler = async function(event) {
   // Task #351: wording comes from the DB row we already fetched for authz,
   // never from the request body. The client may still send package_title /
   // bid_amount for back-compat, but they are now advisory and ignored.
-  const dbPackageTitle = bidRow.maintenance_packages?.title || null;
-  const dbBidAmount    = bidRow.price;
+  const dbPackageTitle = bidRow.care_plans?.title || null;
+  const dbBidAmount    = bidRow.amount;
 
   const result = await dispatchBidAcceptedPush(
     supabase,
@@ -270,3 +270,8 @@ exports.handler = async function(event) {
 
   return utils.successResponse({ ok: true, ...result });
 };
+
+// Exposed so server-side callers (e.g. care-plans.js handleAcceptBid) can
+// fire the same FCM dispatch directly instead of looping back through HTTP.
+// Push payload contract is unchanged — only the call mechanism differs.
+module.exports.dispatchBidAcceptedPush = dispatchBidAcceptedPush;

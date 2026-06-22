@@ -5,6 +5,7 @@
 // POST   /api/care-plans/:id/dispute             — freeze escrow, notify admin
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { dispatchBidAcceptedPush } = require('./notifications-bid-accepted-push');
 
 function supabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -147,6 +148,35 @@ async function handleGetOne(sb, user, planId) {
   });
 }
 
+// Fire-and-forget winner notification: in-app row + FCM push.
+// Mirrors the matchmaker-path notification (agent-fleet-admin.js bid_accepted)
+// and reuses the same dispatcher as /api/notifications/bid-accepted-push.
+// Non-fatal: any failure is logged but never blocks the accept/escrow.
+// Self-skip when the caller IS the provider (QA/dual-role accounts) — mirrors
+// the Task #408 guard in notifications-bid-accepted-push.js.
+async function notifyAcceptedProvider(sb, providerId, callerId, planId, planTitle, bidAmount) {
+  if (!providerId || providerId === callerId) return;
+  const title = planTitle || 'care plan';
+  const amountLabel = '$' + Number(bidAmount).toFixed(2);
+  try {
+    await sb.from('notifications').insert({
+      user_id: providerId,
+      type: 'bid_accepted',
+      title: 'Your bid was accepted',
+      message: `Your bid of ${amountLabel} for "${title}" was accepted. Contact the member to schedule the work.`,
+      link_type: 'care_plan',
+      link_id: planId,
+    });
+  } catch (err) {
+    console.warn('[accept-bid] in-app notification insert failed:', err.message);
+  }
+  try {
+    await dispatchBidAcceptedPush(sb, providerId, title, Number(bidAmount));
+  } catch (err) {
+    console.warn('[accept-bid] push dispatch failed:', err.message);
+  }
+}
+
 async function handleAcceptBid(event, sb, user, planId) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
@@ -267,6 +297,7 @@ async function handleAcceptBid(event, sb, user, planId) {
     const { error: sweepErr } = await sb.from('plan_bids').update({ status: 'rejected' })
       .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
     if (sweepErr) console.error('[accept-bid] competitor sweep failed:', sweepErr);
+    await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
     return json(200, {
       success: true,
       paid_by_wallet: true,
@@ -324,6 +355,8 @@ async function handleAcceptBid(event, sb, user, planId) {
     .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
   if (sweepErr) console.error('[accept-bid] competitor sweep failed:', sweepErr);
 
+  await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
+
   return json(200, {
     success: true,
     client_secret: pi.client_secret,
@@ -368,7 +401,7 @@ async function handleComplete(event, sb, user, planId) {
       user_id: plan.provider_id,
       type: 'care_plan_completed',
       title: 'Care plan completed — funds released',
-      body: 'The member has marked the care plan complete. Funds are on their way.',
+      message: 'The member has marked the care plan complete. Funds are on their way.',
       metadata: { care_plan_id: planId },
     }).catch(() => {});
   }
@@ -411,7 +444,7 @@ async function handleDispute(event, sb, user, planId) {
   await sb.from('notifications').insert({
     type: 'care_plan_disputed',
     title: 'Care plan disputed',
-    body: `Member raised a dispute: ${dispute_reason}`,
+    message: `Member raised a dispute: ${dispute_reason}`,
     metadata: { care_plan_id: planId, member_id: user.id, provider_id: plan.provider_id, reason: dispute_reason },
   }).catch(() => {});
 

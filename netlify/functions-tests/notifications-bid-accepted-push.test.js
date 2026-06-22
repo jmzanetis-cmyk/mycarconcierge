@@ -16,7 +16,7 @@
 //   6. 404: bid does not exist.
 //   7. 403: provider_id does not match the bid's provider.
 //   8. 409: bid is not in 'accepted' state.
-//   9. 403: caller is not the maintenance_package owner.
+//   9. 403: caller is not the care_plan owner.
 //
 // Run with:  node netlify/functions-tests/notifications-bid-accepted-push.test.js
 // ============================================================================
@@ -118,18 +118,19 @@ function asNobody() {
   authError = { message: 'jwt expired' };
 }
 
-// Standard "happy" bid row: package owned by MEMBER_ID, bid accepted, provider matches.
+// Standard "happy" bid row: care plan owned by MEMBER_ID, bid accepted, provider matches.
 function happyBidLookup() {
   return {
-    'bids.maybeSingle': (filters) => {
+    'plan_bids.maybeSingle': (filters) => {
       if (filters.id !== BID_ID) return { data: null, error: null };
       return {
         data: {
           id: BID_ID,
           provider_id: PROVIDER_ID,
           status: 'accepted',
-          package_id: PACKAGE_ID,
-          maintenance_packages: { member_id: MEMBER_ID }
+          care_plan_id: PACKAGE_ID,
+          amount: 250,
+          care_plans: { member_id: MEMBER_ID, title: 'Brakes' }
         },
         error: null
       };
@@ -215,7 +216,7 @@ function happyBidLookup() {
   // ---- 6) bid does not exist -> 404 ----------------------------------------
   asMember(MEMBER_ID);
   dbState = {
-    'bids.maybeSingle': () => ({ data: null, error: null })
+    'plan_bids.maybeSingle': () => ({ data: null, error: null })
   };
   res = await handlerModule.handler(makeEvent({
     method: 'POST', headers: bearer(),
@@ -237,13 +238,14 @@ function happyBidLookup() {
   // ---- 8) bid not in accepted state -> 409 ---------------------------------
   asMember(MEMBER_ID);
   dbState = {
-    'bids.maybeSingle': () => ({
+    'plan_bids.maybeSingle': () => ({
       data: {
         id: BID_ID,
         provider_id: PROVIDER_ID,
         status: 'pending',
-        package_id: PACKAGE_ID,
-        maintenance_packages: { member_id: MEMBER_ID }
+        care_plan_id: PACKAGE_ID,
+        amount: 250,
+        care_plans: { member_id: MEMBER_ID, title: 'Brakes' }
       },
       error: null
     })
@@ -255,7 +257,7 @@ function happyBidLookup() {
   assert.strictEqual(res.statusCode, 409, '8: non-accepted bid should be 409');
   console.log('  ✓ 8) bid not in accepted state → 409');
 
-  // ---- 9) caller is not the package owner -> 403 --------------------------
+  // ---- 9) caller is not the care plan owner -> 403 -----------------------
   asMember(OTHER_MEMBER); // authenticated, just not the owner
   dbState = happyBidLookup();
   res = await handlerModule.handler(makeEvent({
@@ -263,7 +265,7 @@ function happyBidLookup() {
     body: { provider_id: PROVIDER_ID, bid_id: BID_ID }
   }));
   assert.strictEqual(res.statusCode, 403, '9: non-owner should be 403');
-  console.log('  ✓ 9) caller is not the package owner → 403');
+  console.log('  ✓ 9) caller is not the care plan owner → 403');
 
   console.log('\nAll notifications-bid-accepted-push checks passed.');
 })().catch((err) => {
