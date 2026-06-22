@@ -1,10 +1,10 @@
 // ============================================================================
-// receipt-pdf — generate a downloadable PDF receipt for a completed package
+// receipt-pdf — generate a downloadable PDF receipt for a completed care plan
 //
-// GET /api/receipt/:packageId
-// Auth: Bearer JWT (member must own the package)
+// GET /api/receipt/:planId
+// Auth: Bearer JWT (member must own the care plan)
 //
-// Queries maintenance_packages + payments + profiles + bids, then renders a
+// Queries care_plans + plan_bids + profiles + vehicles, then renders a
 // single-page pdfkit receipt and returns it as an application/pdf attachment.
 // ============================================================================
 'use strict';
@@ -223,25 +223,28 @@ exports.handler = async function (event) {
     return { statusCode: 503, body: JSON.stringify({ error: 'service_unavailable' }) };
   }
 
-  // Fetch package — security: must belong to this member
+  // Fetch care plan — security: must belong to this member
   const { data: pkg, error: pkgErr } = await supabase
-    .from('maintenance_packages')
-    .select('id, member_id, provider_id, title, status, vehicle_id, accepted_bid_id, member_confirmed_at, work_completed_at, services, technician_notes')
+    .from('care_plans')
+    .select('id, member_id, provider_id, title, status, vehicle_id, accepted_bid_id, escrow_amount, payment_status, stripe_payment_intent_id, completion_notes, accepted_at, updated_at')
     .eq('id', packageId)
     .eq('member_id', user.id)
     .maybeSingle();
 
   if (pkgErr || !pkg) {
-    return { statusCode: 404, body: JSON.stringify({ error: 'package_not_found' }) };
+    return { statusCode: 404, body: JSON.stringify({ error: 'plan_not_found' }) };
   }
 
-  // Load all related data in parallel
-  const [memberResult, providerResult, paymentResult, vehicleResult] = await Promise.all([
+  // Load related data in parallel — accepted bid (authoritative amount),
+  // member/provider profiles, vehicle.
+  const [memberResult, providerResult, bidResult, vehicleResult] = await Promise.all([
     supabase.from('profiles').select('full_name, first_name, last_name, email').eq('id', user.id).maybeSingle(),
     pkg.provider_id
-      ? supabase.from('profiles').select('full_name, first_name, last_name, provider_alias').eq('id', pkg.provider_id).maybeSingle()
+      ? supabase.from('profiles').select('full_name, first_name, last_name, provider_alias, business_name').eq('id', pkg.provider_id).maybeSingle()
       : Promise.resolve({ data: null }),
-    supabase.from('payments').select('amount_total, stripe_payment_intent_id, status, held_at, released_at, payment_method').eq('package_id', packageId).order('created_at', { ascending: false }).limit(1).maybeSingle(),
+    pkg.accepted_bid_id
+      ? supabase.from('plan_bids').select('amount').eq('id', pkg.accepted_bid_id).maybeSingle()
+      : Promise.resolve({ data: null }),
     pkg.vehicle_id
       ? supabase.from('vehicles').select('nickname, year, make, model').eq('id', pkg.vehicle_id).maybeSingle()
       : Promise.resolve({ data: null }),
@@ -249,7 +252,7 @@ exports.handler = async function (event) {
 
   const memberProfile  = memberResult.data;
   const providerProfile = providerResult.data;
-  const payment        = paymentResult.data;
+  const acceptedBid    = bidResult.data;
   const vehicle        = vehicleResult.data;
 
   // Build member name
@@ -257,9 +260,10 @@ exports.handler = async function (event) {
     ? (memberProfile.full_name || [memberProfile.first_name, memberProfile.last_name].filter(Boolean).join(' ') || memberProfile.email || 'Member')
     : 'Member';
 
-  // Build provider name (use alias for privacy parity with the rest of the app)
+  // Build provider name — prefer business_name on the new schema, then
+  // alias (privacy parity), then personal name.
   const providerName = providerProfile
-    ? (providerProfile.provider_alias || providerProfile.full_name || [providerProfile.first_name, providerProfile.last_name].filter(Boolean).join(' ') || 'Provider')
+    ? (providerProfile.business_name || providerProfile.provider_alias || providerProfile.full_name || [providerProfile.first_name, providerProfile.last_name].filter(Boolean).join(' ') || 'Provider')
     : 'Provider';
 
   // Build vehicle label
@@ -267,17 +271,22 @@ exports.handler = async function (event) {
     ? [vehicle.year, vehicle.make, vehicle.model, vehicle.nickname ? `(${vehicle.nickname})` : ''].filter(Boolean).join(' ')
     : 'Vehicle';
 
-  // Payment date
-  const completedAt = pkg.member_confirmed_at || pkg.work_completed_at || payment?.released_at || payment?.held_at;
+  // Receipt date: updated_at moves on capture/dispute; otherwise fall back
+  // to accepted_at (set on bid acceptance).
+  const completedAt = (pkg.status === 'completed' || pkg.payment_status === 'captured')
+    ? pkg.updated_at
+    : pkg.accepted_at;
   const paymentDate = completedAt
     ? new Date(completedAt).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })
     : 'N/A';
 
-  // Services: stored as JSONB on the package or as a title fallback
-  const services = Array.isArray(pkg.services) ? pkg.services : [];
+  // care_plans has no services JSONB column; PDF renderer falls back to
+  // title when services is empty.
+  const services = [];
 
-  // Transaction ID: Stripe PaymentIntent ID or MCC payment ID
-  const transactionId = payment?.stripe_payment_intent_id || null;
+  // Authoritative amount: accepted plan_bids.amount (dollars). escrow_amount
+  // is the same value mirrored onto care_plans on accept; use it as backup.
+  const amountTotal = Number(acceptedBid?.amount ?? pkg.escrow_amount ?? 0);
 
   const pdfData = {
     packageId,
@@ -290,11 +299,11 @@ exports.handler = async function (event) {
     partsTotal:      null,
     subtotal:        null,
     taxTotal:        null,
-    amountTotal:     payment?.amount_total || 0,
+    amountTotal,
     paymentDate,
-    transactionId,
-    paymentMethod:   payment?.payment_method || null,
-    technicianNotes: pkg.technician_notes || null,
+    transactionId:   pkg.stripe_payment_intent_id || null,
+    paymentMethod:   null,
+    technicianNotes: pkg.completion_notes || null,
   };
 
   try {
