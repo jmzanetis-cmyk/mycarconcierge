@@ -77,14 +77,34 @@ async function loadOpenPackages() {
 }
 
 // ========== LOAD MY BIDS ==========
+// CR5: reads plan_bids (live curated-bidding table) with a join to care_plans
+// and the vehicle. The loader ALIASES the response so downstream consumers
+// (renderMyBids, renderActiveJobs, providers-jobs.js helpers, stat counters
+// in providers-core.js) keep reading the legacy field names — `package_id`,
+// `price`, `notes`, `maintenance_packages` — unchanged. Aliasing here keeps
+// the change-surface minimal. The legacy `bids` table is no longer read;
+// historical rows remain in place but are inert.
 async function loadMyBids() {
   try {
-    const { data, error } = await supabaseClient.from('bids').select('*, maintenance_packages!bids_package_id_fkey(title, status, member_id, vehicles(year, make, model))').eq('provider_id', currentUser.id).order('created_at', { ascending: false });
+    const { data, error } = await supabaseClient
+      .from('plan_bids')
+      .select(`*, care_plans!plan_bids_care_plan_id_fkey(
+        id, title, status, member_id, vehicle_id, payment_status,
+        vehicles:vehicle_id(year, make, model)
+      )`)
+      .eq('provider_id', currentUser.id)
+      .order('created_at', { ascending: false });
     if (error) {
       console.error('Error loading bids:', error);
       myBids = [];
     } else {
-      myBids = data || [];
+      myBids = (data || []).map(row => ({
+        ...row,
+        package_id: row.care_plan_id,
+        price: row.amount,
+        notes: row.note,
+        maintenance_packages: row.care_plans
+      }));
     }
     renderMyBids();
     if (typeof renderActiveJobs === 'function') renderActiveJobs();
@@ -311,23 +331,6 @@ function renderMyBids() {
           <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${b.price}</strong></span>
           <span>${mccIcon('calendar', 16)} Submitted ${formatTimeAgo(b.created_at)}</span>
         </div>
-        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px 0;border-top:1px solid var(--border-subtle);margin-top:8px;">
-          <span style="font-size:0.82rem;color:var(--text-muted);font-weight:600;">Competing bid alerts:</span>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;">
-            <div class="calc-toggle-switch">
-              <input type="checkbox" id="notify-sms-${b.id}" ${b.provider_bid_alerts_sms ? 'checked' : ''} onchange="updateBidAlerts('${b.id}', 'sms', this.checked)">
-              <span class="calc-toggle-slider"></span>
-            </div>
-            Text
-          </label>
-          <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:0.85rem;">
-            <div class="calc-toggle-switch">
-              <input type="checkbox" id="notify-email-${b.id}" ${b.provider_bid_alerts_email ? 'checked' : ''} onchange="updateBidAlerts('${b.id}', 'email', this.checked)">
-              <span class="calc-toggle-slider"></span>
-            </div>
-            Email
-          </label>
-        </div>
         <div class="package-footer">
           <span></span>
           <button class="btn btn-secondary btn-sm" onclick="openBidModal('${b.package_id}', '${(pkg?.title || 'Package').replace(/'/g, "\\'")}', ${b.price})">Update Bid</button>
@@ -337,18 +340,10 @@ function renderMyBids() {
   }).join('');
 }
 
-async function updateBidAlerts(bidId, channel, value) {
-  try {
-    const col = channel === 'sms' ? 'provider_bid_alerts_sms' : 'provider_bid_alerts_email';
-    const { error } = await supabaseClient.from('bids').update({ [col]: value }).eq('id', bidId);
-    if (error) throw error;
-  } catch (err) {
-    console.error('Failed to update bid alert preference:', err);
-    showToast('Could not save alert preference', 'error');
-    const el = document.getElementById(`notify-${channel}-${bidId}`);
-    if (el) el.checked = !value;
-  }
-}
+// CR5: updateBidAlerts removed — plan_bids has no provider_bid_alerts_sms/_email
+// columns, and the "Competing bid alerts" UI those toggles backed was auction-era
+// (alert-me-when-undercut on an open auction). In the curated Path B model the
+// concept doesn't apply, so both the UI and the handler are gone.
 
 // ========== FILTERS ==========
 function applyFilters() {
@@ -652,23 +647,36 @@ async function submitBid() {
 
   try {
     if (isUpdatingBid) {
-      // TODO (CR5): edit path needs the plan_bids row id to PATCH
-      // /api/plan-bids/:id. But existingBid comes from loadMyBids, which
-      // currently reads the legacy `bids` table — existingBid.id is a bids
-      // row id, not a plan_bids id. PATCHing with that id would 404. Until
-      // loadMyBids is migrated to plan_bids (CR5), the edit path stays on
-      // the legacy table for legacy bids. New plan_bids rows won't surface
-      // in myBids anyway (loadMyBids reads bids), so the Update button
-      // doesn't appear for them. This block is therefore safe for now —
-      // it only fires for pre-CR4 legacy bids.
+      // CR5: loadMyBids now reads plan_bids, so existingBid.id is a plan_bids
+      // row id. PATCH /api/plan-bids/:id (handlePatch in plan-bids.js) re-runs
+      // the bid gate (verification + suspension + plan-still-open) and updates
+      // amount/note/estimated_duration/availability.
       const existingBid = myBids.find(b => b.package_id === currentBidPackageId);
       if (existingBid) {
-        const { error } = await supabaseClient
-          .from('bids')
-          .update({ price: amount, notes: note, estimated_duration: estimatedDuration })
-          .eq('id', existingBid.id);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/plan-bids/${existingBid.id}`, {
+          method: 'PATCH',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            amount,
+            note,
+            estimated_duration: estimatedDuration,
+            availability
+          })
+        });
 
-        if (error) throw error;
+        const result = await response.json().catch(() => ({}));
+        if (!response.ok) {
+          const sentinel = result && result.error;
+          const message = BID_SENTINEL_MESSAGES[sentinel]
+            || `Failed to update bid${sentinel ? ` (${sentinel})` : ''}.`;
+          showToast(message, 'error');
+          return;
+        }
         showToast('Bid updated successfully!', 'success');
       }
     } else {

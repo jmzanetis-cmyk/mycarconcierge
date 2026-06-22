@@ -286,35 +286,13 @@ function renderActiveJobs() {
     const vehicle = pkg?.vehicles;
     const vehicleName = vehicle ? `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim() : 'Vehicle';
     const isTracking = activeTrackingPackageId === job.package_id;
-    const isPendingSplit = pkg?.status === 'pending_split_payment';
-    
-    if (isPendingSplit) {
-      return `
-        <div class="package-card" style="border-left:4px solid var(--accent-amber, #f59e0b);">
-          <div class="package-header">
-            <div>
-              <div class="package-title">${pkg?.title || 'Job'}</div>
-              <div class="package-vehicle">${mccIcon('car', 16)} ${vehicleName}</div>
-            </div>
-            <span class="package-badge" style="background:#fef3c7;color:#d97706;">${mccIcon('clock', 16)} ${I18n.t('provider.splitPayment.awaitingPayment')}</span>
-            ${pkg?.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;margin-left:4px;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
-          </div>
-          <div class="package-meta">
-            <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${job.price}</strong></span>
-            <span>${mccIcon('calendar', 16)} Accepted ${formatTimeAgo(job.updated_at || job.created_at)}</span>
-          </div>
-          <div style="background:#fffbeb;border:1px solid #fde68a;border-radius:var(--radius-md);padding:12px;margin:8px 0;color:#92400e;font-size:0.9rem;">
-            ${mccIcon('alert-triangle', 16)} ${I18n.t('provider.splitPayment.pendingBanner')}
-          </div>
-          <div class="package-footer">
-            <div style="display:flex;gap:8px;flex-wrap:wrap;">
-              <button class="btn btn-secondary btn-sm" onclick="openMessageModal('${pkg?.member_id}', '${job.package_id}')">${mccIcon('message-square', 16)} Message</button>
-            </div>
-          </div>
-        </div>
-      `;
-    }
-    
+
+    // CR5: removed the `pending_split_payment` branch + the `crowd_funded` badge.
+    // Both were maintenance_packages-only concepts. care_plans models payment
+    // via care_plans.payment_status (none/requires_payment/held/captured/...)
+    // and has no crowd_funded column. Re-introducing either should be done
+    // deliberately as a separate feature on care_plans, not silently grafted in.
+
     return `
       <div class="package-card" style="border-left:4px solid var(--accent-green);">
         <div class="package-header">
@@ -323,7 +301,6 @@ function renderActiveJobs() {
             <div class="package-vehicle">${mccIcon('car', 16)} ${vehicleName}</div>
           </div>
           <span class="package-badge" style="background:var(--accent-green-soft);color:var(--accent-green);">Active</span>
-          ${pkg?.crowd_funded ? `<span class="package-badge" style="background:#dbeafe;color:#1d4ed8;margin-left:4px;">${mccIcon('users', 16)} Crowd Funded</span>` : ''}
         </div>
         <div class="package-meta">
           <span>${mccIcon('dollar-sign', 16)} Your bid: <strong>$${job.price}</strong></span>
