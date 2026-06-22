@@ -63,13 +63,21 @@ const CORS_HEADERS = {
 // the client name lacks a noun (e.g. phone → business_phone). Anything
 // not in this map is rejected (whitelist semantics).
 const FIELD_MAP = {
-  business_name:  'business_name',
-  phone:          'phone',
-  street_address: 'street_address',
-  city:           'city',
-  state:          'state',
-  zip_code:       'zip_code',
+  business_name:    'business_name',
+  phone:            'phone',
+  full_name:        'full_name',
+  street_address:   'street_address',
+  city:             'city',
+  state:            'state',
+  zip_code:         'zip_code',
+  certifications:   'certifications',    // scalar TEXT (comma-separated client-side)
+  services_offered: 'services_offered',  // text[] ARRAY
 };
+
+// Max element count for array fields. Above this, we truncate rather than reject —
+// no UI path should produce more, and a 500 on an oversized array is worse than
+// a quiet truncation.
+const MAX_ARRAY_ELEMENTS = 50;
 
 function jsonResp(code, data) {
   return { statusCode: code, headers: CORS_HEADERS, body: JSON.stringify(data) };
@@ -83,15 +91,27 @@ function getBearerToken(event) {
 
 // Build the UPDATE row from the client payload. Includes only whitelisted
 // keys that were actually supplied (so a partial save doesn't null-out
-// untouched columns). Lightly trims string values.
+// untouched columns). Lightly trims string values. Arrays (for text[]
+// columns like services_offered) are filtered to non-empty strings, trimmed
+// element-wise, and truncated to MAX_ARRAY_ELEMENTS — an empty array maps
+// to null to preserve the partial-update contract.
 function buildUpdate(body) {
   const update = {};
   for (const [clientKey, dbCol] of Object.entries(FIELD_MAP)) {
     if (body[clientKey] === undefined) continue;
     let v = body[clientKey];
-    if (typeof v === 'string') v = v.trim();
-    if (v === '') v = null;
-    update[dbCol] = v;
+    if (Array.isArray(v)) {
+      const cleaned = v
+        .slice(0, MAX_ARRAY_ELEMENTS)
+        .filter(x => typeof x === 'string')
+        .map(x => x.trim())
+        .filter(x => x.length > 0);
+      update[dbCol] = cleaned.length > 0 ? cleaned : null;
+    } else {
+      if (typeof v === 'string') v = v.trim();
+      if (v === '') v = null;
+      update[dbCol] = v;
+    }
   }
   return update;
 }

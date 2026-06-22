@@ -809,12 +809,35 @@ async function loadProviderProfile() {
 }
 
 function populateProfileForm(profile) {
-  const fields = ['business_name', 'phone', 'street_address', 'city', 'state', 'zip_code'];
+  const fields = ['business_name', 'phone', 'full_name', 'street_address', 'city', 'state', 'zip_code'];
   fields.forEach(f => {
     const el = document.getElementById(`profile-${f.replaceAll('_', '-')}`);
     if (el) el.value = profile[f] || '';
   });
-  
+
+  // Certifications — TEXT column, comma-separated. Split into a list; check the
+  // matching #certifications-grid boxes; put any unrecognized values back into
+  // the #profile-other-certs free-text input so a round-trip preserves them.
+  const certList = (profile.certifications || '')
+    .split(',')
+    .map(s => s.trim())
+    .filter(s => s.length > 0);
+  const knownCerts = new Set();
+  document.querySelectorAll('#certifications-grid input[type="checkbox"]').forEach(cb => {
+    knownCerts.add(cb.value);
+    cb.checked = certList.includes(cb.value);
+  });
+  const otherCertsEl = document.getElementById('profile-other-certs');
+  if (otherCertsEl) {
+    otherCertsEl.value = certList.filter(c => !knownCerts.has(c)).join(', ');
+  }
+
+  // Services offered — text[] ARRAY column. Tick the matching boxes.
+  const services = Array.isArray(profile.services_offered) ? profile.services_offered : [];
+  document.querySelectorAll('#services-grid input[type="checkbox"]').forEach(cb => {
+    cb.checked = services.includes(cb.value);
+  });
+
   if (typeof loadQrCheckinSetting === 'function') {
     loadQrCheckinSetting();
   }

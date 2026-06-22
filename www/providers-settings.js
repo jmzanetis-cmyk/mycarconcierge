@@ -9,13 +9,30 @@ function escHtml(str) {
 
 // ========== PROFILE MANAGEMENT ==========
 async function saveProviderProfile() {
+  // Certifications — TEXT column, comma-separated. Combine #certifications-grid
+  // checkboxes with the free-text #profile-other-certs (also comma-separated).
+  const certBoxes = Array.from(
+    document.querySelectorAll('#certifications-grid input[type="checkbox"]:checked')
+  ).map(c => c.value);
+  const otherCertsRaw = document.getElementById('profile-other-certs')?.value || '';
+  const otherCertsList = otherCertsRaw.split(',').map(s => s.trim()).filter(s => s.length > 0);
+  const allCerts = [...certBoxes, ...otherCertsList];
+
+  // Services offered — text[] ARRAY column. Just the checked services-grid values.
+  const services = Array.from(
+    document.querySelectorAll('#services-grid input[type="checkbox"]:checked')
+  ).map(c => c.value);
+
   const fields = {
-    business_name:  document.getElementById('profile-business-name')?.value,
-    phone:          document.getElementById('profile-phone')?.value,
-    street_address: document.getElementById('profile-street-address')?.value,
-    city:           document.getElementById('profile-city')?.value,
-    state:          document.getElementById('profile-state')?.value?.toUpperCase(),
-    zip_code:       document.getElementById('profile-zip-code')?.value
+    business_name:    document.getElementById('profile-business-name')?.value,
+    phone:            document.getElementById('profile-phone')?.value,
+    full_name:        document.getElementById('profile-full-name')?.value,
+    street_address:   document.getElementById('profile-street-address')?.value,
+    city:             document.getElementById('profile-city')?.value,
+    state:            document.getElementById('profile-state')?.value?.toUpperCase(),
+    zip_code:         document.getElementById('profile-zip-code')?.value,
+    certifications:   allCerts.length > 0 ? allCerts.join(', ') : '',
+    services_offered: services
   };
 
   try {
