@@ -2,7 +2,12 @@
 // Essential initialization, state management, auth, and module loading
 
 // ========== MODULE LOADER ==========
-const loadedModules = {};
+// Pre-populated: providers-settings.js is loaded statically by providers.html
+// (script tag, not via this loader), so its top-level const declarations have
+// already run. Without this entry, loadModule('settings') would re-inject the
+// same <script> and re-evaluating `const DAY_LABELS = …` (and BUSINESS_DAYS)
+// at top level throws SyntaxError: Can't create duplicate variable.
+const loadedModules = { settings: true };
 async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
   return new Promise((resolve, reject) => {

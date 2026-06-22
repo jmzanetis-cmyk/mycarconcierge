@@ -1256,7 +1256,10 @@ window.loadMyBids = loadMyBids;
 window.purchaseBidPack = purchaseBidPack;
 window.checkPurchaseStatus = checkPurchaseStatus;
 window.loadBidInsights = loadBidInsights;
-window.loadAIPriceSuggestion = loadAIPriceSuggestion;
-window.draftBidPitch = draftBidPitch;
+// Removed orphan exports — loadAIPriceSuggestion and draftBidPitch are not defined
+// anywhere in active code. The undefined RHS threw ReferenceError, halting the
+// file's tail (the trailing console.log below included). The only caller for
+// either is dead-code providers.js (typeof-guarded), which providers.html does
+// not load.
 
 console.log('providers-bids.js loaded');
