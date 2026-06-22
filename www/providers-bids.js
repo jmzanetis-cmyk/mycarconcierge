@@ -606,75 +606,122 @@ async function openBidModal(packageId, title, existingPrice = null) {
   resetBidCalculator();
 }
 
+// CR4: maps /api/plan-bids error sentinels → user-facing messages with
+// action hints. Anything not listed falls through to a generic fallback so
+// new server-side sentinels at least surface their code instead of being
+// swallowed silently.
+const BID_SENTINEL_MESSAGES = {
+  categories_required:    'Set your service categories in Settings to bid on jobs.',
+  service_not_offered:    "This job isn't in your service categories.",
+  verification_required:  'Your provider account is pending verification.',
+  suspended:              'Your account is suspended — contact support.',
+  bidding_closed:         'Bidding has closed on this job.',
+  care_plan_not_open:     'Bidding has closed on this job.',
+  duplicate_bid:          "You've already bid on this job.",
+  no_credits:             "You're out of bid credits — purchase more to bid.",
+  invalid_amount:         'Enter a valid bid amount.',
+};
+
 async function submitBid() {
   const priceSelect = document.getElementById('bid-price');
   const customPrice = document.getElementById('bid-price-custom');
-  
-  let price = priceSelect?.value;
-  if (price === 'custom') {
-    price = customPrice?.value;
+
+  let amountRaw = priceSelect?.value;
+  if (amountRaw === 'custom') {
+    amountRaw = customPrice?.value;
   }
-  
-  if (!price || isNaN(Number.parseFloat(price))) {
-    showToast('Please enter a valid price', 'error');
+
+  if (!amountRaw || isNaN(Number.parseFloat(amountRaw))) {
+    showToast(BID_SENTINEL_MESSAGES.invalid_amount, 'error');
     return;
   }
-  
-  const notes = document.getElementById('bid-notes')?.value || '';
-  const duration = document.getElementById('bid-duration')?.value || '';
+
+  // Enforce the "all-inclusive" confirmation — the whole pricing contract
+  // (member pays exactly the quoted total, no hidden fees) depends on this.
+  // Previously the checkbox was decorative; now we block submit until checked.
+  const pricingConfirm = document.getElementById('bid-pricing-confirm');
+  if (!pricingConfirm?.checked) {
+    showToast('Please confirm your bid is all-inclusive before submitting.', 'error');
+    return;
+  }
+
+  const amount = Number.parseFloat(amountRaw);
+  const note = document.getElementById('bid-notes')?.value || '';
+  const estimatedDuration = document.getElementById('bid-duration')?.value || '';
   const availability = document.getElementById('bid-availability')?.value || '';
-  
+
   try {
     if (isUpdatingBid) {
+      // TODO (CR5): edit path needs the plan_bids row id to PATCH
+      // /api/plan-bids/:id. But existingBid comes from loadMyBids, which
+      // currently reads the legacy `bids` table — existingBid.id is a bids
+      // row id, not a plan_bids id. PATCHing with that id would 404. Until
+      // loadMyBids is migrated to plan_bids (CR5), the edit path stays on
+      // the legacy table for legacy bids. New plan_bids rows won't surface
+      // in myBids anyway (loadMyBids reads bids), so the Update button
+      // doesn't appear for them. This block is therefore safe for now —
+      // it only fires for pre-CR4 legacy bids.
       const existingBid = myBids.find(b => b.package_id === currentBidPackageId);
       if (existingBid) {
         const { error } = await supabaseClient
           .from('bids')
-          .update({ price: Number.parseFloat(price), notes, estimated_duration: duration })
+          .update({ price: amount, notes: note, estimated_duration: estimatedDuration })
           .eq('id', existingBid.id);
-        
+
         if (error) throw error;
         showToast('Bid updated successfully!', 'success');
       }
     } else {
       const totalCredits = (providerProfile?.bid_credits || 0) + (providerProfile?.free_trial_bids || 0);
       if (totalCredits < 1) {
-        showToast('No bid credits available. Purchase credits to submit bids.', 'error');
+        showToast(BID_SENTINEL_MESSAGES.no_credits, 'error');
         return;
       }
-      
+
       const { data: { session } } = await supabaseClient.auth.getSession();
       const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-      const response = await fetch(`${apiBase}/api/bids`, {
+      const response = await fetch(`${apiBase}/api/plan-bids`, {
         method: 'POST',
-        headers: { 
+        headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          package_id: currentBidPackageId,
-          price: Number.parseFloat(price),
-          notes,
-          estimated_duration: duration,
-          availability,
-          provider_notify_sms: document.getElementById('bid-notify-sms')?.checked || false,
-          provider_notify_email: document.getElementById('bid-notify-email')?.checked || false
+          care_plan_id:       currentBidPackageId,
+          amount,
+          note,
+          estimated_duration: estimatedDuration,
+          availability
         })
       });
-      
-      const result = await response.json();
-      if (!response.ok) throw new Error(result.error || 'Failed to submit bid');
-      
-      showToast('Bid submitted successfully!', 'success');
-      
+
+      const result = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        const sentinel = result && result.error;
+        const message = BID_SENTINEL_MESSAGES[sentinel]
+          || `Failed to submit bid${sentinel ? ` (${sentinel})` : ''}.`;
+        showToast(message, 'error');
+        return;
+      }
+
+      // Surface the credit balance from the gate's response so the provider
+      // sees what they have left without needing to refresh.
+      const free    = Number(result.remaining_free_trial_bids ?? 0);
+      const credits = Number(result.remaining_bid_credits ?? 0);
+      const parts = [];
+      if (free > 0)    parts.push(`${free} free trial bid${free === 1 ? '' : 's'}`);
+      if (credits > 0) parts.push(`${credits} credit${credits === 1 ? '' : 's'}`);
+      const balanceLine = parts.length ? ` — ${parts.join(' + ')} remaining` : '';
+      showToast(`Bid submitted!${balanceLine}`, 'success');
+
       if (typeof loadProviderProfile === 'function') loadProviderProfile();
     }
-    
+
     closeModal('bid-modal');
     await loadMyBids();
     await loadOpenPackages();
     if (typeof updateStats === 'function') updateStats();
-    
+
   } catch (err) {
     console.error('Submit bid error:', err);
     showToast(err.message || 'Failed to submit bid', 'error');

@@ -56,6 +56,18 @@ function getBidIdFromPath(eventPath) {
   return utils.isValidUUID(tail) ? tail : null;
 }
 
+// CR4: normalize optional string fields (estimated_duration, availability).
+// Returns null for non-strings, empty strings, or whitespace-only strings.
+// Caps to MAX_BID_FIELD_LENGTH chars to keep abuse out (UI is single-line
+// or short textarea; 200 is comfortable headroom).
+const MAX_BID_FIELD_LENGTH = 200;
+function normalizeOptional(v) {
+  if (typeof v !== 'string') return null;
+  const t = v.trim();
+  if (t === '') return null;
+  return t.slice(0, MAX_BID_FIELD_LENGTH);
+}
+
 // serviceTypesToBuckets() lives in ./_eligibility.js — same function used by
 // provider-packages.js (the open-jobs board) so the gate and the board agree
 // on what counts as a service-fit match. Drift here = "I can see this job
@@ -129,6 +141,12 @@ async function handleCreate(supabase, user, body) {
     return jsonResp(400, { error: 'invalid_amount' });
   }
   const note = (typeof noteRaw === 'string') ? noteRaw.slice(0, 2000) : null;
+
+  // CR4: optional non-RPC fields. Normalized + capped server-side. The RPC
+  // signature stays 4-param (credit-deduction atomic); these land via a
+  // post-RPC UPDATE below if supplied.
+  const estimatedDuration = normalizeOptional(body && body.estimated_duration);
+  const availability      = normalizeOptional(body && body.availability);
 
   const gateFail = await checkBidGate(supabase, user.id);
   if (gateFail) return gateFail;
@@ -213,6 +231,24 @@ async function handleCreate(supabase, user, body) {
     return jsonResp(500, { error: 'rpc_empty_result' });
   }
 
+  // CR4: post-RPC update for the two non-RPC fields. Best-effort — if this
+  // fails, the bid itself succeeded (credit was already deducted atomically)
+  // and the response is still 200. The provider would just see their bid
+  // without duration/availability; an admin can backfill from logs.
+  if (estimatedDuration !== null || availability !== null) {
+    const extra = {};
+    if (estimatedDuration !== null) extra.estimated_duration = estimatedDuration;
+    if (availability      !== null) extra.availability      = availability;
+    const { error: extraErr } = await supabase
+      .from('plan_bids')
+      .update(extra)
+      .eq('id', row.bid_id);
+    if (extraErr) {
+      console.error('[plan-bids] post-RPC update (estimated_duration/availability) failed for bid',
+        row.bid_id, ':', extraErr.message);
+    }
+  }
+
   return jsonResp(200, {
     bid_id: row.bid_id,
     consumed_source: row.consumed_source,
@@ -286,6 +322,15 @@ async function handlePatch(supabase, user, bidId, body) {
   }
   if (typeof body.note !== 'undefined') {
     update.note = (typeof body.note === 'string') ? body.note.slice(0, 2000) : null;
+  }
+  // CR4: edit-path accepts the two non-RPC fields the same way the create
+  // path does. Empty/whitespace-only strings normalize to NULL so a clear
+  // edit can blank the value.
+  if (typeof body.estimated_duration !== 'undefined') {
+    update.estimated_duration = normalizeOptional(body.estimated_duration);
+  }
+  if (typeof body.availability !== 'undefined') {
+    update.availability = normalizeOptional(body.availability);
   }
   if (Object.keys(update).length === 0) {
     return jsonResp(400, { error: 'no_updates' });
