@@ -63,16 +63,23 @@ const CORS_HEADERS = {
 // the client name lacks a noun (e.g. phone → business_phone). Anything
 // not in this map is rejected (whitelist semantics).
 const FIELD_MAP = {
-  business_name:    'business_name',
-  phone:            'phone',
-  full_name:        'full_name',
-  street_address:   'street_address',
-  city:             'city',
-  state:            'state',
-  zip_code:         'zip_code',
-  certifications:   'certifications',    // scalar TEXT (comma-separated client-side)
-  services_offered: 'services_offered',  // text[] ARRAY
+  business_name:     'business_name',
+  phone:             'phone',
+  full_name:         'full_name',
+  street_address:    'street_address',
+  city:              'city',
+  state:             'state',
+  zip_code:          'zip_code',
+  description:       'description',
+  years_in_business: 'years_in_business',  // integer; see INT_FIELDS coercion
+  certifications:    'certifications',     // scalar TEXT (comma-separated client-side)
+  services_offered:  'services_offered',   // text[] ARRAY
 };
+
+// Columns whose underlying type is integer. Values arrive as strings from
+// <select>.value or number inputs; we coerce via Number.parseInt before write
+// so a stray non-numeric never reaches Postgres.
+const INT_FIELDS = new Set(['years_in_business']);
 
 // Max element count for array fields. Above this, we truncate rather than reject —
 // no UI path should produce more, and a 500 on an oversized array is worse than
@@ -107,6 +114,14 @@ function buildUpdate(body) {
         .map(x => x.trim())
         .filter(x => x.length > 0);
       update[dbCol] = cleaned.length > 0 ? cleaned : null;
+    } else if (INT_FIELDS.has(dbCol)) {
+      if (typeof v === 'string') v = v.trim();
+      if (v === '' || v == null) {
+        update[dbCol] = null;
+      } else {
+        const n = Number.parseInt(v, 10);
+        update[dbCol] = Number.isFinite(n) ? n : null;
+      }
     } else {
       if (typeof v === 'string') v = v.trim();
       if (v === '') v = null;

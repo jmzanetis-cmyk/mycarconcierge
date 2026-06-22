@@ -809,11 +809,21 @@ async function loadProviderProfile() {
 }
 
 function populateProfileForm(profile) {
-  const fields = ['business_name', 'phone', 'full_name', 'street_address', 'city', 'state', 'zip_code'];
+  // Generic scalar prefill — only fields whose HTML id matches the
+  // `profile-${db_col_with_underscores_to_hyphens}` convention.
+  // Off-convention ids (e.g. years_in_business → #profile-years) are
+  // handled explicitly below.
+  const fields = ['business_name', 'phone', 'full_name', 'street_address', 'city', 'state', 'zip_code', 'description'];
   fields.forEach(f => {
     const el = document.getElementById(`profile-${f.replaceAll('_', '-')}`);
     if (el) el.value = profile[f] || '';
   });
+
+  // years_in_business → #profile-years (off-convention id).
+  const yearsEl = document.getElementById('profile-years');
+  if (yearsEl) {
+    yearsEl.value = profile.years_in_business != null ? String(profile.years_in_business) : '';
+  }
 
   // Certifications — TEXT column, comma-separated. Split into a list; check the
   // matching #certifications-grid boxes; put any unrecognized values back into

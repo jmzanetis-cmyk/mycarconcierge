@@ -24,15 +24,17 @@ async function saveProviderProfile() {
   ).map(c => c.value);
 
   const fields = {
-    business_name:    document.getElementById('profile-business-name')?.value,
-    phone:            document.getElementById('profile-phone')?.value,
-    full_name:        document.getElementById('profile-full-name')?.value,
-    street_address:   document.getElementById('profile-street-address')?.value,
-    city:             document.getElementById('profile-city')?.value,
-    state:            document.getElementById('profile-state')?.value?.toUpperCase(),
-    zip_code:         document.getElementById('profile-zip-code')?.value,
-    certifications:   allCerts.length > 0 ? allCerts.join(', ') : '',
-    services_offered: services
+    business_name:     document.getElementById('profile-business-name')?.value,
+    phone:             document.getElementById('profile-phone')?.value,
+    full_name:         document.getElementById('profile-full-name')?.value,
+    street_address:    document.getElementById('profile-street-address')?.value,
+    city:              document.getElementById('profile-city')?.value,
+    state:             document.getElementById('profile-state')?.value?.toUpperCase(),
+    zip_code:          document.getElementById('profile-zip-code')?.value,
+    description:       document.getElementById('profile-description')?.value,
+    years_in_business: document.getElementById('profile-years')?.value,
+    certifications:    allCerts.length > 0 ? allCerts.join(', ') : '',
+    services_offered:  services
   };
 
   try {
