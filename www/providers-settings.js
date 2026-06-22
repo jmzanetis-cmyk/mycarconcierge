@@ -10,16 +10,16 @@ function escHtml(str) {
 // ========== PROFILE MANAGEMENT ==========
 async function saveProviderProfile() {
   const fields = {
-    business_name: document.getElementById('profile-business-name')?.value,
-    phone: document.getElementById('profile-phone')?.value,
-    address: document.getElementById('profile-address')?.value,
-    city: document.getElementById('profile-city')?.value,
-    state: document.getElementById('profile-state')?.value,
-    zip_code: document.getElementById('profile-zip-code')?.value,
-    bio: document.getElementById('profile-bio')?.value,
-    hourly_rate: Number.parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
+    business_name:  document.getElementById('profile-business-name')?.value,
+    phone:          document.getElementById('profile-phone')?.value,
+    street_address: document.getElementById('profile-street-address')?.value,
+    city:           document.getElementById('profile-city')?.value,
+    state:          document.getElementById('profile-state')?.value?.toUpperCase(),
+    zip_code:       document.getElementById('profile-zip-code')?.value,
+    bio:            document.getElementById('profile-bio')?.value,
+    hourly_rate:    Number.parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
   };
-  
+
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const resp = await fetch('/api/provider/profile/save', {
@@ -36,11 +36,16 @@ async function saveProviderProfile() {
     providerProfile = { ...providerProfile, ...fields };
     if (result.slug) providerProfile.directory_slug = result.slug;
 
-    showToast('Profile saved!', 'success');
-    
+    // Surface geocoding outcome so the provider knows the distance-gate is wired.
+    const precisionToast = {
+      street: 'Profile saved — address geocoded for nearby-job matching.',
+      zip:    'Profile saved — using ZIP for matching (add a street address for more precise matches).',
+    }[result.precision] || "Profile saved — but address couldn't be geocoded. Provider matching will be limited; add a ZIP or correct the address.";
+    showToast(precisionToast, 'success');
+
     const displayName = fields.business_name || providerProfile.full_name || 'Provider';
     document.getElementById('user-name').textContent = displayName;
-    
+
   } catch (err) {
     console.error('Save profile error:', err);
     showToast('Failed to save profile', 'error');

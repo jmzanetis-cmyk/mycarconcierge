@@ -809,9 +809,9 @@ async function loadProviderProfile() {
 }
 
 function populateProfileForm(profile) {
-  const fields = ['business_name', 'phone', 'address', 'city', 'state', 'zip_code', 'bio', 'hourly_rate'];
+  const fields = ['business_name', 'phone', 'street_address', 'city', 'state', 'zip_code', 'bio', 'hourly_rate'];
   fields.forEach(f => {
-    const el = document.getElementById(`profile-${f.replace('_', '-')}`);
+    const el = document.getElementById(`profile-${f.replaceAll('_', '-')}`);
     if (el) el.value = profile[f] || '';
   });
   

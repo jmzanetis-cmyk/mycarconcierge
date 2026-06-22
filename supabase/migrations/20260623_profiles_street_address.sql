@@ -1,0 +1,38 @@
+-- ============================================================================
+-- 20260623_profiles_street_address.sql
+-- profiles.street_address — provider's street address for geocoding
+-- (Step 1d-1b-2).
+--
+-- PURPOSE:
+--   Stage 1d-1b-2 adds a provider settings UI where providers can enter
+--   their street address; on save, the new POST /api/provider/profile/save
+--   endpoint geocodes the address and writes profiles.lat/lng (added in
+--   20260622b). The street address itself also needs to land on profiles
+--   so we can re-geocode later if needed (Nominatim accuracy improvement,
+--   provider moves, etc.) and so the address survives independent of
+--   provider_applications.
+--
+--   profiles already has city, state, zip_code columns; this adds the
+--   street component. Mirrors care_plans.street_address (20260622a) for
+--   consistency — same name, same shape, same nullable text type.
+--
+-- WHY ON profiles (not provider_applications):
+--   provider_applications is the immutable onboarding record (one row
+--   per provider, status='approved'). profiles is the mutable working
+--   state. Address edits post-onboarding belong on profiles so the
+--   application history isn't rewritten when a provider moves shops.
+--   The address columns now co-locate on profiles next to lat/lng —
+--   one table, one row, atomic save.
+--
+-- NULLABILITY:
+--   Nullable, no default. Existing 14 provider rows get NULL until
+--   they save via the new settings UI. Chris Agrapidis (the one
+--   real-revenue provider whose original street address was silently
+--   dropped pre-8845842) will populate his on his first settings save
+--   post-1b-2 ship — the smoke test for this stage.
+--
+-- IDEMPOTENT: ADD COLUMN IF NOT EXISTS — safe to re-run.
+-- ============================================================================
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS street_address text;

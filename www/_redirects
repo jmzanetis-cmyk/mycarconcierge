@@ -32,6 +32,7 @@
 /api/plan-bids /.netlify/functions/plan-bids 200
 /api/plan-bids/* /.netlify/functions/plan-bids 200
 /api/geocode /.netlify/functions/geocode 200
+/api/provider/profile/save /.netlify/functions/provider-profile-save 200
 /api/appointments/* /.netlify/functions/appointment-ical 200
 /api/ai/* /.netlify/functions/ai-member/:splat 200
 /api/create-bid-checkout /.netlify/functions/create-bid-checkout 200
