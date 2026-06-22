@@ -64,13 +64,11 @@ const CORS_HEADERS = {
 // not in this map is rejected (whitelist semantics).
 const FIELD_MAP = {
   business_name:  'business_name',
-  phone:          'business_phone',
+  phone:          'phone',
   street_address: 'street_address',
   city:           'city',
   state:          'state',
   zip_code:       'zip_code',
-  bio:            'bio',
-  hourly_rate:    'hourly_rate',
 };
 
 function jsonResp(code, data) {

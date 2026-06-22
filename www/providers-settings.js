@@ -15,9 +15,7 @@ async function saveProviderProfile() {
     street_address: document.getElementById('profile-street-address')?.value,
     city:           document.getElementById('profile-city')?.value,
     state:          document.getElementById('profile-state')?.value?.toUpperCase(),
-    zip_code:       document.getElementById('profile-zip-code')?.value,
-    bio:            document.getElementById('profile-bio')?.value,
-    hourly_rate:    Number.parseFloat(document.getElementById('profile-hourly-rate')?.value) || null
+    zip_code:       document.getElementById('profile-zip-code')?.value
   };
 
   try {
