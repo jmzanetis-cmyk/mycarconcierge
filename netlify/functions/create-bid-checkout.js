@@ -34,13 +34,33 @@ exports.handler = async function(event) {
   }
 
   let packId = parsed.packId;
-  let providerId = parsed.providerId;
+  let bodyProviderId = parsed.providerId; // back-compat: accepted but must equal authed id
 
   if (!packId || !utils.isValidUUID(packId)) {
     return utils.errorResponse(400, 'Valid packId is required');
   }
-  if (!providerId || !utils.isValidUUID(providerId)) {
-    return utils.errorResponse(400, 'Valid providerId is required');
+
+  // Identity guard (audit #4 — bid-credit IDOR). Credits MUST land on the
+  // authenticated purchaser only. The Stripe webhook trusts metadata.provider_id
+  // verbatim, so any body-supplied id that mismatches the authed user would
+  // route credits to another account. Surface the mismatch with a 400 rather
+  // than silently override, so the failure is loud in logs.
+  let authedProviderId = authResult.data.user.id;
+  if (bodyProviderId && bodyProviderId !== authedProviderId) {
+    return utils.errorResponse(400, 'providerId mismatch — credits can only be purchased for the authenticated account');
+  }
+
+  // Role gate — only providers can buy bid credits.
+  let profileResult = await supabase
+    .from('profiles')
+    .select('role')
+    .eq('id', authedProviderId)
+    .single();
+  if (profileResult.error || !profileResult.data) {
+    return utils.errorResponse(403, 'Profile not found');
+  }
+  if (profileResult.data.role !== 'provider') {
+    return utils.errorResponse(403, 'Only providers can purchase bid credits');
   }
 
   let packResult = await supabase
@@ -80,7 +100,7 @@ exports.handler = async function(event) {
       success_url: domain + '/providers.html?purchase=success&pack=' + packId,
       cancel_url: domain + '/providers.html?purchase=cancelled',
       metadata: {
-        provider_id: providerId,
+        provider_id: authedProviderId,
         pack_id: packId,
         bids: pack.bid_count.toString(),
         bonus_bids: (pack.bonus_bids || 0).toString()

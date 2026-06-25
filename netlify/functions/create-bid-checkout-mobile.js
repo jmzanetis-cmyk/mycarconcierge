@@ -43,11 +43,26 @@ exports.handler = async function(event) {
   try { parsed = JSON.parse(event.body); }
   catch { return utils().errorResponse(400, 'Invalid JSON'); }
 
-  const { packId, providerId, paymentMethodId, walletType } = parsed;
+  const { packId, providerId: bodyProviderId, paymentMethodId, walletType } = parsed;
 
-  if (!packId    || !utils().isValidUUID(packId))    return utils().errorResponse(400, 'Valid packId is required');
-  if (!providerId || !utils().isValidUUID(providerId)) return utils().errorResponse(400, 'Valid providerId is required');
+  if (!packId || !utils().isValidUUID(packId)) return utils().errorResponse(400, 'Valid packId is required');
   if (!paymentMethodId) return utils().errorResponse(400, 'paymentMethodId is required');
+
+  // Identity guard (audit #4 — bid-credit IDOR). This endpoint writes credits
+  // DIRECTLY to bid_credit_purchases + profiles.bid_credits without waiting for
+  // the webhook, so trusting a body-supplied providerId would let an authed
+  // provider grant credits to any other provider's account instantly. The
+  // authenticated user is the only legitimate purchaser.
+  const authedProviderId = user.id;
+  if (bodyProviderId && bodyProviderId !== authedProviderId) {
+    return utils().errorResponse(400, 'providerId mismatch — credits can only be purchased for the authenticated account');
+  }
+
+  // Role gate — only providers can buy bid credits.
+  const { data: profile, error: profileErr } = await supabase
+    .from('profiles').select('role').eq('id', authedProviderId).single();
+  if (profileErr || !profile) return utils().errorResponse(403, 'Profile not found');
+  if (profile.role !== 'provider') return utils().errorResponse(403, 'Only providers can purchase bid credits');
 
   // Validate pack
   const { data: pack, error: packErr } = await supabase
@@ -73,7 +88,7 @@ exports.handler = async function(event) {
       return_url: 'https://www.mycarconcierge.com/providers.html?purchase=success',
       description: `${pack.name} — ${totalBids} bid credits`,
       metadata: {
-        provider_id: providerId,
+        provider_id: authedProviderId,
         pack_id:     packId,
         bids:        pack.bid_count.toString(),
         bonus_bids:  (pack.bonus_bids || 0).toString(),
@@ -98,7 +113,7 @@ exports.handler = async function(event) {
 
   if (!existing) {
     await supabase.from('bid_credit_purchases').insert({
-      provider_id:      providerId,
+      provider_id:      authedProviderId,
       pack_id:          packId,
       bids_purchased:   totalBids,
       amount_paid:      pack.price,
@@ -111,11 +126,11 @@ exports.handler = async function(event) {
       if (!e.message?.includes('23505')) console.error('[create-bid-checkout-mobile] purchase insert error:', e.message);
     });
 
-    const { data: profile } = await supabase.from('profiles')
-      .select('bid_credits').eq('id', providerId).maybeSingle();
+    const { data: balanceRow } = await supabase.from('profiles')
+      .select('bid_credits').eq('id', authedProviderId).maybeSingle();
     await supabase.from('profiles')
-      .update({ bid_credits: (profile?.bid_credits || 0) + totalBids })
-      .eq('id', providerId);
+      .update({ bid_credits: (balanceRow?.bid_credits || 0) + totalBids })
+      .eq('id', authedProviderId);
   }
 
   return utils().successResponse({
