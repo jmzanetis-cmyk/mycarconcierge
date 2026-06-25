@@ -255,50 +255,53 @@
       position: sticky;
       top: 0;
       z-index: 200;
-      background: linear-gradient(90deg, #c9a227, #e6b84a);
-      color: #12161c;
+      background: rgba(201, 162, 39, 0.08);
+      border-bottom: 1px solid rgba(201, 162, 39, 0.18);
+      color: var(--text-secondary);
       display: flex;
       align-items: center;
       justify-content: space-between;
-      gap: 12px;
-      padding: 9px 20px;
-      font-size: var(--text-sm);
-      font-weight: 600;
+      gap: 10px;
+      padding: 5px 20px;
+      font-size: var(--text-xs);
+      font-weight: 500;
       flex-wrap: wrap;
+      backdrop-filter: blur(8px);
     }
     .fundraising-banner a {
-      color: #12161c;
+      color: var(--accent-gold);
       text-decoration: none;
     }
     .fundraising-banner .fb-donate-btn {
       display: inline-flex;
       align-items: center;
-      padding: 5px 14px;
-      background: #12161c;
-      color: #e6b84a !important;
+      padding: 3px 10px;
+      background: rgba(201, 162, 39, 0.16);
+      color: var(--accent-gold) !important;
+      border: 1px solid rgba(201, 162, 39, 0.32);
       border-radius: 100px;
-      font-weight: 700;
-      font-size: var(--text-sm);
+      font-weight: 600;
+      font-size: var(--text-xs);
       white-space: nowrap;
-      transition: opacity 0.15s;
+      transition: background 0.15s;
     }
-    .fundraising-banner .fb-donate-btn:hover { opacity: 0.85; }
+    .fundraising-banner .fb-donate-btn:hover { background: rgba(201, 162, 39, 0.26); }
     .fundraising-banner .fb-wef-link {
       text-decoration: underline;
       text-underline-offset: 2px;
       white-space: nowrap;
-      opacity: 0.85;
+      opacity: 0.75;
     }
     .fundraising-banner .fb-wef-link:hover { opacity: 1; }
     .fundraising-banner .fb-dismiss {
       background: none;
       border: none;
-      color: #12161c;
+      color: var(--text-muted);
       font-size: var(--text-md);
       line-height: 1;
       cursor: pointer;
       padding: 2px 4px;
-      opacity: 0.6;
+      opacity: 0.5;
       flex-shrink: 0;
     }
     .fundraising-banner .fb-dismiss:hover { opacity: 1; }
@@ -409,7 +412,7 @@
 
     /* Hero Section */
     .hero {
-      padding: 80px 0 100px;
+      padding: 48px 0 64px;
       text-align: center;
     }
 
@@ -443,13 +446,16 @@
 
     .hero h1 {
       font-family: 'Playfair Display', serif;
-      font-size: clamp(2.5rem, 5vw, 3.8rem);
+      font-size: clamp(2rem, 4vw, 3rem);
       font-weight: 500;
-      line-height: 1.15;
+      line-height: 1.08;
       letter-spacing: -0.02em;
-      margin-bottom: 24px;
+      margin-bottom: 16px;
       animation: fadeInUp 0.6s ease 0.1s both;
     }
+    /* The headline is two visual lines split by <br>; halve the line gap
+       so the dash-line + highlight don't stack with extra air. */
+    .hero h1 br { line-height: 0.5; }
 
     .hero h1 .highlight {
       background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
@@ -468,19 +474,19 @@
 
     .hero-subtitle {
       max-width: 580px;
-      margin: 0 auto 20px;
+      margin: 0 auto 14px;
       font-size: var(--text-lg);
       color: var(--text-secondary);
-      line-height: 1.7;
+      line-height: 1.55;
       animation: fadeInUp 0.6s ease 0.2s both;
     }
-    
+
     .hero-nudge {
       max-width: 520px;
-      margin: 0 auto 40px;
+      margin: 0 auto 24px;
       font-size: var(--text-base);
       color: var(--text-secondary);
-      line-height: 1.6;
+      line-height: 1.5;
       animation: fadeInUp 0.6s ease 0.3s both;
     }
     [data-theme="light"] .hero-nudge { color: #4a5568; }
@@ -505,18 +511,19 @@
       display: flex;
       justify-content: center;
       align-items: center;
-      gap: 22px;
+      gap: 24px;
       flex-wrap: wrap;
-      margin: 28px auto 0;
-      max-width: 760px;
+      margin: 18px auto 0;
+      max-width: 780px;
       animation: fadeInUp 0.6s ease 0.45s both;
     }
     .capability-item {
       display: inline-flex;
       align-items: center;
-      gap: 8px;
-      font-size: var(--text-sm);
-      color: var(--text-secondary);
+      gap: 9px;
+      font-size: var(--text-md);
+      font-weight: 500;
+      color: var(--text-primary);
     }
     .capability-item .capability-icon {
       color: var(--accent-gold);
@@ -529,7 +536,7 @@
       text-decoration-color: rgba(201, 162, 39, 0.45);
     }
     .capability-item a:hover { color: var(--accent-gold); }
-    [data-theme="light"] .capability-item { color: #4a5568; }
+    [data-theme="light"] .capability-item { color: #1a1a2e; }
 
     /* Founding-shop strip — single-row proof line shown right after the hero. */
     .founding-strip {
@@ -2023,7 +2030,7 @@
   <meta property="og:image" content="https://www.mycarconcierge.com/assets/wefunder-cover.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="My Car Concierge — Your complete auto ownership platform" />
+  <meta property="og:image:alt" content="My Car Concierge — Get competing bids from vetted local providers on any vehicle service." />
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:site" content="@mycarconcierge" />
@@ -2041,7 +2048,7 @@
         "name": "My Car Concierge",
         "url": "https://www.mycarconcierge.com",
         "logo": "https://www.mycarconcierge.com/logo-cream.png",
-        "description": "Your complete auto ownership platform. Get quotes from vetted providers, manage your vehicles, schedule maintenance, and shop smarter — all in one place.",
+        "description": "Get competing bids from vetted local providers on any vehicle service.",
         "sameAs": [
           "https://www.facebook.com/mycarconcierge",
           "https://www.instagram.com/mycarconcierge",
@@ -2164,7 +2171,7 @@
   <main>
     <section class="hero" id="main-content">
       <div class="container">
-        <div class="hero-badge" data-i18n="landing.heroBadge">Your complete auto ownership platform</div>
+        <div class="hero-badge" data-i18n="landing.heroBadge">Now live in Bergen County, NJ</div>
         <h1>
           <span data-i18n="landing.heroHeadline1">Get competing bids on any vehicle service —</span><br>
           <span class="highlight" data-i18n="landing.heroHeadline2">and pick the one you like.</span>
@@ -2188,11 +2195,11 @@
         <div class="capability-strip" aria-label="Platform trust">
           <div class="capability-item">
             <span class="capability-icon"><span class="icon-inline" data-icon="shield"></span></span>
-            <span data-i18n="landing.capEscrowProtected">Escrow Protected — you only pay when the job's done</span>
+            <span data-i18n="landing.capEscrowProtected">Funds held until you confirm the job's done</span>
           </div>
           <div class="capability-item">
             <span class="capability-icon"><span class="icon-inline" data-icon="shield-check"></span></span>
-            <a href="/background-check-disclosure.html" data-i18n="landing.capBackgroundChecked">Every provider background-checked</a>
+            <a href="/background-check-disclosure.html" data-i18n="landing.capBackgroundChecked">Providers are vetted &amp; background-checked</a>
           </div>
           <div class="capability-item">
             <span class="capability-icon"><span class="icon-inline" data-icon="lock"></span></span>
@@ -2298,7 +2305,7 @@
             <ul class="feature-list">
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature1">Vetted service providers bid on your job</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature2">Compare quotes with transparent pricing</span></li>
-              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature3">Escrow protection holds funds until job is complete</span></li>
+              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature3">Your payment is held until the job is complete</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature4">No surprise charges — you approve any extra work before it happens</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>Split the cost — invite others to share the bill, even without an account</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>Crowd-fund big repairs — pool money with built-in refund protection</span></li>
@@ -2377,7 +2384,7 @@
           </div>
           <div class="more-feature-item">
             <div class="mf-icon"><span class="icon-inline" data-icon="shield"></span></div>
-            <h4>Escrow Protection</h4>
+            <h4>Secure Payment Holding</h4>
             <p>Your payment is held securely until the job is done. Any additional work requires your approval before the provider can proceed — no surprises.</p>
           </div>
           <div class="more-feature-item">
@@ -2410,12 +2417,12 @@
           <div class="step">
             <div class="step-number">2</div>
             <h3 data-i18n="landing.step2Title">Get bids from 2&ndash;3 verified providers</h3>
-            <p data-i18n="landing.step2Desc">Background-checked shops compete for your job. Compare them side by side.</p>
+            <p data-i18n="landing.step2Desc">Vetted shops compete for your job. Compare them side by side.</p>
           </div>
           <div class="step">
             <div class="step-number">3</div>
             <h3 data-i18n="landing.step3Title">Pick the best price and schedule</h3>
-            <p data-i18n="landing.step3Desc">Funds stay in escrow until you confirm the work is done.</p>
+            <p data-i18n="landing.step3Desc">Funds are held until you confirm the work is done.</p>
           </div>
         </div>
       </div>
