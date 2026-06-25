@@ -57,10 +57,13 @@
   },
   "landing": {
     "heroBadge": "Your complete auto ownership platform",
-    "heroHeadline1": "Get competing bids",
-    "heroHeadline2": "from verified auto pros.",
-    "heroHeadline3": "Pick the best one.",
-    "heroSubtitle": "Funds stay in escrow and are only released after you confirm the job is done. Stripe-secured payments. Background-checked providers.",
+    "heroHeadline1": "Get competing bids on any vehicle service —",
+    "heroHeadline2": "and pick the one you like.",
+    "heroHeadline3": "",
+    "heroSubtitle": "Mechanical, cosmetic, detailing, marine, even snow removal. Vetted local providers bid on your job, you pick the price — and that's exactly what you pay.",
+    "foundingShopLabel": "Founding Shop",
+    "foundingShopName": "Alpha Auto Body, Hackensack NJ",
+    "foundingShopMore": "More Bergen County providers joining soon.",
     "heroNudge": "Setup takes 30 seconds. You never pay until you confirm the job is done.",
     "openForBusinessLabel": "Now Live",
     "openForBusinessBody": "Now accepting members and providers nationwide — both profiles are free to create.",
@@ -71,7 +74,7 @@
     "capBackgroundChecked": "Every provider background-checked",
     "capEscrowProtected": "Escrow Protected — you only pay when the job's done",
     "capMultilang": "7-language support",
-    "joinAsProviderFree": "I'm a Shop or Pro",
+    "joinAsProviderFree": "I'm a shop / provider",
     "createMemberAccount": "Create Member Account",
     "applyAsProvider": "Apply as Provider",
     "joinAsProvider": "Join as a Provider",
@@ -123,7 +126,7 @@
     "step3Desc": "Funds stay in escrow until you confirm the work is done.",
     "ctaTitle": "Ready to take control of your auto care?",
     "ctaSubtitle": "Join vehicle owners who manage everything—service, maintenance, learning, and shopping—in one place.",
-    "getStartedFree": "Create Your Free Profile"
+    "getStartedFree": "I need service"
   },
   "auth": {
     "welcomeBack": "Welcome Back",
