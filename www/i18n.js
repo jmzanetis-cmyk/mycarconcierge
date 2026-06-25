@@ -209,7 +209,7 @@ const I18n = (function() {
         </svg>
       </button>
       <div class="lang-dropdown">
-        ${Object.entries(SUPPORTED_LANGUAGES).map(([code, lang]) => `
+        ${Object.entries(SUPPORTED_LANGUAGES).filter(([code]) => code !== 'el').map(([code, lang]) => `
           <button class="lang-option ${code === currentLanguage ? 'active' : ''}" data-lang="${code}">
             <span class="lang-native">${lang.nativeName}</span>
             <span class="lang-english">${lang.name}</span>

@@ -444,32 +444,43 @@
       50% { opacity: 0.4; }
     }
 
+    /* Headline: SANS by design so it doesn't echo the serif wordmark above.
+       To revert to serif in one edit, swap the active rule with the commented
+       fallback right below.
+       --- Serif fallback (uncomment + comment-out the sans rule to use) ---
+       .hero h1 {
+         font-family: 'Playfair Display', serif;
+         font-size: clamp(2rem, 4vw, 3rem);
+         font-weight: 500;
+         line-height: 1.1;
+         letter-spacing: -0.02em;
+         margin-bottom: 8px;
+         color: var(--text-primary);
+         animation: fadeInUp 0.6s ease 0.1s both;
+       }
+       -------------------------------------------------------------------- */
     .hero h1 {
-      font-family: 'Playfair Display', serif;
-      font-size: clamp(2rem, 4vw, 3rem);
-      font-weight: 500;
-      line-height: 1.08;
-      letter-spacing: -0.02em;
-      margin-bottom: 16px;
+      font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+      font-size: clamp(1.5rem, 4vw, 2rem);
+      font-weight: 600;
+      line-height: 1.25;
+      letter-spacing: -0.01em;
+      margin-bottom: 8px;
+      color: var(--text-primary);
       animation: fadeInUp 0.6s ease 0.1s both;
     }
-    /* The headline is two visual lines split by <br>; halve the line gap
-       so the dash-line + highlight don't stack with extra air. */
-    .hero h1 br { line-height: 0.5; }
 
-    .hero h1 .highlight {
-      background: linear-gradient(135deg, var(--accent-gold) 0%, #f0c76d 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
-    }
-    
-    /* Light mode highlight - warm gold on white */
-    [data-theme="light"] .hero h1 .highlight {
-      background: linear-gradient(135deg, #c9a962 0%, #d4b87a 100%);
-      -webkit-background-clip: text;
-      -webkit-text-fill-color: transparent;
-      background-clip: text;
+    /* The one deliberate serif accent — italic Playfair, sits directly
+       beneath the headline as a complementary phrase. */
+    .hero-tagline {
+      font-family: 'Playfair Display', Georgia, serif;
+      font-style: italic;
+      font-size: clamp(1.1rem, 2.5vw, 1.4rem);
+      font-weight: 400;
+      line-height: 1.35;
+      color: var(--text-secondary);
+      margin: 0 auto 16px;
+      animation: fadeInUp 0.6s ease 0.15s both;
     }
 
     .hero-subtitle {
@@ -1902,10 +1913,22 @@
         font-size: var(--text-4xl);
         line-height: 1.2;
       }
-      
+
+      /* Override the generic h1 mobile rule for the hero — keep it tight
+         so the CTAs sit above the fold on a 390px-wide phone. */
+      .hero h1 {
+        font-size: clamp(1.4rem, 5vw, 1.75rem);
+        line-height: 1.25;
+        margin-bottom: 6px;
+      }
+      .hero-tagline {
+        font-size: clamp(1rem, 3.2vw, 1.2rem);
+        margin-bottom: 12px;
+      }
+
       .hero-subtitle {
         font-size: var(--text-md);
-        margin-bottom: 28px;
+        margin-bottom: 20px;
       }
 
       .stats {
@@ -2172,10 +2195,8 @@
     <section class="hero" id="main-content">
       <div class="container">
         <div class="hero-badge" data-i18n="landing.heroBadge">Now live in Bergen County, NJ</div>
-        <h1>
-          <span data-i18n="landing.heroHeadline1">Get competing bids on any vehicle service —</span><br>
-          <span class="highlight" data-i18n="landing.heroHeadline2">and pick the one you like.</span>
-        </h1>
+        <h1 data-i18n="landing.heroHeadline1">Get competing bids on any vehicle service</h1>
+        <p class="hero-tagline" data-i18n="landing.heroHeadline2">and pick the one you like.</p>
         <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
           Mechanical, cosmetic, detailing, marine, even snow removal. Vetted local providers bid on your job, you pick the price — and that's exactly what you pay.
         </p>
