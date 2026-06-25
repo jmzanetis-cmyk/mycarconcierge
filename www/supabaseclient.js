@@ -165,17 +165,28 @@ async function listVehiclePhotos(vehicleId) {
     .from("vehicle-files")
     .list(vehicleId, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
   if (error || !data) return { data: [], error };
-  const urls = data.map((f) => {
-    const { data: publicData } = supabaseClient.storage.from("vehicle-files").getPublicUrl(`${vehicleId}/${f.name}`);
+  // Sign each path (1-hour expiry) so the gallery still renders after the
+  // bucket is flipped private. Promise.all keeps it one async batch. If a
+  // sign call fails, log + return null url so the gallery can show a broken
+  // tile instead of crashing the whole list.
+  const urls = await Promise.all(data.map(async (f) => {
+    const path = `${vehicleId}/${f.name}`;
+    let url = null;
+    try {
+      const { data: signed, error: signErr } = await supabaseClient.storage
+        .from("vehicle-files").createSignedUrl(path, 3600);
+      if (!signErr && signed?.signedUrl) url = signed.signedUrl;
+      else console.warn("[listVehiclePhotos] sign failed for", path, signErr?.message);
+    } catch (e) { console.warn("[listVehiclePhotos] sign threw for", path, e.message); }
     const expStatus = getExpirationStatus(f.created_at);
-    return { 
-      name: f.name, 
-      url: publicData.publicUrl, 
+    return {
+      name: f.name,
+      url,
       created_at: f.created_at,
       expires_at: getExpirationDate(f.created_at),
       expiration: expStatus
     };
-  });
+  }));
   return { data: urls, error: null };
 }
 
@@ -242,17 +253,25 @@ async function listVehicleDocuments(vehicleId) {
     .from("vehicle-files")
     .list(`${vehicleId}/docs`, { limit: 100, sortBy: { column: "created_at", order: "desc" } });
   if (error || !data) return { data: [], error };
-  const urls = data.map((f) => {
-    const { data: publicData } = supabaseClient.storage.from("vehicle-files").getPublicUrl(`${vehicleId}/docs/${f.name}`);
+  // Sign each document path (1-hour expiry) — same pattern as listVehiclePhotos.
+  const urls = await Promise.all(data.map(async (f) => {
+    const path = `${vehicleId}/docs/${f.name}`;
+    let url = null;
+    try {
+      const { data: signed, error: signErr } = await supabaseClient.storage
+        .from("vehicle-files").createSignedUrl(path, 3600);
+      if (!signErr && signed?.signedUrl) url = signed.signedUrl;
+      else console.warn("[listVehicleDocuments] sign failed for", path, signErr?.message);
+    } catch (e) { console.warn("[listVehicleDocuments] sign threw for", path, e.message); }
     const expStatus = getExpirationStatus(f.created_at);
-    return { 
-      name: f.name, 
-      url: publicData.publicUrl,
+    return {
+      name: f.name,
+      url,
       created_at: f.created_at,
       expires_at: getExpirationDate(f.created_at),
       expiration: expStatus
     };
-  });
+  }));
   return { data: urls, error: null };
 }
 
@@ -1086,22 +1105,24 @@ async function uploadEvidencePhoto(packageId, file) {
   const { data, error } = await supabaseClient.storage
     .from("evidence")
     .upload(path, resizedBlob, { cacheControl: "3600", upsert: false, contentType: file.type || "image/jpeg" });
-  
-  if (error) return { url: null, error };
-  
-  const { data: publicData } = supabaseClient.storage.from("evidence").getPublicUrl(path);
-  return { url: publicData.publicUrl, error: null };
+
+  if (error) return { path: null, error };
+
+  // Store the PATH (not a signed URL) in service_evidence.photos. The render
+  // site (loadEvidenceTimeline) signs each path at view time with a fresh
+  // 1-hour token. Persisting signed URLs would break after 1 hour.
+  return { path, error: null };
 }
 
 async function uploadEvidencePhotos(packageId, files) {
-  const urls = [];
+  const paths = [];
   for (const file of files) {
     const result = await uploadEvidencePhoto(packageId, file);
-    if (result.url) {
-      urls.push(result.url);
+    if (result.path) {
+      paths.push(result.path);
     }
   }
-  return urls;
+  return paths;
 }
 
 async function saveEvidence(evidenceData) {

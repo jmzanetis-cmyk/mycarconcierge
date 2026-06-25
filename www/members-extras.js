@@ -1636,11 +1636,28 @@
           return;
         }
 
-        const timeline = evidence.map(e => {
+        // service_evidence.photos now stores storage PATHS (not URLs). Sign
+        // each path (1-hour expiry) before rendering. Promise.all keeps it
+        // one async batch per evidence row; failed signs become null and the
+        // tile is skipped rather than crashing the timeline.
+        const timeline = await Promise.all(evidence.map(async (e) => {
           const typeInfo = memberEvidenceTypeLabels[e.type] || { label: e.type, icon: mccIcon('camera', 16), color: 'var(--text-muted)' };
+          const photoPaths = (e.photos || []).slice(0, 4);
+          const signedUrls = await Promise.all(photoPaths.map(async (p) => {
+            try {
+              const { data: signed, error: signErr } = await supabaseClient.storage
+                .from('evidence').createSignedUrl(p, 3600);
+              if (!signErr && signed?.signedUrl) return signed.signedUrl;
+              console.warn('[loadEvidenceTimeline] sign failed for', p, signErr?.message);
+              return null;
+            } catch (err) {
+              console.warn('[loadEvidenceTimeline] sign threw for', p, err.message);
+              return null;
+            }
+          }));
           const photoGrid = e.photos?.length ? `
             <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-              ${e.photos.slice(0, 4).map(url => `
+              ${signedUrls.filter(Boolean).map(url => `
                 <div style="width:60px;height:60px;border-radius:6px;overflow:hidden;border:1px solid var(--border-subtle);cursor:pointer;" onclick="window.open('${url}','_blank')">
                   <img src="${url}" style="width:100%;height:100%;object-fit:cover;">
                 </div>
@@ -1894,8 +1911,11 @@
       statusDiv.innerHTML = '<p style="color:var(--accent-gold);">' + mccIcon('send', 16) + ' Uploading photos...</p>';
 
       try {
-        const photoUrls = await window.uploadEvidencePhotos(packageId, files);
-        if (photoUrls.length === 0) {
+        // uploadEvidencePhotos now returns storage PATHS (not URLs); the
+        // render site signs them at view time. saveEvidence persists these
+        // paths to service_evidence.photos.
+        const photoPaths = await window.uploadEvidencePhotos(packageId, files);
+        if (photoPaths.length === 0) {
           throw new Error('Failed to upload photos');
         }
 
@@ -1913,7 +1933,7 @@
         const { data, error } = await window.saveEvidence({
           packageId,
           type,
-          photos: photoUrls,
+          photos: photoPaths,
           odometer: Number.parseInt(odometer),
           fuelLevel,
           exteriorCondition,
@@ -5651,9 +5671,19 @@
             continue;
           }
           
-          const { data: publicData } = supabaseClient.storage.from('vehicle-files').getPublicUrl(path);
-          if (publicData?.publicUrl) {
-            urls.push(publicData.publicUrl);
+          // Diagnostic media is one-shot: the URL is posted immediately to
+          // the AI assessment endpoint and never persisted. A 1-hour signed
+          // URL is safe to push directly (no DB row to outlive expiry).
+          try {
+            const { data: signed, error: signErr } = await supabaseClient.storage
+              .from('vehicle-files').createSignedUrl(path, 3600);
+            if (!signErr && signed?.signedUrl) {
+              urls.push(signed.signedUrl);
+            } else {
+              console.warn('[vaMedia] sign failed for', path, signErr?.message);
+            }
+          } catch (signErr) {
+            console.warn('[vaMedia] sign threw for', path, signErr.message);
           }
         } catch (err) {
           console.error('Upload error:', err);
