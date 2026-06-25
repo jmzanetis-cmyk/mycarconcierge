@@ -635,13 +635,13 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <div class="onboarding-banner" id="onboardingBanner" style="display:none;">
+  <div class="onboarding-banner" id="onboardingBanner">
     We're live! Now onboarding new members &amp; providers &mdash; <a href="/founders.html">join the founding community &rarr;</a>
     <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
   </div>
   <script>
-    if (!localStorage.getItem('onboardingBannerDismissed')) {
-      document.getElementById('onboardingBanner').style.display = '';
+    if (localStorage.getItem('onboardingBannerDismissed')) {
+      document.getElementById('onboardingBanner').style.display = 'none';
     }
   </script>
 
