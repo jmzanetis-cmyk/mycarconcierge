@@ -7,6 +7,7 @@
 //   invited:   split_participants rows where this user is a participant
 
 var utils = require('./utils');
+var { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
@@ -22,6 +23,11 @@ exports.handler = async function(event) {
   var userResult = await supabase.auth.getUser(token);
   if (userResult.error || !userResult.data?.user) return utils.errorResponse(401, 'Invalid or expired auth token');
   var userId = userResult.data.user.id;
+
+  // Feature gate (ships dark for launch) — return empty lists rather than 403
+  // so the "My Splits" surface degrades gracefully when off.
+  var spEnabled = await isFeatureEnabledForUser(supabase, 'split_payments_enabled', userId);
+  if (!spEnabled) return utils.successResponse({ organized: [], invited: [] });
 
   var [organizedRes, invitedRes] = await Promise.all([
     supabase

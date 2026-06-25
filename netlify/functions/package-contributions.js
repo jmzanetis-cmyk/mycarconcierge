@@ -1,6 +1,7 @@
 // GET /api/packages/:id/contributions — total raised + contributor list for a crowd-funded package
 'use strict';
 let utils = require('./utils');
+let { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
@@ -23,6 +24,11 @@ exports.handler = async function(event) {
     if (userResult.error || !userResult.data || !userResult.data.user) {
       return utils.errorResponse(401, 'Invalid token');
     }
+    let userId = userResult.data.user.id;
+
+    // Feature gate (ships dark for launch)
+    let cfEnabled = await isFeatureEnabledForUser(supabase, 'crowdfunding_enabled', userId);
+    if (!cfEnabled) return utils.errorResponse(403, 'feature_disabled');
 
     let pkgResult = await supabase
       .from('maintenance_packages')

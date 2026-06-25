@@ -3,6 +3,7 @@
 // POST /api/saas/billing-portal  — create Stripe Billing Portal session (auth required)
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 function supabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -105,6 +106,13 @@ async function handleCheckout(event, sb, user) {
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
   const { product, plan, billing = 'monthly', success_url, cancel_url } = body;
   if (!product || !plan) return json(400, { error: 'product and plan required' });
+
+  // Feature gate (ships dark for launch). Only blocks product==='shop'; other
+  // SaaS products (fleet, outreach, ai_api, white_label) remain unaffected.
+  if (product === 'shop') {
+    const enabled = await isFeatureEnabledForUser(sb, 'shop_saas_enabled', user.id);
+    if (!enabled) return json(403, { error: 'feature_disabled' });
+  }
 
   const { data: planRow } = await sb
     .from('saas_plans')

@@ -2,6 +2,7 @@
 // POST /api/community-board — create a new community post
 'use strict';
 const { createClient } = require('@supabase/supabase-js');
+const { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 function supabase() {
   return createClient(
@@ -43,6 +44,11 @@ exports.handler = async (event) => {
 
     // ── GET: crowd-funded packages open for community contribution ────────
     if (event.httpMethod === 'GET') {
+      // Feature gate: when crowdfunding is dark, return an empty board rather
+      // than 403 so the page renders cleanly with no entries.
+      const cfEnabled = await isFeatureEnabledForUser(sb, 'crowdfunding_enabled', auth.user.id);
+      if (!cfEnabled) return json(200, { packages: [] });
+
       const { data: pkgs, error } = await sb
         .from('maintenance_packages')
         .select(`

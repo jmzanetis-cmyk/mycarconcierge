@@ -7,6 +7,7 @@
 'use strict';
 
 const utils = require('./utils');
+const { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
@@ -17,6 +18,10 @@ exports.handler = async function(event) {
 
   const admin = await utils.authenticateBearerAdmin(event, supabase);
   if (!admin) return utils.errorResponse(401, 'Authentication required');
+
+  // Feature gate (ships dark for launch). Admin in test_users[] bypasses.
+  const enabled = await isFeatureEnabledForUser(supabase, 'shop_saas_enabled', admin.id);
+  if (!enabled) return utils.errorResponse(403, 'feature_disabled');
 
   const { data: subs, error } = await supabase
     .from('saas_subscriptions')

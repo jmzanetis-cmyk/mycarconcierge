@@ -3168,8 +3168,12 @@ function handlePrivateJobToggle() {
     const crowdFundedSection = document.getElementById('crowd-funded-section');
     if (crowdFundedSection) crowdFundedSection.style.display = 'none';
   } else {
+    // Feature gate: crowdfunding ships dark — keep the section hidden if the
+    // flag isn't on, even when private-job is unchecked.
     const crowdFundedSection = document.getElementById('crowd-funded-section');
-    if (crowdFundedSection) crowdFundedSection.style.display = 'block';
+    if (crowdFundedSection) {
+      crowdFundedSection.style.display = window._mccFlags?.crowdfunding_enabled ? 'block' : 'none';
+    }
   }
 }
 
@@ -3327,6 +3331,8 @@ function escapeHtml(text) {
 
 // ========== CROWD-FUNDED PROGRESS LOADING ==========
 async function loadCrowdFundedProgress() {
+  // Feature gate: skip entirely when crowdfunding is off.
+  if (!window._mccFlags?.crowdfunding_enabled) return;
   if (!packages || !packages.length) return;
   const crowdFundedPkgs = packages.filter(p => p.crowd_funded);
   if (!crowdFundedPkgs.length) return;

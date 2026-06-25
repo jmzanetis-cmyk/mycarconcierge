@@ -1,4 +1,5 @@
 let utils = require('./utils');
+let { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -34,6 +35,10 @@ exports.handler = async function(event) {
     }
 
     let user = userResult.data.user;
+
+    // Feature gate (ships dark for launch)
+    let spEnabled = await isFeatureEnabledForUser(supabase, 'split_payments_enabled', user.id);
+    if (!spEnabled) return utils.errorResponse(403, 'feature_disabled');
 
     let result = await supabase
       .from('split_participants')

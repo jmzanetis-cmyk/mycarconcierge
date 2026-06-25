@@ -7,6 +7,7 @@
 // Returns: { success, split_id, participants }
 
 var utils = require('./utils');
+var { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
@@ -22,6 +23,10 @@ exports.handler = async function(event) {
   var userResult = await supabase.auth.getUser(token);
   if (userResult.error || !userResult.data?.user) return utils.errorResponse(401, 'Invalid or expired auth token');
   var userId = userResult.data.user.id;
+
+  // Feature gate (ships dark for launch)
+  var spEnabled = await isFeatureEnabledForUser(supabase, 'split_payments_enabled', userId);
+  if (!spEnabled) return utils.errorResponse(403, 'feature_disabled');
 
   var body;
   try { body = JSON.parse(event.body || '{}'); } catch (e) { return utils.errorResponse(400, 'Invalid JSON'); }

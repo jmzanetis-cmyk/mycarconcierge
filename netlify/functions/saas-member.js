@@ -7,6 +7,7 @@
 // see their own subscription data.
 
 const { createClient } = require('@supabase/supabase-js');
+const { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 function getServiceClient() {
   const url = process.env.SUPABASE_URL;
@@ -55,6 +56,14 @@ exports.handler = async function(event) {
 
   const user = await authenticate(event, supabase);
   if (!user) return json(401, { error: 'Authentication required' });
+
+  // Feature gate (ships dark for launch). Per scope: this whole SaaS-status
+  // surface is dark; users in test_users[] bypass. NOTE: this gate is named
+  // 'shop_saas_enabled' but blocks ALL product subscription reads (fleet,
+  // outreach, ai_api). Flag widening intentional for launch — see comment in
+  // the gating CR. Split if you need per-product later.
+  const enabled = await isFeatureEnabledForUser(supabase, 'shop_saas_enabled', user.id);
+  if (!enabled) return json(403, { error: 'feature_disabled' });
 
   const path = parsePath(event);
 

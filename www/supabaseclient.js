@@ -3245,6 +3245,44 @@ async function updateBulkItemStatus(itemId, status, packageId = null) {
   return { data, error };
 }
 
+// ─────────────────────────────────────────────────────────────────────────
+// MCC feature-flag client cache.
+//
+// Fetches /api/me/feature-flags once (cached on window._mccFlags + a Promise
+// to deduplicate concurrent calls). Renders should ALWAYS check via
+// `window._mccFlags?.<key>` and fail-closed: missing/false = feature OFF.
+//
+// Usage:
+//   await window.loadMccFlags();        // ensure flags are loaded
+//   if (!window._mccFlags?.crowdfunding_enabled) return; // gate
+//
+// Errors fall through silently; window._mccFlags stays {} (all features OFF).
+// ─────────────────────────────────────────────────────────────────────────
+window._mccFlags = window._mccFlags || null;
+let _mccFlagsPromise = null;
+async function loadMccFlags() {
+  if (window._mccFlags) return window._mccFlags;
+  if (_mccFlagsPromise) return _mccFlagsPromise;
+  _mccFlagsPromise = (async () => {
+    try {
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) { window._mccFlags = {}; return window._mccFlags; }
+      const res = await fetch('/api/me/feature-flags', {
+        headers: { 'Authorization': 'Bearer ' + session.access_token }
+      });
+      if (!res.ok) { window._mccFlags = {}; return window._mccFlags; }
+      const data = await res.json().catch(() => ({}));
+      window._mccFlags = (data && data.flags) || {};
+      window.dispatchEvent(new CustomEvent('mcc-flags-loaded', { detail: window._mccFlags }));
+    } catch {
+      window._mccFlags = {};
+    }
+    return window._mccFlags;
+  })();
+  return _mccFlagsPromise;
+}
+window.loadMccFlags = loadMccFlags;
+
 // Export bulk service scheduling functions
 window.createBulkServiceBatch = createBulkServiceBatch;
 window.getFleetBulkBatches = getFleetBulkBatches;

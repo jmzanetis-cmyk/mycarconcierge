@@ -4,6 +4,7 @@
 'use strict';
 let utils = require('./utils');
 let { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+let { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
@@ -27,6 +28,10 @@ exports.handler = async function(event) {
       return utils.errorResponse(401, 'Invalid token');
     }
     let userId = userResult.data.user.id;
+
+    // Feature gate (ships dark for launch)
+    let cfEnabled = await isFeatureEnabledForUser(supabase, 'crowdfunding_enabled', userId);
+    if (!cfEnabled) return utils.errorResponse(403, 'feature_disabled');
 
     let body;
     try { body = JSON.parse(event.body || '{}'); } catch { return utils.errorResponse(400, 'Invalid JSON'); }

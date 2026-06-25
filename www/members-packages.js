@@ -6960,6 +6960,11 @@
     }
 
     function openSplitPaymentModal(packageId, totalAmountCents) {
+      // Feature gate (ships dark for launch). Server enforces too.
+      if (!window._mccFlags?.split_payments_enabled) {
+        if (typeof showToast === 'function') showToast('Split payments are coming soon.', 'info');
+        return;
+      }
       const userEmail = currentUser?.email || '';
       const halfAmount = Math.floor(totalAmountCents / 2);
       const otherHalf = totalAmountCents - halfAmount;
@@ -7090,6 +7095,11 @@
     }
 
     window.reactivateSplitPayment = function(splitId, totalAmountCents) {
+      // Feature gate (ships dark for launch). Server enforces too.
+      if (!window._mccFlags?.split_payments_enabled) {
+        if (typeof showToast === 'function') showToast('Split payments are coming soon.', 'info');
+        return;
+      }
       const userEmail = currentUser?.email || '';
       const halfAmount = Math.floor(totalAmountCents / 2);
       const otherHalf = totalAmountCents - halfAmount;

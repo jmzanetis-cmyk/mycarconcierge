@@ -11,7 +11,13 @@
 var utils = require('./utils');
 var { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
-var FLAGS = ['custody_chain_enabled', 'car_club_programs_enabled'];
+var FLAGS = [
+  'custody_chain_enabled',
+  'car_club_programs_enabled',
+  'crowdfunding_enabled',
+  'split_payments_enabled',
+  'shop_saas_enabled',
+];
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();

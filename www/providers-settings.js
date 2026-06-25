@@ -1572,6 +1572,11 @@ async function loadShopSubscription() {
 }
 
 function openShopUpgradeModal() {
+  // Feature gate (ships dark for launch). Server enforces too.
+  if (!window._mccFlags?.shop_saas_enabled) {
+    if (typeof showToast === 'function') showToast('Shop subscription plans are coming soon.', 'info');
+    return;
+  }
   const plan = window._shopSaasData?.plan || 'none';
   const modalHtml = `
     <div id="shop-upgrade-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">

@@ -1,4 +1,5 @@
 var utils = require('./utils');
+var { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -30,7 +31,7 @@ exports.handler = async function(event) {
 
     var result = await supabase
       .from('split_participants')
-      .select('id, email, display_name, amount_cents, status, split_payment_id, split_payments(package_id, total_amount_cents, status, expires_at)')
+      .select('id, email, display_name, amount_cents, status, split_payment_id, split_payments(package_id, total_amount_cents, status, expires_at, created_by)')
       .eq('id', participantId)
       .single();
 
@@ -39,6 +40,14 @@ exports.handler = async function(event) {
     }
 
     var participant = result.data;
+
+    // Feature gate (ships dark for launch) — resolve via the split's organizer
+    // (created_by) since guest sessions have no JWT identity.
+    var organizerId = participant.split_payments && participant.split_payments.created_by;
+    var spEnabled = organizerId
+      ? await isFeatureEnabledForUser(supabase, 'split_payments_enabled', organizerId)
+      : false;
+    if (!spEnabled) return utils.errorResponse(403, 'feature_disabled');
 
     if (participant.split_payments && participant.split_payments.expires_at && new Date(participant.split_payments.expires_at) < new Date()) {
       return utils.errorResponse(400, 'This split payment has expired');

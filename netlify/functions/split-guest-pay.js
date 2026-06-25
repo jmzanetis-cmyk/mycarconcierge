@@ -1,4 +1,5 @@
 let utils = require('./utils');
+let { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -30,7 +31,7 @@ exports.handler = async function(event) {
 
     let result = await supabase
       .from('split_participants')
-      .select('id, email, display_name, amount_cents, status, split_payment_id, member_id, payment_intent_id, split_payments(package_id, total_amount_cents, status, expires_at)')
+      .select('id, email, display_name, amount_cents, status, split_payment_id, member_id, payment_intent_id, split_payments(package_id, total_amount_cents, status, expires_at, created_by)')
       .eq('id', participantId)
       .single();
 
@@ -39,6 +40,13 @@ exports.handler = async function(event) {
     }
 
     let participant = result.data;
+
+    // Feature gate (ships dark for launch) — resolve via the split's organizer.
+    let organizerId = participant.split_payments && participant.split_payments.created_by;
+    let spEnabled = organizerId
+      ? await isFeatureEnabledForUser(supabase, 'split_payments_enabled', organizerId)
+      : false;
+    if (!spEnabled) return utils.errorResponse(403, 'feature_disabled');
 
     if (participant.member_id) {
       return utils.errorResponse(400, 'This participant is linked to an account. Please log in to pay.');

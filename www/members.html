@@ -3120,7 +3120,8 @@
     </section>
 
     <!-- Group Services Section (Crowd-Funded / Split Payments) -->
-    <section id="group-services" class="section">
+    <!-- Feature-gated: hidden until split_payments_enabled OR crowdfunding_enabled is on -->
+    <section id="group-services" class="section" data-feature-any="split_payments_enabled,crowdfunding_enabled" style="display:none;">
       <div class="page-header">
         <h1 class="page-title">Group Services</h1>
         <p class="page-subtitle">Splits you're organizing and cost-sharing invitations you've received.</p>
@@ -6571,7 +6572,7 @@
           </div>
         </div>
 
-        <div class="form-section" id="crowd-funded-section">
+        <div class="form-section" id="crowd-funded-section" data-feature="crowdfunding_enabled" style="display:none;">
           <div class="form-section-title"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Crowd Funded</div>
           <div class="crowd-funded-container" style="background:#dbeafe;border:1px solid #93c5fd;border-radius:var(--radius-md);padding:16px;">
             <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;">
@@ -8905,11 +8906,31 @@
       statsObserver.observe(vehicleStat, { childList: true, characterData: true, subtree: true });
     }
 
+    // Feature-flag applier: reveals elements marked with data-feature="<key>"
+    // (single key) or data-feature-any="key1,key2" (reveal if ANY is enabled).
+    // Fail-closed: missing/false flag = element stays hidden.
+    function applyMccFeatureGates() {
+      const flags = window._mccFlags || {};
+      document.querySelectorAll('[data-feature]').forEach(el => {
+        if (flags[el.getAttribute('data-feature')]) el.style.display = '';
+      });
+      document.querySelectorAll('[data-feature-any]').forEach(el => {
+        const keys = (el.getAttribute('data-feature-any') || '').split(',').map(s => s.trim());
+        if (keys.some(k => flags[k])) el.style.display = '';
+      });
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
 
       helpdeskInstance = new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
+
+      // Load + apply feature flags (ships-dark features stay hidden by default).
+      if (typeof window.loadMccFlags === 'function') {
+        await window.loadMccFlags();
+        applyMccFeatureGates();
+      }
 
       // Initial onboarding check after stats load
       setTimeout(checkOnboardingStatus, 1500);

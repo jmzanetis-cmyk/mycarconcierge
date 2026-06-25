@@ -1208,6 +1208,23 @@
       line-height: 1.6;
     }
 
+    /* Coming-soon roadmap treatment — dim card + small pill */
+    .more-feature-item.coming-soon { opacity: 0.7; }
+    .coming-soon-pill {
+      display: inline-block;
+      margin-left: 6px;
+      padding: 1px 8px;
+      background: rgba(201, 162, 39, 0.14);
+      border: 1px solid rgba(201, 162, 39, 0.32);
+      border-radius: 100px;
+      color: var(--accent-gold);
+      font-size: 0.65rem;
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+      vertical-align: middle;
+    }
+
     /* Light mode */
     [data-theme="light"] .more-feature-item {
       background: #ffffff;
@@ -2328,8 +2345,8 @@
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature2">Compare quotes with transparent pricing</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature3">Your payment is held until the job is complete</span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span data-i18n="landing.pillar1Feature4">No surprise charges — you approve any extra work before it happens</span></li>
-              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>Split the cost — invite others to share the bill, even without an account</span></li>
-              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>Crowd-fund big repairs — pool money with built-in refund protection</span></li>
+              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span><span data-i18n="landing.pillar1FeatureSplit">Split the cost — invite others to share the bill</span> <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></span></li>
+              <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span><span data-i18n="landing.pillar1FeatureCrowd">Crowd-fund big repairs — pool money with built-in refund protection</span> <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></span></li>
               <li><span class="check"><svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><path d="M20 6 9 17l-5-5"/></svg></span> <span>QR check-in when you drop off your ride</span></li>
             </ul>
           </div>
@@ -2388,15 +2405,15 @@
             <h4>Competitive Bidding</h4>
             <p>Post a job, get bids from vetted providers. Compare pricing, ratings, and reviews — then choose.</p>
           </div>
-          <div class="more-feature-item">
+          <div class="more-feature-item coming-soon">
             <div class="mf-icon"><span class="icon-inline" data-icon="dollar-sign"></span></div>
-            <h4>Split Payments</h4>
-            <p>Share the cost of any job with friends or family. They can pay with just a link — no account needed.</p>
+            <h4>Split Payments <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></h4>
+            <p>Share the cost of any job with friends or family — coming in a future release.</p>
           </div>
-          <div class="more-feature-item">
+          <div class="more-feature-item coming-soon">
             <div class="mf-icon"><span class="icon-inline" data-icon="hand-helping"></span></div>
-            <h4>Crowd-Funded Repairs</h4>
-            <p>Pool money for expensive jobs. Built-in 72-hour window with automatic refunds if not fully funded.</p>
+            <h4>Crowd-Funded Repairs <span class="coming-soon-pill" data-i18n="landing.comingSoon">Coming soon</span></h4>
+            <p>Pool money for expensive jobs — coming in a future release.</p>
           </div>
           <div class="more-feature-item">
             <div class="mf-icon"><span class="icon-inline" data-icon="search"></span></div>
