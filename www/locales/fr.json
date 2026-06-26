@@ -148,9 +148,6 @@
     "flowStep2Desc": "2 à 3 ateliers invités sont en concurrence",
     "flowStep3Title": "Vous choisissez celui que vous préférez",
     "flowStep3Desc": "Prix, évaluation, délais — c'est vous qui décidez",
-    "flowProviderA": "Prestataire A",
-    "flowProviderB": "Prestataire B",
-    "flowProviderC": "Prestataire C",
     "heroFreeMembers": "Gratuit pour les membres. Toujours."
   },
   "auth": {
