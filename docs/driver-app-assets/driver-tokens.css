@@ -82,6 +82,10 @@
   --shadow-glow-gold: 0 0 60px rgba(201, 162, 39, 0.1);
   --shadow-glow-blue: 0 2px 12px rgba(56, 189, 248, 0.3);
 
+  /* Logo lockup navy-box background — slightly lighter than --bg-deep so the
+     box stays visible against a near-navy page in dark mode. */
+  --logo-box: #0e1d33;
+
   /* Type scale */
   --text-xs:      0.72rem;
   --text-sm:      0.82rem;
@@ -129,6 +133,10 @@
   --shadow-lg: 0 12px 32px rgba(30, 58, 95, 0.12);
   --shadow-glow-gold: 0 0 40px rgba(201, 169, 98, 0.15);
   --shadow-glow-blue: 0 2px 12px rgba(30, 58, 95, 0.15);
+
+  /* Logo lockup navy-box — deeper navy in light mode for max contrast
+     against the bright cream/white page background. */
+  --logo-box: #0a1628;
 }
 
 /* ---------- Smooth theme transitions ---------- */

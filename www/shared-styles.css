@@ -56,6 +56,10 @@
   --shadow-glow-gold: 0 0 60px rgba(201, 162, 39, 0.1);
   --shadow-glow-blue: 0 2px 12px rgba(56, 189, 248, 0.3);
 
+  /* Logo lockup navy-box background — slightly lighter than --bg-deep so the
+     box stays visible against a near-navy page in dark mode. */
+  --logo-box: #0e1d33;
+
   /* Type scale — 10 steps, ~1.2 ratio anchored on dominant existing sizes.
      See docs/type-scale-map.md for full collapse mapping. */
   --text-xs:      0.72rem;   /* 11.5px — fine print, timestamps, copyright */
@@ -111,6 +115,10 @@
   --shadow-lg: 0 12px 32px rgba(30, 58, 95, 0.12);
   --shadow-glow-gold: 0 0 40px rgba(201, 169, 98, 0.15);
   --shadow-glow-blue: 0 2px 12px rgba(30, 58, 95, 0.15);
+
+  /* Logo lockup navy-box — deeper navy in light mode for max contrast
+     against the bright cream/white page background. */
+  --logo-box: #0a1628;
 }
 
 /* ==========================================================================
@@ -1938,4 +1946,55 @@ textarea:focus-visible {
 .bgc-badge-lg svg {
   width: 16px;
   height: 16px;
+}
+
+/* ==========================================================================
+   Brand Lockup — navy box, cream Fraunces wordmark + cream/gold glove mark.
+   The wordmark and glove stay cream in both themes (they sit on the navy
+   box, so they don't flip). Only the navy-box bg shade flips via --logo-box
+   so the box stays visible against the page bg in both modes.
+   ========================================================================== */
+.mcc-logo {
+  display: inline-flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 16px;
+  border-radius: 12px;
+  background: var(--logo-box, #0a1628);
+  border: 1px solid rgba(199, 164, 102, 0.35);
+  text-decoration: none;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+.mcc-logo:hover {
+  border-color: #c7a466;
+  box-shadow: 0 0 0 1px rgba(199, 164, 102, 0.5),
+              0 0 14px 2px rgba(199, 164, 102, 0.45);
+}
+.mcc-logo-word {
+  font-family: 'Fraunces', serif;
+  font-weight: 700;
+  font-size: 1.35rem;
+  letter-spacing: -0.015em;
+  color: #f5f0e6;
+  line-height: 1;
+  white-space: nowrap;
+}
+.mcc-logo-mark {
+  height: 22px;
+  width: auto;
+  display: block;
+}
+
+/* Hero variant: larger lockup for landing-page hero placements
+   (founders, member-founder, provider-pilot, service-credits, founder-dashboard). */
+.mcc-logo--hero {
+  padding: 18px 28px;
+  gap: 14px;
+  border-radius: 16px;
+}
+.mcc-logo--hero .mcc-logo-word {
+  font-size: 2.2rem;
+}
+.mcc-logo--hero .mcc-logo-mark {
+  height: 40px;
 }
