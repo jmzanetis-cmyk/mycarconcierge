@@ -53,7 +53,7 @@
   white-space: nowrap;
 }
 .mcc-logo-word-light { font-weight: 400; }
-.mcc-logo-word-bold { font-weight: 700; }
+.mcc-logo-word-bold { font-weight: 700; color: #c7a466; }
 .mcc-logo-mark {
   height: 22px;
   width: auto;
