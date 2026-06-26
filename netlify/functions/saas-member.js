@@ -57,17 +57,13 @@ exports.handler = async function(event) {
   const user = await authenticate(event, supabase);
   if (!user) return json(401, { error: 'Authentication required' });
 
-  // Feature gate (ships dark for launch). Per scope: this whole SaaS-status
-  // surface is dark; users in test_users[] bypass. NOTE: this gate is named
-  // 'shop_saas_enabled' but blocks ALL product subscription reads (fleet,
-  // outreach, ai_api). Flag widening intentional for launch — see comment in
-  // the gating CR. Split if you need per-product later.
-  const enabled = await isFeatureEnabledForUser(supabase, 'shop_saas_enabled', user.id);
-  if (!enabled) return json(403, { error: 'feature_disabled' });
-
   const path = parsePath(event);
 
   // ── GET /api/saas/subscription/status ────────────────────────────────────
+  // Narrow feature gate: ONLY the 'shop' product entry is hidden when
+  // shop_saas_enabled is false. Other products (fleet, outreach, ai_api,
+  // white_label) are returned regardless of the shop_saas flag — they have
+  // their own lifecycles independent of the shop-SaaS launch decision.
   if (path === 'subscription/status') {
     const { data: subs, error } = await supabase
       .from('saas_subscriptions')
@@ -82,6 +78,14 @@ exports.handler = async function(event) {
     const by_product = {};
     for (const sub of (subs || [])) {
       if (!by_product[sub.product]) by_product[sub.product] = sub;
+    }
+
+    // Shop-only feature gate. If the caller has a shop subscription but the
+    // shop_saas flag is off (and they're not in test_users[]), omit it from
+    // the response so the client can't render a shop-status surface.
+    if (by_product.shop) {
+      const shopEnabled = await isFeatureEnabledForUser(supabase, 'shop_saas_enabled', user.id);
+      if (!shopEnabled) delete by_product.shop;
     }
 
     return json(200, { by_product });

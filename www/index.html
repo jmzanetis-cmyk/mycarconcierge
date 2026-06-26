@@ -317,39 +317,6 @@
        signal that the marketplace is live and that both sides can sign up
        and transact at no cost. */
 
-    /* Free-pricing strip under the hero CTAs — reinforces that both
-       member and provider sign-ups are free. */
-    .hero-free-strip {
-      display: inline-flex;
-      align-items: center;
-      gap: 14px;
-      margin: 18px auto 0;
-      padding: 10px 18px;
-      background: rgba(76, 175, 80, 0.08);
-      border: 1px solid rgba(76, 175, 80, 0.25);
-      border-radius: 100px;
-      font-size: var(--text-base);
-      color: var(--text-primary);
-      flex-wrap: wrap;
-      justify-content: center;
-    }
-    .hero-free-strip svg {
-      width: 14px;
-      height: 14px;
-      color: #4CAF50;
-      flex-shrink: 0;
-    }
-    .hero-free-strip strong { color: #4CAF50; font-weight: 600; }
-    .hero-free-strip-sep {
-      width: 1px;
-      height: 14px;
-      background: rgba(160, 168, 184, 0.3);
-    }
-    @media (max-width: 540px) {
-      .hero-free-strip { font-size: 0.8rem; gap: 8px; padding: 9px 14px; }
-      .hero-free-strip-sep { display: none; }
-    }
-
     /* Hero Section */
     .hero {
       padding: 48px 0 64px;
@@ -745,31 +712,6 @@
       font-weight: 500;
     }
     
-    .social-proof-bar {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 8px;
-      margin-top: 20px;
-      font-size: var(--text-base);
-      color: var(--text-secondary);
-      animation: fadeInUp 0.6s ease 0.6s both;
-    }
-
-    .social-proof-dot {
-      width: 7px;
-      height: 7px;
-      border-radius: 50%;
-      background: #4ade80;
-      flex-shrink: 0;
-      animation: pulse-dot 2s infinite;
-    }
-
-    @keyframes pulse-dot {
-      0%, 100% { opacity: 1; transform: scale(1); }
-      50% { opacity: 0.6; transform: scale(0.85); }
-    }
-
     /* Light mode trust strip */
     [data-theme="light"] .trust-badge {
       background: rgba(30, 58, 95, 0.04);
@@ -2280,6 +2222,10 @@
                 <span class="hero-trust-icon"><span class="icon-inline" data-icon="lock"></span></span>
                 <span data-i18n="landing.capStripeSecured">Payments secured by Stripe</span>
               </span>
+              <span class="hero-trust-item">
+                <span class="hero-trust-icon"><span class="icon-inline" data-icon="star"></span></span>
+                <span data-i18n="landing.heroFreeMembers">Free for members. Always.</span>
+              </span>
             </div>
           </div>
 
@@ -2335,16 +2281,6 @@
           </div>
 
         </div><!-- /.hero-split -->
-
-        <div class="hero-free-strip" role="note">
-          <span><strong>Free for members.</strong> Always.</span>
-        </div>
-        
-        <div class="social-proof-bar" id="social-proof-bar" style="display:none">
-          <span class="social-proof-dot"></span>
-          <span id="social-proof-text"></span>
-        </div>
-        
 
         <div class="hero-login">
           <div class="hero-login-divider">
@@ -3131,6 +3067,14 @@
     // ("English"/"Español"/...) with the 2-letter code ("EN"/"ES"/...) so
     // the nav control reads as an icon-chip. Listens to i18n.js's existing
     // 'languageChanged' event so the code refreshes on language switch.
+    //
+    // RACE NOTE: i18n.js's lang-option click handler does
+    //   await setLanguage(lang) → wrapper.querySelector('.current-lang').textContent = nativeName
+    // The 'languageChanged' event fires SYNC inside setLanguage, so a sync
+    // refreshLangChip listener runs BEFORE the inline .textContent write —
+    // which would then overwrite our code back to the full native name.
+    // Defer with setTimeout(0) so the chip refresh runs in the next
+    // macrotask, after the inline write resolves.
     function refreshLangChip() {
       try {
         const code = (I18n.getCurrentLanguage() || 'EN').toUpperCase();
@@ -3145,27 +3089,9 @@
       I18n.createLanguageSwitcher('language-switcher');
       I18n.createLanguageSwitcher('mobile-language-switcher');
       refreshLangChip();
-      document.addEventListener('languageChanged', refreshLangChip);
+      document.addEventListener('languageChanged', () => setTimeout(refreshLangChip, 0));
 
       new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
-
-      try {
-        const { count } = await supabaseClient
-          .from('profiles')
-          .select('id', { count: 'exact', head: true })
-          .not('email', 'ilike', '%@test.mcc%')
-          .not('full_name', 'ilike', 'E2E %');
-        const bar = document.getElementById('social-proof-bar');
-        const txt = document.getElementById('social-proof-text');
-        if (bar && txt && count !== null) {
-          if (count >= 10) {
-            txt.textContent = count + ' members already managing their rides on My Car Concierge';
-          } else {
-            txt.textContent = 'Join our founding community — early members get exclusive benefits';
-          }
-          bar.style.display = 'flex';
-        }
-      } catch (_) {}
     });
 
     // Founder Modal Functions
