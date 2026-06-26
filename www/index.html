@@ -194,6 +194,62 @@
       gap: 8px;
     }
 
+    /* ── Compact nav chips: language picker + theme toggle ──────────────
+       Overrides the wider defaults injected by i18n.js (.lang-btn). Both
+       chips share the same look so the right end of the nav reads as a
+       paired control. Functions unchanged (toggleTheme / I18n setLanguage). */
+    nav .language-switcher .lang-btn,
+    nav .header-theme-toggle,
+    .mobile-nav .language-switcher .lang-btn,
+    .mobile-nav .header-theme-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-subtle);
+      border-radius: 999px;
+      color: var(--text-primary);
+      font-size: var(--text-xs);
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      line-height: 1;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s;
+    }
+    nav .language-switcher .lang-btn:hover,
+    nav .header-theme-toggle:hover,
+    .mobile-nav .language-switcher .lang-btn:hover,
+    .mobile-nav .header-theme-toggle:hover {
+      background: var(--bg-card);
+      border-color: var(--accent-gold);
+      color: var(--accent-gold);
+    }
+    nav .language-switcher .lang-btn svg,
+    .mobile-nav .language-switcher .lang-btn svg {
+      width: 14px;
+      height: 14px;
+    }
+    /* Hide the dropdown chevron in chip mode; the language list still opens
+       on click via the existing handler. */
+    nav .language-switcher .lang-btn .chevron,
+    .mobile-nav .language-switcher .lang-btn .chevron { display: none; }
+    /* Theme toggle: keep only the active icon visible (one per theme). The
+       inline "Day" / "Night" text strings stay readable for screen readers
+       but we use 0-width spacing to hide them from the chip. */
+    nav .header-theme-toggle,
+    .mobile-nav .header-theme-toggle {
+      font-size: 0; /* hide the "Day"/"Night" text */
+    }
+    nav .header-theme-toggle .icon-inline,
+    .mobile-nav .header-theme-toggle .icon-inline {
+      font-size: 14px; /* restore icon size */
+    }
+    /* Show sun in dark mode (clicking → switch to light/Day), moon in light. */
+    .header-theme-toggle .theme-icon-moon { display: none; }
+    [data-theme="light"] .header-theme-toggle .theme-icon-sun { display: none; }
+    [data-theme="light"] .header-theme-toggle .theme-icon-moon { display: inline-flex; }
+
     nav a {
       padding: 10px 18px;
       font-size: var(--text-base);
@@ -251,65 +307,6 @@
       font-weight: 700;
     }
 
-    .fundraising-banner {
-      position: sticky;
-      top: 0;
-      z-index: 200;
-      background: rgba(201, 162, 39, 0.08);
-      border-bottom: 1px solid rgba(201, 162, 39, 0.18);
-      color: var(--text-secondary);
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 10px;
-      padding: 5px 20px;
-      font-size: var(--text-xs);
-      font-weight: 500;
-      flex-wrap: wrap;
-      backdrop-filter: blur(8px);
-    }
-    .fundraising-banner a {
-      color: var(--accent-gold);
-      text-decoration: none;
-    }
-    .fundraising-banner .fb-donate-btn {
-      display: inline-flex;
-      align-items: center;
-      padding: 3px 10px;
-      background: rgba(201, 162, 39, 0.16);
-      color: var(--accent-gold) !important;
-      border: 1px solid rgba(201, 162, 39, 0.32);
-      border-radius: 100px;
-      font-weight: 600;
-      font-size: var(--text-xs);
-      white-space: nowrap;
-      transition: background 0.15s;
-    }
-    .fundraising-banner .fb-donate-btn:hover { background: rgba(201, 162, 39, 0.26); }
-    .fundraising-banner .fb-wef-link {
-      text-decoration: underline;
-      text-underline-offset: 2px;
-      white-space: nowrap;
-      opacity: 0.75;
-    }
-    .fundraising-banner .fb-wef-link:hover { opacity: 1; }
-    .fundraising-banner .fb-dismiss {
-      background: none;
-      border: none;
-      color: var(--text-muted);
-      font-size: var(--text-md);
-      line-height: 1;
-      cursor: pointer;
-      padding: 2px 4px;
-      opacity: 0.5;
-      flex-shrink: 0;
-    }
-    .fundraising-banner .fb-dismiss:hover { opacity: 1; }
-    @media (max-width: 600px) {
-      .fundraising-banner { font-size: var(--text-sm); padding: 8px 14px; gap: 8px; }
-      .fundraising-banner .fb-text { display: none; }
-    }
-
     nav .btn--primary {
       background: var(--bg-elevated);
       color: var(--text-primary);
@@ -319,63 +316,6 @@
     /* Open-for-business announcement bar — sits above the hero badge to
        signal that the marketplace is live and that both sides can sign up
        and transact at no cost. */
-    .open-banner {
-      background: linear-gradient(135deg, rgba(76, 175, 80, 0.18), rgba(212, 168, 85, 0.12));
-      border-bottom: 1px solid rgba(76, 175, 80, 0.35);
-      color: var(--text-primary);
-      padding: 10px 16px;
-      text-align: center;
-      font-size: var(--text-base);
-      font-weight: 500;
-      line-height: 1.4;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      gap: 10px;
-      flex-wrap: wrap;
-    }
-    .open-banner-dot {
-      width: 8px;
-      height: 8px;
-      border-radius: 50%;
-      background: #4CAF50;
-      box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.6);
-      animation: openBannerPulse 2s infinite;
-      flex-shrink: 0;
-    }
-    .open-banner-strong {
-      font-weight: 800;
-      letter-spacing: 0.04em;
-      text-transform: uppercase;
-      font-size: var(--text-sm);
-    }
-    .open-banner-sep {
-      opacity: 0.55;
-      margin: 0 2px;
-    }
-    /* Inside the gold onboarding-banner, the pulsing dot needs to read as
-       a live "open" indicator against the gold gradient — switch to a
-       darker green ring + a clean inner dot so it stays readable. */
-    .onboarding-banner .open-banner-dot {
-      background: #1b5e20;
-      box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.6);
-      animation: openBannerPulseDark 2s infinite;
-    }
-    @keyframes openBannerPulse {
-      0%   { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.55); }
-      70%  { box-shadow: 0 0 0 8px rgba(76, 175, 80, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0); }
-    }
-    @keyframes openBannerPulseDark {
-      0%   { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0.65); }
-      70%  { box-shadow: 0 0 0 7px rgba(27, 94, 32, 0); }
-      100% { box-shadow: 0 0 0 0 rgba(27, 94, 32, 0); }
-    }
-    @media (max-width: 600px) {
-      .open-banner { font-size: var(--text-sm); padding: 9px 12px; gap: 8px; }
-      .open-banner-strong { font-size: 0.7rem; }
-      .open-banner-sep { display: none; }
-    }
 
     /* Free-pricing strip under the hero CTAs — reinforces that both
        member and provider sign-ups are free. */
@@ -414,6 +354,191 @@
     .hero {
       padding: 48px 0 64px;
       text-align: center;
+    }
+
+    /* ── Split hero: text-stack LEFT / flow-card RIGHT on desktop ─────── */
+    .hero-split {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 48px;
+      align-items: center;
+      margin-bottom: 32px;
+    }
+    .hero-split-left {
+      text-align: left;
+    }
+    /* Override centered defaults inherited from .hero for the left column */
+    .hero-split-left .hero-tagline,
+    .hero-split-left .hero-subtitle,
+    .hero-split-left .hero-nudge {
+      margin-left: 0;
+      margin-right: 0;
+    }
+    .hero-split-left .hero-actions {
+      justify-content: flex-start;
+    }
+    .hero-split-left .hero-badge {
+      margin-bottom: 18px;
+    }
+
+    /* Compact 2-item trust line under the CTAs (left column only) */
+    .hero-trust-compact {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px 18px;
+      margin-top: 22px;
+      font-size: var(--text-sm);
+      color: var(--text-secondary);
+    }
+    .hero-trust-item {
+      display: inline-flex;
+      align-items: center;
+      gap: 7px;
+    }
+    .hero-trust-icon {
+      color: var(--accent-gold);
+      display: inline-flex;
+    }
+    [data-theme="light"] .hero-trust-compact { color: #1a1a2e; }
+
+    /* ── 3-step "how it works" flow card (right column) ────────────────── */
+    .hero-flow-card {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-xl, 16px);
+      padding: 24px 22px;
+      box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+    }
+    [data-theme="light"] .hero-flow-card {
+      box-shadow: 0 6px 20px rgba(30, 58, 95, 0.08);
+    }
+    .flow-steps {
+      list-style: none;
+      margin: 0;
+      padding: 0;
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+    .flow-step {
+      display: flex;
+      align-items: flex-start;
+      gap: 14px;
+      padding: 12px 14px;
+      border-radius: var(--radius-lg, 12px);
+      border: 1px solid transparent;
+      background: transparent;
+    }
+    .flow-step-num {
+      flex-shrink: 0;
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      background: var(--bg-input);
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 700;
+      font-size: var(--text-sm);
+      border: 1px solid var(--border-subtle);
+    }
+    .flow-step-body {
+      flex: 1;
+      min-width: 0;
+    }
+    .flow-step-title {
+      font-weight: 600;
+      color: var(--text-primary);
+      font-size: var(--text-md);
+      line-height: 1.3;
+    }
+    .flow-step-sub {
+      margin-top: 2px;
+      color: var(--text-secondary);
+      font-size: var(--text-sm);
+      line-height: 1.4;
+    }
+    .flow-connector {
+      align-self: center;
+      margin: 2px 0;
+      color: var(--text-muted);
+      opacity: 0.6;
+      display: flex;
+      justify-content: center;
+    }
+    /* The highlighted "chosen" step (step 3) */
+    .flow-step-chosen {
+      border: 2px solid var(--accent-gold);
+      background: rgba(201, 162, 39, 0.06);
+    }
+    .flow-step-num-chosen {
+      background: var(--accent-gold);
+      color: var(--bg-deep);
+      border-color: var(--accent-gold);
+    }
+    /* Provider chips under step 2 */
+    .flow-chips {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 10px;
+    }
+    .flow-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 9px;
+      border-radius: 100px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      font-size: var(--text-xs);
+      font-weight: 500;
+    }
+    .flow-chip svg {
+      color: var(--accent-gold);
+      flex-shrink: 0;
+    }
+
+    /* Mobile: collapse to a single column, tighten the flow card */
+    @media (max-width: 768px) {
+      .hero-split {
+        grid-template-columns: 1fr;
+        gap: 24px;
+        margin-bottom: 24px;
+      }
+      .hero-split-left {
+        text-align: center;
+      }
+      .hero-split-left .hero-tagline,
+      .hero-split-left .hero-subtitle,
+      .hero-split-left .hero-nudge {
+        margin-left: auto;
+        margin-right: auto;
+      }
+      .hero-split-left .hero-actions {
+        justify-content: center;
+      }
+      .hero-trust-compact {
+        justify-content: center;
+      }
+      .hero-flow-card {
+        padding: 16px 14px;
+      }
+      .flow-step {
+        padding: 10px 10px;
+        gap: 10px;
+      }
+      .flow-step-num {
+        width: 28px;
+        height: 28px;
+        font-size: var(--text-xs);
+      }
+      .flow-step-title { font-size: var(--text-sm); }
+      .flow-step-sub  { font-size: var(--text-xs); }
+      .flow-connector { margin: 0; }
+      .flow-connector svg { width: 16px; height: 16px; }
     }
 
     .hero-badge {
@@ -2000,62 +2125,6 @@
     }
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
 
-    .onboarding-banner {
-      display: block;
-      position: relative;
-      z-index: 101;
-      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
-      color: #0a0a0f;
-      text-align: center;
-      padding: 10px 48px 10px 20px;
-      font-size: var(--text-base);
-      font-weight: 500;
-      line-height: 1.4;
-      animation: fadeInUp 0.4s ease;
-    }
-    .onboarding-banner a {
-      color: #0a0a0f;
-      font-weight: 700;
-      text-decoration: underline;
-      text-underline-offset: 2px;
-    }
-    .onboarding-banner a:hover {
-      opacity: 0.8;
-    }
-    .onboarding-banner .banner-dismiss {
-      position: absolute;
-      right: 12px;
-      top: 50%;
-      transform: translateY(-50%);
-      background: none;
-      border: none;
-      color: #0a0a0f;
-      font-size: var(--text-xl);
-      cursor: pointer;
-      padding: 4px 8px;
-      line-height: 1;
-      opacity: 0.7;
-      transition: opacity 0.2s;
-    }
-    .onboarding-banner .banner-dismiss:hover {
-      opacity: 1;
-    }
-    [data-theme="light"] .onboarding-banner {
-      background: linear-gradient(135deg, #b8942d, #d4a63a);
-      color: #ffffff;
-    }
-    [data-theme="light"] .onboarding-banner a {
-      color: #ffffff;
-    }
-    [data-theme="light"] .onboarding-banner .banner-dismiss {
-      color: #ffffff;
-    }
-    @media (max-width: 600px) {
-      .onboarding-banner {
-        font-size: var(--text-sm);
-        padding: 8px 40px 8px 12px;
-      }
-    }
   </style>
   <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
@@ -2128,38 +2197,6 @@
   <div class="ambient-bg"></div>
   <div class="noise"></div>
 
-  <!-- Fundraising sticky banner -->
-  <div class="fundraising-banner" id="fundraisingBanner">
-    <span class="fb-text">Help us launch vehicle pickup &amp; delivery — Back MCC from just $1</span>
-    <span style="display:none;" class="fb-mobile-text" aria-hidden="true">Back MCC from $1 ✦</span>
-    <div style="display:flex;align-items:center;gap:10px;flex-shrink:0;">
-      <a href="#driver-fund-section" class="fb-donate-btn">Donate</a>
-      <a href="https://wefunder.com/mycarconcierge" target="_blank" rel="noopener" class="fb-wef-link">Invest on Wefunder</a>
-      <button class="fb-dismiss" onclick="document.getElementById('fundraisingBanner').style.display='none';localStorage.setItem('fundraisingBannerDismissed','1');" aria-label="Dismiss fundraising banner">&times;</button>
-    </div>
-  </div>
-  <script>
-    if (localStorage.getItem('fundraisingBannerDismissed')) {
-      document.getElementById('fundraisingBanner').style.display = 'none';
-    }
-  </script>
-
-  <div class="onboarding-banner" id="onboardingBanner" aria-live="polite">
-    <span class="open-banner-dot" aria-hidden="true"></span>
-    <span class="open-banner-strong" data-i18n="landing.openForBusinessLabel">Now Live</span>
-    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <span data-i18n="landing.openForBusinessBody">Now accepting members and providers nationwide — both profiles are free to create.</span>
-    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <a href="/onboarding-member.html" data-i18n="landing.openForBusinessMemberCta">Create a member profile</a>
-    <span class="open-banner-sep" aria-hidden="true">&middot;</span>
-    <a href="/onboarding-provider.html" data-i18n="landing.openForBusinessProviderCta">Create a provider profile</a>
-    <button class="banner-dismiss" onclick="document.getElementById('onboardingBanner').style.display='none';localStorage.setItem('onboardingBannerDismissed','1');" aria-label="Dismiss banner">&times;</button>
-  </div>
-  <script>
-    if (localStorage.getItem('onboardingBannerDismissed')) {
-      document.getElementById('onboardingBanner').style.display = 'none';
-    }
-  </script>
 
   <header>
     <div class="container">
@@ -2211,39 +2248,93 @@
   <main>
     <section class="hero" id="main-content">
       <div class="container">
-        <div class="hero-badge" data-i18n="landing.heroBadge">Now live in Bergen County, NJ</div>
-        <h1 data-i18n="landing.heroHeadline1">Get competing bids on any vehicle service</h1>
-        <p class="hero-tagline" data-i18n="landing.heroHeadline2">and pick the one you like.</p>
-        <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
-          Mechanical, cosmetic, detailing, marine, even snow removal. Vetted local providers bid on your job, you pick the price — and that's exactly what you pay.
-        </p>
-        <p class="hero-nudge" data-i18n="landing.heroNudge">Setup takes 30 seconds. You never pay until you confirm the job is done.</p>
-        <div class="hero-actions">
-          <a href="onboarding-member.html" class="btn btn--primary btn--large" data-i18n="landing.getStartedFree">
-            I need service
-          </a>
-          <a href="onboarding-provider.html" class="btn btn--primary btn--large" data-i18n="landing.joinAsProviderFree">
-            I'm a shop / provider
-          </a>
-        </div>
-        <p class="hero-tertiary">
-          <a href="#" onclick="openFounderModal(); return false;" data-i18n="landing.heroTertiaryAbout">Read our story</a>
-        </p>
 
-        <div class="capability-strip" aria-label="Platform trust">
-          <div class="capability-item">
-            <span class="capability-icon"><span class="icon-inline" data-icon="shield"></span></span>
-            <span data-i18n="landing.capEscrowProtected">Funds held until you confirm the job's done</span>
+        <!-- ── SPLIT HERO: text-stack LEFT / flow-card RIGHT (collapses to 1col ≤768px) ── -->
+        <div class="hero-split">
+
+          <!-- LEFT: eyebrow, headline, tagline, subhead, CTAs, compact trust line -->
+          <div class="hero-split-left">
+            <div class="hero-badge" data-i18n="landing.heroBadge">Now live in Bergen County, NJ</div>
+            <h1 data-i18n="landing.heroHeadline1">Get competing bids on any vehicle service</h1>
+            <p class="hero-tagline" data-i18n="landing.heroHeadline2">and pick the one you like.</p>
+            <p class="hero-subtitle" data-i18n="landing.heroSubtitle">
+              Mechanical, cosmetic, detailing, marine, even snow removal. Vetted local providers bid on your job, you pick the price — and that's exactly what you pay.
+            </p>
+            <div class="hero-actions">
+              <a href="onboarding-member.html" class="btn btn--primary btn--large" data-i18n="landing.getStartedFree">
+                I need service
+              </a>
+              <a href="onboarding-provider.html" class="btn btn--primary btn--large" data-i18n="landing.joinAsProviderFree">
+                I'm a shop / provider
+              </a>
+            </div>
+
+            <!-- Compact trust line: funds-held + Stripe (the third "vetted" cap is in
+                 the features grid below the fold; keep the hero trust line tight). -->
+            <div class="hero-trust-compact" aria-label="Platform trust">
+              <span class="hero-trust-item">
+                <span class="hero-trust-icon"><span class="icon-inline" data-icon="shield"></span></span>
+                <span data-i18n="landing.capEscrowProtected">Funds held until you confirm the job's done</span>
+              </span>
+              <span class="hero-trust-item">
+                <span class="hero-trust-icon"><span class="icon-inline" data-icon="lock"></span></span>
+                <span data-i18n="landing.capStripeSecured">Payments secured by Stripe</span>
+              </span>
+            </div>
           </div>
-          <div class="capability-item">
-            <span class="capability-icon"><span class="icon-inline" data-icon="shield-check"></span></span>
-            <a href="/background-check-disclosure.html" data-i18n="landing.capBackgroundChecked">Providers are vetted &amp; background-checked</a>
+
+          <!-- RIGHT: 3-step "how it works" flow card -->
+          <div class="hero-split-right">
+            <div class="hero-flow-card" aria-label="How it works">
+              <ol class="flow-steps">
+                <li class="flow-step">
+                  <span class="flow-step-num">1</span>
+                  <div class="flow-step-body">
+                    <div class="flow-step-title" data-i18n="landing.flowStep1Title">Post your job</div>
+                    <div class="flow-step-sub" data-i18n="landing.flowStep1Desc">A few details and a photo or two</div>
+                  </div>
+                </li>
+                <div class="flow-connector" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <li class="flow-step">
+                  <span class="flow-step-num">2</span>
+                  <div class="flow-step-body">
+                    <div class="flow-step-title" data-i18n="landing.flowStep2Title">Vetted providers bid</div>
+                    <div class="flow-step-sub" data-i18n="landing.flowStep2Desc">2&ndash;3 invited shops compete</div>
+                    <div class="flow-chips">
+                      <span class="flow-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5"/><path d="M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/><path d="M9 21V12h6v9"/></svg>
+                        <span data-i18n="landing.flowProviderA">Provider A</span>
+                      </span>
+                      <span class="flow-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5"/><path d="M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/><path d="M9 21V12h6v9"/></svg>
+                        <span data-i18n="landing.flowProviderB">Provider B</span>
+                      </span>
+                      <span class="flow-chip">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 9l2-5h14l2 5"/><path d="M3 9v11a1 1 0 0 0 1 1h16a1 1 0 0 0 1-1V9"/><path d="M9 21V12h6v9"/></svg>
+                        <span data-i18n="landing.flowProviderC">Provider C</span>
+                      </span>
+                    </div>
+                  </div>
+                </li>
+                <div class="flow-connector" aria-hidden="true">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+                </div>
+                <li class="flow-step flow-step-chosen">
+                  <span class="flow-step-num flow-step-num-chosen">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+                  </span>
+                  <div class="flow-step-body">
+                    <div class="flow-step-title" data-i18n="landing.flowStep3Title">You pick the one you like</div>
+                    <div class="flow-step-sub" data-i18n="landing.flowStep3Desc">Price, rating, timing — your call</div>
+                  </div>
+                </li>
+              </ol>
+            </div>
           </div>
-          <div class="capability-item">
-            <span class="capability-icon"><span class="icon-inline" data-icon="lock"></span></span>
-            <span data-i18n="landing.capStripeSecured">Payments secured by Stripe</span>
-          </div>
-        </div>
+
+        </div><!-- /.hero-split -->
 
         <div class="hero-free-strip" role="note">
           <span><strong>Free for members.</strong> Always.</span>
@@ -3036,11 +3127,26 @@
       if (metaTheme) metaTheme.content = newTheme === 'dark' ? '#12161c' : '#f5f2ed';
       setTimeout(() => html.classList.remove('theme-transition'), 300);
     }
+    // Compact chip-mode: replace the language switcher's full native name
+    // ("English"/"Español"/...) with the 2-letter code ("EN"/"ES"/...) so
+    // the nav control reads as an icon-chip. Listens to i18n.js's existing
+    // 'languageChanged' event so the code refreshes on language switch.
+    function refreshLangChip() {
+      try {
+        const code = (I18n.getCurrentLanguage() || 'EN').toUpperCase();
+        document.querySelectorAll(
+          '#language-switcher .current-lang, #mobile-language-switcher .current-lang'
+        ).forEach(el => { el.textContent = code; });
+      } catch (e) { /* I18n not ready yet */ }
+    }
+
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
       I18n.createLanguageSwitcher('mobile-language-switcher');
-      
+      refreshLangChip();
+      document.addEventListener('languageChanged', refreshLangChip);
+
       new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
 
       try {
