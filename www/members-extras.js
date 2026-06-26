@@ -18,7 +18,7 @@
       } else {
         thread.innerHTML = messages.map(m => `
           <div class="message ${m.sender_id === currentUser.id ? 'sent' : 'received'}">
-            <div class="message-bubble">${m.content}</div>
+            <div class="message-bubble">${escapeHtml(m.content)}</div>
             <div class="message-time">${new Date(m.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         `).join('');
@@ -35,18 +35,41 @@
       const content = input.value.trim();
       if (!content || !currentMessageProvider || !currentViewPackage) return;
 
-      const { error } = await supabaseClient.from('messages').insert({
-        package_id: currentViewPackage,
-        sender_id: currentUser.id,
-        recipient_id: currentMessageProvider,
-        content
-      });
-
-      if (error) {
-        console.error('Error sending message:', error);
+      // Server arbiter: relationship gate, content scan + redaction, audit,
+      // and server-side notification fan-out. Replaces the direct .insert()
+      // since the messages RLS now requires an accepted-bid relationship that
+      // only the service-role caller can transparently satisfy.
+      let serverWarning = null;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) { showToast('Please sign in to send', 'error'); return; }
+        const res = await fetch('/api/messages/send', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': 'Bearer ' + session.access_token,
+          },
+          body: JSON.stringify({
+            package_id: currentViewPackage,
+            recipient_id: currentMessageProvider,
+            content,
+          }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok || !data.success) {
+          console.error('Error sending message:', data.error || res.status);
+          showToast(data.error === 'no_active_relationship'
+            ? 'You can only message this provider after your bid is accepted.'
+            : 'Failed to send message', 'error');
+          return;
+        }
+        if (data.warning) serverWarning = data.warning;
+      } catch (err) {
+        console.error('Error sending message:', err);
         showToast('Failed to send message', 'error');
         return;
       }
+      if (serverWarning) showToast(serverWarning, 'info');
 
       input.value = '';
       await openMessageWithProvider(currentViewPackage, currentMessageProvider, currentMessageProviderAlias);

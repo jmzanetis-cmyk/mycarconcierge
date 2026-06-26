@@ -189,8 +189,17 @@ async function _deleteAuthAndNotify(opts, displayName) {
   const sendEmail = opts.sendEmail;
 
   await supabase.from('referral_code_usages').delete().eq('referred_user_id', userId);
-  await supabase.from('messages').delete().eq('sender_id', userId);
-  await supabase.from('messages').delete().eq('receiver_id', userId);
+  // GDPR delete: messages sent BY and TO this user.
+  // Column is recipient_id everywhere else in the codebase — the prior
+  // 'receiver_id' was a silent typo that PostgREST would 400-reject without
+  // result.error ever being checked. Now both sides are explicit and errors
+  // are logged so future column-name mistakes don't swallow silently.
+  {
+    const r1 = await supabase.from('messages').delete().eq('sender_id', userId);
+    if (r1.error) console.error('[account-deletion-core] messages.delete(sender_id) failed:', r1.error.message);
+    const r2 = await supabase.from('messages').delete().eq('recipient_id', userId);
+    if (r2.error) console.error('[account-deletion-core] messages.delete(recipient_id) failed:', r2.error.message);
+  }
   // signed_agreements: capture signer email BEFORE breaking the user_id link so
   // the legal record survives deletion with full identity (name already stored in
   // full_name column; email stamped here).

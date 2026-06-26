@@ -1,6 +1,22 @@
 // ========== PROVIDERS JOBS MODULE ==========
 // Active jobs, GPS tracking, evidence, inspections, emergency, fleet
 
+// Local HTML-escape for user-supplied text rendered into templates.
+// Used at message-thread render sites to prevent XSS via message content
+// (the content arrives from the server-arbiter as plain text + redactions;
+// escaping at render keeps the threat model defensive even if upstream
+// sanitization is bypassed). Defined locally because providers-jobs.js is
+// loaded dynamically from providers-core.js and providers.html does not
+// expose a global escapeHtml helper.
+function _jobsEscapeHtml(s) {
+  return String(s == null ? '' : s)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 // ---- Task #369: Concierge driver coordination (provider side) ----
 // Shared with member side via members-extras.js window.renderConciergeStatusCard.
 async function providerConciergeAuthHeaderJobs() {
@@ -469,7 +485,7 @@ async function loadConversation(memberId, packageId) {
     container.innerHTML = data.map(m => `
       <div style="margin-bottom:12px;${m.sender_id === currentUser.id ? 'text-align:right;' : ''}">
         <div style="display:inline-block;max-width:80%;padding:12px 16px;border-radius:12px;${m.sender_id === currentUser.id ? 'background:var(--accent-gold-soft);' : 'background:var(--bg-elevated);'}">
-          <p style="margin:0;">${m.content}</p>
+          <p style="margin:0;">${_jobsEscapeHtml(m.content)}</p>
           <span style="font-size:0.75rem;color:var(--text-muted);">${formatTimeAgo(m.created_at)}</span>
         </div>
       </div>
@@ -491,19 +507,35 @@ async function sendMessage() {
   }
   
   try {
-    const { error } = await supabaseClient.from('messages').insert({
-      sender_id: currentUser.id,
-      recipient_id: currentMessageMemberId,
-      package_id: currentMessagePackageId,
-      content,
-      provider_alias: providerProfile?.provider_alias || null,
+    // Server arbiter (see members-extras.js sendMessage for rationale).
+    // The endpoint also denormalizes provider_alias server-side, so we no
+    // longer need to send it from the client.
+    const { data: { session } } = await supabaseClient.auth.getSession();
+    if (!session) { showToast('Please sign in to send', 'error'); return; }
+    const res = await fetch('/api/messages/send', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': 'Bearer ' + session.access_token,
+      },
+      body: JSON.stringify({
+        package_id: currentMessagePackageId,
+        recipient_id: currentMessageMemberId,
+        content,
+      }),
     });
-    
-    if (error) throw error;
-    
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.success) {
+      showToast(data.error === 'no_active_relationship'
+        ? 'You can only message this member on a job your bid has been accepted on.'
+        : 'Failed to send message', 'error');
+      return;
+    }
+
     textarea.value = '';
     await loadConversation(currentMessageMemberId, currentMessagePackageId);
-    showToast('Message sent!', 'success');
+    if (data.warning) showToast(data.warning, 'info');
+    else              showToast('Message sent!', 'success');
   } catch (err) {
     console.error('Send message error:', err);
     showToast('Failed to send message', 'error');

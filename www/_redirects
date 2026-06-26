@@ -41,6 +41,7 @@
 /api/payment/release /.netlify/functions/member-release-payment 200
 /api/support-donation /.netlify/functions/support-donation 200
 /api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
+/api/messages/send /.netlify/functions/messages-send 200
 /api/helpdesk /.netlify/functions/helpdesk 200
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
 /api/admin/stats/* /.netlify/functions/admin-stats/:splat 200

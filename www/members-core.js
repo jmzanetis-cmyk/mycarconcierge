@@ -600,7 +600,7 @@ function setupRealtimeSubscriptions() {
         const newMsg = payload.new;
         const msgHtml = `
           <div class="message received">
-            <div class="message-bubble">${newMsg.content}</div>
+            <div class="message-bubble">${escapeHtml(newMsg.content)}</div>
             <div class="message-time">${new Date(newMsg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</div>
           </div>
         `;

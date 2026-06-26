@@ -275,3 +275,10 @@ exports.handler = async function(event) {
 // fire the same FCM dispatch directly instead of looping back through HTTP.
 // Push payload contract is unchanged — only the call mechanism differs.
 module.exports.dispatchBidAcceptedPush = dispatchBidAcceptedPush;
+
+// Also exposed: the low-level FCM v1 helpers, so other server endpoints
+// (e.g. messages-send.js) can fire their own push without duplicating the
+// OAuth + FCM-v1 plumbing. Candidates for extraction into `_shared/fcm.js`
+// once a third caller exists.
+module.exports.getFCMAccessToken = getFCMAccessToken;
+module.exports.sendFCMv1Message = sendFCMv1Message;
