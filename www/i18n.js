@@ -14,6 +14,12 @@ const I18n = (function() {
   
   let currentLanguage = DEFAULT_LANGUAGE;
   let translations = {};
+  // Permanent English-translations fallback so keys present in en.json but
+  // missing from the active locale render as English instead of as a raw
+  // "landing.foo" key string. Loaded once during init (or first non-English
+  // setLanguage call) and never replaced — the active `translations` may swap
+  // languages, but `fallbackTranslations` always points at the English file.
+  let fallbackTranslations = {};
   let isLoaded = false;
 
   function getSavedLanguage() {
@@ -74,7 +80,13 @@ const I18n = (function() {
 
   async function loadTranslations(lang) {
     try {
-      const cacheBuster = 'v=1738660800';
+      // Bump this string on every en.json edit. The URL change (via the
+      // query param) invalidates the browser http-cache, the service-worker
+      // pre-cache, and any CDN entry — all of which would otherwise serve
+      // a stale translations file indefinitely. Frozen here means stale
+      // forever; missing keys then fall through to t()'s "return key"
+      // fallback and render the literal "landing.foo" as visible text.
+      const cacheBuster = 'v=20260625a';
       const response = await fetch(`/locales/${lang}.json?${cacheBuster}`);
       if (!response.ok) {
         throw new Error(`Failed to load ${lang} translations`);
@@ -97,7 +109,16 @@ const I18n = (function() {
 
   function t(key, replacements = {}) {
     let text = getNestedValue(translations, key);
-    
+
+    // Key-level English fallback: when the active locale is missing a key
+    // (e.g. a newly-added en-only key like landing.flowStep1Title), fall
+    // through to the English translation so the user sees English text
+    // rather than the raw "landing.foo" key. Only kicks in for non-English
+    // active locales — English is already the active translations.
+    if (text === null && currentLanguage !== DEFAULT_LANGUAGE) {
+      text = getNestedValue(fallbackTranslations, key);
+    }
+
     if (text === null) {
       console.warn(`Translation missing for key: ${key}`);
       return key;
@@ -163,6 +184,15 @@ const I18n = (function() {
 
     currentLanguage = lang;
     translations = await loadTranslations(lang);
+    // Ensure English fallback translations are loaded for key-level fallback
+    // in t(). Loaded once on first call; never replaced.
+    if (Object.keys(fallbackTranslations).length === 0) {
+      if (lang === DEFAULT_LANGUAGE) {
+        fallbackTranslations = translations;          // reuse — same file
+      } else {
+        fallbackTranslations = await loadTranslations(DEFAULT_LANGUAGE);
+      }
+    }
     saveLanguage(lang);
     
     const langInfo = SUPPORTED_LANGUAGES[lang];

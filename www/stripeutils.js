@@ -224,7 +224,7 @@ function createCardElement(containerId, submitButtonId) {
   const style = {
     base: {
       color: '#f4f4f6',
-      fontFamily: 'Outfit, -apple-system, sans-serif',
+      fontFamily: 'Inter, -apple-system, sans-serif',
       fontSmoothing: 'antialiased',
       fontSize: '16px',
       '::placeholder': {

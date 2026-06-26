@@ -3104,7 +3104,7 @@
               colorBackground: 'rgba(30, 38, 48, 0.9)',
               colorText: '#f5f5f7',
               colorDanger: '#f87171',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               borderRadius: '8px'
             }
           }
@@ -3114,7 +3114,7 @@
           style: {
             base: {
               color: '#f5f5f7',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               fontSmoothing: 'antialiased',
               fontSize: '16px',
               '::placeholder': {
@@ -3773,7 +3773,7 @@
               colorBackground: 'rgba(30, 38, 48, 0.9)',
               colorText: '#f5f5f7',
               colorDanger: '#f87171',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               borderRadius: '8px'
             }
           }
@@ -3783,7 +3783,7 @@
           style: {
             base: {
               color: '#f5f5f7',
-              fontFamily: 'Outfit, -apple-system, sans-serif',
+              fontFamily: 'Inter, -apple-system, sans-serif',
               fontSmoothing: 'antialiased',
               fontSize: '16px',
               '::placeholder': {
@@ -7457,7 +7457,7 @@
           style: {
             base: {
               color: '#f5f5f7',
-              fontFamily: 'Outfit, sans-serif',
+              fontFamily: 'Inter, sans-serif',
               fontSize: '16px',
               '::placeholder': { color: '#6b7280' }
             },

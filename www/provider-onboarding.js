@@ -222,7 +222,7 @@ class ProviderOnboarding {
           font-weight: 600;
           color: var(--text-primary, #f5f5f7);
           margin-bottom: 16px;
-          font-family: 'Outfit', sans-serif;
+          font-family: 'Inter', sans-serif;
         }
         .onboard-content {
           color: var(--text-secondary, #a0a8b8);
@@ -267,7 +267,7 @@ class ProviderOnboarding {
           padding: 12px 28px;
           border-radius: 10px;
           border: none;
-          font-family: 'Outfit', sans-serif;
+          font-family: 'Inter', sans-serif;
           font-size: 0.95rem;
           font-weight: 500;
           cursor: pointer;

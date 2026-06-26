@@ -1582,7 +1582,7 @@ function openShopUpgradeModal() {
     <div id="shop-upgrade-modal" style="position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;">
       <div style="background:#1a2029;border:1px solid rgba(201,162,39,0.3);border-radius:20px;max-width:580px;width:100%;padding:32px;max-height:90vh;overflow-y:auto;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 style="font-family:'Playfair Display',serif;font-size:1.4rem;">Shop Subscription Plans</h3>
+          <h3 style="font-family:'Fraunces',serif;font-size:1.4rem;">Shop Subscription Plans</h3>
           <button onclick="document.getElementById('shop-upgrade-modal').remove()" style="background:none;border:none;color:#6b7280;cursor:pointer;font-size:1.4rem;line-height:1;">&times;</button>
         </div>
         <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:16px;margin-bottom:24px;">

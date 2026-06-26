@@ -118,7 +118,7 @@ function renderMCCFooter() {
       }
 
       .footer-section h4 {
-        font-family: 'Outfit', sans-serif;
+        font-family: 'Inter', sans-serif;
         font-weight: 600;
         font-size: 0.9rem;
         color: #d4a855;
@@ -180,7 +180,7 @@ function renderMCCFooter() {
       }
 
       .footer-brand-name {
-        font-family: 'Playfair Display', serif;
+        font-family: 'Fraunces', serif;
         font-weight: 600;
         font-size: 1.25rem;
         color: #f4f4f6;

@@ -49,7 +49,7 @@
         box-shadow: 0 -4px 24px rgba(0,0,0,0.4);
         transform: translateY(0); opacity: 1;
         transition: transform 0.35s cubic-bezier(0.4,0,0.2,1), opacity 0.35s ease;
-        font-family: 'Outfit', 'Inter', system-ui, sans-serif;
+        font-family: 'Inter', 'Inter', system-ui, sans-serif;
       }
       .mcc-cb-content {
         max-width: 1080px; margin: 0 auto;

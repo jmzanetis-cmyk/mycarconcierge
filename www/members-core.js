@@ -3490,7 +3490,7 @@ async function mountContributeCardElement() {
     window._contributeStripe = stripeInstance;
     const elements = stripeInstance.elements();
     const style = {
-      base: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#f5f5f7', fontSize: '15px', fontFamily: "'Outfit', sans-serif", '::placeholder': { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' } },
+      base: { color: getComputedStyle(document.documentElement).getPropertyValue('--text-primary').trim() || '#f5f5f7', fontSize: '15px', fontFamily: "'Inter', sans-serif", '::placeholder': { color: getComputedStyle(document.documentElement).getPropertyValue('--text-muted').trim() || '#6b7280' } },
       invalid: { color: '#f87171' }
     };
     const card = elements.create('card', { style, hidePostalCode: true });

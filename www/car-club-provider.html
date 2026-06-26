@@ -23,7 +23,7 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="shared-styles.css?v=20260213">
   <style>
     :root {
@@ -123,7 +123,7 @@
     [data-theme="light"] .theme-icon-dark { display: none; }
 
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border-medium) var(--bg-deep); }
-    body { min-height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow-x: hidden; }
+    body { min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow-x: hidden; }
 
     ::-webkit-scrollbar { width: 8px; height: 8px; }
     ::-webkit-scrollbar-track { background: var(--bg-deep); }
@@ -144,7 +144,7 @@
 
     .main { flex: 1; margin-left: 260px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .page-header { margin-bottom: 32px; }
-    .page-title { font-family: 'Playfair Display', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
+    .page-title { font-family: 'Fraunces', serif; font-size: var(--text-3xl); font-weight: 500; margin-bottom: 8px; }
     .page-subtitle { color: var(--text-secondary); font-size: var(--text-base); }
 
     .section { display: none; }
@@ -1053,7 +1053,7 @@
     <div id="reward-form-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:480px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Reward</h3>
+          <h3 style="font-family:'Fraunces',serif;font-size:var(--text-xl);">Reward</h3>
           <button class="btn-icon" onclick="closeRewardForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div class="form-group"><label class="form-label">Reward Title *</label><input type="text" class="form-input" id="reward-title" placeholder="e.g. Free Oil Change" /></div>
@@ -1077,7 +1077,7 @@
     <div id="coupon-form-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:480px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Create Coupon</h3>
+          <h3 style="font-family:'Fraunces',serif;font-size:var(--text-xl);">Create Coupon</h3>
           <button class="btn-icon" onclick="closeCouponForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;">
@@ -1100,7 +1100,7 @@
     <div id="comp-form-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:480px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Complimentary Service</h3>
+          <h3 style="font-family:'Fraunces',serif;font-size:var(--text-xl);">Complimentary Service</h3>
           <button class="btn-icon" onclick="closeCompForm()"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg></button>
         </div>
         <div class="form-group"><label class="form-label">Service Title *</label><input type="text" class="form-input" id="comp-title" placeholder="e.g. Free Car Wash" /></div>
@@ -1116,7 +1116,7 @@
     <div id="product-modal" class="modal-overlay" style="display:none;">
       <div class="modal-content" style="max-width:560px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:24px;">
-          <h3 id="product-modal-title" style="font-family:'Playfair Display',serif;font-size:var(--text-xl);">Add Product</h3>
+          <h3 id="product-modal-title" style="font-family:'Fraunces',serif;font-size:var(--text-xl);">Add Product</h3>
           <button class="btn-icon" onclick="closeProductModal()">
             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
           </button>

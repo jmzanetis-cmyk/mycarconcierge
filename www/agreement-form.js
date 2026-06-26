@@ -448,7 +448,7 @@ var AgreementForm = (function() {
       'margin: 40px auto;' +
       'padding: 30px;' +
       'border-radius: 16px;' +
-      'font-family: \'Outfit\', sans-serif;' +
+      'font-family: \'Inter\', sans-serif;' +
     '}' +
     '.agreement-form.dark-mode {' +
       'background: rgba(18, 22, 28, 0.95);' +

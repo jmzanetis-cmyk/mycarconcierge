@@ -140,7 +140,7 @@ html {
 
 body {
   min-height: 100vh;
-  font-family: 'Outfit', -apple-system, BlinkMacSystemFont, sans-serif;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
   background: var(--bg-deep);
   color: var(--text-primary);
   line-height: 1.6;

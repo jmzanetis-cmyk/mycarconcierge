@@ -582,7 +582,7 @@
             colorPrimary: '#c9a227',
             colorText: isDark ? '#f5f5f7' : '#0f172a',
             colorDanger: '#f87171',
-            fontFamily: 'Outfit, -apple-system, sans-serif',
+            fontFamily: 'Inter, -apple-system, sans-serif',
             borderRadius: '8px'
           }
         }
@@ -591,7 +591,7 @@
         style: {
           base: {
             color: isDark ? '#f5f5f7' : '#0f172a',
-            fontFamily: 'Outfit, -apple-system, sans-serif',
+            fontFamily: 'Inter, -apple-system, sans-serif',
             fontSize: '16px',
             '::placeholder': { color: '#6b7280' }
           },

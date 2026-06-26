@@ -5,7 +5,7 @@
   <title id="page-title">Shop Profile – My Car Concierge</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <meta name="description" id="page-meta-desc" content="Book auto services at this shop via My Car Concierge." />
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <script src="supabaseclient.js" defer></script>
   <style>
@@ -27,12 +27,12 @@
       --radius-xl: 24px;
       --radius-md: 12px;
     }
-    body { font-family: 'Outfit', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }
+    body { font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }
     a { color: var(--accent-gold); text-decoration: none; }
     nav { display: flex; align-items: center; justify-content: space-between; padding: 14px 32px; border-bottom: 1px solid var(--border-subtle); background: rgba(18,22,28,0.95); }
     .nav-logo { display: flex; align-items: center; gap: 10px; }
     .nav-logo img { height: 36px; border-radius: 8px; }
-    .nav-logo-text { font-family: 'Playfair Display', serif; font-size: var(--text-md); }
+    .nav-logo-text { font-family: 'Fraunces', serif; font-size: var(--text-md); }
     .btn { display: inline-flex; align-items: center; gap: 8px; padding: 10px 20px; font-family: inherit; font-size: var(--text-base); font-weight: 500; border-radius: 10px; border: none; cursor: pointer; transition: all 0.2s ease; }
     .btn--primary { background: linear-gradient(135deg, #c9a227, #e8bc5a); color: #12161c; font-weight: 600; }
     .btn--primary:hover { transform: translateY(-1px); box-shadow: 0 4px 16px rgba(201,162,39,0.4); }
@@ -41,7 +41,7 @@
 
     .hero-banner { background: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(201,162,39,0.1) 0%, transparent 70%); padding: 60px 32px 40px; text-align: center; }
     .shop-avatar { width: 88px; height: 88px; border-radius: 50%; background: linear-gradient(135deg, var(--accent-gold), #c49a45); display: flex; align-items: center; justify-content: center; font-size: var(--text-4xl); font-weight: 700; color: #12161c; margin: 0 auto 20px; border: 3px solid rgba(201,162,39,0.4); }
-    .shop-name { font-family: 'Playfair Display', serif; font-size: var(--text-4xl); margin-bottom: 8px; }
+    .shop-name { font-family: 'Fraunces', serif; font-size: var(--text-4xl); margin-bottom: 8px; }
     .shop-location { color: var(--text-secondary); font-size: var(--text-base); margin-bottom: 16px; }
     .shop-badges { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; margin-bottom: 24px; }
     .badge { display: inline-flex; align-items: center; gap: 5px; padding: 4px 12px; border-radius: 100px; font-size: var(--text-sm); font-weight: 600; }
@@ -81,7 +81,7 @@
 
     .loading { text-align: center; padding: 80px 24px; color: var(--text-muted); }
     .error-state { text-align: center; padding: 80px 24px; }
-    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 10px; color: #fff; z-index: 9999; font-family: 'Outfit', sans-serif; }
+    .toast { position: fixed; bottom: 20px; right: 20px; padding: 12px 24px; border-radius: 10px; color: #fff; z-index: 9999; font-family: 'Inter', sans-serif; }
     .toast-success { background: #34d399; color: #022c22; }
     .toast-error { background: #f87171; }
   </style>

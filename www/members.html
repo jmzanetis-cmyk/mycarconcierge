@@ -32,7 +32,7 @@
   <link rel="preconnect" href="https://js.stripe.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="dns-prefetch" href="https://supabase.co">
-  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,wght@0,400;0,500;0,600;1,400;1,500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="shared-styles.css?v=20260213">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
@@ -215,7 +215,7 @@
     .theme-label { font-weight: 500; }
 
     * { box-sizing: border-box; margin: 0; padding: 0; scrollbar-width: thin; scrollbar-color: var(--border-medium) var(--bg-deep); }
-    body { min-height: 100vh; font-family: 'Outfit', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow-x: hidden; }
+    body { min-height: 100vh; font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); display: flex; overflow-x: hidden; }
 
     /* Custom Scrollbar */
     ::-webkit-scrollbar { width: 8px; height: 8px; }
@@ -229,7 +229,7 @@
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
     .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
     .sidebar-brand:hover .sidebar-brand-icon { filter: brightness(1.15) contrast(1.1) drop-shadow(0 8px 32px rgba(212, 168, 85, 0.6)); transform: scale(1.03); }
-    .sidebar-brand-text { font-family: 'Playfair Display', serif; font-weight: 500; color: var(--text-primary); font-size: 1.05rem; }
+    .sidebar-brand-text { font-family: 'Fraunces', serif; font-weight: 500; color: var(--text-primary); font-size: 1.05rem; }
     .nav-label { font-size: 0.65rem; text-transform: uppercase; letter-spacing: 0.14em; color: var(--text-muted); padding: 16px 14px 8px; margin-bottom: 4px; font-weight: 600; opacity: 0.7; }
     .nav-label:first-of-type { margin-top: 0; padding-top: 0; }
     .nav-item { display: flex; align-items: center; gap: 10px; padding: 11px 14px; border-radius: 10px; cursor: pointer; font-size: 0.88rem; color: var(--text-secondary); transition: all 0.2s ease; margin-bottom: 2px; border: 1px solid transparent; font-weight: 450; }
@@ -253,7 +253,7 @@
     /* Main */
     .main { flex: 1; margin-left: 260px; margin-right: auto; max-width: 1100px; padding: 32px 40px 100px; min-height: 100vh; overflow-y: auto; -webkit-overflow-scrolling: touch; }
     .page-header { margin-bottom: 32px; }
-    .page-title { font-family: 'Playfair Display', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
+    .page-title { font-family: 'Fraunces', serif; font-size: 1.8rem; font-weight: 500; margin-bottom: 8px; }
     .page-subtitle { color: var(--text-secondary); font-size: 0.95rem; }
 
     /* Stats */
@@ -8942,7 +8942,7 @@
     <div class="modal" style="max-width:480px;">
       <div class="modal-body" style="padding:40px 36px;text-align:center;">
         <div style="width:64px;height:64px;background:linear-gradient(135deg,rgba(201,162,39,0.2),rgba(201,162,39,0.06));border:1px solid rgba(201,162,39,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 20px;font-size:28px;">🚗</div>
-        <h2 style="font-family:'Playfair Display',serif;font-size:1.6rem;font-weight:500;margin-bottom:12px;" id="welcome-headline">Welcome to My Car Concierge.</h2>
+        <h2 style="font-family:'Fraunces',serif;font-size:1.6rem;font-weight:500;margin-bottom:12px;" id="welcome-headline">Welcome to My Car Concierge.</h2>
         <p style="color:var(--text-secondary);font-size:0.95rem;line-height:1.7;margin-bottom:28px;" id="welcome-body">You're all set. Add your vehicle and post your first service request to get competing bids from local providers.</p>
         <div style="display:flex;flex-direction:column;gap:10px;">
           <button class="btn btn-gold" style="width:100%;justify-content:center;padding:14px;" onclick="closeWelcomeModal();openVehicleModal();">Add My Vehicle</button>

@@ -61,7 +61,7 @@ class ChatWidgetBase {
       .chat-widget-base {
         position: fixed;
         z-index: 9999;
-        font-family: 'Outfit', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        font-family: 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
       }
 
       .chat-widget-base.bottom-right {

@@ -65,7 +65,7 @@ const TosModal = {
           text-align: center;
         }
         #tos-modal-header h2 {
-          font-family: 'Playfair Display', serif;
+          font-family: 'Fraunces', serif;
           font-size: 1.5rem;
           font-weight: 500;
           color: var(--text-primary, #f4f4f6);
@@ -153,7 +153,7 @@ const TosModal = {
         #tos-accept-btn {
           width: 100%;
           padding: 14px 24px;
-          font-family: 'Outfit', -apple-system, sans-serif;
+          font-family: 'Inter', -apple-system, sans-serif;
           font-size: 1rem;
           font-weight: 600;
           border: none;
