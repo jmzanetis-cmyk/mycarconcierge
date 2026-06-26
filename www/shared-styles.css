@@ -1973,15 +1973,15 @@ textarea:focus-visible {
               0 0 14px 2px rgba(199, 164, 102, 0.45);
 }
 .mcc-logo-word {
-  font-family: 'Fraunces', serif;
-  font-weight: 500;
-  font-variation-settings: 'opsz' 96, 'wght' 500;
-  font-size: 1.35rem;
-  letter-spacing: -0.015em;
+  font-family: 'Inter', -apple-system, sans-serif;
+  font-size: 1.3rem;
+  letter-spacing: -0.02em;
   color: #f5f0e6;
   line-height: 1;
   white-space: nowrap;
 }
+.mcc-logo-word-light { font-weight: 400; }
+.mcc-logo-word-bold { font-weight: 700; }
 .mcc-logo-mark {
   height: 22px;
   width: auto;
