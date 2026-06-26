@@ -138,7 +138,8 @@
     "step3Desc": "Funds are held until you confirm the work is done.",
     "ctaTitle": "Ready to take control of your auto care?",
     "ctaSubtitle": "Join vehicle owners who manage everything—service, maintenance, learning, and shopping—in one place.",
-    "getStartedFree": "I need service"
+    "getStartedFree": "I need service",
+    "heroFreeMembers": "Free for members. Always."
   },
   "auth": {
     "welcomeBack": "Welcome Back",

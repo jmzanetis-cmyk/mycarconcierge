@@ -56,14 +56,14 @@
     "ourStory": "Nuestra Historia"
   },
   "landing": {
-    "heroBadge": "Tu plataforma completa de propiedad automotriz",
-    "heroHeadline1": "Recibe ofertas competitivas",
-    "heroHeadline2": "de profesionales del automóvil verificados.",
-    "heroHeadline3": "Elige la mejor.",
+    "heroBadge": "En vivo ahora en el condado de Bergen, NJ",
+    "heroHeadline1": "Recibe ofertas competitivas para cualquier servicio vehicular",
+    "heroHeadline2": "y elige la que más te guste.",
+    "heroHeadline3": "",
     "heroTitle1": "Cero tiempos muertos",
     "heroTitle2": "para tu auto",
     "heroTitle3": "que se adapta a tu vida",
-    "heroSubtitle": "Los fondos quedan en depósito y solo se liberan cuando confirmas que el trabajo está hecho. Pagos protegidos por Stripe. Proveedores con antecedentes verificados.",
+    "heroSubtitle": "Mecánica, estética, detallado, marítima, incluso retirada de nieve. Proveedores locales examinados ofertan por tu trabajo, tú eliges el precio — y ese es exactamente el que pagas.",
     "heroNudge": "La configuración toma 30 segundos. Sin compromiso, sin membresía requerida.",
     "createMemberAccount": "Crear Cuenta de Miembro",
     "applyAsProvider": "Postularme como Proveedor",
@@ -74,8 +74,8 @@
     "openForBusinessProviderCta": "Crear un perfil de proveedor",
     "heroTertiaryAbout": "Lee nuestra historia",
     "capStripeSecured": "Pagos protegidos por Stripe",
-    "capBackgroundChecked": "Cada proveedor con antecedentes verificados",
-    "capEscrowProtected": "Protegido por depósito — solo pagas cuando el trabajo está hecho",
+    "capBackgroundChecked": "Los proveedores son examinados y verificados con antecedentes",
+    "capEscrowProtected": "Fondos retenidos hasta que confirmes que el trabajo está hecho",
     "capMultilang": "Soporte en 7 idiomas",
     "trustVettedProviders": "Proveedores Verificados",
     "trustBackgroundCheckedProviders": "Proveedores con Antecedentes Verificados",
@@ -83,7 +83,7 @@
     "verifiedTrustTitle": "Tu auto. Tu confianza. Nuestra verificación.",
     "verifiedTrustBody": "Cada proveedor MCC Verificado ha aprobado una verificación integral de antecedentes para su equipo. Busca la insignia ✓ al explorar proveedores — significa que sus empleados están verificados, comprobados y al día.",
     "verifiedTrustCta": "Ver Proveedores Verificados →",
-    "trustEscrowProtection": "Protección de Depósito",
+    "trustEscrowProtection": "Retención segura del pago",
     "trustVerifiedRegistration": "Registro Verificado",
     "trustNoBillShock": "Sin Sorpresas en la Factura",
     "whyChooseUs": "4 Pilares de la Propiedad Automotriz",
@@ -92,7 +92,7 @@
     "pillar1Tagline": "Los proveedores compiten. Tú eliges.",
     "pillar1Feature1": "Proveedores verificados ofertan por tu trabajo",
     "pillar1Feature2": "Compara cotizaciones con precios transparentes",
-    "pillar1Feature3": "Protección de depósito retiene fondos hasta completar el trabajo",
+    "pillar1Feature3": "Tu pago se retiene hasta que el trabajo esté completo",
     "pillar1Feature4": "Si se necesita trabajo adicional, tienes 4 horas para aceptar o rechazar",
     "pillar2Title": "Administra Tus Vehículos",
     "pillar2Tagline": "Todo sobre tu auto, en un solo lugar.",
@@ -132,12 +132,29 @@
     "step1Title": "Publica lo que necesitas",
     "step1Desc": "Agrega algunos detalles y una o dos fotos para que los proveedores entiendan el trabajo.",
     "step2Title": "Recibe ofertas de 2–3 proveedores verificados",
-    "step2Desc": "Talleres con antecedentes verificados compiten por tu trabajo. Compáralos lado a lado.",
+    "step2Desc": "Talleres examinados compiten por tu trabajo. Compáralos lado a lado.",
     "step3Title": "Elige el mejor precio y agenda",
-    "step3Desc": "Los fondos quedan en depósito hasta que confirmes que el trabajo está hecho.",
+    "step3Desc": "Los fondos se retienen hasta que confirmes que el trabajo está hecho.",
     "ctaTitle": "¿Listo para tomar el control del cuidado de tu auto?",
     "ctaSubtitle": "Únete a propietarios de vehículos que administran todo—servicio, mantenimiento, aprendizaje y compras—en un solo lugar.",
-    "getStartedFree": "Comienza Gratis"
+    "getStartedFree": "Necesito servicio",
+    "foundingShopLabel": "Taller Fundador",
+    "foundingShopName": "Alpha Auto Body, Hackensack NJ",
+    "foundingShopMore": "Más proveedores del condado de Bergen se sumarán pronto.",
+    "joinAsProviderFree": "Soy un taller / proveedor",
+    "pillar1FeatureSplit": "Divide el costo — invita a otros a compartir la cuenta",
+    "pillar1FeatureCrowd": "Recauda fondos para reparaciones grandes — junta dinero con protección de reembolso integrada",
+    "comingSoon": "Próximamente",
+    "flowStep1Title": "Publica tu trabajo",
+    "flowStep1Desc": "Algunos detalles y una o dos fotos",
+    "flowStep2Title": "Proveedores verificados ofertan",
+    "flowStep2Desc": "2–3 talleres invitados compiten",
+    "flowStep3Title": "Tú eliges el que más te guste",
+    "flowStep3Desc": "Precio, calificación, tiempos — tú decides",
+    "flowProviderA": "Proveedor A",
+    "flowProviderB": "Proveedor B",
+    "flowProviderC": "Proveedor C",
+    "heroFreeMembers": "Gratis para miembros. Siempre."
   },
   "auth": {
     "welcomeBack": "Bienvenido de Nuevo",
@@ -173,7 +190,13 @@
     "resetPassword": "Restablecer Contraseña",
     "resetPasswordSubtitle": "Ingresa tu correo para recibir un enlace de restablecimiento",
     "sendResetLink": "Enviar Enlace",
-    "backToLogin": "Volver al Inicio de Sesión"
+    "backToLogin": "Volver al Inicio de Sesión",
+    "signInWithApple": "Iniciar sesión con Apple",
+    "signUpWithApple": "Registrarse con Apple",
+    "continueWithApple": "Continuar con Apple",
+    "signInWithFacebook": "Continuar con Facebook",
+    "signUpWithFacebook": "Continuar con Facebook",
+    "orContinueWith": "o continúa con"
   },
   "member": {
     "dashboard": "Panel de Miembro",
@@ -249,7 +272,13 @@
       "matchScore": "Puntuación de Coincidencia",
       "viewListing": "Ver Anuncio",
       "saveCar": "Guardar",
-      "dismiss": "Descartar"
+      "dismiss": "Descartar",
+      "emailReportFrequency": "Frecuencia del resumen por correo",
+      "notificationFrequency": "Frecuencia de notificaciones",
+      "freqOneTime": "Solo una vez",
+      "mileageRange": "Rango de kilometraje",
+      "notificationEmail": "Correo de notificación",
+      "notificationPhone": "Teléfono de notificación"
     },
     "myGarage": "Mi Garaje",
     "myVehicles": "Mis Vehículos",
@@ -417,7 +446,8 @@
       "crowdFundedInfo": "Este trabajo es financiado colectivamente. El trabajo no debe comenzar hasta que todos los participantes hayan completado el pago."
     },
     "crowdFundedToggle": "Financiado Colectivamente",
-    "crowdFundedDescription": "Dividir el costo entre varias personas"
+    "crowdFundedDescription": "Dividir el costo entre varias personas",
+    "serviceCredits": "Créditos de servicio"
   },
   "vehicles": {
     "addNew": "Agregar Nuevo Vehículo",
@@ -664,7 +694,10 @@
       "accessValue": "Soporte VIP",
       "growthTitle": "Bonos de Crecimiento",
       "growthDesc": "Alcanza metas y desbloquea pagos adicionales. Mientras más hagas crecer la plataforma, más ganas.",
-      "growthValue": "Recompensas Escalonadas"
+      "growthValue": "Recompensas Escalonadas",
+      "toolsTitle": "Herramientas y Calculadoras de la Plataforma",
+      "toolsDesc": "Aprovecha funciones innovadoras de la plataforma como nuestra Calculadora de Ganancias para Rideshare para atraer conductores de la economía gig. Ayuda a tus referidos a maximizar sus ganancias mientras construyes tu red.",
+      "toolsValue": "Nuevo Canal"
     },
     "rightForYou": {
       "label": "Ajuste Perfecto",
@@ -678,7 +711,9 @@
       "networkerTitle": "Conectores Naturales",
       "networkerDesc": "Personas que disfrutan conectar a otros y construir relaciones comunitarias.",
       "sideHustleTitle": "Buscadores de Ingresos Extra",
-      "sideHustleDesc": "Buscando ingresos flexibles que crecen con el tiempo sin un horario fijo."
+      "sideHustleDesc": "Buscando ingresos flexibles que crecen con el tiempo sin un horario fijo.",
+      "gigTitle": "Conductores de la Economía Gig",
+      "gigDesc": "Trabajadores de rideshare, delivery y freelance que buscan optimizar sus ingresos. Atráelos con nuestra Calculadora de Ganancias para Rideshare y maximiza el crecimiento de tu red."
     },
     "faq": {
       "label": "Preguntas Frecuentes",
