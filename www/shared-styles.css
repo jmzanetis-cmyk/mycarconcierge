@@ -1,3 +1,10 @@
+/* Fraunces font load — bundled with the shared stylesheet so the lockup
+   wordmark's 700-weight family resolves on any page that loads this file.
+   Covers the full 400..700 range (incl. italics) in a single request via
+   the variable font's wght axis. MUST precede every other rule in this
+   file — @import is ignored otherwise. */
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap');
+
 /* ==========================================================================
    My Car Concierge - Shared Styles
    Premium Automotive Theme with Bronze/Copper Gold and Coolant Teal accents
@@ -1958,7 +1965,7 @@ textarea:focus-visible {
   display: inline-flex;
   align-items: center;
   gap: 9px;
-  padding: 9px 16px;
+  padding: 8px 14px;
   border-radius: 12px;
   background: var(--logo-box, #0a1628);
   border: 1px solid rgba(199, 164, 102, 0.35);
