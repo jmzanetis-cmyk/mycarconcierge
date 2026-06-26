@@ -1,13 +1,8 @@
-/* Fraunces font load — bundled with the shared stylesheet so the lockup
-   wordmark's 700-weight family resolves on any page that loads this file.
-   Covers the full 400..700 range (incl. italics) in a single request via
-   the variable font's wght axis. MUST precede every other rule in this
-   file — @import is ignored otherwise. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap');
-
 /* ==========================================================================
    My Car Concierge - Shared Styles
    Premium Automotive Theme with Bronze/Copper Gold and Coolant Teal accents
+   (Fraunces font is loaded via each page's <link> in <head>, not here —
+    @import inside a linked stylesheet is unreliable for fonts.)
    ========================================================================== */
 
 /* ==========================================================================
@@ -1979,7 +1974,8 @@ textarea:focus-visible {
 }
 .mcc-logo-word {
   font-family: 'Fraunces', serif;
-  font-weight: 700;
+  font-weight: 500;
+  font-variation-settings: 'opsz' 96, 'wght' 500;
   font-size: 1.35rem;
   letter-spacing: -0.015em;
   color: #f5f0e6;

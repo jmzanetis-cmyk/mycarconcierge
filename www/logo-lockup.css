@@ -1,10 +1,3 @@
-/* Fraunces font load — bundled with the lockup CSS so the wordmark's
-   700-weight family resolves on any page that loads this file. Covers the
-   full 400..700 range (incl. italics) in a single request via the variable
-   font's wght axis. MUST precede every other rule in this file —
-   @import is ignored otherwise. */
-@import url('https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap');
-
 /* ==========================================================================
    Logo Lockup — standalone bundle for pages that DO NOT link shared-styles.css.
    The MCC codebase is split between pages that use shared-styles.css globally
@@ -53,7 +46,8 @@
 }
 .mcc-logo-word {
   font-family: 'Fraunces', serif;
-  font-weight: 700;
+  font-weight: 500;
+  font-variation-settings: 'opsz' 96, 'wght' 500;
   font-size: 1.35rem;
   letter-spacing: -0.015em;
   color: #f5f0e6;
