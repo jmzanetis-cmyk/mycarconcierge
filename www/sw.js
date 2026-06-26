@@ -19,6 +19,7 @@ const STATIC_ASSETS = [
   '/logo.png',
   '/manifest.json',
   '/shared-styles.css',
+  '/logo-lockup.css',
   '/utils.js',
   '/chat-widget-base.js',
   '/helpdesk-widget.js',
