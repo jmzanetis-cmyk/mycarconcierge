@@ -741,6 +741,140 @@ async function handleAccountUpdated(account, supabase) {
   console.log(`[stripe-webhook] account.updated ${account.id}: payouts_enabled=${payoutsEnabled}`);
 }
 
+// ── Central idempotency gate ───────────────────────────────────────────────
+//
+// Inserts a row in public.webhook_events keyed on Stripe's stable event.id.
+// On conflict, decides whether to skip (already-processed or in-flight) or
+// reprocess (stale or failed). Returns { skip, reason }. The dispatcher uses
+// skip=true to short-circuit BEFORE any handler runs and BEFORE any audit()
+// call fires — so a replayed event produces zero side effects, including no
+// duplicate audit rows on the handlers (driver tip, subsidy, transfer,
+// payout, etc.) whose audit() calls sit after a no-op status update.
+//
+// FAIL-SAFE POSTURE: every gate query is wrapped. If a query throws (table
+// missing on first deploy, transient DB error, etc.), the gate returns
+// { skip: false, reason: 'gate_error' } and the handler runs anyway. The
+// existing per-handler guards (status checks, unique-constraint catches,
+// zero-row filters) remain in place as defense-in-depth. The opposite
+// posture (fail-closed = skip handler on gate error) would silently drop a
+// first-delivery event when the gate had a transient hiccup — strictly
+// worse than today, since Stripe doesn't retry on 200.
+
+const GATE_STALE_THRESHOLD_MIN = 15;
+
+async function gateAcquireOrSkip(supabase, stripeEvent) {
+  const summary = {
+    id:       stripeEvent.id,
+    type:     stripeEvent.type,
+    livemode: stripeEvent.livemode === true,
+    created:  stripeEvent.created || null,
+  };
+
+  try {
+    // 1. Attempt to claim the event. If no row exists, this inserts one with
+    //    status='processing' and we hold the gate. Plain .insert() (no
+    //    .select().maybeSingle() chain) matches the proven 23505-handling
+    //    pattern at stripe-webhook.js bid_credit_purchases — guarantees the
+    //    unique violation surfaces as insErr.code='23505' rather than throwing.
+    const { error: insErr } = await supabase
+      .from('webhook_events')
+      .insert({
+        stripe_event_id:   stripeEvent.id,
+        event_type:        stripeEvent.type,
+        status:            'processing',
+        raw_event_summary: summary,
+      });
+
+    if (!insErr) {
+      return { skip: false, reason: 'fresh' };
+    }
+
+    if (insErr.code !== '23505') {
+      // Real DB error (not a UNIQUE conflict) — fail OPEN, handler runs.
+      console.error('[stripe-webhook] gate insert failed (fail-open):', insErr.message);
+      return { skip: false, reason: 'gate_error' };
+    }
+
+    // 2. 23505 unique_violation — duplicate event. Read the existing row to decide.
+    const { data: existing, error: selErr } = await supabase
+      .from('webhook_events')
+      .select('id, status, received_at, retry_count')
+      .eq('stripe_event_id', stripeEvent.id)
+      .maybeSingle();
+
+    if (selErr || !existing) {
+      // Gate select after conflict failed (e.g. table missing entirely).
+      // Fail OPEN — let the handler run; per-handler guards are the safety net.
+      console.error('[stripe-webhook] gate select failed (fail-open):', selErr?.message || 'no row after conflict');
+      return { skip: false, reason: 'gate_error' };
+    }
+
+    if (existing.status === 'processed') {
+      return { skip: true, reason: 'already_processed' };
+    }
+
+    const ageMin = (Date.now() - new Date(existing.received_at).getTime()) / 60000;
+
+    if (existing.status === 'processing' && ageMin < GATE_STALE_THRESHOLD_MIN) {
+      // Another delivery is in flight — let it finish.
+      return { skip: true, reason: 'in_flight' };
+    }
+
+    // Stale 'processing' (older than 15 min — previous invocation abandoned)
+    // OR 'failed' (manual Stripe Resend or our own retry). Reset and retry.
+    const { error: updErr } = await supabase
+      .from('webhook_events')
+      .update({
+        status:        'processing',
+        received_at:   new Date().toISOString(),
+        retry_count:   (existing.retry_count || 0) + 1,
+        error_message: null,
+      })
+      .eq('id', existing.id);
+
+    if (updErr) {
+      console.error('[stripe-webhook] gate reprocess update failed (fail-open):', updErr.message);
+      return { skip: false, reason: 'gate_error' };
+    }
+
+    return { skip: false, reason: existing.status === 'failed' ? 'retry_failed' : 'retry_stale' };
+  } catch (e) {
+    // Catch-all: any uncaught throw (network, driver crash, missing table on
+    // first deploy) → fail OPEN. Per-handler guards still apply.
+    console.error('[stripe-webhook] gate threw unexpectedly (fail-open):', e.message);
+    return { skip: false, reason: 'gate_error' };
+  }
+}
+
+async function gateMarkProcessed(supabase, stripeEventId) {
+  try {
+    await supabase
+      .from('webhook_events')
+      .update({ status: 'processed', processed_at: new Date().toISOString() })
+      .eq('stripe_event_id', stripeEventId);
+  } catch (e) {
+    // The event ALREADY processed at this point; only the gate row's
+    // bookkeeping is affected. A future replay of this event would re-run
+    // the handler (per-handler guards prevent damage) until the row is
+    // eventually marked processed by a subsequent attempt.
+    console.error('[stripe-webhook] gate mark-processed failed:', e.message);
+  }
+}
+
+async function gateMarkFailed(supabase, stripeEventId, errorMessage) {
+  try {
+    await supabase
+      .from('webhook_events')
+      .update({
+        status:        'failed',
+        error_message: String(errorMessage || '').slice(0, 1000),
+      })
+      .eq('stripe_event_id', stripeEventId);
+  } catch (e) {
+    console.error('[stripe-webhook] gate mark-failed update failed:', e.message);
+  }
+}
+
 // ── Handler ────────────────────────────────────────────────────────────────
 
 exports.handler = async function(event) {
@@ -774,6 +908,15 @@ exports.handler = async function(event) {
     return { statusCode: 200, body: JSON.stringify({ received: true, warning: 'database not configured' }) };
   }
 
+  // ── Idempotency gate — sits ABOVE the handler dispatch so a replayed
+  //    event short-circuits without running any handler or firing any audit().
+  const gate = await gateAcquireOrSkip(supabase, stripeEvent);
+  if (gate.skip) {
+    console.log(`[stripe-webhook] gate skip ${stripeEvent.id} (${gate.reason})`);
+    return { statusCode: 200, body: JSON.stringify({ received: true, skipped: true, reason: gate.reason }) };
+  }
+
+  let handlerSucceeded = false;
   try {
     switch (stripeEvent.type) {
       case 'checkout.session.completed':
@@ -819,9 +962,26 @@ exports.handler = async function(event) {
         // Ignore other event types — Stripe sends many; only handle what we act on
         break;
     }
+    handlerSucceeded = true;
   } catch (err) {
-    // Always return 200 — a non-200 causes Stripe to retry, which would double-grant credits
+    // Always return 200 — a non-200 causes Stripe to retry, which would double-grant credits.
+    // The gate row records the failure; admin is alerted; manual Stripe Resend remains the
+    // human-controlled escape if the failure was transient.
     console.error(`[stripe-webhook] error handling ${stripeEvent.type}:`, err.message);
+    await gateMarkFailed(supabase, stripeEvent.id, err.message);
+    await adminEmail(
+      `[MCC] Webhook handler error: ${stripeEvent.type}`,
+      `<h2>Webhook handler threw</h2>
+       <p><strong>Event:</strong> ${stripeEvent.id}</p>
+       <p><strong>Type:</strong> ${stripeEvent.type}</p>
+       <p><strong>Error:</strong> ${(err.message || '').replace(/</g, '&lt;')}</p>
+       <p>Gate row marked status='failed'. Re-deliver from the Stripe Dashboard if the
+       cause was transient — the gate will allow reprocessing of failed rows.</p>`
+    );
+  }
+
+  if (handlerSucceeded) {
+    await gateMarkProcessed(supabase, stripeEvent.id);
   }
 
   return { statusCode: 200, body: JSON.stringify({ received: true }) };
