@@ -104,15 +104,20 @@ exports.handler = async function(event) {
   const stripe = getStripe();
   if (!stripe) return resp(500, { error: 'Payment service unavailable' });
 
-  // Capture the held funds
+  // Capture the held funds. Track whether THIS call performed the capture so
+  // the audit can distinguish from the idempotent path where the webhook
+  // already captured the PI before the member hit this endpoint.
+  let capturedHere = false;
   try {
     await stripe.paymentIntents.capture(piId);
+    capturedHere = true;
   } catch (captureErr) {
     // 'already_captured' is not a real error — the PI may have been captured by webhook
     if (captureErr?.code !== 'payment_intent_unexpected_state') {
       console.error('[member-release-payment] Stripe capture error:', captureErr.message);
       return resp(402, { error: 'Payment capture failed: ' + captureErr.message });
     }
+    // capturedHere stays false — capture was already done elsewhere
   }
 
   // Mark released in DB
@@ -128,7 +133,8 @@ exports.handler = async function(event) {
       stripe_payment_intent_id: piId,
       previous_status: payment.status,
       new_status: 'released',
-      stripe_captured: true,
+      stripe_captured_in_this_call: capturedHere,
+      capture_path: capturedHere ? 'release_endpoint' : 'webhook_then_release_endpoint',
     },
   });
 

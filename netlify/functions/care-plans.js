@@ -320,7 +320,6 @@ async function handleAcceptBid(event, sb, user, planId) {
         escrow_amount: bid.amount,
         credit_applied_cents: appliedCreditsCents,
         wallet_applied_cents: walletDeductedCents,
-        paid_by_wallet: true,
       },
     });
     await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
