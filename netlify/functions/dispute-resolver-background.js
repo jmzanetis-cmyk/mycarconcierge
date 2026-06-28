@@ -4,6 +4,16 @@ const crypto = require('node:crypto');
 // getAiOpsSettings) live in `_shared/ai-ops.js`. esbuild inlines this require
 // into the function bundle.
 const { getAiOpsSettings, callAI, logAiAction, aiOpsSendSMS } = require('./_shared/ai-ops');
+const { audit: sharedAudit } = require('./_shared/audit');
+
+// Money-path audit wrapper: always log + alert on failure. This webhook
+// has no user actor — performed_by is the AI ops module identifier.
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[dispute-resolver]',
+  });
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -114,6 +124,22 @@ Rules: escalate if conflicting evidence, complex, or amounts >$500, or either pa
       module: 'dispute_resolver', target_id: String(completionId),
       recommendation: result, confidence, status: 'pending', created_at: new Date().toISOString()
     });
+    await audit(supabase, {
+      action: 'dispute_escalated_to_admin',
+      target_id: completionId,
+      target_type: 'care_plan_completion',
+      performed_by: 'ai_ops_dispute_resolver',
+      reason: result.reasoning,
+      metadata: {
+        care_plan_id: completion.care_plan_id,
+        member_id: completion.member_id,
+        provider_id: completion.provider_id,
+        recommendation: result.recommendation,
+        confidence,
+        ai_threshold: threshold,
+        suggested_refund_amount: result.suggested_refund_amount,
+      },
+    });
     return { success: true, action: 'escalated', confidence, reasoning: result.reasoning };
   }
 
@@ -122,6 +148,24 @@ Rules: escalate if conflicting evidence, complex, or amounts >$500, or either pa
     ai_resolution: { ...result, resolved_by: 'ai_ops_dispute_resolver', resolved_at: new Date().toISOString() },
     resolved_at: new Date().toISOString()
   }).eq('id', completionId);
+
+  await audit(supabase, {
+    action: 'dispute_auto_resolved',
+    target_id: completionId,
+    target_type: 'care_plan_completion',
+    performed_by: 'ai_ops_dispute_resolver',
+    reason: result.reasoning,
+    metadata: {
+      care_plan_id: completion.care_plan_id,
+      member_id: completion.member_id,
+      provider_id: completion.provider_id,
+      recommendation: result.recommendation,
+      confidence,
+      ai_threshold: threshold,
+      suggested_refund_amount: result.suggested_refund_amount,
+      admin_action_required: result.admin_action_required,
+    },
+  });
 
   if (memberProfile.phone && result.member_message) {
     await aiOpsSendSMS(supabase, memberProfile.phone, `My Car Concierge: We've reviewed your dispute. ${result.member_message}`, memberProfile.id);

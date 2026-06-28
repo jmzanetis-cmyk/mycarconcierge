@@ -44,15 +44,16 @@ function jsonResponse(statusCode, data) {
   };
 }
 
-// Best-effort audit row writer. Audit failures must not block the privileged
-// action they describe (the action already happened).
-async function audit(supabase, row) {
-  try {
-    await supabase.from('admin_audit_log').insert(row);
-  } catch (e) {
-    console.error('[apollo-admin] audit write failed:', e.message);
-  }
-}
+// Local wrapper around the shared audit helper, pre-bound to this file's
+// pre-extraction behaviour: log on failure, no ops alert. See
+// netlify/functions/_shared/audit.js.
+const { audit: sharedAudit } = require('./_shared/audit');
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: false,
+    logOnFailure: true,
+    logPrefix: '[apollo-admin]',
+  });
 
 // Whitelist of fields the admin UI may persist into apollo_config. Anything
 // outside this set is dropped so a malformed PUT can't accidentally clobber

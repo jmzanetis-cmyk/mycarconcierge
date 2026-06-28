@@ -13,6 +13,16 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { audit: sharedAudit } = require('./_shared/audit');
+
+// Money-path audit wrapper: always log + alert on failure. A failed audit
+// must NEVER throw into the money operation.
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[member-release-payment]',
+  });
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -74,6 +84,20 @@ exports.handler = async function(event) {
   if (!piId) {
     // No Stripe PI — fall through to just mark released (legacy/offline payments)
     await supabase.rpc('member_release_payment', { p_package_id: packageId });
+    await audit(supabase, {
+      action: 'payment_released_by_member',
+      target_id: payment.id,
+      target_type: 'payment',
+      performed_by: user.id,
+      metadata: {
+        package_id: packageId,
+        stripe_payment_intent_id: null,
+        previous_status: payment.status,
+        new_status: 'released',
+        stripe_captured: false,
+        offline_payment: true,
+      },
+    });
     return resp(200, { success: true, stripe_captured: false });
   }
 
@@ -93,6 +117,20 @@ exports.handler = async function(event) {
 
   // Mark released in DB
   await supabase.rpc('member_release_payment', { p_package_id: packageId });
+
+  await audit(supabase, {
+    action: 'payment_released_by_member',
+    target_id: payment.id,
+    target_type: 'payment',
+    performed_by: user.id,
+    metadata: {
+      package_id: packageId,
+      stripe_payment_intent_id: piId,
+      previous_status: payment.status,
+      new_status: 'released',
+      stripe_captured: true,
+    },
+  });
 
   return resp(200, { success: true, stripe_captured: true });
 };

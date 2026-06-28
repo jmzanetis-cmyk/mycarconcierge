@@ -23,7 +23,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { Resend } = require('resend');
 const utils = require('./utils');
 const { notifySensitiveAuditAction } = require('./_shared/sensitive-audit-alert');
-const { alertOnAuditFailure } = require('../../lib/audit-warning-alert');
+const { audit: sharedAudit } = require('./_shared/audit');
 
 const FROM_EMAIL = process.env.RESEND_FROM_EMAIL || 'My Car Concierge <noreply@mycarconcierge.com>';
 
@@ -54,22 +54,16 @@ function isUuid(v) {
     /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(v);
 }
 
-// Best-effort audit row writer. Never throws — audit failures must not block the
-// privileged action they describe (the action already happened).
-async function audit(supabase, row) {
-  try {
-    await supabase.from('admin_audit_log').insert(row);
-  } catch (e) {
-    console.error('[provider-admin] audit write failed:', e.message);
-    await alertOnAuditFailure(supabase, {
-      action: row.action || 'unknown',
-      targetType: row.target_type || 'provider',
-      targetId: row.target_id || null,
-      metadata: row.metadata || null,
-      error: e,
-    });
-  }
-}
+// Local wrapper pre-binds this file's audit flags so the 7 existing call
+// sites stay byte-identical (still `await audit(supabase, row)`). Behaviour
+// equivalent to the pre-extraction local helper: log on failure AND alert
+// ops via alertOnAuditFailure. See netlify/functions/_shared/audit.js.
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[provider-admin]',
+  });
 
 // Best-effort email send. Returns boolean. Never throws.
 async function sendEmail(to, subject, html) {

@@ -1,5 +1,15 @@
 let utils = require('./utils');
 let Stripe = require('stripe');
+const { audit: sharedAudit } = require('./_shared/audit');
+
+// Money-path audit wrapper: always log + alert on failure. A failed audit
+// must NEVER throw into the money operation.
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[create-bid-checkout]',
+  });
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -105,6 +115,21 @@ exports.handler = async function(event) {
         bids: pack.bid_count.toString(),
         bonus_bids: (pack.bonus_bids || 0).toString()
       }
+    });
+
+    await audit(supabase, {
+      action: 'bid_credits_checkout_initiated',
+      target_id: session.id,
+      target_type: 'stripe_checkout_session',
+      performed_by: authedProviderId,
+      metadata: {
+        pack_id: packId,
+        pack_name: pack.name,
+        price_cents: priceInCents,
+        bid_count: pack.bid_count,
+        bonus_bids: pack.bonus_bids || 0,
+        total_bids: totalBids,
+      },
     });
 
     return utils.successResponse({ url: session.url });

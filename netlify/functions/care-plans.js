@@ -6,6 +6,17 @@
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { dispatchBidAcceptedPush } = require('./notifications-bid-accepted-push');
+const { audit: sharedAudit } = require('./_shared/audit');
+
+// Money-path audit wrapper: always log + alert on failure. A failed audit
+// must NEVER throw into the money operation — the shared helper guarantees
+// this. See netlify/functions/_shared/audit.js.
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[care-plans]',
+  });
 
 function supabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -297,6 +308,21 @@ async function handleAcceptBid(event, sb, user, planId) {
     const { error: sweepErr } = await sb.from('plan_bids').update({ status: 'rejected' })
       .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
     if (sweepErr) console.error('[accept-bid] competitor sweep failed:', sweepErr);
+    await audit(sb, {
+      action: 'bid_accepted',
+      target_id: planId,
+      target_type: 'care_plan',
+      performed_by: user.id,
+      metadata: {
+        bid_id,
+        provider_id: bid.provider_id,
+        escrow_status: 'held',
+        escrow_amount: bid.amount,
+        credit_applied_cents: appliedCreditsCents,
+        wallet_applied_cents: walletDeductedCents,
+        paid_by_wallet: true,
+      },
+    });
     await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
     return json(200, {
       success: true,
@@ -355,6 +381,23 @@ async function handleAcceptBid(event, sb, user, planId) {
     .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
   if (sweepErr) console.error('[accept-bid] competitor sweep failed:', sweepErr);
 
+  await audit(sb, {
+    action: 'bid_accepted',
+    target_id: planId,
+    target_type: 'care_plan',
+    performed_by: user.id,
+    metadata: {
+      bid_id,
+      provider_id: bid.provider_id,
+      escrow_status: 'requires_payment',
+      escrow_amount: bid.amount,
+      charge_amount_cents: chargeAmountCents,
+      credit_applied_cents: appliedCreditsCents,
+      wallet_applied_cents: walletDeductedCents,
+      stripe_payment_intent_id: pi.id,
+    },
+  });
+
   await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
 
   return json(200, {
@@ -395,6 +438,20 @@ async function handleComplete(event, sb, user, planId) {
 
   if (updateErr) return json(500, { error: updateErr.message });
 
+  await audit(sb, {
+    action: 'payment_captured',
+    target_id: planId,
+    target_type: 'care_plan',
+    performed_by: user.id,
+    metadata: {
+      stripe_payment_intent_id: plan.stripe_payment_intent_id,
+      provider_id: plan.provider_id,
+      escrow_amount: plan.escrow_amount,
+      previous_status: 'held',
+      new_status: 'captured',
+    },
+  });
+
   // Notify provider
   if (plan.provider_id) {
     await sb.from('notifications').insert({
@@ -430,6 +487,21 @@ async function handleDispute(event, sb, user, planId) {
   }).eq('id', planId);
 
   if (updateErr) return json(500, { error: updateErr.message });
+
+  await audit(sb, {
+    action: 'dispute_opened',
+    target_id: planId,
+    target_type: 'care_plan',
+    performed_by: user.id,
+    reason: dispute_reason,
+    metadata: {
+      dispute_description,
+      provider_id: plan.provider_id,
+      escrow_amount: plan.escrow_amount,
+      previous_status: 'held',
+      new_status: 'disputed',
+    },
+  });
 
   // Record in disputes table for admin review
   await sb.from('disputes').insert({

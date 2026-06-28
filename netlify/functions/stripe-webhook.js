@@ -23,6 +23,18 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { audit: sharedAudit } = require('./_shared/audit');
+
+// Money-path audit wrapper: always log + alert on failure. A failed audit
+// must NEVER throw into the webhook handler — Stripe would retry on a
+// non-200 and double-process. performed_by is always 'stripe_webhook'
+// for these events (no user actor).
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, {
+    alertOnFailure: true,
+    logOnFailure: true,
+    logPrefix: '[stripe-webhook]',
+  });
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -89,11 +101,30 @@ async function handleCheckoutComplete(session, supabase) {
   // Increment bid_credits balance
   const { data: p } = await supabase.from('profiles')
     .select('bid_credits').eq('id', meta.provider_id).maybeSingle();
+  const prevBidCredits = p?.bid_credits || 0;
   await supabase.from('profiles')
-    .update({ bid_credits: (p?.bid_credits || 0) + totalBids })
+    .update({ bid_credits: prevBidCredits + totalBids })
     .eq('id', meta.provider_id);
 
   console.log(`[stripe-webhook] granted ${totalBids} bid credits to provider ${meta.provider_id}`);
+
+  await audit(supabase, {
+    action: 'bid_credits_granted',
+    target_id: meta.provider_id,
+    target_type: 'profile',
+    performed_by: 'stripe_webhook',
+    metadata: {
+      stripe_session_id: session.id,
+      stripe_payment_intent: session.payment_intent || null,
+      pack_id: meta.pack_id || null,
+      bids_purchased: parseInt(meta.bids || '0', 10),
+      bonus_bids: parseInt(meta.bonus_bids || '0', 10),
+      total_bids: totalBids,
+      amount_paid_cents: session.amount_total || 0,
+      previous_bid_credits: prevBidCredits,
+      new_bid_credits: prevBidCredits + totalBids,
+    },
+  });
 
   // Founder commission for bid pack (best-effort, routed through service-role RPC)
   await _recordBidPackFounderCommission(session, meta, supabase);
@@ -120,6 +151,18 @@ async function _recordBidPackFounderCommission(session, meta, supabase) {
 
     if (commissionId) {
       console.log(`[stripe-webhook] founder commission recorded via RPC — id ${commissionId}`);
+      await audit(supabase, {
+        action: 'founder_commission_recorded',
+        target_id: commissionId,
+        target_type: 'founder_commission',
+        performed_by: 'stripe_webhook',
+        metadata: {
+          provider_id: meta.provider_id,
+          stripe_session_id: session.id,
+          stripe_payment_intent: session.payment_intent,
+          purchase_amount: purchaseAmount,
+        },
+      });
     }
     // NULL return = no referrer, inactive founder, or idempotent duplicate — all fine
   } catch (e) {
@@ -178,6 +221,23 @@ async function _handleFounderCommissionClawback(paymentIntentId, reason, supabas
       }).eq('id', commission.founder_id);
 
       console.log(`[stripe-webhook] founder commission ${commission.id} voided — ${reason}`);
+      await audit(supabase, {
+        action: 'founder_commission_clawback',
+        target_id: commission.id,
+        target_type: 'founder_commission',
+        performed_by: 'stripe_webhook',
+        reason,
+        metadata: {
+          founder_id: commission.founder_id,
+          stripe_payment_intent: paymentIntentId,
+          clawback_branch: 'void_unpaid',
+          commission_amount: parseFloat(commission.commission_amount),
+          previous_status: commission.status,
+          new_status: 'voided',
+          previous_pending_balance: prevBal,
+          new_pending_balance: Math.max(0, parseFloat((prevBal - parseFloat(commission.commission_amount)).toFixed(2))),
+        },
+      });
       return;
     }
 
@@ -222,6 +282,23 @@ async function _handleFounderCommissionClawback(paymentIntentId, reason, supabas
       }).eq('id', commission.founder_id);
 
       console.log(`[stripe-webhook] clawback adjustment inserted for paid commission ${commission.id} — ${reason}`);
+      await audit(supabase, {
+        action: 'founder_commission_clawback',
+        target_id: commission.id,
+        target_type: 'founder_commission',
+        performed_by: 'stripe_webhook',
+        reason,
+        metadata: {
+          founder_id: commission.founder_id,
+          stripe_payment_intent: paymentIntentId,
+          clawback_branch: 'adjustment_paid',
+          clawback_key: clawbackKey,
+          original_commission_amount: parseFloat(commission.commission_amount),
+          adjustment_amount: -Math.abs(parseFloat(commission.commission_amount)),
+          previous_pending_balance: prevBal2,
+          new_pending_balance: Math.max(0, parseFloat((prevBal2 - debit).toFixed(2))),
+        },
+      });
     }
   } catch (e) {
     console.warn('[stripe-webhook] commission clawback error (non-fatal):', e.message);
@@ -252,6 +329,7 @@ async function handlePaymentIntentSucceeded(pi, supabase) {
       p_description:           'Wallet top-up via card',
     });
     if (wErr) console.error('[stripe-webhook] wallet_load RPC error:', wErr.message);
+    // TODO: audit when FEATURE_WALLET ships
     return;
   }
 
@@ -263,11 +341,36 @@ async function handlePaymentIntentSucceeded(pi, supabase) {
       .eq('ride_id', meta.ride_id)
       .eq('driver_id', meta.driver_id)
       .eq('status', 'charged');
+    await audit(supabase, {
+      action: 'payment_received',
+      target_id: pi.id,
+      target_type: 'stripe_payment_intent',
+      performed_by: 'stripe_webhook',
+      metadata: {
+        flow: 'driver_tip',
+        ride_id: meta.ride_id,
+        driver_id: meta.driver_id,
+        amount_cents: pi.amount,
+        previous_status: 'charged',
+        new_status: 'paid',
+      },
+    });
   }
   if (meta.type === 'provider_subsidy' && meta.ride_id) {
     await supabase.from('rides')
       .update({ provider_subsidy_status: 'charged' })
       .eq('id', meta.ride_id);
+    await audit(supabase, {
+      action: 'provider_subsidy_charged',
+      target_id: meta.ride_id,
+      target_type: 'ride',
+      performed_by: 'stripe_webhook',
+      metadata: {
+        stripe_payment_intent: pi.id,
+        amount_cents: pi.amount,
+        new_status: 'charged',
+      },
+    });
   }
 
   // Grant pending referral credits on first care-plan payment
@@ -330,6 +433,22 @@ async function _grantPendingReferralCredits(memberId, supabase) {
     ]);
 
     console.log(`[stripe-webhook] referral credits granted — referral ${ref.id} member ${memberId}`);
+    // NOTE: spec called this "donation_credited" but the code path is the
+    // referral-credit grant (no donation flow exists here). Using the
+    // accurate action name; flagged in report for Jordan to confirm.
+    await audit(supabase, {
+      action: 'referral_credits_granted',
+      target_id: ref.id,
+      target_type: 'referral',
+      performed_by: 'stripe_webhook',
+      metadata: {
+        referrer_id: ref.referrer_id,
+        referred_id: ref.referred_id,
+        referrer_credit_amount: ref.referrer_credit_amount || 1000,
+        referred_credit_amount: ref.referred_credit_amount || 1000,
+        triggering_member_id: memberId,
+      },
+    });
   } catch (e) {
     console.warn('[stripe-webhook] _grantPendingReferralCredits error (non-fatal):', e.message);
   }
@@ -367,6 +486,21 @@ async function _accrueCarClubPoints(memberId, providerId, amountCents, paymentIn
     });
 
     console.log(`[stripe-webhook] car-club points accrued — club ${club.id} member ${memberId} ${amountCents}¢`);
+    // NOTE: spec called this "rewards_points_accrued" but the code path is
+    // specifically car-club loyalty points. Using the accurate name;
+    // flagged in report for Jordan to confirm.
+    await audit(supabase, {
+      action: 'car_club_points_accrued',
+      target_id: club.id,
+      target_type: 'car_club',
+      performed_by: 'stripe_webhook',
+      metadata: {
+        member_id: memberId,
+        provider_id: providerId,
+        amount_cents: amountCents,
+        stripe_payment_intent: paymentIntentId,
+      },
+    });
   } catch (e) {
     console.warn('[stripe-webhook] _accrueCarClubPoints error (non-fatal):', e.message);
   }
@@ -384,11 +518,37 @@ async function handlePaymentIntentFailed(pi, supabase) {
       .eq('ride_id', meta.ride_id)
       .eq('driver_id', meta.driver_id)
       .eq('status', 'pending');
+    await audit(supabase, {
+      action: 'payment_failed',
+      target_id: pi.id,
+      target_type: 'stripe_payment_intent',
+      performed_by: 'stripe_webhook',
+      reason,
+      metadata: {
+        flow: 'driver_tip',
+        ride_id: meta.ride_id,
+        driver_id: meta.driver_id,
+        amount_cents: pi.amount,
+        new_status: 'failed',
+      },
+    });
   }
   if (meta.type === 'provider_subsidy' && meta.ride_id) {
     await supabase.from('rides')
       .update({ provider_subsidy_status: 'failed' })
       .eq('id', meta.ride_id);
+    await audit(supabase, {
+      action: 'provider_subsidy_failed',
+      target_id: meta.ride_id,
+      target_type: 'ride',
+      performed_by: 'stripe_webhook',
+      reason,
+      metadata: {
+        stripe_payment_intent: pi.id,
+        amount_cents: pi.amount,
+        new_status: 'failed',
+      },
+    });
   }
 
   await adminEmail(
@@ -414,6 +574,18 @@ async function handleTransferPaid(transfer, supabase) {
   await supabase.from('driver_tips')
     .update({ status: 'paid', stripe_transfer_id: transfer.id })
     .eq('stripe_transfer_id', transfer.id);
+  await audit(supabase, {
+    action: 'transfer_completed',
+    target_id: transfer.id,
+    target_type: 'stripe_transfer',
+    performed_by: 'stripe_webhook',
+    metadata: {
+      amount_cents: transfer.amount,
+      destination: transfer.destination || null,
+      new_status: 'paid',
+      completed_at: now,
+    },
+  });
 }
 
 // ── transfer.failed ────────────────────────────────────────────────────────
@@ -423,6 +595,19 @@ async function handleTransferFailed(transfer, supabase) {
   await supabase.from('driver_cashouts')
     .update({ status: 'failed', error: reason })
     .eq('stripe_transfer_id', transfer.id);
+
+  await audit(supabase, {
+    action: 'transfer_failed',
+    target_id: transfer.id,
+    target_type: 'stripe_transfer',
+    performed_by: 'stripe_webhook',
+    reason,
+    metadata: {
+      amount_cents: transfer.amount,
+      destination: transfer.destination || null,
+      new_status: 'failed',
+    },
+  });
 
   await adminEmail(
     `[MCC] Transfer failed: ${transfer.id}`,
@@ -441,6 +626,18 @@ async function handlePayoutPaid(payout, supabase) {
     .update({ status: 'completed', completed_at: now })
     .eq('stripe_payout_id', payout.id)
     .in('status', ['processing', 'pending']);
+  await audit(supabase, {
+    action: 'payout_completed',
+    target_id: payout.id,
+    target_type: 'stripe_payout',
+    performed_by: 'stripe_webhook',
+    metadata: {
+      amount_cents: payout.amount,
+      arrival_date: payout.arrival_date || null,
+      new_status: 'completed',
+      completed_at: now,
+    },
+  });
 }
 
 // ── payout.failed ──────────────────────────────────────────────────────────
@@ -450,6 +647,19 @@ async function handlePayoutFailed(payout, supabase) {
   await supabase.from('driver_cashouts')
     .update({ status: 'failed', error: reason })
     .eq('stripe_payout_id', payout.id);
+
+  await audit(supabase, {
+    action: 'payout_failed',
+    target_id: payout.id,
+    target_type: 'stripe_payout',
+    performed_by: 'stripe_webhook',
+    reason,
+    metadata: {
+      amount_cents: payout.amount,
+      failure_code: payout.failure_code || null,
+      new_status: 'failed',
+    },
+  });
 
   await adminEmail(
     `[MCC] Payout failed: ${payout.id}`,
@@ -466,6 +676,17 @@ async function handlePayoutCanceled(payout, supabase) {
   await supabase.from('driver_cashouts')
     .update({ status: 'cancelled' })
     .eq('stripe_payout_id', payout.id);
+  await audit(supabase, {
+    action: 'driver_cashout_cancelled',
+    target_id: payout.id,
+    target_type: 'driver_cashout',
+    performed_by: 'stripe_webhook',
+    metadata: {
+      stripe_payout_id: payout.id,
+      amount_cents: payout.amount,
+      new_status: 'cancelled',
+    },
+  });
 }
 
 // ── identity.verification_session.verified ─────────────────────────────────

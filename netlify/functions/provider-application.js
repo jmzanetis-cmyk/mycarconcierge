@@ -187,9 +187,12 @@ async function sendEmail(to, subject, html) {
   }
 }
 
-async function audit(supabase, row) {
-  try { await supabase.from('admin_audit_log').insert(row); } catch (e) { /* best-effort */ }
-}
+// Local wrapper around the shared audit helper, pre-bound to this file's
+// pre-extraction behaviour: silent swallow (no log, no alert). See
+// netlify/functions/_shared/audit.js.
+const { audit: sharedAudit } = require('./_shared/audit');
+const audit = (supabase, row) =>
+  sharedAudit(supabase, row, { alertOnFailure: false, logOnFailure: false });
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return jsonResponse(204, '');
