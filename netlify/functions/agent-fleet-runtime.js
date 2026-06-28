@@ -118,10 +118,9 @@ function jsonResponse(statusCode, data) {
 // the spend-cap accountant, not user billing.
 // ---------------------------------------------------------------------------
 const PRICING = {
-  'claude-sonnet-4-5':            { in: 3.00, out: 15.00 },
+  'claude-sonnet-4-6':            { in: 3.00, out: 15.00 },
   'claude-haiku-4-5-20251001':    { in: 0.80, out:  4.00 },
-  'claude-sonnet-4-20250514':     { in: 3.00, out: 15.00 },
-  'claude-opus-4-5':              { in: 15.0, out: 75.00 }
+  'claude-opus-4-7':              { in: 15.0, out: 75.00 }
 };
 const DEFAULT_PRICING = { in: 3.00, out: 15.00 };
 
@@ -432,7 +431,7 @@ async function callLLM(supabase, agent, { prompt, system = null, maxTokens = 102
   const apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (!apiKey) throw new Error('ANTHROPIC_API_KEY not configured');
 
-  const model = agent.model || 'claude-sonnet-4-5';
+  const model = agent.model || 'claude-sonnet-4-6';
   const inEstimate = expectedInputTokens != null
     ? expectedInputTokens
     : Math.ceil((String(prompt).length + (system ? system.length : 0)) / 4); // ~4 chars/token

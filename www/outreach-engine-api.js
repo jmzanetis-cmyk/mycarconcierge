@@ -28,7 +28,7 @@ async function callAI(prompt, maxTokens = 4000) {
   if (anthropic) {
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-20250514',
+        model: 'claude-sonnet-4-6',
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]
       });

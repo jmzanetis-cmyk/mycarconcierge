@@ -69,7 +69,7 @@ exports.handler = async function(event) {
     var client = new Anthropic({ apiKey: apiKey });
 
     var response = await client.messages.create({
-      model: 'claude-sonnet-4-20250514',
+      model: 'claude-sonnet-4-6',
       max_tokens: 600,
       system: systemPrompt,
       messages: [
