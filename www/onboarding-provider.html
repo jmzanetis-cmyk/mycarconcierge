@@ -1078,7 +1078,7 @@
         </div>
       </div>
 
-      <div class="step" data-step="1">
+      <div class="step" data-step="1b">
         <div class="step-content">
           <div class="step-icon">
             <svg viewBox="0 0 24 24"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg>
@@ -1244,85 +1244,6 @@
           </div>
           <button class="btn--primary" id="btn-submit" onclick="submitSignup()">Create Provider Account <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
           <div class="input-error" id="error-terms" style="text-align:center">Please agree to the Terms and Provider Agreement</div>
-        </div>
-      </div>
-
-      <div class="step" data-step="9">
-        <div class="step-content">
-          <div class="section-divider"><span>Now set up your member account</span></div>
-          <div class="step-icon">
-            <svg viewBox="0 0 24 24"><path d="M7 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M17 17m-2 0a2 2 0 1 0 4 0a2 2 0 1 0-4 0"/><path d="M5 17H3v-6l2-5h9l4 5h1a2 2 0 0 1 2 2v4h-2"/><path d="M9 17h6"/></svg>
-          </div>
-          <h2 class="step-question">Tell us about your ride</h2>
-          <p class="step-subtitle">As a member, you can also get quotes for your own vehicle.</p>
-          <div class="input-wrapper">
-            <input type="number" class="input-field" id="input-vehicle-year" placeholder="Year (e.g. 2020)" min="1900" max="2030" inputmode="numeric" aria-label="Vehicle year">
-          </div>
-          <div class="input-wrapper">
-            <input type="text" class="input-field" id="input-vehicle-make" placeholder="Make (e.g. Toyota)" aria-label="Vehicle make">
-          </div>
-          <div class="input-wrapper">
-            <input type="text" class="input-field" id="input-vehicle-model" placeholder="Model (e.g. Camry)" aria-label="Vehicle model">
-            <div class="input-error" id="error-vehicle">Please enter your vehicle's year, make, and model</div>
-          </div>
-          <button class="btn--primary" onclick="saveVehicleAndContinue()">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn--secondary" onclick="skipVehicle()">I'll add my car later</button>
-        </div>
-      </div>
-
-      <div class="step" data-step="10">
-        <div class="step-content">
-          <div class="step-icon">
-            <svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
-          </div>
-          <h2 class="step-question">Need any work done?</h2>
-          <p class="step-subtitle">Select a category and get quotes from other providers.</p>
-          <div class="category-grid">
-            <div class="category-card" data-category="maintenance" onclick="selectCategory(this)" aria-label="Maintenance and Mechanical">
-              <div class="category-card-icon"><svg viewBox="0 0 24 24"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
-              <div class="category-card-label">Maintenance &amp; Mechanical</div>
-            </div>
-            <div class="category-card" data-category="detailing" onclick="selectCategory(this)" aria-label="Detailing and Cleaning">
-              <div class="category-card-icon"><svg viewBox="0 0 24 24"><path d="M12 2v6M12 18v4M4.93 4.93l4.24 4.24M14.83 14.83l4.24 4.24M2 12h6M18 12h4M4.93 19.07l4.24-4.24M14.83 9.17l4.24-4.24"/></svg></div>
-              <div class="category-card-label">Detailing &amp; Cleaning</div>
-            </div>
-            <div class="category-card" data-category="body" onclick="selectCategory(this)" aria-label="Body and Paint">
-              <div class="category-card-icon"><svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg></div>
-              <div class="category-card-label">Body &amp; Paint</div>
-            </div>
-            <div class="category-card" data-category="tires" onclick="selectCategory(this)" aria-label="Tires and Wheels">
-              <div class="category-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg></div>
-              <div class="category-card-label">Tires &amp; Wheels</div>
-            </div>
-            <div class="category-card" data-category="diagnostics" onclick="selectCategory(this)" aria-label="Diagnostics and Check Engine">
-              <div class="category-card-icon"><svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg></div>
-              <div class="category-card-label">Diagnostics / Check Engine</div>
-            </div>
-            <div class="category-card" data-category="other" onclick="selectCategory(this)" aria-label="Other">
-              <div class="category-card-icon"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/><circle cx="5" cy="12" r="1"/></svg></div>
-              <div class="category-card-label">Other</div>
-            </div>
-          </div>
-          <button class="btn--primary" id="btn-category-next" onclick="categoryNext()" style="opacity:0.5;pointer-events:none">Continue <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
-          <button class="btn--secondary" onclick="skipRequest()">I'll create a request later</button>
-        </div>
-      </div>
-
-      <div class="step" data-step="11">
-        <div class="step-content">
-          <div class="step-icon">
-            <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
-          </div>
-          <h2 class="step-question">Describe what you need</h2>
-          <p class="step-subtitle">Give providers a brief idea so they can give you an accurate quote.</p>
-          <div class="input-wrapper">
-            <input type="text" class="input-field" id="input-request-title" placeholder="e.g. Oil change and tire rotation" aria-label="Request title">
-          </div>
-          <div class="input-wrapper">
-            <textarea class="textarea-field" id="input-request-desc" placeholder="Any additional details — mileage, symptoms, preferred timing, etc." rows="4" aria-label="Request description"></textarea>
-            <div class="input-error" id="error-request">Please enter a title for your request</div>
-          </div>
-          <button class="btn--primary" onclick="submitRequest()">Submit Request <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg></button>
         </div>
       </div>
 
@@ -1513,27 +1434,16 @@
     function oboCopy() { return oboLang() === 'es' ? OBO_COPY_ES : OBO_COPY_EN; }
 
     let currentStep = 0;
-    // 14 original panels (data-step 0-12 with one duplicated id) + 4 BGC
-    // panels inserted before the success screen (Task #115). Success is now
-    // the last DOM-index step, computed dynamically below.
-    let totalSteps = 17;
+    // 11 original panels (account/business form + success screen) + 4 BGC
+    // panels inserted before the success screen (Task #115). Success is the
+    // last DOM-index step; totalSteps is recomputed at DOMContentLoaded by
+    // bgcResolveDomIndices() below.
+    let totalSteps = 14;
     // DOM indices of the inserted BGC panels and the success screen,
     // resolved at DOMContentLoaded so we tolerate future panel reordering.
     let BGC_STEP_DOM = { s1: -1, s2: -1, s3: -1, s4: -1, success: -1 };
     let userId = null;
-    let vehicleId = null;
-    let selectedCategory = '';
-    let vehicleAdded = false;
-    let requestSubmitted = false;
     let placesAutocomplete = null;
-    const categoryTitleSuggestions = {
-      maintenance: 'Oil change and maintenance',
-      detailing: 'Full detail and cleaning',
-      body: 'Body work and paint repair',
-      tires: 'Tire replacement or rotation',
-      diagnostics: 'Check engine light diagnosis',
-      other: ''
-    };
     const formData = {
       email: '',
       phone: '',
@@ -1837,66 +1747,14 @@
           }
         }
 
-        showStep(10);
+        showSuccessScreen();
+        goToBgcOrSuccess();
 
       } catch (err) {
         btn.disabled = false;
         btn.innerHTML = 'Create Provider Account <svg viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>';
         alert(err.message || 'Something went wrong. Please try again.');
       }
-    }
-
-    async function saveVehicleAndContinue() {
-      const year = document.getElementById('input-vehicle-year').value.trim();
-      const make = document.getElementById('input-vehicle-make').value.trim();
-      const model = document.getElementById('input-vehicle-model').value.trim();
-      if (!year || !make || !model) {
-        document.getElementById('error-vehicle').style.display = 'block';
-        return;
-      }
-      try {
-        const { data, error } = await supabaseClient.from('vehicles').insert({
-          owner_id: userId,
-          year: parseInt(year),
-          make: make,
-          model: model,
-          health_score: 100
-        }).select();
-        if (error) throw error;
-        if (data && data[0]) vehicleId = data[0].id;
-        vehicleAdded = true;
-        showStep(11);
-      } catch (err) {
-        console.error('Vehicle insert error:', err);
-        alert('Could not save your vehicle. You can add it later from your dashboard.');
-        showStep(11);
-      }
-    }
-
-    function skipVehicle() {
-      showStep(11);
-    }
-
-    function selectCategory(card) {
-      document.querySelectorAll('.category-card').forEach(c => c.classList.remove('selected'));
-      card.classList.add('selected');
-      selectedCategory = card.dataset.category;
-      const titleInput = document.getElementById('input-request-title');
-      titleInput.value = categoryTitleSuggestions[selectedCategory] || '';
-      const btn = document.getElementById('btn-category-next');
-      btn.style.opacity = '1';
-      btn.style.pointerEvents = 'auto';
-    }
-
-    function categoryNext() {
-      if (!selectedCategory) return;
-      showStep(12);
-    }
-
-    function skipRequest() {
-      showSuccessScreen();
-      // Task #115: route through the BGC sub-flow before the success screen.
-      goToBgcOrSuccess();
     }
 
     // Helper: go to first BGC panel if it's mounted, else straight to success.
@@ -1908,36 +1766,6 @@
       }
     }
 
-    async function submitRequest() {
-      const title = document.getElementById('input-request-title').value.trim();
-      if (!title) {
-        document.getElementById('error-request').style.display = 'block';
-        return;
-      }
-      const desc = document.getElementById('input-request-desc').value.trim();
-      const deadline = new Date();
-      deadline.setDate(deadline.getDate() + 7);
-      try {
-        const { error } = await supabaseClient.from('maintenance_packages').insert({
-          member_id: userId,
-          vehicle_id: vehicleId,
-          title: title,
-          description: desc || null,
-          category: selectedCategory,
-          status: 'open',
-          bidding_deadline: deadline.toISOString(),
-          pickup_preference: 'either'
-        });
-        if (error) throw error;
-        requestSubmitted = true;
-      } catch (err) {
-        console.error('Request insert error:', err);
-      }
-      showSuccessScreen();
-      // Task #115: route through the BGC sub-flow before the success screen.
-      goToBgcOrSuccess();
-    }
-
     function showSuccessScreen() {
       const checklist = document.getElementById('success-checklist');
       const subtitle = document.getElementById('success-subtitle');
@@ -1945,18 +1773,8 @@
       let html = '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">Provider account created</span></div>';
       html += '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">Member access enabled</span></div>';
       html += '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">1 Jumpstart bid credit awarded</span></div>';
-      if (vehicleAdded) {
-        const year = document.getElementById('input-vehicle-year').value.trim();
-        const make = document.getElementById('input-vehicle-make').value.trim();
-        const model = document.getElementById('input-vehicle-model').value.trim();
-        html += '<div class="success-check-item"><div class="success-check-icon done">' + checkSvg + '</div><span class="success-check-text done">' + year + ' ' + make + ' ' + model + ' added to your garage</span></div>';
-      }
       checklist.innerHTML = html;
-      if (vehicleAdded) {
-        subtitle.textContent = 'Your provider account is live, your vehicle is in the garage, and your Jumpstart credit is ready. Log in and find your first job.';
-      } else {
-        subtitle.textContent = 'Your provider account is live and your Jumpstart credit is ready to use. Log in and submit your first bid.';
-      }
+      subtitle.textContent = 'Your provider account is live and your Jumpstart credit is ready to use. Log in and submit your first bid.';
     }
 
     document.addEventListener('keydown', function(e) {
@@ -2505,9 +2323,9 @@
       const emailInput = document.getElementById('input-email');
       if (emailInput) emailInput.value = formData.email;
 
-      // Jump straight to the phone step (data-step=2 in the DOM order:
-      // 0=name, 1=email, 2=phone). Name and email come from Facebook,
-      // password isn't needed for OAuth users.
+      // Jump straight to the phone step (DOM index 2: 0=name, 1=email,
+      // 2=phone). Name and email come from Facebook, password isn't needed
+      // for OAuth users.
       showStep(2);
     }
 
