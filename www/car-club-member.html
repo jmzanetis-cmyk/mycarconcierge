@@ -160,7 +160,7 @@
     .mobile-header { display: none; position: fixed; top: 0; left: 0; right: 0; height: 56px; background: var(--bg-elevated); border-bottom: 1px solid var(--border-subtle); z-index: 48; padding: 0 16px; align-items: center; gap: 12px; }
     .hamburger { background: none; border: none; color: var(--text-primary); cursor: pointer; padding: 8px; }
 
-    .club-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; }
+    .club-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 20px; justify-content: center; }
 
     .club-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); padding: 24px; transition: all 0.2s; }
     .club-card:hover { border-color: var(--border-medium); }
@@ -253,6 +253,7 @@
       display: grid;
       grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
       gap: 16px;
+      justify-content: center;
     }
     .store-product-card {
       background: var(--bg-card);

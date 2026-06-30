@@ -89,6 +89,7 @@
       grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 20px;
       margin-bottom: 60px;
+      justify-content: center;
     }
 
     .pack-card {
@@ -222,8 +223,11 @@
 
     .info-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 32px;
+    }
+    @media (max-width: 768px) {
+      .info-grid { grid-template-columns: 1fr; }
     }
 
     .info-item h3 {
