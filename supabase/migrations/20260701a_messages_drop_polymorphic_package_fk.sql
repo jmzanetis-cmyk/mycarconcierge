@@ -1,0 +1,62 @@
+-- ============================================================================
+-- 20260701a — Drop messages.package_id → maintenance_packages FK.
+--
+-- WHY
+--   public.messages.package_id is a POLYMORPHIC reference — by design it
+--   holds EITHER a maintenance_packages.id (legacy flow) OR a care_plans.id
+--   (new flow). The messages CR (4d242fd) and the relationship-gate RLS
+--   migration (20260625b) both rely on this dual-table semantic — see the
+--   RLS predicate which does EXISTS(care_plans) OR EXISTS(maintenance_packages).
+--
+--   A FK constraint `messages_package_id_fkey` references only
+--   maintenance_packages.id. It was added ad-hoc in Studio (no migration
+--   tracks it). Today it silently rejects every new-flow message because
+--   the care_plans UUID is not present in maintenance_packages — causing
+--   the production "insert_failed" surfaced during the messages smoke test.
+--
+-- SAFETY VERIFIED
+--   1. NOT IN MIGRATIONS — dropping it does not diverge from any tracked
+--      schema; fresh environments never create it in the first place.
+--   2. NO CODE RELIES ON IT — grep across netlify/functions/ and www/ found
+--      zero joins or PostgREST embeds that assume referential integrity
+--      between messages.package_id and maintenance_packages.
+--   3. CASCADE BEHAVIOUR — was used implicitly only by GDPR account
+--      deletion, which now deletes messages explicitly by sender_id AND
+--      recipient_id (account-deletion-core.js lines 197-202, shipped in
+--      commit 4d242fd). After dropping the FK, GDPR cleanup remains
+--      complete; test/seed scripts may need a manual messages delete step.
+--
+-- WHAT'S NOT BEING ADDED IN PLACE
+--   PostgreSQL CHECK constraints cannot contain subqueries, so a polymorphic
+--   "exists in care_plans OR maintenance_packages" guard cannot be expressed
+--   as a CHECK. A BEFORE-INSERT trigger could enforce it, but the
+--   application layer already enforces it twice over:
+--     - server: messages-send.js checkRelationship() runs the same EXISTS
+--       check before any insert
+--     - RLS: 20260625b_messages_rls_relationship_gate.sql (pending apply)
+--       enforces it at the row level via the WITH CHECK clause
+--   Adding a trigger would triple-enforce the same rule with no marginal
+--   safety. Drop the FK clean.
+--
+-- POST-APPLY VERIFICATION (run in Studio)
+--   1. Confirm the FK is gone:
+--        SELECT constraint_name
+--        FROM information_schema.table_constraints
+--        WHERE table_schema='public' AND table_name='messages'
+--          AND constraint_type='FOREIGN KEY';
+--      → no row with constraint_name = 'messages_package_id_fkey'
+--
+--   2. Re-run the smoke-test curl that was failing:
+--        curl -X POST .../api/messages/send  ... package_id=<a care_plans id>
+--      → expect HTTP 200, message row inserted
+--
+--   3. (Optional) Run the bucket-by-table query from the diagnostic report
+--      to see new-flow messages start landing without rejection.
+-- ============================================================================
+
+ALTER TABLE public.messages
+  DROP CONSTRAINT IF EXISTS messages_package_id_fkey;
+
+-- ============================================================================
+-- End of 20260701a_messages_drop_polymorphic_package_fk.sql
+-- ============================================================================
