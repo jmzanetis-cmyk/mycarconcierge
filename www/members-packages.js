@@ -1598,7 +1598,14 @@
         city: userProfile.city || null,
         state: userProfile.state || null,
         zip_code: userProfile.zip_code || null,
-        status: 'open'
+        status: 'open',
+        // Include value bounds only when the AI care-plan produced a numeric
+        // estimate. Non-AI submissions leave these NULL and are invisible to
+        // the auto-bid engine (auto-bid-engine-scheduled.js:39-40).
+        ...(_aiCarePlanResult?.estimated_min > 0 && {
+          value_min: _aiCarePlanResult.estimated_min,
+          value_max: _aiCarePlanResult.estimated_max || _aiCarePlanResult.estimated_min,
+        }),
         // bid_closes_at omitted — BEFORE INSERT trigger set_care_plan_closes_at sets +72h
       };
       const { error: carePlanError } = await supabaseClient.from('care_plans').insert(carePlanData);

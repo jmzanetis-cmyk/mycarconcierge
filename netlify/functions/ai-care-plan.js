@@ -5,7 +5,7 @@
 //
 // Uses Claude Haiku to parse a plain-language problem description into a
 // structured care plan ready for the member to review and submit:
-//   { service_type, urgency, title, detailed_description, estimated_cost_range, category }
+//   { service_type, urgency, title, detailed_description, estimated_cost_range, estimated_min, estimated_max, category }
 //
 // Auth: Bearer JWT (checked if present; open if absent so the form works
 // during onboarding before the user has a session token).
@@ -32,9 +32,13 @@ Respond with ONLY valid JSON (no prose, no markdown fences) matching this shape 
   "category": "One of: maintenance, manufacturer_service, accident_repair, performance, cosmetic, tires, diagnostics, electrical, other",
   "urgency": "One of: critical, high, medium, low",
   "detailed_description": "Professional description of the issue and recommended service (2-4 sentences)",
+  "estimated_min": <integer USD, lower bound of the price range — omit or null only if truly unquotable, e.g. "not sure what's wrong">,
+  "estimated_max": <integer USD, upper bound of the price range — must be >= estimated_min; omit or null only if estimated_min is null>,
   "estimated_cost_range": "e.g. $150–$350",
   "safety_note": "One-sentence safety note if urgency is critical or high, otherwise null"
 }
+
+If you provide estimated_min and estimated_max, they must be consistent with estimated_cost_range. Use whole-dollar integers; do not include cents.
 
 Urgency guide:
 - critical: safety issue (brakes, steering, suspension failure) — drive to shop immediately
@@ -53,6 +57,30 @@ function jsonResponse(status, body) {
     },
     body: JSON.stringify(body),
   };
+}
+
+// Fallback parser for estimated_cost_range strings when the AI didn't
+// populate estimated_min / estimated_max as structured fields. Handles
+// "$150–$350", "$150-$350", "$1,500 to $3,500", "$150" (single-point).
+// Returns { min: null, max: null } if nothing matches — the client then
+// omits value_min / value_max from the care_plans insert (auto-bid engine
+// skips those plans, same as behavior pre-fix).
+function parseEstRange(str) {
+  if (!str || typeof str !== 'string') return { min: null, max: null };
+  const range = str.match(/\$?\s*([\d,]+(?:\.\d+)?)\s*(?:[–\-—]|to)\s*\$?\s*([\d,]+(?:\.\d+)?)/i);
+  if (range) {
+    const min = Math.round(parseFloat(range[1].replace(/,/g, '')));
+    const max = Math.round(parseFloat(range[2].replace(/,/g, '')));
+    if (Number.isFinite(min) && Number.isFinite(max) && min > 0 && max >= min) {
+      return { min, max };
+    }
+  }
+  const single = str.match(/\$?\s*([\d,]+(?:\.\d+)?)\+?/);
+  if (single) {
+    const val = Math.round(parseFloat(single[1].replace(/,/g, '')));
+    if (Number.isFinite(val) && val > 0) return { min: val, max: val };
+  }
+  return { min: null, max: null };
 }
 
 exports.handler = async function (event) {
@@ -111,6 +139,23 @@ exports.handler = async function (event) {
   const urgency  = URGENCY_LEVELS.includes(parsed.urgency) ? parsed.urgency : 'medium';
   const category = CATEGORIES.includes(parsed.category)   ? parsed.category : 'other';
 
+  // Prefer the AI's structured numeric output; fall back to parsing the
+  // display string. Both null is acceptable — the client omits value_min /
+  // value_max from the care_plans insert in that case (auto-bid engine
+  // then skips those plans, same behavior as before this fix).
+  let estimated_min = null;
+  let estimated_max = null;
+  const rawMin = Number.isFinite(parsed.estimated_min) ? Math.round(parsed.estimated_min) : null;
+  const rawMax = Number.isFinite(parsed.estimated_max) ? Math.round(parsed.estimated_max) : null;
+  if (rawMin != null && rawMin > 0 && rawMax != null && rawMax >= rawMin) {
+    estimated_min = rawMin;
+    estimated_max = rawMax;
+  } else {
+    const parsedRange = parseEstRange(parsed.estimated_cost_range);
+    estimated_min = parsedRange.min;
+    estimated_max = parsedRange.max;
+  }
+
   return jsonResponse(200, {
     success:     true,
     vehicle_id:  vehicle_id || null,
@@ -122,6 +167,8 @@ exports.handler = async function (event) {
       urgency,
       detailed_description: parsed.detailed_description || '',
       estimated_cost_range: parsed.estimated_cost_range || null,
+      estimated_min,
+      estimated_max,
       safety_note:          urgency === 'critical' || urgency === 'high' ? (parsed.safety_note || null) : null,
     },
   });
