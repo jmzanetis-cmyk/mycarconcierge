@@ -26,6 +26,7 @@ function renderMCCFooter() {
           </ul>
         </div>
 
+        <!-- DRIVER-PHASE-OUT: restore when driver side launches
         <div class="footer-section">
           <h4>For Rideshare Drivers</h4>
           <ul>
@@ -34,6 +35,7 @@ function renderMCCFooter() {
             <li><a href="/rideshare.html#maintenance">Maintenance Tips</a></li>
           </ul>
         </div>
+        -->
 
         <div class="footer-section">
           <h4>Company</h4>
