@@ -3076,6 +3076,7 @@ function openPackageModal() {
   }
   document.getElementById('package-modal').classList.add('active');
   if (typeof resetAiAssistant === 'function') resetAiAssistant();
+  if (typeof resetBudgetPicker === 'function') resetBudgetPicker();
   document.getElementById('p-title').value = '';
   document.getElementById('p-description').value = '';
   document.getElementById('p-category').value = 'maintenance';

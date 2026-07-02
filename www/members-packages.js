@@ -1319,6 +1319,43 @@
 
     // ── AI Care Plan (care-plans section) ─────────────────────────────────────
     let _aiCarePlanResult = null;
+    // Budget band picker state — mirrors selection in the create-care-plan
+    // modal. Defaults to 'estimate' (the middle preset). Only meaningful
+    // when _aiCarePlanResult has numeric estimates; otherwise savePackage
+    // falls through to the manual inputs.
+    let _selectedBudgetBand = 'estimate';
+
+    function selectBudgetBand(band) {
+      _selectedBudgetBand = band;
+      const btns = document.querySelectorAll('#p-budget-bands .mcc-budget-band-btn');
+      btns.forEach(b => b.classList.toggle('selected', b.dataset.band === band));
+      // Manual inputs appear alongside the bands only when "Set my own" is
+      // active. Any preset re-hides them (values stay in the DOM in case
+      // the member switches back).
+      const manual = document.getElementById('p-budget-manual');
+      if (manual) manual.style.display = (band === 'custom') ? 'block' : 'none';
+    }
+    window.selectBudgetBand = selectBudgetBand;
+
+    // Reset the budget picker to the clean default state. Called from
+    // openPackageModal (members-core.js) so every fresh modal open starts
+    // fresh — bands hidden, manual inputs shown, prior values cleared.
+    // Prevents an old AI job's numbers from persisting onto a new
+    // non-AI submission.
+    function resetBudgetPicker() {
+      _selectedBudgetBand = 'estimate';
+      const bandsEl  = document.getElementById('p-budget-bands');
+      const manualEl = document.getElementById('p-budget-manual');
+      if (bandsEl)  bandsEl.style.display  = 'none';
+      if (manualEl) manualEl.style.display = 'block';
+      const minEl = document.getElementById('p-budget-min');
+      const maxEl = document.getElementById('p-budget-max');
+      if (minEl) minEl.value = '';
+      if (maxEl) maxEl.value = '';
+      document.querySelectorAll('#p-budget-bands .mcc-budget-band-btn')
+        .forEach(b => b.classList.toggle('selected', b.dataset.band === 'estimate'));
+    }
+    window.resetBudgetPicker = resetBudgetPicker;
 
     function toggleAiCarePlanPanel() {
       const body = document.getElementById('ai-care-plan-body');
@@ -1405,6 +1442,37 @@
           const match = Array.from(catEl.options).find(o => o.value === cp.category);
           if (match) catEl.value = cp.category;
         }
+
+        // Budget picker: if AI produced a numeric range, populate the band
+        // labels + AI-estimate display and switch to band mode. Else fall
+        // back to the manual inputs (default HTML state).
+        const bandsEl  = document.getElementById('p-budget-bands');
+        const manualEl = document.getElementById('p-budget-manual');
+        const aiEstEl  = document.getElementById('p-budget-ai-estimate');
+        const hasNumericEstimate = cp.estimated_min > 0 && cp.estimated_max > 0;
+        if (bandsEl && manualEl && hasNumericEstimate) {
+          const eMin = Math.round(cp.estimated_min);
+          const eMax = Math.round(cp.estimated_max);
+          const consMin = Math.round(0.85 * eMin);
+          const premMax = Math.round(1.3 * eMax);
+          const label = (lo, hi) => `$${lo}–$${hi}`;
+          const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+          if (aiEstEl) aiEstEl.textContent = label(eMin, eMax);
+          setText('p-budget-band-conservative-range', label(consMin, eMin));
+          setText('p-budget-band-estimate-range',     label(eMin, eMax));
+          setText('p-budget-band-premium-range',      label(eMax, premMax));
+          bandsEl.style.display  = 'block';
+          manualEl.style.display = 'none';
+          _selectedBudgetBand = 'estimate';
+          document.querySelectorAll('#p-budget-bands .mcc-budget-band-btn')
+            .forEach(b => b.classList.toggle('selected', b.dataset.band === 'estimate'));
+        } else if (bandsEl && manualEl) {
+          // AI ran but returned no numeric estimate — show manual inputs.
+          bandsEl.style.display  = 'none';
+          manualEl.style.display = 'block';
+          _selectedBudgetBand = 'custom';
+        }
+
         // Collapse the care plan panel
         const body = document.getElementById('ai-care-plan-body');
         const chevron = document.getElementById('ai-care-plan-chevron');
@@ -1584,6 +1652,48 @@
       // orphaned. The maintenance_packages write follows as a legacy bridge for the
       // 15+ surfaces (admin, crowd-fund, splits, receipts, community board, etc.) that
       // still read it.
+
+      // Resolve value_min / value_max for the care_plans insert. Source of
+      // truth is the SELECTED BAND (when AI produced a numeric estimate AND
+      // the member picked a preset) OR the manual inputs (when the member
+      // chose "Set my own" or the AI didn't run). _aiCarePlanResult itself
+      // is never read directly for the DB value — only for the band deltas.
+      //
+      // Manual inputs are strict: BOTH must be filled and valid (max >= min > 0)
+      // or both go NULL (auto-bid skips; safe fallback).
+      let memberValueMin = null;
+      let memberValueMax = null;
+      const hasAiRange = _aiCarePlanResult?.estimated_min > 0 && _aiCarePlanResult?.estimated_max > 0;
+
+      if (hasAiRange && _selectedBudgetBand && _selectedBudgetBand !== 'custom') {
+        const eMin = Math.round(_aiCarePlanResult.estimated_min);
+        const eMax = Math.round(_aiCarePlanResult.estimated_max);
+        if (_selectedBudgetBand === 'conservative') {
+          memberValueMin = Math.round(0.85 * eMin);
+          memberValueMax = eMin;
+        } else if (_selectedBudgetBand === 'estimate') {
+          memberValueMin = eMin;
+          memberValueMax = eMax;
+        } else if (_selectedBudgetBand === 'premium') {
+          memberValueMin = eMax;
+          memberValueMax = Math.round(1.3 * eMax);
+        }
+      } else {
+        // Manual inputs path — either "Set my own" is selected or no AI ran.
+        // Strict: both must be filled and valid, else both NULL.
+        const bMinRaw = document.getElementById('p-budget-min')?.value.trim() || '';
+        const bMaxRaw = document.getElementById('p-budget-max')?.value.trim() || '';
+        const bMinNum = bMinRaw ? Math.round(parseFloat(bMinRaw)) : null;
+        const bMaxNum = bMaxRaw ? Math.round(parseFloat(bMaxRaw)) : null;
+        const bMinOk  = Number.isFinite(bMinNum) && bMinNum > 0;
+        const bMaxOk  = Number.isFinite(bMaxNum) && bMaxNum > 0;
+        if (bMinOk && bMaxOk && bMaxNum >= bMinNum) {
+          memberValueMin = bMinNum;
+          memberValueMax = bMaxNum;
+        }
+        // Any other case (only one filled, both blank, backwards, ≤ 0) → both null → NULL insert
+      }
+
       const carePlanData = {
         member_id: currentUser.id,
         vehicle_id: vehicleId || null,
@@ -1599,12 +1709,11 @@
         state: userProfile.state || null,
         zip_code: userProfile.zip_code || null,
         status: 'open',
-        // Include value bounds only when the AI care-plan produced a numeric
-        // estimate. Non-AI submissions leave these NULL and are invisible to
-        // the auto-bid engine (auto-bid-engine-scheduled.js:39-40).
-        ...(_aiCarePlanResult?.estimated_min > 0 && {
-          value_min: _aiCarePlanResult.estimated_min,
-          value_max: _aiCarePlanResult.estimated_max || _aiCarePlanResult.estimated_min,
+        // Value bounds come from the budget picker resolution above
+        // (band-derived or manual). NULL means auto-bid skips the plan.
+        ...(memberValueMin !== null && {
+          value_min: memberValueMin,
+          value_max: memberValueMax,
         }),
         // bid_closes_at omitted — BEFORE INSERT trigger set_care_plan_closes_at sets +72h
       };
