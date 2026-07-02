@@ -82,8 +82,8 @@ function renderMCCFooter() {
             </svg>
           </a>
         </div>
-        <p class="footer-business-info">Zanetis Holdings LLC &middot; Flemington, NJ &middot; Founded 2025 &middot; <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a></p>
-        <p class="footer-copyright">Copyright &copy; ${new Date().getFullYear()} Zanetis Holdings LLC. All rights reserved.</p>
+        <p class="footer-business-info">Zanetis Holdings LLC &middot; Founded 2025 &middot; <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a></p>
+        <p class="footer-copyright">Copyright &copy; ${new Date().getFullYear()} My Car Concierge. All rights reserved.</p>
       </div>
     </div>
   `;
