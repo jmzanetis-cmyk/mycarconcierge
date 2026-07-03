@@ -38,37 +38,22 @@ class ProviderOnboarding {
     // price everywhere, update globalThis.MCC_BGC_PRICING.display in bgc-pricing.js.
     const PRICE = (globalThis.MCC_BGC_PRICING && globalThis.MCC_BGC_PRICING.display) || '$70';
     const SHIELD = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/><path d="M9 12l2 2 4-4"/></svg>';
-    const TEAM = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>';
     const DOC = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>';
-    const CHECK = '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#4CAF50" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>';
 
     if (isEs) {
       return [
         {
           title: 'Obtén la insignia MCC Verificado',
           icon: SHIELD,
-          content: 'La insignia MCC Verificado aparece en tu ficha y en tu perfil de Car Club cuando al menos el 90 % de tus empleados con contacto con clientes tiene una verificación de antecedentes vigente. Las verificaciones son válidas por 12 meses.',
-          detail: 'Qué se investiga: Antecedentes penales nacionales \u00B7 Antecedentes penales del condado \u00B7 Registro de delincuentes sexuales \u00B7 Verificación de identidad. Cuánto cuesta: ' + PRICE + ' por empleado \u00B7 Resultados en 1 a 3 días hábiles.'
+          content: 'La insignia MCC Verificado aparece en tu ficha y en tu perfil de Car Club cuando al menos el 90 % de tus empleados con contacto con clientes tiene una verificación de antecedentes vigente. Las verificaciones son válidas por 12 meses, y los resultados se actualizan automáticamente conforme tu equipo las completa.',
+          detail: 'Qué se investiga: Antecedentes penales nacionales · Antecedentes penales del condado · Registro de delincuentes sexuales · Verificación de identidad. Cuánto cuesta: ' + PRICE + ' por empleado · Resultados en 1 a 3 días hábiles.'
         },
         {
-          title: 'Agrega a tu equipo',
-          icon: TEAM,
-          content: 'Agrega a cada empleado con contacto con clientes que vaya a trabajar directamente con clientes de MCC. El personal administrativo que no interactúa con clientes puede excluirse.',
-          detail: 'Necesitarás el nombre completo, fecha de nacimiento, correo electrónico y domicilio actual de cada empleado. También necesitarás su consentimiento (nosotros te proporcionamos el formulario).',
-          action: { label: 'Agregar empleados en el panel', section: 'compliance' }
-        },
-        {
-          title: 'Consentimiento del empleado',
+          title: 'Consentimiento del empleado y verificación externa',
           icon: DOC,
           content: 'Las verificaciones de antecedentes requieren el consentimiento por escrito de cada empleado conforme a la Ley de Informes Crediticios Justos (FCRA). Enviaremos a cada empleado un formulario de consentimiento seguro por correo electrónico.',
-          detail: 'Al continuar, confirmas que tienes autorización para enviar verificaciones de antecedentes en nombre de los empleados listados.'
-        },
-        {
-          title: 'Estás a un paso de la Verificación',
-          icon: CHECK,
-          content: 'Cada empleado recibirá un formulario de consentimiento por correo electrónico. Una vez confirmado el consentimiento y completada la verificación, los resultados se actualizan automáticamente. Cuando el 90 % de tu equipo esté autorizado, tu insignia Verificado se activará.',
-          detail: 'Recibirás un correo electrónico cuando tu insignia esté activa. La información de verificación de antecedentes es proporcionada por una agencia externa de informes al consumidor. My Car Concierge no realiza verificaciones de antecedentes directamente.',
-          action: { label: 'Ir al panel', section: 'compliance' }
+          detail: 'Al continuar, confirmas que tienes autorización para enviar verificaciones de antecedentes en nombre de los empleados listados. La información de verificación de antecedentes es proporcionada por una agencia externa de informes al consumidor. My Car Concierge no realiza verificaciones de antecedentes directamente.',
+          action: { label: 'Agregar empleados en el panel', section: 'compliance' }
         }
       ];
     }
@@ -77,28 +62,15 @@ class ProviderOnboarding {
       {
         title: 'Get MCC Verified',
         icon: SHIELD,
-        content: 'The MCC Verified badge appears on your listing and Car Club profile when at least 90% of your customer-facing employees have a current background check on file. Checks are valid for 12 months.',
-        detail: 'What\u2019s screened: National criminal records \u00B7 County-level records \u00B7 Sex offender registry \u00B7 Identity verification. What it costs: ' + PRICE + ' per employee \u00B7 Results in 1\u20133 business days.'
+        content: 'The MCC Verified badge appears on your listing and Car Club profile when at least 90% of your customer-facing employees have a current background check on file. Checks are valid for 12 months, and results update automatically as your team completes them.',
+        detail: 'What’s screened: National criminal records · County-level records · Sex offender registry · Identity verification. What it costs: ' + PRICE + ' per employee · Results in 1–3 business days.'
       },
       {
-        title: 'Add your team',
-        icon: TEAM,
-        content: 'Add each customer-facing employee who will be working directly with MCC customers. Back-office staff who don\u2019t interact with customers can be excluded.',
-        detail: 'You\u2019ll need each employee\u2019s full name, date of birth, email, and current address. You\u2019ll also need their consent (we provide the form).',
-        action: { label: 'Add Employees in Dashboard', section: 'compliance' }
-      },
-      {
-        title: 'Employee consent',
+        title: 'Employee consent & third-party screening',
         icon: DOC,
-        content: 'Background checks require each employee\u2019s written consent under the Fair Credit Reporting Act (FCRA). We\u2019ll send each employee a secure consent form via email.',
-        detail: 'By proceeding, you confirm that you have authorization to submit background checks on behalf of the listed employees.'
-      },
-      {
-        title: 'You\u2019re on your way to Verified',
-        icon: CHECK,
-        content: 'Each employee will receive a consent form via email. Once consent is confirmed and the check completes, results update automatically. When 90% of your team is cleared, your Verified badge goes live.',
-        detail: 'You\u2019ll get an email when your badge is active. Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.',
-        action: { label: 'Go to Dashboard', section: 'compliance' }
+        content: 'Background checks require each employee’s written consent under the Fair Credit Reporting Act (FCRA). We’ll send each employee a secure consent form via email.',
+        detail: 'By proceeding, you confirm that you have authorization to submit background checks on behalf of the listed employees. Background check information is provided by a third-party consumer reporting agency. My Car Concierge does not conduct background checks directly.',
+        action: { label: 'Add Employees in Dashboard', section: 'compliance' }
       }
     ];
   }
@@ -131,24 +103,17 @@ class ProviderOnboarding {
         detail: 'Respond quickly and competitively. Owners choose based on price, reviews, and response time.'
       },
       {
-        title: 'Payments & Escrow',
+        title: 'How You Get Paid',
         icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>',
-        content: 'Payments are held securely in escrow until the job is completed. This protects both you and the customer.',
-        detail: 'Once the customer confirms the work is done, the full payment is released to your account. There are no platform fees.'
-      },
-      {
-        title: 'Build Your Car Club',
-        icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/><path d="M4 22h16"/><path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/><path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/><path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/></svg>',
-        content: 'Your customers stay YOUR customers. Create a Car Club loyalty program — set up punch cards, reward repeat visits, and give customers a reason to keep coming back to you.',
-        detail: 'Members auto-join your club on their first job. You also earn 10 free bids every time a referred customer books with you. It\'s retention built right in.',
-        action: { label: 'Set Up Your Car Club', section: 'car-club' }
+        content: 'When a customer accepts your bid, their card is authorized for the full amount. Once they confirm the work is complete, we capture the payment and transfer it to your connected Stripe account.',
+        detail: 'Your payout is the accepted bid amount minus MCC’s service fee and standard Stripe processing fees. Fee details are in your provider agreement.'
       },
       // MCC Verified onboarding screens — bilingual (EN / ES).
       ...this._bgcSteps(),
       {
         title: 'You\'re All Set!',
         icon: '<svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>',
-        content: 'Your account is ready. Complete your profile, set up your Car Club, and start building your reputation by completing jobs and earning great reviews!',
+        content: 'Your account is ready. Complete your profile and start building your reputation by completing jobs and earning great reviews!',
         detail: 'Need help? Use the chat widget in the bottom right corner anytime. We\'re here to support your success.'
       }
     ];
