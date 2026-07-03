@@ -60,6 +60,27 @@
   display: block;
 }
 
+/* Fit the wordmark lockup into the 260-px dashboard sidebar without clipping.
+   The Inter-weight-split wordmark (see commit 6399a13) renders wider than the
+   previous Fraunces treatment and clipped the glove mark against the sidebar's
+   right edge. Wider elsewhere (login, marketing, blog) — sidebar-scoped only. */
+.sidebar .mcc-logo      { padding: 6px 10px; gap: 6px; }
+.sidebar .mcc-logo-word { font-size: 1.05rem; }
+.sidebar .mcc-logo-mark { height: 18px; }
+
+/* Shared sidebar logo row on member/provider dashboards. Wraps .mcc-logo +
+   optional sibling (theme-toggle) in a flex row that WRAPS instead of overlapping
+   when the row is too narrow. Previously the two files used inline
+   "justify-content: space-between" which forced the theme-toggle to overlap the
+   logo's glove SVG when the two items exceeded the ~220-px sidebar row budget. */
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 0 8px 16px;
+}
+
 /* Hero variant: larger lockup for landing-page hero placements
    (founders, member-founder, provider-pilot, service-credits, founder-dashboard). */
 .mcc-logo--hero {

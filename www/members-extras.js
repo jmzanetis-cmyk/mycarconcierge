@@ -1666,7 +1666,7 @@
         // each path (1-hour expiry) before rendering. Promise.all keeps it
         // one async batch per evidence row; failed signs become null and the
         // tile is skipped rather than crashing the timeline.
-        const timeline = await Promise.all(evidence.map(async (e) => {
+        const timeline = (await Promise.all(evidence.map(async (e) => {
           const typeInfo = memberEvidenceTypeLabels[e.type] || { label: e.type, icon: mccIcon('camera', 16), color: 'var(--text-muted)' };
           const photoPaths = (e.photos || []).slice(0, 4);
           const signedUrls = await Promise.all(photoPaths.map(async (p) => {
@@ -1714,7 +1714,7 @@
               </div>
             </div>
           `;
-        }).join('');
+        }))).join('');
 
         container.innerHTML = timeline || '<div style="color:var(--text-muted);font-size:0.9rem;">No evidence captured yet.</div>';
       } catch (err) {

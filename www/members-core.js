@@ -1603,16 +1603,35 @@ async function loadPackages() {
 
 async function loadConversations() {
   try {
-    // Get all messages where user is sender or recipient
+    // Get all messages where user is sender or recipient.
+    // Note: the messages↔maintenance_packages FK is not exposed via PostgREST's
+    // schema cache, so we can't use a nested select. Fetch messages first, then
+    // fetch package titles in a second query keyed on package_id, and merge.
+    // Query correction only — no schema change.
     const { data: messages, error } = await supabaseClient
       .from('messages')
-      .select('*, maintenance_packages(id, title)')
+      .select('*')
       .or(`sender_id.eq.${currentUser.id},recipient_id.eq.${currentUser.id}`)
       .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error loading conversations:', error);
       return;
+    }
+
+    // Second query: package titles for the packages referenced in these messages.
+    if (messages && messages.length > 0) {
+      const packageIds = [...new Set(messages.map(m => m.package_id).filter(Boolean))];
+      if (packageIds.length > 0) {
+        const { data: pkgs } = await supabaseClient
+          .from('maintenance_packages')
+          .select('id, title')
+          .in('id', packageIds);
+        const pkgById = new Map((pkgs || []).map(p => [p.id, p]));
+        for (const msg of messages) {
+          msg.maintenance_packages = pkgById.get(msg.package_id);
+        }
+      }
     }
 
     // Group by package_id and get the other party.

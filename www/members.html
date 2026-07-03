@@ -1071,7 +1071,7 @@
   <div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleSidebar()" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:40;"></div>
   <aside class="sidebar hide-on-mobile" id="sidebar">
     <div class="mobile-close" id="mobile-close-btn" onclick="toggleSidebar()" style="display:none;position:absolute;top:16px;right:16px;width:36px;height:36px;background:var(--bg-elevated);border:1px solid var(--border-subtle);border-radius:50%;cursor:pointer;font-size:1.2rem;align-items:center;justify-content:center;"><svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 6 6 18"/><path d="m6 6 12 12"/></svg></div>
-    <div style="display:flex;align-items:center;justify-content:space-between;padding:0 8px 16px;">
+    <div class="sidebar-brand-row">
       <a href="index.html" class="mcc-logo" aria-label="MyCarConcierge home">
   <span class="mcc-logo-word"><span class="mcc-logo-word-light">MyCar</span><span class="mcc-logo-word-bold">Concierge</span></span>
   <svg class="mcc-logo-mark" viewBox="284 452 797 374" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -1244,6 +1244,8 @@
       <!-- Transport Tracking -->
       <div id="transport-tracking-section" style="margin-bottom:24px;display:none;"></div>
 
+      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains nested HTML comments and an inner <script> populator. Card + applyMemFund, dismissDriverFundCard, memDonate are driver-fund-scoped (grepped: no other callers). Restore by removing the <template>/</template> boundary lines and this marker. -->
+      <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Driver Launch Fundraising Card — web only; not shown in native app (Guideline 3.1.1) -->
       <div id="driver-fund-card" class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(201,162,39,0.07),rgba(26,32,42,0.95));border:1px solid rgba(201,162,39,0.25);position:relative;">
         <button onclick="dismissDriverFundCard()" title="Dismiss" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:1.2rem;cursor:pointer;line-height:1;padding:4px 8px;">×</button>
@@ -1348,6 +1350,8 @@
         }
         } // end: web-only block
       </script>
+      </template>
+      <!-- /DRIVER-PHASE-OUT -->
 
       <!-- Onboarding Checklist - Shows for new users -->
       <div id="onboarding-checklist" class="card onboarding-card" style="margin-bottom: 32px; display: none;">
