@@ -2541,6 +2541,8 @@
       .blog-card-home:hover { transform: translateY(-4px); border-color: var(--accent-gold) !important; }
     </style>
 
+    <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains inner HTML comments that would break a <!-- ... --> wrap. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
+    <template data-driver-phase-out="restore-when-driver-launches">
     <!-- Driver Launch Fundraising Section -->
     <section id="driver-fund-section" style="padding:72px 0;background:var(--bg-deep,#12161c);">
       <div class="container" style="max-width:860px;margin:0 auto;padding:0 24px;">
@@ -2600,6 +2602,8 @@
         </div>
       </div>
     </section>
+    </template>
+    <!-- /DRIVER-PHASE-OUT -->
     <script>
       (function() {
         var DEFAULT_MILESTONES = [

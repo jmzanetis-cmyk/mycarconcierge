@@ -649,12 +649,15 @@
               <div style="font-size:0.85rem;color:var(--accent-green);">${mccIcon('check', 16)} Appointment confirmed! See you on ${date}.</div>
             ` : ''}
           </div>
+          ${''/* DRIVER-PHASE-OUT: restore when driver side launches — "Request a Driver" button on appointment card. openConciergeRequestModal() intentionally NOT commented (shared with member-side "Request Vehicle Pickup" quick actions on members.html). Restore by flipping `false ?` back to unconditional. */}
+          ${false ? `
           <div style="margin-top:12px;padding-top:12px;border-top:1px dashed ${status.color}40;">
             <button class="btn btn-secondary btn-sm" onclick="window.openConciergeRequestModal('${packageId}','${appointment.id}')">
               ${mccIcon('car', 14)} Request a Driver
             </button>
             <div id="concierge-status-${packageId}" style="margin-top:8px;"></div>
           </div>
+          ` : ''}
         </div>
       `;
       // Refresh any existing concierge job status badge for this appointment.

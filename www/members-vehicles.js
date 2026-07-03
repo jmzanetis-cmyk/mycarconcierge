@@ -1325,6 +1325,8 @@
             <div style="flex:1;"><strong>VIN:</strong> <span style="font-family: monospace;">${vehicle.vin || 'Not provided'}</span></div>
           </div>
 
+          ${''/* DRIVER-PHASE-OUT: restore when driver side launches — "Request a Driver" button. openConciergeRequestModal() intentionally NOT commented (shared with member-side "Request Vehicle Pickup" quick actions on members.html). Restore by flipping `false ?` back to unconditional (or removing the ternary wrapper). */}
+          ${false ? `
           <!-- Task #369: vehicle-detail concierge entry point -->
           <div style="margin-top:16px;padding:14px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
             <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
@@ -1336,6 +1338,7 @@
             </div>
             <div id="concierge-status-vehicle-${vehicleId}" style="margin-top:10px;"></div>
           </div>
+          ` : ''}
 
           <div style="margin-top:24px;padding:16px;background:var(--bg-input);border-radius:var(--radius-lg);border:1px solid var(--border-subtle);">
             <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;">

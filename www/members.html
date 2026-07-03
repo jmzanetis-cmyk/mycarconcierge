@@ -1104,7 +1104,9 @@
     <div class="nav-item" data-section="shop" onclick="showSection('shop')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></svg></span> Shop</span></div>
     <div class="nav-item" data-section="order-history" onclick="showSection('order-history')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span> Order History</span></div>
     <div class="nav-item" data-section="cost-estimator" onclick="showSection('cost-estimator')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg></span> Cost Estimator</span></div>
+    <!-- DRIVER-PHASE-OUT: restore when driver side launches
     <div class="nav-item" onclick="window.open('/rideshare.html#calculator', '_blank')" style="cursor:pointer;"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></span> Rideshare Calculator</span></div>
+    -->
     <div class="nav-item" data-section="upsells" onclick="showSection('upsells')"><span data-i18n="member.additionalWork"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Additional Work</span> <span class="nav-badge" id="upsell-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="messages" onclick="showSection('messages')"><span data-i18n="nav.messages"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg></span> Messages</span> <span class="nav-badge" id="message-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="history" onclick="showSection('history')"><span data-i18n="member.serviceHistory"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span> Service History</span></div>
@@ -1450,6 +1452,8 @@
         </div>
       </div>
 
+      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains an inner HTML comment. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
+      <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Rideshare Calculator Promo Card -->
       <div class="card" style="background: linear-gradient(135deg, rgba(74,200,140,0.1), rgba(74,124,255,0.08)); border: 1px solid rgba(74,200,140,0.3); margin-bottom: 24px;">
         <div style="display: flex; align-items: center; gap: 20px; flex-wrap: wrap;">
@@ -1464,6 +1468,8 @@
           </button>
         </div>
       </div>
+      </template>
+      <!-- /DRIVER-PHASE-OUT -->
 
       <div class="card">
         <div class="card-header">
@@ -3495,6 +3501,8 @@
         </div>
       </div>
 
+      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains an inner HTML comment. downloadReferralQr() is shared with the provider referral card above; only the driver card is phased out. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
+      <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Recruit a Driver QR -->
       <div class="card" style="margin-top:18px;background:linear-gradient(135deg,rgba(56,189,248,0.08),rgba(56,189,248,0.03));border:1px solid rgba(56,189,248,0.3);">
         <div class="card-header" style="border-bottom:none;margin-bottom:0;">
@@ -3531,6 +3539,8 @@
           </div>
         </div>
       </div>
+      </template>
+      <!-- /DRIVER-PHASE-OUT -->
 
       <!-- How it Works -->
       <div class="card" style="margin-top:24px;">

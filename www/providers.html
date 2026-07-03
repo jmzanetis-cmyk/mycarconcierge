@@ -1106,6 +1106,8 @@
         </div>
       </div>
 
+      <!-- DRIVER-PHASE-OUT: restore when driver side launches — wrapped in <template> because block contains inner HTML comments. Restore by removing the <template>/</template> boundary lines and this marker comment. -->
+      <template data-driver-phase-out="restore-when-driver-launches">
       <!-- Driver Launch Fundraising Card (provider-specific) -->
       <div id="prov-driver-fund-card" class="card" style="margin-bottom:24px;background:linear-gradient(135deg,rgba(56,189,248,0.07),rgba(26,32,42,0.95));border:1px solid rgba(56,189,248,0.2);position:relative;">
         <button onclick="dismissProvDriverFundCard()" title="Dismiss" style="position:absolute;top:12px;right:12px;background:none;border:none;color:var(--text-muted);font-size:var(--text-xl);cursor:pointer;line-height:1;padding:4px 8px;">×</button>
@@ -1138,6 +1140,8 @@
           </div>
         </div>
       </div>
+      </template>
+      <!-- /DRIVER-PHASE-OUT -->
       <script>
         (function() {
           if (localStorage.getItem('mcc_prov_driver_fund_dismissed') === '1') {
