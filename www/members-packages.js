@@ -3630,9 +3630,11 @@
             <button id="authorize-payment-btn-${pkg.id}" class="btn btn-primary" onclick="authorizeEscrowPayment('${pkg.id}', '${acceptedBid?.id}')" style="width:100%;margin-bottom:12px;" disabled aria-disabled="true">
               ${mccIcon('lock', 16)} Authorize Payment ($${amount.toFixed(2)})
             </button>
+            ${window._mccFlags?.split_payments_enabled ? `
             <button class="btn btn-secondary" onclick="openSplitPaymentModal('${pkg.id}', ${Math.round(amount * 100)})" style="width:100%;">
               ${mccIcon('users', 16)} Split Payment ($${amount.toFixed(2)})
             </button>
+            ` : ''}
           </div>
         </div>
         

@@ -954,6 +954,10 @@ function setupRealtimeSubscriptions() {
 async function loadCarClubCard() {
   const el = document.getElementById('car-club-card-content');
   if (!el) return;
+  // Feature gate: do not fire /api/car-club/my-club when car_club_programs_enabled is off.
+  // Fail-closed: if loadMccFlags is unavailable or the flag isn't true, skip the fetch.
+  if (typeof window.loadMccFlags === 'function') await window.loadMccFlags();
+  if (!window._mccFlags?.car_club_programs_enabled) return;
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     if (!session) return;
