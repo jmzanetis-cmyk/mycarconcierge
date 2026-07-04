@@ -28,6 +28,7 @@
 // POST   /api/car-clubs/:id/grants/:grantId/use                    — provider marks grant used
 const crypto = require('crypto');
 const { createClient } = require('@supabase/supabase-js');
+const { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
 
 function supabase() {
   return createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, { auth: { persistSession: false } });
@@ -75,6 +76,115 @@ async function listClubs(sb, user, query) {
   const joined = new Set((memberships || []).map(m => m.club_id));
 
   return json(200, { clubs: (clubs || []).map(c => ({ ...c, is_member: joined.has(c.id) })) });
+}
+
+// GET /api/car-club/my-clubs
+// Returns the clubs the current member is actively a member of, with basic
+// club summary + rolled-up point balances (SUM(delta_points) from
+// club_points_ledger). Feature-gated on car_club_programs_enabled.
+//
+// Fail-closed behavior: flag off → 200 with { clubs: [], memberships: [] }.
+// Deliberately 200-empty (silent hide) rather than 403 feature_disabled —
+// this is a hidden pre-launch feature. A 403 would surface as a visible error
+// to any UI code path that reached this endpoint; 200-empty renders nothing.
+// Differs from split-guest-confirm.js:53 (which uses 403) by design.
+//
+// Response shape (dual keys — most call sites read data.clubs, but
+// car-club-member.html:1405 reads clubsData.memberships; identical array
+// under both keys so both work without a client change):
+//   { clubs: [<club summary + balances>...], memberships: [<same array>...] }
+async function listMyClubs(sb, user) {
+  // 1. Feature gate — fail closed. isFeatureEnabledForUser returns false on
+  //    any DB error or missing platform_settings row.
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(200, { clubs: [], memberships: [] });
+
+  // 2. Active memberships for this member.
+  const { data: memberships, error: mErr } = await sb
+    .from('club_memberships')
+    .select('club_id, joined_at')
+    .eq('member_id', user.id)
+    .eq('is_active', true);
+
+  if (mErr) return json(500, { error: 'Failed to load memberships' });
+  if (!memberships || memberships.length === 0) {
+    return json(200, { clubs: [], memberships: [] });
+  }
+
+  const clubIds = memberships.map(m => m.club_id);
+
+  // 3. Club summaries + ledger balances — independent queries, run in parallel.
+  const [clubsRes, ledgerRes] = await Promise.all([
+    sb.from('car_clubs')
+      .select('id, provider_id, name, description, logo_url, banner_url, welcome_message, is_active, vehicle_make, vehicle_model, region, member_count, theme_color, rules_text, points_enabled, coupons_enabled, comp_services_enabled, punch_card_enabled, created_at')
+      .in('id', clubIds)
+      .eq('is_active', true),
+    sb.from('club_points_ledger')
+      .select('club_id, delta_points, created_at')
+      .eq('member_id', user.id)
+      .in('club_id', clubIds),
+  ]);
+
+  if (clubsRes.error)  return json(500, { error: 'Failed to load clubs' });
+  if (ledgerRes.error) return json(500, { error: 'Failed to load balances' });
+
+  // 4. Roll up ledger per club: SUM(delta_points), MAX(created_at).
+  const rollup = new Map();
+  for (const row of (ledgerRes.data || [])) {
+    const cur = rollup.get(row.club_id) || { points_balance: 0, last_activity_at: null };
+    cur.points_balance += row.delta_points;
+    if (!cur.last_activity_at || row.created_at > cur.last_activity_at) {
+      cur.last_activity_at = row.created_at;
+    }
+    rollup.set(row.club_id, cur);
+  }
+
+  // 5. Assemble per-membership response. joined_at from club_memberships;
+  //    balance from ledger rollup. Progress-bar-specific fields
+  //    (reward_rule_id, punch_count, visit_count, total_spend) return null/0
+  //    for Slice 1 — proper reward-rule progress lands in a later slice.
+  const membershipByClub = new Map(memberships.map(m => [m.club_id, m]));
+
+  const result = (clubsRes.data || []).map(club => {
+    const roll = rollup.get(club.id) || { points_balance: 0, last_activity_at: null };
+    const membership = membershipByClub.get(club.id);
+    return {
+      club_id:               club.id,
+      provider_id:           club.provider_id,
+      name:                  club.name,
+      description:           club.description,
+      logo_url:              club.logo_url,
+      banner_url:            club.banner_url,
+      welcome_message:       club.welcome_message,
+      rules_text:            club.rules_text,
+      theme_color:           club.theme_color,
+      vehicle_make:          club.vehicle_make,
+      vehicle_model:         club.vehicle_model,
+      region:                club.region,
+      member_count:          club.member_count,
+      points_enabled:        club.points_enabled,
+      coupons_enabled:       club.coupons_enabled,
+      comp_services_enabled: club.comp_services_enabled,
+      punch_card_enabled:    club.punch_card_enabled,
+      joined_at:             membership ? membership.joined_at : null,
+      // Client at car-club-member.html:877-899 iterates `club.balances`.
+      // Slice 1: one aggregate balance per club. reward_rule_id is null so the
+      // client's `if (!b.reward_rule_id) return;` at line 880 skips
+      // progress-bar rendering — clean "no reward rules set up yet" fallback.
+      // last_activity_at populated so loadActivity() at line 1138 still shows
+      // generic points-earning activity items per club.
+      balances: [{
+        reward_rule_id:   null,
+        points_balance:   roll.points_balance,
+        last_activity_at: roll.last_activity_at,
+        punch_count:      0,
+        visit_count:      0,
+        total_spend:      0,
+      }],
+    };
+  });
+
+  return json(200, { clubs: result, memberships: result });
 }
 
 async function joinClub(sb, user, clubId) {
@@ -650,6 +760,10 @@ exports.handler = async (event) => {
 
   // GET /api/car-clubs/free-bids (also /api/car-club/free-bids via redirect)
   if (method === 'GET' && path === 'free-bids') return handleFreeBids(sb, auth.user);
+
+  // GET /api/car-club/my-clubs — Phase 1 membership foundation. Feature-gated
+  // on car_club_programs_enabled; returns 200-empty when off (silent hide).
+  if (method === 'GET' && path === 'my-clubs') return listMyClubs(sb, auth.user);
 
   // /api/car-clubs/:id/...
   const segments = path.split('/');
