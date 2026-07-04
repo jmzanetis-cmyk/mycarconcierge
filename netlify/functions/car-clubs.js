@@ -207,7 +207,18 @@ async function joinClub(sb, user, clubId) {
   return json(200, { success: true });
 }
 
-async function listMembers(sb, clubId) {
+async function listMembers(sb, user, clubId) {
+  // Slice 1 exposure audit (2026-07-04): pre-fix, this returned up to 100
+  // {member_id, joined_at, full_name} rows for any club to any valid bearer
+  // token. Service-role client bypasses RLS, so this handler check is the
+  // only gate. Caller must now be the club's provider or an active member.
+  const { data: club } = await sb.from('car_clubs').select('provider_id').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  const isProvider = club.provider_id === user.id;
+  const { data: membership } = await sb.from('club_memberships')
+    .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).maybeSingle();
+  if (!isProvider && !membership) return json(403, { error: 'Access denied' });
+
   const { data: members } = await sb.from('club_memberships')
     .select('id, member_id, joined_at, profiles!club_memberships_member_id_fkey(full_name)')
     .eq('club_id', clubId)
@@ -780,7 +791,7 @@ exports.handler = async (event) => {
 
   if (sub === 'members') {
     if (method === 'GET' && seg2 && seg3 === 'points') return getMemberPoints(sb, auth.user, clubId, seg2);
-    if (method === 'GET' && !seg2) return listMembers(sb, clubId);
+    if (method === 'GET' && !seg2) return listMembers(sb, auth.user, clubId);
   }
 
   if (sub === 'provider-benefits') {
