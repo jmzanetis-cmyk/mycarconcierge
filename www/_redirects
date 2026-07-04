@@ -244,6 +244,7 @@
 /api/auto-bid/* /.netlify/functions/auto-bid 200
 /api/car-clubs /.netlify/functions/car-clubs 200
 /api/car-clubs/* /.netlify/functions/car-clubs 200
+/api/car-club/* /.netlify/functions/car-clubs 200
 /api/car-club/free-bids /.netlify/functions/car-clubs 200
 
 # Feature: Member Founder earnings API
