@@ -225,6 +225,113 @@ async function listBrowse(sb, user) {
   });
 }
 
+// POST /api/car-club/join — top-level shortcut; clubId in body. Delegates to
+// joinClub() (the nested handler at :232) so dupe-guard / reactivate logic
+// stays single-sourced. Flag-gated: writes return 403 when off (mirrors
+// split-guest-confirm.js precedent; plan §3.3).
+async function joinFromBody(event, sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const clubId = body.club_id || body.clubId;
+  if (!clubId) return json(400, { error: 'club_id required' });
+  return joinClub(sb, user, clubId);
+}
+
+// POST /api/car-club/leave — set is_active=false on the caller's membership.
+// Never deletes (preserves ledger per plan §3.3). Flag-gated: 403 when off.
+// Decrements the club's cached member_count to mirror joinClub's increment.
+async function leaveClub(event, sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const clubId = body.club_id || body.clubId;
+  if (!clubId) return json(400, { error: 'club_id required' });
+
+  const { data: club } = await sb.from('car_clubs').select('id, member_count').eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+
+  const { data: existing } = await sb.from('club_memberships')
+    .select('id, is_active').eq('club_id', clubId).eq('member_id', user.id).maybeSingle();
+  if (!existing || !existing.is_active) return json(400, { error: 'Not a member' });
+
+  await sb.from('club_memberships').update({ is_active: false }).eq('id', existing.id);
+  // Denormalized-counter debt: this mirror-decrement mirrors joinClub's :338
+  // read-then-write increment. Non-atomic (racy under concurrent writes) and
+  // asymmetric with joinClub's reactivate path (which doesn't re-increment) so
+  // repeated leave/rejoin cycles drift member_count low over time. Acceptable
+  // for pilot (~10 members, cosmetic); tracked in plan post-pilot debt list.
+  await sb.from('car_clubs').update({ member_count: Math.max(0, (club.member_count || 0) - 1) }).eq('id', clubId);
+  return json(200, { success: true });
+}
+
+// GET /api/car-club/my-rewards — cross-club catalog of active rewards for
+// every active membership. Applies Q3 (suspension filter) at the car_clubs
+// step so a suspended club's rewards don't surface in a discovery-style feed.
+// Annotates each reward with the caller's point balance for that club plus
+// an `affordable` boolean so the client can render Redeem eligibility
+// without a second round-trip. Flag-gated 200-empty (matches my-clubs).
+async function listMyRewards(sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(200, { rewards: [] });
+
+  const { data: memberships } = await sb.from('club_memberships')
+    .select('club_id')
+    .eq('member_id', user.id)
+    .eq('is_active', true);
+  if (!memberships || memberships.length === 0) return json(200, { rewards: [] });
+  const clubIds = memberships.map(m => m.club_id);
+
+  // Q3: rewards are a discovery-style surface, so mirror /browse's active +
+  // non-suspended filter. Members of a suspended club still see their own
+  // membership via /my-clubs; they just can't discover new reward options
+  // while the club is suspended.
+  const { data: clubs } = await sb.from('car_clubs')
+    .select('id, name')
+    .in('id', clubIds)
+    .eq('is_active', true)
+    .eq('provider_suspended', false);
+  if (!clubs || clubs.length === 0) return json(200, { rewards: [] });
+  const activeClubIds = clubs.map(c => c.id);
+  const clubNameById = Object.fromEntries(clubs.map(c => [c.id, c.name]));
+
+  // D5 defers the store; D7 limits pilot rewards to service vouchers.
+  // club_reward_kind ENUM = ('merch', 'comp_service', 'other') per 20260703h:58.
+  // 'merch' is the store surface (Slice 5) — exclude explicitly during pilot.
+  // 'comp_service' + 'other' both flow through so admin classification decides.
+  // Remove this filter when Slice 5 store ships.
+  const { data: rewards } = await sb.from('club_rewards')
+    .select('id, club_id, kind, title, description, point_cost, image_url, inventory_qty, created_at')
+    .in('club_id', activeClubIds)
+    .eq('active', true)
+    .neq('kind', 'merch')
+    .order('created_at', { ascending: false });
+
+  // Point balance per club — sum(delta_points). Handler is service-role so
+  // RLS on club_points_ledger doesn't gate; caller-scoping via .eq(member_id)
+  // is the enforcement (defense-in-depth: 20260703h ledger_read policy scopes
+  // to member_id=auth.uid() OR is_club_provider for direct-from-browser reads).
+  const { data: ledger } = await sb.from('club_points_ledger')
+    .select('club_id, delta_points')
+    .eq('member_id', user.id)
+    .in('club_id', activeClubIds);
+  const balanceByClub = {};
+  for (const l of (ledger || [])) {
+    balanceByClub[l.club_id] = (balanceByClub[l.club_id] || 0) + l.delta_points;
+  }
+
+  return json(200, {
+    rewards: (rewards || []).map(r => ({
+      ...r,
+      club_name: clubNameById[r.club_id],
+      member_points_balance: balanceByClub[r.club_id] || 0,
+      affordable: (balanceByClub[r.club_id] || 0) >= r.point_cost,
+    })),
+  });
+}
+
 async function joinClub(sb, user, clubId) {
   const { data: club } = await sb.from('car_clubs').select('id, is_active, member_count').eq('id', clubId).single();
   if (!club) return json(404, { error: 'Club not found' });
@@ -801,6 +908,14 @@ exports.handler = async (event) => {
   // Diverges from listClubs at empty-path by filtering provider_suspended too
   // (Q2: suspension gates discovery, never existing-member visibility).
   if (method === 'GET' && path === 'browse') return listBrowse(sb, auth.user);
+
+  // Slice 1 top-level member routes. POSTs pass clubId in the body and
+  // delegate to the nested handlers (single source for dupe-guard / reactivate
+  // logic). All three are flag-gated: GET → 200-empty when off (silent hide),
+  // POST → 403 (writes can't silently succeed).
+  if (method === 'POST' && path === 'join')       return joinFromBody(event, sb, auth.user);
+  if (method === 'POST' && path === 'leave')      return leaveClub(event, sb, auth.user);
+  if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
 
   // /api/car-clubs/:id/...
   const segments = path.split('/');
