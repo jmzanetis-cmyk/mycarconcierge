@@ -2813,6 +2813,9 @@ function loadModuleForSection(section) {
       return loadModule('extras');
     case 'overview':
     case 'history':
+    case 'car-clubs':
+      // Static teaser section — Browse button navigates to /car-club-member.html;
+      // no dynamic module fetch needed inline.
       return Promise.resolve();
     default:
       console.error(`[Module] No module mapping for section: ${section}`);
@@ -3116,9 +3119,12 @@ function openPackageModal() {
   document.getElementById('p-oil-brand').value = '';
   
   
-  // Clear photos
+  // Clear photos — #package-photo-previews was removed from the modal markup in
+  // a prior pass; guard the reset so the modal-open reset flow doesn't throw
+  // (unguarded null.innerHTML halted every downstream reset after this line).
   pendingPackagePhotos = [];
-  document.getElementById('package-photo-previews').innerHTML = '';
+  const _packagePhotoPreviews = document.getElementById('package-photo-previews');
+  if (_packagePhotoPreviews) _packagePhotoPreviews.innerHTML = '';
   
   // Reset crowd-funded controls
   const crowdFundedCheckbox = document.getElementById('p-crowd-funded');
