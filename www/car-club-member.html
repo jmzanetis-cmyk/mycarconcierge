@@ -482,6 +482,8 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
       Activity
     </div>
+    <!-- SLICE-5-DEFER: notifications/store/my-orders — D5 defers program surfaces; handlers missing; restore when Slice 5 ships (plan §7). -->
+    <!--
     <div class="nav-item" onclick="showSection('notifications')">
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       Notifications
@@ -495,6 +497,7 @@
       <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
       My Orders
     </div>
+    -->
     <div class="sidebar-footer">
       <button class="theme-toggle-btn" onclick="toggleTheme()">
         <span class="theme-icon-dark">🔆</span>
@@ -581,10 +584,13 @@
         </div>
       </div>
       <div id="browse-content" style="display:none;">
+        <!-- SLICE-5-DEFER: /api/car-club/recommended handler missing (D5 defers); .catch fallback prevents error toast but section stays empty. Restore when Slice 5 ships (plan §7). -->
+        <!--
         <div id="recommended-section" class="recommended-section" style="display:none;">
           <h2 class="card-title" style="margin-bottom:16px;">Recommended For You</h2>
           <div class="club-grid" id="recommended-list"></div>
         </div>
+        -->
         <h2 class="card-title" style="margin-bottom:20px;">Browse Clubs</h2>
         <div class="club-grid" id="browse-list"></div>
         <div id="browse-empty" class="empty-state" style="display:none;">
@@ -909,7 +915,8 @@
               ${progressHtml || '<div style="font-size:var(--text-sm);color:var(--text-muted);margin-bottom:16px;">No reward rules set up yet</div>'}
               <div class="club-card-footer" style="display:flex;gap:8px;flex-wrap:wrap;">
                 <button class="btn btn-metallic btn--small" onclick="toggleClubPerks('${club.club_id}')">Perks &amp; Points</button>
-                <button class="btn btn--secondary btn--small" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>
+                ${''/* SLICE-5-DEFER: testimonials — /api/car-club/testimonials POST/GET handlers missing (D5 defers). Reversible: replace ${false ? ... : ''} with the button. */}
+                ${false ? `<button class="btn btn--secondary btn--small" onclick="toggleReviewForm('${club.club_id}')">Leave a Review</button>` : ''}
                 <button class="btn btn--danger btn--small" onclick="leaveClub('${club.club_id}', '${escHtml(club.name)}')">Leave Club</button>
               </div>
               <div id="perks-${club.club_id}" style="display:none;margin-top:12px;">

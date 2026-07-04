@@ -187,6 +187,44 @@ async function listMyClubs(sb, user) {
   return json(200, { clubs: result, memberships: result });
 }
 
+// GET /api/car-club/browse — Slice 1 discovery endpoint.
+// Returns active, non-suspended clubs; annotates each with is_member for the
+// caller so the client can decide "Join" vs. "Already a member". Feature-gated
+// on car_club_programs_enabled; 200-empty when off (silent hide), matching the
+// listMyClubs precedent. Column names verified against 20260703a_car_clubs_base.sql.
+async function listBrowse(sb, user) {
+  // 1. Feature gate — fail closed. isFeatureEnabledForUser returns false on
+  //    any DB error or missing platform_settings row.
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(200, { clubs: [] });
+
+  // 2. Active AND not-suspended clubs (Q2 branch A — public discovery layer).
+  //    Existing-member visibility (Q2 branch B) is handled by listMyClubs;
+  //    /browse is discovery-only.
+  const { data: clubs, error: cErr } = await sb.from('car_clubs')
+    .select('id, name, description, vehicle_make, vehicle_model, region, member_count, logo_url, banner_url, theme_color, welcome_message, rules_text, points_enabled, coupons_enabled, comp_services_enabled, punch_card_enabled, created_at, provider_id')
+    .eq('is_active', true)
+    .eq('provider_suspended', false)
+    .order('member_count', { ascending: false })
+    .limit(50);
+
+  if (cErr) return json(500, { error: 'Failed to load clubs' });
+  if (!clubs || clubs.length === 0) return json(200, { clubs: [] });
+
+  // 3. Annotate is_member for the caller — save the client a round-trip.
+  const clubIds = clubs.map(c => c.id);
+  const { data: memberships } = await sb.from('club_memberships')
+    .select('club_id')
+    .eq('member_id', user.id)
+    .eq('is_active', true)
+    .in('club_id', clubIds);
+  const joined = new Set((memberships || []).map(m => m.club_id));
+
+  return json(200, {
+    clubs: clubs.map(c => ({ ...c, is_member: joined.has(c.id) })),
+  });
+}
+
 async function joinClub(sb, user, clubId) {
   const { data: club } = await sb.from('car_clubs').select('id, is_active, member_count').eq('id', clubId).single();
   if (!club) return json(404, { error: 'Club not found' });
@@ -757,6 +795,12 @@ exports.handler = async (event) => {
   // GET /api/car-club/my-clubs — Phase 1 membership foundation. Feature-gated
   // on car_club_programs_enabled; returns 200-empty when off (silent hide).
   if (method === 'GET' && path === 'my-clubs') return listMyClubs(sb, auth.user);
+
+  // GET /api/car-club/browse — Slice 1 discovery. Feature-gated on
+  // car_club_programs_enabled; returns 200-empty when off (silent hide).
+  // Diverges from listClubs at empty-path by filtering provider_suspended too
+  // (Q2: suspension gates discovery, never existing-member visibility).
+  if (method === 'GET' && path === 'browse') return listBrowse(sb, auth.user);
 
   // /api/car-clubs/:id/...
   const segments = path.split('/');
