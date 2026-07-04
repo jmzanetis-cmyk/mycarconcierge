@@ -297,16 +297,18 @@ async function listMyRewards(sb, user) {
   const activeClubIds = clubs.map(c => c.id);
   const clubNameById = Object.fromEntries(clubs.map(c => [c.id, c.name]));
 
-  // D5 defers the store; D7 limits pilot rewards to service vouchers.
-  // club_reward_kind ENUM = ('merch', 'comp_service', 'other') per 20260703h:58.
-  // 'merch' is the store surface (Slice 5) — exclude explicitly during pilot.
-  // 'comp_service' + 'other' both flow through so admin classification decides.
-  // Remove this filter when Slice 5 store ships.
+  // D7: pilot rewards are comp_service only. Strict whitelist (not merch-blacklist)
+  // because createReward defaults kind='other' at :522, so an unclassified reward
+  // would silently pass a merch-only exclusion — wrong for a controlled pilot where
+  // nothing should surface unless the admin deliberately labeled it a service
+  // voucher. club_reward_kind ENUM = ('merch', 'comp_service', 'other') per
+  // 20260703h:58. Revisit 'other' pass-through post-pilot; drop the filter entirely
+  // when Slice 5 store ships (D5).
   const { data: rewards } = await sb.from('club_rewards')
     .select('id, club_id, kind, title, description, point_cost, image_url, inventory_qty, created_at')
     .in('club_id', activeClubIds)
     .eq('active', true)
-    .neq('kind', 'merch')
+    .eq('kind', 'comp_service')
     .order('created_at', { ascending: false });
 
   // Point balance per club — sum(delta_points). Handler is service-role so
