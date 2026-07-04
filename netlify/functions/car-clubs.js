@@ -229,30 +229,12 @@ async function listMembers(sb, user, clubId) {
 }
 
 async function recordPunch(sb, user, clubId) {
-  const { data: membership } = await sb.from('club_memberships')
-    .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).single();
-  if (!membership) return json(403, { error: 'Not a member of this club' });
-
-  await sb.from('club_activity_log').insert({
-    club_id: clubId,
-    member_id: user.id,
-    activity_type: 'punch',
-  });
-
-  const { count } = await sb.from('club_activity_log')
-    .select('id', { count: 'exact', head: true })
-    .eq('club_id', clubId)
-    .eq('member_id', user.id)
-    .eq('activity_type', 'punch');
-
-  const { data: rules } = await sb.from('club_reward_rules')
-    .select('id, reward_name, punches_required')
-    .eq('club_id', clubId)
-    .eq('is_active', true);
-
-  const earned = (rules || []).filter(r => count > 0 && count % r.punches_required === 0);
-
-  return json(200, { success: true, total_punches: count, rewards_earned: earned });
+  // Slice 1 exposure audit (2026-07-04): self-service punch disabled pending
+  // Slice 2 provider-initiated rewrite (plan §4: QR-resolved member,
+  // idempotency guard). Pre-fix, any member could self-farm punches — the
+  // membership check only verified the caller was a member, and the insert
+  // used the caller's own user.id as member_id.
+  return json(403, { error: 'Not available' });
 }
 
 async function listBenefits(sb, user, clubId) {
