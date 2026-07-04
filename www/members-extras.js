@@ -3059,12 +3059,12 @@
 
     async function populateEmergencyVehicles() {
       const select = document.getElementById('emergency-vehicle');
-      if (!userVehicles || userVehicles.length === 0) {
+      if (!vehicles || vehicles.length === 0) {
         select.innerHTML = '<option value="">No vehicles - add one first</option>';
         return;
       }
-      select.innerHTML = '<option value="">Select a vehicle (optional)</option>' + 
-        userVehicles.map(v => `<option value="${v.id}">${v.year} ${v.make} ${v.model}</option>`).join('');
+      select.innerHTML = '<option value="">Select a vehicle (optional)</option>' +
+        vehicles.map(v => `<option value="${v.id}">${v.year} ${v.make} ${v.model}</option>`).join('');
     }
 
     async function openEmergencyStatus() {
@@ -5348,8 +5348,8 @@
       
       const vehicleFilter = document.getElementById('spending-vehicle-filter');
       vehicleFilter.innerHTML = '<option value="">All Vehicles</option>';
-      if (window.userVehicles && userVehicles.length > 0) {
-        userVehicles.forEach(v => {
+      if (vehicles && vehicles.length > 0) {
+        vehicles.forEach(v => {
           vehicleFilter.innerHTML += `<option value="${v.id}">${v.year} ${v.make} ${v.model}</option>`;
         });
       }
