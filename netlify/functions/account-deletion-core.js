@@ -135,6 +135,18 @@ async function _deleteMemberTables(supabase, userId) {
   await supabase.from('club_memberships').delete().eq('member_id', userId);
   await supabase.from('car_club_redemptions').delete().eq('member_id', userId);
   await supabase.from('car_club_return_bonuses').delete().eq('member_id', userId);
+  // BUG-01 (2026-07-04): the five club_* program tables below all hold
+  // member_id but were missing from the deletion cascade — orphaned PII on
+  // account delete. FKs all target auth.users(id) with no ON DELETE action
+  // (verified against 20260703c, 20260703h), so these explicit deletes are
+  // required BOTH for PII hygiene AND for the downstream auth.users delete
+  // to succeed (would otherwise FK-fail). None of the 5 FK to each other,
+  // so order is arbitrary.
+  await supabase.from('club_points_ledger').delete().eq('member_id', userId);
+  await supabase.from('club_points_redemptions').delete().eq('member_id', userId);
+  await supabase.from('club_coupon_redemptions').delete().eq('member_id', userId);
+  await supabase.from('club_comp_service_grants').delete().eq('member_id', userId);
+  await supabase.from('club_activity_log').delete().eq('member_id', userId);
 
   // --- Step 7: identity / KYC ---
   await supabase.from('identity_verifications').delete().eq('user_id', userId);
