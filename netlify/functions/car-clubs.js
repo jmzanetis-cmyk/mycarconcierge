@@ -267,12 +267,20 @@ async function leaveClub(event, sb, user) {
   return json(200, { success: true });
 }
 
-// GET /api/car-club/my-rewards — cross-club catalog of active rewards for
-// every active membership. Applies Q3 (suspension filter) at the car_clubs
-// step so a suspended club's rewards don't surface in a discovery-style feed.
-// Annotates each reward with the caller's point balance for that club plus
-// an `affordable` boolean so the client can render Redeem eligibility
-// without a second round-trip. Flag-gated 200-empty (matches my-clubs).
+// GET /api/car-club/my-rewards — reward RULES (not the point-redemption
+// catalog) for every active membership. Plan §3.3 spec: "reward rules +
+// member progress per rule". Applies Q3 (suspension filter) at the car_clubs
+// step so a suspended club's rules don't surface. Flag-gated 200-empty
+// (matches my-clubs / browse).
+//
+// Correction to aa08ea8: that commit added a D7 .eq('kind', 'comp_service')
+// filter, but it was scoped to club_rewards — the Slice 2 point-redemption
+// catalog, which has a `kind` column. This handler now correctly queries
+// club_reward_rules per plan §3.3 (Slice 1). club_reward_rules has NO `kind`
+// column (see 20260703d), so the D7 filter would have thrown here. Pilot
+// restriction is enforced by the feature flag alone (whole surface gated
+// OFF); D7's kind-filter rationale becomes live again in Slice 2 when the
+// point-redemption catalog wires up on club_rewards.
 async function listMyRewards(sb, user) {
   const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
   if (!enabled) return json(200, { rewards: [] });
@@ -284,10 +292,7 @@ async function listMyRewards(sb, user) {
   if (!memberships || memberships.length === 0) return json(200, { rewards: [] });
   const clubIds = memberships.map(m => m.club_id);
 
-  // Q3: rewards are a discovery-style surface, so mirror /browse's active +
-  // non-suspended filter. Members of a suspended club still see their own
-  // membership via /my-clubs; they just can't discover new reward options
-  // while the club is suspended.
+  // Q3 suspension filter (matches /browse discovery layer).
   const { data: clubs } = await sb.from('car_clubs')
     .select('id, name')
     .in('id', clubIds)
@@ -297,39 +302,17 @@ async function listMyRewards(sb, user) {
   const activeClubIds = clubs.map(c => c.id);
   const clubNameById = Object.fromEntries(clubs.map(c => [c.id, c.name]));
 
-  // D7: pilot rewards are comp_service only. Strict whitelist (not merch-blacklist)
-  // because createReward defaults kind='other' at :522, so an unclassified reward
-  // would silently pass a merch-only exclusion — wrong for a controlled pilot where
-  // nothing should surface unless the admin deliberately labeled it a service
-  // voucher. club_reward_kind ENUM = ('merch', 'comp_service', 'other') per
-  // 20260703h:58. Revisit 'other' pass-through post-pilot; drop the filter entirely
-  // when Slice 5 store ships (D5).
-  const { data: rewards } = await sb.from('club_rewards')
-    .select('id, club_id, kind, title, description, point_cost, image_url, inventory_qty, created_at')
+  // Columns verified against 20260703d_club_reward_rules.sql.
+  const { data: rules } = await sb.from('club_reward_rules')
+    .select('id, club_id, reward_name, reward_description, punches_required, reward_type, valid_until, created_at')
     .in('club_id', activeClubIds)
-    .eq('active', true)
-    .eq('kind', 'comp_service')
+    .eq('is_active', true)
     .order('created_at', { ascending: false });
 
-  // Point balance per club — sum(delta_points). Handler is service-role so
-  // RLS on club_points_ledger doesn't gate; caller-scoping via .eq(member_id)
-  // is the enforcement (defense-in-depth: 20260703h ledger_read policy scopes
-  // to member_id=auth.uid() OR is_club_provider for direct-from-browser reads).
-  const { data: ledger } = await sb.from('club_points_ledger')
-    .select('club_id, delta_points')
-    .eq('member_id', user.id)
-    .in('club_id', activeClubIds);
-  const balanceByClub = {};
-  for (const l of (ledger || [])) {
-    balanceByClub[l.club_id] = (balanceByClub[l.club_id] || 0) + l.delta_points;
-  }
-
   return json(200, {
-    rewards: (rewards || []).map(r => ({
+    rewards: (rules || []).map(r => ({
       ...r,
       club_name: clubNameById[r.club_id],
-      member_points_balance: balanceByClub[r.club_id] || 0,
-      affordable: (balanceByClub[r.club_id] || 0) >= r.point_cost,
     })),
   });
 }

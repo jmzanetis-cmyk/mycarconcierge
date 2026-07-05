@@ -998,9 +998,15 @@
         document.getElementById('browse-loading').style.display = 'none';
         document.getElementById('browse-content').style.display = '';
 
-        if (recommended.length > 0) {
-          document.getElementById('recommended-section').style.display = '';
-          document.getElementById('recommended-list').innerHTML = recommended.map(club => {
+        // Null-guards: #recommended-section is HTML-commented out by the
+        // SLICE-5-DEFER hide-diff (de914b4), so getElementById returns null
+        // and .style.display would throw. Restore the element and remove the
+        // guards when Slice 5 wires up /api/car-club/recommended.
+        const recSection = document.getElementById('recommended-section');
+        const recList = document.getElementById('recommended-list');
+        if (recommended.length > 0 && recSection && recList) {
+          recSection.style.display = '';
+          recList.innerHTML = recommended.map(club => {
             const isJoined = joinedClubIds.has(club.id);
             const tSummary = buildTestimonialSummary(testimonialMap[club.id]);
             const accent = escHtml(club.theme_color || '#C9A84C');
@@ -1030,8 +1036,8 @@
               </div>
             </div>`;
           }).join('');
-        } else {
-          document.getElementById('recommended-section').style.display = 'none';
+        } else if (recSection) {
+          recSection.style.display = 'none';
         }
 
         if (browseData.length === 0) {
@@ -1112,7 +1118,11 @@
                   <div class="reward-card-name">${escHtml(r.reward_name)}</div>
                   <div style="font-size:var(--text-sm);color:var(--text-muted);margin-top:2px;">${escHtml(r.club_name)}</div>
                 </div>
-                <span class="reward-earned-badge">✨ You earned this!</span>
+                <!-- Slice 1 accurate label: /my-rewards now returns rules
+                     (things member can work toward), not earned rewards.
+                     Slice 2 replaces this with real earned-vs-available
+                     state driven by the ledger + rule progress. -->
+                <span class="reward-earned-badge">🎯 ${r.punches_required || '?'} punches to earn</span>
               </div>
               <div class="reward-card-meta">
                 ${r.reward_description ? `<span>🎁 ${escHtml(r.reward_description)}</span>` : ''}
