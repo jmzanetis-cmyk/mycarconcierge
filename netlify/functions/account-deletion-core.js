@@ -65,7 +65,12 @@ async function _deleteMemberTables(supabase, userId) {
   const { data: ridesRes } = await supabase.from('rides').select('id').eq('member_id', userId);
   const rideIds = (ridesRes || []).map(r => r.id);
 
-  const { data: clubMemberships } = await supabase.from('car_club_members').select('id').eq('member_id', userId);
+  // Fixed 2026-07-04: was querying legacy car_club_members (20260526);
+  // current membership table is club_memberships (20260703b). The rest of
+  // the codebase (car-clubs.js — dozens of sites) uses club_memberships;
+  // this file was the last legacy holdout. Column shape unchanged
+  // (both tables have id + member_id), so .eq()/.delete() calls are safe.
+  const { data: clubMemberships } = await supabase.from('club_memberships').select('id').eq('member_id', userId);
   const membershipIds = (clubMemberships || []).map(m => m.id);
 
   // --- Step 2: cancel pending driver tips (no transfer yet — prevents future payout) ---
@@ -127,7 +132,7 @@ async function _deleteMemberTables(supabase, userId) {
   if (membershipIds.length > 0) {
     await supabase.from('member_club_balances').delete().in('membership_id', membershipIds);
   }
-  await supabase.from('car_club_members').delete().eq('member_id', userId);
+  await supabase.from('club_memberships').delete().eq('member_id', userId);
   await supabase.from('car_club_redemptions').delete().eq('member_id', userId);
   await supabase.from('car_club_return_bonuses').delete().eq('member_id', userId);
 
