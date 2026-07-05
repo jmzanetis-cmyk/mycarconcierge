@@ -581,8 +581,17 @@ async function getMemberPoints(sb, user, clubId, memberId) {
 }
 
 async function listRewards(sb, clubId) {
-  const { data: club } = await sb.from('car_clubs').select('id').eq('id', clubId).single();
-  if (!club) return json(404, { error: 'Club not found' });
+  // Q3 (2026-07-04): suspended/inactive/nonexistent club → 200-empty (not 404).
+  // Fallback-to-empty because a member of a club that gets suspended shouldn't
+  // see a 404 (would throw a client error); silent empty state matches the
+  // "defer explain-suspension UX to Slice 4" decision. Nullable-safe:
+  // === false / === true mirror Q2's IS NOT FALSE / IS NOT TRUE semantics so
+  // a NULL default doesn't hide a legitimate club.
+  const { data: club } = await sb.from('car_clubs')
+    .select('id, is_active, provider_suspended').eq('id', clubId).single();
+  if (!club || club.is_active === false || club.provider_suspended === true) {
+    return json(200, { rewards: [] });
+  }
 
   const { data: rewards, error } = await sb.from('club_rewards')
     .select('id, kind, title, description, point_cost, image_url, inventory_qty, active, created_at')
@@ -688,8 +697,13 @@ async function fulfillRedemption(sb, user, clubId, redemptionId) {
 }
 
 async function listCoupons(sb, clubId) {
-  const { data: club } = await sb.from('car_clubs').select('id').eq('id', clubId).single();
-  if (!club) return json(404, { error: 'Club not found' });
+  // Q3 (2026-07-04): suspended/inactive/nonexistent club → 200-empty (not 404).
+  // See listRewards for the fallback-to-empty rationale + Q2 nullable pattern.
+  const { data: club } = await sb.from('car_clubs')
+    .select('id, is_active, provider_suspended').eq('id', clubId).single();
+  if (!club || club.is_active === false || club.provider_suspended === true) {
+    return json(200, { coupons: [] });
+  }
 
   const { data: coupons, error } = await sb.from('club_coupons')
     .select('id, code, title, discount_type, discount_value, min_spend_cents, eligible_services, max_redemptions, per_member_limit, starts_at, expires_at, active, created_at')
@@ -782,8 +796,13 @@ async function redeemCoupon(event, sb, user, clubId, couponCode) {
 }
 
 async function listCompServices(sb, clubId) {
-  const { data: club } = await sb.from('car_clubs').select('id').eq('id', clubId).single();
-  if (!club) return json(404, { error: 'Club not found' });
+  // Q3 (2026-07-04): suspended/inactive/nonexistent club → 200-empty (not 404).
+  // See listRewards for the fallback-to-empty rationale + Q2 nullable pattern.
+  const { data: club } = await sb.from('car_clubs')
+    .select('id, is_active, provider_suspended').eq('id', clubId).single();
+  if (!club || club.is_active === false || club.provider_suspended === true) {
+    return json(200, { comp_services: [] });
+  }
 
   const { data: services, error } = await sb.from('club_comp_services')
     .select('id, title, description, service_type, condition_min_spend_cents, per_member_limit, starts_at, expires_at, active, created_at')
