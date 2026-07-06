@@ -25,8 +25,20 @@
 -- IDEMPOTENCY: safe to re-run. Rows already at is_active=false stay at
 -- is_active=false.
 -- ============================================================================
-
-BEGIN;
+--
+-- HISTORICAL NOTE (2026-07-06): an earlier version of this script wrapped
+-- the UPDATE in `BEGIN;` / `COMMIT;` for "atomicity." That gave FALSE
+-- CONFIDENCE — Studio's SQL Editor sometimes doesn't execute a multi-
+-- statement block atomically (the user may paste + run parts of the block
+-- separately, or the session may not carry the COMMIT), leaving the
+-- transaction open. The RETURNING clause showed the intended state
+-- (visible inside the txn), but the changes rolled back at session end.
+--
+-- Fix: use a single bare UPDATE statement. Postgres auto-commits single
+-- statements in Studio, guaranteed. If you need multi-statement atomicity
+-- for some reason, use an anonymous DO block instead — its plpgsql
+-- semantics are more foolproof against Studio-editor quirks.
+-- ============================================================================
 
 -- Preview what will change. Uncomment on first run to confirm before writing.
 -- SELECT id, name, provider_id, is_active, created_at
@@ -34,16 +46,15 @@ BEGIN;
 --  WHERE provider_id = '<REPLACE_JORDAN_UID>'::uuid
 --    AND name IN ('Honda & Acura Club', 'Truck & SUV Owners', 'BMW Enthusiasts NJ');
 
--- Soft-deactivate. Match by name AND provider_id so we don't accidentally
--- touch any club with a coincident name from a different provider.
+-- Bare UPDATE — single statement, auto-commits. Match by name AND
+-- provider_id so we don't accidentally touch any club with a coincident
+-- name from a different provider.
 UPDATE public.car_clubs
    SET is_active = false,
        updated_at = now()
  WHERE provider_id = '<REPLACE_JORDAN_UID>'::uuid   -- Jordan's uid
    AND name IN ('Honda & Acura Club', 'Truck & SUV Owners', 'BMW Enthusiasts NJ')
 RETURNING id, name, is_active;
-
-COMMIT;
 
 -- ============================================================================
 -- Post-cleanup verification — should show ONE active club (Chris's) and
@@ -68,11 +79,11 @@ SELECT id, name, provider_id, is_active
 -- Only use this if you've confirmed the three seed clubs have zero rows in
 -- club_memberships, club_points_ledger, club_points_redemptions,
 -- club_reward_rules. The FK cascades will blow those rows away otherwise.
+-- Single statement — no BEGIN/COMMIT wrapper needed (same Studio-quirk
+-- lesson as above).
 -- ============================================================================
 
--- BEGIN;
 -- DELETE FROM public.car_clubs
 --  WHERE provider_id = '<REPLACE_JORDAN_UID>'::uuid
 --    AND name IN ('Honda & Acura Club', 'Truck & SUV Owners', 'BMW Enthusiasts NJ')
 -- RETURNING id, name;
--- COMMIT;
