@@ -358,13 +358,119 @@ async function listMembers(sb, user, clubId) {
   return json(200, { members: members || [] });
 }
 
+// Slice 1 stub retained: the nested POST /:id/punch route below still returns
+// 403. The real punch endpoint is POST /api/car-club/punch (top-level,
+// clubId in body) — see punchMember() below. Slice 2 will retire the nested
+// route in a separate cleanup once we confirm no client still hits it.
 async function recordPunch(sb, user, clubId) {
-  // Slice 1 exposure audit (2026-07-04): self-service punch disabled pending
-  // Slice 2 provider-initiated rewrite (plan §4: QR-resolved member,
-  // idempotency guard). Pre-fix, any member could self-farm punches — the
-  // membership check only verified the caller was a member, and the insert
-  // used the caller's own user.id as member_id.
-  return json(403, { error: 'Not available' });
+  return json(403, { error: 'Not available — use POST /api/car-club/punch' });
+}
+
+// POST /api/car-club/punch — Slice 2 pilot design (plan §4, DECIDED 2026-07-05).
+//
+// Provider scans member's Check-In QR → provider taps Confirm → one call here.
+// Body: { club_id, qr_token }. Trusted-pilot design: no server-side idempotency
+// / dedupe. If double-tap abuse appears at scale, add an N-minute window per
+// (club_id, member_id) — logged as post-pilot §9a debt.
+//
+// Flow:
+//   1. Feature gate (flag off → 403).
+//   2. Provider auth (new true-provider pattern): fetch target car_clubs row,
+//     verify car_clubs.provider_id === auth.uid(). This is the security
+//     boundary — a member must NEVER be able to punch. Reject 403 otherwise.
+//     Also reject if the club is inactive / provider-suspended.
+//   3. Member resolution: try profiles.qr_code_token first (normal case),
+//     fall back to profiles.id (handles the www/members-core.js:2963-2965
+//     fallback where QR encoded the raw uid instead of a qr_code_token).
+//   4. Active-membership check: member must have club_memberships row with
+//     is_active=true. 400 (not 404/403) — caller IS authorized, member
+//     EXISTS, but this specific member↔club edge doesn't.
+//   5. Rule-agnostic INSERT into club_points_ledger with delta_points = 1,
+//     reason = 'earn_spend'. NO reward_rule_id column exists on the table
+//     (confirmed against 20260703h:106-115) — rule-agnostic is enforced by
+//     schema itself. Rules are thresholds evaluated at REDEEM time, not
+//     earn time. Client-side progress rendering computes
+//     SUM(delta_points) per active rule.
+//
+// Per-punch point value: hard-coded 1. Neither club_reward_rules (20260703d)
+// nor club_points_config (20260703h:96-103) has a per-punch column;
+// club_points_config.points_per_dollar is spending-scaled, not per-visit.
+// If per-punch configurability is needed post-pilot, add a column to
+// club_reward_rules (e.g. points_per_punch int NOT NULL DEFAULT 1) —
+// logged §9a.
+//
+// source_ref: audit stamp = `punch:provider=${provider_uid}:${iso_timestamp}`.
+// Every ledger row is thereby traceable to the provider who wrote it and
+// when. NOT an idempotency key (see trusted-pilot note above).
+//
+// Confirmed verbatim against migrations: club_points_ledger (20260703h:106-115),
+// club_ledger_reason enum (20260703h:50), club_reward_rules (20260703d),
+// club_points_config (20260703h:96-103). profiles.qr_code_token is a
+// Replit-era column not in tracked migrations (grep 0 hits) but present in
+// prod per www/members-core.js:2954 client query — schema-drift housekeeping
+// logged §9a.
+async function punchMember(event, sb, user, clubId) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const qrToken = (body.qr_token || body.qrToken || '').trim();
+  if (!qrToken) return json(400, { error: 'qr_token required' });
+
+  // Provider auth (true-provider pattern) + active-club check.
+  // This is THE security boundary: a member must never reach the ledger insert
+  // below. Fetch provider_id + active/suspended state in one round-trip.
+  const { data: club } = await sb.from('car_clubs')
+    .select('id, provider_id, is_active, provider_suspended')
+    .eq('id', clubId).single();
+  if (!club) return json(404, { error: 'Club not found' });
+  if (club.provider_id !== user.id) return json(403, { error: 'Only the club provider can record punches' });
+  if (club.is_active === false || club.provider_suspended === true) {
+    return json(400, { error: 'Club is not active' });
+  }
+
+  // Member resolution — profiles.qr_code_token primary, profiles.id fallback.
+  let memberId = null;
+  {
+    const { data: byToken } = await sb.from('profiles')
+      .select('id').eq('qr_code_token', qrToken).maybeSingle();
+    if (byToken) memberId = byToken.id;
+  }
+  if (!memberId && /^[0-9a-f-]{36}$/i.test(qrToken)) {
+    const { data: byId } = await sb.from('profiles')
+      .select('id').eq('id', qrToken).maybeSingle();
+    if (byId) memberId = byId.id;
+  }
+  if (!memberId) return json(404, { error: 'Member not found (unknown QR code)' });
+
+  // Active-membership check — the punched member must be in this club.
+  const { data: membership } = await sb.from('club_memberships')
+    .select('id').eq('club_id', clubId).eq('member_id', memberId).eq('is_active', true).maybeSingle();
+  if (!membership) return json(400, { error: 'Member is not in this club' });
+
+  // Ledger insert — rule-agnostic (no reward_rule_id column exists), +1 per
+  // punch, source_ref stamped for audit trace to the writing provider.
+  const sourceRef = `punch:provider=${user.id}:${new Date().toISOString()}`;
+  const { data: inserted, error } = await sb.from('club_points_ledger').insert({
+    club_id: clubId,
+    member_id: memberId,
+    delta_points: 1,
+    reason: 'earn_spend',
+    source_ref: sourceRef,
+  }).select('id').single();
+  if (error) return json(500, { error: error.message });
+
+  return json(200, { success: true, ledger_id: inserted.id, member_id: memberId });
+}
+
+// Top-level dispatcher shim: extracts club_id from body then delegates.
+async function punchFromBody(event, sb, user) {
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const clubId = body.club_id || body.clubId;
+  if (!clubId) return json(400, { error: 'club_id required' });
+  return punchMember(event, sb, user, clubId);
 }
 
 async function listBenefits(sb, user, clubId) {
@@ -919,6 +1025,7 @@ exports.handler = async (event) => {
   // POST → 403 (writes can't silently succeed).
   if (method === 'POST' && path === 'join')       return joinFromBody(event, sb, auth.user);
   if (method === 'POST' && path === 'leave')      return leaveClub(event, sb, auth.user);
+  if (method === 'POST' && path === 'punch')      return punchFromBody(event, sb, auth.user);
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
 
   // /api/car-clubs/:id/...
