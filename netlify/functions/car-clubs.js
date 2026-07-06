@@ -473,6 +473,100 @@ async function punchFromBody(event, sb, user) {
   return punchMember(event, sb, user, clubId);
 }
 
+// _redeemViaRpc — shared implementation of the redeem RPC dispatch, used by
+// both POST /api/car-club/redeem (redeemFromBody, top-level) and the nested
+// POST /:clubId/rewards/:rewardId/redeem (redeemReward). Extracted to a
+// helper so a future edit to the status-routing logic can't drift between
+// the two entry points.
+//
+// Auth (member-authenticated, uid never from body):
+//   Both callers receive `user` from the dispatcher's already-completed
+//   getUser() at car-clubs.js:50-57 — the Bearer token from the
+//   Authorization header, cryptographically verified via sb.auth.getUser().
+//   p_member_id passed to the RPC is user.id. Neither entry point reads
+//   member_id / user_id / uid from body / query / non-Authorization header;
+//   a member cannot redeem against someone else's balance by construction.
+//
+// RPC delegation (redeem_reward_for_member, 3-param, at 20260706a — applied
+// live 2026-07-06):
+//   plpgsql, single transaction, advisory-xact-lock on (club, member) +
+//   FOR UPDATE on the reward row, membership guard, ownership guard
+//   (WHERE club_id = p_club_id), balance guard BEFORE any INSERT,
+//   voucher-first write ordering with the ledger deduction as the LAST
+//   write. Returns TABLE(status text, voucher_code text) — a single-row
+//   rowset arriving as data[0] on the JS side.
+//
+// Error routing — structured RPC return:
+//   Expected business outcomes come back as status values in the row —
+//   they do NOT throw. The `error` object is populated ONLY for genuine
+//   unexpected DB failures (missing table, FK violation from schema drift,
+//   connection error, etc.) — those get routed to 500 generic.
+//
+// Route table (RPC status → HTTP response):
+//   'ok'             → 200 { success: true, voucher_code }
+//   'insufficient'   → 400 "Not enough points"
+//   'not_member'     → 403 "Not a member of this club"
+//   'no_reward'      → 404 "Reward not found or inactive"
+//   'out_of_stock'   → 400 "Reward out of stock"
+//   error object populated (real DB failure) → 500 generic
+//   unknown status (RPC returned something we don't handle) → 500 generic
+//
+// Routing history: earlier attempts used (1) message-string matching
+// (brittle — a future RAISE wording edit silently breaks routing) and
+// (2) custom SQLSTATE codes MCC01-04 (propagation from user-defined
+// SQLSTATE through PostgREST to supabase-js error.code proved unreliable).
+// Structured return via a status enum in the row is the third and
+// production scheme: the API contract is a plain string in a data field,
+// not a PostgrestError side-channel.
+async function _redeemViaRpc(sb, user, clubId, rewardId) {
+  const { data, error } = await sb.rpc('redeem_reward_for_member', {
+    p_club_id:   clubId,
+    p_reward_id: rewardId,
+    p_member_id: user.id,  // JWT-verified caller uid — NEVER from body
+  });
+
+  // Genuine DB failure (unexpected — should never fire under normal ops).
+  if (error) return json(500, { error: 'Redemption failed' });
+
+  // RPC returns a single row. If nothing came back, the RPC's contract
+  // was violated (should be impossible — every code path RETURN NEXTs).
+  const result = data && data[0];
+  if (!result) return json(500, { error: 'Redemption failed' });
+
+  switch (result.status) {
+    case 'ok':
+      return json(200, { success: true, voucher_code: result.voucher_code });
+    case 'insufficient':
+      return json(400, { error: 'Not enough points',              code: 'insufficient_balance' });
+    case 'not_member':
+      return json(403, { error: 'Not a member of this club',      code: 'not_a_member' });
+    case 'no_reward':
+      return json(404, { error: 'Reward not found or inactive',   code: 'reward_not_found' });
+    case 'out_of_stock':
+      return json(400, { error: 'Reward out of stock',            code: 'reward_out_of_stock' });
+    default:
+      // RPC returned a status we don't recognize — treat as failure so
+      // we never leak a partial-success shape to the client.
+      return json(500, { error: 'Redemption failed' });
+  }
+}
+
+// POST /api/car-club/redeem — Slice 2 top-level route (plan §4).
+// Flag-gated. Body: { club_id, reward_id }. Delegates to _redeemViaRpc.
+async function redeemFromBody(event, sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const clubId = body.club_id || body.clubId;
+  const rewardId = body.reward_id || body.rewardId;
+  if (!clubId)   return json(400, { error: 'club_id required' });
+  if (!rewardId) return json(400, { error: 'reward_id required' });
+
+  return _redeemViaRpc(sb, user, clubId, rewardId);
+}
+
 async function listBenefits(sb, user, clubId) {
   const { data: benefits } = await sb.from('car_club_benefits')
     .select('id, provider_id, benefit_type, description, value_text, expiry_date, max_uses, uses_count, is_active, created_at, profiles!car_club_benefits_provider_id_fkey(full_name, business_name)')
@@ -759,24 +853,24 @@ async function patchReward(event, sb, user, clubId, rewardId) {
   return json(200, { success: true, reward: data });
 }
 
-// Delegates to redeem_reward_for_member() SECURITY DEFINER RPC so the debit,
-// redemption insert, and inventory decrement happen in a single transaction.
+// POST /api/car-clubs/:clubId/rewards/:rewardId/redeem — nested route
+// consumed by the live client at car-club-member.html:1372. Flag-gated
+// (added 2026-07-06 with the RPC structured-return refactor — was
+// previously ungated, but the top-level /redeem gates and consistency
+// matters). Delegates to _redeemViaRpc so status routing lives in one
+// place.
+//
+// Pre-2026-07-06 this handler returned { success, redemption_id } where
+// redemption_id was the RPC's scalar uuid return. After the RPC rewrite
+// to RETURNS TABLE(status, voucher_code), the previous response shape
+// broke — the client at car-club-member.html:1383 reads
+// `data.voucher_code` in its post-redeem toast and had been showing
+// "Voucher: undefined" since the RPC was fixed 2026-07-02. This
+// rewrite fixes that.
 async function redeemReward(sb, user, clubId, rewardId) {
-  const { data: rid, error } = await sb.rpc('redeem_reward_for_member', {
-    p_club_id:   clubId,
-    p_reward_id: rewardId,
-    p_member_id: user.id,
-  });
-  if (error) {
-    const msg = error.message || '';
-    if (msg.includes('Not a member')) return json(403, { error: 'Not a member of this club' });
-    if (msg.includes('Points are not enabled')) return json(400, { error: 'Points are not enabled for this club' });
-    if (msg.includes('Reward unavailable')) return json(400, { error: 'Reward unavailable' });
-    if (msg.includes('out of stock')) return json(400, { error: 'Reward out of stock' });
-    if (msg.includes('Not enough points')) return json(400, { error: msg.replace(/^.*?exception\s*/i, '') });
-    return json(500, { error: msg });
-  }
-  return json(200, { success: true, redemption_id: rid });
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+  return _redeemViaRpc(sb, user, clubId, rewardId);
 }
 
 async function handleFreeBids(sb, user) {
@@ -1026,6 +1120,7 @@ exports.handler = async (event) => {
   if (method === 'POST' && path === 'join')       return joinFromBody(event, sb, auth.user);
   if (method === 'POST' && path === 'leave')      return leaveClub(event, sb, auth.user);
   if (method === 'POST' && path === 'punch')      return punchFromBody(event, sb, auth.user);
+  if (method === 'POST' && path === 'redeem')     return redeemFromBody(event, sb, auth.user);
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
 
   // /api/car-clubs/:id/...
