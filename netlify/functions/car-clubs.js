@@ -567,6 +567,92 @@ async function redeemFromBody(event, sb, user) {
   return _redeemViaRpc(sb, user, clubId, rewardId);
 }
 
+// POST /api/car-club/validate-voucher — Slice 2 provider action (plan §4).
+//
+// Provider types the voucher code the member is showing them → single
+// conditional UPDATE atomically marks the voucher fulfilled AND rejects
+// reuse. No RPC needed — the reuse-rejection guarantee is baked into the
+// WHERE status='issued' clause: two concurrent validates for the same
+// code cannot both succeed, because the first flips the row to
+// 'fulfilled' and the second's WHERE finds no matching row.
+//
+// Body: { voucher_code }. The code is trimmed + uppercased before match
+// (the redeem RPC generates codes as UPPER hex via
+// upper(substr(encode(gen_random_bytes(6), 'hex'), 1, 8)) at 20260706a:75,
+// so all live-stored codes are uppercase; provider can type either case).
+//
+// Auth (provider-authenticated):
+//   Same JWT chain as /punch (car-clubs.js:50-57 → sb.auth.getUser →
+//   verified user.id). Provider-scope enforced by fetching the caller's
+//   owned clubs and constraining the UPDATE's WHERE with .in('club_id',
+//   <caller's clubs>). A voucher whose club_id isn't in the caller's
+//   list can't be burned. Handler NEVER reads provider_id, uid, or any
+//   identity claim from body / query / non-Authorization header.
+//
+// Response shape:
+//   200 { success: true, redemption: <full redemption row> } on validation
+//   404 { error: 'Invalid or already-used voucher code' } — collapses
+//       (code doesn't exist) + (code exists but belongs to another
+//       provider's club) + (code already fulfilled or cancelled) into a
+//       single response. Distinguishing these would leak whether a code
+//       exists on a different provider's club — a real information leak.
+//
+// Race safety (single-statement guarantee):
+//   The Postgres UPDATE ... WHERE ... RETURNING is a single atomic
+//   statement. Two concurrent validates for the same code both issue the
+//   UPDATE; whichever reaches the row first locks it, flips status,
+//   commits. The second's UPDATE finds no row matching status='issued'
+//   after the first commit (or waits on the row lock, then reads the
+//   post-commit state) → returns 0 rows → 404. No double-fulfillment path.
+//
+// Ownership-scope note: the caller's clubs are fetched via a separate
+// SELECT before the UPDATE. If provider ownership changes between the
+// SELECT and the UPDATE (rare — usually a manual admin action), worst
+// case is a just-lost-club voucher can't be validated (correct: it
+// shouldn't be) or a just-gained-club voucher isn't validatable in this
+// request (also correct: no voucher exists yet against a club they just
+// took over). The two round-trips do NOT compromise the reuse-rejection
+// guarantee, which lives entirely in the UPDATE's atomic WHERE.
+async function validateVoucher(event, sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const voucherCode = (body.voucher_code || body.voucherCode || '').trim().toUpperCase();
+  if (!voucherCode) return json(400, { error: 'voucher_code required' });
+
+  // Provider-scope: fetch caller's owned clubs. If none, they can't own any
+  // voucher — short-circuit to 404 (indistinguishable from "code doesn't
+  // exist" — same collapsed response).
+  const { data: clubs } = await sb.from('car_clubs')
+    .select('id').eq('provider_id', user.id);
+  const clubIds = (clubs || []).map(c => c.id);
+  if (clubIds.length === 0) {
+    return json(404, { error: 'Invalid or already-used voucher code' });
+  }
+
+  // Atomic conditional UPDATE. Provider-scope, code match, and
+  // status='issued' all evaluated in one WHERE. RETURNING is atomic with
+  // the UPDATE. If no row matches (bad code / wrong provider / already
+  // fulfilled / cancelled), maybeSingle() returns null → collapsed 404.
+  const { data: fulfilled, error } = await sb.from('club_points_redemptions')
+    .update({ status: 'fulfilled', fulfilled_at: new Date().toISOString() })
+    .eq('voucher_code', voucherCode)
+    .eq('status', 'issued')
+    .in('club_id', clubIds)
+    .select('id, club_id, member_id, reward_id, point_cost, voucher_code, redeemed_at, fulfilled_at')
+    .maybeSingle();
+
+  if (error) return json(500, { error: 'Validation failed' });
+
+  if (!fulfilled) {
+    return json(404, { error: 'Invalid or already-used voucher code' });
+  }
+
+  return json(200, { success: true, redemption: fulfilled });
+}
+
 async function listBenefits(sb, user, clubId) {
   const { data: benefits } = await sb.from('car_club_benefits')
     .select('id, provider_id, benefit_type, description, value_text, expiry_date, max_uses, uses_count, is_active, created_at, profiles!car_club_benefits_provider_id_fkey(full_name, business_name)')
@@ -1121,6 +1207,7 @@ exports.handler = async (event) => {
   if (method === 'POST' && path === 'leave')      return leaveClub(event, sb, auth.user);
   if (method === 'POST' && path === 'punch')      return punchFromBody(event, sb, auth.user);
   if (method === 'POST' && path === 'redeem')     return redeemFromBody(event, sb, auth.user);
+  if (method === 'POST' && path === 'validate-voucher') return validateVoucher(event, sb, auth.user);
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
 
   // /api/car-clubs/:id/...
