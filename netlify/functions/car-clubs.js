@@ -473,6 +473,46 @@ async function punchFromBody(event, sb, user) {
   return punchMember(event, sb, user, clubId);
 }
 
+// GET /api/car-club/my-provider-clubs — Slice 3 pilot-minimal support
+// endpoint (2026-07-06). Returns the car_clubs rows where the caller is
+// the provider — used by provider-club.html to answer "which club_id do
+// I operate against?" without hardcoding.
+//
+// Response shape: { clubs: [<car_clubs row>...] }. Array for correctness
+// under the schema (nothing prevents a provider from being assigned
+// multiple clubs), but pilot per D4 provisions one club per provider so
+// clients can safely operate on clubs[0]. Empty array when the caller
+// has no provisioned clubs — the client shows a "No club provisioned"
+// empty state (D4: clubs are admin/SQL-provisioned, not self-serve).
+//
+// Auth: same JWT-verified chain as every other provider-owning route in
+// this file. user.id is the caller's uid; the .eq('provider_id', user.id)
+// filter is the ownership scope. Caller cannot see another provider's
+// clubs because user.id comes from the verified JWT, never from body/
+// query/non-Authorization header.
+//
+// Flag-gated: 200-empty when the feature is off (matches the my-clubs
+// silent-hide pattern). Provider mid-setup gets an empty response; no
+// error surface leaks the flag state.
+//
+// Column selection matches the fields provider-club.html needs on load:
+// id (for downstream /punch, /validate-voucher, /rewards fetches), name
+// (header display), theme_color/banner_url/logo_url (branding), plus
+// is_active + provider_suspended so the client can render a clear
+// suspended-state banner rather than silently 404'ing subsequent writes.
+async function listMyProviderClubs(sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(200, { clubs: [] });
+
+  const { data: clubs, error } = await sb.from('car_clubs')
+    .select('id, name, description, logo_url, banner_url, theme_color, welcome_message, rules_text, is_active, provider_suspended, points_enabled, coupons_enabled, comp_services_enabled, punch_card_enabled, member_count, created_at')
+    .eq('provider_id', user.id)
+    .order('created_at', { ascending: true });
+
+  if (error) return json(500, { error: 'Failed to load clubs' });
+  return json(200, { clubs: clubs || [] });
+}
+
 // _redeemViaRpc — shared implementation of the redeem RPC dispatch, used by
 // both POST /api/car-club/redeem (redeemFromBody, top-level) and the nested
 // POST /:clubId/rewards/:rewardId/redeem (redeemReward). Extracted to a
@@ -1209,6 +1249,7 @@ exports.handler = async (event) => {
   if (method === 'POST' && path === 'redeem')     return redeemFromBody(event, sb, auth.user);
   if (method === 'POST' && path === 'validate-voucher') return validateVoucher(event, sb, auth.user);
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
+  if (method === 'GET'  && path === 'my-provider-clubs') return listMyProviderClubs(sb, auth.user);
 
   // /api/car-clubs/:id/...
   const segments = path.split('/');
