@@ -1,0 +1,408 @@
+# Car Club — Completion Plan
+
+**Date:** 2026-07-03 · **v1.2** (final — two-pass CC cross-check)
+**Status:** Feature flag-gated OFF globally. Ships nothing to members/reviewers in current state.
+**Flag:** `platform_settings.car_club_programs_enabled` — `{"enabled":false,"test_users":["8ea2bc19-…" (Jordan)]}` — fail-closed, no admin bypass (verified 2026-07-03).
+**Schema source of truth:** migrations `20260703a–h` (commit `04b947b`) — verified column-by-column against production. All column names in new code MUST be checked against this set, not inferred.
+**Working agreements (unchanged):** CC proposes first, never commits without Jordan's diff review; Jordan applies all SQL in Supabase Studio; browser verification against the deployed artifact is the acceptance standard; flags fail closed; any change to a JS file in SW `STATIC_ASSETS` ships with a `CACHE_NAME` bump in `sw.js`.
+
+---
+
+## 0. Framing
+
+Car Club is a provider-side loyalty-program layer: providers run branded punch/points programs inside MCC; members browse, join, earn, and redeem. Strategic value is **provider acquisition** ("bring your loyalty program to MCC") and member retention — it should be built pilot-first around one real provider, not feature-complete in the dark.
+
+Key inversion discovered during launch-hardening: **the member client is largely built** (`car-club-member.html`, dozens of live call sites) while **the server side is mostly missing**. The work below is primarily endpoints, RLS, and provider/admin surfaces.
+
+**Sequencing note:** this plan competes with the Path B matchmaker build (push invites — currently unbuilt while the provider pitch describes it as existing). D6 decided 2026-07-04: **Car Club first, matchmaker second.** Consequence carried forward in the pitch (Sprint 15/16 deck + walk-in script): soften "invited quotes" language to pull-based browse until matchmaker actually ships. **Slice 0** (schema capture, routing, the flag-gated `my-clubs` handler) shipped during launch-hardening; **Slice 1** completed 2026-07-04 (browse + join + leave + my-rewards + Q3 catalog filter, all flag-gated); **Slice 2 (points engine) is the active track.**
+
+---
+
+## 1. Current state — done and verified (as of 2026-07-03)
+
+- **Schema:** all 15 tables (7 base + 8 program) captured and committed (`20260703a–h`); production drift corrected (missing columns, phantom `is_public`, wrong FK targets, missing CHECKs).
+- **RPC:** `redeem_reward_for_member` corrected and applied live — real column set is `delta_points` / `source_ref` / `point_cost` / `voucher_code`.
+- **Gate:** `data-feature` gating on nav item + teaser section, `applyMccFeatureGates()` fail-closed; server check `isFeatureEnabledForUser()` honors global flag or `test_users` only. No admin bypass. Verified with flag row + profile query.
+- **Routing:** `/api/car-clubs`, `/api/car-clubs/*`, and `/api/car-club/*` (singular catch-all, commit `e07c8a8`) all reach `netlify/functions/car-clubs.js`; function path regex accepts both forms.
+- **First member endpoint:** `GET /my-clubs` handler (commit `4541f8a`) — flag-OFF returns `200 {clubs:[],memberships:[]}`; balances currently **stubbed** (aggregate single entry, `reward_rule_id: null`, counts 0).
+- **Verification matrix so far:** unauth curl → 401 JSON ✅; flag-off gating (demo-member eyes) — pending tonight's check; flag-on authed `my-clubs` 200-empty — pending tonight's direct-URL check.
+
+**Known defects parked (fix inside slices below):**
+- "Browse Car Clubs" anchor on the members.html teaser dead-clicks (test cohort only; no source-level interceptor found; live-DOM `outerHTML` probe pending).
+- `loadModule()` is vestigial — every target already direct-`<script>`-loaded; re-injection parse-fails on `let` redeclaration (`_mccLeafletPromise`; `currentEscrowElements` same class).
+- Native shells (`ios/App/App/public/_redirects`, `android/.../public/_redirects`) lack the singular `/api/car-club/*` rule.
+- `www/_redirects:247` (`/api/car-club/free-bids`) is redundant after the catch-all — remove in first Slice 1 commit.
+- **`car-club-member.html` logged-in bounce to `members.html`** — confirmed NOT server-side (curl 200) and NOT in any code (file + shared scripts + inline init all read exhaustively, clean). localStorage on the origin holds `mcc_portal=member` plus `mcc_vid`, `sb-auth-token`, etc. Bounce is browser-state-driven, not a redirect. Page renders fine logged-out; endpoints all work (4x 401). NOT a real-user path (members reach Car Club via in-app link). Flag-off, non-blocking. **At pilot: test with a clean profile / demo member account; if it recurs, trace what reads `mcc_portal` / session state on the members↔car-club navigation.**
+
+---
+
+## 1a. Real bugs — must fix before pilot flag-on (NOT post-pilot debt)
+
+### BUG-01 · Account-deletion PII gap on Car Club tables — ✅ RESOLVED 2026-07-04
+
+**Filed:** 2026-07-04 (discovered during Item 4 schema audit).
+**Fixes:**
+- `cc80b81` — renamed legacy `car_club_members` → `club_memberships` (closed 1 of 6 tables).
+- `18a7bfd` — added the 5 missing DELETE calls for `club_points_ledger`, `club_points_redemptions`, `club_coupon_redemptions`, `club_comp_service_grants`, `club_activity_log` (closed remaining 5).
+
+**Severity reframe (discovered during fix):** this wasn't just PII hygiene — all 5 tables' `member_id` FK to `auth.users(id)` with **no ON DELETE action**, so any downstream `auth.users` deletion would have FK-failed for any user with Car Club activity. Account deletion was **broken end-to-end for affected users**, not merely leaking rows. Pre-fix, delete-my-account for any user with points/coupon/comp-service activity would error out at the auth-row deletion step. Post-fix, the pipeline completes cleanly.
+
+**All 6 tables now deleted on account-deletion:**
+
+| Table | Migration | Column | Status |
+|---|---|---|---|
+| `club_memberships` | 20260703b | `member_id` | ✅ `cc80b81` |
+| `club_points_ledger` | 20260703h:106 | `member_id` | ✅ `18a7bfd` |
+| `club_points_redemptions` | 20260703h:138 | `member_id` | ✅ `18a7bfd` |
+| `club_coupon_redemptions` | 20260703h:234 | `member_id` | ✅ `18a7bfd` |
+| `club_comp_service_grants` | 20260703h:265 | `member_id` | ✅ `18a7bfd` |
+| `club_activity_log` | 20260703c | `member_id` | ✅ `18a7bfd` (currently empty; Slice 2 populates) |
+
+**Root cause preserved for reference:** `account-deletion-core.js` docstring at `:1-10` says: *"If you add a new table that holds user data, add the matching delete here."* When migration `20260703h` shipped 8 new club tables (5 of which hold `member_id`), the corresponding deletes were never added. `car_club_members` was a separate pre-existing schema-drift bug from the 20260703b rename.
+
+**Not in scope of this bug entry (already-clean tables):**
+- `car_club_redemptions` (deleted ✅ at :131)
+- `car_club_return_bonuses` (deleted ✅ at :132)
+- `car_club_benefits` — provider-owned, not user PII (correctly out of the member-tables delete)
+- `car_clubs` — provider-owned, not user PII (correctly out of the member-tables delete)
+- `club_points_config` — provider-owned per-club config (correctly out of the member-tables delete)
+- `club_rewards` / `club_coupons` / `club_comp_services` — provider-owned catalog items (correctly out)
+- `club_reward_rules` — provider-owned earn-rule config (correctly out)
+
+### BUG-01 follow-up · Drop dead legacy tables (post-fix housekeeping)
+
+Once BUG-01's DELETE additions land, both of these tables become droppable in a follow-up migration:
+
+- **`car_club_members`** (created by `20260526_create_car_club_members.sql`) — superseded by `club_memberships` (`20260703b`) in October 2026. After `cc80b81` this table has **zero live references anywhere in the codebase** (grepped netlify/, www/, supabase/). Dead schema. Drop-safe pending a Studio `SELECT COUNT(*)` sanity-check (if non-zero, migrate rows to `club_memberships` first).
+- **`member_club_balances`** — **NOT in any migration file** (unmigrated Replit-era artifact). Confirmed **0 rows in prod** (2026-07-04). Still referenced by `account-deletion-core.js:128` (a delete that's a no-op given the empty state), `www/car-club-api.js` (old Replit Express handlers using `pg` client, not Netlify — dead code), and `www/stress-test-car-club-punch.js` (test scaffolding). Once the two live-code references are removed, the table can be dropped from prod.
+
+Both drops go in a single follow-up migration after BUG-01 fixes land.
+
+---
+
+## 1b. Pre-pilot data-hygiene checklist (not bugs; must happen before Stage-2 flag-on)
+
+Items that don't belong in §1a (real bugs) or §9a (post-pilot debt) — data cleanups that keep prod clean when the pilot flips live.
+
+### Seed clubs cleanup (added 2026-07-06)
+
+**Current state (2026-07-06):** `car_clubs` has **3 dev seed clubs** from the 2026-05-26 seed migration, all owned by Jordan's uid (`8ea2bc19-…`), all `is_active = true`:
+- Honda & Acura Club
+- Truck & SUV Owners
+- BMW Enthusiasts NJ
+
+**KEEP for now** — deliberately retained through Slice 3 build. They're useful for building/testing `provider-club.html` end-to-end as Jordan-as-provider before Chris touches the surface. `GET /api/car-club/my-provider-clubs` with Jordan's session returns these three; `clubs[0]` becomes the working club for punch/validate wire-up dry runs.
+
+**BEFORE STAGE-2 FLAG-ON:** deactivate or delete these 3 seed clubs when Chris's real Alpha Auto Body club is admin/SQL-provisioned per D4. Production at pilot time should have **only Chris's club** so the `/my-provider-clubs` response for any accidental non-Chris caller is guaranteed empty rather than showing Jordan's dev seeds.
+
+**Cleanup script:** `docs/scripts/deactivate-seed-clubs.sql` — canonical soft-deactivate (paste into Studio SQL Editor with Jordan's uid substituted; includes preview + verification queries + a harder `DELETE` option gated behind a confirmation of no dependent rows).
+
+Companion provisioning script: `docs/scripts/provision-pilot-club.sql` — atomic single-transaction provision of Chris's `car_clubs` row + `club_reward_rules` row + append to `test_users`. Run this FIRST at Stage-2 flag-on time (creates Chris's real club), then run `deactivate-seed-clubs.sql` immediately after (retires Jordan's dev seeds). Both scripts are idempotent and wrapped in BEGIN/COMMIT.
+
+---
+
+## 2. Decisions required before build (Jordan)
+
+| # | Decision | Proposed default |
+|---|----------|------------------|
+| D1 | Pilot club + provider | ✅ **DECIDED 2026-07-05** — Chris Agrapidis / Alpha Auto Body (founding provider, grandfathered, motivated) |
+| D2 | Pilot earn mechanic | ✅ **DECIDED 2026-07-05** — Earn = provider scans member's existing Check-In QR (`profiles.qr_code_token`); manual member-code entry as fallback |
+| D3 | Points policy & terms | Points have no cash value, non-transferable, program can be modified/ended; short terms blurb required **before global enable**. Owner: **Jordan** — running the pilot without terms is a business-risk judgment, not legal advice; a lawyer glance before Stage 2 is cheap insurance and becomes **mandatory** if any reward ever carries cash-equivalent value |
+| D4 | Who creates clubs | Admin/SQL-provisioned for pilot (curated — consistent with Path B philosophy); provider self-serve UI later |
+| D5 | Program-surface scope for pilot | ✅ **DECIDED 2026-07-05** — Pilot scope = MINIMAL core loop only (join → punch → progress → redeem one reward). Store, testimonials, notifications DEFERRED to Slice 5 behind the existing feature-flag pattern — addable later on pilot signal, no rearchitecting needed |
+| D6 | Sequencing vs matchmaker | ✅ **DECIDED 2026-07-04** — Car Club first, matchmaker second. **Consequence:** provider pitch (Sprint 15/16 deck + walk-in script) must soften "invited quotes" language until matchmaker actually ships — pull-based browse is the honest description of today's flow |
+| D7 | Pilot reward types | **Service-discount vouchers only. No bid-credit rewards in pilot** — a bid-credit reward is effectively $0/bid next to the $7–$10/bid pack ladder; not a pricing-rule violation (grants ≠ pack pricing) but a farming vector. Revisit with pilot data |
+
+*D1 footnote:* Chris's grandfathered terms (90% perpetual referral commission on bid-pack sales; unlimited free bids) don't obviously interact with Car Club — commissions key off bid-pack sales, not club-driven jobs, and a bid-credit reward is moot for an unlimited-bids account — but **confirm both explicitly during pilot setup** rather than assume.
+
+---
+
+## 3. Slice 1 — Member read path (flag-ON works end-to-end, read-only)
+
+**Goal:** a test-cohort member can load `car-club-member.html` with zero console errors, browse active clubs, join/leave, and see real reward progress.
+
+1. **Inventory (CC, read-only, first task):** map every `apiFetch` in `car-club-member.html` → existing handler / missing handler in `car-clubs.js`. Output a table. Also state which Supabase client the function uses (service-role vs user-JWT) — this decides how much RLS work is mandatory vs defense-in-depth.
+2. **RLS (Jordan applies in Studio; column names vs `20260703a–h`):** member SELECT on `car_clubs` (active AND NOT `provider_suspended`), own rows on `club_memberships` and `club_points_ledger`, `club_reward_rules` for active clubs. No member write policies — all writes go through handlers.
+3. **Handlers (flag-gated per the `my-clubs` pattern):**
+   - `GET /browse` — active, non-suspended clubs.
+   - `POST /join` — membership insert, duplicate-membership guard, reactivate if previously left.
+   - `POST /leave` — set `is_active=false` (never delete; preserves ledger).
+   - `GET /my-rewards` — reward rules + member progress per rule.
+   - Verify existing `free-bids` handler behavior; keep or fold in.
+   - Convention: flag-OFF → GETs return 200-empty; writes return 403 with clean error (mirrors `split-guest-confirm.js` precedent). Document the divergence in comments as done for `my-clubs`.
+4. **Real balances:** replace the stub — compute `punch_count` / `visit_count` / `total_spend` per reward rule from `club_points_ledger`, return per-rule entries with real `reward_rule_id` so the client's progress rendering (`car-club-member.html:880`) activates.
+5. **Fix the dead Browse anchor** (root-cause via live-DOM probe; entry point for the pilot) and remove `_redirects:247` in the same commit series.
+
+**Exit criteria (browser, deployed artifact):** unauth curl 401 on every new route; flag-off member sees nothing and GETs return 200-empty; Jordan (test user) browses, joins, leaves, rejoins, sees rule progress at 0; console clean throughout; Network rows verified per endpoint.
+**Estimate:** 2–3 CC evening sessions.
+
+---
+
+## 4. Slice 2 — Points engine (earn + redeem loop)
+
+### Pilot design (DECIDED 2026-07-05)
+
+**PUNCH (earn):** provider scans member's Check-In QR (`profiles.qr_code_token`) → provider taps **Confirm** on the punch screen → positive entry to `club_points_ledger` per the club's active reward rule (from `club_reward_rules`). The Confirm tap is the earn gate — stops accidental double-punches from a re-scan without deliberate approval. Not a defense against deliberate dupes (fine for a trusted pilot provider); add a per-member/per-club N-minute dedupe window post-pilot if it becomes a scale issue.
+
+**REDEEM:** member at/above threshold → `redeem_reward_for_member` RPC (already fixed 2026-07-03; returns `voucher_code`) → member sees the code in the app.
+
+**VALIDATE:** provider manually types the voucher code into the validate screen → looked up in `club_points_redemptions` → marked used (`status = 'fulfilled'`, `used_at = now()`) via single conditional UPDATE. Reuse rejected atomically. Manual entry only for pilot; QR-on-voucher deferred to post-pilot.
+
+**Endpoints to build:**
+- `POST /api/car-club/punch` — provider-authenticated, Confirm-gated. Body carries `club_id` + resolved `member_id` (from QR scan or manual code).
+- `POST /api/car-club/redeem` — member-authenticated. Delegates to `redeem_reward_for_member` RPC.
+- `POST /api/car-club/validate-voucher` — provider-authenticated. Single conditional UPDATE, returns 200 on success, 400 on already-used/nonexistent.
+
+**Provider surface (punch screen + validate-voucher screen):** the pilot-minimal Slice 3 piece — build alongside these endpoints, not after.
+
+---
+
+**Goal:** the full loyalty loop works with real accounts.
+
+1. **Earn:** `POST /punch` (provider-authenticated): resolve member via Check-In QR token or member code + club id → insert positive `delta_points` (and visit) per the club's reward rules. **Idempotency guard** (reject duplicate punch for same member/club within N minutes) to prevent double-scan.
+2. **Redeem:** member `POST /redeem` → calls `redeem_reward_for_member` (fixed 2026-07-03) → returns `voucher_code`; client displays voucher. Verify the RPC enforces `point_cost ≤ balance`; if not, add the check via migration (Jordan applies).
+3. **Voucher validation:** provider endpoint to look up a `voucher_code` and mark it used. **CC task:** verify voucher storage has status/`used_at`; if missing, propose migration.
+4. **Ledger integrity review:** confirm no path can drive a member balance negative or double-spend a voucher.
+5. **Transactional boundaries & rollback:** verify `redeem_reward_for_member` performs point-deduct + voucher-creation in **one transaction** — points must never leave without a voucher existing; if the RPC doesn't guarantee this, fix it before any redeem testing. Voucher validation must be a single conditional write (`UPDATE … SET status='used', used_at=now() WHERE voucher_code=$1 AND status='issued' RETURNING …`) so a second validation of the same code fails atomically — no read-then-write. Every earn/redeem/validate writes an audit row to `club_activity_log`.
+6. **Instrumentation (pilot metrics live here, not Slice 5):** Stage-2 exit criteria are measured from `club_activity_log` + the ledger — punches/week per member, completed redemptions, and **abandoned redemptions** (voucher issued, never validated within 30 days). CC delivers the 3–4 SQL metric queries alongside the endpoints, stored as `docs/car-club-metrics.md` in the repo (with the code, not lost in a chat thread), so the pilot is measurable on day one.
+
+**Exit criteria:** with pilot accounts — punch → progress increments in UI → threshold reached → redeem → voucher shown → provider validates → balance decremented → second validation of same voucher rejected → double-scan rejected. All in the browser against prod, console clean.
+**Estimate:** 2–3 sessions.
+
+---
+
+## 5. Slice 3 — Provider surface
+
+**Pilot-minimal (build with Slice 2):** a punch/scan screen and a voucher-validation screen in the provider portal. The pilot club itself is provisioned by admin/SQL (D4).
+
+### Slice 3 pilot-minimal — Provider punch/validate screen (DESIGNED 2026-07-06 · all four build questions RESOLVED, spec is build-ready)
+
+**PAGE:** new standalone `www/provider-club.html` (mirrors the `car-club-member.html` pattern — single-page, network-first HTML, feature-flag-gated). Tablet-oriented layout — Chris (D1) uses it at his shop counter. Flag-gated on `car_club_programs_enabled` (server-side gate is already live on the endpoints; client-side gate hides the page shell when the flag is off for the caller). Provider-authenticated on load.
+
+**SCOPE — operate only.** Chris's club record + reward rules are admin/SQL-provisioned first per D4. This screen does NOT create/edit clubs or reward rules; those surfaces are the full Slice 3 portal, deferred. If a provider without a provisioned club opens the page, show a clear "No club is set up yet — contact support" empty state; do not offer create-flow.
+
+**LAYOUT (two primary actions, side-by-side — tablet has the width):**
+
+- **Header:** club name (e.g. "Alpha Auto Body Rewards"), provider identity (business name + logged-in user), sign-out link. Club name comes from `car_clubs.name` for the club whose `provider_id === session.user.id`.
+- **PUNCH (left column, frequent action):**
+  - Primary path: **"Scan Member QR"** button → camera view → decode member's Check-In QR (payload format `mcc:checkin:<token>` per `www/members-core.js:2968`) → strip prefix → resolve token via `profiles.qr_code_token` (server-side, on POST) → display "Award point to **[member name]**?" preview → **CONFIRM** button (D2 confirm-gate — no auto-punch on scan) → `POST /api/car-club/punch` with `{ club_id, qr_token }` → success toast ("+1 point to [name]").
+  - Fallback path: **"Enter member code manually"** link → reveals text input → paste/type the token → same **Confirm** preview → same `POST /api/car-club/punch`.
+- **VALIDATE (right column, redemption action):**
+  - Text field: **"Enter voucher code"** (8-char uppercase hex; auto-uppercase on paste/type to match the RPC-generated format at `20260706a:169`) + **Validate** button → `POST /api/car-club/validate-voucher` with `{ voucher_code }` → on 200: "✓ Valid — [reward name] redeemed" with member name + point cost from the returned redemption row; on 404: "✗ Invalid or already used" (collapsed message per the endpoint's leak-prevention design).
+
+**WIRING (endpoints already live + smoke-verified):**
+- `POST /api/car-club/punch` — commit `f1e894e`, verified 401 anonymous
+- `POST /api/car-club/validate-voucher` — commit `1680e1d`, verified 401 anonymous
+- Both are provider-authenticated on the server (`car_clubs.provider_id === auth.uid()` check), so client-side calls just need the Bearer JWT — same pattern the existing member endpoints use.
+
+**RESOLVED BUILD QUESTIONS (2026-07-06):**
+
+1. **QR scanning library — `html5-qrcode@2.3.8` (already in prod, reuse the existing integration).** Full camera + decode solution: handles `getUserMedia` stream setup, camera picker (front/back), scan loop, and UI in ~10 lines of caller code. Compared head-to-head with `jsQR` (decode-only — you'd build the `getUserMedia`+`<video>`+`<canvas>`+`requestAnimationFrame` loop yourself, ~50 lines of caller code, effectively frozen since 2020): `html5-qrcode` wins on reliability (proper camera-picker + back-camera preference at `providers-jobs.js:1442`), maintenance (last release 2023, active PRs), tablet camera handling (Safari iPad + Android Chrome verified via existing POS scanner in prod at `providers.js:9860`), and integration simplicity. **CDN pin (verbatim from three-bundle in-repo usage — same tag byte-identical in `www/providers.html:35`, `ios/App/App/public/providers.html:36`, `android/app/src/main/assets/public/providers.html:36`):**
+   ```html
+   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+   ```
+   Copy this tag verbatim into `provider-club.html`. Reference scanner wiring: `www/providers-jobs.js:1393-1466` (openQrScannerModal / startQrScanner / stopQrScanner / onQrCodeScanned) — copy shape, rename `qr-reader` div id to avoid collision. In `onQrCodeScanned`, strip the `mcc:checkin:` prefix per the existing pattern at `www/providers.js:9897` and use the resulting token as the `qr_token` body param for `POST /api/car-club/punch`.
+   - **SW STATIC_ASSETS implication:** `grep -c "html5-qrcode" www/sw.js` → **0**. Library loads from unpkg (network-first CDN), NOT from STATIC_ASSETS — `defer` attribute means it doesn't block page render. **No `sw.js` CACHE_NAME bump needed for the library.** Separately: `provider-club.html` itself should follow the `car-club-member.html` pattern and stay OUT of STATIC_ASSETS (network-first HTML propagates instantly; no bump needed for the page either). **Zero cache bumps at build time.** Reverse of the standing rule ("touching a STATIC_ASSETS file requires a CACHE_NAME bump") is deliberately in effect: staying out of STATIC_ASSETS is the reason nothing bumps.
+2. **Camera permissions UX on tablet — verified via existing POS scanner in prod.** `html5-qrcode` handles the `getUserMedia({ video: true })` prompt internally. First-scan flow requires HTTPS (mycarconcierge.com is HTTPS ✓). iOS Safari's user-gesture requirement for camera prompt is already handled at `providers-jobs.js:1397-1400` — scanner start is invoked inside a button click handler. On denial, `html5-qrcode` throws; catch handler shows the manual-entry fallback (matches the fallback path in the LAYOUT section above).
+3. **Provider auth/session on this standalone page — same-origin localStorage carries the Supabase session.** Session lives in `localStorage.getItem('sb-ifbyjxuaclwmadqbjcyp-auth-token')` per `supabaseclient.js:12`; same-origin `provider-club.html` reads it on load via `sb.auth.getSession()`. If no session, redirect to `/login.html` (mirrors `apiFetch` pattern at `car-club-member.html:735`). Include `<script src="supabaseclient.js?v=...">` in the page head; auth chain matches the existing provider-portal pattern in `www/providers.html`.
+4. **No naming collision.** `ls www/provider-*` inventory: `providers.html`, `provider-info.html`, `provider-pilot.html`, `provider-faq.html`, `provider-tips.html`, `provider-onboarding.js`, `provider-agreement.html`. **`provider-club.html` is the confirmed new-file name — no collision.**
+
+**Non-goals for pilot-minimal (deferred to full Slice 3 post-pilot):**
+- Manual point adjustments (audited to ledger)
+- Member list with history
+- Reward rule editor
+- Testimonial moderation
+- Voucher lookup (search for a code without validating — read-only view)
+- Refund/cancel a fulfilled voucher (would require adding a `'cancelled'` write path on `club_points_redemptions`; the enum value exists per `20260703h:62` but no handler writes it yet — Slice 4 territory)
+
+**Exit criteria:**
+- Chris opens `provider-club.html` on his tablet, sees his club's header.
+- Chris scans a member's check-in QR, sees the confirm preview, taps Confirm, sees success toast. Member's ledger increments by 1 (verifiable via `/my-clubs` on the member side).
+- Member redeems a reward via the app, shows Chris the voucher code, Chris types it into Validate, sees "✓ Valid" + reward details.
+- Chris tries to type the same code again, sees "✗ Invalid or already used".
+- All in a clean incognito browser on prod, console clean, no server 5xx.
+
+**Estimate:** 1 CC evening session (page shell + PUNCH flow + VALIDATE flow + QR scanner integration + auth-session wiring). Previously flagged as 1–2 sessions with QR-library research as the variable; that research is now closed (html5-qrcode@2.3.8 reuse from existing prod integration) so the build path is straight-line copy-and-wire.
+
+---
+
+**Full portal (post-pilot):** create/edit club (name, logo, banner — the 21-column `car_clubs` supports branding), define/edit reward rules, member list, manual point adjustments (audited to ledger), testimonial moderation.
+**Estimate:** pilot-minimal 1–2 sessions; full portal 1–2 weeks.
+
+---
+
+## 6. Slice 4 — Admin & moderation
+
+Server-side endpoints landed 2026-07-06 (commit `7bd8456`), all gated on `profiles.role === 'admin'` via a small `isAdmin()` helper matching the `ops-flags-admin.js:58-63` pattern. Admin routes are intentionally NOT flag-gated so Jordan can suspend/unsuspend during a Stage-2 rollback regardless of the feature-flag state.
+
+- ✅ **Admin clubs view** — `GET /api/car-club/admin/clubs`. Returns every `car_clubs` row with id, name, provider_id, is_active, provider_suspended, member_count (denormalized counter per §9a), feature toggles, timestamps.
+- ✅ **`provider_suspended` toggle (per-club kill switch)** — `PATCH /api/car-club/admin/clubs/:id/suspension`. Body: `{ provider_suspended: boolean }`. Returns the updated club row. Q2 suspension semantics preserved — hides discovery (`/browse`, `/rewards`, `/coupons`, `/comp-services`) but does NOT hide existing-member visibility (`/my-clubs`, ledger reads).
+- ✅ **Ledger audit view per club** — `GET /api/car-club/admin/clubs/:id/ledger?limit=<n>&offset=<n>`. Paginated `club_points_ledger` view, most-recent-first, default 100/page, max 500. Returns club identity + ledger entries + pagination metadata.
+- ✅ **Audit existing admin routes** — done 2026-07-06: every pre-existing `car-clubs.js` handler is either public (list/browse), self-scoped member (join/leave/redeem), or provider-scoped (`provider_id === user.id`). No route is "admin-intended but not gated." Nothing to patch.
+
+**Client-side admin UI (a moderation section in `www/admin.html` calling the three endpoints above) — deferred as post-pilot polish.** For pilot, Jordan uses curl/DevTools against the endpoints directly; the observability is server-side, not tied to a UI. Slice 4's exit criteria (see below) are satisfied by endpoint availability.
+
+**Exit criteria (server-side, all met):**
+- `GET /api/car-club/admin/clubs` returns all clubs to an admin caller; 403 to non-admin; 401 to unauthenticated.
+- `PATCH .../suspension` flips `provider_suspended`, reflected immediately in `/browse` (hidden) and `/my-clubs` (still visible for existing members).
+- `GET .../ledger` returns paginated activity to admin only.
+
+**Estimate:** 1–2 sessions.
+**Estimate:** 1–2 sessions.
+
+---
+
+## 6a. Stage-1 → Stage-2 verification protocol
+
+**Purpose:** prove the full Stage-1 loop works end-to-end with real accounts before flipping `platform_settings.car_club_programs_enabled.enabled` to `true` (§9 Stage 2). A pilot provider going live to their real customers on a broken punch or validate flow burns the pilot's first-impression window; this protocol is the gate.
+
+**Reusable:** parameterized for any future pilot provider. Values in angle brackets get substituted at run time.
+
+### Preconditions
+
+Before running the protocol, verify in Studio:
+
+- Pilot provider's club is provisioned (via `docs/scripts/provision-pilot-club.sql`): row in `car_clubs` with `is_active = true`, `provider_suspended = false`, `punch_card_enabled = true`, and a matching `club_reward_rules` row with `is_active = true`.
+- Any prior seed clubs are deactivated (via `docs/scripts/deactivate-seed-clubs.sql`) so `SELECT id, name FROM car_clubs WHERE is_active = true` returns exactly one row: the pilot provider's club.
+- Flag is global-off with the pilot provider and at least one internal tester in `test_users`:
+  ```sql
+  SELECT setting_value->'enabled' AS flag_enabled,
+         setting_value->'test_users' AS test_users_list
+    FROM public.platform_settings
+   WHERE setting_key = 'car_club_programs_enabled';
+  -- Expected: false | [<internal-tester-uid>, <pilot-provider-uid>, …]
+  ```
+- Zero test data. No prior `club_memberships` / `club_points_ledger` / `club_points_redemptions` rows for `<PROVIDER_CLUB_ID>`. That's the expected starting state — protocol builds from empty.
+
+### Placeholders
+
+| Placeholder | Meaning |
+|---|---|
+| `<PILOT_PROVIDER>` | The pilot provider's identity (person + business) |
+| `<PROVIDER_CLUB>` | Human-readable club name (e.g. as displayed in `/provider-club.html`'s header) |
+| `<PROVIDER_CLUB_ID>` | UUID from `car_clubs.id` after provisioning |
+| `<TEST_MEMBER_UID>` | `auth.users.id` of the account driving the member side of the loop (typically an internal tester in `test_users`) |
+| `<TEST_REWARD>` | Name of the club's reward — often the only rule at pilot minimal scope; if multiple rules exist, pick the lowest `punches_required` for shortest protocol runtime |
+
+### The 12-step run
+
+| # | Action | Where | Verify |
+|---|---|---|---|
+| 1 | Log in as `<TEST_MEMBER_UID>` | `/login.html` | Session lands, no console errors |
+| 2 | Navigate to the Car Club member surface | member entry (typically `/members.html` → Car Club nav item, or `/car-club-member.html` directly) | `<PROVIDER_CLUB>` appears in `/browse` — the flag evaluates ON because this uid is in `test_users` (`_shared/feature-flag-check.js:24`) |
+| 3 | Join the club | Browse → Join button | Success; `<PROVIDER_CLUB>` appears in `/my-clubs` with zero balance |
+| 4 | Open a second browser (or incognito profile) as `<PILOT_PROVIDER>` | `/login.html` | Provider session established |
+| 5 | Navigate to `/provider-club.html` | Provider's browser | Header shows `<PROVIDER_CLUB>` (from `/api/car-club/my-provider-clubs`), PUNCH column on left, VALIDATE column on right, no console errors |
+| 6 | Look up the test member's punch token | Studio: `SELECT id, qr_code_token FROM public.profiles WHERE id = '<TEST_MEMBER_UID>';` — use `qr_code_token` if populated, otherwise use the `id` value itself (the `/punch` handler at `car-clubs.js:440-444` falls back to UUID-shaped `profiles.id` matching when `qr_code_token` returns null) | copy the value |
+| 7 | Provider: click **Enter code manually** → paste the token → **Preview** → **Confirm** | provider-club.html | Toast reads exactly **"+1 point recorded"** (from provider-club.html:745). If it reads anything else (including a server error string), stop — see stop conditions below |
+| 8 | Test member: refresh `/my-clubs` | Member's browser | Point balance = 1 in `<PROVIDER_CLUB>` row; progress rendering advances |
+| 9 | **Repeat step 7 through the provider console** N-1 more times, where N = `club_reward_rules.punches_required` for `<TEST_REWARD>` (typically 10). **Do not shortcut with `UPDATE club_points_ledger SET delta_points = …` in Studio.** The balance is a live `SUM(delta_points)` computed on read in `listMyClubs` at `car-clubs.js:131-135` — no cached column exists on `club_memberships` — so a direct ledger UPDATE would not desync a cache, but it *would* bypass the actual `/punch` code path (provider auth, active-club check, `is_club_member` check, `source_ref` audit stamping). The whole point of the protocol is to exercise that code path; shortcutting it means the test proves nothing about the code | provider-club.html + member's `/my-clubs` between reps | After N total punches, member's balance = N; reward-earned indicator appears (per `RewardEngine.evaluate('punch_card', …)`) |
+| 10 | Test member: redeem `<TEST_REWARD>` | `/my-rewards` (or Redeem button on the club card in `/my-clubs`) | Success; voucher code shown in the toast (8-char uppercase hex) — save this value for step 11. Under the hood, the `redeem_reward_for_member` RPC (20260706a) fires: advisory lock on (club, member) + FOR UPDATE on the reward row + voucher-first-then-ledger writes |
+| 11 | Provider: type voucher code into VALIDATE column → **Validate** → **Confirm** | provider-club.html | Toast reads **"Voucher redeemed ✓ · N points"** (from provider-club.html:861, N = `<TEST_REWARD>`'s `point_cost`); input clears; row in `club_points_redemptions` for this voucher_code now has `status = 'fulfilled'` and non-null `fulfilled_at` |
+| 12 | Provider: type the same code again → **Validate** → **Confirm** | provider-club.html | Toast reads **"Invalid or already-used voucher code"** (server-supplied on collapsed 404, per provider-club.html:787). Proves atomic reuse rejection — the endpoint's `WHERE status='issued'` clause at `car-clubs.js:682` finds no match on the second try, single-statement UPDATE returns zero rows, response collapses to 404 |
+
+### What passing the protocol proves
+
+- **Flag gating on both surfaces** for allowlisted users — the `test_users.includes()` branch of the flag check is exercised on both the client-side member render (step 2) and the server-side member-facing endpoints (steps 3, 8, 10).
+- **Provider auth chain** — `car_clubs.provider_id === auth.uid()` gate holds against a real JWT-verified session (steps 5, 7, 11).
+- **Punch flow end-to-end** — QR/manual → confirm gate → POST `/api/car-club/punch` → ledger insert with real `source_ref` stamp (steps 7, 9).
+- **Ledger propagation** — `SUM(delta_points)` in `listMyClubs` reflects fresh writes in real time (step 8).
+- **Redeem loop** — RPC's plpgsql atomicity (advisory-xact-lock + FOR UPDATE, voucher-first ordering) holds under a real member's balance state (step 10).
+- **Validate with code display** — the `.trim().toUpperCase()` normalization on both client and server matches; the server's collapsed 404 message reaches the client toast intact (step 11).
+- **Atomic reuse rejection** — the `WHERE status='issued'` single-statement guard rejects the second attempt without leaking that the code exists (step 12).
+
+### Stop conditions — stop and debug before flipping the flag
+
+- **401 / 403 / 404 that shouldn't be there** — e.g., step 5 returns 401 despite an active session; step 7 returns 403 despite provider auth; step 10 returns 404 despite the member being in the club.
+- **Raw error message text in a toast** — indicates the endpoint sent an unsanitized DB error string that the client passed through untouched (`e.message`). The intentional collapsed messages (`'+1 point recorded'`, `'Voucher redeemed ✓'`, `'Invalid or already-used voucher code'`) are safe; anything else in a toast that reads like SQL or a stack trace is not.
+- **Undefined voucher code in the redeem-success toast** at step 10 — signals the redeem client isn't reading the RPC's structured return correctly.
+- **QR scan won't decode but manual entry works** at step 7 — note the observation but the protocol still passes if manual entry succeeds. Camera scanner is a UX polish; the underlying punch flow is proven either way.
+- **Any 500** — stop immediately. 500s from these endpoints indicate a schema mismatch or an unexpected DB error and need server-log inspection before proceeding.
+
+### Stage-2 canary (required before widening beyond the single provider)
+
+**The 12-step protocol exercises only the `test_users.includes(userId)` branch** of `isFeatureEnabledForUser` at `_shared/feature-flag-check.js:24`. Every request in the protocol comes from an allowlisted account.
+
+When the flag flips (`enabled: true`), a real customer's `isFeatureEnabledForUser` call short-circuits at the `enabled === true` check on line 21 — **a different code branch**. Both return `true`, so the flag gate behaves the same. But real customers can have properties internal testers don't:
+
+- Missing `profiles.qr_code_token` → hits the UUID-shaped `profiles.id` fallback path in `/punch` (car-clubs.js:440-444). This IS covered by the protocol only if the test member's `qr_code_token` happens to be null; if you're always using the `qr_code_token` path in the protocol, the fallback path stays untested.
+- Phone-only auth with `null` email → any email-dependent client code paths (there aren't many in the Car Club surface, but there are some in surrounding shared code).
+- Older profile shapes without `full_name` or a fully-populated `profiles` row (early-signup migration artifacts).
+- First-time users whose `club_memberships.is_active` history is empty vs. rejoin flows.
+
+**Before widening the pilot beyond the single provider (i.e., before any decision to add a second pilot provider or increase the pilot's public visibility), run one non-allowlisted account through join → punch → redeem as the true Stage-2 canary.** The pilot provider's first walk-in customer is the ideal target — real properties, real workflow, real network. If the canary passes, widen. If it snags on any of the customer-shape properties above, fix before widening.
+
+### Evidence records
+
+Completed runs of this protocol live as dated companion notes at `docs/scripts/verification-runs/YYYY-MM-DD-<pilot-provider-slug>.md`. Each note records: the run date, the pilot provider identity, the substituted placeholder values, screenshots or SQL evidence for each of the 12 steps, and the pass/fail/stop-condition outcome. The first evidence record (Chris Agrapidis / Alpha Auto Body Rewards) will be added by Jordan after the live run.
+
+---
+
+## 7. Slice 5 — Deferred program surfaces (post-pilot only)
+
+Store (catalog + orders — **points-only**; no cash top-ups or stored value; `FEATURE_WALLET` stays false and this feature must not become a wallet), testimonials, notifications. Each needs handlers + RLS + client verification. Build only on pilot signal.
+
+Notifications: matchmaker is now the SECOND track (D6 reversed 2026-07-04), so its push infrastructure lands AFTER Car Club. Two paths depending on Slice 5 timing: (a) wait for matchmaker to ship its push stack and reuse it (in-app bell, email, mobile push, prefs) — cheapest if the pilot signal comes in after matchmaker ships; (b) build a standalone Car Club notification stack — adds ~1 week if Slice 5 needs to ship before matchmaker's push does. Decide when pilot signal actually arrives.
+
+---
+
+## 8. Launch hygiene (bundle into the slices, don't let it float)
+
+- Native `_redirects`: add `/api/car-club/*` to iOS and Android public bundles **when** Car Club ships in native builds.
+- SW rule, two parts: **(a)** any commit touching a file already in `STATIC_ASSETS` (`members-core.js`, `members-extras.js`, `members.html` — i.e., Slice 1's **very first commit**) ships a `CACHE_NAME` bump in the same push (standing rule from 2026-07-03); **(b)** separately decide whether `car-club-member.html` and its JS get added to `STATIC_ASSETS` at all — as network-first HTML today it propagates instantly, which argues for leaving it out.
+- Pre-seed `loadedModules` (or delete the vestigial `loadModule` path) at the first `members-core.js` touch.
+- Insurance loader fix (`members-extras.js:9356`): one-identifier change, `supabase` → `supabaseClient`. Error text (`evaluating 'supabase.auth.getSession'`) suggests `supabase` currently resolves to the supabase-js UMD namespace rather than being undefined — `typeof window.supabase` at fix time settles it; the fix is identical either way. Unrelated to Car Club but queued in the same v1.1 sweep, then verify the Insurance section renders data.
+
+---
+
+## 9. Rollout stages & kill switch
+
+| Stage | State | Gate to advance |
+|-------|-------|-----------------|
+| 0 (now) | `enabled:false`, `test_users=[Jordan]` | Slices 1–2 exit criteria pass |
+| 1 | Same flag state; Jordan full-loop testing | Full earn/redeem loop verified in prod |
+| 2 — Pilot | Add pilot provider + 5–10 invited members to `test_users`; club provisioned | 2–4 weeks: joins, ≥ weekly punches, ≥1 completed redeem loop, zero flow-breaking bugs |
+| 3 — Global | `enabled:true`; terms blurb (D3) live; announce | — |
+
+**Test-user provisioning (Stage 2):** Jordan runs in Studio, one statement per added member:
+
+```sql
+update platform_settings
+set setting_value = jsonb_set(
+  setting_value, '{test_users}',
+  coalesce(setting_value->'test_users', '[]'::jsonb) || '"<uid>"'::jsonb)
+where setting_key = 'car_club_programs_enabled';
+```
+
+Removal = rewrite the array in the same row. The kill switch lives in this same row — keep `enabled` changes and `test_users` changes as **separate deliberate statements**, never one rushed combined edit.
+
+**Kill switch:** set `enabled:false` — verified fail-closed: all surfaces hide, GETs return 200-empty, writes 403. No deploy required. One latency caveat: `window._mccFlags` is cached per session, so already-open browser sessions keep the old value until their next page load — the switch is instant for new sessions and all server-side writes, and next-navigation for everyone else. Acceptable for this feature class; just don't expect an instant across-the-board flip.
+
+---
+
+## 9a. Post-pilot debt list (tracked, deliberately not fixed pre-pilot)
+
+- **`car_clubs.member_count` should be a DB trigger or computed-on-read** (COUNT of `club_memberships` WHERE `is_active=true`) rather than an app-layer denormalized counter. Current joinClub `+1` (fresh insert only, not reactivate) and leaveClub `-1` (every active→inactive) mirror-writes are non-atomic and asymmetric — repeated leave/rejoin cycles drift the counter low over time. Acceptable during pilot (~10 members, cosmetic surface only); fix before scaling admin/analytics dashboards that read this column as truth. Referenced in `netlify/functions/car-clubs.js` leaveClub inline comment (2026-07-04, commit adding join/leave/my-rewards).
+- **`/browse` handler missing `reward_count` and `bgc_*` fields** (`car-club-member.html:1021, :1050, :1055-1060`) — the client renders "0 reward(s)" and always the neutral BGC badge on every browse card because `listBrowse` at `netlify/functions/car-clubs.js` doesn't join/aggregate them. Cosmetic only during pilot; both fields need Slice 2/3 work: `reward_count` = aggregate against `club_reward_rules` (or `club_rewards` once Slice 2 wires the point catalog); `bgc_badge_verified` / `bgc_compliant_employees` / `bgc_total_employees` = join against the provider BGC status source. Do together to avoid two-pass client change.
+- **Q3 catalog filter is a separate `car_clubs` fetch per endpoint** — `listRewards`, `listCoupons`, `listCompServices` each do their own `sb.from('car_clubs').select('id, is_active, provider_suspended').eq('id', clubId).single()` to gate the catalog behind club suspension state. Three extra reads on top of the catalog fetch. Fine at pilot scale (~10 members, single-digit catalog loads per session); fold the club-state check into a JOIN or a SECURITY DEFINER helper when optimizing. Don't build now — pilot performance is not the constraint.
+- **`/punch` has no retry/dedupe guard.** By deliberate pilot design: provider confirms every punch (D2), only Chris punches (D1 trusted provider), so double-tap defense is not built in Slice 2. If double-punch abuse appears at scale (multi-provider surface, or Chris scanning too fast at the counter), add an N-minute idempotency window per (`club_id`, `member_id`) — reject duplicate punches inside the window regardless of caller intent. Implementation shape: pre-INSERT `SELECT id FROM club_points_ledger WHERE club_id=$1 AND member_id=$2 AND source_ref LIKE 'punch:%' AND created_at > now() - interval '<N> minutes' LIMIT 1`.
+- **`club_points_ledger` has no `reward_rule_id` column.** Ledger is rule-agnostic by schema (`20260703h:106-115`) — a punch = +1 delta_points, and rule progress is computed at REDEEM time via SUM(delta_points) vs `club_reward_rules.punches_required`. Pilot per D5 has one rule per club so this works. If multi-rule per-club mechanics matter post-pilot (e.g. a club runs a 5-punch AND a 10-punch reward simultaneously and needs each punch tagged to a specific rule for reporting), add `reward_rule_id uuid REFERENCES club_reward_rules(id)` to the ledger. Client-side progress rendering would then need to filter by rule instead of using the single SUM.
+- **No per-punch point value column.** Both `club_reward_rules` (20260703d) and `club_points_config` (20260703h:96-103) lack a per-visit point value; `points_per_dollar` is spending-scaled. Pilot hard-codes +1 per punch in `/punch`. If per-punch configurability is needed post-pilot (e.g. a bonus punch on member's birthday, or a "double-punch Tuesday" promo), add `points_per_punch int NOT NULL DEFAULT 1` to `club_reward_rules`.
+- **`profiles.qr_code_token` is not in tracked migrations.** Grep returns 0 hits in `supabase/migrations/`; the column exists in prod per `www/members-core.js:2954` client query and is queried by `/punch` for member resolution. Same class as `member_club_balances` (Replit-era unmigrated column). Write the CREATE TABLE / ALTER TABLE that matches prod so replay works and future schema audits don't hit the same drift blind spot.
+- **`redeem_reward_for_member` (3-param RPC) lacks `FOR UPDATE` on `club_rewards`.** The 2-param sibling `redeem_reward` at `20260703h:189` uses `SELECT * INTO r FROM club_rewards WHERE ... FOR UPDATE`; the 3-param version at `20260703h:374-375` does NOT. Under concurrent redemptions from the same member (or against the same low-inventory reward), the balance/inventory checks can race — two calls both see balance=50, both pass check for cost=30, both INSERT -30, balance ends at -10 (double-spend). Symmetric shape for inventory going negative. Pilot volume (single-provider, sub-10 members, low redemption cadence) makes this near-zero risk; post-pilot add `FOR UPDATE` to the 3-param RPC. Fix is a migration touching only the RPC body.
+- **`redeem_reward_for_member` returns `uuid` (redemption row id), not `voucher_code`.** `/redeem` handler does a follow-up SELECT to fetch the code for client display. If any other future caller invokes the RPC, they need the same follow-up SELECT — worth adding a wrapper RPC that returns a composite type / json with both fields.
+- **Existing `redeemReward` handler at `car-clubs.js:764` has stale error strings.** It calls the 3-param RPC but its error-message `.includes()` matching is against the 2-param variant's language ("Not a member of this club" vs the 3-param's "Not an active club member"; "Not enough points" vs "Insufficient points"). Real 3-param errors fall through to `500` instead of specific 4xx codes. Fix at the same time as the /redeem endpoint is verified: either retire redeemReward and reroute its dispatcher line, or fix the error strings to match 3-param. `/redeem` (top-level, Slice 2) uses correct 3-param strings from the outset.
+- **Plan §4 vs schema terminology drift.** Plan says validate marks voucher `used_at`; schema column at `club_points_redemptions` is `fulfilled_at` (`20260703h:147`), no `used_at` column exists. When `/validate-voucher` is built, use `fulfilled_at`, `status='fulfilled'` (from `club_redemption_status` enum at `20260703h:62`). Existing `fulfillRedemption` at `car-clubs.js` already uses the correct column names — reference implementation.
+- **Punch confirm shows a generic "Award a punch to this member?" — no member-name preview.** Deliberate for pilot per D1 (Chris is trusted and can see the member in front of him); building name preview needs either a new `GET /api/car-club/member-by-token` endpoint (takes `{ club_id, qr_token }`, returns `{ member: { id, full_name } }` if member is in the club, 404 otherwise) OR a preview-only mode on `/punch` that resolves the member without writing. `member-by-token` is the cleaner surface — provider-club.html's confirm view could then show "Award a punch to **Jane Smith**?" post-pilot. Confirm-gate design in the client (`provider-club.html:showPunchConfirmGate`) already routes both scan and manual paths through one choke-point, so adding the name preview is a one-place UI edit + one new server endpoint.
+- **DB migration tracking is not used.** The `supabase_migrations.schema_migrations` table is effectively empty; all schema changes to date (including the entire `20260703a-h` series and the `20260706a` redeem RPC rewrite) were applied directly in Supabase Studio's SQL Editor, NOT via `supabase db push` / `supabase migration up` / the CLI pipeline. **Consequences:** (a) no automated applied-migrations record — the `supabase/migrations/` directory holds the SOURCE OF TRUTH for what a fresh replay would produce, but is silent on what actually landed in prod; (b) `supabase db reset` will NOT reproduce prod state — it will replay the migration files against a fresh DB, but any prod-only ad-hoc changes (columns like `profiles.qr_code_token`, tables like `member_club_balances`) will be missing; (c) every schema change requires manual pre-flight (grep for callers, column verification, DROP FUNCTION handling for signature changes) and manual Studio apply — the workflow we've been running throughout Slice 1 + Slice 2. **Post-pilot consideration:** either adopt CLI-tracked migrations end-to-end (requires reconciling prod against the migration files first — the Replit-era drifts flagged elsewhere in §9a would need matching migration files first) OR document the manual apply process formally (checklist per migration, pre-flight steps, verification queries) so a new contributor doesn't accidentally skip the discipline. Not blocking pilot; noted so it's a conscious state, not a surprise.
+
+---
+
+## 10. Estimate summary
+
+| Scope | Effort (evening-session cadence) |
+|-------|-------|
+| MVP pilot (Slices 1 + 2 + provider-minimal) | 6–10 CC sessions ≈ 2 weeks near-daily, ~3 weeks at 3–4 sessions/week |
+| Full feature (+ full provider portal, admin, store/testimonials/notifications) | +2–3 weeks |
+
+Not before: July 4 submission out the door. D6 decided 2026-07-04 (Car Club first, matchmaker deferred), and Slice 1 shipped 2026-07-04 — **Slice 2 (points engine) is now the active build track.** Matchmaker is deferred; when it eventually starts, it does not compete with Car Club build time because Car Club will already be at/past pilot by then.
