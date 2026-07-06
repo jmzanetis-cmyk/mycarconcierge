@@ -1,0 +1,467 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8" />
+  <title>Provider Club — My Car Concierge</title>
+  <script>
+    // Theme init (mirrors car-club-member.html:6-11).
+    (function() {
+      const theme = localStorage.getItem('theme') || 'dark';
+      document.documentElement.dataset.theme = theme;
+    })();
+  </script>
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="theme-color" content="#12161c" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="My Car Concierge" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="shared-styles.css?v=20260219">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.9);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --bg-input: rgba(30, 38, 48, 0.9);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.18);
+      --accent-red: #f87171;
+      --accent-red-soft: rgba(248, 113, 113, 0.15);
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --border-medium: rgba(160, 168, 184, 0.25);
+      --radius-sm: 8px;
+      --radius-md: 12px;
+      --radius-lg: 16px;
+    }
+
+    body {
+      font-family: 'Inter', system-ui, -apple-system, sans-serif;
+      background: var(--bg-deep);
+      color: var(--text-primary);
+      min-height: 100vh;
+      margin: 0;
+      padding: 0;
+    }
+
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px 32px;
+    }
+
+    /* Header */
+    .page-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 20px 28px;
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      margin-bottom: 24px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .header-club { display: flex; flex-direction: column; gap: 4px; }
+    .club-name {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      font-size: 1.8rem;
+      color: var(--accent-gold);
+      margin: 0;
+      letter-spacing: -0.02em;
+    }
+    .header-subtitle {
+      font-size: 0.85rem;
+      color: var(--text-muted);
+    }
+    .header-provider { display: flex; align-items: center; gap: 16px; }
+    .provider-identity {
+      color: var(--text-secondary);
+      font-size: 0.9rem;
+    }
+    .sign-out-btn {
+      background: transparent;
+      border: 1px solid var(--border-subtle);
+      color: var(--text-secondary);
+      padding: 8px 16px;
+      border-radius: var(--radius-sm);
+      cursor: pointer;
+      font-size: 0.85rem;
+      font-family: inherit;
+      transition: all 0.15s ease;
+    }
+    .sign-out-btn:hover {
+      border-color: var(--accent-gold);
+      color: var(--text-primary);
+    }
+
+    /* Suspended banner */
+    .suspended-banner {
+      background: var(--accent-red-soft);
+      border: 1px solid rgba(248, 113, 113, 0.4);
+      color: var(--accent-red);
+      padding: 14px 20px;
+      border-radius: var(--radius-md);
+      margin-bottom: 24px;
+      font-weight: 600;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .suspended-banner-icon { font-size: 1.2rem; }
+
+    /* Two-column operate grid — tablet landscape */
+    .operate-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    .operate-card {
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 28px;
+      min-height: 460px;
+      display: flex;
+      flex-direction: column;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .operate-card h2 {
+      margin: 0 0 20px;
+      font-size: 1.4rem;
+      color: var(--text-primary);
+      font-weight: 600;
+    }
+    .operate-card-body {
+      flex: 1;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    /* Step-1 placeholders (steps 2 and 3 replace these) */
+    .placeholder {
+      width: 100%;
+      padding: 60px 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      border: 1px dashed var(--border-subtle);
+    }
+
+    /* State containers */
+    .state-loading, .state-empty {
+      background: linear-gradient(145deg, #1a202a, #141a24);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: 80px 32px;
+      text-align: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .state-loading .spinner {
+      display: inline-block;
+      width: 40px;
+      height: 40px;
+      border: 3px solid var(--border-subtle);
+      border-top-color: var(--accent-gold);
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 20px;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
+    .state-loading p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
+
+    .state-empty h2 {
+      font-family: 'Fraunces', serif;
+      font-weight: 500;
+      color: var(--text-primary);
+      margin: 0 0 16px;
+      font-size: 1.6rem;
+    }
+    .state-empty p {
+      color: var(--text-secondary);
+      margin: 0;
+      font-size: 0.95rem;
+      line-height: 1.6;
+      max-width: 480px;
+      margin-left: auto;
+      margin-right: auto;
+    }
+    .state-empty a {
+      color: var(--accent-gold);
+      text-decoration: none;
+    }
+    .state-empty a:hover { text-decoration: underline; }
+
+    /* Toast */
+    .toast-container {
+      position: fixed;
+      top: 24px;
+      right: 24px;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .toast {
+      background: var(--bg-elevated);
+      border: 1px solid var(--border-medium);
+      color: var(--text-primary);
+      padding: 12px 20px;
+      border-radius: var(--radius-md);
+      box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+      font-size: 0.9rem;
+      animation: toastIn 0.2s ease;
+    }
+    .toast.error { border-color: rgba(248,113,113,0.5); }
+    .toast.success { border-color: rgba(52,211,153,0.5); }
+    @keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+    /* Tablet portrait / narrow — stack columns */
+    @media (max-width: 900px) {
+      .operate-grid { grid-template-columns: 1fr; }
+      .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
+      .container { padding: 16px; }
+    }
+  </style>
+</head>
+<body>
+
+  <div class="container">
+    <!-- Initial loading state, hidden once /my-provider-clubs resolves -->
+    <div id="state-loading" class="state-loading">
+      <div class="spinner"></div>
+      <p>Loading your club…</p>
+    </div>
+
+    <!-- Empty state, shown when clubs: [] (no provisioned club OR flag off; deliberately indistinguishable per D4) -->
+    <div id="state-empty" class="state-empty" style="display:none;">
+      <h2>No club is set up yet</h2>
+      <p>
+        Contact <a href="mailto:support@mycarconcierge.com">support@mycarconcierge.com</a>
+        to get your Car Club provisioned.
+      </p>
+    </div>
+
+    <!-- Main frame, shown when clubs[0] present -->
+    <div id="state-main" style="display:none;">
+      <header class="page-header">
+        <div class="header-club">
+          <h1 id="club-name" class="club-name">Club</h1>
+          <span class="header-subtitle">Loyalty program operator console</span>
+        </div>
+        <div class="header-provider">
+          <span id="provider-identity" class="provider-identity"></span>
+          <button class="sign-out-btn" onclick="signOut()">Sign out</button>
+        </div>
+      </header>
+
+      <!-- Shown only when club.is_active === false OR club.provider_suspended === true -->
+      <div id="suspended-banner" class="suspended-banner" style="display:none;">
+        <span class="suspended-banner-icon">⚠</span>
+        <span id="suspended-banner-message">Your club is suspended. Contact support to reactivate.</span>
+      </div>
+
+      <main class="operate-grid">
+        <!-- PUNCH column (Step 2 fills this) -->
+        <section class="operate-card">
+          <h2>Punch a Member</h2>
+          <div class="operate-card-body">
+            <div id="punch-body" class="placeholder">
+              Scanner UI wires here in Step 2.
+            </div>
+          </div>
+        </section>
+
+        <!-- VALIDATE column (Step 3 fills this) -->
+        <section class="operate-card">
+          <h2>Validate a Voucher</h2>
+          <div class="operate-card-body">
+            <div id="validate-body" class="placeholder">
+              Voucher input wires here in Step 3.
+            </div>
+          </div>
+        </section>
+      </main>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toast-container"></div>
+
+  <!-- External scripts -->
+  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="supabaseclient.js?v=20260219"></script>
+  <script src="mcc-config.js?v=20260219"></script>
+  <!-- html5-qrcode: pinned to match providers.html:35 byte-for-byte. Loaded now
+       so it's ready for Step 2's scanner wiring; not initialized here. -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js" defer></script>
+
+  <script>
+    // Page-scope state — populated on successful init.
+    let currentUser = null;   // Supabase session user
+    let currentClub = null;   // resolved from /api/car-club/my-provider-clubs → clubs[0]
+
+    // Toast helper (mirrors car-club-member.html shape).
+    function showToast(message, type = 'info') {
+      const container = document.getElementById('toast-container');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+      toast.textContent = message;
+      container.appendChild(toast);
+      setTimeout(() => toast.remove(), 4000);
+    }
+
+    function getApiBase() {
+      return (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    }
+
+    // Token from JWT-verified Supabase session. Mirrors car-club-member.html:726-731.
+    async function getToken() {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        return session?.access_token || null;
+      } catch (e) { return null; }
+    }
+
+    // apiFetch — mirrors car-club-member.html:733-744 exactly.
+    // Any 401-shaped case (missing token / expired session) → redirect to
+    // /login.html, same as the member surface does.
+    async function apiFetch(path, opts = {}) {
+      const token = await getToken();
+      if (!token) {
+        showToast('Please log in to continue', 'error');
+        window.location.href = '/login.html';
+        return null;
+      }
+      const base = getApiBase();
+      const res = await fetch(`${base}${path}`, {
+        ...opts,
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+          ...(opts.headers || {})
+        }
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Request failed');
+      return data;
+    }
+
+    async function signOut() {
+      try { await supabaseClient.auth.signOut(); } catch (_) {}
+      window.location.href = '/login.html';
+    }
+
+    // Render helpers.
+    function showLoadingState() {
+      document.getElementById('state-loading').style.display = '';
+      document.getElementById('state-empty').style.display = 'none';
+      document.getElementById('state-main').style.display = 'none';
+    }
+    function showEmptyState() {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-empty').style.display = '';
+      document.getElementById('state-main').style.display = 'none';
+    }
+    function showMainState() {
+      document.getElementById('state-loading').style.display = 'none';
+      document.getElementById('state-empty').style.display = 'none';
+      document.getElementById('state-main').style.display = '';
+    }
+
+    function renderFrame(club, user) {
+      document.getElementById('club-name').textContent = club.name || 'Your Club';
+      // Provider identity: email preferred, uid fallback (some providers may be
+      // phone-only auth without a populated email).
+      const ident = user?.email || (user?.id ? `Provider ${user.id.slice(0, 8)}` : 'Signed in');
+      document.getElementById('provider-identity').textContent = ident;
+
+      // Optional theme-color tinting from the club's chosen color.
+      if (club.theme_color) {
+        document.getElementById('club-name').style.color = club.theme_color;
+      }
+
+      // Suspended / inactive banner. Rendered but the operate UI stays visible —
+      // Chris still needs to see this is his club (not silently 404 subsequent
+      // calls). Server enforces the guard: /punch and /validate-voucher will
+      // reject writes to an inactive/suspended club, so the UI can't
+      // accidentally succeed here.
+      const banner = document.getElementById('suspended-banner');
+      const msg = document.getElementById('suspended-banner-message');
+      if (club.provider_suspended === true) {
+        msg.textContent = 'This club is currently suspended. Contact support to reactivate.';
+        banner.style.display = '';
+      } else if (club.is_active === false) {
+        msg.textContent = 'This club is currently inactive.';
+        banner.style.display = '';
+      } else {
+        banner.style.display = 'none';
+      }
+    }
+
+    async function init() {
+      showLoadingState();
+
+      // Step 1a: session check. Mirrors providers-core.js:172-176.
+      const { data: { session } } = await supabaseClient.auth.getSession();
+      if (!session) {
+        window.location.href = '/login.html';
+        return;
+      }
+      currentUser = session.user;
+
+      // Step 1b: resolve the provider's club.
+      let data;
+      try {
+        data = await apiFetch('/api/car-club/my-provider-clubs');
+      } catch (e) {
+        console.error('Failed to load provider clubs:', e);
+        showToast('Could not load your club. Please refresh.', 'error');
+        return;
+      }
+      if (!data) return; // apiFetch already redirected on missing token
+
+      const clubs = data.clubs || [];
+      if (clubs.length === 0) {
+        // Intentional: single empty state serves BOTH "no provisioned club"
+        // AND "flag off" — my-provider-clubs deliberately returns identical
+        // {clubs:[]} for both to hide the gated feature's existence. Adding
+        // flag-off-specific messaging would break that don't-reveal
+        // property. "Contact support" is the correct routing for either case.
+        showEmptyState();
+        return;
+      }
+
+      // Pilot uses the first club (per D4: admin/SQL provisions one per
+      // provider). If a provider ever has multiple, we operate on clubs[0]
+      // and a follow-up feature can add a club switcher.
+      currentClub = clubs[0];
+      renderFrame(currentClub, currentUser);
+      showMainState();
+    }
+
+    // Wait briefly for supabaseClient to initialize (mirrors the
+    // car-club-member.html pattern at :1643-1647), then run init.
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(init, 300));
+    } else {
+      setTimeout(init, 300);
+    }
+  </script>
+
+</body>
+</html>
