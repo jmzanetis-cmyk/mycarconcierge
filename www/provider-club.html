@@ -265,6 +265,33 @@
       flex-wrap: wrap;
       justify-content: center;
     }
+
+    /* Validate flow (Step 3) — reuses .text-input / .btn-primary / .btn-link /
+       .button-row / .confirm-message / .spinner from the Punch flow. */
+    .validate-container { width: 100%; padding: 8px; }
+    .validate-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    /* Voucher code input: monospace, letter-spaced, centered, uppercase.
+       Server also normalizes case at car-clubs.js:662, so this is a
+       display-and-defense-in-depth aid. */
+    .voucher-code-input {
+      text-transform: uppercase;
+      font-family: 'SF Mono', Menlo, Consolas, 'Roboto Mono', monospace;
+      letter-spacing: 0.15em;
+      text-align: center;
+      font-size: 1.2rem;
+    }
+    .voucher-code-input::placeholder {
+      letter-spacing: normal;
+      font-family: inherit;
+      font-size: 0.95rem;
+      color: var(--text-muted);
+      text-transform: none;
+    }
     .state-loading p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
 
     .state-empty h2 {
@@ -417,8 +444,40 @@
         <section class="operate-card">
           <h2>Validate a Voucher</h2>
           <div class="operate-card-body">
-            <div id="validate-body" class="placeholder">
-              Voucher input wires here in Step 3.
+            <div id="validate-body" class="validate-container">
+              <!-- IDLE (default) — text input + Validate button -->
+              <div id="validate-idle" class="validate-view">
+                <label class="input-label" for="validate-input">Voucher code</label>
+                <input type="text" id="validate-input" class="text-input voucher-code-input"
+                       placeholder="Enter 8-char code"
+                       autocomplete="off" spellcheck="false" autocapitalize="characters" />
+                <button class="btn-primary btn-large" onclick="previewValidate()">Validate</button>
+              </div>
+
+              <!-- CONFIRM gate — the sole choke-point between "we have a code" and
+                   "we've fired POST /validate-voucher". Validation CONSUMES the
+                   voucher (marks status='fulfilled'), so a Confirm click is
+                   required to prevent double-consume / accidental submits.
+                   No pre-lookup or reward-name preview per pilot scope; §9a
+                   covers the preview as a post-pilot nice-to-have. -->
+              <div id="validate-confirm" class="validate-view" style="display:none;">
+                <div class="confirm-message">
+                  <p><strong>Redeem voucher <span id="validate-confirm-code"></span>?</strong></p>
+                  <p class="confirm-hint">This marks it as used — the member cannot redeem this code again.</p>
+                </div>
+                <div class="button-row">
+                  <button id="validate-confirm-btn" class="btn-primary btn-large" onclick="confirmValidate()">Confirm</button>
+                  <button class="btn-link" onclick="cancelValidateConfirm()">Cancel</button>
+                </div>
+              </div>
+
+              <!-- SUBMITTING — buttons hidden entirely during flight (prevents
+                   double-consume by re-click). Returns to idle in the finally
+                   block of submitValidate. -->
+              <div id="validate-submitting" class="validate-view" style="display:none;">
+                <div class="spinner"></div>
+                <p style="color:var(--text-secondary);margin:0;">Validating…</p>
+              </div>
             </div>
           </div>
         </section>
@@ -694,6 +753,129 @@
         showToast(e.message || 'Failed to record punch.', 'error');
       } finally {
         showPunchView('punch-idle');
+      }
+    }
+
+    // ==========================================================================
+    // VALIDATE FLOW (Step 3, plan §5 pilot design).
+    //
+    // State machine: idle → confirm → submitting → idle.
+    //
+    // Confirm-gate audit — the manual input path routes through
+    // showValidateConfirmGate(); the Confirm button (confirmValidate) is the
+    // ONLY caller of submitValidate(); submitValidate is the ONLY caller of
+    // POST /api/car-club/validate-voucher. No path fires the endpoint without
+    // an explicit Confirm click — mirrors the punch flow's D2 confirm-gate.
+    //   input → Validate click → previewValidate → showValidateConfirmGate
+    //         → Confirm click → confirmValidate → submitValidate → POST
+    //
+    // The endpoint CONSUMES the voucher (atomic UPDATE sets status='fulfilled'),
+    // so the Confirm click is what prevents double-consume / accidental submits.
+    // The endpoint's own atomic WHERE status='issued' clause rejects a repeat
+    // POST even if the confirm-gate is bypassed by some future edit — but we
+    // route through it anyway for UX and audit clarity.
+    //
+    // No pre-lookup, no reward-name preview, no member-name preview. Server
+    // response fields (id, club_id, member_id, reward_id, point_cost,
+    // voucher_code, redeemed_at, fulfilled_at) are all UUIDs + numerics —
+    // point_cost is the only field with immediate UX value, surfaced in the
+    // success toast. Reward/member-name preview logged in plan §9a as
+    // post-pilot nice-to-have.
+    //
+    // Failure mapping: the endpoint deliberately collapses all failure modes
+    // (bad code / wrong provider / already fulfilled / cancelled) into a
+    // single 404 with the message "Invalid or already-used voucher code" —
+    // this is the leak-prevention design at car-clubs.js:684-693 that stops
+    // an attacker with a valid provider token from probing whether a voucher
+    // exists on another provider's club. We surface that message verbatim
+    // (already plain-language and honest) with a generic fallback if it's
+    // ever absent.
+    // ==========================================================================
+
+    let pendingVoucherCode = null;
+
+    function showValidateView(viewId) {
+      ['validate-idle', 'validate-confirm', 'validate-submitting'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (id === viewId) ? '' : 'none';
+      });
+    }
+
+    // Read input, trim + uppercase (server also normalizes at car-clubs.js:662).
+    // DOES NOT call submitValidate directly — routes through the shared
+    // confirm gate.
+    function previewValidate() {
+      const input = document.getElementById('validate-input');
+      const raw = ((input && input.value) || '').trim().toUpperCase();
+      if (!raw) {
+        showToast('Enter a voucher code first.', 'error');
+        return;
+      }
+      showValidateConfirmGate(raw);
+    }
+
+    // SHARED CONFIRM GATE — the single choke-point between "we have a code"
+    // and "we've fired POST /validate-voucher". No other caller sets
+    // pendingVoucherCode.
+    function showValidateConfirmGate(code) {
+      pendingVoucherCode = code;
+      const codeSpan = document.getElementById('validate-confirm-code');
+      if (codeSpan) codeSpan.textContent = code;
+      showValidateView('validate-confirm');
+    }
+
+    function cancelValidateConfirm() {
+      pendingVoucherCode = null;
+      showValidateView('validate-idle');
+    }
+
+    // ONLY caller of submitValidate. Triggered exclusively by the Confirm
+    // button's onclick handler in the DOM.
+    async function confirmValidate() {
+      const code = pendingVoucherCode;
+      if (!code) {
+        // Defensive — shouldn't happen since the button is only visible when
+        // pendingVoucherCode is set. If it does, bail cleanly to idle.
+        showValidateView('validate-idle');
+        return;
+      }
+      pendingVoucherCode = null;
+      await submitValidate(code);
+    }
+
+    // ONLY caller of POST /api/car-club/validate-voucher. Called exclusively
+    // from confirmValidate(). If either invariant breaks in a future edit,
+    // the confirm-gate design breaks — audit checkpoints in this file.
+    async function submitValidate(code) {
+      showValidateView('validate-submitting');
+      try {
+        const result = await apiFetch('/api/car-club/validate-voucher', {
+          method: 'POST',
+          body: JSON.stringify({ voucher_code: code })
+        });
+        if (result && result.success && result.redemption) {
+          const cost = result.redemption.point_cost;
+          const suffix = (typeof cost === 'number')
+            ? ` · ${cost} point${cost === 1 ? '' : 's'}`
+            : '';
+          showToast(`Voucher redeemed ✓${suffix}`, 'success');
+        } else {
+          // apiFetch throws on !res.ok; a 2xx with an unexpected shape lands
+          // here. Toast something positive; the row is on record.
+          showToast('Voucher redeemed ✓', 'success');
+        }
+        // Clear the input on success so Chris can immediately validate the
+        // next voucher without a manual clear.
+        const input = document.getElementById('validate-input');
+        if (input) input.value = '';
+      } catch (e) {
+        console.error('Validate error:', e);
+        // Endpoint's collapsed 404 sends "Invalid or already-used voucher
+        // code" — plain-language and honest. Use it verbatim if present;
+        // fall back to a generic phrasing otherwise.
+        showToast(e.message || 'Couldn’t validate this code.', 'error');
+      } finally {
+        showValidateView('validate-idle');
       }
     }
 
