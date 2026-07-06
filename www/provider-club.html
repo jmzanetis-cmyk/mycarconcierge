@@ -183,6 +183,88 @@
       margin-bottom: 20px;
     }
     @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* Punch flow (Step 2) */
+    .punch-container { width: 100%; padding: 8px; }
+    .punch-view {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 16px;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent-gold), #e6b84a);
+      color: #12161c;
+      border: none;
+      padding: 12px 28px;
+      border-radius: var(--radius-sm);
+      font-family: inherit;
+      font-size: 0.95rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: filter 0.15s ease;
+    }
+    .btn-primary:hover { filter: brightness(1.1); }
+    .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+    .btn-large { padding: 16px 40px; font-size: 1.05rem; }
+    .btn-link {
+      background: transparent;
+      border: none;
+      color: var(--text-secondary);
+      font-family: inherit;
+      font-size: 0.9rem;
+      cursor: pointer;
+      padding: 8px 12px;
+      text-decoration: underline;
+      text-underline-offset: 3px;
+    }
+    .btn-link:hover { color: var(--text-primary); }
+    .text-input {
+      width: 100%;
+      max-width: 320px;
+      padding: 12px 16px;
+      background: var(--bg-input);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-sm);
+      color: var(--text-primary);
+      font-family: inherit;
+      font-size: 1rem;
+      outline: none;
+      box-sizing: border-box;
+    }
+    .text-input:focus { border-color: var(--accent-gold); }
+    .input-label {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+      align-self: flex-start;
+      margin-left: max(calc(50% - 160px), 0px);
+    }
+    .qr-reader {
+      width: 100%;
+      max-width: 320px;
+      min-height: 260px;
+      background: var(--bg-input);
+      border-radius: var(--radius-md);
+      overflow: hidden;
+    }
+    .scanning-hint {
+      color: var(--text-muted);
+      font-size: 0.85rem;
+      margin: 0;
+    }
+    .confirm-message { text-align: center; padding: 12px 0; }
+    .confirm-message p { margin: 0 0 8px; color: var(--text-primary); font-size: 1.1rem; }
+    .confirm-message .confirm-hint {
+      color: var(--text-secondary);
+      font-size: 0.85rem;
+    }
+    .button-row {
+      display: flex;
+      gap: 12px;
+      align-items: center;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
     .state-loading p { color: var(--text-secondary); margin: 0; font-size: 0.95rem; }
 
     .state-empty h2 {
@@ -281,8 +363,52 @@
         <section class="operate-card">
           <h2>Punch a Member</h2>
           <div class="operate-card-body">
-            <div id="punch-body" class="placeholder">
-              Scanner UI wires here in Step 2.
+            <div id="punch-body" class="punch-container">
+              <!-- IDLE (default) -->
+              <div id="punch-idle" class="punch-view">
+                <button class="btn-primary btn-large" onclick="startPunchScan()">Scan Member QR</button>
+                <button class="btn-link" onclick="showManualEntry()">Enter code manually</button>
+              </div>
+
+              <!-- SCANNING -->
+              <div id="punch-scanning" class="punch-view" style="display:none;">
+                <div id="qr-reader-punch" class="qr-reader"></div>
+                <p class="scanning-hint">Point camera at member's Check-In QR</p>
+                <button class="btn-link" onclick="cancelPunchScan()">Cancel</button>
+              </div>
+
+              <!-- MANUAL entry -->
+              <div id="punch-manual" class="punch-view" style="display:none;">
+                <label class="input-label" for="punch-manual-input">Member code</label>
+                <input type="text" id="punch-manual-input" class="text-input" placeholder="Paste or type code" autocomplete="off" spellcheck="false" />
+                <div class="button-row">
+                  <button class="btn-primary" onclick="previewManualPunch()">Preview</button>
+                  <button class="btn-link" onclick="cancelPunchManual()">Cancel</button>
+                </div>
+              </div>
+
+              <!-- CONFIRM gate — BOTH scan and manual paths converge here. Generic
+                   "Award a punch to this member?" is intentional per Slice 3 pilot
+                   scope: pilot has one trusted provider (Chris) scanning members
+                   he can see in front of him, so a member-name preview would need
+                   either a new /member-by-token endpoint or a return-name mode on
+                   /punch — both out of pilot scope. Post-pilot nice-to-have in §9a. -->
+              <div id="punch-confirm" class="punch-view" style="display:none;">
+                <div class="confirm-message">
+                  <p><strong>Award a punch to this member?</strong></p>
+                  <p class="confirm-hint">This will add +1 point to their balance in this club.</p>
+                </div>
+                <div class="button-row">
+                  <button id="punch-confirm-btn" class="btn-primary btn-large" onclick="confirmPunch()">Confirm</button>
+                  <button class="btn-link" onclick="cancelPunchConfirm()">Cancel</button>
+                </div>
+              </div>
+
+              <!-- SUBMITTING -->
+              <div id="punch-submitting" class="punch-view" style="display:none;">
+                <div class="spinner"></div>
+                <p style="color:var(--text-secondary);margin:0;">Recording punch…</p>
+              </div>
             </div>
           </div>
         </section>
@@ -410,6 +536,164 @@
         banner.style.display = '';
       } else {
         banner.style.display = 'none';
+      }
+    }
+
+    // ==========================================================================
+    // PUNCH FLOW (Step 2, plan §5 pilot design).
+    //
+    // State machine: idle → (scan | manual) → confirm → submitting → idle.
+    //
+    // Confirm-gate audit — BOTH input paths route through showPunchConfirmGate();
+    // Confirm-button click (confirmPunch) is the ONLY caller of submitPunch();
+    // submitPunch is the ONLY caller of POST /api/car-club/punch. No path fires
+    // /punch without an explicit Confirm click.
+    //   scan   → onPunchScanned    → showPunchConfirmGate → (Confirm click) → confirmPunch → submitPunch
+    //   manual → previewManualPunch → showPunchConfirmGate → (Confirm click) → confirmPunch → submitPunch
+    //
+    // The confirm prompt is deliberately generic ("Award a punch to this
+    // member?" — no name lookup). Rationale: pilot per D1 has one trusted
+    // provider (Chris) scanning members he can see; a name preview would need
+    // either a new /member-by-token endpoint or a return-name mode on /punch,
+    // both out of pilot scope. Post-pilot nice-to-have in plan §9a.
+    // ==========================================================================
+
+    let punchScanner = null;         // Html5Qrcode instance while scanning
+    let pendingPunchToken = null;    // token awaiting confirmation
+
+    function showPunchView(viewId) {
+      ['punch-idle', 'punch-scanning', 'punch-manual', 'punch-confirm', 'punch-submitting'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.display = (id === viewId) ? '' : 'none';
+      });
+    }
+
+    async function startPunchScan() {
+      if (typeof Html5Qrcode === 'undefined') {
+        showToast('QR scanner library not loaded. Refresh the page.', 'error');
+        return;
+      }
+      showPunchView('punch-scanning');
+      try {
+        punchScanner = new Html5Qrcode('qr-reader-punch');
+        await punchScanner.start(
+          { facingMode: 'environment' },   // matches providers.js:9862 POS pattern
+          { fps: 10, qrbox: { width: 250, height: 250 } },
+          onPunchScanned,
+          () => {}   // silently swallow per-frame decode errors (matches POS pattern)
+        );
+      } catch (err) {
+        console.error('Punch scanner start error:', err);
+        showToast('Could not start camera. Check permissions.', 'error');
+        showPunchView('punch-idle');
+      }
+    }
+
+    async function stopPunchScanner() {
+      if (punchScanner) {
+        try { await punchScanner.stop(); await punchScanner.clear(); } catch (_) {}
+        punchScanner = null;
+      }
+    }
+
+    async function cancelPunchScan() {
+      await stopPunchScanner();
+      showPunchView('punch-idle');
+    }
+
+    // Scanner callback. Ignores non-MCC QRs (keeps scanning silently). On a
+    // valid MCC check-in QR, strips the prefix and routes to the confirm gate.
+    // DOES NOT call submitPunch directly — must go through Confirm click.
+    async function onPunchScanned(decodedText) {
+      if (!punchScanner) return;   // late-frame guard after we've advanced
+      if (!decodedText || !decodedText.startsWith('mcc:checkin:')) {
+        return;                    // not our QR — keep scanning
+      }
+      const qrToken = decodedText.replace('mcc:checkin:', '');
+      await stopPunchScanner();
+      showPunchConfirmGate(qrToken);
+    }
+
+    function showManualEntry() {
+      const input = document.getElementById('punch-manual-input');
+      if (input) input.value = '';
+      showPunchView('punch-manual');
+      setTimeout(() => { if (input) input.focus(); }, 100);
+    }
+
+    function cancelPunchManual() {
+      showPunchView('punch-idle');
+    }
+
+    // Manual-entry preview. Accepts either a raw token OR a full
+    // "mcc:checkin:<token>" paste (a member sometimes shows the QR text on
+    // their screen rather than the code itself). DOES NOT call submitPunch
+    // directly — must go through Confirm click.
+    function previewManualPunch() {
+      const input = document.getElementById('punch-manual-input');
+      const raw = ((input && input.value) || '').trim();
+      if (!raw) {
+        showToast('Enter a member code first.', 'error');
+        return;
+      }
+      const qrToken = raw.startsWith('mcc:checkin:') ? raw.replace('mcc:checkin:', '') : raw;
+      showPunchConfirmGate(qrToken);
+    }
+
+    // SHARED CONFIRM GATE — the single choke-point between "we have a token"
+    // and "we've fired POST /punch". Both scan and manual paths converge here.
+    // No other caller sets pendingPunchToken.
+    function showPunchConfirmGate(qrToken) {
+      pendingPunchToken = qrToken;
+      showPunchView('punch-confirm');
+    }
+
+    function cancelPunchConfirm() {
+      pendingPunchToken = null;
+      showPunchView('punch-idle');
+    }
+
+    // ONLY caller of submitPunch. Triggered exclusively by the Confirm
+    // button's onclick handler in the DOM.
+    async function confirmPunch() {
+      const token = pendingPunchToken;
+      if (!token) {
+        // Defensive — shouldn't happen since the button is only visible when
+        // pendingPunchToken is set. If it does, bail cleanly to idle.
+        showPunchView('punch-idle');
+        return;
+      }
+      pendingPunchToken = null;
+      await submitPunch(token);
+    }
+
+    // ONLY caller of POST /api/car-club/punch. Called exclusively from
+    // confirmPunch(). If either invariant breaks in a future edit, the
+    // confirm-gate design breaks — audit checkpoints in this file.
+    async function submitPunch(qrToken) {
+      if (!currentClub) {
+        showToast('Club not loaded.', 'error');
+        showPunchView('punch-idle');
+        return;
+      }
+      showPunchView('punch-submitting');
+      try {
+        const result = await apiFetch('/api/car-club/punch', {
+          method: 'POST',
+          body: JSON.stringify({ club_id: currentClub.id, qr_token: qrToken })
+        });
+        if (result && result.success) {
+          showToast('+1 point recorded', 'success');
+        } else {
+          // apiFetch throws on !res.ok, so we only reach here on 2xx with an
+          // unexpected shape. Toast something positive; the row is on record.
+          showToast('Punch recorded.', 'success');
+        }
+      } catch (e) {
+        console.error('Punch error:', e);
+        showToast(e.message || 'Failed to record punch.', 'error');
+      } finally {
+        showPunchView('punch-idle');
       }
     }
 
