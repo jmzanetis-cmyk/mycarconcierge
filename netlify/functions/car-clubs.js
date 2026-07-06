@@ -473,6 +473,99 @@ async function punchFromBody(event, sb, user) {
   return punchMember(event, sb, user, clubId);
 }
 
+// ─── Admin surface (Slice 4) ──────────────────────────────────────────────────
+//
+// All admin routes gate on profiles.role === 'admin' — same pattern as
+// ops-flags-admin.js:58-63. Admin routes are NOT flag-gated: admin needs to
+// see/toggle clubs regardless of the Car Club feature-flag state (so they can
+// suspend/unsuspend during a Stage-2 rollback).
+//
+// Routes:
+//   GET   /api/car-club/admin/clubs                     — list all clubs
+//   GET   /api/car-club/admin/clubs/:id/ledger          — paginated ledger for a club
+//   PATCH /api/car-club/admin/clubs/:id/suspension      — flip provider_suspended
+//
+// Ties into plan §6 Slice 4 (bouncer-model kill switch) — Jordan uses
+// `PATCH .../suspension` as the per-club kill switch instead of writing SQL.
+// ──────────────────────────────────────────────────────────────────────────────
+
+async function isAdmin(sb, userId) {
+  const { data: profile } = await sb.from('profiles')
+    .select('role').eq('id', userId).maybeSingle();
+  return !!profile && profile.role === 'admin';
+}
+
+// GET /api/car-club/admin/clubs
+// Returns all car_clubs rows with the fields admin needs for the moderation
+// list: identity (id, name), ownership (provider_id), state (is_active,
+// provider_suspended), scale (member_count — denormalized counter; see §9a
+// for the debt entry about making this a computed-on-read), and feature
+// toggles for a quick "what's this club actually running" glance.
+async function adminListClubs(sb, user) {
+  if (!(await isAdmin(sb, user.id))) return json(403, { error: 'Admin required' });
+  const { data: clubs, error } = await sb.from('car_clubs')
+    .select('id, name, provider_id, is_active, provider_suspended, member_count, punch_card_enabled, points_enabled, coupons_enabled, comp_services_enabled, created_at, updated_at')
+    .order('created_at', { ascending: false });
+  if (error) return json(500, { error: 'Failed to load clubs' });
+  return json(200, { clubs: clubs || [] });
+}
+
+// PATCH /api/car-club/admin/clubs/:id/suspension
+// Body: { provider_suspended: boolean }
+// Toggles the per-club kill switch. Q2 RLS: suspension gates discovery only,
+// never existing-member visibility — verified when the policy was applied
+// 2026-07-04.
+//
+// Response: { success, club: { id, name, provider_id, is_active, provider_suspended } }
+async function adminSetSuspension(event, sb, user, clubId) {
+  if (!(await isAdmin(sb, user.id))) return json(403, { error: 'Admin required' });
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+  const suspended = body.provider_suspended;
+  if (typeof suspended !== 'boolean') {
+    return json(400, { error: 'provider_suspended (boolean) required' });
+  }
+  const { data, error } = await sb.from('car_clubs')
+    .update({ provider_suspended: suspended, updated_at: new Date().toISOString() })
+    .eq('id', clubId)
+    .select('id, name, provider_id, is_active, provider_suspended')
+    .maybeSingle();
+  if (error)  return json(500, { error: 'Failed to update suspension' });
+  if (!data)  return json(404, { error: 'Club not found' });
+  return json(200, { success: true, club: data });
+}
+
+// GET /api/car-club/admin/clubs/:id/ledger?limit=<n>&offset=<n>
+// Paginated ledger view for auditing per-club point activity. Reads
+// club_points_ledger (append-only), most-recent-first. Limits: default 100
+// per page, max 500. If the ledger table is later populated by /punch (it is
+// per f1e894e) and /redeem (via the RPC), this endpoint reflects real
+// activity as it happens.
+async function adminClubLedger(sb, user, clubId, qs) {
+  if (!(await isAdmin(sb, user.id))) return json(403, { error: 'Admin required' });
+
+  // Verify club exists first — makes a 404 meaningful vs. "empty ledger for a
+  // bad club id".
+  const { data: club } = await sb.from('car_clubs')
+    .select('id, name').eq('id', clubId).maybeSingle();
+  if (!club) return json(404, { error: 'Club not found' });
+
+  const limit = Math.min(parseInt(qs?.limit || '100', 10) || 100, 500);
+  const offset = Math.max(parseInt(qs?.offset || '0', 10) || 0, 0);
+  const { data: entries, error } = await sb.from('club_points_ledger')
+    .select('id, member_id, delta_points, reason, dollars_spent_cents, source_ref, created_at')
+    .eq('club_id', clubId)
+    .order('created_at', { ascending: false })
+    .range(offset, offset + limit - 1);
+  if (error) return json(500, { error: 'Failed to load ledger' });
+
+  return json(200, {
+    club: { id: club.id, name: club.name },
+    ledger: entries || [],
+    pagination: { limit, offset, count: (entries || []).length },
+  });
+}
+
 // GET /api/car-club/my-provider-clubs — Slice 3 pilot-minimal support
 // endpoint (2026-07-06). Returns the car_clubs rows where the caller is
 // the provider — used by provider-club.html to answer "which club_id do
@@ -1250,6 +1343,18 @@ exports.handler = async (event) => {
   if (method === 'POST' && path === 'validate-voucher') return validateVoucher(event, sb, auth.user);
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
   if (method === 'GET'  && path === 'my-provider-clubs') return listMyProviderClubs(sb, auth.user);
+
+  // ─── Admin routes (Slice 4) ─────────────────────────────────────────────
+  // Not flag-gated: admin needs to manage clubs regardless of the feature
+  // flag state (so they can suspend/unsuspend during a rollback).
+  if (path.startsWith('admin/')) {
+    const adminSub = path.substring('admin/'.length);
+    if (method === 'GET' && adminSub === 'clubs') return adminListClubs(sb, auth.user);
+    const mLedger = adminSub.match(/^clubs\/([^/]+)\/ledger$/);
+    if (method === 'GET' && mLedger) return adminClubLedger(sb, auth.user, mLedger[1], qs);
+    const mSusp = adminSub.match(/^clubs\/([^/]+)\/suspension$/);
+    if (method === 'PATCH' && mSusp) return adminSetSuspension(event, sb, auth.user, mSusp[1]);
+  }
 
   // /api/car-clubs/:id/...
   const segments = path.split('/');
