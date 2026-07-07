@@ -1496,9 +1496,14 @@
     async function loadClub() {
       mccBgcCarClubInit();
       try {
-        const data = await apiFetch('/api/car-club/my-club');
+        // Uses /my-provider-clubs (array-of-clubs) — the singular /my-club
+        // endpoint that this code originally called never existed on the
+        // Netlify function. Pilot per D4 provisions one club per provider,
+        // so clubs[0] is the caller's club; empty array flows through the
+        // existing null-branch below to show the create form.
+        const data = await apiFetch('/api/car-club/my-provider-clubs');
         if (!data) return;
-        clubData = data.club;
+        clubData = (data.clubs && data.clubs[0]) || null;
         document.getElementById('setup-loading').style.display = 'none';
         if (!clubData) {
           document.getElementById('setup-create').style.display = '';
@@ -1580,12 +1585,17 @@
 
     async function saveClub() {
       const btn = document.getElementById('save-btn');
+      // Defensive: the save-btn only mounts inside setup-edit, which loadClub
+      // only reveals when clubData is truthy — so clubData.id should always
+      // be present here. Guard anyway; the /update handler requires id.
+      if (!clubData || !clubData.id) { showToast('No club loaded', 'error'); return; }
       btn.disabled = true;
       btn.innerHTML = '<span class="spinner"></span> Saving...';
       try {
         await apiFetch('/api/car-club/update', {
           method: 'PUT',
           body: JSON.stringify({
+            id: clubData.id,
             name: document.getElementById('edit-name').value.trim(),
             description: document.getElementById('edit-description').value.trim(),
             welcome_message: document.getElementById('edit-welcome').value.trim(),
