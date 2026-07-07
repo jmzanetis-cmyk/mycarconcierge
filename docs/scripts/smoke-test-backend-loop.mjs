@@ -71,13 +71,17 @@ if (!SUPABASE_URL || !ANON_KEY || !SERVICE_KEY) {
   process.exit(2);
 }
 
-// Staged state (verified this session — see plan §6a substitution table).
-const CLUB_ID         = '7e80ef61-8740-431f-aab2-6ff4fd10739b';
-const REWARD_ID       = '2090adf5-b370-4bc3-8e35-8653c94e5eda';
-const PROVIDER_EMAIL  = 'testprovider@test.com';
-const PROVIDER_UID    = '0bb98854-8aa8-41f7-816b-d06785167194';
-const MEMBER_EMAIL    = 'jm.zanetis@gmail.com';
-const MEMBER_UID      = '8ea2bc19-16c7-4af2-8d4d-551434a53ec7';
+// Staged state — dummy provider club by default. All six can be overridden
+// via env vars (SMOKE_CLUB_ID, SMOKE_REWARD_ID, SMOKE_PROVIDER_EMAIL,
+// SMOKE_PROVIDER_UID, SMOKE_MEMBER_EMAIL, SMOKE_MEMBER_UID) so the same
+// harness can exercise a different provider's club (e.g. Chris's real
+// pilot club) without touching this file.
+const CLUB_ID        = process.env.SMOKE_CLUB_ID        || '7e80ef61-8740-431f-aab2-6ff4fd10739b';
+const REWARD_ID      = process.env.SMOKE_REWARD_ID      || '2090adf5-b370-4bc3-8e35-8653c94e5eda';
+const PROVIDER_EMAIL = process.env.SMOKE_PROVIDER_EMAIL || 'testprovider@test.com';
+const PROVIDER_UID   = process.env.SMOKE_PROVIDER_UID   || '0bb98854-8aa8-41f7-816b-d06785167194';
+const MEMBER_EMAIL   = process.env.SMOKE_MEMBER_EMAIL   || 'jm.zanetis@gmail.com';
+const MEMBER_UID     = process.env.SMOKE_MEMBER_UID     || '8ea2bc19-16c7-4af2-8d4d-551434a53ec7';
 // qr_token for the punch step. Using MEMBER_UID directly means the punch
 // endpoint hits the profiles.id fallback (car-clubs.js:440-443), which does
 // not depend on any qr_code_token being set on Jordan's profile.
