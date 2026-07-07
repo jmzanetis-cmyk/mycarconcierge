@@ -9,6 +9,8 @@
 // POST   /api/car-clubs/:id/provider-benefits                       — provider creates benefit
 // POST   /api/car-clubs/:id/provider-benefits/:bId/redeem           — member redeems benefit
 // POST   /api/car-clubs/return-bonus                                — grant provider 3 credits
+// POST   /api/car-club/create                                       — provider creates a club (id from JWT)
+// PUT    /api/car-club/update                                       — provider updates a club they own
 //
 // Program routes (points / coupons / comp services):
 // PATCH  /api/car-clubs/:id/features                                — toggle program features
@@ -604,6 +606,229 @@ async function listMyProviderClubs(sb, user) {
 
   if (error) return json(500, { error: 'Failed to load clubs' });
   return json(200, { clubs: clubs || [] });
+}
+
+// ─── Club self-serve create + update (provider-scoped writes) ─────────────────
+//
+// POST /api/car-club/create — provider creates a new club they own.
+// PUT  /api/car-club/update — provider updates a club they own (id in body).
+//
+// Both close the biggest gap on the provider-onboarding path: previously the
+// only way to provision a club was direct SQL (docs/scripts/provision-*.sql
+// for the pilot). The client-side UI in www/car-club-provider.html has POSTed
+// to /create and /update since Replit days, but neither route existed on the
+// Netlify function — every save 404'd. These two handlers make that surface
+// work end-to-end.
+//
+// ───── Auth (identical to every other write on this function) ─────
+// Bearer JWT via getUser at :50-57 → user.id is the caller's uid, verified
+// by sb.auth.getUser. NEITHER handler reads provider_id, user_id, uid or any
+// identity claim from body / query / non-Authorization header. On create,
+// provider_id = user.id — a client cannot create a club under someone else's
+// uid by construction. On update, we fetch the existing club's provider_id
+// and reject if it doesn't equal user.id (see 'Ownership gate' below).
+//
+// ───── Ownership gate on update (defense-in-depth) ─────
+// Two guards, either alone would suffice; both cheap:
+//   (a) SELECT the club by id, verify provider_id === user.id BEFORE the
+//       UPDATE. If mismatched or the row doesn't exist, collapse both cases
+//       into 404 'Club not found' — matches validateVoucher's info-leak
+//       defense at :729. Distinguishing 'exists but not yours' from
+//       'doesn't exist' would leak whether a foreign club_id is real.
+//   (b) The UPDATE itself carries .eq('provider_id', user.id). Even if the
+//       ownership changed between the SELECT and the UPDATE (TOCTOU race
+//       via admin reassignment), the UPDATE would touch zero rows and
+//       return null → we route that to a defensive 500 rather than a
+//       silent no-op. (a) alone is race-vulnerable; (b) alone leaks the
+//       club_id space via 404-vs-empty. Together they're tight.
+//
+// ───── Field whitelist ─────
+// EDITABLE_CLUB_FIELDS is the ONE authoritative list of client-writable
+// club-native columns. Anything not on it (provider_id, id, created_at,
+// updated_at, member_count, points_enabled/coupons_enabled/
+// comp_services_enabled/punch_card_enabled feature toggles, and the fully-
+// dead vehicle_make/vehicle_model/region) is silently ignored — the whitelist
+// filter is by construction: only these keys are read from body, so no
+// out-of-scope key can end up in the UPDATE object.
+//
+// Feature toggles are deliberately NOT client-editable here. They are gated
+// per plan §4 (D4) as admin/SQL-provisioned in the pilot. A separate PATCH
+// /:clubId/features handler exists at :1389 for provider-controlled toggling
+// after Stage-2 flip; not repeating that surface here.
+//
+// ───── Validation ─────
+//   • name: required, trimmed, non-empty (400 otherwise).
+//   • theme_color: must be #<3|4|6|8 hex digits>. Defends against CSS-inject
+//     into the member view where accent color is interpolated into a style=
+//     attribute (car-club-member.html:906/1012/1051). escHtml on the render
+//     side catches attribute-break but not payload-inside-css-value.
+//   • logo_url / banner_url: must be http:// or https://. Empty string OK
+//     (stored as NULL, matches reference behavior for "clear the image").
+//   • is_active: strict boolean-only on update (400 otherwise). Create
+//     defaults to true unless body carries literal false.
+//
+// ───── Multi-club policy ─────
+// The pilot per D4 provisions one club per provider (see :575-579 doc note
+// on listMyProviderClubs). SCHEMA does not enforce this: nothing on car_clubs
+// prevents multiple clubs owned by the same provider_id. This handler follows
+// the schema — creates freely, no 409 on second club. If the pilot rule
+// needs to be enforced in code, add a pre-INSERT check here or a partial
+// unique index on (provider_id) WHERE is_active=true at the schema level.
+//
+// ───── Client compatibility (KNOWN GAP — needs companion patch) ─────
+// The current client at car-club-provider.html:1589-1597 does NOT include
+// `id` in its update payload. This handler REQUIRES an id (per spec). The
+// client needs `id: clubData.id` added to the payload before this route
+// becomes usable. Additionally, car-club-provider.html:1499 calls
+// GET /api/car-club/my-club which is also not a route on this function
+// (only my-clubs plural and my-provider-clubs exist). Companion client
+// work is out of scope for this task — flagged for follow-up.
+
+const EDITABLE_CLUB_FIELDS = [
+  'name', 'description', 'welcome_message',
+  'theme_color', 'rules_text',
+  'logo_url', 'banner_url',
+  'is_active',
+];
+
+// Returns the validated value, or the sentinel `undefined` to mean
+// "caller supplied a value but it's invalid — 400". A null return means
+// "caller supplied empty; store null in DB".
+function _validateClubThemeColor(v) {
+  if (v === null || v === '') return null;
+  if (typeof v !== 'string') return undefined;
+  return /^#[0-9A-Fa-f]{3,8}$/.test(v) ? v : undefined;
+}
+function _validateClubUrl(v) {
+  if (v === null || v === '') return null;
+  if (typeof v !== 'string') return undefined;
+  return /^https?:\/\/.+/.test(v) ? v : undefined;
+}
+
+async function createClub(event, sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const name = String(body.name || '').trim();
+  if (!name) return json(400, { error: 'Club name is required' });
+
+  // Whitelist + validate. Any field not touched here is not written.
+  let themeColor = '#C9A84C';
+  if (body.theme_color !== undefined) {
+    const v = _validateClubThemeColor(body.theme_color);
+    if (v === undefined) return json(400, { error: 'Invalid theme_color (expected hex like #RRGGBB)' });
+    if (v !== null) themeColor = v;
+  }
+  let logoUrl = null;
+  if (body.logo_url !== undefined) {
+    const v = _validateClubUrl(body.logo_url);
+    if (v === undefined) return json(400, { error: 'Invalid logo_url' });
+    logoUrl = v;
+  }
+  let bannerUrl = null;
+  if (body.banner_url !== undefined) {
+    const v = _validateClubUrl(body.banner_url);
+    if (v === undefined) return json(400, { error: 'Invalid banner_url' });
+    bannerUrl = v;
+  }
+  let isActive = true;
+  if (body.is_active !== undefined) {
+    if (typeof body.is_active !== 'boolean') return json(400, { error: 'is_active must be boolean' });
+    isActive = body.is_active;
+  }
+
+  const row = {
+    provider_id: user.id,     // NEVER from body — always the JWT-verified caller
+    name,
+    description:      body.description     != null && body.description     !== '' ? body.description     : null,
+    welcome_message:  body.welcome_message != null && body.welcome_message !== '' ? body.welcome_message : null,
+    rules_text:       body.rules_text      != null && body.rules_text      !== '' ? body.rules_text      : null,
+    theme_color:      themeColor,
+    logo_url:         logoUrl,
+    banner_url:       bannerUrl,
+    is_active:        isActive,
+    // Pilot default: punch-card program is the only one available at Stage-2
+    // flip. Other program toggles left to schema defaults (all false) — they
+    // become togglable later via the existing PATCH /:clubId/features route.
+    punch_card_enabled: true,
+  };
+
+  const { data: created, error } = await sb.from('car_clubs')
+    .insert(row).select('*').single();
+  if (error) return json(500, { error: 'Failed to create club' });
+  return json(201, { club: created });
+}
+
+async function updateClub(event, sb, user) {
+  const enabled = await isFeatureEnabledForUser(sb, 'car_club_programs_enabled', user.id);
+  if (!enabled) return json(403, { error: 'Not available' });
+
+  let body;
+  try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
+
+  const clubId = body.id || body.club_id || body.clubId;
+  if (!clubId) return json(400, { error: 'id required' });
+
+  // Ownership gate (a). Collapse "not found" and "not yours" into a single
+  // 404 to avoid leaking which club_ids exist across provider boundaries.
+  const { data: existing } = await sb.from('car_clubs')
+    .select('id, provider_id').eq('id', clubId).maybeSingle();
+  if (!existing || existing.provider_id !== user.id) {
+    return json(404, { error: 'Club not found' });
+  }
+
+  // Build the update object from the whitelist only. Any key not on
+  // EDITABLE_CLUB_FIELDS cannot end up here — this is the security boundary
+  // that prevents provider_id / id / created_at rewrites.
+  const update = {};
+
+  if (body.name !== undefined) {
+    const trimmed = String(body.name || '').trim();
+    if (!trimmed) return json(400, { error: 'Club name cannot be empty' });
+    update.name = trimmed;
+  }
+  if (body.description !== undefined) update.description = body.description || null;
+  if (body.welcome_message !== undefined) update.welcome_message = body.welcome_message || null;
+  if (body.rules_text !== undefined) update.rules_text = body.rules_text || null;
+
+  if (body.is_active !== undefined) {
+    if (typeof body.is_active !== 'boolean') return json(400, { error: 'is_active must be boolean' });
+    update.is_active = body.is_active;
+  }
+
+  if (body.theme_color !== undefined) {
+    const v = _validateClubThemeColor(body.theme_color);
+    if (v === undefined) return json(400, { error: 'Invalid theme_color (expected hex like #RRGGBB)' });
+    update.theme_color = v != null ? v : '#C9A84C';
+  }
+  if (body.logo_url !== undefined) {
+    const v = _validateClubUrl(body.logo_url);
+    if (v === undefined) return json(400, { error: 'Invalid logo_url' });
+    update.logo_url = v;
+  }
+  if (body.banner_url !== undefined) {
+    const v = _validateClubUrl(body.banner_url);
+    if (v === undefined) return json(400, { error: 'Invalid banner_url' });
+    update.banner_url = v;
+  }
+
+  if (Object.keys(update).length === 0) return json(400, { error: 'No fields to update' });
+  update.updated_at = new Date().toISOString();
+
+  // Ownership gate (b) — belt-and-suspenders. The .eq('provider_id', user.id)
+  // predicate here means the UPDATE only touches the row if ownership STILL
+  // matches, closing the TOCTOU window between the SELECT above and this
+  // write. If ownership was reassigned in the interim (admin action), we
+  // get zero rows back and route to defensive 500.
+  const { data: updated, error } = await sb.from('car_clubs')
+    .update(update).eq('id', clubId).eq('provider_id', user.id)
+    .select('*').maybeSingle();
+  if (error) return json(500, { error: 'Failed to update club' });
+  if (!updated) return json(500, { error: 'Failed to update club' });
+  return json(200, { club: updated });
 }
 
 // _redeemViaRpc — shared implementation of the redeem RPC dispatch, used by
@@ -1341,6 +1566,8 @@ exports.handler = async (event) => {
   if (method === 'POST' && path === 'punch')      return punchFromBody(event, sb, auth.user);
   if (method === 'POST' && path === 'redeem')     return redeemFromBody(event, sb, auth.user);
   if (method === 'POST' && path === 'validate-voucher') return validateVoucher(event, sb, auth.user);
+  if (method === 'POST' && path === 'create')     return createClub(event, sb, auth.user);
+  if (method === 'PUT'  && path === 'update')     return updateClub(event, sb, auth.user);
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
   if (method === 'GET'  && path === 'my-provider-clubs') return listMyProviderClubs(sb, auth.user);
 
