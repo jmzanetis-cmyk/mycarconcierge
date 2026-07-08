@@ -88,6 +88,25 @@ No Vite/webpack. The project is vanilla HTML + JS served from `www/`. Netlify fu
 - `/Users/jordanzanetis/mycarconcierge/artifacts/` is a React mockup sandbox. No production code depends on it.
 - `outreach-pipeline` table is referenced in `server.js` and functions but does not exist in production (see Section 4).
 
+### Dead-code removal candidates — `server.js` monolith & `www/` siblings (verified 2026-07-08)
+
+Production runs entirely on `netlify/functions/`. The legacy Express monolith is **not** part of that surface and is unrunnable. Removal candidates below were verified by import-graph tracing (imports grep across `netlify/functions/`, root, `www/`, `tests/`, `scripts/`; excluding `node_modules/` and the `.netlify/` build cache).
+
+- **`server.js` (root, 34,469 lines) — confirmed unrunnable, dead.** It does `require('./stripe-treasury')`, `require('./hubspot-client')`, `require('./car-club-api')`, `require('./outreach-engine-api')` (lines 17–20), but none of those files exist at the repo root — they live in `www/`. The import graph resolves to nothing, so the process cannot boot. No `netlify/functions/` code imports `server.js`.
+- **`npm start` script — dead.** `"start": "node www/server.js"` in root `package.json`, but **`www/server.js` does not exist**. The start script has no valid target and should be removed (or repointed) as part of retiring the monolith.
+- **The four `www/` siblings — zero live importers.** None are imported by any `netlify/functions/` file. Importer verification:
+
+  | File | Imported by live Netlify function? | Only importer(s) | Verdict |
+  |---|---|---|---|
+  | `www/stripe-treasury.js` | No | root `server.js` (broken path) | Dead — remove with `server.js` |
+  | `www/hubspot-client.js` | No | root `server.js` (broken path) | Dead — remove with `server.js`. (`@hubspot/api-client` dep already flagged Unused above.) |
+  | `www/car-club-api.js` | No | root `server.js` + `tests/club-merch-store.spec.js` (reads file as text via `fs.readFileSync`, not a runtime import) | Dead in production; delete the text-scraping test alongside it |
+  | `www/outreach-engine-api.js` | No | root `server.js` only | Dead. Note: `outreach-runner/runner.js` imports its **own** `outreach-runner/outreach-engine-api.js` copy, not this one |
+
+  The `android/app/src/main/assets/public/*` copies of these four files are bundled static mirrors produced by the mobile build (`build:www` / `cap sync`); they follow whatever `www/` contains and are not independent dependents.
+
+- **`outreach-runner/`** is a self-contained subproject (own `package.json`/lockfile + own `outreach-engine-api.js` copy). No `netlify.toml`, root `package.json` script, or Procfile references it — deployment status unconfirmed; audit separately before deleting its copy.
+
 ---
 
 ## Section 3 — Environment Variables
