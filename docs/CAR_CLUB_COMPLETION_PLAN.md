@@ -8,6 +8,82 @@
 
 ---
 
+## 🔀 DIRECTION CHANGE — 2026-07-13 · Car Club earn model redesign
+
+**Confirmed with Jordan:** the real Car Club earn model is **points-per-dollar-spent**, awarded automatically from MCC's real transactions (bids/jobs/payments). Member spends $X on service with a provider → earns X points (rate TBD) → redeems points against catalog rewards in `club_rewards`. **NOT a punch card.** The pilot design captured in D2 / D5 / D7 and the punch-card build in §4 Slice 2 + §5 provider screen were a wrong-turn framing; this section is the correction of record.
+
+**What's CORRECT and stays (do NOT undo):**
+- `redeem_reward_for_member` RPC (`20260706a` / `20260707a`) — right paradigm: reads `club_rewards`, deducts from balance in `club_points_ledger`, issues voucher atomically. Last week's hardening (advisory lock + FOR UPDATE + voucher-first-then-ledger + `pgcrypto` schema-qualify) was correct work against the right target.
+- `club_rewards` table (`20260703h:120-131`) — catalog schema with `point_cost` / `inventory_qty` / `active` / `kind`. Right shape for a spend-and-redeem model. The `createReward` / `patchReward` / `listRewards` handlers already exist (see the 2026-07-13 usage map audit).
+- `/api/car-club/validate-voucher` — voucher-fulfillment surface is unchanged.
+- `club_points_ledger` + `club_points_balance` — right ledger primitive for a points economy.
+
+**What's a WRONG TURN and needs rethinking (do NOT keep as-is):**
+- `POST /api/car-club/punch` (`car-clubs.js:440-…`) — flat +1 per scan is punch-card mechanics, not points-per-dollar. The endpoint's shape (scan Check-In QR → +1 delta_points) does not map to spend.
+- `club_reward_rules` table (`20260703d`) — punch-threshold model (`punches_required`, `reward_type='punch_card'`). Not the pilot model. `/my-rewards` handler at `car-clubs.js:308` reads it; `car-club-member.html:1103` renders it. All this stack is on the wrong track.
+- `provider-club.html` PUNCH column — the QR-scan-→-confirm-→-award-one-punch UX is punch-card, not spend-based.
+- Alpha's provisioned reward "Free Detail" @ 10 punches (`club_reward_rules.id = 11835db0-…`, per §1b / §5) — recorded against the wrong model. Needs re-provisioning as a `club_rewards` catalog row (`point_cost` = TBD once the earn rate lands).
+
+**What's NOT BUILT (the actual gap this redesign addresses):**
+- The **earn mechanic itself**. There is currently NO code path in the repo that reads MCC transactions (bids / jobs / payments) and translates them into `club_points_ledger` credits. The whole spend → points integration is unwritten. That is the pilot-blocking work.
+
+**NEXT STEP = INVESTIGATION, not build.** Before designing the earn integration, map how MCC transactions currently work — which tables hold spend amounts, what marks a transaction complete, whether an existing hook can be attached to, how refunds are represented. Investigation launched 2026-07-13 in parallel with this log entry; results append below as they land.
+
+**OPEN DESIGN QUESTIONS — decide after the investigation returns:**
+1. **Award trigger:** on job-completion, on payment-confirmed, or on bid-acceptance? (Depends on which stage has a clean confirmed-dollar-amount signal.)
+2. **Refunds / cancellations:** claw back awarded points? If so, at what stage of the refund lifecycle, and what if the points have already been redeemed?
+3. **Granularity:** per-job, per-payment-amount, or per-line-item? (E.g., a $500 job with a $50 tip — is the earn base $500 or $550?)
+4. **Marketplace interaction:** how does the earn logic interact with the bid/marketplace flow? (Bid credits are provider-side; points are member-side — no direct collision, but the payment-completion signal may be shared.)
+5. **Rounding:** integer points only? Truncate, round-half-up, or bank-round on fractional cents?
+6. **Pilot bootstrap mode:** full auto-from-transactions from day one with Chris, or interim provider-manual amount entry (Chris types "$150 today" on `provider-club.html`) to de-risk while auto-integration is designed? Manual mode ships faster but adds a second earn path that has to be retired later.
+
+**Pilot readiness impact — RESET:**
+- The §6a Stage-1 → Stage-2 verification protocol (12-step run) is invalidated as written — it exercises punch-scan → +1 → threshold-punch-count → redeem. Rewrite once the earn integration lands.
+- §5 provider screen (`provider-club.html`) — PUNCH column is on the wrong model. VALIDATE column is fine (voucher fulfillment paradigm is correct). Redesign PUNCH once the earn trigger is decided (may become "record a transaction," may disappear entirely if earn is fully auto-from-payments).
+- §4 Slice 2 (points engine) — earn side needs full redesign; redeem/validate sides are correct.
+- §1b branding polish for Alpha — still valid, non-blocking, do after this redesign settles.
+- §1b test residue cleanup — still valid, do independently.
+- Decisions D2 (pilot earn mechanic — "punch Check-In QR"), D5 (pilot scope — "join → punch → progress → redeem"), and D7 (pilot reward types) all inherit revision from this direction change and need re-recorded once the redesign lands.
+
+**Impact on BUG-02 (redeem RPC / reward-table mismatch, filed 2026-07-13):** the observation in BUG-02 is still accurate — the RPC reads `club_rewards`, not `club_reward_rules` — but the resolution framing is **superseded**. The fix is NOT "mirror rules into rewards" or "rewrite the RPC to read rules." The fix is: retire the punch-card earn side entirely and build the points-per-dollar earn side against the already-correct `club_rewards` + redeem-RPC target. Chris's Alpha reward gets re-provisioned as a `club_rewards` row with a `point_cost` derived from the earn-rate design. BUG-02's technical detail is preserved below for history; its "three resolution options" are dropped in favor of this section.
+
+### 🔻 CORRECTION — 2026-07-13 (later same day) · earn side is NOT "already wired and firing"
+
+**Retraction.** An interim finding earlier this session — based on a read-only code-map — claimed that points-per-dollar earn is "fully wired and firing in production today," pointing at `stripe-webhook.js:381-384` calling `_accrueCarClubPoints`, which invokes `accrue_points` at `20260703h:163-176` (INSERT into `club_points_ledger` with `reason='earn_spend'` and `dollars_spent_cents` populated). **That claim is not supported by the data.** The code exists; there is no evidence it has ever run against a real MCC transaction.
+
+**DB evidence (Jordan, 2026-07-13):** `SELECT reason, COUNT(*) FROM club_points_ledger GROUP BY reason` returns:
+- `earn_spend` — 11 rows
+- `redeem` — 1 row
+- (nothing else)
+
+All 12 rows are test activity from 2026-07-07 through 2026-07-11 — the smoke-test window. The 11 `earn_spend` rows correspond to the `/punch` flat-+1 mechanic exercised during testing, not real member payments. **No real member-transaction data has ever flowed into `club_points_ledger`.**
+
+**Reason-value collision to disambiguate.** The `accrue_points` RPC writes `reason='earn_spend'` (quoted above). The `/punch` handler presumably also writes `reason='earn_spend'` given the ledger content matches punch-test volume 1:1 and there is no other `earn_*` reason in the observed data. If both paths use the same reason, the reason column alone cannot distinguish real-dollar accrual from a punch. The disambiguating column is `dollars_spent_cents` — `accrue_points` populates it from `pi.amount`; whatever `/punch` writes almost certainly leaves it NULL. **Next-session investigation must confirm which reason value `/punch` writes and quote it.**
+
+**Status of the earn side after this correction:**
+- **Code plumbing exists** — the chain `stripe-webhook.js:381 → _accrueCarClubPoints → accrue_points RPC → club_points_ledger` is real and quotable.
+- **Executability is unproven** — three gates would each block execution in prod today: (a) `car_clubs.points_enabled = true` (default `false`, no pilot club has flipped it); (b) a `club_points_config` row exists for the paying club (no code path creates it during `createClub`); (c) an active `club_memberships` row for the paying member. Absent any of the three, `_accrueCarClubPoints` returns early without writing.
+- **Whether the code path is reachable at all under a correctly-provisioned club has never been demonstrated end-to-end in prod.** The plumbing is dormant; whether it works when unblocked is unknown.
+
+**Pilot status:** **NOT ready.** The points-per-dollar earn side — the core of the redesigned Car Club model — has never processed a real transaction. Everything the earlier direction-change block above says about "what stays" (redeem RPC, `club_rewards`, ledger, validate-voucher) is still correct as *code that exists*. But the earn side going from "code that exists" to "code that has ever worked once against a real MCC payment" is the pilot-blocking gap, and it is bigger than a provisioning fix.
+
+**NEXT-SESSION PRIORITY (updated):** investigate — plain-text output only, no build — whether the spend→points code path is actually reachable via a real MCC transaction, and why the ledger shows zero real earn data. Specifically:
+- Which `reason` value does `/punch` write? Quote the INSERT.
+- Does the accrue chain (`stripe-webhook.js:381` → `_accrueCarClubPoints` → `accrue_points`) get exercised by any existing integration test, smoke test, or manual QA path?
+- Are the three gates (`points_enabled`, `club_points_config` row, active `club_memberships`) provisioned for any club in prod today, and if not — is there a documented reason?
+- Has any Stripe PaymentIntent in prod ever carried `metadata.care_plan_id + member_id + provider_id` simultaneously? (This is the branch condition at `stripe-webhook.js:382`; if none has, the accrue call has never even been *attempted*.)
+- Does the `payment/release` flow set those three metadata fields on the PI at creation time, or only on capture? Quote the metadata write.
+
+**Do NOT build until this investigation confirms whether the code is reachable and what's blocking it.** The earlier "reset" impact section still holds — punch-card side is still a wrong turn, §6a still needs a rewrite, Alpha still needs re-provisioning against `club_rewards` — but do not act on any of that until the earn-side reachability question is answered.
+
+**Downgrade of the earlier interim "80-85% done" verbal estimate:** unsupported by data. Revised estimate: unknown. Could be 80% if the accrue chain is reachable and only provisioning is missing; could be much less if there are additional integration gaps (metadata not written, care-plan flow not attached, etc.) that the investigation surfaces. Do not use a completion percentage in decisions until the investigation returns.
+
+---
+
+**Status flag on this log entry:** captures the direction change at the moment of decision, followed by the same-day correction. Update this section as the next-session investigation returns, design questions get answered, and D2/D5/D7 get re-recorded. Do NOT prune it once resolved — it's the single-source-of-truth reference for anyone reading the plan later and wondering why punch-card mechanics were built, why points-per-dollar was assumed live and then disproven, and how the confusion was walked back.
+
+---
+
 ## 0. Framing
 
 Car Club is a provider-side loyalty-program layer: providers run branded punch/points programs inside MCC; members browse, join, earn, and redeem. Strategic value is **provider acquisition** ("bring your loyalty program to MCC") and member retention — it should be built pilot-first around one real provider, not feature-complete in the dark.
@@ -37,6 +113,64 @@ Key inversion discovered during launch-hardening: **the member client is largely
 ---
 
 ## 1a. Real bugs — must fix before pilot flag-on (NOT post-pilot debt)
+
+> **🔀 SUPERSEDED (2026-07-13, later same day): BUG-02's "table mismatch" framing is folded into the earn-model redesign** at the top of the doc (see the "🔀 DIRECTION CHANGE — 2026-07-13" section above §0 Framing). The RPC reads the right table; the punch-card earn stack was the wrong turn. Read the direction-change block for the current status; BUG-02's technical detail below is preserved for history but its "three resolution options" (mirror / rewrite / auto-issue) no longer apply. **Top next-session priority is now the transaction-lifecycle investigation** (in flight as of this section update) leading into the points-per-dollar earn integration design.
+
+### BUG-02 · Redeem RPC ↔ reward-table mismatch — 🔀 SUPERSEDED 2026-07-13 (observation preserved, resolution reframed)
+
+**Filed:** 2026-07-13 (found during live redeem-loop testing). **Superseded same day** by the earn-model redesign — see top-of-doc direction-change section for current status. The section below is history.
+
+**Symptom:** `redeem_reward_for_member` returns `status = 'no_reward'` for a reward that demonstrably exists and is active. Reproduced against BMW's reward `club_reward_rules.id = 5fc64d26-…` (`punches_required = 1`, `reward_type = 'punch_card'`, `is_active = true`, on club `31e07510-…`). Direct RPC call → `'no_reward'`.
+
+**Root cause:** the earn side and the redeem side read two different tables. The pilot punch-threshold model lives in `club_reward_rules`; the redeem RPC is hard-wired to `club_rewards`.
+
+- RPC row-type declaration at `supabase/migrations/20260707a_fix_redeem_rpc_pgcrypto_schema.sql:78`:
+  ```sql
+  r public.club_rewards%ROWTYPE;
+  ```
+- RPC reward-lookup SELECT at `20260707a:98-103`:
+  ```sql
+  SELECT * INTO r
+      FROM public.club_rewards
+      WHERE id = p_reward_id
+        AND club_id = p_club_id
+        AND active = true
+      FOR UPDATE;
+  ```
+- Zero-row SELECT falls through to `:105-110` → `status := 'no_reward'; RETURN NEXT; RETURN;`
+
+**Two reward models, structurally distinct:**
+
+| Aspect | `club_reward_rules` (`20260703d`) | `club_rewards` (`20260703h:120-131`) |
+|---|---|---|
+| Semantic model | *Reach N punches → earn* (punch-threshold) | *Spend N points → get catalog item* (points-catalog) |
+| Threshold / cost column | `punches_required int` | `point_cost int` |
+| Kind / type column | `reward_type text DEFAULT 'punch_card'` | `kind club_reward_kind DEFAULT 'merch'` |
+| Active flag | `is_active boolean` | `active boolean` |
+| Name column | `reward_name text` | `title text` |
+| Inventory | *(none)* | `inventory_qty int` |
+| Used by | Pilot punch-card mode (D2/D5) | Points-store catalog (Slice 5 territory) |
+
+The pilot writes and displays punch-card rewards on the `club_reward_rules` side; the redeem RPC reads on the `club_rewards` side; nothing bridges the two.
+
+**Blast radius — all pilot rewards affected, not just the BMW test row:**
+- Chris's Alpha "Free Detail" @ 10 punches (`club_reward_rules.id = 11835db0-…` per §1b/§5) has the same defect. Chris cannot redeem the pilot reward as currently wired.
+- Any other punch-card reward defined in `club_reward_rules` by any provider using self-service create/edit (`car-club-provider.html` → `/api/car-club/create|update`) inherits the same defect.
+
+**Partially known before today.** The comment at `20260707a:33-35` reads:
+> *"Neither RPC has EVER produced a live voucher in production. The pilot was blocked here before we tripped over the missing club_rewards row for Chris (the OTHER gap from 2026-07-06)."*
+
+So the gap was noticed 2026-07-06 but never resolved. Alpha's reward was still created in `club_reward_rules` (11835db0-… per the §5 DECISION 2026-07-10 log), meaning the earn→redeem loop has been broken continuously from 2026-07-06 through today's confirmation.
+
+**Three resolution shapes — DECIDE NEXT SESSION with fresh eyes (architecture call, do not rush):**
+
+1. **Mirror punch-threshold rules into `club_rewards`.** Every `club_reward_rules` row gets a companion `club_rewards` row with `point_cost = punches_required`, `title = reward_name`, `active = is_active`. Pilot invariant: 1 punch = 1 point (already the earn-side default in `/punch`). Cheapest — no RPC surgery, no /punch changes — but leaves two tables to keep in sync going forward (self-service create/edit would need to write both, or a trigger would need to mirror).
+2. **Rewrite the RPC to read `club_reward_rules` (or either table).** Cleanest semantically. Most work — the RPC has been revised four times already (`20260703h`, `20260706a`, `20260707a`, and the schema-qualify patch inside `20260707a`). Column-name delta means the RPC body has to change too (`is_active` vs `active`, `reward_name` vs `title`, no `inventory_qty` on rules side means the inventory-guard branch needs conditional handling, no `point_cost` on rules side means substituting `punches_required` end-to-end).
+3. **Auto-issue voucher at punch-threshold in the `/punch` handler.** Skip the redeem RPC entirely for punch-card mode: when `/punch` sees cumulative `delta_points ≥ punches_required` on any active `club_reward_rules` for the club, insert a `club_points_redemptions` row directly. Bypasses the RPC's atomicity/locking work; changes the earn-side contract (voucher issuance is now provider-initiated, not member-initiated); re-audits the pilot design (no "redeem" button on the member side — voucher just appears).
+
+**Recommended lean (subject to next-session review):** **Option 1** for fastest working pilot given Chris is imminent — mirroring the row is a one-shot INSERT against Chris's existing `11835db0-…` rule, and gets the earn→redeem loop working with zero code change. Then **Option 2** as post-pilot cleanup, folded into the full Slice 3 portal build so the RPC rewrite lands alongside the reward-rule editor UI. Do NOT ship Option 3 — the earn-side contract is already understood by Chris; changing it introduces surprise the pilot doesn't need.
+
+**Exit criteria for BUG-02 to close:** a member with sufficient punches on Chris's Alpha club can redeem the "Free Detail" reward end-to-end in the browser, provider validates the voucher in `provider-club.html`, second validate rejects — the §6a verification protocol Steps 10-12 pass live, not just theoretically.
 
 ### BUG-01 · Account-deletion PII gap on Car Club tables — ✅ RESOLVED 2026-07-04
 
@@ -84,7 +218,39 @@ Both drops go in a single follow-up migration after BUG-01 fixes land.
 
 Items that don't belong in §1a (real bugs) or §9a (post-pilot debt) — data cleanups that keep prod clean when the pilot flips live.
 
+### ✅ Full Car Club data cleanup — COMPLETED 2026-07-13
+
+**Database is now pristine — zero Car Club data in prod.** Every subsection below (seed clubs cleanup, test residue cleanup) is resolved by this pass; the earlier per-subsection guidance is retained as history but is no longer actionable.
+
+**What was cleared, table by table:**
+
+| Table | Cleared | Notes |
+|---|---|---|
+| `car_clubs` | ✅ emptied | Jordan's 3 seed clubs (Honda & Acura Club, Truck & SUV Owners, BMW Enthusiasts NJ), the `0bb98854-…` test account's 2 clubs, and Chris's earlier-provisioned Alpha rows all DELETEd. `SELECT COUNT(*) FROM car_clubs` should read 0. |
+| `club_memberships` | ✅ emptied | Includes Jordan's test BMW membership (`31e07510-…`) from the 2026-07-10 provider-screen test residue list. |
+| `club_points_ledger` | ✅ test entries deleted | The 12 rows observed earlier (11 `earn_spend` from `/punch` tests + 1 `redeem`), all Jul 7-11 test activity, gone. |
+| `profiles.qr_code_token` (Jordan) | ✅ cleared to NULL | Sentinel value `test-token-jordan-001` removed. If a real production token is needed for Jordan later, regenerate. |
+| `club_reward_rules`, `club_rewards`, `club_points_config`, `club_points_redemptions` | (implicitly empty) | Cascade from `car_clubs` deletion for the FK-linked tables; standalone tables were never populated. Verify with `SELECT COUNT(*)` on each before Stage-2 provisioning to be sure. |
+
+**`UNIQUE(provider_id)` on `car_clubs` — applied 2026-07-13 [needs verification + migration file].** Jordan reports the index was added. Grep of `supabase/migrations/` returns no `UNIQUE(provider_id)` on `car_clubs` — the constraint is not in any tracked migration file. Two follow-ups: **(1)** verify in Studio with `\d car_clubs` (or `SELECT indexname, indexdef FROM pg_indexes WHERE tablename = 'car_clubs';`) that the unique constraint / index actually exists, and **(2)** write a matching migration file (e.g. `20260713a_car_clubs_unique_provider.sql`) so replay reproduces prod. This is the same schema-drift class as `profiles.qr_code_token`, `member_founder_profiles`, and `member_club_balances` — the "DB migration tracking is not used" pattern flagged in §9a. Track this drift on that same list.
+
+**Ready for Stage-2 provisioning — but NOT the same provisioning as the previous plan called for.** Two blockers before any provisioning happens:
+
+1. **The earn-model question must be resolved first.** The direction-change block above §0 Framing (and its same-day CORRECTION) leaves the points-per-dollar accrual chain as *code that exists but has never fired in prod*. The next-session investigation — five specific questions listed at the end of the CORRECTION block — must answer whether the chain is actually reachable, whether the four provisioning/state gates are the only blockers, and whether any additional integration gap exists. **Do not provision Chris until the investigation returns.**
+2. **Chris's reward must be provisioned in the CORRECT table.** Per the 2026-07-13 direction change: `club_rewards` with a `point_cost` column value, NOT `club_reward_rules` with a `punches_required` column value. The earlier hand-provisioned row `11835db0-…` (Free Detail @ 10 punches, punch-card model) is gone with the cleanup; the replacement must be a `club_rewards` catalog row against the points-per-dollar model. Point cost value depends on the `points_per_dollar` rate the earn-model design settles on.
+
+**Provisioning sequence for next session (once earn-model question is answered):**
+1. INSERT `car_clubs` row for Alpha (name, `provider_id = dbb15523-…`, `is_active = true`, `points_enabled = true` — do NOT leave the default `false`).
+2. INSERT `club_points_config` row for the new club with the agreed `points_per_dollar` rate.
+3. INSERT `club_rewards` row (`kind`, `title`, `point_cost`, `active = true`) — the real "Free Detail" or whatever reward Chris confirms.
+4. Append Chris's uid to `platform_settings.car_club_programs_enabled.test_users` so he can access the flag-gated surfaces.
+5. Verify `_accrueCarClubPoints` gates all open: run a real bid-accept + release-payment cycle against Alpha and check for a `dollars_spent_cents`-populated row in `club_points_ledger`.
+
+This supersedes the earlier `docs/scripts/provision-pilot-club.sql` referenced below — that script targets `club_reward_rules` (punch-card model) and would re-introduce the same defect. Write a new provisioning script against the points-per-dollar model once the earn rate is decided.
+
 ### Seed clubs cleanup (added 2026-07-06)
+
+**✅ RESOLVED 2026-07-13 by the full data cleanup above.** Section preserved as history; no action needed.
 
 **Current state (2026-07-06):** `car_clubs` has **3 dev seed clubs** from the 2026-05-26 seed migration, all owned by Jordan's uid (`8ea2bc19-…`), all `is_active = true`:
 - Honda & Acura Club
@@ -98,6 +264,54 @@ Items that don't belong in §1a (real bugs) or §9a (post-pilot debt) — data c
 **Cleanup script:** `docs/scripts/deactivate-seed-clubs.sql` — canonical soft-deactivate (paste into Studio SQL Editor with Jordan's uid substituted; includes preview + verification queries + a harder `DELETE` option gated behind a confirmation of no dependent rows).
 
 Companion provisioning script: `docs/scripts/provision-pilot-club.sql` — atomic single-transaction provision of Chris's `car_clubs` row + `club_reward_rules` row + append to `test_users`. Run this FIRST at Stage-2 flag-on time (creates Chris's real club), then run `deactivate-seed-clubs.sql` immediately after (retires Jordan's dev seeds). Both scripts are idempotent and wrapped in BEGIN/COMMIT.
+
+### Test residue cleanup (added 2026-07-10)
+
+**✅ RESOLVED 2026-07-13 by the full data cleanup above.** All four items below (seed-club reactivations, Jordan's BMW membership, `test-token-jordan-001`, test BMW ledger punch) were cleared as part of the pristine-DB pass. Section preserved as history; no action needed.
+
+**Left behind by 2026-07-10 provider-screen (`provider-club.html`) testing.** All four items below must be cleared before Stage-2 flag-on so production surfaces only Chris's real Alpha club + real members. This is in addition to (not a replacement for) the seed-clubs cleanup above.
+
+| # | Item | State to clear |
+|---|---|---|
+| a | 3 seed clubs reactivated during testing — Honda & Acura Club, BMW Enthusiasts NJ, Truck & SUV Owners — all currently `car_clubs.is_active = true` again | Re-deactivate (or delete — reuse `docs/scripts/deactivate-seed-clubs.sql` from Seed clubs cleanup above) |
+| b | Jordan added as a test member of BMW Enthusiasts NJ (`car_clubs.id = 31e07510-…`) — row in `club_memberships` for Jordan's uid | Delete the membership row (or set `is_active = false` if ledger references require preserving it) |
+| c | Test `qr_code_token = 'test-token-jordan-001'` set on Jordan's `profiles` row | Restore Jordan's real production token, or NULL and regenerate — do NOT leave the sentinel value in prod |
+| d | Test punch entry in `club_points_ledger` for BMW Enthusiasts NJ (Jordan's uid, +1 delta_points, stamped as 2026-07-10 provider-screen test) | Delete the ledger row |
+
+**KEEP as real production data (do NOT clear — these are the pilot destination state):**
+- Chris's `car_clubs` row **"Alpha Auto Body & Repair"** (`id = 3a313e2d-a8aa-48e9-a3ce-751f98895828`, `provider_id = dbb15523-…`) — the real pilot club.
+- Chris's `club_reward_rules` row **"Free Detail" @ 10 punches** (`id = 11835db0-…`) — the real pilot reward rule.
+
+Both were hand-provisioned per D4 on 2026-07-10 and are the reference example for §5's DECISION. Cleanup should leave these standing while removing every item in the table above.
+
+### Branding polish for Alpha club (added 2026-07-10, next-session, non-blocking)
+
+**⚠️ Target-row identifier is stale.** The row at `car_clubs.id = 3a313e2d-a8aa-48e9-a3ce-751f98895828` was deleted in the 2026-07-13 full cleanup above. Whichever new UUID Alpha gets on re-provisioning (Stage-2, after the earn-model investigation returns) becomes the correct target — capture it in the same session as provisioning and update this subsection.
+
+**Sequence unchanged:** run **AFTER** the §6a validate protocol passes and (now) after Alpha is re-provisioned on the points-per-dollar model. Still non-blocking to Stage-2 flag-on — the pilot works with the neutral defaults — but a branded Alpha club makes Chris's first-impression window tighter. Do it in the same next-session window if the calendar allows.
+
+**Target row:** Chris's re-provisioned `car_clubs` row (new UUID, TBD 2026-07-13-or-later). The previous UUID `3a313e2d-a8aa-48e9-a3ce-751f98895828` is retired.
+
+**Fields to populate (all via admin SQL against the row above — no self-service portal shipped yet, per §5 DECISION):**
+
+| Column | Value source | Notes |
+|---|---|---|
+| `logo_url` | **HOSTED URL required** — see prerequisite below | Two acceptable sources: (1) direct-link an existing hosted logo from `alphaautobodynj.com` if one is publicly reachable; (2) upload Chris's logo to Supabase Storage (create bucket if none exists — pilot-time one-off; the full self-service upload flow is the §5 post-pilot portal item). **The screenshot Jordan currently has is NOT a hosted URL** — an in-Studio paste of a screenshot data-URI or a local file path will not render on the client. Resolve to a real HTTPS URL first |
+| `theme_color` | Alpha brand hex (grab from `alphaautobodynj.com` visual or Chris's business card) | Hex string, e.g. `#123456` |
+| `welcome_message` | Short line — Chris to provide, or Jordan drafts and confirms with him | Shown to newly-joined members |
+
+**Prerequisite research (do first, before SQL):**
+- **Check whether `provider-club.html` header renders `logo_url`** — currently the header pulls `car_clubs.name` (per §5 pilot-minimal spec); confirm whether logo is already wired in or whether the header will silently ignore a populated `logo_url` until the template is updated. If not wired, either add the `<img>` tag as a small pre-pilot polish edit or accept that provider-side branding lands only on the member view for pilot.
+- **Check whether the member club view (`car-club-member.html`) renders `logo_url`** — same shape of question. Both surfaces need to actually consume the column for branding to be visible; populating it in the DB is necessary but not sufficient.
+
+**Deliverables for the next-session branding pass:**
+1. Confirmed hosted logo URL for Alpha.
+2. Confirmed hex `theme_color`.
+3. Confirmed welcome message text.
+4. `provider-club.html` and `car-club-member.html` render-check results — either "already wired, populate DB and done" or "needs a template edit here + here."
+5. One `UPDATE car_clubs SET logo_url = …, theme_color = …, welcome_message = … WHERE id = '3a313e2d-…'` applied in Studio.
+
+Neutral defaults are fine if any of the above stalls — do not block Stage-2 flag-on for branding.
 
 ---
 
@@ -113,7 +327,45 @@ Companion provisioning script: `docs/scripts/provision-pilot-club.sql` — atomi
 | D6 | Sequencing vs matchmaker | ✅ **DECIDED 2026-07-04** — Car Club first, matchmaker second. **Consequence:** provider pitch (Sprint 15/16 deck + walk-in script) must soften "invited quotes" language until matchmaker actually ships — pull-based browse is the honest description of today's flow |
 | D7 | Pilot reward types | **Service-discount vouchers only. No bid-credit rewards in pilot** — a bid-credit reward is effectively $0/bid next to the $7–$10/bid pack ladder; not a pricing-rule violation (grants ≠ pack pricing) but a farming vector. Revisit with pilot data |
 
-*D1 footnote:* Chris's grandfathered terms (90% perpetual referral commission on bid-pack sales; unlimited free bids) don't obviously interact with Car Club — commissions key off bid-pack sales, not club-driven jobs, and a bid-credit reward is moot for an unlimited-bids account — but **confirm both explicitly during pilot setup** rather than assume.
+*D1 footnote:* Chris's grandfathered terms (90% perpetual referral commission on bid-pack sales; unlimited free bids) don't obviously interact with Car Club — commissions key off bid-pack sales, not club-driven jobs, and a bid-credit reward is moot for an unlimited-bids account — but **confirm both explicitly during pilot setup** rather than assume. Chris's tier is only one of THREE distinct founder-deal models now on the books — see §2a for the full tier table and implementation flag.
+
+---
+
+## 2a. Founder-deal tiers (context for future commission logic)
+
+Three distinct founder-commission models exist as of 2026-07-10 — none derivable from any code path yet (no commission-calc logic has been written), but all must be captured whenever that logic IS built or enforced (payouts, dashboards, statement generation, referral-attribution reads).
+
+| Founder | Commission | Scope | Duration | Source |
+|---|---|---|---|---|
+| **Standard founder deal** | 50% of bid-credit pack revenue | Providers referred by the founder | First 12 months of each referred account | Baseline pilot terms |
+| **Chris Agrapidis** | 90% of bid-credit pack revenue | Providers referred by Chris | Perpetual (lifetime of the referred account) | Grandfathered founding-provider terms (D1) |
+| **Rossy Mateo** *(CONFIRMED FINAL 2026-07-10)* | 75% of bid-credit pack revenue | Providers referred by Rossy | Perpetual (lifetime of the referred account) | Third distinct model — differs from standard on BOTH percentage AND duration; **commission-only, NO equity** |
+
+**Rossy Mateo — CONFIRMED FINAL (2026-07-10):** 75% of bid-credit pack revenue, for the LIFE of each referred provider account, **commission-only — NO founder equity**. Both prior open questions (final vs. negotiating; equity vs. commission-only) are answered and closed. Value is safe to encode against the confirmed terms.
+
+**Implementation flag:** whenever commission logic is written, calculated, or enforced, it must handle **three founder tiers, not one**. Do not hard-code a single percentage or a single duration; do not assume "founder → 50% → 12 months." Any code path or DB check that assumes "one founder deal" is a defect at write time. A minimum-viable data shape carries `founder_id` + `commission_pct` + `duration_months` (with `NULL` or a sentinel meaning "perpetual") on each founder record so all three tiers are expressible without special-casing. The equity flag (Chris = yes, Rossy = no, standard = TBD) is a separate boolean on the founder record — commission-calc reads `commission_pct` / `duration_months`; equity paperwork reads the flag.
+
+### Founder Dashboard — post-pilot / founder-features backlog
+
+**Feature:** a member-portal view where a signed-in founder sees (a) the providers they referred, (b) each of those providers' bid-credit pack sales, (c) their resulting commission earned per the tier table above.
+
+**Scoping update after 2026-07-10 read-only investigation — most of the data model already exists.** The dashboard is now a **UI + read-endpoint build, NOT a data-model build.** Referral tracking, per-founder commission rates, per-tier duration handling, and the commission-recording RPC are all in place; commissions are being *written*, they're just never *surfaced back* to the founder.
+
+| Dependency | State (2026-07-10, post-investigation) | Notes |
+|---|---|---|
+| **Referral tracking** — link from each referred account to the founder who referred them | ✅ **SUBSTANTIALLY BUILT.** Data model exists: `member_founder_profiles` (founder rows with `commission_rate` NUMERIC(4,3), `founder_commission_end_date` nullable → perpetual, `referral_code`); `profiles.referred_by_founder_id` FK (`20260523b:45`); `?ref=CODE` signup capture at `www/signup-provider.js:143` → `/api/provider-referral/lookup/:code` → `/api/provider-referral/process` WRITES `referred_by_founder_id`; member side captured via `/api/member/referral/apply`. Chris's `commission_rate` backfilled to 0.90 in `20260428h:39` | This is a UI + read-endpoint build now, not a data-model build |
+| **Commission calculation** — per-founder, spanning all three tiers, honoring per-account duration windows | ✅ **BUILT.** `record_bid_pack_commission` RPC (`20260515b:76`, v2 in `20260603b`) reads `referred_by_founder_id`, joins `member_founder_profiles` for founder id + rate, records commission row. `commission_rate_history` audit table exists (`20260428h:47-58`) | Commissions are being written on bid-pack sales today; dashboard just needs to read them back |
+| **Read endpoints for the founder view** — `/api/founder/my-referrals` (list of referred providers) and `/api/founder/my-commission` (commission earned per referred provider + rollup) | **NOT BUILT.** Commissions are written but there is no surface that reads them back to the founder. Founder-facing API surface today (`member-founder-api.js`, `admin-founders.js`, `founder-payout-monthly-scheduled.js`) does not include the my-referrals / my-commission reads. This is one of the two remaining build items | Provider-side referral panels at `www/providers.js:9487,9638` are NOT the founder view — do not confuse |
+| **Dashboard UI** — new section in the member portal, founder-gated | **NOT BUILT.** No page found. Depends only on the two read endpoints above | Founder-gate by checking a `member_founder_profiles` row exists for `auth.uid()` |
+
+**Verification / prep tasks — do BEFORE building the endpoints or UI:**
+
+1. **Confirm Rossy Mateo's `member_founder_profiles` row exists** with `commission_rate = 0.75`, `founder_commission_end_date = NULL` (perpetual), and a `referral_code` assigned. If missing, insert her row first — every downstream commission write for her referred providers depends on this row being present at signup time.
+2. **Audit + backfill historic Chris/Rossy referrals attributed pre-2026-05-23.** Migration `20260523b` fixed the `referred_by_founder_id` FK, but its comment states the column was NULL in prod at that time. The signup write-path only fires when a new signup uses `?ref=CODE` — anyone signed up before 2026-05-23 (or without a ref link) has `referred_by_founder_id = NULL` regardless of who actually referred them. For Chris + Rossy's historic referrals, run a `SELECT id, created_at, referred_by_founder_id FROM profiles WHERE created_at < '2026-05-23' AND …` audit, then a manual `UPDATE profiles SET referred_by_founder_id = <founder_uid> WHERE id = <provider_uid>` per confirmed referral. Every un-backfilled historic referral is a commission the founder never gets credited for.
+
+**Schema drift flag:** `member_founder_profiles` itself has **no tracked CREATE TABLE in `supabase/migrations/`** — same Replit-era unmigrated-table class as `profiles.qr_code_token` and `member_club_balances` (both already noted in §9a). Later ALTERs (`20260428h`, `20260609a`/`b`) exist but the base CREATE does not. Same recommendation applies: write a matching CREATE TABLE that reflects prod, so replay works and the founder-features track doesn't hit the same schema audit blind spot.
+
+**Not needed for Car Club pilot.** Build after (a) Car Club pilot is running, (b) the verification/prep tasks above are complete. The prior "commission-calc must be designed and merged first" gate is dropped — the commission calc is already merged and firing. Sequencing note: this is a founder-features track, orthogonal to the Car Club matchmaker sequencing in D6.
 
 ---
 
@@ -173,6 +425,8 @@ Companion provisioning script: `docs/scripts/provision-pilot-club.sql` — atomi
 
 ## 5. Slice 3 — Provider surface
 
+**DECISION 2026-07-10 · Self-service provider club-creation UI is DEFERRED to post-pilot.** Pilot clubs are hand-provisioned by admin/SQL (per D4) — the full Slice 3 provider portal (create/edit club, define/edit reward rules, branding, member management) does NOT ship pre-pilot. Reference example: Chris's club **"Alpha Auto Body & Repair"** (`car_clubs.id = 3a313e2d-a8aa-48e9-a3ce-751f98895828`, `provider_id = dbb15523-…`, points + punch enabled) with reward rule **"Free Detail" @ 10 punches** (`club_reward_rules.id = 11835db0-…`) was hand-provisioned this way on 2026-07-10 as the working reference. Revisit self-service portal only on a post-pilot provider-demand signal — do not pre-build it against speculative demand.
+
 **Pilot-minimal (build with Slice 2):** a punch/scan screen and a voucher-validation screen in the provider portal. The pilot club itself is provisioned by admin/SQL (D4).
 
 ### Slice 3 pilot-minimal — Provider punch/validate screen (DESIGNED 2026-07-06 · all four build questions RESOLVED, spec is build-ready)
@@ -226,8 +480,27 @@ Companion provisioning script: `docs/scripts/provision-pilot-club.sql` — atomi
 
 ---
 
-**Full portal (post-pilot):** create/edit club (name, logo, banner — the 21-column `car_clubs` supports branding), define/edit reward rules, member list, manual point adjustments (audited to ledger), testimonial moderation.
-**Estimate:** pilot-minimal 1–2 sessions; full portal 1–2 weeks.
+### Full provider portal — post-pilot (consolidated design)
+
+**DEFERRED to post-pilot per D4.** Build as ONE coherent, designed self-service experience after the pilot validates provider demand — **not** as piecemeal additions bolted onto the pilot-minimal punch/validate screen. For the pilot, all provider setup (including branding and reward rules) is hand-provisioned by admin/SQL against Chris's Alpha club; the full portal ships when a second pilot provider (or a real demand signal from Chris) makes the self-service surface worth building.
+
+The full portal is a single feature comprising five capabilities:
+
+1. **Self-service club creation** — provider fills a create form: club name, vehicle make/model targeting, region. Insert into `car_clubs` with `provider_id = auth.uid()`, defaults for feature toggles.
+2. **Branding / personalization** — logo, banner, and theme:
+   - **Logo upload** → new Supabase Storage bucket (or reuse an existing branding bucket if one exists at build time — verify) → public URL written to `car_clubs.logo_url`. Client-side crop/resize before upload; enforce size + MIME on server.
+   - **Banner image** → same Storage-backed pattern → `car_clubs.banner_url` (or matching column — confirm the 21-column `car_clubs` shape at build time).
+   - **Theme color** → hex string on `car_clubs.theme_color`, colored surfaces on member + provider club views.
+   - **Welcome message** → short text on `car_clubs.welcome_message`, shown to newly-joined members.
+   - **Description** → longer text on `car_clubs.description`, shown on club-detail views.
+   - **Rules text** → free-form rules blurb on `car_clubs.rules_text`, shown on join and reachable from club-detail.
+3. **Reward-rule editor** — create / edit `club_reward_rules`: rule name, `punches_required`, `point_cost`, `reward_type`, `is_active`. Guarded so activating a new rule doesn't quietly change the earn/redeem math on existing member balances (either activate with an explicit acknowledgment or version the rule).
+4. **Member management** — list members with balance + activity, view per-member ledger history, manual point adjustment (positive or negative, required reason string, audited to `club_points_ledger` with a distinct `source_ref` prefix).
+5. **Voucher / redemption management** — voucher lookup (search a code without validating — read-only view for support cases), fulfillment history per member, and the refund/cancel path (writes the existing `'cancelled'` enum value on `club_points_redemptions` per `20260703h:62`; needs a new handler — currently no code writes it).
+
+**Non-goals of the full portal even at post-pilot:** points-catalog store, testimonials moderation, notification prefs — those live in Slice 5 and are separately flag-gated.
+
+**Estimate:** pilot-minimal 1 CC session (already scoped above); full portal 1–2 weeks as a designed unit — includes UX/wireframes before code, Storage bucket + RLS design for logo/banner uploads, and a build-quality check that the reward-rule editor can't silently break in-flight redemptions.
 
 ---
 
