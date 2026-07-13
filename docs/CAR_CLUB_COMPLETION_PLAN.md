@@ -80,7 +80,67 @@ All 12 rows are test activity from 2026-07-07 through 2026-07-11 — the smoke-t
 
 ---
 
-**Status flag on this log entry:** captures the direction change at the moment of decision, followed by the same-day correction. Update this section as the next-session investigation returns, design questions get answered, and D2/D5/D7 get re-recorded. Do NOT prune it once resolved — it's the single-source-of-truth reference for anyone reading the plan later and wondering why punch-card mechanics were built, why points-per-dollar was assumed live and then disproven, and how the confusion was walked back.
+### ✅ PROOF — 2026-07-13 (even later same day) · earn + redeem chains proven end-to-end in prod
+
+**The CORRECTION's "unproven / never fired" claim is resolved for the accrue chain path.** Both earn and redeem sides have now been exercised end-to-end against prod with real writes to `club_points_ledger` and `club_points_redemptions`. Every state hypothesized in the CORRECTION is confirmed by observation, not code-reading.
+
+**Earn side — signed-webhook simulation** (`scripts/simulate-club-earn-webhook.js`, added same day). Simulated a Stripe `payment_intent.succeeded` event with a valid HMAC signature and metadata mirroring `care-plans.js:335-347` exactly (`care_plan_id`, `bid_id`, `member_id`, `provider_id`). Sent to `https://mycarconcierge.com/.netlify/functions/stripe-webhook`. Result:
+- Signature verification passed.
+- Idempotency gate passed (new `stripe_event_id`).
+- `_accrueCarClubPoints` (`stripe-webhook.js:459-507`) reached all four gates:
+  - Gate A `points_enabled=true` on Alpha — ✅ passed.
+  - Gate B `club_points_config` row for Alpha (`points_per_dollar=1`) — ✅ passed.
+  - Gate C active `club_memberships` for Jordan on Alpha — ✅ passed (Jordan self-joined via the app at 2026-07-13 18:42 UTC).
+  - Gate D PI metadata carries `member_id + provider_id + care_plan_id` — ✅ satisfied by the simulation payload.
+- `accrue_points` RPC (`20260703h:163-176`) fired. **`club_points_ledger` row landed: `delta_points=2`, `reason='earn_spend'`, `dollars_spent_cents=200`, `source_ref='pi_sim_1783970179534'`.**
+
+This is the first ever `dollars_spent_cents`-populated row in `club_points_ledger` in prod. The chain works.
+
+**What this proves and what it doesn't** (verbatim from the script's header):
+- ✅ Proves: signature verification → idempotency gate → `handlePaymentIntentSucceeded` → `_accrueCarClubPoints` (all four gate checks) → `accrue_points` RPC → ledger row with `dollars_spent_cents` populated.
+- ❌ Doesn't prove: Stripe's own event delivery / endpoint registration, and the real PI-creation + capture flow (`care-plans.js` piParams.metadata → PI create → `member-release-payment.js` capture → real Stripe webhook to our endpoint). Those remain code-verified only until the first real member↔Chris transaction.
+
+**Redeem side — member UI, real user session** (2026-07-13 20:15 UTC). With Jordan's balance sitting at +2 from the sim, Jordan redeemed the "Free basic wash" reward through `car-club-member.html`. `club_rewards.point_cost` was temporarily lowered to 1 for the test (restored to 50 after cleanup). Result:
+- `redeem_reward_for_member` RPC completed cleanly (voucher-first-then-ledger ordering, `FOR UPDATE` on the reward row, advisory-xact-lock).
+- **`club_points_redemptions` row landed: `voucher_code='B9B07A56'`, `status='issued'`, `point_cost=1`.**
+- **`club_points_ledger` row landed: `delta_points=-1`, `reason='redeem'`, `source_ref='84fda88d-…'` (reward id).**
+- Balance post-redemption: `2 - 1 = 1`. Correct arithmetic on live ledger `SUM(delta_points)`.
+
+**Related fixes deployed same day** (both live on prod after `git push`):
+- `d038749 fix(car-club-member): use supabaseClient not bare supabase for auth` — resolves the login-bounce bug (bare `supabase` identifier resolved to the CDN UMD namespace, not the initialized client). Without this, Jordan couldn't have completed the redeem — the page bounced logged-in users to `members.html`.
+- `4fcdd90 fix(car-club): program-flexible copy + reward_count on browse cards` — "How It Works" + empty-state copy rewritten to be program-flexible (points/punches/coupons/comp services); `listBrowse` now annotates `reward_count` from `club_rewards`, resolving half of the §9a "0 rewards" browse-card gap.
+
+**Cleanup applied post-verify** (2026-07-13 later same day). Test rows removed:
+- `club_points_redemptions.voucher_code='B9B07A56'` — deleted.
+- `club_points_ledger` rows: `source_ref='pi_sim_1783970179534'` (earn sim) + `reason='redeem'` matching the reward id — deleted.
+- `webhook_events.stripe_event_id='evt_sim_1783970179534'` — deleted.
+- `club_rewards.point_cost` restored to 50 on `84fda88d-…`.
+
+Prod state after cleanup — confirmed via `SELECT COUNT(*)`:
+- `club_points_ledger` — 0 rows.
+- `club_points_redemptions` — 0 rows.
+- `webhook_events` (sim rows only, filtered `stripe_event_id LIKE 'evt_sim_%'`) — 0 rows.
+- `car_clubs` (Alpha) — 1 row, intact.
+- `club_rewards` (Free basic wash) — 1 row, `point_cost=50` restored.
+- `club_points_config` — 1 row, `points_per_dollar=1` intact.
+- `club_memberships` (Jordan on Alpha) — 1 row, `is_active=true` intact.
+- `platform_settings.car_club_programs_enabled` — `enabled=false`, `test_users` still contains Jordan + Chris + `0bb98854-…`.
+
+**Remaining for Stage-2 pilot flag-on (concrete list — this is the sequenceable Chris-imminent checklist):**
+
+1. **Real Stripe transaction with Chris.** Provider-side care-plan payment flow must actually run end-to-end: member accepts Chris's bid → PI created with `metadata.{care_plan_id, member_id, provider_id}` → member calls `POST /api/payment/release` → PI captured → real `payment_intent.succeeded` webhook fires from Stripe (not simulated) → accrue chain executes. Everything up to the simulated webhook is now proven; the runtime PI creation + real Stripe delivery is not. First actual Chris transaction is the last unverified link.
+2. **Provider-side voucher validation.** `provider-club.html` VALIDATE column + `POST /api/car-club/validate-voucher` — voucher fulfillment loop. Was in scope for §5 pilot-minimal but not yet exercised against a real issued voucher.
+3. **"My Rewards" voucher visibility.** Slice 2 line-item. When a member redeems, they need to see their issued voucher code in the app to present it to the provider. Verify the client renders the voucher after redeem — the RPC returns it in the response, but the UI wire needs a live-verify.
+4. **www→apex forced redirect.** Cosmetic but user-visible: some flows land users on `www.mycarconcierge.com` where session state differs from `mycarconcierge.com`. Force redirect to apex before the pilot invites go out.
+5. **Era-mismatch cosmetics.**
+   - `car-club-member.html` shows "No reward rules set up yet" as an empty-state — punch-card era copy. Should read "No rewards available yet" (or similar) matching the points-per-dollar model.
+   - Provider uuid displaying raw somewhere in the UI (probably on `provider-club.html`) instead of business name. Small render-side fix.
+
+None of the five items block the earn/redeem loop's correctness — they're the polish and the one runtime-verification gap. Not build-heavy; likely a single next-session block.
+
+---
+
+**Status flag on this log entry:** captures the direction change at the moment of decision, followed by the same-day correction, followed by the same-day proof. Update this section as the next-session investigation returns, design questions get answered, and D2/D5/D7 get re-recorded. Do NOT prune it once resolved — it's the single-source-of-truth reference for anyone reading the plan later and wondering why punch-card mechanics were built, why points-per-dollar was assumed live and then disproven, and how the confusion was walked back.
 
 ---
 
