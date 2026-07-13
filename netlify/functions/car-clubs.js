@@ -222,8 +222,23 @@ async function listBrowse(sb, user) {
     .in('club_id', clubIds);
   const joined = new Set((memberships || []).map(m => m.club_id));
 
+  // 4. Annotate active reward-catalog count per club (club_rewards — the
+  //    points-era catalog; NOT legacy punch club_reward_rules). The member
+  //    page renders this as "N rewards" on each browse card, but no
+  //    reward_count was ever returned, so every club displayed 0.
+  const { data: rewardRows } = await sb.from('club_rewards')
+    .select('club_id')
+    .eq('active', true)
+    .in('club_id', clubIds);
+  const rewardCounts = {};
+  (rewardRows || []).forEach(r => { rewardCounts[r.club_id] = (rewardCounts[r.club_id] || 0) + 1; });
+
   return json(200, {
-    clubs: clubs.map(c => ({ ...c, is_member: joined.has(c.id) })),
+    clubs: clubs.map(c => ({
+      ...c,
+      is_member: joined.has(c.id),
+      reward_count: rewardCounts[c.id] || 0,
+    })),
   });
 }
 
