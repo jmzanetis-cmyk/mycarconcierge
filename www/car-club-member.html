@@ -725,7 +725,7 @@
 
     async function getToken() {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         return session?.access_token || null;
       } catch(e) { return null; }
     }
@@ -1302,7 +1302,7 @@
       const el = document.getElementById(`perks-content-${clubId}`);
       if (!el) return;
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { session } } = await supabaseClient.auth.getSession();
         const uid = session?.user?.id;
         if (!uid) { el.innerHTML = '<p style="color:var(--text-muted);">Sign in to view perks.</p>'; return; }
 
