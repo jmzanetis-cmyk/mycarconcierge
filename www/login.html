@@ -1148,7 +1148,7 @@
       // Fast path: skip login screen for already-authenticated users
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) { window.location.replace('members.html'); return; }
+        if (session) { const portal = localStorage.getItem('mcc_portal'); window.location.replace(portal === 'provider' ? 'providers.html' : portal === 'admin' ? 'admin.html' : 'members.html'); return; }
       } catch (_) {}
 
       const icon = document.querySelector('.theme-icon');

@@ -308,3 +308,6 @@
 
 # Driver Founder recruitment landing page
 /drive /drive.html 200
+
+# Provider job board pretty URL (providers.html nav linked here; was a 404)
+/provider/jobs /job-board.html 200

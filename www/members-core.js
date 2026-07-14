@@ -3880,7 +3880,7 @@ async function logout() {
       const { data: { session } } = await supabaseClient.auth.getSession();
       if (session) {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        await fetch(`${apiBase}/api/push/unregister-device`, {
+        fetch(`${apiBase}/api/push/unregister-device`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
           body: JSON.stringify({ token: storedToken })
