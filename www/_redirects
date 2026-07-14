@@ -311,3 +311,4 @@
 
 # Provider job board pretty URL (providers.html nav linked here; was a 404)
 /provider/jobs /job-board.html 200
+/api/job-board /.netlify/functions/job-board 200
