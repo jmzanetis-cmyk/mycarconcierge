@@ -6,6 +6,8 @@
 **Schema source of truth:** migrations `20260703a–h` (commit `04b947b`) — verified column-by-column against production. All column names in new code MUST be checked against this set, not inferred.
 **Working agreements (unchanged):** CC proposes first, never commits without Jordan's diff review; Jordan applies all SQL in Supabase Studio; browser verification against the deployed artifact is the acceptance standard; flags fail closed; any change to a JS file in SW `STATIC_ASSETS` ships with a `CACHE_NAME` bump in `sw.js`.
 
+**See also:** [MCC_AUDIT_PLAN.md](MCC_AUDIT_PLAN.md) — the 7-phase whole-app audit (added 2026-07-14). Car Club is the reference implementation for the Phase 1 money-path audit method; the 2026-07-13 PROOF entry below is the workflow template. Findings from any audit phase that touch Car Club specifically get logged here in §1a (real bugs) or §9a (post-pilot debt).
+
 ---
 
 ## 🔀 DIRECTION CHANGE — 2026-07-13 · Car Club earn model redesign
