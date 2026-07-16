@@ -1,0 +1,446 @@
+# fk-constraints.txt - pg_constraint dump from mcc-production
+# Generated 2026-07-16 via mcp__supabase__execute_sql
+# Format: conname	source_table	definition
+
+additional_work_requests_package_id_fkey	additional_work_requests	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+additional_work_requests_provider_id_fkey	additional_work_requests	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+agent_actions_agent_slug_fkey	agent_actions	FOREIGN KEY (agent_slug) REFERENCES agents(slug) ON DELETE CASCADE
+agent_actions_event_id_fkey	agent_actions	FOREIGN KEY (event_id) REFERENCES agent_events(id) ON DELETE SET NULL
+agent_daily_spend_agent_slug_fkey	agent_daily_spend	FOREIGN KEY (agent_slug) REFERENCES agents(slug) ON DELETE CASCADE
+agent_dead_letter_original_event_id_fkey	agent_dead_letter	FOREIGN KEY (original_event_id) REFERENCES agent_events(id) ON DELETE SET NULL
+agent_dead_letter_replay_event_id_fkey	agent_dead_letter	FOREIGN KEY (replay_event_id) REFERENCES agent_events(id) ON DELETE SET NULL
+agent_memory_agent_slug_fkey	agent_memory	FOREIGN KEY (agent_slug) REFERENCES agents(slug) ON DELETE CASCADE
+agent_prompt_versions_agent_slug_fkey	agent_prompt_versions	FOREIGN KEY (agent_slug) REFERENCES agents(slug) ON DELETE CASCADE
+agent_spend_alerts_agent_slug_fkey	agent_spend_alerts	FOREIGN KEY (agent_slug) REFERENCES agents(slug) ON DELETE CASCADE
+ai_messages_conversation_id_fkey	ai_messages	FOREIGN KEY (conversation_id) REFERENCES ai_conversations(id) ON DELETE CASCADE
+anniversary_notifications_partner_id_fkey	anniversary_notifications	FOREIGN KEY (partner_id) REFERENCES founding_provider_partners(id)
+bgc_notifications_bgc_check_id_fkey	bgc_notifications	FOREIGN KEY (bgc_check_id) REFERENCES employee_background_checks(id) ON DELETE CASCADE
+bgc_notifications_employee_id_fkey	bgc_notifications	FOREIGN KEY (employee_id) REFERENCES provider_employees(id) ON DELETE CASCADE
+bid_credit_purchases_pack_id_fkey	bid_credit_purchases	FOREIGN KEY (pack_id) REFERENCES bid_packs(id)
+bid_credit_purchases_provider_id_fkey	bid_credit_purchases	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+bids_package_id_fkey	bids	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+bids_provider_id_fkey	bids	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+bulk_service_batches_approved_by_fkey	bulk_service_batches	FOREIGN KEY (approved_by) REFERENCES auth.users(id)
+bulk_service_batches_created_by_fkey	bulk_service_batches	FOREIGN KEY (created_by) REFERENCES auth.users(id)
+bulk_service_batches_fleet_id_fkey	bulk_service_batches	FOREIGN KEY (fleet_id) REFERENCES fleets(id) ON DELETE CASCADE
+bulk_service_bids_provider_id_fkey	bulk_service_bids	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+bulk_service_items_batch_id_fkey	bulk_service_items	FOREIGN KEY (batch_id) REFERENCES bulk_service_batches(id) ON DELETE CASCADE
+bulk_service_items_package_id_fkey	bulk_service_items	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE SET NULL
+bulk_service_items_vehicle_id_fkey	bulk_service_items	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+campaign_leads_campaign_id_fkey	campaign_leads	FOREIGN KEY (campaign_id) REFERENCES outreach_campaigns(id) ON DELETE CASCADE
+campaign_leads_lead_id_fkey	campaign_leads	FOREIGN KEY (lead_id) REFERENCES outreach_leads(id) ON DELETE CASCADE
+cancellation_payouts_cancellation_id_fkey	cancellation_payouts	FOREIGN KEY (cancellation_id) REFERENCES ride_cancellations(id) ON DELETE RESTRICT
+cancellation_payouts_driver_id_fkey	cancellation_payouts	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE RESTRICT
+cancellation_payouts_wallet_debit_id_fkey	cancellation_payouts	FOREIGN KEY (wallet_debit_id) REFERENCES wallet_ledger(id) ON DELETE SET NULL
+car_club_benefits_club_id_fkey	car_club_benefits	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+car_club_benefits_provider_id_fkey	car_club_benefits	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_club_members_club_id_fkey	car_club_members	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+car_club_members_member_id_fkey	car_club_members	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_club_redemptions_benefit_id_fkey	car_club_redemptions	FOREIGN KEY (benefit_id) REFERENCES car_club_benefits(id) ON DELETE CASCADE
+car_club_redemptions_member_id_fkey	car_club_redemptions	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_club_redemptions_provider_id_fkey	car_club_redemptions	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_club_return_bonuses_club_id_fkey	car_club_return_bonuses	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+car_club_return_bonuses_member_id_fkey	car_club_return_bonuses	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_club_return_bonuses_provider_id_fkey	car_club_return_bonuses	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_evaluation_bids_evaluation_id_fkey	car_evaluation_bids	FOREIGN KEY (evaluation_id) REFERENCES car_evaluations(id) ON DELETE CASCADE
+car_evaluation_bids_salesperson_id_fkey	car_evaluation_bids	FOREIGN KEY (salesperson_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_evaluations_member_id_fkey	car_evaluations	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+car_reports_provider_id_fkey	car_reports	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+care_plan_completions_accepted_bid_id_fkey	care_plan_completions	FOREIGN KEY (accepted_bid_id) REFERENCES plan_bids(id) ON DELETE SET NULL
+care_plan_completions_care_plan_id_fkey	care_plan_completions	FOREIGN KEY (care_plan_id) REFERENCES care_plans(id) ON DELETE CASCADE
+care_plan_completions_member_id_fkey	care_plan_completions	FOREIGN KEY (member_id) REFERENCES auth.users(id) ON DELETE CASCADE
+care_plan_completions_provider_id_fkey	care_plan_completions	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE SET NULL
+care_plans_accepted_bid_id_fkey	care_plans	FOREIGN KEY (accepted_bid_id) REFERENCES plan_bids(id) ON DELETE SET NULL
+care_plans_credit_redemption_id_fkey	care_plans	FOREIGN KEY (credit_redemption_id) REFERENCES member_credits(id)
+care_plans_member_id_fkey	care_plans	FOREIGN KEY (member_id) REFERENCES auth.users(id) ON DELETE CASCADE
+care_plans_provider_id_fkey	care_plans	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE SET NULL
+care_plans_vehicle_id_fkey	care_plans	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
+checkin_queue_member_id_fkey	checkin_queue	FOREIGN KEY (member_id) REFERENCES profiles(id)
+checkin_queue_provider_id_fkey	checkin_queue	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+checkin_queue_session_id_fkey	checkin_queue	FOREIGN KEY (session_id) REFERENCES checkin_sessions(id) ON DELETE SET NULL
+checkin_queue_vehicle_id_fkey	checkin_queue	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+checkin_sessions_customer_id_fkey	checkin_sessions	FOREIGN KEY (customer_id) REFERENCES profiles(id)
+checkin_sessions_provider_id_fkey	checkin_sessions	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+checkin_sessions_vehicle_id_fkey	checkin_sessions	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+circumvention_reports_package_id_fkey	circumvention_reports	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id)
+circumvention_reports_provider_id_fkey	circumvention_reports	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+circumvention_reports_reported_user_id_fkey	circumvention_reports	FOREIGN KEY (reported_user_id) REFERENCES profiles(id)
+circumvention_reports_reporter_id_fkey	circumvention_reports	FOREIGN KEY (reporter_id) REFERENCES profiles(id)
+circumvention_reports_reviewed_by_fkey	circumvention_reports	FOREIGN KEY (reviewed_by) REFERENCES profiles(id)
+clover_transactions_provider_id_fkey	clover_transactions	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+club_activity_log_club_id_fkey	club_activity_log	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_comp_service_grants_club_id_fkey	club_comp_service_grants	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_comp_service_grants_comp_service_id_fkey	club_comp_service_grants	FOREIGN KEY (comp_service_id) REFERENCES club_comp_services(id) ON DELETE CASCADE
+club_comp_service_grants_member_id_fkey	club_comp_service_grants	FOREIGN KEY (member_id) REFERENCES auth.users(id)
+club_comp_services_club_id_fkey	club_comp_services	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_coupon_redemptions_club_id_fkey	club_coupon_redemptions	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_coupon_redemptions_coupon_id_fkey	club_coupon_redemptions	FOREIGN KEY (coupon_id) REFERENCES club_coupons(id) ON DELETE CASCADE
+club_coupon_redemptions_member_id_fkey	club_coupon_redemptions	FOREIGN KEY (member_id) REFERENCES auth.users(id)
+club_coupons_club_id_fkey	club_coupons	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_memberships_club_id_fkey	club_memberships	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_order_items_order_id_fkey	club_order_items	FOREIGN KEY (order_id) REFERENCES club_orders(id) ON DELETE CASCADE
+club_order_items_product_id_fkey	club_order_items	FOREIGN KEY (product_id) REFERENCES club_products(id) ON DELETE RESTRICT
+club_orders_club_id_fkey	club_orders	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_orders_member_id_fkey	club_orders	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE SET NULL
+club_points_config_club_id_fkey	club_points_config	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_points_ledger_club_id_fkey	club_points_ledger	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_points_ledger_member_id_fkey	club_points_ledger	FOREIGN KEY (member_id) REFERENCES auth.users(id)
+club_points_redemptions_club_id_fkey	club_points_redemptions	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_points_redemptions_member_id_fkey	club_points_redemptions	FOREIGN KEY (member_id) REFERENCES auth.users(id)
+club_points_redemptions_reward_id_fkey	club_points_redemptions	FOREIGN KEY (reward_id) REFERENCES club_rewards(id)
+club_products_club_id_fkey	club_products	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_promotions_club_id_fkey	club_promotions	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_reward_redemptions_membership_id_fkey	club_reward_redemptions	FOREIGN KEY (membership_id) REFERENCES club_memberships(id) ON DELETE CASCADE
+club_reward_redemptions_rule_id_fkey	club_reward_redemptions	FOREIGN KEY (rule_id) REFERENCES club_reward_rules(id) ON DELETE CASCADE
+club_reward_rules_club_id_fkey	club_reward_rules	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_rewards_club_id_fkey	club_rewards	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+club_testimonials_club_id_fkey	club_testimonials	FOREIGN KEY (club_id) REFERENCES car_clubs(id) ON DELETE CASCADE
+co_driver_evaluations_evaluatee_id_fkey	co_driver_evaluations	FOREIGN KEY (evaluatee_id) REFERENCES drivers(id)
+co_driver_evaluations_evaluator_id_fkey	co_driver_evaluations	FOREIGN KEY (evaluator_id) REFERENCES drivers(id)
+commission_rate_history_founder_id_fkey	commission_rate_history	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id) ON DELETE CASCADE
+community_posts_author_id_fkey	community_posts	FOREIGN KEY (author_id) REFERENCES profiles(id) ON DELETE CASCADE
+concierge_job_drivers_driver_id_fkey	concierge_job_drivers	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE RESTRICT
+concierge_job_drivers_job_id_fkey	concierge_job_drivers	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+concierge_job_legs_job_id_fkey	concierge_job_legs	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+concierge_jobs_appointment_id_fkey	concierge_jobs	FOREIGN KEY (appointment_id) REFERENCES service_appointments(id) ON DELETE SET NULL
+concierge_jobs_member_id_fkey	concierge_jobs	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE RESTRICT
+concierge_jobs_package_id_fkey	concierge_jobs	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE RESTRICT
+concierge_jobs_provider_id_fkey	concierge_jobs	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE SET NULL
+corrective_action_responses_provider_id_fkey	corrective_action_responses	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+corrective_action_responses_reviewed_by_fkey	corrective_action_responses	FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
+credit_refunds_provider_id_fkey	credit_refunds	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+crowd_fund_contributions_contributor_id_fkey	crowd_fund_contributions	FOREIGN KEY (contributor_id) REFERENCES profiles(id)
+crowd_fund_contributions_package_id_fkey	crowd_fund_contributions	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+custody_attestations_handoff_id_fkey	custody_attestations	FOREIGN KEY (handoff_id) REFERENCES custody_handoffs(id) ON DELETE CASCADE
+custody_attestations_job_id_fkey	custody_attestations	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+custody_attestations_party_id_fkey	custody_attestations	FOREIGN KEY (party_id) REFERENCES auth.users(id)
+custody_disputes_handoff_id_fkey	custody_disputes	FOREIGN KEY (handoff_id) REFERENCES custody_handoffs(id)
+custody_disputes_implicated_party_id_fkey	custody_disputes	FOREIGN KEY (implicated_party_id) REFERENCES auth.users(id)
+custody_disputes_job_id_fkey	custody_disputes	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+custody_disputes_raised_by_fkey	custody_disputes	FOREIGN KEY (raised_by) REFERENCES auth.users(id)
+custody_handoffs_job_id_fkey	custody_handoffs	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+custody_handoffs_on_behalf_of_provider_id_fkey	custody_handoffs	FOREIGN KEY (on_behalf_of_provider_id) REFERENCES profiles(id)
+custody_handoffs_receiving_party_id_fkey	custody_handoffs	FOREIGN KEY (receiving_party_id) REFERENCES auth.users(id)
+custody_handoffs_releasing_party_id_fkey	custody_handoffs	FOREIGN KEY (releasing_party_id) REFERENCES auth.users(id)
+custody_photos_captured_by_fkey	custody_photos	FOREIGN KEY (captured_by) REFERENCES auth.users(id)
+custody_photos_handoff_id_fkey	custody_photos	FOREIGN KEY (handoff_id) REFERENCES custody_handoffs(id) ON DELETE CASCADE
+custody_photos_job_id_fkey	custody_photos	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+dealership_credit_ledger_dealership_id_fkey	dealership_credit_ledger	FOREIGN KEY (dealership_id) REFERENCES dealerships(id) ON DELETE CASCADE
+dealership_credit_ledger_user_id_fkey	dealership_credit_ledger	FOREIGN KEY (user_id) REFERENCES auth.users(id)
+dealership_invites_dealership_id_fkey	dealership_invites	FOREIGN KEY (dealership_id) REFERENCES dealerships(id) ON DELETE CASCADE
+dealership_invites_invited_by_fkey	dealership_invites	FOREIGN KEY (invited_by) REFERENCES auth.users(id)
+dealership_members_dealership_id_fkey	dealership_members	FOREIGN KEY (dealership_id) REFERENCES dealerships(id) ON DELETE CASCADE
+dealership_members_invited_by_fkey	dealership_members	FOREIGN KEY (invited_by) REFERENCES auth.users(id)
+dealership_members_user_id_fkey	dealership_members	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+dealerships_approved_by_fkey	dealerships	FOREIGN KEY (approved_by) REFERENCES auth.users(id)
+dealerships_primary_contact_id_fkey	dealerships	FOREIGN KEY (primary_contact_id) REFERENCES auth.users(id) ON DELETE SET NULL
+destination_services_package_id_fkey	destination_services	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+destination_services_requested_by_fkey	destination_services	FOREIGN KEY (requested_by) REFERENCES profiles(id)
+developer_api_keys_user_id_fkey	developer_api_keys	FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+diagnostic_sessions_member_id_fkey	diagnostic_sessions	FOREIGN KEY (member_id) REFERENCES profiles(id)
+diagnostic_sessions_vehicle_id_fkey	diagnostic_sessions	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+dispatch_queue_ride_id_fkey	dispatch_queue	FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
+dispute_evidence_dispute_id_fkey	dispute_evidence	FOREIGN KEY (dispute_id) REFERENCES disputes(id) ON DELETE CASCADE
+dispute_evidence_submitted_by_fkey	dispute_evidence	FOREIGN KEY (submitted_by) REFERENCES profiles(id)
+disputes_filed_by_fkey	disputes	FOREIGN KEY (filed_by) REFERENCES profiles(id) ON DELETE CASCADE
+disputes_package_id_fkey	disputes	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+dream_car_matches_search_id_fkey	dream_car_matches	FOREIGN KEY (search_id) REFERENCES dream_car_searches(id) ON DELETE CASCADE
+dream_car_matches_user_id_fkey	dream_car_matches	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+dream_car_searches_user_id_fkey	dream_car_searches	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+driver_assignments_payout_id_fkey	driver_assignments	FOREIGN KEY (payout_id) REFERENCES driver_payouts(id)
+driver_assignments_ride_id_fkey	driver_assignments	FOREIGN KEY (ride_id) REFERENCES rides(id)
+driver_cashouts_driver_id_fkey	driver_cashouts	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE RESTRICT
+driver_certifications_driver_id_fkey	driver_certifications	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+driver_documents_vehicle_id_fkey	driver_documents	FOREIGN KEY (vehicle_id) REFERENCES driver_vehicles(id)
+driver_earnings_cashout_id_fkey	driver_earnings	FOREIGN KEY (cashout_id) REFERENCES driver_cashouts(id) ON DELETE SET NULL
+driver_earnings_driver_id_fkey	driver_earnings	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE RESTRICT
+driver_earnings_job_id_fkey	driver_earnings	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE SET NULL
+driver_earnings_leg_id_fkey	driver_earnings	FOREIGN KEY (leg_id) REFERENCES concierge_job_legs(id) ON DELETE SET NULL
+driver_location_history_ride_id_fkey	driver_location_history	FOREIGN KEY (ride_id) REFERENCES rides(id)
+driver_location_pings_driver_id_fkey	driver_location_pings	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+driver_location_pings_job_id_fkey	driver_location_pings	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE SET NULL
+driver_location_pings_leg_id_fkey	driver_location_pings	FOREIGN KEY (leg_id) REFERENCES concierge_job_legs(id) ON DELETE SET NULL
+driver_locations_driver_id_fkey	driver_locations	FOREIGN KEY (driver_id) REFERENCES profiles(id)
+driver_locations_package_id_fkey	driver_locations	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+driver_notifications_driver_id_fkey	driver_notifications	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+driver_support_issues_ride_id_fkey	driver_support_issues	FOREIGN KEY (ride_id) REFERENCES rides(id)
+driver_tips_driver_id_fkey	driver_tips	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+driver_tips_ride_id_fkey	driver_tips	FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
+driver_training_progress_driver_id_fkey	driver_training_progress	FOREIGN KEY (driver_id) REFERENCES drivers(id) ON DELETE CASCADE
+driver_training_progress_lesson_id_fkey	driver_training_progress	FOREIGN KEY (lesson_id) REFERENCES training_lessons(id) ON DELETE CASCADE
+driver_training_progress_module_id_fkey	driver_training_progress	FOREIGN KEY (module_id) REFERENCES training_modules(id) ON DELETE CASCADE
+driver_vehicles_approved_by_fkey	driver_vehicles	FOREIGN KEY (approved_by) REFERENCES profiles(id) ON DELETE SET NULL
+drivers_profile_id_fkey	drivers	FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE SET NULL
+emergency_dispatch_requests_member_id_fkey	emergency_dispatch_requests	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+emergency_requests_assigned_provider_id_fkey	emergency_requests	FOREIGN KEY (assigned_provider_id) REFERENCES profiles(id)
+emergency_requests_member_id_fkey	emergency_requests	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+emergency_requests_vehicle_id_fkey	emergency_requests	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id)
+employee_background_checks_employee_id_fkey	employee_background_checks	FOREIGN KEY (employee_id) REFERENCES provider_employees(id) ON DELETE CASCADE
+employee_background_checks_provider_id_fkey	employee_background_checks	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+escrow_payments_member_id_fkey	escrow_payments	FOREIGN KEY (member_id) REFERENCES profiles(id)
+escrow_payments_package_id_fkey	escrow_payments	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+escrow_payments_provider_id_fkey	escrow_payments	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+evaluation_bids_dealership_id_fkey	evaluation_bids	FOREIGN KEY (dealership_id) REFERENCES dealerships(id)
+evaluation_bids_evaluation_id_fkey	evaluation_bids	FOREIGN KEY (evaluation_id) REFERENCES vehicle_evaluations(id) ON DELETE CASCADE
+evaluation_bids_salesperson_id_fkey	evaluation_bids	FOREIGN KEY (salesperson_id) REFERENCES auth.users(id) ON DELETE CASCADE
+evaluation_media_evaluation_id_fkey	evaluation_media	FOREIGN KEY (evaluation_id) REFERENCES vehicle_evaluations(id) ON DELETE CASCADE
+facebook_page_connections_connected_by_user_id_fkey	facebook_page_connections	FOREIGN KEY (connected_by_user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+fb_data_deletion_requests_user_id_fkey	fb_data_deletion_requests	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+finder_fee_payments_evaluation_id_fkey	finder_fee_payments	FOREIGN KEY (evaluation_id) REFERENCES car_evaluations(id) ON DELETE CASCADE
+finder_fee_payments_salesperson_id_fkey	finder_fee_payments	FOREIGN KEY (salesperson_id) REFERENCES profiles(id) ON DELETE CASCADE
+fk_accepted_bid	maintenance_packages	FOREIGN KEY (accepted_bid_id) REFERENCES bids(id)
+fleet_approvals_approved_by_fkey	fleet_approvals	FOREIGN KEY (approved_by) REFERENCES profiles(id)
+fleet_approvals_fleet_id_fkey	fleet_approvals	FOREIGN KEY (fleet_id) REFERENCES fleets(id) ON DELETE CASCADE
+fleet_approvals_package_id_fkey	fleet_approvals	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+fleet_approvals_requested_by_fkey	fleet_approvals	FOREIGN KEY (requested_by) REFERENCES profiles(id)
+fleet_members_fleet_id_fkey	fleet_members	FOREIGN KEY (fleet_id) REFERENCES fleets(id) ON DELETE CASCADE
+fleet_members_user_id_fkey	fleet_members	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+fleet_vehicle_assignments_assigned_driver_id_fkey	fleet_vehicle_assignments	FOREIGN KEY (assigned_driver_id) REFERENCES auth.users(id)
+fleet_vehicle_assignments_fleet_id_fkey	fleet_vehicle_assignments	FOREIGN KEY (fleet_id) REFERENCES fleets(id) ON DELETE CASCADE
+fleet_vehicle_assignments_vehicle_id_fkey	fleet_vehicle_assignments	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+fleet_vehicles_assigned_driver_id_fkey	fleet_vehicles	FOREIGN KEY (assigned_driver_id) REFERENCES profiles(id)
+fleet_vehicles_fleet_id_fkey	fleet_vehicles	FOREIGN KEY (fleet_id) REFERENCES fleets(id) ON DELETE CASCADE
+fleet_vehicles_vehicle_id_fkey	fleet_vehicles	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+fleets_owner_id_fkey	fleets	FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE
+founder_commissions_founder_id_fkey	founder_commissions	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id) ON DELETE CASCADE
+founder_commissions_referral_id_fkey	founder_commissions	FOREIGN KEY (referral_id) REFERENCES founder_referrals(id) ON DELETE SET NULL
+founder_deals_founder_id_fkey	founder_deals	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id) ON DELETE CASCADE
+founder_invites_founder_id_fkey	founder_invites	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id) ON DELETE CASCADE
+founder_payouts_founder_id_fkey	founder_payouts	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id) ON DELETE CASCADE
+founder_payouts_processed_by_fkey	founder_payouts	FOREIGN KEY (processed_by) REFERENCES auth.users(id)
+founder_referrals_founder_id_fkey	founder_referrals	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id) ON DELETE CASCADE
+founder_referrals_provider_profile_id_fkey	founder_referrals	FOREIGN KEY (provider_profile_id) REFERENCES profiles(id) ON DELETE SET NULL
+founder_referrals_referred_user_id_fkey	founder_referrals	FOREIGN KEY (referred_user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+founding_provider_partners_user_id_fkey	founding_provider_partners	FOREIGN KEY (user_id) REFERENCES auth.users(id)
+fuel_logs_member_id_fkey	fuel_logs	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+fuel_logs_vehicle_id_fkey	fuel_logs	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+household_members_household_id_fkey	household_members	FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE
+household_members_invited_by_fkey	household_members	FOREIGN KEY (invited_by) REFERENCES auth.users(id)
+household_members_user_id_fkey	household_members	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+household_vehicle_access_household_id_fkey	household_vehicle_access	FOREIGN KEY (household_id) REFERENCES households(id) ON DELETE CASCADE
+household_vehicle_access_shared_by_fkey	household_vehicle_access	FOREIGN KEY (shared_by) REFERENCES auth.users(id)
+household_vehicle_access_vehicle_id_fkey	household_vehicle_access	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+households_owner_id_fkey	households	FOREIGN KEY (owner_id) REFERENCES auth.users(id) ON DELETE CASCADE
+identities_user_id_fkey	auth.identities	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+identity_verifications_user_id_fkey	identity_verifications	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+inspection_reports_package_id_fkey	inspection_reports	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+inspection_reports_provider_id_fkey	inspection_reports	FOREIGN KEY (provider_id) REFERENCES auth.users(id)
+inspection_reports_vehicle_id_fkey	inspection_reports	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+insurance_documents_member_id_fkey	insurance_documents	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+insurance_documents_vehicle_id_fkey	insurance_documents	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+insurance_verifications_reviewed_by_fkey	insurance_verifications	FOREIGN KEY (reviewed_by) REFERENCES profiles(id)
+insurance_verifications_user_id_fkey	insurance_verifications	FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+insurance_verifications_vehicle_id_fkey	insurance_verifications	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+key_exchanges_driver_user_id_fkey	key_exchanges	FOREIGN KEY (driver_user_id) REFERENCES auth.users(id)
+key_exchanges_package_id_fkey	key_exchanges	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+live_service_areas_provider_id_fkey	live_service_areas	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+location_shares_package_id_fkey	location_shares	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+location_shares_shared_by_fkey	location_shares	FOREIGN KEY (shared_by) REFERENCES profiles(id) ON DELETE CASCADE
+location_shares_shared_with_fkey	location_shares	FOREIGN KEY (shared_with) REFERENCES profiles(id) ON DELETE CASCADE
+location_shares_transfer_id_fkey	location_shares	FOREIGN KEY (transfer_id) REFERENCES vehicle_transfers(id) ON DELETE SET NULL
+login_activity_user_id_fkey	login_activity	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+maintenance_packages_member_id_fkey	maintenance_packages	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+maintenance_packages_split_payment_id_fkey	maintenance_packages	FOREIGN KEY (split_payment_id) REFERENCES split_payments(id) ON DELETE SET NULL
+maintenance_packages_vehicle_id_fkey	maintenance_packages	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
+maintenance_reminders_pos_session_id_fkey	maintenance_reminders	FOREIGN KEY (pos_session_id) REFERENCES pos_sessions(id)
+maintenance_schedules_member_id_fkey	maintenance_schedules	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+maintenance_schedules_vehicle_id_fkey	maintenance_schedules	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+manufacturer_maintenance_schedules_service_type_id_fkey	manufacturer_maintenance_schedules	FOREIGN KEY (service_type_id) REFERENCES maintenance_service_types(id)
+member_car_preferences_user_id_fkey	member_car_preferences	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+member_club_balances_membership_id_fkey	member_club_balances	FOREIGN KEY (membership_id) REFERENCES club_memberships(id) ON DELETE CASCADE
+member_club_balances_rule_id_fkey	member_club_balances	FOREIGN KEY (rule_id) REFERENCES club_reward_rules(id) ON DELETE CASCADE
+member_credits_member_id_fkey	member_credits	FOREIGN KEY (member_id) REFERENCES auth.users(id) ON DELETE CASCADE
+member_credits_referral_id_fkey	member_credits	FOREIGN KEY (referral_id) REFERENCES referrals(id) ON DELETE SET NULL
+member_founder_profiles_application_id_fkey	member_founder_profiles	FOREIGN KEY (application_id) REFERENCES member_founder_applications(id) ON DELETE SET NULL
+member_founder_profiles_user_id_fkey	member_founder_profiles	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+member_onboarding_steps_user_id_fkey	member_onboarding_steps	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+merch_orders_member_id_fkey	merch_orders	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+messages_recipient_id_fkey	messages	FOREIGN KEY (recipient_id) REFERENCES profiles(id) ON DELETE CASCADE
+messages_sender_id_fkey	messages	FOREIGN KEY (sender_id) REFERENCES profiles(id) ON DELETE CASCADE
+mfa_amr_claims_session_id_fkey	auth.mfa_amr_claims	FOREIGN KEY (session_id) REFERENCES auth.sessions(id) ON DELETE CASCADE
+mfa_challenges_auth_factor_id_fkey	auth.mfa_challenges	FOREIGN KEY (factor_id) REFERENCES auth.mfa_factors(id) ON DELETE CASCADE
+mfa_factors_user_id_fkey	auth.mfa_factors	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+milestone_achievements_founder_id_fkey	milestone_achievements	FOREIGN KEY (founder_id) REFERENCES member_founder_profiles(id)
+milestone_achievements_milestone_id_fkey	milestone_achievements	FOREIGN KEY (milestone_id) REFERENCES milestone_thresholds(id)
+notifications_user_id_fkey	notifications	FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+oauth_authorizations_client_id_fkey	auth.oauth_authorizations	FOREIGN KEY (client_id) REFERENCES auth.oauth_clients(id) ON DELETE CASCADE
+oauth_authorizations_user_id_fkey	auth.oauth_authorizations	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+oauth_consents_client_id_fkey	auth.oauth_consents	FOREIGN KEY (client_id) REFERENCES auth.oauth_clients(id) ON DELETE CASCADE
+oauth_consents_user_id_fkey	auth.oauth_consents	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+objects_bucketId_fkey	storage.objects	FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id)
+one_time_tokens_user_id_fkey	auth.one_time_tokens	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+opportunity_pipeline_lead_id_fkey	opportunity_pipeline	FOREIGN KEY (lead_id) REFERENCES outreach_leads(id) ON DELETE CASCADE
+outreach_activity_log_lead_id_fkey	outreach_activity_log	FOREIGN KEY (lead_id) REFERENCES outreach_leads(id)
+outreach_activity_log_message_id_fkey	outreach_activity_log	FOREIGN KEY (message_id) REFERENCES outreach_messages(id)
+outreach_email_events_lead_id_fkey	outreach_email_events	FOREIGN KEY (lead_id) REFERENCES outreach_leads(id) ON DELETE CASCADE
+outreach_email_events_message_id_fkey	outreach_email_events	FOREIGN KEY (message_id) REFERENCES outreach_messages(id) ON DELETE CASCADE
+outreach_messages_lead_id_fkey	outreach_messages	FOREIGN KEY (lead_id) REFERENCES outreach_leads(id) ON DELETE CASCADE
+package_photos_package_id_fkey	package_photos	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+payments_member_id_fkey	payments	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE SET NULL
+payments_package_id_fkey	payments	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE SET NULL
+payments_provider_id_fkey	payments	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE SET NULL
+plan_bids_care_plan_id_fkey	plan_bids	FOREIGN KEY (care_plan_id) REFERENCES care_plans(id) ON DELETE CASCADE
+plan_bids_provider_id_fkey	plan_bids	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE CASCADE
+plan_invitations_care_plan_id_fkey	plan_invitations	FOREIGN KEY (care_plan_id) REFERENCES care_plans(id) ON DELETE CASCADE
+plan_invitations_provider_id_fkey	plan_invitations	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE CASCADE
+pos_service_jobs_package_id_fkey	pos_service_jobs	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id)
+pos_service_jobs_pos_session_id_fkey	pos_service_jobs	FOREIGN KEY (pos_session_id) REFERENCES pos_sessions(id) ON DELETE CASCADE
+pos_sessions_marketplace_bid_id_fkey	pos_sessions	FOREIGN KEY (marketplace_bid_id) REFERENCES bids(id) ON DELETE SET NULL
+pos_sessions_marketplace_package_id_fkey	pos_sessions	FOREIGN KEY (marketplace_package_id) REFERENCES maintenance_packages(id) ON DELETE SET NULL
+pos_sessions_member_id_fkey	pos_sessions	FOREIGN KEY (member_id) REFERENCES profiles(id)
+pos_sessions_provider_id_fkey	pos_sessions	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+pos_sessions_started_by_fkey	pos_sessions	FOREIGN KEY (started_by) REFERENCES profiles(id)
+pos_transactions_provider_id_fkey	pos_transactions	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+profiles_id_fkey	profiles	FOREIGN KEY (id) REFERENCES auth.users(id) ON DELETE CASCADE
+profiles_referred_by_founder_id_fkey	profiles	FOREIGN KEY (referred_by_founder_id) REFERENCES member_founder_profiles(user_id) ON DELETE SET NULL
+profiles_referred_by_member_id_fkey	profiles	FOREIGN KEY (referred_by_member_id) REFERENCES profiles(id) ON DELETE SET NULL
+profiles_team_provider_id_fkey	profiles	FOREIGN KEY (team_provider_id) REFERENCES profiles(id)
+prospect_vehicles_user_id_fkey	prospect_vehicles	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+provider_alerts_bgc_check_id_fkey	provider_alerts	FOREIGN KEY (bgc_check_id) REFERENCES employee_background_checks(id) ON DELETE CASCADE
+provider_alerts_employee_id_fkey	provider_alerts	FOREIGN KEY (employee_id) REFERENCES provider_employees(id) ON DELETE CASCADE
+provider_alerts_provider_id_fkey	provider_alerts	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_applications_outreach_lead_id_fkey	provider_applications	FOREIGN KEY (outreach_lead_id) REFERENCES outreach_leads(id) ON DELETE SET NULL
+provider_applications_reviewed_by_fkey	provider_applications	FOREIGN KEY (reviewed_by) REFERENCES profiles(id)
+provider_applications_user_id_fkey	provider_applications	FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_auto_bid_settings_provider_id_fkey	provider_auto_bid_settings	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_background_checks_employee_id_fkey	provider_background_checks	FOREIGN KEY (employee_id) REFERENCES profiles(id) ON DELETE SET NULL
+provider_background_checks_provider_id_fkey	provider_background_checks	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_blocked_time_provider_id_fkey	provider_blocked_time	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_clover_credentials_provider_id_fkey	provider_clover_credentials	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_discounts_package_id_fkey	provider_discounts	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+provider_discounts_provider_id_fkey	provider_discounts	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_documents_application_id_fkey	provider_documents	FOREIGN KEY (application_id) REFERENCES provider_applications(id) ON DELETE CASCADE
+provider_documents_provider_id_fkey	provider_documents	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+provider_documents_verified_by_fkey	provider_documents	FOREIGN KEY (verified_by) REFERENCES profiles(id)
+provider_emergency_penalties_emergency_request_id_fkey	provider_emergency_penalties	FOREIGN KEY (emergency_request_id) REFERENCES emergency_requests(id) ON DELETE CASCADE
+provider_emergency_penalties_provider_id_fkey	provider_emergency_penalties	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_employees_provider_id_fkey	provider_employees	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_external_reviews_application_id_fkey	provider_external_reviews	FOREIGN KEY (application_id) REFERENCES provider_applications(id) ON DELETE CASCADE
+provider_external_reviews_provider_id_fkey	provider_external_reviews	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+provider_invitations_invited_by_fkey	provider_invitations	FOREIGN KEY (invited_by) REFERENCES profiles(id)
+provider_invitations_provider_id_fkey	provider_invitations	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_match_preferences_profile_id_fkey	provider_match_preferences	FOREIGN KEY (profile_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_notification_preferences_provider_id_fkey	provider_notification_preferences	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_notification_prefs_provider_id_fkey	provider_notification_prefs	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_performance_provider_id_fkey	provider_performance	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE CASCADE
+provider_pos_connections_provider_id_fkey	provider_pos_connections	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_references_application_id_fkey	provider_references	FOREIGN KEY (application_id) REFERENCES provider_applications(id) ON DELETE CASCADE
+provider_references_provider_id_fkey	provider_references	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+provider_referral_codes_provider_id_fkey	provider_referral_codes	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE SET NULL
+provider_referrals_provider_id_fkey	provider_referrals	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE SET NULL
+provider_referrals_referral_code_id_fkey	provider_referrals	FOREIGN KEY (referral_code_id) REFERENCES provider_referral_codes(id) ON DELETE SET NULL
+provider_referrals_referred_user_id_fkey	provider_referrals	FOREIGN KEY (referred_user_id) REFERENCES auth.users(id) ON DELETE SET NULL
+provider_reviews_member_id_fkey	provider_reviews	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_reviews_package_id_fkey	provider_reviews	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+provider_reviews_provider_id_fkey	provider_reviews	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_stats_provider_id_fkey	provider_stats	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_stats_suspension_lifted_by_fkey	provider_stats	FOREIGN KEY (suspension_lifted_by) REFERENCES profiles(id)
+provider_team_members_invited_by_fkey	provider_team_members	FOREIGN KEY (invited_by) REFERENCES profiles(id)
+provider_team_members_provider_id_fkey	provider_team_members	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_team_members_user_id_fkey	provider_team_members	FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE CASCADE
+provider_working_hours_provider_id_fkey	provider_working_hours	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+referrals_referred_id_fkey	referrals	FOREIGN KEY (referred_id) REFERENCES auth.users(id) ON DELETE SET NULL
+referrals_referrer_id_fkey	referrals	FOREIGN KEY (referrer_id) REFERENCES auth.users(id) ON DELETE CASCADE
+refresh_tokens_session_id_fkey	auth.refresh_tokens	FOREIGN KEY (session_id) REFERENCES auth.sessions(id) ON DELETE CASCADE
+registration_verifications_reviewed_by_fkey	registration_verifications	FOREIGN KEY (reviewed_by) REFERENCES auth.users(id)
+registration_verifications_user_id_fkey	registration_verifications	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+registration_verifications_vehicle_id_fkey	registration_verifications	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+reminders_user_id_fkey	reminders	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+reminders_vehicle_id_fkey	reminders	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
+return_fees_discovered_in_handoff_id_fkey	return_fees	FOREIGN KEY (discovered_in_handoff_id) REFERENCES custody_handoffs(id)
+return_fees_driver_id_fkey	return_fees	FOREIGN KEY (driver_id) REFERENCES auth.users(id)
+return_fees_item_owner_id_fkey	return_fees	FOREIGN KEY (item_owner_id) REFERENCES auth.users(id)
+return_fees_job_id_fkey	return_fees	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+reward_type_templates_provider_id_fkey	reward_type_templates	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+ride_cancellations_cancelled_by_id_fkey	ride_cancellations	FOREIGN KEY (cancelled_by_id) REFERENCES profiles(id) ON DELETE RESTRICT
+ride_cancellations_concierge_job_id_fkey	ride_cancellations	FOREIGN KEY (concierge_job_id) REFERENCES concierge_jobs(id) ON DELETE RESTRICT
+ride_events_driver_assignment_id_fkey	ride_events	FOREIGN KEY (driver_assignment_id) REFERENCES driver_assignments(id)
+ride_events_ride_id_fkey	ride_events	FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
+ride_messages_ride_id_fkey	ride_messages	FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
+ride_ratings_ride_id_fkey	ride_ratings	FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
+rides_member_id_fkey	rides	FOREIGN KEY (member_id) REFERENCES auth.users(id)
+rides_round_trip_parent_id_fkey	rides	FOREIGN KEY (round_trip_parent_id) REFERENCES rides(id)
+road_test_events_job_id_fkey	road_test_events	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE CASCADE
+s3_multipart_uploads_bucket_id_fkey	storage.s3_multipart_uploads	FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id)
+s3_multipart_uploads_parts_bucket_id_fkey	storage.s3_multipart_uploads_parts	FOREIGN KEY (bucket_id) REFERENCES storage.buckets(id)
+s3_multipart_uploads_parts_upload_id_fkey	storage.s3_multipart_uploads_parts	FOREIGN KEY (upload_id) REFERENCES storage.s3_multipart_uploads(id) ON DELETE CASCADE
+saas_subscriptions_user_id_fkey	saas_subscriptions	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+saml_providers_sso_provider_id_fkey	auth.saml_providers	FOREIGN KEY (sso_provider_id) REFERENCES auth.sso_providers(id) ON DELETE CASCADE
+saml_relay_states_flow_state_id_fkey	auth.saml_relay_states	FOREIGN KEY (flow_state_id) REFERENCES auth.flow_state(id) ON DELETE CASCADE
+saml_relay_states_sso_provider_id_fkey	auth.saml_relay_states	FOREIGN KEY (sso_provider_id) REFERENCES auth.sso_providers(id) ON DELETE CASCADE
+scheduled_followups_pos_session_id_fkey	scheduled_followups	FOREIGN KEY (pos_session_id) REFERENCES pos_sessions(id)
+service_appointments_member_id_fkey	service_appointments	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+service_appointments_package_id_fkey	service_appointments	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+service_appointments_provider_id_fkey	service_appointments	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+service_authorizations_pos_session_id_fkey	service_authorizations	FOREIGN KEY (pos_session_id) REFERENCES pos_sessions(id)
+service_evidence_created_by_fkey	service_evidence	FOREIGN KEY (created_by) REFERENCES profiles(id)
+service_evidence_package_id_fkey	service_evidence	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+service_history_package_id_fkey	service_history	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE SET NULL
+service_history_provider_id_fkey	service_history	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE SET NULL
+service_history_vehicle_id_fkey	service_history	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+service_recommendations_vehicle_id_fkey	service_recommendations	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+service_reminders_member_id_fkey	service_reminders	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+service_reminders_vehicle_id_fkey	service_reminders	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+sessions_oauth_client_id_fkey	auth.sessions	FOREIGN KEY (oauth_client_id) REFERENCES auth.oauth_clients(id) ON DELETE CASCADE
+sessions_user_id_fkey	auth.sessions	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+slot_bookings_member_id_fkey	slot_bookings	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+slot_bookings_package_id_fkey	slot_bookings	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+slot_bookings_provider_id_fkey	slot_bookings	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+sms_opt_out_log_matched_profile_id_fkey	sms_opt_out_log	FOREIGN KEY (matched_profile_id) REFERENCES profiles(id) ON DELETE SET NULL
+social_leads_agent_action_id_fkey	social_leads	FOREIGN KEY (agent_action_id) REFERENCES agent_actions(id) ON DELETE SET NULL
+social_leads_channel_id_fkey	social_leads	FOREIGN KEY (channel_id) REFERENCES social_channels(id) ON DELETE SET NULL
+social_posts_agent_action_id_fkey	social_posts	FOREIGN KEY (agent_action_id) REFERENCES agent_actions(id) ON DELETE SET NULL
+social_posts_channel_id_fkey	social_posts	FOREIGN KEY (channel_id) REFERENCES social_channels(id) ON DELETE SET NULL
+split_participants_split_payment_id_fkey	split_participants	FOREIGN KEY (split_payment_id) REFERENCES split_payments(id) ON DELETE CASCADE
+sso_domains_sso_provider_id_fkey	auth.sso_domains	FOREIGN KEY (sso_provider_id) REFERENCES auth.sso_providers(id) ON DELETE CASCADE
+support_tickets_assigned_to_fkey	support_tickets	FOREIGN KEY (assigned_to) REFERENCES profiles(id)
+support_tickets_user_id_fkey	support_tickets	FOREIGN KEY (user_id) REFERENCES profiles(id) ON DELETE SET NULL
+tandem_jobs_provider_id_fkey	tandem_jobs	FOREIGN KEY (provider_id) REFERENCES drivers(id)
+tandem_jobs_ride_id_fkey	tandem_jobs	FOREIGN KEY (ride_id) REFERENCES rides(id)
+team_members_provider_id_fkey	team_members	FOREIGN KEY (provider_id) REFERENCES auth.users(id) ON DELETE CASCADE
+ticket_messages_sender_id_fkey	ticket_messages	FOREIGN KEY (sender_id) REFERENCES profiles(id)
+ticket_messages_ticket_id_fkey	ticket_messages	FOREIGN KEY (ticket_id) REFERENCES support_tickets(id) ON DELETE CASCADE
+tracking_pings_job_id_fkey	tracking_pings	FOREIGN KEY (job_id) REFERENCES concierge_jobs(id) ON DELETE SET NULL
+training_lessons_module_id_fkey	training_lessons	FOREIGN KEY (module_id) REFERENCES training_modules(id) ON DELETE CASCADE
+training_questions_lesson_id_fkey	training_questions	FOREIGN KEY (lesson_id) REFERENCES training_lessons(id) ON DELETE CASCADE
+transport_tasks_destination_service_id_fkey	transport_tasks	FOREIGN KEY (destination_service_id) REFERENCES destination_services(id) ON DELETE CASCADE
+transport_tasks_driver_id_fkey	transport_tasks	FOREIGN KEY (driver_id) REFERENCES auth.users(id)
+two_factor_rate_limits_user_id_fkey	two_factor_rate_limits	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+upsell_requests_member_id_fkey	upsell_requests	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+upsell_requests_package_id_fkey	upsell_requests	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+upsell_requests_provider_id_fkey	upsell_requests	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+urgent_updates_member_id_fkey	urgent_updates	FOREIGN KEY (member_id) REFERENCES profiles(id)
+urgent_updates_package_id_fkey	urgent_updates	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+urgent_updates_provider_id_fkey	urgent_updates	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+vector_indexes_bucket_id_fkey	storage.vector_indexes	FOREIGN KEY (bucket_id) REFERENCES storage.buckets_vectors(id)
+vehicle_driving_conditions_member_id_fkey	vehicle_driving_conditions	FOREIGN KEY (member_id) REFERENCES profiles(id)
+vehicle_driving_conditions_vehicle_id_fkey	vehicle_driving_conditions	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+vehicle_evaluations_member_id_fkey	vehicle_evaluations	FOREIGN KEY (member_id) REFERENCES auth.users(id) ON DELETE CASCADE
+vehicle_evaluations_vehicle_id_fkey	vehicle_evaluations	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE SET NULL
+vehicle_inspection_photos_driver_assignment_id_fkey	vehicle_inspection_photos	FOREIGN KEY (driver_assignment_id) REFERENCES driver_assignments(id)
+vehicle_inspection_photos_ride_id_fkey	vehicle_inspection_photos	FOREIGN KEY (ride_id) REFERENCES rides(id) ON DELETE CASCADE
+vehicle_inspections_pos_session_id_fkey	vehicle_inspections	FOREIGN KEY (pos_session_id) REFERENCES pos_sessions(id)
+vehicle_photos_member_id_fkey	vehicle_photos	FOREIGN KEY (member_id) REFERENCES auth.users(id) ON DELETE CASCADE
+vehicle_photos_vehicle_id_fkey	vehicle_photos	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+vehicle_predictions_vehicle_id_fkey	vehicle_predictions	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+vehicle_recalls_acknowledged_by_fkey	vehicle_recalls	FOREIGN KEY (acknowledged_by) REFERENCES profiles(id) ON DELETE SET NULL
+vehicle_recalls_vehicle_id_fkey	vehicle_recalls	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+vehicle_service_history_member_id_fkey	vehicle_service_history	FOREIGN KEY (member_id) REFERENCES profiles(id)
+vehicle_service_history_provider_id_fkey	vehicle_service_history	FOREIGN KEY (provider_id) REFERENCES profiles(id)
+vehicle_service_history_service_type_id_fkey	vehicle_service_history	FOREIGN KEY (service_type_id) REFERENCES maintenance_service_types(id)
+vehicle_service_history_vehicle_id_fkey	vehicle_service_history	FOREIGN KEY (vehicle_id) REFERENCES vehicles(id) ON DELETE CASCADE
+vehicle_transfers_appointment_id_fkey	vehicle_transfers	FOREIGN KEY (appointment_id) REFERENCES service_appointments(id) ON DELETE SET NULL
+vehicle_transfers_member_id_fkey	vehicle_transfers	FOREIGN KEY (member_id) REFERENCES profiles(id) ON DELETE CASCADE
+vehicle_transfers_package_id_fkey	vehicle_transfers	FOREIGN KEY (package_id) REFERENCES maintenance_packages(id) ON DELETE CASCADE
+vehicle_transfers_provider_id_fkey	vehicle_transfers	FOREIGN KEY (provider_id) REFERENCES profiles(id) ON DELETE CASCADE
+vehicles_insurance_verification_id_fkey	vehicles	FOREIGN KEY (insurance_verification_id) REFERENCES insurance_verifications(id)
+vehicles_owner_id_fkey	vehicles	FOREIGN KEY (owner_id) REFERENCES profiles(id) ON DELETE CASCADE
+vehicles_registration_verification_id_fkey	vehicles	FOREIGN KEY (registration_verification_id) REFERENCES registration_verifications(id)
+wallet_bonus_lots_wallet_id_fkey	wallet_bonus_lots	FOREIGN KEY (wallet_id) REFERENCES wallet_accounts(id) ON DELETE CASCADE
+wallet_ledger_lot_id_fkey	wallet_ledger	FOREIGN KEY (lot_id) REFERENCES wallet_bonus_lots(id)
+wallet_ledger_wallet_id_fkey	wallet_ledger	FOREIGN KEY (wallet_id) REFERENCES wallet_accounts(id) ON DELETE CASCADE
+webauthn_challenges_user_id_fkey	auth.webauthn_challenges	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+webauthn_credentials_user_id_fkey	auth.webauthn_credentials	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+white_label_tenant_users_tenant_id_fkey	white_label_tenant_users	FOREIGN KEY (tenant_id) REFERENCES white_label_tenants(id) ON DELETE CASCADE
+white_label_tenant_users_user_id_fkey	white_label_tenant_users	FOREIGN KEY (user_id) REFERENCES auth.users(id) ON DELETE CASCADE
+white_label_tenants_owner_user_id_fkey	white_label_tenants	FOREIGN KEY (owner_user_id) REFERENCES auth.users(id)

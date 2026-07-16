@@ -6,12 +6,27 @@
 
 ## Summary counts
 
+### v1 (2026-07-16, initial run)
+
 | Severity | Count |
 |---|---|
 | CRITICAL — user-facing dead feature | **11** |
 | HIGH — silent data bug | **2** (era-mismatch reads; both bare-namespace flags were FP after calibration) |
 | MEDIUM — noise / infra hygiene | **48** (6 unrouted noise endpoints + 41 stale root/www twins + 1 sw.js version drift) |
 | LOW — cleanup | **21** unrouted functions (helper-filtered), 0 orphan redirects, ~5 non-splat rule gaps |
+
+### v2 (2026-07-16 later, after script enhancements + Batch 1/2 fixes)
+
+| Severity | Count | Delta from v1 |
+|---|---|---|
+| VOID — reachable dead endpoint | **20** | vs v1 CRITICAL 11 — expanded because v2 now surfaces the "below-the-top-11" register items that were previously in the "additional voids worth batching" section |
+| GATED — call site reversibly hidden | **9** | new class (v2 D-a); Batch 1 hides now visible as gated, not silent |
+| CONDITIONAL FOLLOWUPS | **12** | new class (v2 D-b); recursed fetch-chain siblings of gated paths (e.g. `/api/tenant/roster` after `/api/tenant/me` gated) |
+| HIGH — schema/embed/wiring | **1** bare-namespace (down from 2, FPs killed by string-literal check in v2 D-d) + **2** era-mismatch (unchanged) + **0** broken embeds (v2 D-c confirms all 7 killed by `6b57fde`) |
+| MEDIUM — noise/infra | **51** (9 noise endpoints + 42 twins) |
+| LOW — cleanup | **21** unrouted functions + **0** orphan redirects |
+
+**Interpretation:** v1's 11 CRITICALs became roughly (Batch 1 hid 6) → 5 CRITICAL-class remaining + 20 broader-void from the expanded scan. Batch 1/2 progress is visible in the GATED and CONDITIONAL FOLLOWUP columns — 21 total call sites are now provably reachably-hidden rather than silently-live.
 
 ## Calibration statement
 
@@ -222,3 +237,48 @@ If the FK's target table (from `pg_get_constraintdef`) doesn't match the embed's
 - **B8** job-board.html countdown timezone fix: Supabase returns `bid_closes_at` as `"YYYY-MM-DD HH:MM:SS.SSS+00"` (space, not `T`). Safari (and some engines) drop the timezone offset and parse as local time → ~24h drift. `formatCountdown` now normalizes to ISO 8601 by swapping the first space for `T` before parsing.
 - **B9** `formatValue` helper already returns `$N–$M`; six call sites in job-board.html were prepending another `$` (`$${formatValue(...)}` → `$$2–$5`). Stripped the extra `$` at all 6 call sites (single replace_all edit).
 - **SW bump:** v121 → v122 (members.html + members-core.js in STATIC_ASSETS).
+
+### Batch 1 resolution log (2026-07-14/15) — for cross-reference
+
+Prior batch (before v2 script) hid 6 CRITICAL surfaces per plan-doc log:
+- White-label tenant (7 endpoints) — `members.html` `loadWlTenantPortal` early-return + card force-hidden — `83bc9f9`
+- Fleet member-side (nav + subscription lookup gated; fleet-signup wired to `/api/waitlist/join`) — `83bc9f9`
+- Founder dashboard 3 endpoints (payout-receipt link disabled, campaign-stats + campaign-link-stats guarded) — `83bc9f9`
+- SMS 2FA (`load2FAStatus` early-return + card force-hidden; TOTP untouched) — `83bc9f9`
+- Package escrow (`+ New Package` button disabled, `openPackageModal` guarded with toast) — `83bc9f9`
+- Privacy request form → `mailto:privacy@mycarconcierge.com` fallback — `83bc9f9`
+- 7 broken PostgREST FK-name embeds fixed via two-query stitch (care-plans.js, admin.js, signup-loyal-customer.html, vehicle-verify.js ×2, providers-core.js, car-clubs.js) — `6b57fde`
+
+### Commit C — root-twin retirement · ⛔ BLOCKED
+
+STOP condition per directive: `package.json` has a `build:www` script that copies root twins into `www/`:
+```
+"build:www": "mkdir -p www && cp -r *.html *.png manifest.json pwa-init.js sw.js supabaseclient.js icons www/"
+```
+Deleting the 41 root twins would break `npm run build:www`. Netlify's own build command (`cd netlify/functions && npm install && cd ../.. && npm test`) does NOT invoke this script, and `cap:sync` copies FROM `www/` (mobile is safe), so the twins genuinely aren't needed by any live pipeline. But the script exists and could be run manually or by a dev workflow, so per the STOP CONDITION rule, no deletion this pass.
+
+**Resolution path** for the next batch: retire the `build:www` script in the same commit as the root-twin `git rm` — script's purpose was to populate `www/` from root back when `www/` didn't exist as the source-of-truth publish dir. Legacy scaffolding. One combined commit removes both.
+
+**No files changed. No commit. No push.**
+
+### Commit D — audit script v2 + re-run
+
+Enhanced `scripts/audit-integrity.js` with four additions:
+- **D-a Reachability tagging** — for each void call site, `classifyReachability()` reads 40 lines of surrounding context and tags one of: `live`, `gated-if-false`, `gated-throw`, `gated-early-return`, `gated-comment`, or `unknown`. Void entries split into `void` (all sites live), `gated` (all sites hidden), or `conditionalFollowups` (see D-b).
+- **D-b Conditional fetch chain recursion** — `tagConditionalFollowups()` groups voids by second-to-last path segment (`/api/tenant/*` all bucket under `tenant`); if any sibling is fully gated, others in the same bucket flag as conditional-followups. Prevents the Batch 1 undercount (tenant DELETE, escrow follow-ups) — v2 now surfaces 12 followups vs 0 in v1.
+- **D-c PostgREST embed FK-target verification** — new Section D. Greps `<parent>!<fk_name>(...)` (also `!left(` / `!inner(` PostgREST modifiers) from `www/` + `netlify/functions/`; loads fresh `docs/audit/fk-constraints.txt` pg_constraint dump (442 FKs from mcc-production, generated 2026-07-16 via `mcp__supabase__execute_sql`); classifies each embed as `ok` (forward or reverse), `broken-nonexistent`, or `broken-target-mismatch`. Result: **9 embeds found, all OK** — the class the fork killed in `6b57fde` is confirmed dead by v2. Regenerate the dump when schema changes.
+- **D-d Bare-namespace regex tightened** — new `isInsideStringLiteral(line, position)` per-line quote-state tracker; skips matches inside `'`, `"`, or `` ` `` literals. Kills the v1 false positives (localStorage key string + prose comment). Result: bareNamespace count 2 → 1.
+
+Also added `docs/audit/fk-constraints.txt` (442 FKs, tab-separated) as the D-c reference input.
+
+**v2 re-run output** (paste of console lines):
+```
+Section A: void=20, gated=9, conditional-followups=12, unroutedFns=21, orphanRedirects=0
+Section B: bareNamespace=1, pages with missing wiring=1
+Section C: noise-endpoints-called=9, twins=42, sw drift=mcc-cache-v104 vs mcc-cache-v122
+Section D: embeds=9, ok=9, broken-nonexistent=0, broken-target-mismatch=0
+```
+
+**Bugs found while writing v2, fixed same commit:**
+- Section D's initial pass returned 1 embed instead of 9 — the string-literal filter (correct for Section B bare-namespace) was suppressing all PostgREST embeds, which live inside `.select('...')` strings by definition. Filter removed for Section D.
+- Section D's initial classifier flagged `admin-data.js:60` as broken-target-mismatch because the FK's target was `profiles` but embed's parent was `provider_stats` — but PostgREST supports **reverse embeds** where the outer `.from(target_table)` embeds `child_table` via the child's FK. Classifier now accepts either direction as OK.

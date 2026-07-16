@@ -1,14 +1,14 @@
 {
   "meta": {
-    "generatedAt": "2026-07-16T13:44:10.105Z",
+    "generatedAt": "2026-07-16T19:34:53.413Z",
     "wwwFilesScanned": 177,
     "functionsInventoried": 188,
     "redirectRulesParsed": 236,
     "scheduledFunctions": []
   },
   "sectionA": {
-    "frontendCallsTotal": 460,
-    "uniqueLiteralPathsSeen": 191,
+    "frontendCallsTotal": 458,
+    "uniqueLiteralPathsSeen": 190,
     "dynamicPathPatterns": [
       "/api/invitations/${DYNAMIC}",
       "/api/admin/agent-fleet/actions/${DYNAMIC}",
@@ -119,18 +119,13 @@
       },
       {
         "file": "www/admin.js",
-        "line": 16284,
+        "line": 16304,
         "snippet": "fetch(url, { headers }).then(r => r.blob()).then(blob => {"
       },
       {
         "file": "www/ai-chat.js",
         "line": 115,
         "snippet": "const response = await fetch(apiUrl, {"
-      },
-      {
-        "file": "www/analytics-tracker.js",
-        "line": 37,
-        "snippet": "fetch(url, {"
       },
       {
         "file": "www/car-club-member.html",
@@ -176,11 +171,6 @@
         "file": "www/job-board.html",
         "line": 1131,
         "snippet": "const resp = await fetch(url, {"
-      },
-      {
-        "file": "www/mcc-config.js",
-        "line": 108,
-        "snippet": "fetch(configUrl)"
       },
       {
         "file": "www/members-care-plans.js",
@@ -388,12 +378,36 @@
         "path": "/api/2fa/disable",
         "callers": [
           "www/providers.js:12083"
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:12083",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/2fa/status",
+          "/api/2fa/verify-code"
         ]
       },
       {
         "path": "/api/2fa/enable",
         "callers": [
           "www/providers.js:11998"
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:11998",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/2fa/status",
+          "/api/2fa/verify-code"
         ]
       },
       {
@@ -401,204 +415,466 @@
         "callers": [
           "www/providers.js:11862",
           "www/providers.js:12042"
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:11862",
+            "tag": "live"
+          },
+          {
+            "site": "www/providers.js:12042",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/2fa/status",
+          "/api/2fa/verify-code"
         ]
       },
       {
         "path": "/api/2fa/status",
         "callers": [
           "www/providers.js:11776"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:11776",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/2fa/verify-code",
         "callers": [
           "www/providers.js:11978"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:11978",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/admin/agent-fleet",
         "callers": [
           "www/admin/agent-fleet-detail.html:317",
           "www/admin/agent-fleet.html:483"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/admin/agent-fleet-detail.html:317",
+            "tag": "live"
+          },
+          {
+            "site": "www/admin/agent-fleet.html:483",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/admin/outreach",
         "callers": [
           "www/outreach-engine-api.js:1523"
-        ]
-      },
-      {
-        "path": "/api/analytics/track",
-        "callers": [
-          "www/analytics-tracker.js:26"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/outreach-engine-api.js:1523",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/bgcheck/initiate",
         "callers": [
-          "www/providers-settings.js:773",
           "www/providers.js:6190"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:6190",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/clover/disconnect",
         "callers": [
           "www/providers.js:412"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:412",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/config",
         "callers": [
-          "www/mcc-config.js:106",
           "www/onboarding-provider.html:1815"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/onboarding-provider.html:1815",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/escrow/create",
         "callers": [
           "www/stripeutils.js:97"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/stripeutils.js:97",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/fleet/check-approval",
         "callers": [
           "www/fleet-driver.html:589"
+        ],
+        "reachability": [
+          {
+            "site": "www/fleet-driver.html:589",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/fleet/subscription"
         ]
       },
       {
         "path": "/api/fleet/import-vehicles",
         "callers": [
           "www/fleet.html:984"
+        ],
+        "reachability": [
+          {
+            "site": "www/fleet.html:984",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/fleet/subscription"
         ]
       },
       {
         "path": "/api/fleet/subscription",
         "callers": [
           "www/members.html:9375"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9375",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/fleet/update-mileage",
         "callers": [
           "www/fleet-driver.html:499"
+        ],
+        "reachability": [
+          {
+            "site": "www/fleet-driver.html:499",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/fleet/subscription"
         ]
       },
       {
         "path": "/api/founder/campaign-link-stats",
         "callers": [
           "www/founder-dashboard.js:1363"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/founder-dashboard.js:1363",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/founder/campaign-stats",
         "callers": [
           "www/founder-dashboard.js:1291"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/founder-dashboard.js:1291",
+            "tag": "gated-throw"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/maintenance-reminders",
         "callers": [
           "www/providers.js:11420"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:11420",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/notify/urgent-update",
         "callers": [
           "www/providers.js:3580",
           "www/providers.js:3647"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:3580",
+            "tag": "live"
+          },
+          {
+            "site": "www/providers.js:3647",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/pos/inspection",
         "callers": [
           "www/providers.js:10149"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:10149",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/pos/receipt-delivery",
         "callers": [
           "www/providers.js:10456"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:10456",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/pos/session",
         "callers": [
           "www/providers.js:10551"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:10551",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/provider/availability",
         "callers": [
           "www/providers.js:13161"
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:13161",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/provider/blocked-time",
+          "/api/provider/referral-codes"
         ]
       },
       {
         "path": "/api/provider/blocked-time",
         "callers": [
           "www/providers.js:13234"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:13234",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/provider/profile/publish",
         "callers": [
-          "www/providers-settings.js:1270"
-        ]
+          "www/providers-settings.js:1287"
+        ],
+        "reachability": [
+          {
+            "site": "www/providers-settings.js:1287",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/provider/push/subscribe",
         "callers": [
           "www/providers.js:12621"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:12621",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/provider/push/unsubscribe",
         "callers": [
           "www/providers.js:12643"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:12643",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/provider/referral-codes",
         "callers": [
           "www/providers.js:9638"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:9638",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/push/vapid-key",
         "callers": [
           "www/providers.js:12605"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:12605",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/shop/book",
         "callers": [
           "www/booking-widget.js:99",
           "www/shop.html:420"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/booking-widget.js:99",
+            "tag": "live"
+          },
+          {
+            "site": "www/shop.html:420",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/shop/profile/",
         "callers": [
           "www/booking-widget.js:129",
           "www/shop.html:275"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/booking-widget.js:129",
+            "tag": "live"
+          },
+          {
+            "site": "www/shop.html:275",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/square/connect",
         "callers": [
           "www/providers.js:509"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:509",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/square/disconnect",
         "callers": [
           "www/providers.js:549"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/providers.js:549",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/tenant/analytics",
         "callers": [
           "www/members.html:9875"
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9875",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/tenant/me"
         ]
       },
       {
@@ -606,6 +882,21 @@
         "callers": [
           "www/members.html:9995",
           "www/members.html:10025"
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9995",
+            "tag": "live"
+          },
+          {
+            "site": "www/members.html:10025",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/tenant/me"
         ]
       },
       {
@@ -613,39 +904,725 @@
         "callers": [
           "www/members.html:9955",
           "www/members.html:9985"
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9955",
+            "tag": "live"
+          },
+          {
+            "site": "www/members.html:9985",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/tenant/me"
         ]
       },
       {
         "path": "/api/tenant/me",
         "callers": [
           "www/members.html:9628"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9628",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       },
       {
         "path": "/api/tenant/roster",
         "callers": [
           "www/members.html:9815"
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9815",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/tenant/me"
         ]
       },
       {
         "path": "/api/tenant/roster/",
         "callers": [
           "www/members.html:9857"
+        ],
+        "reachability": [
+          {
+            "site": "www/members.html:9857",
+            "tag": "live"
+          }
+        ],
+        "allGated": false,
+        "conditionalFollowup": true,
+        "followupOf": [
+          "/api/tenant/me"
         ]
       },
       {
         "path": "/api/white-label/config",
         "callers": [
           "www/white-label-client.js:108"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/white-label-client.js:108",
+            "tag": "live"
+          }
+        ],
+        "allGated": false
       },
       {
         "path": "/api/white-label/tenant/join",
         "callers": [
           "www/white-label-client.js:137"
-        ]
+        ],
+        "reachability": [
+          {
+            "site": "www/white-label-client.js:137",
+            "tag": "gated-early-return"
+          }
+        ],
+        "allGated": true
       }
     ],
+    "frontendToVoid_split": {
+      "void": [
+        {
+          "path": "/api/admin/agent-fleet",
+          "callers": [
+            "www/admin/agent-fleet-detail.html:317",
+            "www/admin/agent-fleet.html:483"
+          ],
+          "reachability": [
+            {
+              "site": "www/admin/agent-fleet-detail.html:317",
+              "tag": "live"
+            },
+            {
+              "site": "www/admin/agent-fleet.html:483",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/admin/outreach",
+          "callers": [
+            "www/outreach-engine-api.js:1523"
+          ],
+          "reachability": [
+            {
+              "site": "www/outreach-engine-api.js:1523",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/bgcheck/initiate",
+          "callers": [
+            "www/providers.js:6190"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:6190",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/clover/disconnect",
+          "callers": [
+            "www/providers.js:412"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:412",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/config",
+          "callers": [
+            "www/onboarding-provider.html:1815"
+          ],
+          "reachability": [
+            {
+              "site": "www/onboarding-provider.html:1815",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/escrow/create",
+          "callers": [
+            "www/stripeutils.js:97"
+          ],
+          "reachability": [
+            {
+              "site": "www/stripeutils.js:97",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/maintenance-reminders",
+          "callers": [
+            "www/providers.js:11420"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:11420",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/notify/urgent-update",
+          "callers": [
+            "www/providers.js:3580",
+            "www/providers.js:3647"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:3580",
+              "tag": "live"
+            },
+            {
+              "site": "www/providers.js:3647",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/pos/inspection",
+          "callers": [
+            "www/providers.js:10149"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:10149",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/pos/receipt-delivery",
+          "callers": [
+            "www/providers.js:10456"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:10456",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/pos/session",
+          "callers": [
+            "www/providers.js:10551"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:10551",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/provider/profile/publish",
+          "callers": [
+            "www/providers-settings.js:1287"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers-settings.js:1287",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/provider/push/subscribe",
+          "callers": [
+            "www/providers.js:12621"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:12621",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/provider/push/unsubscribe",
+          "callers": [
+            "www/providers.js:12643"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:12643",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/push/vapid-key",
+          "callers": [
+            "www/providers.js:12605"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:12605",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/shop/book",
+          "callers": [
+            "www/booking-widget.js:99",
+            "www/shop.html:420"
+          ],
+          "reachability": [
+            {
+              "site": "www/booking-widget.js:99",
+              "tag": "live"
+            },
+            {
+              "site": "www/shop.html:420",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/shop/profile/",
+          "callers": [
+            "www/booking-widget.js:129",
+            "www/shop.html:275"
+          ],
+          "reachability": [
+            {
+              "site": "www/booking-widget.js:129",
+              "tag": "live"
+            },
+            {
+              "site": "www/shop.html:275",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/square/connect",
+          "callers": [
+            "www/providers.js:509"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:509",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/square/disconnect",
+          "callers": [
+            "www/providers.js:549"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:549",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        },
+        {
+          "path": "/api/white-label/config",
+          "callers": [
+            "www/white-label-client.js:108"
+          ],
+          "reachability": [
+            {
+              "site": "www/white-label-client.js:108",
+              "tag": "live"
+            }
+          ],
+          "allGated": false
+        }
+      ],
+      "gated": [
+        {
+          "path": "/api/2fa/status",
+          "callers": [
+            "www/providers.js:11776"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:11776",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/2fa/verify-code",
+          "callers": [
+            "www/providers.js:11978"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:11978",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/fleet/subscription",
+          "callers": [
+            "www/members.html:9375"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9375",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/founder/campaign-link-stats",
+          "callers": [
+            "www/founder-dashboard.js:1363"
+          ],
+          "reachability": [
+            {
+              "site": "www/founder-dashboard.js:1363",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/founder/campaign-stats",
+          "callers": [
+            "www/founder-dashboard.js:1291"
+          ],
+          "reachability": [
+            {
+              "site": "www/founder-dashboard.js:1291",
+              "tag": "gated-throw"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/provider/blocked-time",
+          "callers": [
+            "www/providers.js:13234"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:13234",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/provider/referral-codes",
+          "callers": [
+            "www/providers.js:9638"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:9638",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/tenant/me",
+          "callers": [
+            "www/members.html:9628"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9628",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        },
+        {
+          "path": "/api/white-label/tenant/join",
+          "callers": [
+            "www/white-label-client.js:137"
+          ],
+          "reachability": [
+            {
+              "site": "www/white-label-client.js:137",
+              "tag": "gated-early-return"
+            }
+          ],
+          "allGated": true
+        }
+      ],
+      "conditionalFollowups": [
+        {
+          "path": "/api/2fa/disable",
+          "callers": [
+            "www/providers.js:12083"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:12083",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/2fa/status",
+            "/api/2fa/verify-code"
+          ]
+        },
+        {
+          "path": "/api/2fa/enable",
+          "callers": [
+            "www/providers.js:11998"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:11998",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/2fa/status",
+            "/api/2fa/verify-code"
+          ]
+        },
+        {
+          "path": "/api/2fa/send-code",
+          "callers": [
+            "www/providers.js:11862",
+            "www/providers.js:12042"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:11862",
+              "tag": "live"
+            },
+            {
+              "site": "www/providers.js:12042",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/2fa/status",
+            "/api/2fa/verify-code"
+          ]
+        },
+        {
+          "path": "/api/fleet/check-approval",
+          "callers": [
+            "www/fleet-driver.html:589"
+          ],
+          "reachability": [
+            {
+              "site": "www/fleet-driver.html:589",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/fleet/subscription"
+          ]
+        },
+        {
+          "path": "/api/fleet/import-vehicles",
+          "callers": [
+            "www/fleet.html:984"
+          ],
+          "reachability": [
+            {
+              "site": "www/fleet.html:984",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/fleet/subscription"
+          ]
+        },
+        {
+          "path": "/api/fleet/update-mileage",
+          "callers": [
+            "www/fleet-driver.html:499"
+          ],
+          "reachability": [
+            {
+              "site": "www/fleet-driver.html:499",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/fleet/subscription"
+          ]
+        },
+        {
+          "path": "/api/provider/availability",
+          "callers": [
+            "www/providers.js:13161"
+          ],
+          "reachability": [
+            {
+              "site": "www/providers.js:13161",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/provider/blocked-time",
+            "/api/provider/referral-codes"
+          ]
+        },
+        {
+          "path": "/api/tenant/analytics",
+          "callers": [
+            "www/members.html:9875"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9875",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/tenant/me"
+          ]
+        },
+        {
+          "path": "/api/tenant/approval-workflow",
+          "callers": [
+            "www/members.html:9995",
+            "www/members.html:10025"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9995",
+              "tag": "live"
+            },
+            {
+              "site": "www/members.html:10025",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/tenant/me"
+          ]
+        },
+        {
+          "path": "/api/tenant/loyalty-config",
+          "callers": [
+            "www/members.html:9955",
+            "www/members.html:9985"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9955",
+              "tag": "live"
+            },
+            {
+              "site": "www/members.html:9985",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/tenant/me"
+          ]
+        },
+        {
+          "path": "/api/tenant/roster",
+          "callers": [
+            "www/members.html:9815"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9815",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/tenant/me"
+          ]
+        },
+        {
+          "path": "/api/tenant/roster/",
+          "callers": [
+            "www/members.html:9857"
+          ],
+          "reachability": [
+            {
+              "site": "www/members.html:9857",
+              "tag": "live"
+            }
+          ],
+          "allGated": false,
+          "conditionalFollowup": true,
+          "followupOf": [
+            "/api/tenant/me"
+          ]
+        }
+      ]
+    },
     "unroutedFunctions": [
       "agent-analyst",
       "agent-cron-emitter",
@@ -1002,11 +1979,6 @@
     ],
     "bareNamespaceUses": [
       {
-        "file": "www/signed-agreements.html",
-        "line": 457,
-        "snippet": "if ((k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) || k === 'supabase.auth.token' || k === 'supabase-session') {"
-      },
-      {
         "file": "www/signup-provider.html",
         "line": 1044,
         "snippet": "straight to supabase.auth.signUp instead of POSTing to"
@@ -1076,7 +2048,6 @@
       {
         "path": "/api/config",
         "callers": [
-          "www/mcc-config.js:106",
           "www/onboarding-provider.html:1815",
           "www/stripeutils.js:22"
         ],
@@ -1164,7 +2135,7 @@
       {
         "path": "/api/bgcheck/status",
         "callers": [
-          "www/providers-settings.js:531",
+          "www/providers-settings.js:542",
           "www/providers.js:5646",
           "www/providers.js:6037",
           "www/providers.js:12146"
@@ -1219,9 +2190,7 @@
       },
       {
         "path": "/api/analytics/track",
-        "callers": [
-          "www/analytics-tracker.js:26"
-        ],
+        "callers": [],
         "hasRedirect": false,
         "targetFn": null,
         "resolves": false
@@ -1246,7 +2215,7 @@
             296,
             322,
             323,
-            412
+            435
           ]
         },
         {
@@ -1285,7 +2254,7 @@
             229,
             294,
             300,
-            1255
+            1278
           ]
         },
         {
@@ -1332,9 +2301,9 @@
           "file": "netlify/functions/car-clubs.js",
           "hits": 3,
           "lines": [
-            1038,
-            1091,
-            1095
+            1061,
+            1114,
+            1118
           ]
         },
         {
@@ -1359,8 +2328,8 @@
           "file": "netlify/functions/car-clubs.js",
           "hits": 2,
           "lines": [
-            1012,
-            1350
+            1035,
+            1373
           ]
         },
         {
@@ -1469,7 +2438,7 @@
       {
         "name": "members-core.js",
         "rootBytes": 140243,
-        "wwwBytes": 163726,
+        "wwwBytes": 164238,
         "identical": false
       },
       {
@@ -1505,7 +2474,7 @@
       {
         "name": "members.html",
         "rootBytes": 662346,
-        "wwwBytes": 852583,
+        "wwwBytes": 852702,
         "identical": false
       },
       {
@@ -1571,7 +2540,7 @@
       {
         "name": "providers-settings.js",
         "rootBytes": 39624,
-        "wwwBytes": 96398,
+        "wwwBytes": 97560,
         "identical": false
       },
       {
@@ -1649,8 +2618,16 @@
     ],
     "swVersionDrift": {
       "root": "mcc-cache-v104",
-      "www": "mcc-cache-v119",
+      "www": "mcc-cache-v122",
       "diff": true
     }
+  },
+  "sectionD": {
+    "fkDumpAvailable": true,
+    "fkDumpCount": 442,
+    "embedsTotal": 9,
+    "brokenNonexistent": [],
+    "brokenTargetMismatch": [],
+    "okCount": 9
   }
 }

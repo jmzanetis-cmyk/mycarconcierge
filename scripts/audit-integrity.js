@@ -34,6 +34,90 @@ function readLines(p) {
 }
 function unique(arr) { return Array.from(new Set(arr)); }
 
+// ─── v2 helpers ─────────────────────────────────────────────────────────────
+
+// Reachability tagging (D-a). Reads the surrounding ~30 lines of context
+// around a call-site line and classifies whether the fetch is *reachable*
+// at runtime. Returns 'live' when nothing obviously gates it, or one of:
+// 'gated-early-return', 'gated-if-false', 'gated-throw', 'gated-comment'.
+function classifyReachability(fileAbs, lineNum) {
+  let lines;
+  try { lines = fs.readFileSync(fileAbs, 'utf8').split(/\r?\n/); }
+  catch { return 'unknown'; }
+  const idx = lineNum - 1;
+  const self = (lines[idx] || '').replace(/\s+/g, ' ');
+
+  // Commented out entirely on this line (line-comment or inside a *block*)
+  if (/^\s*(\/\/|\/\*|\*)/.test(lines[idx] || '')) return 'gated-comment';
+
+  // Look backwards up to 30 lines for a gate (function boundary, if(false),
+  // throw, early-return in the enclosing block).
+  let braceBalance = 0;
+  let sawThrow = false;
+  let sawIfFalse = false;
+  let sawEarlyReturn = false;
+  for (let i = idx - 1; i >= Math.max(0, idx - 40); i--) {
+    const L = lines[i] || '';
+    // Rough brace balancing (bodies grow upward)
+    braceBalance += (L.match(/}/g) || []).length - (L.match(/{/g) || []).length;
+    if (/\bif\s*\(\s*(false|0)\s*\)/.test(L)) { sawIfFalse = true; break; }
+    if (/^\s*throw\b/.test(L) && braceBalance <= 0) { sawThrow = true; break; }
+    // Early-return: `return;` or `return foo;` at a shallower brace level
+    if (/^\s*return\b[^{}]*;/.test(L) && braceBalance < 0) { sawEarlyReturn = true; break; }
+    // Function boundary — stop looking further up once we cross into a
+    // *different* function definition.
+    if (/^(async\s+)?function\s+\w+\s*\(/.test(L) || /=>\s*\{/.test(L)) break;
+  }
+  if (sawIfFalse) return 'gated-if-false';
+  if (sawThrow) return 'gated-throw';
+  if (sawEarlyReturn) return 'gated-early-return';
+  return 'live';
+}
+
+// Chain-tag conditional follow-ups (D-b). Given a set of void paths, group
+// by shared prefix and mark siblings of a GATED path as 'conditional
+// follow-ups' — they only fire if the gate-path succeeds first.
+function tagConditionalFollowups(voidEntries) {
+  // Bucket by second-to-last segment (e.g. /api/escrow/* → 'escrow')
+  const byPrefix = {};
+  for (const e of voidEntries) {
+    const segs = e.path.split('/').filter(Boolean);
+    if (segs.length < 3) continue;
+    const key = segs.slice(0, -1).join('/');
+    (byPrefix[key] = byPrefix[key] || []).push(e);
+  }
+  for (const key of Object.keys(byPrefix)) {
+    const bucket = byPrefix[key];
+    if (bucket.length < 2) continue;
+    // If ANY entry in the bucket is gated at all its call sites, mark the
+    // OTHERS as conditional-followups.
+    const allGated = bucket.filter(e =>
+      e.reachability && e.reachability.every(r => r.tag !== 'live')
+    );
+    if (allGated.length === 0) continue;
+    for (const e of bucket) {
+      if (allGated.includes(e)) continue;
+      e.conditionalFollowup = true;
+      e.followupOf = allGated.map(x => x.path);
+    }
+  }
+}
+
+// Bare-namespace context filter (D-d). Returns true if the match position
+// inside `line` is inside a string literal (odd number of unescaped quote
+// chars of the same type before position).
+function isInsideStringLiteral(line, position) {
+  let inSingle = false, inDouble = false, inBacktick = false;
+  for (let i = 0; i < position; i++) {
+    const c = line[i], prev = i > 0 ? line[i - 1] : '';
+    if (prev === '\\') continue;
+    if (!inDouble && !inBacktick && c === "'") inSingle = !inSingle;
+    else if (!inSingle && !inBacktick && c === '"') inDouble = !inDouble;
+    else if (!inSingle && !inDouble && c === '`') inBacktick = !inBacktick;
+  }
+  return inSingle || inDouble || inBacktick;
+}
+
 // ─── Section A — Route Integrity Matrix ─────────────────────────────────────
 const wwwFiles = walk(WWW, /\.(html|js)$/i, new Set(['node_modules', '_next', 'assets', 'blog', '.netlify-deploy']));
 
@@ -154,11 +238,28 @@ const frontendToVoid = uniqueFrontendPaths
   .filter(p => !pathMatchesAnyRule(p))
   .sort();
 
-// Attach call sites for each void path
-const voidWithCallSites = frontendToVoid.map(p => ({
-  path: p,
-  callers: frontendCalls.filter(c => c.path === p).map(c => `${c.file}:${c.line}`),
-}));
+// Attach call sites for each void path, plus per-site reachability tags (v2 D-a).
+const voidWithCallSites = frontendToVoid.map(p => {
+  const sites = frontendCalls.filter(c => c.path === p);
+  const reachability = sites.map(c => ({
+    site: `${c.file}:${c.line}`,
+    tag: classifyReachability(path.join(ROOT, c.file), c.line),
+  }));
+  return {
+    path: p,
+    callers: sites.map(c => `${c.file}:${c.line}`),
+    reachability,
+    allGated: reachability.length > 0 && reachability.every(r => r.tag !== 'live' && r.tag !== 'unknown'),
+  };
+});
+
+// v2 D-b: chain-tag conditional follow-ups (siblings of a fully-gated path).
+tagConditionalFollowups(voidWithCallSites);
+
+// Split into VOID (still-live, reachable) vs GATED (all call sites hidden).
+const trulyVoid = voidWithCallSites.filter(e => !e.allGated && !e.conditionalFollowup);
+const gatedVoid = voidWithCallSites.filter(e => e.allGated);
+const conditionalFollowups = voidWithCallSites.filter(e => e.conditionalFollowup);
 
 // Unrouted functions
 const routedFunctions = new Set();
@@ -239,6 +340,9 @@ for (const f of htmlFiles) {
       // Guard: not "supabaseClient." (regex already handles via \b + not-preceded), also skip typeof window.supabase
       const before = codeOnly.slice(Math.max(0, m.index - 20), m.index);
       if (/window\./.test(before) || /typeof\s+$/.test(before)) continue;
+      // v2 D-d: skip matches inside string literals (kills the localStorage-
+      // key-string and prose-in-string false positives from v1).
+      if (isInsideStringLiteral(lines[i], m.index)) continue;
       bareNamespace.push({ file: rel(f), line: i + 1, snippet: lines[i].trim().slice(0, 140) });
     }
   }
@@ -337,6 +441,87 @@ for (const n of rootFiles) {
 const rootSw = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/) || [])[1];
 const wwwSw = (fs.readFileSync(path.join(WWW, 'sw.js'), 'utf8').match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/) || [])[1];
 
+// ─── Section D — PostgREST embed FK-target verification (v2) ───────────────
+// Parse `<parent>!<fk_name>(...)` embeds from www/ + netlify/functions/,
+// cross-check each fk_name against docs/audit/fk-constraints.txt (fresh
+// pg_constraint dump). Classifies embeds as OK, BROKEN (target mismatch),
+// BROKEN (nonexistent), or UNKNOWN (dump missing).
+//
+// The FK dump lives at docs/audit/fk-constraints.txt as tab-separated
+// "conname\tsource_table\tdefinition". Regenerate via:
+//   mcp__supabase__execute_sql project=<prod>
+//     select conname, conrelid::regclass::text, pg_get_constraintdef(oid)
+//     from pg_constraint where contype='f';
+// EMBED_RE captures `<parent>!<fk_name>` followed by either `(`, `!left(`,
+// or `!inner(` (PostgREST modifiers). Note: embeds are ALWAYS inside string
+// literals (`.select('...')`), so we do NOT filter on string-literal context
+// here — that would suppress every finding.
+const EMBED_RE = /(\w+)!(\w+_fkey)(?:!(?:left|inner))?\s*\(/g;
+
+const embedRoots = [WWW, NF];
+const embedSites = []; // { file, line, parent, fkName, snippet }
+for (const root of embedRoots) {
+  const files = walk(root, /\.(js|html)$/i, new Set(['node_modules', 'assets', 'blog', '_next']));
+  for (const f of files) {
+    const lines = readLines(f);
+    for (let i = 0; i < lines.length; i++) {
+      const codeOnly = lines[i].replace(/\/\/.*$/, '');
+      if (/^\s*\*/.test(codeOnly)) continue;
+      EMBED_RE.lastIndex = 0;
+      let m;
+      while ((m = EMBED_RE.exec(codeOnly))) {
+        embedSites.push({
+          file: rel(f),
+          line: i + 1,
+          parent: m[1],
+          fkName: m[2],
+          snippet: lines[i].trim().slice(0, 160),
+        });
+      }
+    }
+  }
+}
+
+// Load FK-constraints dump.
+const fkDumpPath = path.join(OUT_DIR, 'fk-constraints.txt');
+const fkByName = {};
+let fkDumpAvailable = false;
+try {
+  const dump = fs.readFileSync(fkDumpPath, 'utf8');
+  for (const line of dump.split(/\r?\n/)) {
+    if (!line || line.startsWith('#')) continue;
+    const [conname, sourceTable, def] = line.split('\t');
+    if (conname) fkByName[conname] = { sourceTable, def };
+  }
+  fkDumpAvailable = Object.keys(fkByName).length > 0;
+} catch { /* dump missing */ }
+
+// Classify each embed. PostgREST accepts embeds in both directions:
+// forward (parent=<FK source_table>) and reverse (parent=<FK target_table>
+// when the outer .from() is on the source_table). So OK if the embed's
+// parent matches EITHER end of the FK. Broken only if neither matches.
+const embedClassified = embedSites.map(e => {
+  if (!fkDumpAvailable) return { ...e, status: 'unknown-no-dump' };
+  const fk = fkByName[e.fkName];
+  if (!fk) return { ...e, status: 'broken-nonexistent', reason: 'constraint name not in pg_constraint' };
+  const targetMatch = fk.def.match(/REFERENCES\s+(?:[^\s.]+\.)?([^\s(]+)/i);
+  const targetTable = targetMatch ? targetMatch[1] : null;
+  if (!targetTable) return { ...e, status: 'unknown-def-parse', def: fk.def };
+  if (targetTable === e.parent) return { ...e, status: 'ok', direction: 'forward', targetTable };
+  if (fk.sourceTable === e.parent) return { ...e, status: 'ok', direction: 'reverse', sourceTable: fk.sourceTable };
+  return {
+    ...e,
+    status: 'broken-target-mismatch',
+    sourceTable: fk.sourceTable,
+    targetTable,
+    expected: e.parent,
+  };
+});
+
+const embedBrokenNonexistent = embedClassified.filter(e => e.status === 'broken-nonexistent');
+const embedBrokenTargetMismatch = embedClassified.filter(e => e.status === 'broken-target-mismatch');
+const embedOK = embedClassified.filter(e => e.status === 'ok');
+
 // ─── Emit outputs ───────────────────────────────────────────────────────────
 fs.mkdirSync(OUT_DIR, { recursive: true });
 
@@ -354,6 +539,12 @@ const raw = {
     dynamicPathPatterns: dynamicFrontendPaths,
     unresolvedFetches: unresolved,
     frontendToVoid: voidWithCallSites,
+    // v2 split: separate reachable-void from gated-void from conditional-followups
+    frontendToVoid_split: {
+      void: trulyVoid,
+      gated: gatedVoid,
+      conditionalFollowups,
+    },
     unroutedFunctions,
     orphanRedirects,
     functionSubpathsSample: Object.fromEntries(Object.entries(functionSubpaths).slice(0, 20)),
@@ -369,11 +560,28 @@ const raw = {
     twins,
     swVersionDrift: { root: rootSw, www: wwwSw, diff: rootSw !== wwwSw },
   },
+  sectionD: {
+    fkDumpAvailable,
+    fkDumpCount: Object.keys(fkByName).length,
+    embedsTotal: embedSites.length,
+    brokenNonexistent: embedBrokenNonexistent,
+    brokenTargetMismatch: embedBrokenTargetMismatch,
+    okCount: embedOK.length,
+  },
 };
 fs.writeFileSync(path.join(OUT_DIR, 'PHASE0_RAW.json'), JSON.stringify(raw, null, 2));
 console.log('Raw written:', rel(path.join(OUT_DIR, 'PHASE0_RAW.json')));
-console.log('Section A: frontend→void=' + voidWithCallSites.length + ', unroutedFns=' + unroutedFunctions.length + ', orphanRedirects=' + orphanRedirects.length);
+console.log('Section A: void=' + trulyVoid.length +
+  ', gated=' + gatedVoid.length +
+  ', conditional-followups=' + conditionalFollowups.length +
+  ', unroutedFns=' + unroutedFunctions.length +
+  ', orphanRedirects=' + orphanRedirects.length);
 console.log('Section B: bareNamespace=' + bareNamespace.length + ', pages with missing wiring=' +
   pageWiring.filter(p => p.missingCDN || p.missingClient || !p.orderOK).length);
 console.log('Section C: noise-endpoints-called=' + noiseFindings.filter(n => n.callers.length).length +
   ', twins=' + twins.length + ', sw drift=' + (rootSw !== wwwSw ? rootSw + ' vs ' + wwwSw : 'none'));
+console.log('Section D: embeds=' + embedSites.length +
+  ', ok=' + embedOK.length +
+  ', broken-nonexistent=' + embedBrokenNonexistent.length +
+  ', broken-target-mismatch=' + embedBrokenTargetMismatch.length +
+  (fkDumpAvailable ? '' : ' [WARN: fk-constraints.txt missing]'));
