@@ -1,0 +1,1685 @@
+{
+  "meta": {
+    "generatedAt": "2026-07-16T12:56:49.594Z",
+    "wwwFilesScanned": 177,
+    "functionsInventoried": 188,
+    "redirectRulesParsed": 236,
+    "scheduledFunctions": []
+  },
+  "sectionA": {
+    "frontendCallsTotal": 463,
+    "uniqueLiteralPathsSeen": 194,
+    "dynamicPathPatterns": [
+      "/api/invitations/${DYNAMIC}",
+      "/api/admin/agent-fleet/actions/${DYNAMIC}",
+      "/api/admin/agent-fleet/dead-letter/${DYNAMIC}",
+      "/api/admin/facebook${DYNAMIC}",
+      "/api/admin/driver-payouts/${DYNAMIC}",
+      "/api/insurance/name-cross-ref/${DYNAMIC}",
+      "/api/registration/held-rides/${DYNAMIC}",
+      "/api/insurance/verifications/${DYNAMIC}",
+      "/api/admin/sms-log?${DYNAMIC}",
+      "/api/admin/white-label/tenants/${DYNAMIC}",
+      "/api/white-label/config?preview_domain=${DYNAMIC}",
+      "/api/admin/api-keys/${DYNAMIC}",
+      "/api/car-club/testimonials?club_id=${DYNAMIC}",
+      "/api/car-clubs/${DYNAMIC}",
+      "/api/car-club/rewards/${DYNAMIC}",
+      "/api/car-club/promotions/${DYNAMIC}",
+      "/api/checkin/${DYNAMIC}",
+      "/api/checkin/position/${DYNAMIC}",
+      "/api/fleet/invite/${DYNAMIC}",
+      "/api/stripe/connect/onboard/${DYNAMIC}",
+      "/api/stripe/connect/status/${DYNAMIC}",
+      "/api/member/${DYNAMIC}",
+      "/api/packages/${DYNAMIC}",
+      "/api/booking/package/${DYNAMIC}",
+      "/api/provider/availability/${DYNAMIC}",
+      "/api/provider/available-slots/${DYNAMIC}",
+      "/api/vin-proxy?vin=${DYNAMIC}",
+      "/api/appointments/${DYNAMIC}",
+      "/api/additional-work/${DYNAMIC}",
+      "/api/discounts/${DYNAMIC}",
+      "/api/discount/${DYNAMIC}",
+      "/api/package/${DYNAMIC}",
+      "/api/login-activity/${DYNAMIC}",
+      "/api/vehicle-photos/${DYNAMIC}",
+      "/api/developer/keys/${DYNAMIC}",
+      "/api/clover/transactions/${DYNAMIC}",
+      "/api/square/transactions/${DYNAMIC}",
+      "/api/pos/transactions/${DYNAMIC}",
+      "/api/clover/status/${DYNAMIC}",
+      "/api/pos/connections/${DYNAMIC}",
+      "/api/bgcheck/status/${DYNAMIC}",
+      "/api/bgcheck/report-url/${DYNAMIC}",
+      "/api/provider-verification-status/${DYNAMIC}",
+      "/api/clover/sync/${DYNAMIC}",
+      "/api/square/sync/${DYNAMIC}",
+      "/api/providers/${DYNAMIC}",
+      "/api/provider/${DYNAMIC}",
+      "/api/pos/session/${DYNAMIC}",
+      "/api/checkin/queue/${DYNAMIC}",
+      "/api/provider/blocked-time/${DYNAMIC}",
+      "/api/provider/schedule/${DYNAMIC}",
+      "/api/split/guest-details/${DYNAMIC}",
+      "/api/split/pay/${DYNAMIC}",
+      "/api/split/guest-pay/${DYNAMIC}",
+      "/api/split/guest-confirm/${DYNAMIC}",
+      "/api/split/confirm/${DYNAMIC}",
+      "/api/escrow/confirm/${DYNAMIC}",
+      "/api/escrow/release/${DYNAMIC}",
+      "/api/escrow/refund/${DYNAMIC}",
+      "/api/escrow/status/${DYNAMIC}"
+    ],
+    "unresolvedFetches": [
+      {
+        "file": "www/admin/agent-fleet-detail.html",
+        "line": 380,
+        "snippet": "const r = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));"
+      },
+      {
+        "file": "www/admin/agent-fleet.html",
+        "line": 501,
+        "snippet": "const r = await fetch(API_BASE + path, Object.assign({}, opts, { headers }));"
+      },
+      {
+        "file": "www/admin-agent-activity.js",
+        "line": 56,
+        "snippet": "return await fetch(url, init);"
+      },
+      {
+        "file": "www/admin-agent-activity.js",
+        "line": 538,
+        "snippet": "const r = await fetch(url, { headers: authHeaders() });"
+      },
+      {
+        "file": "www/admin.js",
+        "line": 15,
+        "snippet": "const res = await fetch(url, options);"
+      },
+      {
+        "file": "www/admin.js",
+        "line": 5507,
+        "snippet": "const res = await fetch(url, {"
+      },
+      {
+        "file": "www/admin.js",
+        "line": 9462,
+        "snippet": "const response = await fetch(url, {"
+      },
+      {
+        "file": "www/admin.js",
+        "line": 9923,
+        "snippet": "const res = await fetch(insVerifUrl, {"
+      },
+      {
+        "file": "www/admin.js",
+        "line": 13506,
+        "snippet": "res = await fetch(url, opts);"
+      },
+      {
+        "file": "www/admin.js",
+        "line": 16284,
+        "snippet": "fetch(url, { headers }).then(r => r.blob()).then(blob => {"
+      },
+      {
+        "file": "www/ai-chat.js",
+        "line": 115,
+        "snippet": "const response = await fetch(apiUrl, {"
+      },
+      {
+        "file": "www/analytics-tracker.js",
+        "line": 37,
+        "snippet": "fetch(url, {"
+      },
+      {
+        "file": "www/car-club-member.html",
+        "line": 733,
+        "snippet": "async function apiFetch(path, opts = {}) {"
+      },
+      {
+        "file": "www/car-club-provider.html",
+        "line": 1391,
+        "snippet": "async function apiFetch(path, opts = {}) {"
+      },
+      {
+        "file": "www/car-club-provider.html",
+        "line": 2596,
+        "snippet": "const resp = await fetch(getApiBase() + '/api/car-club/products/' + editingProductId + '/images', {"
+      },
+      {
+        "file": "www/car-club-provider.html",
+        "line": 2690,
+        "snippet": "const data = await apiFetch(url);"
+      },
+      {
+        "file": "www/driver-dispatch.html",
+        "line": 235,
+        "snippet": "async function apiFetch(path, opts = {}) {"
+      },
+      {
+        "file": "www/driver-dispatch.html",
+        "line": 260,
+        "snippet": "return apiFetch(path, { method: 'POST', body: JSON.stringify(body || {}) });"
+      },
+      {
+        "file": "www/helpdesk-widget.js",
+        "line": 494,
+        "snippet": "const response = await fetch(apiUrl, {"
+      },
+      {
+        "file": "www/helpdesk-widget.js",
+        "line": 580,
+        "snippet": "const response = await fetch(apiUrl, {"
+      },
+      {
+        "file": "www/job-board.html",
+        "line": 1131,
+        "snippet": "const resp = await fetch(url, {"
+      },
+      {
+        "file": "www/mcc-config.js",
+        "line": 108,
+        "snippet": "fetch(configUrl)"
+      },
+      {
+        "file": "www/members-care-plans.js",
+        "line": 99,
+        "snippet": "const res = await fetch(apiBase() + path, init);"
+      },
+      {
+        "file": "www/members-extras.js",
+        "line": 8911,
+        "snippet": "const response = await fetch(url, {"
+      },
+      {
+        "file": "www/members-extras.js",
+        "line": 9288,
+        "snippet": "const response = await fetch(url, {"
+      },
+      {
+        "file": "www/members-extras.js",
+        "line": 9357,
+        "snippet": "const response = await fetch(url, {"
+      },
+      {
+        "file": "www/members-extras.js",
+        "line": 9662,
+        "snippet": "const uploadResponse = await fetch(uploadUrlData.upload_url, {"
+      },
+      {
+        "file": "www/members-vehicles.js",
+        "line": 13,
+        "snippet": "const response = await fetch(url, {"
+      },
+      {
+        "file": "www/outreach-engine-api.js",
+        "line": 496,
+        "snippet": "const searchResults = await Promise.all(searches.map(url => fetch(url).then(r => r.json())));"
+      },
+      {
+        "file": "www/outreach-engine-api.js",
+        "line": 598,
+        "snippet": "const placesRes = await fetch(searchUrl);"
+      },
+      {
+        "file": "www/outreach-engine-api.js",
+        "line": 798,
+        "snippet": "const res = await fetch(pageUrl, {"
+      },
+      {
+        "file": "www/provider-club.html",
+        "line": 528,
+        "snippet": "async function apiFetch(path, opts = {}) {"
+      },
+      {
+        "file": "www/providers-bids.js",
+        "line": 1242,
+        "snippet": "const response = await fetch(STRIPE_CHECKOUT_URL, {"
+      },
+      {
+        "file": "www/providers-care-plans.js",
+        "line": 88,
+        "snippet": "const res = await fetch(apiBase() + path, init);"
+      },
+      {
+        "file": "www/providers.js",
+        "line": 5528,
+        "snippet": "const response = await fetch(STRIPE_CHECKOUT_URL, {"
+      },
+      {
+        "file": "www/providers.js",
+        "line": 11290,
+        "snippet": "const resp = await fetch(confirmUrl, {"
+      },
+      {
+        "file": "www/providers.js",
+        "line": 13482,
+        "snippet": "const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });"
+      },
+      {
+        "file": "www/signup-provider.js",
+        "line": 627,
+        "snippet": "const r = await fetch(path, { method: 'POST', headers: onboardingHeaders, body: JSON.stringify(payload) });"
+      },
+      {
+        "file": "www/stress-test-ai-features.js",
+        "line": 131,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-analytics.js",
+        "line": 145,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-api.js",
+        "line": 76,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-booking.js",
+        "line": 105,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-car-club-punch.js",
+        "line": 92,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-car-club-punch.js",
+        "line": 110,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-car-clubs.js",
+        "line": 75,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-car-clubs.js",
+        "line": 103,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-care-plan-lifecycle.js",
+        "line": 116,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-checkin.js",
+        "line": 88,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-dream-car.js",
+        "line": 105,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-escrow-capture.js",
+        "line": 101,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-escrow.js",
+        "line": 83,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-obd.js",
+        "line": 107,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-outreach.js",
+        "line": 110,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-referrals.js",
+        "line": 97,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-shop-checkout.js",
+        "line": 152,
+        "snippet": "const res = await fetch(url, { ...options, signal: controller.signal });"
+      },
+      {
+        "file": "www/stress-test-survey-intake.js",
+        "line": 154,
+        "snippet": "const res = await fetch(url, { ...opts, signal: controller.signal });"
+      },
+      {
+        "file": "www/sw.js",
+        "line": 106,
+        "snippet": "fetch(request).then((response) => {"
+      },
+      {
+        "file": "www/sw.js",
+        "line": 124,
+        "snippet": "return fetch(request).then((response) => {"
+      },
+      {
+        "file": "www/sw.js",
+        "line": 140,
+        "snippet": "fetch(request).then((response) => {"
+      },
+      {
+        "file": "www/sw.js",
+        "line": 153,
+        "snippet": "const fetchPromise = fetch(request).then((response) => {"
+      },
+      {
+        "file": "www/utils.js",
+        "line": 425,
+        "snippet": "const response = await fetch(url, { ...defaultOptions, ...options });"
+      },
+      {
+        "file": "www/white-label-client.js",
+        "line": 112,
+        "snippet": "fetch(url, { cache: authToken ? 'no-store' : 'default', headers: headers })"
+      }
+    ],
+    "frontendToVoid": [
+      {
+        "path": "/api/2fa/disable",
+        "callers": [
+          "www/providers.js:12074"
+        ]
+      },
+      {
+        "path": "/api/2fa/enable",
+        "callers": [
+          "www/providers.js:11989"
+        ]
+      },
+      {
+        "path": "/api/2fa/send-code",
+        "callers": [
+          "www/providers.js:11853",
+          "www/providers.js:12033"
+        ]
+      },
+      {
+        "path": "/api/2fa/status",
+        "callers": [
+          "www/providers.js:11767"
+        ]
+      },
+      {
+        "path": "/api/2fa/verify-code",
+        "callers": [
+          "www/providers.js:11969"
+        ]
+      },
+      {
+        "path": "/api/admin/agent-fleet",
+        "callers": [
+          "www/admin/agent-fleet-detail.html:317",
+          "www/admin/agent-fleet.html:483"
+        ]
+      },
+      {
+        "path": "/api/admin/outreach",
+        "callers": [
+          "www/outreach-engine-api.js:1523"
+        ]
+      },
+      {
+        "path": "/api/analytics/track",
+        "callers": [
+          "www/analytics-tracker.js:26"
+        ]
+      },
+      {
+        "path": "/api/bgcheck/initiate",
+        "callers": [
+          "www/providers-settings.js:773",
+          "www/providers.js:6190"
+        ]
+      },
+      {
+        "path": "/api/clover/disconnect",
+        "callers": [
+          "www/providers.js:412"
+        ]
+      },
+      {
+        "path": "/api/config",
+        "callers": [
+          "www/mcc-config.js:106",
+          "www/onboarding-provider.html:1815"
+        ]
+      },
+      {
+        "path": "/api/escrow/create",
+        "callers": [
+          "www/stripeutils.js:97"
+        ]
+      },
+      {
+        "path": "/api/fleet/check-approval",
+        "callers": [
+          "www/fleet-driver.html:589"
+        ]
+      },
+      {
+        "path": "/api/fleet/import-vehicles",
+        "callers": [
+          "www/fleet.html:984"
+        ]
+      },
+      {
+        "path": "/api/fleet/setup",
+        "callers": [
+          "www/fleet-signup.html:407"
+        ]
+      },
+      {
+        "path": "/api/fleet/subscription",
+        "callers": [
+          "www/members.html:9369"
+        ]
+      },
+      {
+        "path": "/api/fleet/update-mileage",
+        "callers": [
+          "www/fleet-driver.html:499"
+        ]
+      },
+      {
+        "path": "/api/founder/campaign-link-stats",
+        "callers": [
+          "www/founder-dashboard.js:1354"
+        ]
+      },
+      {
+        "path": "/api/founder/campaign-stats",
+        "callers": [
+          "www/founder-dashboard.js:1286"
+        ]
+      },
+      {
+        "path": "/api/founder/payout-receipt/${payout.id}",
+        "callers": [
+          "www/founder-dashboard.js:505",
+          "www/founder-dashboard.js:521"
+        ]
+      },
+      {
+        "path": "/api/maintenance-reminders",
+        "callers": [
+          "www/providers.js:11420"
+        ]
+      },
+      {
+        "path": "/api/notify/urgent-update",
+        "callers": [
+          "www/providers.js:3580",
+          "www/providers.js:3647"
+        ]
+      },
+      {
+        "path": "/api/pos/inspection",
+        "callers": [
+          "www/providers.js:10149"
+        ]
+      },
+      {
+        "path": "/api/pos/receipt-delivery",
+        "callers": [
+          "www/providers.js:10456"
+        ]
+      },
+      {
+        "path": "/api/pos/session",
+        "callers": [
+          "www/providers.js:10551"
+        ]
+      },
+      {
+        "path": "/api/privacy-request",
+        "callers": [
+          "www/data-rights.html:235"
+        ]
+      },
+      {
+        "path": "/api/provider/availability",
+        "callers": [
+          "www/providers.js:13152"
+        ]
+      },
+      {
+        "path": "/api/provider/blocked-time",
+        "callers": [
+          "www/providers.js:13225"
+        ]
+      },
+      {
+        "path": "/api/provider/profile/publish",
+        "callers": [
+          "www/providers-settings.js:1270"
+        ]
+      },
+      {
+        "path": "/api/provider/push/subscribe",
+        "callers": [
+          "www/providers.js:12612"
+        ]
+      },
+      {
+        "path": "/api/provider/push/unsubscribe",
+        "callers": [
+          "www/providers.js:12634"
+        ]
+      },
+      {
+        "path": "/api/provider/referral-codes",
+        "callers": [
+          "www/providers.js:9638"
+        ]
+      },
+      {
+        "path": "/api/push/vapid-key",
+        "callers": [
+          "www/providers.js:12596"
+        ]
+      },
+      {
+        "path": "/api/shop/book",
+        "callers": [
+          "www/booking-widget.js:99",
+          "www/shop.html:420"
+        ]
+      },
+      {
+        "path": "/api/shop/profile/",
+        "callers": [
+          "www/booking-widget.js:129",
+          "www/shop.html:275"
+        ]
+      },
+      {
+        "path": "/api/square/connect",
+        "callers": [
+          "www/providers.js:509"
+        ]
+      },
+      {
+        "path": "/api/square/disconnect",
+        "callers": [
+          "www/providers.js:549"
+        ]
+      },
+      {
+        "path": "/api/tenant/analytics",
+        "callers": [
+          "www/members.html:9861"
+        ]
+      },
+      {
+        "path": "/api/tenant/approval-workflow",
+        "callers": [
+          "www/members.html:9981",
+          "www/members.html:10011"
+        ]
+      },
+      {
+        "path": "/api/tenant/loyalty-config",
+        "callers": [
+          "www/members.html:9941",
+          "www/members.html:9971"
+        ]
+      },
+      {
+        "path": "/api/tenant/me",
+        "callers": [
+          "www/members.html:9614"
+        ]
+      },
+      {
+        "path": "/api/tenant/roster",
+        "callers": [
+          "www/members.html:9801"
+        ]
+      },
+      {
+        "path": "/api/tenant/roster/",
+        "callers": [
+          "www/members.html:9843"
+        ]
+      },
+      {
+        "path": "/api/white-label/config",
+        "callers": [
+          "www/white-label-client.js:108"
+        ]
+      },
+      {
+        "path": "/api/white-label/tenant/join",
+        "callers": [
+          "www/white-label-client.js:137"
+        ]
+      }
+    ],
+    "unroutedFunctions": [
+      "agent-analyst",
+      "agent-cron-emitter",
+      "agent-fleet-runtime",
+      "agent-gatekeeper",
+      "agent-hunter",
+      "agent-matchmaker",
+      "agent-orchestrator",
+      "agent-promoter",
+      "agent-treasurer",
+      "bgc-expiration-sweep",
+      "bgc-send-reminders",
+      "dispute-resolver-background",
+      "outreach-cleanup",
+      "outreach-cycle",
+      "outreach-cycle-background",
+      "outreach-followups",
+      "outreach-followups-background",
+      "social-adapter-reddit",
+      "social-adapters",
+      "transport-scheduled-dispatch",
+      "utils"
+    ],
+    "orphanRedirects": [],
+    "functionSubpathsSample": {
+      "admin-agreements": [
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-agreements\\/?/, "
+      ],
+      "admin-api-usage": [
+        "api-usage",
+        ")\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-api-usage\\/?/, "
+      ],
+      "admin-data": [
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-data\\/?/, "
+      ],
+      "admin-designs": [
+        "upload",
+        ")\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-designs\\/?/, "
+      ],
+      "admin-facebook": [
+        ")[0];\n  var endpoint = rawPath.replace(/\\/+$/, "
+      ],
+      "admin-founders": [
+        "process-founder-payout",
+        "process-bulk-payouts",
+        "payout-settings",
+        "milestones",
+        "bonus-reserve",
+        "bonus-reserve/adjust",
+        "milestones/",
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-founders\\/?/, "
+      ],
+      "admin-hubspot": [
+        "contacts",
+        "deals",
+        "companies",
+        "sync-members",
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-hubspot\\/?/, "
+      ],
+      "admin-invite": [
+        "invite-validate",
+        "invite-accept",
+        ";\n  const path = rawPath\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-invite\\/?/, "
+      ],
+      "admin-marketing": [
+        "generate",
+        "send-email",
+        "strategy",
+        "saved-campaigns",
+        "save-campaign",
+        "research",
+        "outreach-queue",
+        "outreach-send",
+        "outreach-update",
+        "outreach-leads",
+        "pipeline-metrics",
+        "campaign-to-leads",
+        "check-dedup",
+        "outreach-cycle",
+        "instantly-sync",
+        "instantly-create-campaign",
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-marketing\\/?/, "
+      ],
+      "admin-printful": [
+        "catalog",
+        "products",
+        "store-products",
+        "products/bulk",
+        "mockup",
+        ")\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-printful\\/?/, "
+      ],
+      "admin-refunds": [
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-refunds\\/?/, "
+      ],
+      "admin-sms-log": [
+        "refresh-status",
+        ")\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-sms-log\\/?/, "
+      ],
+      "admin-stats": [
+        "week",
+        "month",
+        "quarter",
+        "year",
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-stats\\/?/, "
+      ],
+      "admin-survey": [
+        "stats",
+        "analytics",
+        "leads/export",
+        "leads",
+        "not-interested",
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-survey\\/?/, "
+      ],
+      "admin-team": [
+        "members",
+        "invites",
+        "invites/",
+        ";\n  const path = rawPath\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-team\\/?/, "
+      ],
+      "admin-white-label": [
+        "tenants",
+        ")\n    .replace(/^\\/?\\.netlify\\/functions\\/admin-white-label\\/?/, "
+      ],
+      "agent-fleet-admin": [
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/agent-fleet-admin\\/?/, "
+      ],
+      "agent-gatekeeper": [
+        "provider.applied",
+        "provider.bgc_completed",
+        "provider.flagged"
+      ],
+      "agent-treasurer": [
+        "payment.captured",
+        "payment.refund_requested",
+        "payout.failed"
+      ],
+      "ai-member": [
+        ";\n  return raw\n    .replace(/^\\/?\\.netlify\\/functions\\/ai-member\\/?/, "
+      ]
+    }
+  },
+  "sectionB": {
+    "pageWiring": [
+      {
+        "file": "www/accept-invite.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 390,
+        "clientLine": 391
+      },
+      {
+        "file": "www/car-club-member.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 703,
+        "clientLine": 704
+      },
+      {
+        "file": "www/car-club-provider.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 1351,
+        "clientLine": 1352
+      },
+      {
+        "file": "www/fleet-driver.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 358,
+        "clientLine": 359
+      },
+      {
+        "file": "www/fleet-join.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 191,
+        "clientLine": 192
+      },
+      {
+        "file": "www/fleet-signup.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 321,
+        "clientLine": 322
+      },
+      {
+        "file": "www/fleet.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 741,
+        "clientLine": 742
+      },
+      {
+        "file": "www/forgot-password.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 283,
+        "clientLine": 284
+      },
+      {
+        "file": "www/founding-provider-chris-agrapidis.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 304,
+        "clientLine": 306
+      },
+      {
+        "file": "www/index.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 2899,
+        "clientLine": 2900
+      },
+      {
+        "file": "www/job-board.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 452,
+        "clientLine": 453
+      },
+      {
+        "file": "www/login.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 1130,
+        "clientLine": 1131
+      },
+      {
+        "file": "www/member-founder.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 1330,
+        "clientLine": 1331
+      },
+      {
+        "file": "www/members.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 8712,
+        "clientLine": 8713
+      },
+      {
+        "file": "www/onboarding-member.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 1006,
+        "clientLine": 1007
+      },
+      {
+        "file": "www/onboarding-provider.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 1367,
+        "clientLine": 1368
+      },
+      {
+        "file": "www/provider-club.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 491,
+        "clientLine": 492
+      },
+      {
+        "file": "www/provider-pilot.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 1228,
+        "clientLine": 1229
+      },
+      {
+        "file": "www/reset-password.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 320,
+        "clientLine": 321
+      },
+      {
+        "file": "www/signed-agreements.html",
+        "hasCDN": false,
+        "hasClient": false,
+        "orderOK": false,
+        "missingCDN": true,
+        "missingClient": true,
+        "cdnLine": -1,
+        "clientLine": -1
+      },
+      {
+        "file": "www/signup-loyal-customer.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 608,
+        "clientLine": 609
+      },
+      {
+        "file": "www/signup-provider.html",
+        "hasCDN": true,
+        "hasClient": true,
+        "orderOK": true,
+        "missingCDN": false,
+        "missingClient": false,
+        "cdnLine": 923,
+        "clientLine": 924
+      }
+    ],
+    "bareNamespaceUses": [
+      {
+        "file": "www/signed-agreements.html",
+        "line": 457,
+        "snippet": "if ((k.indexOf('sb-') === 0 && k.indexOf('-auth-token') > 0) || k === 'supabase.auth.token' || k === 'supabase-session') {"
+      },
+      {
+        "file": "www/signup-provider.html",
+        "line": 1044,
+        "snippet": "straight to supabase.auth.signUp instead of POSTing to"
+      }
+    ],
+    "staticAssets": [
+      "/",
+      "/index.html",
+      "/login.html",
+      "/signup-member.html",
+      "/signup-provider.html",
+      "/members.html",
+      "/providers.html",
+      "/fleet.html",
+      "/provider-info.html",
+      "/provider-pilot.html",
+      "/privacy.html",
+      "/terms.html",
+      "/founding-partner-agreement.html",
+      "/member-founder-agreement.html",
+      "/provider-agreement.html",
+      "/split-pay.html",
+      "/logo.png",
+      "/manifest.json",
+      "/shared-styles.css",
+      "/logo-lockup.css",
+      "/utils.js",
+      "/chat-widget-base.js",
+      "/helpdesk-widget.js",
+      "/provider-onboarding.js",
+      "/bgc-pricing.js",
+      "/pwa-init.js",
+      "/i18n.js",
+      "/agreement-form.js",
+      "/members-core.js",
+      "/members-vehicles.js",
+      "/members-packages.js",
+      "/members-settings.js",
+      "/members-extras.js",
+      "/providers-core.js",
+      "/providers-bids.js",
+      "/providers-jobs.js",
+      "/providers-analytics.js",
+      "/providers-settings.js",
+      "/admin.js",
+      "/login.js",
+      "/fleet.js",
+      "/founder-dashboard.js",
+      "/check-in.js",
+      "/split-pay.js",
+      "/signup-provider.js",
+      "/stripeutils.js",
+      "/supabaseclient.js",
+      "/locales/en.json",
+      "/locales/es.json",
+      "/locales/fr.json",
+      "/locales/el.json",
+      "/locales/zh.json",
+      "/locales/hi.json",
+      "/locales/ar.json",
+      "/icons/icon-192.png",
+      "/icons/icon-512.png"
+    ]
+  },
+  "sectionC": {
+    "noiseFindings": [
+      {
+        "path": "/api/config",
+        "callers": [
+          "www/mcc-config.js:106",
+          "www/onboarding-provider.html:1815",
+          "www/stripeutils.js:22"
+        ],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/car-club/notifications",
+        "callers": [
+          "www/car-club-api.js:568",
+          "www/car-club-api.js:576",
+          "www/car-club-member.html:1202",
+          "www/car-club-member.html:1258",
+          "www/car-club-member.html:1274",
+          "www/car-club-member.html:1406"
+        ],
+        "hasRedirect": true,
+        "targetFn": "car-clubs",
+        "resolves": true
+      },
+      {
+        "path": "/api/car-club/testimonials",
+        "callers": [
+          "www/car-club-api.js:619",
+          "www/car-club-api.js:634",
+          "www/car-club-member.html:855"
+        ],
+        "hasRedirect": true,
+        "targetFn": "car-clubs",
+        "resolves": true
+      },
+      {
+        "path": "/api/car-club/recommended",
+        "callers": [
+          "www/car-club-api.js:831",
+          "www/car-club-member.html:987"
+        ],
+        "hasRedirect": true,
+        "targetFn": "car-clubs",
+        "resolves": true
+      },
+      {
+        "path": "/api/clover",
+        "callers": [
+          "www/providers-analytics.js:277",
+          "www/providers-core.js:567",
+          "www/providers.js:246",
+          "www/providers.js:412",
+          "www/providers.js:446",
+          "www/providers.js:481"
+        ],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/pos",
+        "callers": [
+          "www/providers-analytics.js:320",
+          "www/providers-analytics.js:400",
+          "www/providers-core.js:588",
+          "www/providers.js:264",
+          "www/providers.js:620",
+          "www/providers.js:9904",
+          "www/providers.js:10149",
+          "www/providers.js:10182",
+          "www/providers.js:10456",
+          "www/providers.js:10551",
+          "www/providers.js:10593",
+          "www/providers.js:10667",
+          "www/providers.js:10710",
+          "www/providers.js:10762",
+          "www/providers.js:10957",
+          "www/providers.js:11016",
+          "www/providers.js:11126",
+          "www/providers.js:11165",
+          "www/providers.js:11284",
+          "www/providers.js:11287"
+        ],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/bgcheck/status",
+        "callers": [
+          "www/providers-settings.js:531",
+          "www/providers.js:5646",
+          "www/providers.js:6037",
+          "www/providers.js:12137"
+        ],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/saas/shop-status",
+        "callers": [],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/shop/onboarding-status",
+        "callers": [],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/provider/refunds",
+        "callers": [],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/concierge",
+        "callers": [
+          "www/members-extras.js:1128",
+          "www/members-extras.js:1149",
+          "www/members-extras.js:1163",
+          "www/members-extras.js:1329",
+          "www/providers-jobs.js:37",
+          "www/providers-jobs.js:55",
+          "www/providers-jobs.js:68",
+          "www/providers-jobs.js:140",
+          "www/providers-jobs.js:189",
+          "www/providers-jobs.js:235",
+          "www/providers.js:1970",
+          "www/providers.js:2302",
+          "www/providers.js:2399",
+          "www/providers.js:2412",
+          "www/providers.js:2505"
+        ],
+        "hasRedirect": true,
+        "targetFn": "concierge-jobs-public",
+        "resolves": true
+      },
+      {
+        "path": "/api/analytics/track",
+        "callers": [
+          "www/analytics-tracker.js:26"
+        ],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      },
+      {
+        "path": "/api/white-label/config",
+        "callers": [
+          "www/white-label-client.js:108"
+        ],
+        "hasRedirect": false,
+        "targetFn": null,
+        "resolves": false
+      }
+    ],
+    "eraMismatch": {
+      "club_reward_rules": [
+        {
+          "file": "netlify/functions/car-clubs.js",
+          "hits": 7,
+          "lines": [
+            226,
+            296,
+            322,
+            323,
+            412
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260703d_club_reward_rules.sql",
+          "hits": 2,
+          "lines": [
+            1,
+            11
+          ]
+        },
+        {
+          "file": "www/car-club-api.js",
+          "hits": 12,
+          "lines": [
+            102,
+            283,
+            290,
+            304,
+            308
+          ]
+        },
+        {
+          "file": "www/stress-test-car-club-punch.js",
+          "hits": 1,
+          "lines": [
+            497
+          ]
+        }
+      ],
+      "club_rewards": [
+        {
+          "file": "netlify/functions/car-clubs.js",
+          "hits": 7,
+          "lines": [
+            225,
+            229,
+            294,
+            300,
+            1255
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260703h_club_programs.sql",
+          "hits": 15,
+          "lines": [
+            120,
+            132,
+            133,
+            142,
+            182
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260706a_fix_redeem_rpc_add_locking.sql",
+          "hits": 3,
+          "lines": [
+            96,
+            125,
+            185
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260707a_fix_redeem_rpc_pgcrypto_schema.sql",
+          "hits": 7,
+          "lines": [
+            34,
+            78,
+            99,
+            147,
+            173
+          ]
+        }
+      ],
+      "car_club_redemptions": [
+        {
+          "file": "netlify/functions/account-deletion-core.js",
+          "hits": 1,
+          "lines": [
+            136
+          ]
+        },
+        {
+          "file": "netlify/functions/car-clubs.js",
+          "hits": 3,
+          "lines": [
+            1038,
+            1091,
+            1095
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260703f_car_club_redemptions.sql",
+          "hits": 3,
+          "lines": [
+            1,
+            8,
+            9
+          ]
+        }
+      ],
+      "club_points_redemptions": [
+        {
+          "file": "netlify/functions/account-deletion-core.js",
+          "hits": 1,
+          "lines": [
+            146
+          ]
+        },
+        {
+          "file": "netlify/functions/car-clubs.js",
+          "hits": 2,
+          "lines": [
+            1012,
+            1350
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260703h_club_programs.sql",
+          "hits": 12,
+          "lines": [
+            136,
+            138,
+            149,
+            150,
+            151
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260706a_fix_redeem_rpc_add_locking.sql",
+          "hits": 3,
+          "lines": [
+            172,
+            174,
+            177
+          ]
+        },
+        {
+          "file": "supabase/migrations/20260707a_fix_redeem_rpc_pgcrypto_schema.sql",
+          "hits": 2,
+          "lines": [
+            140,
+            203
+          ]
+        }
+      ]
+    },
+    "twins": [
+      {
+        "name": "admin.html",
+        "rootBytes": 137949,
+        "wwwBytes": 427652,
+        "identical": false
+      },
+      {
+        "name": "ai-chat.js",
+        "rootBytes": 13194,
+        "wwwBytes": 4768,
+        "identical": false
+      },
+      {
+        "name": "auth-theme-toggle.js",
+        "rootBytes": 4116,
+        "wwwBytes": 4096,
+        "identical": false
+      },
+      {
+        "name": "data-deletion.html",
+        "rootBytes": 18398,
+        "wwwBytes": 24384,
+        "identical": false
+      },
+      {
+        "name": "email-template.html",
+        "rootBytes": 8374,
+        "wwwBytes": 9627,
+        "identical": false
+      },
+      {
+        "name": "fb-pixel.js",
+        "rootBytes": 8382,
+        "wwwBytes": 8708,
+        "identical": false
+      },
+      {
+        "name": "fleet.html",
+        "rootBytes": 49660,
+        "wwwBytes": 51881,
+        "identical": false
+      },
+      {
+        "name": "forgot-password.html",
+        "rootBytes": 7720,
+        "wwwBytes": 8952,
+        "identical": false
+      },
+      {
+        "name": "i18n.js",
+        "rootBytes": 9487,
+        "wwwBytes": 15168,
+        "identical": false
+      },
+      {
+        "name": "index.html",
+        "rootBytes": 85143,
+        "wwwBytes": 134593,
+        "identical": false
+      },
+      {
+        "name": "login.html",
+        "rootBytes": 26889,
+        "wwwBytes": 57475,
+        "identical": false
+      },
+      {
+        "name": "members-care-guide.js",
+        "rootBytes": 30464,
+        "wwwBytes": 51559,
+        "identical": false
+      },
+      {
+        "name": "members-core.js",
+        "rootBytes": 140243,
+        "wwwBytes": 163175,
+        "identical": false
+      },
+      {
+        "name": "members-extras.js",
+        "rootBytes": 450202,
+        "wwwBytes": 532186,
+        "identical": false
+      },
+      {
+        "name": "members-packages.js",
+        "rootBytes": 423592,
+        "wwwBytes": 439051,
+        "identical": false
+      },
+      {
+        "name": "members-push.js",
+        "rootBytes": 14130,
+        "wwwBytes": 14468,
+        "identical": false
+      },
+      {
+        "name": "members-settings.js",
+        "rootBytes": 39599,
+        "wwwBytes": 30806,
+        "identical": false
+      },
+      {
+        "name": "members-vehicles.js",
+        "rootBytes": 79989,
+        "wwwBytes": 104998,
+        "identical": false
+      },
+      {
+        "name": "members.html",
+        "rootBytes": 662346,
+        "wwwBytes": 851098,
+        "identical": false
+      },
+      {
+        "name": "onboarding-member.html",
+        "rootBytes": 44364,
+        "wwwBytes": 69481,
+        "identical": false
+      },
+      {
+        "name": "onboarding-provider.html",
+        "rootBytes": 57540,
+        "wwwBytes": 92296,
+        "identical": false
+      },
+      {
+        "name": "p.html",
+        "rootBytes": 26838,
+        "wwwBytes": 40875,
+        "identical": false
+      },
+      {
+        "name": "privacy.html",
+        "rootBytes": 27955,
+        "wwwBytes": 42157,
+        "identical": false
+      },
+      {
+        "name": "provider-agreement.html",
+        "rootBytes": 31775,
+        "wwwBytes": 47901,
+        "identical": false
+      },
+      {
+        "name": "provider-info.html",
+        "rootBytes": 11773,
+        "wwwBytes": 24094,
+        "identical": false
+      },
+      {
+        "name": "provider-pilot.html",
+        "rootBytes": 38175,
+        "wwwBytes": 43645,
+        "identical": false
+      },
+      {
+        "name": "providers-bids.js",
+        "rootBytes": 65454,
+        "wwwBytes": 54802,
+        "identical": false
+      },
+      {
+        "name": "providers-directory.html",
+        "rootBytes": 22177,
+        "wwwBytes": 33070,
+        "identical": false
+      },
+      {
+        "name": "providers-jobs.js",
+        "rootBytes": 70023,
+        "wwwBytes": 92210,
+        "identical": false
+      },
+      {
+        "name": "providers-settings.js",
+        "rootBytes": 39624,
+        "wwwBytes": 96398,
+        "identical": false
+      },
+      {
+        "name": "providers.html",
+        "rootBytes": 595452,
+        "wwwBytes": 681662,
+        "identical": false
+      },
+      {
+        "name": "providers.js",
+        "rootBytes": 568837,
+        "wwwBytes": 630857,
+        "identical": false
+      },
+      {
+        "name": "pwa-init.js",
+        "rootBytes": 4270,
+        "wwwBytes": 4518,
+        "identical": false
+      },
+      {
+        "name": "reset-password.html",
+        "rootBytes": 12970,
+        "wwwBytes": 16257,
+        "identical": false
+      },
+      {
+        "name": "signup-member.html",
+        "rootBytes": 25268,
+        "wwwBytes": 2053,
+        "identical": false
+      },
+      {
+        "name": "signup-provider.html",
+        "rootBytes": 84313,
+        "wwwBytes": 71882,
+        "identical": false
+      },
+      {
+        "name": "stress-test-ai-features.js",
+        "rootBytes": 24139,
+        "wwwBytes": 24171,
+        "identical": false
+      },
+      {
+        "name": "stripeutils.js",
+        "rootBytes": 13805,
+        "wwwBytes": 10413,
+        "identical": false
+      },
+      {
+        "name": "supabaseclient.js",
+        "rootBytes": 103089,
+        "wwwBytes": 102576,
+        "identical": false
+      },
+      {
+        "name": "sw.js",
+        "rootBytes": 5979,
+        "wwwBytes": 5998,
+        "identical": false
+      },
+      {
+        "name": "terms.html",
+        "rootBytes": 23353,
+        "wwwBytes": 29729,
+        "identical": false
+      },
+      {
+        "name": "tos-modal.js",
+        "rootBytes": 9676,
+        "wwwBytes": 9800,
+        "identical": false
+      }
+    ],
+    "swVersionDrift": {
+      "root": "mcc-cache-v104",
+      "www": "mcc-cache-v118",
+      "diff": true
+    }
+  }
+}
