@@ -1036,9 +1036,9 @@ function openBidModal(planId, editMode) {
     const high = plan.value_max || plan.value_min;
     const suggested = Math.round(low * 0.85);
     guidance.style.display = 'block';
-    guidance.innerHTML = `<strong>💡 Bid Guidance:</strong> Member estimates $${formatValue(low, high)}. A competitive bid is often <strong>10–20% below</strong> the estimate. Suggested starting point: <strong>$${suggested.toFixed(2)}</strong>.`;
+    guidance.innerHTML = `<strong>💡 Bid Guidance:</strong> Member estimates ${formatValue(low, high)}. A competitive bid is often <strong>10–20% below</strong> the estimate. Suggested starting point: <strong>$${suggested.toFixed(2)}</strong>.`;
     document.getElementById('bid-hint').style.display = 'flex';
-    document.getElementById('bid-hint-text').textContent = `Member estimate: $${formatValue(low, high)}`;
+    document.getElementById('bid-hint-text').textContent = `Member estimate: ${formatValue(low, high)}`;
   } else {
     guidance.style.display = 'none';
     document.getElementById('bid-hint').style.display = 'none';
@@ -1079,21 +1079,21 @@ function updateBidGuidanceLive(value) {
   const bid = parseFloat(value);
   if (!bid || bid <= 0) {
     const suggested = Math.round(low * 0.85);
-    guidance.innerHTML = `<strong>💡 Bid Guidance:</strong> Member estimates $${formatValue(low, high)}. A competitive bid is often <strong>10–20% below</strong> the estimate. Suggested starting point: <strong>$${suggested.toFixed(2)}</strong>.`;
+    guidance.innerHTML = `<strong>💡 Bid Guidance:</strong> Member estimates ${formatValue(low, high)}. A competitive bid is often <strong>10–20% below</strong> the estimate. Suggested starting point: <strong>$${suggested.toFixed(2)}</strong>.`;
     guidance.style.background = 'var(--accent-gold-soft)';
     guidance.style.borderColor = 'rgba(201,162,39,0.3)';
     return;
   }
   if (bid < low) {
-    guidance.innerHTML = `<strong>⬇ Below estimate</strong> — your bid is under the member's $${formatValue(low, high)} budget. Strong competitive position.`;
+    guidance.innerHTML = `<strong>⬇ Below estimate</strong> — your bid is under the member's ${formatValue(low, high)} budget. Strong competitive position.`;
     guidance.style.background = 'rgba(34,197,94,0.08)';
     guidance.style.borderColor = 'rgba(34,197,94,0.25)';
   } else if (bid <= high) {
-    guidance.innerHTML = `<strong>✓ Within estimate</strong> — your bid of $${bid.toFixed(2)} is within the member's $${formatValue(low, high)} range.`;
+    guidance.innerHTML = `<strong>✓ Within estimate</strong> — your bid of $${bid.toFixed(2)} is within the member's ${formatValue(low, high)} range.`;
     guidance.style.background = 'rgba(34,211,238,0.07)';
     guidance.style.borderColor = 'rgba(34,211,238,0.2)';
   } else {
-    guidance.innerHTML = `<strong>⬆ Above estimate</strong> — your bid of $${bid.toFixed(2)} exceeds the member's $${formatValue(low, high)} budget. Consider lowering your bid.`;
+    guidance.innerHTML = `<strong>⬆ Above estimate</strong> — your bid of $${bid.toFixed(2)} exceeds the member's ${formatValue(low, high)} budget. Consider lowering your bid.`;
     guidance.style.background = 'rgba(248,113,113,0.07)';
     guidance.style.borderColor = 'rgba(248,113,113,0.2)';
   }
@@ -1196,7 +1196,15 @@ function updateAllCountdowns() {
 
 function formatCountdown(closesAt) {
   if (!closesAt) return { text: 'Unknown', cls: '', icon: '⏱' };
-  const diff = new Date(closesAt) - Date.now();
+  // Audit Batch 2 (2026-07-16): Supabase returns timestamptz as
+  // "YYYY-MM-DD HH:MM:SS.SSS+00" (space, not 'T'). That's not valid
+  // ISO 8601 — Safari (and some older engines) drop the timezone offset
+  // and parse as local time, producing ~24h drift. Normalize to ISO by
+  // swapping the first space for 'T' before parsing.
+  const iso = (typeof closesAt === 'string' && closesAt.indexOf('T') === -1)
+    ? closesAt.replace(' ', 'T')
+    : closesAt;
+  const diff = new Date(iso) - Date.now();
   if (diff <= 0) return { text: 'Closed', cls: 'urgent', icon: '🔴' };
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);

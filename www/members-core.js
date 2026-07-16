@@ -1596,6 +1596,17 @@ async function loadPackages() {
     await loadPackagePaymentStatuses();
   }
   
+  // Audit Batch 2 (2026-07-16): hide the Maintenance Packages nav item
+  // for members with zero packages. Purchase path is disabled (§1b escrow
+  // orphan); read-only view stays reachable for members who already have
+  // packages. Fail-open — if this errors, the nav stays visible.
+  try {
+    const packagesNav = document.getElementById('nav-item-packages');
+    if (packagesNav) {
+      packagesNav.style.display = (packages && packages.length > 0) ? '' : 'none';
+    }
+  } catch (_) { /* fail-open */ }
+
   renderPackages();
   renderRecentActivity();
   loadCrowdFundedProgress();

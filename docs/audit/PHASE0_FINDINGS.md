@@ -214,3 +214,11 @@ If the FK's target table (from `pg_get_constraintdef`) doesn't match the embed's
 - `www/mcc-config.js` — skip `/api/config` fetch entirely, dispatch `mcc-config-loaded` immediately with defaults (fetch always failed → caught → defaults; net effect unchanged, one fewer 404).
 - `www/analytics-tracker.js` — no-op'd `track()` until `/api/analytics/track` ingest handler ships.
 - **SW bump:** v120 → v121 (providers-settings.js in STATIC_ASSETS).
+
+### Commit B — copy/UX batch (5 items from BACKLOG.md)
+- **B5** "Care Plans" → "Service Requests" in member UI: nav (members.html:1108), page header + subtitle + loading empty state + AI helper copy + button labels + vehicle-photos hint copy; `en.json` values for `carePlans`, `carePlansSubtitle`, `carePlansLoading`, `carePlansEmpty`, `cpUntitledPlan`, `cpLoadingDetail`. Non-English locales left for translator refresh. Internal `care-plans` route/section id UNCHANGED. `care-plans-count` badge semantic verified correct (Task #284 already counts pending-bid + requires_payment plans, not just plans).
+- **B6** Maintenance Packages nav hidden for zero-package members: `nav-item-packages` id added to members.html:1107, hide logic appended at end of `loadPackages()` in members-core.js. Fail-open (nav stays visible on error).
+- **B7** Member bid card provider name: `members-care-plans.js:307` and `:421` now fall back to `full_name` before "Provider" placeholder. Real providers without `business_name` populated now show their name.
+- **B8** job-board.html countdown timezone fix: Supabase returns `bid_closes_at` as `"YYYY-MM-DD HH:MM:SS.SSS+00"` (space, not `T`). Safari (and some engines) drop the timezone offset and parse as local time → ~24h drift. `formatCountdown` now normalizes to ISO 8601 by swapping the first space for `T` before parsing.
+- **B9** `formatValue` helper already returns `$N–$M`; six call sites in job-board.html were prepending another `$` (`$${formatValue(...)}` → `$$2–$5`). Stripped the extra `$` at all 6 call sites (single replace_all edit).
+- **SW bump:** v121 → v122 (members.html + members-core.js in STATIC_ASSETS).

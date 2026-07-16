@@ -304,9 +304,11 @@
 
     // Accepted bid + payment lifecycle panel
     if (acceptedBid) {
-      const provName = acceptedBid.provider && acceptedBid.provider.business_name
-        ? acceptedBid.provider.business_name
-        : t('member.cpAcceptedProvider', 'Provider');
+      // Audit Batch 2 (2026-07-16): providers without business_name
+      // populated still have full_name from signup. Fall back rather than
+      // showing generic "Provider" for real (named) accounts.
+      const provName = (acceptedBid.provider && (acceptedBid.provider.business_name || acceptedBid.provider.full_name))
+        || t('member.cpAcceptedProvider', 'Provider');
 
       let actionHtml = '';
       if (ps === 'requires_payment') {
@@ -418,7 +420,11 @@
       const isAccepted = acceptedBidId && b.id === acceptedBidId;
       const isRejected = !!acceptedBidId && !isAccepted;
       const prov = b.provider || {};
-      const provLine = (prov.business_name ? '<strong>' + escapeHtml(prov.business_name) + '</strong>' : '<em>' + escapeHtml(t('member.cpProvider', 'Provider')) + '</em>') +
+      // Audit Batch 2 (2026-07-16): fall back to full_name before the
+      // generic "Provider" placeholder — providers without a business_name
+      // still have a real name from signup.
+      const provDisplayName = prov.business_name || prov.full_name;
+      const provLine = (provDisplayName ? '<strong>' + escapeHtml(provDisplayName) + '</strong>' : '<em>' + escapeHtml(t('member.cpProvider', 'Provider')) + '</em>') +
         (prov.average_rating != null ? ' \u00b7 \u2605 ' + escapeHtml(Number(prov.average_rating).toFixed(1)) + (prov.total_reviews ? ' (' + prov.total_reviews + ')' : '') : '') +
         (prov.city || prov.state ? ' \u00b7 ' + escapeHtml([prov.city, prov.state].filter(Boolean).join(', ')) : '');
       let statusEl;
