@@ -730,9 +730,14 @@ function renderEarnings() {
 // ========== REVIEWS ==========
 async function loadMyReviews() {
   try {
+    // Two-query stitch — the previous `profiles!reviews_member_id_fkey` embed
+    // referenced a constraint name that doesn't exist in prod (only
+    // provider_reviews_*_fkey constraints exist; there's no `reviews_*_fkey`).
+    // The plain `maintenance_packages(title)` embed stays — PostgREST resolves
+    // it via implicit FK introspection.
     const { data, error } = await supabaseClient
       .from('reviews')
-      .select('*, maintenance_packages(title), profiles!reviews_member_id_fkey(full_name)')
+      .select('*, maintenance_packages(title)')
       .eq('provider_id', currentUser.id)
       .order('created_at', { ascending: false });
     if (error) {
@@ -744,7 +749,21 @@ async function loadMyReviews() {
       }
       myReviews = [];
     } else {
-      myReviews = data || [];
+      const rows = data || [];
+      const memberIds = [...new Set(rows.map(r => r.member_id).filter(Boolean))];
+      let profilesById = {};
+      if (memberIds.length > 0) {
+        const { data: profs, error: profErr } = await supabaseClient
+          .from('profiles')
+          .select('id, full_name')
+          .in('id', memberIds);
+        if (profErr) {
+          console.log('loadMyReviews profiles stitch error:', profErr.message);
+        } else {
+          profilesById = Object.fromEntries((profs || []).map(p => [p.id, p]));
+        }
+      }
+      myReviews = rows.map(r => ({ ...r, profiles: profilesById[r.member_id] || null }));
     }
     renderReviews();
   } catch (err) {

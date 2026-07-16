@@ -637,18 +637,12 @@
 
     async function lookupProvider(refCode) {
       try {
+        // Two-query stitch — provider_referrals.provider_id FK targets
+        // auth.users, not profiles, so the previous embed 404'd and every
+        // valid ref-code silently fell through to the profiles fallback path.
         const { data, error } = await supabaseClient
           .from('provider_referrals')
-          .select(`
-            id,
-            referral_code,
-            provider_id,
-            profiles!provider_referrals_provider_id_fkey (
-              id,
-              full_name,
-              business_name
-            )
-          `)
+          .select('id, referral_code, provider_id')
           .eq('referral_code', refCode.toUpperCase())
           .eq('is_active', true)
           .single();
@@ -672,9 +666,24 @@
           };
         }
 
+        // Second query for the provider's profile.
+        let providerProfile = null;
+        if (data.provider_id) {
+          const { data: prof, error: profErr } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, business_name')
+            .eq('id', data.provider_id)
+            .single();
+          if (profErr) {
+            console.error('Provider profile stitch failed:', profErr.message);
+          } else {
+            providerProfile = prof;
+          }
+        }
+
         return {
           provider_id: data.provider_id,
-          provider_name: data.profiles?.business_name || data.profiles?.full_name || 'Your Provider',
+          provider_name: providerProfile?.business_name || providerProfile?.full_name || 'Your Provider',
           referral_code: data.referral_code
         };
       } catch (err) {

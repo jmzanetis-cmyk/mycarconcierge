@@ -132,19 +132,38 @@ async function handleGetOne(sb, user, planId) {
   if (error || !plan) return json(404, { error: 'Care plan not found' });
   if (plan.member_id !== user.id) return json(403, { error: 'Forbidden' });
 
-  const { data: bids } = await sb
+  // Two-query stitch — the plan_bids.provider_id FK targets auth.users, not
+  // profiles, so a `profiles!plan_bids_provider_id_fkey` embed makes PostgREST
+  // return an error which was previously swallowed (member saw "No bids yet").
+  const { data: bids, error: bidsErr } = await sb
     .from('plan_bids')
-    .select(`
-      id, care_plan_id, provider_id, amount, note, status, is_auto_bid, created_at,
-      profiles!plan_bids_provider_id_fkey(full_name, business_name, avatar_url)
-    `)
+    .select('id, care_plan_id, provider_id, amount, note, status, is_auto_bid, created_at')
     .eq('care_plan_id', planId)
     .order('created_at', { ascending: true });
 
+  if (bidsErr) {
+    console.error('[care-plans] plan_bids select failed:', bidsErr.message);
+    return json(500, { error: 'Failed to load bids' });
+  }
+
+  const providerIds = [...new Set((bids || []).map(b => b.provider_id).filter(Boolean))];
+  let providersById = {};
+  if (providerIds.length > 0) {
+    const { data: providers, error: provErr } = await sb
+      .from('profiles')
+      .select('id, full_name, business_name, avatar_url')
+      .in('id', providerIds);
+    if (provErr) {
+      // Non-fatal — return bids with null provider fields rather than 500ing.
+      console.error('[care-plans] profiles stitch failed:', provErr.message);
+    } else {
+      providersById = Object.fromEntries((providers || []).map(p => [p.id, p]));
+    }
+  }
+
   const bidList = (bids || []).map(b => ({
     ...b,
-    provider: b.profiles || null,
-    profiles: undefined,
+    provider: providersById[b.provider_id] || null,
     notes: b.note,
   }));
 

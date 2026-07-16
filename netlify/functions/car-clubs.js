@@ -366,13 +366,36 @@ async function listMembers(sb, user, clubId) {
     .select('id').eq('club_id', clubId).eq('member_id', user.id).eq('is_active', true).maybeSingle();
   if (!isProvider && !membership) return json(403, { error: 'Access denied' });
 
-  const { data: members } = await sb.from('club_memberships')
-    .select('id, member_id, joined_at, profiles!club_memberships_member_id_fkey(full_name)')
+  // Two-query stitch — no `club_memberships_member_id_fkey` constraint exists
+  // in prod (only club_memberships_club_id_fkey is defined on this table), so
+  // the previous embed returned an error and the members list silently came
+  // back without names attached.
+  const { data: members, error: memErr } = await sb.from('club_memberships')
+    .select('id, member_id, joined_at')
     .eq('club_id', clubId)
     .eq('is_active', true)
     .order('joined_at', { ascending: false })
     .limit(100);
-  return json(200, { members: members || [] });
+  if (memErr) {
+    console.error('[car-clubs] listMembers select failed:', memErr.message);
+    return json(500, { error: 'Failed to load members' });
+  }
+  const rows = members || [];
+  const memberIds = [...new Set(rows.map(m => m.member_id).filter(Boolean))];
+  let profilesById = {};
+  if (memberIds.length > 0) {
+    const { data: profs, error: profErr } = await sb
+      .from('profiles')
+      .select('id, full_name')
+      .in('id', memberIds);
+    if (profErr) {
+      console.error('[car-clubs] listMembers profiles stitch failed:', profErr.message);
+    } else {
+      profilesById = Object.fromEntries((profs || []).map(p => [p.id, p]));
+    }
+  }
+  const stitched = rows.map(m => ({ ...m, profiles: profilesById[m.member_id] || null }));
+  return json(200, { members: stitched });
 }
 
 // Slice 1 stub retained: the nested POST /:id/punch route below still returns

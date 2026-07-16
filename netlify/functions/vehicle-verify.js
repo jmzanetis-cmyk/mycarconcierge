@@ -302,15 +302,36 @@ async function handleGetVerifications(event, supabase) {
   const qs = event.queryStringParameters || {};
 
   if (isAdmin) {
-    // Admin sees all (optionally filtered by status)
+    // Two-query stitch — registration_verifications.user_id FK targets
+    // auth.users, not profiles, so the previous `user:profiles!...` embed
+    // returned an error which was surfaced as 500. Keep the vehicle embed
+    // (it targets vehicles via a resolvable implicit FK).
     let q = supabase.from('registration_verifications')
-      .select(`*, user:profiles!registration_verifications_user_id_fkey(full_name, email), vehicle:vehicles(year,make,model)`)
+      .select(`*, vehicle:vehicles(year,make,model)`)
       .order('created_at', { ascending: false })
       .limit(200);
     if (qs.status && qs.status !== 'all') q = q.eq('status', qs.status);
     const { data, error } = await q;
-    if (error) return json(500, { error: error.message });
-    return json(200, { success: true, verifications: data || [] });
+    if (error) {
+      console.error('[vehicle-verify] verifications select failed:', error.message);
+      return json(500, { error: error.message });
+    }
+    const rows = data || [];
+    const userIds = [...new Set(rows.map(r => r.user_id).filter(Boolean))];
+    let usersById = {};
+    if (userIds.length > 0) {
+      const { data: users, error: usersErr } = await supabase
+        .from('profiles')
+        .select('id, full_name, email')
+        .in('id', userIds);
+      if (usersErr) {
+        console.error('[vehicle-verify] profiles stitch failed:', usersErr.message);
+      } else {
+        usersById = Object.fromEntries((users || []).map(u => [u.id, u]));
+      }
+    }
+    const stitched = rows.map(r => ({ ...r, user: usersById[r.user_id] || null }));
+    return json(200, { success: true, verifications: stitched });
   }
 
   // Member sees own verifications for a specific vehicle
@@ -371,13 +392,15 @@ async function handleGetHeldRides(event, supabase) {
   const auth = await getAdminUser(event, supabase);
   if (auth.error) return auth.error;
 
+  // Two-query stitch — rides.member_id FK targets auth.users, not profiles,
+  // so the previous `member:profiles!...` embed returned an error. Keep the
+  // vehicle embed intact (implicit FK to vehicles works).
   const { data, error } = await supabase
     .from('rides')
     .select(`
       id, status, created_at, pickup_address, dropoff_address,
-      estimated_fare, stripe_payment_intent_id,
+      estimated_fare, stripe_payment_intent_id, member_id,
       member_vehicle_make, member_vehicle_model, member_vehicle_year,
-      member:profiles!rides_member_id_fkey(id, full_name, email),
       vehicle:vehicles(id, registration_verified, registration_verification_id,
         verif:registration_verifications(
           name_match_score, extracted_owner_name, profile_name, context_note, status
@@ -391,7 +414,22 @@ async function handleGetHeldRides(event, supabase) {
     console.error('[vehicle-verify] held-rides query error:', error.message);
     return json(500, { error: error.message });
   }
-  return json(200, { success: true, rides: data || [] });
+  const rows = data || [];
+  const memberIds = [...new Set(rows.map(r => r.member_id).filter(Boolean))];
+  let membersById = {};
+  if (memberIds.length > 0) {
+    const { data: members, error: membersErr } = await supabase
+      .from('profiles')
+      .select('id, full_name, email')
+      .in('id', memberIds);
+    if (membersErr) {
+      console.error('[vehicle-verify] held-rides profiles stitch failed:', membersErr.message);
+    } else {
+      membersById = Object.fromEntries((members || []).map(m => [m.id, m]));
+    }
+  }
+  const stitched = rows.map(r => ({ ...r, member: membersById[r.member_id] || null }));
+  return json(200, { success: true, rides: stitched });
 }
 
 // POST /held-rides/:id/approve  — admin approves; ride → requested (dispatches)

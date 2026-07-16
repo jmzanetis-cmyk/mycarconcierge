@@ -173,3 +173,33 @@ node scripts/audit-integrity.js
 ```
 
 Idempotent, ~1 sec. Re-run before every iOS build per the audit plan's regression-gate discipline.
+
+---
+
+## Bonus finds during Batch 2 (2026-07-16) — PostgREST FK-name embed class
+
+Not surfaced by this script (the script grep-matches `/api/…` strings; PostgREST FK-name embeds are a different bug shape) but discovered when the "member sees 'No bids yet' despite one bid" bug surfaced against Chris's dress-rehearsal plan. **Class shape:** `.select('...profiles!<constraint_name>(...)')` where `<constraint_name>` references an FK whose target table is `auth.users`, not `profiles` — or references a constraint name that doesn't exist at all. PostgREST returns an error which the caller often swallows into an empty-data response.
+
+Verified against `pg_constraint` in prod. **7 broken sites, all fixed in the commit that lands with this note** — two-query stitch pattern (fetch parent → collect ids → `profiles.select().in('id', ids)` → JS stitch), with `console.error` + 500-return where the primary query error was previously swallowed.
+
+| # | Site | Broken constraint | Actual FK target |
+|---|---|---|---|
+| 1 | `netlify/functions/care-plans.js:139` | `plan_bids_provider_id_fkey` | `auth.users` |
+| 2 | `www/admin.js:13999` | `provider_referral_codes_provider_id_fkey` | `auth.users` |
+| 3 | `www/signup-loyal-customer.html:646` | `provider_referrals_provider_id_fkey` | `auth.users` |
+| 4 | `netlify/functions/vehicle-verify.js:307` | `registration_verifications_user_id_fkey` | `auth.users` |
+| 5 | `netlify/functions/vehicle-verify.js:380` | `rides_member_id_fkey` | `auth.users` |
+| 6 | `www/providers-core.js:735` | `reviews_member_id_fkey` | *(doesn't exist)* |
+| 7 | `netlify/functions/car-clubs.js:370` | `club_memberships_member_id_fkey` | *(doesn't exist)* |
+
+**OK embeds retained** (target-table matches embed): `booking.js:101`, `car-clubs.js:1054`, `vehicle-verify.js:684` (`insurance_verifications_user_id_fkey` → `profiles` ✓), `admin-data.js:60`, `community-board.js:57`, `providers-jobs.js:1167`, `providers-bids.js:91`, `providers.js:1444`, `supabaseclient.js:374`.
+
+**Standing rule for future PostgREST embeds:** any `.select('!<fk_name>(...)')` **MUST be verified against `pg_constraint`** before shipping. Query pattern:
+```sql
+select conname, conrelid::regclass, pg_get_constraintdef(oid)
+from pg_constraint
+where conname = '<fk_name_from_embed>';
+```
+If the FK's target table (from `pg_get_constraintdef`) doesn't match the embed's parent table, PostgREST returns "Could not find a relationship between … and …" — often silently in swallowed-error callers.
+
+**Audit script enhancement (future):** add a Section D that greps embed constraint names and cross-checks against a hardcoded `pg_constraint` snapshot (rebuild the snapshot on schema changes). Would automate this bug class. Not this pass — deferred to a Phase 0 v2.

@@ -13993,10 +13993,13 @@
       const content = document.getElementById('referrals-content');
       if (content) content.innerHTML = '<div style="padding:32px;text-align:center;color:var(--text-muted);">Loading…</div>';
       try {
+        // Two-query stitch — provider_referral_codes.provider_id FK targets
+        // auth.users, not profiles, so the previous embed silently 404'd and
+        // the admin UI showed codes without provider names/emails.
         const [codesRes, foundersRes] = await Promise.all([
           supabaseClient
             .from('provider_referral_codes')
-            .select('id, code, provider_id, type, uses_count, fee_exempt, skip_identity_verification, is_active, created_at, profiles!provider_referral_codes_provider_id_fkey(full_name, email)')
+            .select('id, code, provider_id, type, uses_count, fee_exempt, skip_identity_verification, is_active, created_at')
             .order('created_at', { ascending: false }),
           supabaseClient
             .from('member_founder_profiles')
@@ -14005,7 +14008,24 @@
             .order('total_provider_referrals', { ascending: false })
         ]);
 
-        _refProviderCodes   = codesRes.data   || [];
+        if (codesRes.error) console.error('provider_referral_codes select failed:', codesRes.error.message);
+        if (foundersRes.error) console.error('member_founder_profiles select failed:', foundersRes.error.message);
+
+        const codes = codesRes.data || [];
+        const providerIds = [...new Set(codes.map(c => c.provider_id).filter(Boolean))];
+        let profilesById = {};
+        if (providerIds.length > 0) {
+          const { data: profs, error: profErr } = await supabaseClient
+            .from('profiles')
+            .select('id, full_name, email')
+            .in('id', providerIds);
+          if (profErr) {
+            console.error('profiles stitch failed:', profErr.message);
+          } else {
+            profilesById = Object.fromEntries((profs || []).map(p => [p.id, p]));
+          }
+        }
+        _refProviderCodes   = codes.map(c => ({ ...c, profiles: profilesById[c.provider_id] || null }));
         _refFounderProfiles = foundersRes.data || [];
 
         const totalUses        = _refProviderCodes.reduce((s, r) => s + (r.uses_count || 0), 0);
