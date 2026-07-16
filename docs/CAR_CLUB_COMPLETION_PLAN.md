@@ -142,7 +142,29 @@ None of the five items block the earn/redeem loop's correctness — they're the 
 
 ---
 
-**Status flag on this log entry:** captures the direction change at the moment of decision, followed by the same-day correction, followed by the same-day proof. Update this section as the next-session investigation returns, design questions get answered, and D2/D5/D7 get re-recorded. Do NOT prune it once resolved — it's the single-source-of-truth reference for anyone reading the plan later and wondering why punch-card mechanics were built, why points-per-dollar was assumed live and then disproven, and how the confusion was walked back.
+### ⏸ REHEARSAL PAUSED — 2026-07-16 · Test provider dress rehearsal paused at payment authorization (member cash-flow timing)
+
+**State captured at pause:**
+- Test plan `db0397ec-783f-4f34-b96d-9b61abc37fff` ("Test oil check") — status **"Awaiting Payment."**
+- Test provider bid `c91f229c-f3fd-43c6-9e81-2f5bc8e66dbc` — status **`accepted`**, amount $2.00.
+- Bid window extended earlier same day to `2026-07-18 15:06:21 UTC` (48h) so nothing expires under the pause.
+- PaymentIntent **pending authorization** on the member's card — bid accepted but card not yet authorized (member cash-flow timing).
+- All other rehearsal stages green up to this point: plan created via SQL, bid submitted through provider UI, member saw the bid (after the FK-embed fix in `6b57fde`), bid accepted through member UI.
+
+**Resume path** (in order):
+1. Authorize the card on the pending PI (member action).
+2. Member marks the job Complete → `POST /api/payment/release` → `stripe.paymentIntents.capture(pi)` → **real** `payment_intent.succeeded` webhook.
+3. **Verify `club_points_ledger` earn row** — expected shape: `delta_points=2` (at 1 pt/$), `reason='earn_spend'`, `dollars_spent_cents=200`, `source_ref` starting with `pi_` (NOT `pi_sim_`). This is the last unverified link the 2026-07-13 PROOF section left open (real Stripe delivery + PI-creation runtime vs the signed-webhook simulation).
+4. Member redeems the "Free basic wash" reward (`club_rewards.id = 5ae2e2fc-…`, `point_cost=2` currently — matches the $2 earn exactly, so a full earn→redeem cycle should just work; adjust `point_cost` down if the balance-after-earn isn't a clean multiple).
+5. Provider validates the issued voucher through `provider-club.html` VALIDATE column.
+
+**What the pause proves already:** the FK-embed fix (`6b57fde`) unblocked the member bid list — the pause happened *after* the member saw and accepted the bid, so that class of bug is confirmed dead in the live flow. The remaining unknown is exclusively the runtime Stripe path (item 3 above), not the Car Club code paths.
+
+**Cleanup after successful resume:** the earn ledger row + redemption row + webhook_events row will be real prod data, not sim data — the `pi_sim_*` cleanup pattern from the 2026-07-13 PROOF doesn't apply here. Decide at that point whether the test-provider club (`531409f5-…`) stays as a dress-rehearsal fixture or gets retired alongside the sim-cleanup pattern's real-data equivalent.
+
+---
+
+**Status flag on this log entry:** captures the direction change at the moment of decision, followed by the same-day correction, followed by the same-day proof, followed by the 2026-07-16 rehearsal pause. Update this section as the next-session investigation returns, design questions get answered, and D2/D5/D7 get re-recorded. Do NOT prune it once resolved — it's the single-source-of-truth reference for anyone reading the plan later and wondering why punch-card mechanics were built, why points-per-dollar was assumed live and then disproven, and how the confusion was walked back.
 
 ---
 
