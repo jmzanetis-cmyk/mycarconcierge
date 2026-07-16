@@ -22,25 +22,11 @@
   }
 
   function track() {
-    var apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
-    var url = apiBase + '/api/analytics/track';
-    var payload = JSON.stringify({
-      page: window.location.pathname,
-      referrer: document.referrer || '',
-      device: getDevice(),
-      visitorId: vid
-    });
-
-    if (navigator.sendBeacon) {
-      navigator.sendBeacon(url, new Blob([payload], { type: 'application/json' }));
-    } else {
-      fetch(url, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: payload,
-        keepalive: true
-      }).catch(function() {});
-    }
+    // Audit Batch 2 (2026-07-16): /api/analytics/track endpoint not built.
+    // Was firing on every page load; sendBeacon fails silently but fetch
+    // fallback surfaces 404s in console. No-op until the endpoint ships
+    // (page_views table exists; ingest handler is Phase 6 decision).
+    return;
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {

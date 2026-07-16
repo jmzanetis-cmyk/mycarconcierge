@@ -1609,6 +1609,24 @@ exports.handler = async (event) => {
   if (method === 'GET'  && path === 'my-rewards') return listMyRewards(sb, auth.user);
   if (method === 'GET'  && path === 'my-provider-clubs') return listMyProviderClubs(sb, auth.user);
 
+  // Audit Batch 2 (2026-07-16): singular /my-club alias for providers-core.js
+  // loadCarClubCard — wraps my-provider-clubs and reshapes to { club: clubs[0] }.
+  if (method === 'GET'  && path === 'my-club') {
+    const resp = await listMyProviderClubs(sb, auth.user);
+    if (resp.statusCode !== 200) return resp;
+    const body = JSON.parse(resp.body || '{}');
+    const club = (body.clubs && body.clubs[0]) || null;
+    return json(200, { club });
+  }
+
+  // Audit Batch 2 (2026-07-16): stub routes — kill known console-noise
+  // 404s without touching callers. Empty-array shapes match caller
+  // rendering (they iterate/render nothing on empty). Not flag-gated —
+  // returning [] regardless of feature state is harmless.
+  if (method === 'GET' && path === 'notifications') return json(200, { notifications: [] });
+  if (method === 'GET' && path === 'testimonials')  return json(200, { testimonials: [] });
+  if (method === 'GET' && path === 'recommended')   return json(200, { recommended: [] });
+
   // ─── Admin routes (Slice 4) ─────────────────────────────────────────────
   // Not flag-gated: admin needs to manage clubs regardless of the feature
   // flag state (so they can suspend/unsuspend during a rollback).

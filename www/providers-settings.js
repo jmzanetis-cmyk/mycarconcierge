@@ -525,6 +525,17 @@ async function loadBackgroundCheckStatus(opts = {}) {
 
   if (!providerContainer && !teamContainer && !dashCard) return;
 
+  // Audit Batch 2 (2026-07-16): /api/bgcheck/status/:id endpoint not built.
+  // BGC data model exists (provider_background_checks, employee_background_checks,
+  // bgc_notifications) but is currently 0-rows in prod (pre-Checkr integration).
+  // Hide status widget with a pending-integration message rather than fire a
+  // known-void fetch. Reinstate when Checkr feed lands.
+  const pendingHtml = '<div style="padding:16px;color:var(--text-secondary);font-size:0.9rem;">Background check status will appear here once Checkr integration is live.</div>';
+  if (providerContainer) providerContainer.innerHTML = pendingHtml;
+  if (teamContainer)     teamContainer.innerHTML     = pendingHtml;
+  if (dashCard)          dashCard.style.display      = 'none';
+  return;
+  /* eslint-disable no-unreachable */
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const effectiveId = providerProfile?.team_provider_id || currentUser?.id;
@@ -770,7 +781,7 @@ async function submitBackgroundCheck() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const providerId = providerProfile?.team_provider_id || currentUser?.id;
-    const response = await fetch('/api/bgcheck/initiate', {
+    const response = await fetch('/api/provider/initiate-background-check', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -814,6 +825,12 @@ async function submitBackgroundCheck() {
 }
 
 async function viewBgCheckReport(checkId) {
+  // Audit Batch 2 (2026-07-16): /api/bgcheck/report-url/:id endpoint not
+  // built. Paired with loadBackgroundCheckStatus early-return above; both
+  // reinstate when Checkr integration lands.
+  showToast('Background check reports will be viewable once Checkr integration is live.', 'info');
+  return;
+  /* eslint-disable no-unreachable */
   const modal = document.getElementById('bg-report-viewer-modal');
   const iframe = document.getElementById('bg-report-viewer-iframe');
   const loader = document.getElementById('bg-report-viewer-loader');

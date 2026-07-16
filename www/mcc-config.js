@@ -103,19 +103,10 @@
 
   window.MCC_CONFIG = defaultConfig;
 
-  const configUrl = apiBaseUrl ? `${apiBaseUrl}/api/config` : '/api/config';
-
-  fetch(configUrl)
-    .then(function(response) {
-      if (response.ok) return response.json();
-      throw new Error('Config fetch failed');
-    })
-    .then(function(config) {
-      window.MCC_CONFIG = Object.assign({}, defaultConfig, config, { apiBaseUrl: apiBaseUrl });
-      window.dispatchEvent(new CustomEvent('mcc-config-loaded', { detail: window.MCC_CONFIG }));
-    })
-    .catch(function(error) {
-      console.log('Using default config:', error.message);
-      window.dispatchEvent(new CustomEvent('mcc-config-loaded', { detail: window.MCC_CONFIG }));
-    });
+  // Audit Batch 2 (2026-07-16): /api/config endpoint not built; the fetch
+  // always failed and the catch branch above set defaults anyway. Skip
+  // the network round-trip and dispatch immediately with defaults —
+  // eliminates the console 404 and shaves ~100ms off page load. Reinstate
+  // when /api/config is actually implemented (Phase 6 decision).
+  window.dispatchEvent(new CustomEvent('mcc-config-loaded', { detail: window.MCC_CONFIG }));
 })();

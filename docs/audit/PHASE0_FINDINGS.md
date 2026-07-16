@@ -203,3 +203,14 @@ where conname = '<fk_name_from_embed>';
 If the FK's target table (from `pg_get_constraintdef`) doesn't match the embed's parent table, PostgREST returns "Could not find a relationship between … and …" — often silently in swallowed-error callers.
 
 **Audit script enhancement (future):** add a Section D that greps embed constraint names and cross-checks against a hardcoded `pg_constraint` snapshot (rebuild the snapshot on schema changes). Would automate this bug class. Not this pass — deferred to a Phase 0 v2.
+
+---
+
+## Batch 2 resolution log (2026-07-16)
+
+### Commit A — route/noise triage
+- `www/providers-settings.js` — bgcheck initiate rewired `/api/bgcheck/initiate` → `/api/provider/initiate-background-check` (existing function). Status widget + report viewer hidden with pending-integration messages (BGC tables exist but are 0-rows in prod — reinstate when Checkr integration lands).
+- `netlify/functions/car-clubs.js` — added `my-club` dispatcher alias (wraps `my-provider-clubs`, reshapes to `{club: clubs[0]}`) + three 200-empty stubs (`notifications`, `testimonials`, `recommended`) to kill console-noise 404s without touching callers.
+- `www/mcc-config.js` — skip `/api/config` fetch entirely, dispatch `mcc-config-loaded` immediately with defaults (fetch always failed → caught → defaults; net effect unchanged, one fewer 404).
+- `www/analytics-tracker.js` — no-op'd `track()` until `/api/analytics/track` ingest handler ships.
+- **SW bump:** v120 → v121 (providers-settings.js in STATIC_ASSETS).
