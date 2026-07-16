@@ -14,7 +14,6 @@
     "lint:fix": "eslint . --fix",
     "electron": "electron .",
     "electron:dev": "electron .",
-    "build:www": "mkdir -p www && cp -r *.html *.png manifest.json pwa-init.js sw.js supabaseclient.js icons www/",
     "cap:sync": "npx cap sync && bash scripts/clean-mobile-bundle.sh && bash scripts/verify-mobile-bundle.sh",
     "cap:sync:raw": "npx cap sync",
     "cap:android": "npx cap open android",
@@ -23,11 +22,7 @@
     "mobile:verify": "bash scripts/verify-mobile-bundle.sh",
     "ios:run": "bash scripts/ios-run.sh",
     "ios:prep": "bash scripts/ios-build.sh",
-    "ios:store": "bash build-ios.sh",
-    "build:mac": "npm run build:www && electron-builder --mac",
-    "build:win": "npm run build:www && electron-builder --win",
-    "build:linux": "npm run build:www && electron-builder --linux",
-    "build:all": "npm run build:www && electron-builder --mac --win --linux"
+    "ios:store": "bash build-ios.sh"
   },
   "keywords": [
     "automotive",

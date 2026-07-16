@@ -437,8 +437,13 @@ for (const n of rootFiles) {
     });
   }
 }
-// sw.js version drift specifically
-const rootSw = (fs.readFileSync(path.join(ROOT, 'sw.js'), 'utf8').match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/) || [])[1];
+// sw.js version drift specifically — root sw.js was retired in Commit C
+// (root twins deleted). Guard so the audit still runs; if a root twin
+// reappears in the future, the drift check re-activates automatically.
+const rootSwPath = path.join(ROOT, 'sw.js');
+const rootSw = fs.existsSync(rootSwPath)
+  ? (fs.readFileSync(rootSwPath, 'utf8').match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/) || [])[1]
+  : null;
 const wwwSw = (fs.readFileSync(path.join(WWW, 'sw.js'), 'utf8').match(/CACHE_NAME\s*=\s*['"]([^'"]+)['"]/) || [])[1];
 
 // ─── Section D — PostgREST embed FK-target verification (v2) ───────────────

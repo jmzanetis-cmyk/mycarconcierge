@@ -28,6 +28,17 @@
 
 **Interpretation:** v1's 11 CRITICALs became roughly (Batch 1 hid 6) → 5 CRITICAL-class remaining + 20 broader-void from the expanded scan. Batch 1/2 progress is visible in the GATED and CONDITIONAL FOLLOWUP columns — 21 total call sites are now provably reachably-hidden rather than silently-live.
 
+### v3 (2026-07-16 later still, after Batch 3 — root-twin retirement)
+
+| Severity | Count | Delta from v2 |
+|---|---|---|
+| VOID / GATED / CONDITIONAL FOLLOWUPS | 20 / 9 / 12 | unchanged |
+| HIGH | 3 (1 bare-namespace + 2 era-mismatch) | unchanged |
+| MEDIUM — noise/infra | **9** (9 noise endpoints + **0 twins**) | **−42** — all root www-twins retired in Commit C (`build:www` + 4 downstream electron-builder scripts also removed; deletion was safe because Netlify publishes `www/` directly and Capacitor's `webDir: "www"` reads from there — nothing invoked `build:www` in a live pipeline) |
+| LOW | 21 unrouted functions + 0 orphan redirects | unchanged |
+
+Script self-check: `sw drift = null vs mcc-cache-v122` (root sw.js gracefully absent after Commit C; drift check re-activates automatically if a root twin ever reappears).
+
 ## Calibration statement
 
 **Measured miss rate: 0% false negatives on hand-audited pages; ~50% false positive on bare-namespace check.**
@@ -116,7 +127,9 @@ Called but no `_redirects` rule → 404 in browser console. Zero business impact
 
 Note: `/api/car-club/{notifications, testimonials, recommended}` and `/api/concierge` ARE routed and resolve — they weren't the noise I expected. Left in the raw JSON for reference.
 
-### Root vs `www/` stale twins (41 non-identical + 1 identical)
+### ✅ Root vs `www/` stale twins — RESOLVED 2026-07-16 (Batch 3)
+
+**Historical finding (retained for reference):**
 
 Full list in `PHASE0_RAW.json` under `sectionC.twins`. Highlights (by delta size):
 
