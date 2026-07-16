@@ -502,7 +502,7 @@
               <td><span class="status-badge ${payout.status}">${payout.status}</span></td>
               <td>${formatDate(payout.processed_at || payout.created_at)}</td>
               <td>
-                <a href="/api/founder/payout-receipt/${payout.id}" target="_blank" class="btn btn-sm btn-secondary" title="Download Receipt">
+                <a href="#" data-disabled="pending" onclick="event.preventDefault();" class="btn btn-sm btn-secondary" title="Receipt download coming soon" style="opacity:0.5;cursor:not-allowed;">
                   ${mccIcon('file-text', 14)}
                 </a>
               </td>
@@ -518,8 +518,9 @@
             <td><span class="status-badge ${payout.status}">${payout.status}</span></td>
             <td>${formatDate(payout.processed_at || payout.created_at)}</td>
             <td>
-              <a href="/api/founder/payout-receipt/${payout.id}" target="_blank" class="btn btn-sm btn-secondary" title="Download Receipt">
-                ${mccIcon('file-text', 14)} Receipt
+              <!-- PHASE 0 BATCH 1 (2026-07-16): /api/founder/payout-receipt/:id endpoint does not exist. See MCC_AUDIT_PLAN.md §2a Founder Dashboard backlog. Restore original href once endpoint ships. -->
+              <a href="#" data-disabled="pending" onclick="event.preventDefault();" class="btn btn-sm btn-secondary" title="Receipt download coming soon" style="opacity:0.5;cursor:not-allowed;">
+                ${mccIcon('file-text', 14)} Receipt (soon)
               </a>
             </td>
           </tr>
@@ -1282,6 +1283,10 @@
       loadWefunderClickStats().catch(() => {});
 
       try {
+        // PHASE 0 BATCH 1 (2026-07-16): /api/founder/campaign-stats not built.
+        // See MCC_AUDIT_PLAN.md §2a Founder Dashboard backlog. Placeholder
+        // shown; restore original fetch when endpoint ships.
+        throw new Error('endpoint_pending');
         const token = (await supabase.auth.getSession()).data.session?.access_token;
         const res = await fetch('/api/founder/campaign-stats', {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}
@@ -1347,6 +1352,10 @@
     }
 
     async function loadWefunderClickStats() {
+      // PHASE 0 BATCH 1 (2026-07-16): /api/founder/campaign-link-stats not
+      // built. See MCC_AUDIT_PLAN.md §2a Founder Dashboard backlog. Early
+      // return until endpoint ships.
+      return;
       try {
         const token = (await supabase.auth.getSession()).data.session?.access_token;
         if (!token) return;

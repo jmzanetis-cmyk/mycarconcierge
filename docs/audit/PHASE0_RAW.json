@@ -1,14 +1,14 @@
 {
   "meta": {
-    "generatedAt": "2026-07-16T12:56:49.594Z",
+    "generatedAt": "2026-07-16T13:44:10.105Z",
     "wwwFilesScanned": 177,
     "functionsInventoried": 188,
     "redirectRulesParsed": 236,
     "scheduledFunctions": []
   },
   "sectionA": {
-    "frontendCallsTotal": 463,
-    "uniqueLiteralPathsSeen": 194,
+    "frontendCallsTotal": 460,
+    "uniqueLiteralPathsSeen": 191,
     "dynamicPathPatterns": [
       "/api/invitations/${DYNAMIC}",
       "/api/admin/agent-fleet/actions/${DYNAMIC}",
@@ -254,7 +254,7 @@
       },
       {
         "file": "www/providers.js",
-        "line": 13482,
+        "line": 13491,
         "snippet": "const res = await fetch(url, { headers: { 'Accept-Language': 'en' } });"
       },
       {
@@ -387,32 +387,32 @@
       {
         "path": "/api/2fa/disable",
         "callers": [
-          "www/providers.js:12074"
+          "www/providers.js:12083"
         ]
       },
       {
         "path": "/api/2fa/enable",
         "callers": [
-          "www/providers.js:11989"
+          "www/providers.js:11998"
         ]
       },
       {
         "path": "/api/2fa/send-code",
         "callers": [
-          "www/providers.js:11853",
-          "www/providers.js:12033"
+          "www/providers.js:11862",
+          "www/providers.js:12042"
         ]
       },
       {
         "path": "/api/2fa/status",
         "callers": [
-          "www/providers.js:11767"
+          "www/providers.js:11776"
         ]
       },
       {
         "path": "/api/2fa/verify-code",
         "callers": [
-          "www/providers.js:11969"
+          "www/providers.js:11978"
         ]
       },
       {
@@ -473,15 +473,9 @@
         ]
       },
       {
-        "path": "/api/fleet/setup",
-        "callers": [
-          "www/fleet-signup.html:407"
-        ]
-      },
-      {
         "path": "/api/fleet/subscription",
         "callers": [
-          "www/members.html:9369"
+          "www/members.html:9375"
         ]
       },
       {
@@ -493,20 +487,13 @@
       {
         "path": "/api/founder/campaign-link-stats",
         "callers": [
-          "www/founder-dashboard.js:1354"
+          "www/founder-dashboard.js:1363"
         ]
       },
       {
         "path": "/api/founder/campaign-stats",
         "callers": [
-          "www/founder-dashboard.js:1286"
-        ]
-      },
-      {
-        "path": "/api/founder/payout-receipt/${payout.id}",
-        "callers": [
-          "www/founder-dashboard.js:505",
-          "www/founder-dashboard.js:521"
+          "www/founder-dashboard.js:1291"
         ]
       },
       {
@@ -541,21 +528,15 @@
         ]
       },
       {
-        "path": "/api/privacy-request",
-        "callers": [
-          "www/data-rights.html:235"
-        ]
-      },
-      {
         "path": "/api/provider/availability",
         "callers": [
-          "www/providers.js:13152"
+          "www/providers.js:13161"
         ]
       },
       {
         "path": "/api/provider/blocked-time",
         "callers": [
-          "www/providers.js:13225"
+          "www/providers.js:13234"
         ]
       },
       {
@@ -567,13 +548,13 @@
       {
         "path": "/api/provider/push/subscribe",
         "callers": [
-          "www/providers.js:12612"
+          "www/providers.js:12621"
         ]
       },
       {
         "path": "/api/provider/push/unsubscribe",
         "callers": [
-          "www/providers.js:12634"
+          "www/providers.js:12643"
         ]
       },
       {
@@ -585,7 +566,7 @@
       {
         "path": "/api/push/vapid-key",
         "callers": [
-          "www/providers.js:12596"
+          "www/providers.js:12605"
         ]
       },
       {
@@ -617,39 +598,39 @@
       {
         "path": "/api/tenant/analytics",
         "callers": [
-          "www/members.html:9861"
+          "www/members.html:9875"
         ]
       },
       {
         "path": "/api/tenant/approval-workflow",
         "callers": [
-          "www/members.html:9981",
-          "www/members.html:10011"
+          "www/members.html:9995",
+          "www/members.html:10025"
         ]
       },
       {
         "path": "/api/tenant/loyalty-config",
         "callers": [
-          "www/members.html:9941",
-          "www/members.html:9971"
+          "www/members.html:9955",
+          "www/members.html:9985"
         ]
       },
       {
         "path": "/api/tenant/me",
         "callers": [
-          "www/members.html:9614"
+          "www/members.html:9628"
         ]
       },
       {
         "path": "/api/tenant/roster",
         "callers": [
-          "www/members.html:9801"
+          "www/members.html:9815"
         ]
       },
       {
         "path": "/api/tenant/roster/",
         "callers": [
-          "www/members.html:9843"
+          "www/members.html:9857"
         ]
       },
       {
@@ -859,16 +840,6 @@
         "clientLine": 192
       },
       {
-        "file": "www/fleet-signup.html",
-        "hasCDN": true,
-        "hasClient": true,
-        "orderOK": true,
-        "missingCDN": false,
-        "missingClient": false,
-        "cdnLine": 321,
-        "clientLine": 322
-      },
-      {
         "file": "www/fleet.html",
         "hasCDN": true,
         "hasClient": true,
@@ -945,8 +916,8 @@
         "orderOK": true,
         "missingCDN": false,
         "missingClient": false,
-        "cdnLine": 8712,
-        "clientLine": 8713
+        "cdnLine": 8714,
+        "clientLine": 8715
       },
       {
         "file": "www/onboarding-member.html",
@@ -1196,7 +1167,7 @@
           "www/providers-settings.js:531",
           "www/providers.js:5646",
           "www/providers.js:6037",
-          "www/providers.js:12137"
+          "www/providers.js:12146"
         ],
         "hasRedirect": false,
         "targetFn": null,
@@ -1498,7 +1469,7 @@
       {
         "name": "members-core.js",
         "rootBytes": 140243,
-        "wwwBytes": 163175,
+        "wwwBytes": 163726,
         "identical": false
       },
       {
@@ -1534,7 +1505,7 @@
       {
         "name": "members.html",
         "rootBytes": 662346,
-        "wwwBytes": 851098,
+        "wwwBytes": 852583,
         "identical": false
       },
       {
@@ -1612,7 +1583,7 @@
       {
         "name": "providers.js",
         "rootBytes": 568837,
-        "wwwBytes": 630857,
+        "wwwBytes": 631400,
         "identical": false
       },
       {
@@ -1678,7 +1649,7 @@
     ],
     "swVersionDrift": {
       "root": "mcc-cache-v104",
-      "www": "mcc-cache-v118",
+      "www": "mcc-cache-v119",
       "diff": true
     }
   }

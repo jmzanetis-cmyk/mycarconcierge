@@ -1097,7 +1097,8 @@
     <div class="nav-item" data-section="maintenance-schedule" onclick="showSection('maintenance-schedule')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Maintenance Schedule</span> <span class="nav-badge" id="maintenance-due-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="learn" onclick="showSection('learn')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16c0 1 2.5 3 6 3s6-2 6-3v-3.5"/></svg></span> My Car Concierge Academy & Care Guide</span></div>
     <div class="nav-item" data-section="household" onclick="showSection('household')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
-    <div class="nav-item" data-section="fleet" onclick="showSection('fleet')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span> Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div>
+    <!-- PHASE 0 BATCH 1 (2026-07-16): member-side fleet UI hidden — /api/fleet/* endpoints (setup, import-vehicles, subscription, check-approval, update-mileage) do not exist. fleet-signup.html is retained as public waitlist entry. Re-enable this nav item + loadFleetSubscription when the fleet backend ships. -->
+    <!-- <div class="nav-item" data-section="fleet" onclick="showSection('fleet')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span> Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div> -->
     <div class="nav-item" data-section="reminders" onclick="showSection('reminders')"><span data-i18n="member.reminders"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Reminders</span> <span class="nav-badge" id="reminder-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="referrals" onclick="showSection('referrals')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg></span> Refer a Friend</span> <span class="nav-badge" id="referral-credits-badge" style="display:none;background:var(--accent-green);">$0</span></div>
     <div class="nav-item" data-section="founder" onclick="showSection('founder')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Refer a Provider</span> <span class="nav-badge" id="founder-earn-badge" style="display:none;background:var(--accent-gold);color:#000;"></span></div>
@@ -2452,7 +2453,8 @@
       </div>
 
       <div style="margin-bottom: 24px;">
-        <button class="btn btn-primary" onclick="openPackageModal()">+ New Package</button>
+        <!-- PHASE 0 BATCH 1 (2026-07-16): New Package creation disabled — /api/escrow/* endpoints do not exist on Netlify (orphaned in Express→Netlify migration). Existing packages still display; only NEW creation is blocked. Restore original button once package escrow is migrated per MCC_AUDIT_PLAN.md Phase 1. -->
+        <button class="btn btn-secondary" disabled style="opacity:0.6;cursor:not-allowed;" title="New package creation is temporarily unavailable — coming back soon.">+ New Package (Coming back soon)</button>
       </div>
 
       <div class="tabs">
@@ -9361,6 +9363,10 @@
     // ========== FLEET SUBSCRIPTION STATUS (Task #88) ==========
 
     async function loadFleetSubscription() {
+      // PHASE 0 BATCH 1 (2026-07-16): fleet subscription card hidden —
+      // /api/fleet/subscription endpoint does not exist. See fleet nav
+      // comment-out above. Re-enable when fleet backend ships.
+      return;
       const card = document.getElementById('fleet-subscription-card');
       const banner = document.getElementById('fleet-upgrade-banner');
       if (!card) return;
@@ -9605,7 +9611,15 @@
     }
 
     async function loadWlTenantPortal() {
+      // PHASE 0 BATCH 1 (2026-07-16): white-label tenant admin section hidden
+      // — /api/tenant/* endpoints (me, roster, analytics, loyalty-config,
+      // approval-workflow) do not exist. Whole section is dead until the
+      // white-label feature ships. Card default is display:none; early
+      // return prevents any tenant-* fetch from firing. Re-enable by
+      // removing this block once /api/tenant/* endpoints are implemented.
       const card = document.getElementById('wl-tenant-portal-card');
+      if (card) card.style.display = 'none';
+      return;
       const el = document.getElementById('wl-tenant-portal-content');
       if (!card || !el) return;
       try {

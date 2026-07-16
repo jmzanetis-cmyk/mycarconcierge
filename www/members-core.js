@@ -3079,6 +3079,16 @@ function openVehicleModal() {
 }
 
 function openPackageModal() {
+  // PHASE 0 BATCH 1 (2026-07-16): guarded — /api/escrow/* endpoints
+  // (create/confirm/release/refund) do not exist on Netlify (orphaned
+  // in Express→Netlify migration). Defense-in-depth against any
+  // remaining caller (URL params, deep links, etc.); UI CTA is
+  // separately disabled in members.html:2455. Remove this guard once
+  // package escrow is migrated per MCC_AUDIT_PLAN.md Phase 1.
+  if (typeof showToast === 'function') {
+    showToast('New package creation is temporarily unavailable — coming back soon.', 'info');
+  }
+  return;
   const pVehicleSelect = document.getElementById('p-vehicle');
   const noVehicleHint = document.getElementById('p-vehicle-empty-hint');
   if (vehicles.length > 0) {

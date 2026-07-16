@@ -398,48 +398,48 @@
     }
 
     async function createFleetAccount() {
+      // PHASE 0 BATCH 1 (2026-07-16): fleet backend (/api/fleet/setup) not
+      // built. Rewired to the existing pre-launch waitlist endpoint
+      // (/api/waitlist/join) so the marketing page still captures interest.
+      // Extra fleet-specific fields (company, industry, fleet_size, phone,
+      // plan) are collected in-form but not persisted — the waitlist table
+      // has email + intended_role + zip_code + source only. Console-log
+      // the extras so they surface in error tracking if we need to
+      // reconstruct leads later. Restore full account creation once the
+      // fleet backend is implemented (see MCC_AUDIT_PLAN.md Phase 6).
       var statusEl = document.getElementById('setup-status');
 
       try {
-        statusEl.textContent = 'Creating your account...';
+        statusEl.textContent = 'Joining the fleet waitlist...';
 
-        // Use server-side atomic setup endpoint (creates auth + profile + fleet + owner-membership)
-        var res = await fetch('/api/fleet/setup', {
+        console.info('[fleet-signup] waitlist submission — extras captured in-form only:', {
+          company: signupData.company,
+          industry: signupData.industry || null,
+          fleet_size: signupData.fleetSize || null,
+          phone: signupData.phone || null,
+          plan: signupData.plan || 'starter'
+        });
+
+        var res = await fetch('/api/waitlist/join', {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            name: signupData.name,
             email: signupData.email,
-            password: signupData.password,
-            company: signupData.company,
-            industry: signupData.industry || null,
-            fleet_size: signupData.fleetSize || null,
-            phone: signupData.phone || null,
-            plan: signupData.plan || 'starter'
+            intended_role: 'member',
+            source: 'fleet_signup'
           })
         });
 
-        statusEl.textContent = 'Finalizing fleet setup...';
         var data = await res.json();
 
         if (!res.ok) {
-          throw new Error(data.error || 'Fleet account setup failed. Please try again.');
+          throw new Error(data.error || 'Could not save your waitlist signup. Please try again.');
         }
 
-        // Sign in the newly created user
-        statusEl.textContent = 'Signing you in...';
-        var { error: signInErr } = await supabaseClient.auth.signInWithPassword({
-          email: signupData.email,
-          password: signupData.password
-        });
-
-        if (signInErr) {
-          // Not fatal — user can sign in manually
-          console.warn('Auto sign-in after signup failed:', signInErr.message);
-        }
-
-        // Show success
+        // Show success — reuse existing step-5 UI (no auto sign-in, no account created)
         document.getElementById('success-name').textContent = signupData.name.split(' ')[0];
+        var successHeader = document.querySelector('#step-5 h2, #step-5 .title, #step-5 .success-title');
+        if (successHeader) successHeader.textContent = 'You\'re on the fleet waitlist!';
         showStep(5);
         // Update progress bar to show all done
         document.querySelectorAll('.progress-step').forEach(ps => ps.className = 'progress-step done');
@@ -447,8 +447,8 @@
       } catch (err) {
         // Go back to step 1 with error
         showStep(1);
-        showError(err.message || 'Account creation failed. Please try again.');
-        console.error('Fleet signup error:', err);
+        showError(err.message || 'Waitlist signup failed. Please try again.');
+        console.error('Fleet waitlist signup error:', err);
       }
     }
   </script>

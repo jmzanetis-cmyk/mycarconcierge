@@ -229,24 +229,31 @@ document.getElementById('privacy-request-form').addEventListener('submit', async
   }
 
   btn.disabled = true;
-  btn.textContent = 'Submitting\u2026';
+  btn.textContent = 'Opening email\u2026';
 
+  // PHASE 0 BATCH 1 (2026-07-16): /api/privacy-request endpoint not built.
+  // Mailto fallback preserves compliance channel (GDPR/CCPA require an
+  // available request method \u2014 email qualifies). Replace with real POST
+  // handler when the backend ships.
   try {
-    const res = await fetch('/api/privacy-request', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, email, state, type, details })
-    });
-    const data = await res.json().catch(() => ({}));
-    if (res.ok) {
-      msgEl.textContent = 'Your privacy request has been received. We\u2019ll respond within 10 business days.';
-      msgEl.className = 'msg success';
-      document.getElementById('privacy-request-form').reset();
-    } else {
-      throw new Error(data.error || 'Submission failed');
-    }
+    const subject = `Privacy Request: ${type} (${state})`;
+    const body = [
+      `Name: ${name}`,
+      `Email: ${email}`,
+      `State: ${state}`,
+      `Request Type: ${type}`,
+      '',
+      'Details:',
+      details || '(none provided)'
+    ].join('\n');
+    const mailtoUrl = `mailto:privacy@mycarconcierge.com?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.location.href = mailtoUrl;
+
+    msgEl.textContent = 'Your email client should open with a pre-filled request. Send it to privacy@mycarconcierge.com and we\u2019ll respond within 10 business days. If nothing opened, email privacy@mycarconcierge.com directly.';
+    msgEl.className = 'msg success';
+    document.getElementById('privacy-request-form').reset();
   } catch (err) {
-    msgEl.textContent = 'Something went wrong. Please email privacy@mycarconcierge.com directly.';
+    msgEl.textContent = 'Please email privacy@mycarconcierge.com directly with your request details.';
     msgEl.className = 'msg error';
   } finally {
     btn.disabled = false;

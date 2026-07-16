@@ -11749,10 +11749,19 @@
     let pending2FAPhone = '';
 
     async function load2FAStatus() {
-      if (!currentUser) return;
-      
+      // PHASE 0 BATCH 1 (2026-07-16): non-TOTP SMS 2FA endpoints
+      // (/api/2fa/{status,send-code,verify-code,enable,disable}) do NOT
+      // exist. Only TOTP endpoints (totp-enroll/totp-verify) are built.
+      // Hiding this SMS 2FA settings section entirely; TOTP is not
+      // separately UI-exposed in providers.js today. Restore when SMS 2FA
+      // backend ships OR replace with a TOTP-based settings surface.
       const loadingEl = document.getElementById('2fa-loading');
       const contentEl = document.getElementById('2fa-content');
+      if (loadingEl) loadingEl.style.display = 'none';
+      if (contentEl) contentEl.style.display = 'none';
+      return;
+      if (!currentUser) return;
+
       
       if (loadingEl) loadingEl.style.display = 'block';
       if (contentEl) contentEl.style.display = 'none';

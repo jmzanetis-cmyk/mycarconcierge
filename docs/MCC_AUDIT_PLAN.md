@@ -30,6 +30,8 @@ Deliverable: findings register (CSV/MD) with severity and calibration note. This
 
 Walk every dollar: care-plan escrow lifecycle (create → bid → accept/PI → capture/release → refund → dispute → clawback), stripe-webhook's 13 event handlers one by one, wallet load/spend, driver tips/cashouts/payouts, bid-credit purchase, founder commissions + clawbacks, member credits/referrals, Car Club accrual (done ✅ — use its method as the template: code trace, then controlled $2-class live transaction, then ledger verification). Claude verifies DB truth per step; Stripe dashboard deliveries check closes the loop. **Reference implementation:** see the [2026-07-13 PROOF entry in CAR_CLUB_COMPLETION_PLAN.md](CAR_CLUB_COMPLETION_PLAN.md) for the code-trace + signed-webhook-sim + ledger-verify + cleanup pattern.
 
+**Migrate or retire package escrow (added 2026-07-16 from Phase 0 Batch 1):** `www/stripeutils.js:96` exposes `createEscrowPayment()` calling `/api/escrow/create` — plus three companion endpoints (`/api/escrow/confirm/:id`, `/api/escrow/release/:id`, `/api/escrow/refund/:id`). **Zero escrow functions exist on Netlify** (`ls netlify/functions/ | grep escrow` → empty). 87 escrow refs live in the dead Replit-era `server.js`. This entire money path was **orphaned by the Express→Netlify migration, not superseded** by the working care-plans.js flow. **Real user data hit this wall**: `maintenance_packages` has **30 rows spanning 2026-03-12 to 2026-07-04** (four months of members trying to buy packages that couldn't complete a real payment). Interim Batch 1 fix (2026-07-16): "+ New Package" CTA disabled + `openPackageModal` guarded — existing packages still display, new creation blocked. **Phase 1 decision needed:** migrate the escrow endpoints to Netlify (revives the flow) or retire members-packages entirely (30 orphaned rows need a data-plan; existing purchases had no payment settlement to reconcile).
+
 ## Phase 2 — Member portal walk (1–2 sessions)
 
 Every sidebar surface on `members.html` + satellite pages: vehicles, care plans (incl. AI-create when credits allow + manual path), maintenance packages, household, fleet, reminders, referrals, car clubs (done ✅), wallet, messages, service history, insurance/fuel tracker, settings, notifications, check-in QR. Per surface: loads? API exists? happy path completes? data persists and is re-readable? Console clean? Jordan drives with a per-surface checklist; Claude traces failures in code live (today's method).
@@ -74,6 +76,16 @@ Claude reads code and traces (direct repo access — no relayed reports); Claude
 6. **Phase 6 triage**, then the iOS build + resubmission off the cleaned tree.
 
 Rough total: **8–11 working sessions** (up from the original 7–10 to accommodate the 4a/4b split and the expanded Phase 5). Front-loaded so each session ships fixes, not just findings.
+
+### Batch 1 shipped 2026-07-16 (6 CRITICAL fixes from Phase 0 findings)
+
+- **#1 White-label tenant admin section** — hidden in `members.html` (`loadWlTenantPortal` early-return). 7 `/api/tenant/*` endpoints no longer called.
+- **#2 Fleet UI** — member-side hidden (`members.html` fleet nav commented + `loadFleetSubscription` early-return); `fleet-signup.html` rewired to existing `/api/waitlist/join` (source=`fleet_signup`) — public interest capture preserved, marketing page still functional.
+- **#3 Founder dashboard voids** — three sections gated in `founder-dashboard.js` (payout-receipt links disabled with "coming soon" tooltip; campaign-stats + campaign-link-stats short-circuited to the existing fallback). Not implemented — endpoints remain the CAR_CLUB_COMPLETION_PLAN §2a backlog.
+- **#4 Non-TOTP 2FA UI** — `load2FAStatus` early-return in `providers.js`; SMS-code 2FA settings card no longer renders. TOTP remains available server-side.
+- **#5 Package escrow purchase path** — "+ New Package" CTA disabled in `members.html`, `openPackageModal` guarded in `members-core.js`. Existing 30 packages still display. Full retire/migrate decision → Phase 1.
+- **#6 Privacy request** — `data-rights.html` submit rewired to `mailto:privacy@mycarconcierge.com` fallback (GDPR/CCPA channel preserved).
+- **SW cache bump**: `www/sw.js` v118 → v119 (STATIC_ASSETS files touched: members.html, members-core.js, founder-dashboard.js).
 
 ---
 
