@@ -2760,7 +2760,20 @@ function setupEventListeners() {
 }
 
 // ========== MODULE LOADER ==========
-const loadedModules = {};
+// Pre-seed with modules that members.html loads STATICALLY at page init —
+// loadModule() would otherwise re-inject the same file on section-switch,
+// causing SyntaxError on top-level `let` redeclarations (e.g. vehiclePhotos
+// in members-vehicles.js; same class as _mccLeafletPromise / currentEscrowElements
+// noted in plan §1 line 32 and §8 line 353). Vestigial injection path retained
+// as-is for future dynamic modules — pre-seed just short-circuits the ones
+// that are already loaded.
+const loadedModules = {
+  vehicles: true,
+  packages: true,
+  'care-plans': true,
+  settings: true,
+  extras: true,
+};
 const pendingModules = {};
 async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
