@@ -294,6 +294,32 @@ create table if not exists _rewrite_snapshots_YYYYMMDD as
 
 This rule applies to any bulk status/state overwrite regardless of scale — even the "just 30 rows" case that triggered it here would have benefited. If the UPDATE affects more than one row and overwrites a value the UI reads, this rule fires.
 
+### 📌 STANDING RULE — supabase-js chain additions must update the test mock in the same commit
+
+**Effective 2026-07-20, no exceptions.** Any commit that adds a new supabase-js chain method to a handler covered by a `netlify/functions-tests/*.test.js` file MUST also update that test file's mock Supabase chain builder to support the new method in the SAME commit. Missing this bricks the Netlify `npm test` deploy gate and blocks every subsequent push until repaired.
+
+**Common chain methods to check** — if the handler adds any of these after the mock's existing set, the mock needs a matching addition:
+
+| Chain method | Mock signature to add |
+|---|---|
+| `.in(col, arr)` | `filters.push(r => Array.isArray(arr) && arr.includes(r[col]))` |
+| `.or(query_string)` | parse the OR string or record it as passthrough — full support is tricky, minimum is not-throwing |
+| `.match(obj)` | `filters.push(r => Object.entries(obj).every(([k,v]) => r[k] === v))` |
+| `.overlaps(col, arr)` | `filters.push(r => Array.isArray(r[col]) && r[col].some(v => arr.includes(v)))` |
+| `.contains(col, arr)` | `filters.push(r => Array.isArray(r[col]) && arr.every(v => r[col].includes(v)))` |
+| `.filter(col, op, val)` | operator-switch (`eq/gt/gte/lt/lte/is/in/like`) — non-trivial, needs its own helper |
+| `.rpc(name, args)` | needs a top-level mock; register per-test handler via `opts.rpcs[name]` or fail fast |
+| `.select(...)` after `.update()` / `.insert()` | mock's `.select()` must return `b` (the chain) not the settled result — Phase 1b Finding #4 relied on this |
+| `.range(from, to)` / `.limit()` | filter-post-apply pagination; no-op mock is acceptable if tests don't assert pagination |
+
+**Why this rule.** The 2026-07-19/20 deploy jam illustrated the failure mode: commit `480e7dd` added `.in('status', ['pending', 'failed'])` to `admin-founders.js`'s atomic claim. Prod code was correct. The mock in `founding-commission.test.js` didn't implement `.in()`, so `npm test` failed with `supabase.from(...).update(...).eq(...).in is not a function`. Netlify's post-push test gate blocked the deploy, and 3 subsequent commits queued behind it, none reaching the edge until `dd1adb0` added the one-line mock fix. **Diagnostic evidence:** `sw.js` CDN `age: 8291s` (2.3h) at the point of diagnosis — the edge hadn't been updated because no deploy since `480e7dd` had passed the test gate.
+
+**Cost of the rule.** One line per new chain method in the mock. The mock builder is small and centralized; additions mirror existing shapes.
+
+**Benefit.** Deploy-gate failures caught locally at commit time instead of surfacing as an invisible propagation stall. Every Netlify deploy since `480e7dd` was silently blocked; the poll `bffwo7pws` that eventually surfaced the stall wouldn't have been needed if this rule had been in effect during Phase 1b.
+
+**Detection.** Before pushing a change to any handler covered by `netlify/functions-tests/*.test.js`, run `npm test` locally. If a mock-chain error surfaces, the fix goes in the same commit as the code change — never as a follow-up. Local test is fast (`npm test` completes in ~30s on this repo); the discipline is trivial to adopt.
+
 ---
 
 ## Finding #8 — LOW · OPEN · Account deletion orphans `founder_payouts` rows
