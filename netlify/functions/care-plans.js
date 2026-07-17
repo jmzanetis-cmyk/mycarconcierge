@@ -320,6 +320,7 @@ async function handleAcceptBid(event, sb, user, planId) {
       p_member_id: user.id,
       p_care_plan_id: planId,
       p_credits_cents: creditsCents,
+      p_max_credit_cents: bidAmountCents,
     });
     if (rpcErr) return json(400, { error: rpcErr.message || 'Failed to apply credits' });
     appliedCreditsCents = (rpcData && rpcData[0]?.credit_applied_cents) || creditsCents;

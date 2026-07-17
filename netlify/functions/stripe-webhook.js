@@ -328,7 +328,17 @@ async function handlePaymentIntentSucceeded(pi, supabase) {
       p_stripe_payment_intent: pi.id,
       p_description:           'Wallet top-up via card',
     });
-    if (wErr) console.error('[stripe-webhook] wallet_load RPC error:', wErr.message);
+    if (wErr) {
+      // Idempotency: unique partial index wallet_ledger_load_ref_unique
+      // (migration 20260717b) turns webhook-redelivery double-load into a
+      // 23505 unique_violation. Treat as no-op — this PI was already
+      // credited on a prior delivery.
+      if (wErr.code === '23505' || wErr.message?.includes('wallet_ledger_load_ref_unique')) {
+        console.log('[stripe-webhook] wallet_load: duplicate PI', pi.id, '— already credited, no-op');
+      } else {
+        console.error('[stripe-webhook] wallet_load RPC error:', wErr.message);
+      }
+    }
     // TODO: audit when FEATURE_WALLET ships
     return;
   }
@@ -402,15 +412,28 @@ async function _grantPendingReferralCredits(memberId, supabase) {
 
     const now = new Date().toISOString();
 
-    // Mark credited first (idempotency anchor)
-    const { error: updateErr } = await supabase.from('referrals')
+    // Mark credited first (idempotency anchor). Finding #4 fix: append
+    // .select('id') so the update returns the actual rows changed, then
+    // verify count === 1. supabase-js .update().eq() returns success with
+    // 0 rows affected when the filter matches nothing, so the prior
+    // "if (updateErr)" check was illusory — concurrent webhook deliveries
+    // both passed it and double-granted member_credits. The DB backstop
+    // (migration 20260717c: unique member_credits(member_id, referral_id))
+    // catches any residual race even if this JS guard is bypassed.
+    const { data: updateData, error: updateErr } = await supabase.from('referrals')
       .update({ status: 'credited', credited_at: now })
       .eq('id', ref.id)
-      .eq('status', 'pending'); // guard against race
+      .eq('status', 'pending')
+      .select('id');
 
     if (updateErr) {
       if (updateErr.code === '23505' || updateErr.message?.includes('0 rows')) return;
       console.warn('[stripe-webhook] referral credit update error (non-fatal):', updateErr.message);
+      return;
+    }
+    if (!updateData || updateData.length !== 1) {
+      // Lost the race — another delivery already flipped this referral
+      // to credited. Do not proceed to insert member_credits.
       return;
     }
 
