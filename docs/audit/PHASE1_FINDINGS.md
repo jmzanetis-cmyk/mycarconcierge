@@ -13,10 +13,10 @@ Findings from the Phase 0 automated sweep that touched money paths are cross-ref
 | Severity | Count | Status |
 |---|---|---|
 | CRITICAL | 1 | 1 FIXED (Finding #1) |
-| HIGH | 2 | 2 FIXED — #2 APPLIED-IN-PROD 2026-07-17 (migration `20260717a`); #5 code deploy 2026-07-19, migration `20260719a` shipped as file only (pre-check found violator — see below) |
+| HIGH | 2 | 2 FIXED — #2 APPLIED-IN-PROD 2026-07-17 (migration `20260717a`); #5 APPLIED-IN-PROD 2026-07-19 (code + migration `20260719a` after violator dedup) |
 | MEDIUM-HIGH | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #4 — migration `20260717c`) |
-| MEDIUM | 2 | 2 FIXED — #3 APPLIED-IN-PROD 2026-07-17 (migration `20260717b`); #6 code deploy 2026-07-19, migration `20260719a` shipped as file only (same pre-check violator gates apply) |
-| LOW | 0 | — |
+| MEDIUM | 2 | 2 FIXED — #3 APPLIED-IN-PROD 2026-07-17 (migration `20260717b`); #6 APPLIED-IN-PROD 2026-07-19 (migration `20260719a` — both unique index + `apply_founder_payout_atomic` RPC verified) |
+| LOW | 1 | 1 open — Finding #8 (account-deletion orphans `founder_payouts` rows) — deferred to future account-deletion lifecycle audit |
 | CLEAN verdicts | 5 | wallet_spend, record_bid_pack_commission v2, driver-api cashout, tip status transitions, agent-fleet-admin (Phase 1b) |
 | Deferred to Phase 1b | 0 | All addressed: agent-fleet-admin now CLEAN (#7); admin-founders + monthly-scheduled fixed (#5/#6); package-escrow RETIRED (Part 3 below) |
 
@@ -176,7 +176,7 @@ Explicit deferral: these need their own careful pass beyond a standard money-pat
 
 ---
 
-## Finding #6 — MEDIUM · FIXED 2026-07-19 · `founder-payout-monthly-scheduled` non-atomic decrement + no idempotencyKey
+## Finding #6 — MEDIUM · APPLIED-IN-PROD 2026-07-19 · `founder-payout-monthly-scheduled` non-atomic decrement + no idempotencyKey
 
 **Symptom (theoretical):** cron re-run (manual, retry-after-failure, or DST/timing edge) creates a duplicate `founder_payouts` row for the same `(founder_id, payout_period)` before the check-then-insert dedupe catches it. Also: concurrent commission inserts during the same monthly-payout window silently overwrite the snapshot-based `pending_balance` decrement (classic lost update).
 
@@ -191,17 +191,25 @@ Explicit deferral: these need their own careful pass beyond a standard money-pat
 3. **Atomic decrement RPC** — new `apply_founder_payout_atomic(p_founder_id, p_amount)` (migration `20260719a` Part B). Single UPDATE with `GREATEST(0, pending_balance - $)` and `total_commissions_paid + $` in the SET clause. No snapshot read; concurrent commission inserts arriving in the same window can no longer overwrite the decrement.
 4. **Migration `20260719a`** — unique index on `founder_payouts(founder_id, payout_period)` + the RPC.
 
-**⚠️ Migration 20260719a NOT applied to prod 2026-07-19 — pre-check found violator:**
+**✅ Migration 20260719a APPLIED TO PROD 2026-07-19 via Supabase MCP** — after resolving the pre-check violator.
 
+**Pre-check violator (resolved):**
 ```
 founder_id          | payout_period | dup_count
 --------------------+---------------+----------
 331d73c1-...-e456a1 | 2026-02       |         3
 ```
 
-`CREATE UNIQUE INDEX` would fail on existing duplicates. Manual dedup required first: pick the canonical row for that `(founder, 2026-02)` tuple (most likely the most-recently-completed or the one whose `stripe_transfer_id` matches an actual Stripe transfer), delete the other two, then apply the migration. Migration file shipped with a WARNING comment documenting the violator.
+Investigation (2026-07-19) — the 3 rows were all `$75.00 pending weekly` with `stripe_transfer_id=NULL` and `processed_at=NULL`. **Zero money moved.** Rows 2 and 3 were created 112ms apart on 2026-02-05 01:58:12 — classic **Finding #5 race artifact observed in prod data from Feb 2026**, before this batch's atomic-claim fix landed. The `founder_id` also has no corresponding `profiles` row — **ghost founder**, likely a deleted account leaving orphaned payout rows behind (fold into Finding #8 below).
 
-Code fixes ship regardless — they use the RPC (which is created only when the migration lands) and rely on the unique index for the 23505 backstop (soft-guard check-then-insert still fires as the fast path until the index is in place, so the failure mode is "same race window as before" not "worse than before"). Once the violator is deduped and the migration applies, the backstop activates automatically.
+**Resolution:** all 3 rows DELETEd (no money to reconcile, no user impact). Migration 20260719a applied cleanly against empty state, then verified:
+
+- **Unique index** — `pg_indexes`: `CREATE UNIQUE INDEX founder_payouts_founder_period_unique ON public.founder_payouts USING btree (founder_id, payout_period)`.
+- **Atomic RPC** — `pg_proc`: `apply_founder_payout_atomic(p_founder_id uuid, p_amount numeric)` with `security_definer = true`.
+
+Applied 15 days ahead of the 2026-08-01 cron fire — the RPC-dependency window (code deploy references an RPC that didn't exist yet) is now closed. The full guard is live: soft-guard check-then-insert as fast path, 23505 backstop from the unique index, atomic decrement via the RPC, idempotencyKey on the Stripe transfer.
+
+**Bonus observation — the entire `founder_payouts` table had exactly 3 rows EVER before this dedupe.** All 3 were phantom-race artifacts from admin-founders (defaults `payout_type='weekly'` at `:82`/`:171`); `founder-payout-monthly-scheduled` has never inserted a row in prod. The monthly cron has been running fine since Feb 2026 but has never found a founder crossing the payout threshold. Post-dedupe: table is at zero. **The founder payout pipeline has never executed a real payout in prod.** No pilot money has flowed through this path yet — Chris's Alpha commissions will be its first real test.
 
 ---
 
@@ -235,3 +243,21 @@ Both files verified behind `authenticateBearerAdmin` (top of `admin-founders.js`
 - `www/stripeutils.js` escrow functions (`createEscrowPayment`, `confirmEscrow`, `releaseEscrow`, `refundEscrow`) — ~90 lines starting around :96.
 - `www/members-packages.js` purchase path calling `createEscrowPayment` at :3964.
 - Retire in a follow-up "dead-code sweep" commit alongside the Phase 6 triage.
+
+---
+
+## Finding #8 — LOW · OPEN · Account deletion orphans `founder_payouts` rows
+
+**Surfaced 2026-07-19** during Finding #6 pre-check violator investigation. The 3 duplicate rows for `founder_id = 331d73c1-2787-4c38-b701-58c300e456a1` had no corresponding `profiles` row — the founder account was deleted at some point, but the `founder_payouts` rows remained.
+
+**Root cause:** `netlify/functions/account-deletion-core.js` doesn't touch `founder_payouts`. The FK `founder_payouts.founder_id → auth.users(id)` may exist but without `ON DELETE CASCADE` or explicit handling in the deletion pipeline, deleted-user payout rows accumulate. Class matches the pre-`cc80b81` / pre-`18a7bfd` Car Club gap (BUG-01 in `CAR_CLUB_COMPLETION_PLAN.md` §1a) — new tables shipped without matching entries in the deletion pipeline.
+
+**Blast radius:** currently near-zero. `founder_payouts` had exactly 3 rows in prod ever (all now deleted). Orphaned rows would grow only as (a) more founders are onboarded, and (b) some subset of them delete their accounts. Not urgent at pilot scale; would be material at scale.
+
+**Fix (proposed, deferred):** two-part, cheap:
+1. Add `founder_payouts` DELETE to the account-deletion pipeline in `account-deletion-core.js` (matches the pattern for the 6 Car Club tables already fixed in `18a7bfd`).
+2. Audit the whole `founder_*` table family (`founder_commissions`, `founder_deals`, `founder_invites`, `founder_referrals`, `member_founder_profiles`, `commission_rate_history`, `milestone_achievements`) for the same gap. Likely all of them.
+
+**Deferred to:** future account-deletion lifecycle audit (Phase 4a admin security area or a standalone audit). Not blocking; not Phase 1 money-path scope beyond flagging the class here.
+
+**Historical evidence discovered simultaneously — the founder payout pipeline has NEVER executed a real payout in prod.** `founder_payouts` had 3 total rows ever (all admin-founders phantom-race artifacts from Feb 2026, deleted 2026-07-19). `founder-payout-monthly-scheduled` has never inserted a row. First real payout will be Chris's Alpha commissions when they cross the threshold — this Phase 1b fix batch (Findings #5/#6) hardens the entire pipeline before that first real event.
