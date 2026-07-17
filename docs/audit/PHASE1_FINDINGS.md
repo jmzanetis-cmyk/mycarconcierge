@@ -14,8 +14,11 @@ Findings from the Phase 0 automated sweep that touched money paths are cross-ref
 |---|---|---|
 | CRITICAL | 1 | 1 fixed (Finding #1) |
 | HIGH | 1 | latent — Finding #2 unfixed |
+| MEDIUM-HIGH | 1 | latent — Finding #4 unfixed |
 | MEDIUM | 1 | dark-feature — Finding #3 unfixed |
 | LOW | 0 | — |
+| CLEAN verdicts | 4 | wallet_spend, record_bid_pack_commission v2, driver-api cashout, tip status transitions |
+| Deferred to Phase 1b | 4 | agent-initiated money movement (3) + package-escrow retire ruling (1) |
 
 ---
 
@@ -95,3 +98,48 @@ Partial (WHERE) so it doesn't collide with `spend` entries that may not have a r
 **Blast radius:** any wallet-load PI whose webhook gets redelivered. Stripe's own retry behavior means this happens on our 5xx or on any temporary DB error at the gate. Not observed in prod (no reports of double-credited wallets), but the gate design guarantees this will fire eventually.
 
 **Follow-up:** ship the migration + the 23505 catch in the next money-path batch. Simpler fix than Finding #2 (single migration, single catch block).
+
+---
+
+## Finding #4 — MEDIUM-HIGH · LATENT (unfixed) · `_grantPendingReferralCredits` race guard is illusory
+
+**Symptom (theoretical, not yet observed in prod):** on concurrent Stripe webhook deliveries for the SAME member's first care-plan payment, both invocations proceed to grant `member_credits` to referrer + referred — double-crediting both parties.
+
+**Root cause:** `_grantPendingReferralCredits` in `netlify/functions/stripe-webhook.js` uses a `.update({status:'credited'}).eq('id', ref.id).eq('status', 'pending')` pattern as its race guard, then checks `updateErr` to decide whether to proceed. The check assumes a "0 rows affected" scenario returns an error — but `.update(...).eq(...)` in supabase-js returns success (no error) even when zero rows match the filter. The `updateErr` guard therefore never fires, and both concurrent invocations pass the "we won the race" branch → both insert the two credit rows → each party gets 2× credited.
+
+**Blast radius:** every referral where the referred member's first care-plan payment triggers webhook redelivery (Stripe 5xx retry, timeout, manual replay from dashboard). Low observed volume today (pilot flow hasn't exercised referrals × card payments), but the same class as Finding #3: fail-open gate + non-idempotent downstream = eventual double-credit.
+
+**Fix (proposed, not yet shipped):** two-part defense-in-depth:
+1. Append `.select('id')` to the update and verify row count in JS. `.update(...).eq(...).select('id')` returns the actual rows changed; length 0 → we lost the race → return early. This is the correct idiom for the "did I win the race" check.
+2. Unique constraint `member_credits(referral_id, type)` as backstop — even if the JS-level check has a bug, the DB rejects the duplicate insert with a 23505 that the handler catches as no-op. Same shape as Finding #3's proposed wallet_ledger idempotency, applied to member_credits.
+
+**Cross-reference:** third case of the same class today — Finding #3 (wallet_load), Finding #4 (referral credits), both are "webhook redelivery + non-idempotent write." Worth a batch fix: audit every webhook-handler write path for the pattern "checks an error field that supabase doesn't populate for zero-rows" AND "no unique constraint as backstop." Two known instances suggest more.
+
+**Follow-up:** batch with Finding #3 in the next money-path commit (both are "add unique + catch 23505" shape, tiny code delta).
+
+---
+
+## Clean verdicts — audited, no findings
+
+Money paths walked in this pass and cleared. Documenting explicitly so re-audits don't re-inspect them without new signal.
+
+- **`wallet_spend`** — `SELECT ... FOR UPDATE` on the wallet row + FIFO consumption of `wallet_bonus_lots` inside the same transaction + explicit balance guards before any INSERT. No double-spend surface under concurrent calls. Only the LOAD path (Finding #3) is the gap.
+- **`record_bid_pack_commission` v2** — the founder-commission RPC hit on bid-pack purchases. Correctly resolves `referred_by_founder_id`, joins `member_founder_profiles` for rate + duration, inserts the commission row with source_ref = PI id. Idempotent via unique constraint on `founder_commissions(source_ref)`. No cap-check or NULL-comparison antipatterns.
+- **`driver-api` cashout flow** — **exemplary. The reservation + rollback + `idempotencyKey` pattern here is worth copying to other transfer/payout paths across the codebase.** Reserves the payout amount from driver's earnings ledger in a transaction, calls Stripe with an idempotency key derived from the cashout row id, and either commits on Stripe success OR rolls back the reservation on Stripe failure. No double-payout under retry, no orphaned reservations under crash. **Suggested cross-audit target:** compare this pattern against `founder-payout-monthly-scheduled` and admin-founders transfers (both deferred to 1b below) — if those don't use the same shape, they should.
+- **Tip status transitions** — `driver_tips` state machine (`pending → captured → paid_out` and refund/dispute branches). Guards are correct; transitions go through the tip-settlement RPC which uses row locks and rejects out-of-order transitions.
+
+---
+
+## Deferred to Phase 1b — agent-initiated money movement + package-escrow ruling
+
+Explicit deferral: these need their own careful pass beyond a standard money-path walk. Agent-initiated transfers (where a scheduled function or admin RPC moves money without a member action) have different failure modes and different attack surfaces than user-initiated payments — worth isolating.
+
+1. **`founder-payout-monthly-scheduled.js`** — the monthly cron that pays founders their earned commissions. Needs: idempotency check against `founder_payouts` for the (founder_id, month) tuple, Stripe transfer with idempotency key, reservation-and-rollback shape (per the driver-api template above), audit of what happens if the cron runs twice in the same minute. Not exercised in pilot yet (Chris hasn't earned enough for a payout).
+2. **`admin-founders` transfers** — admin-initiated one-off founder payouts (out-of-band from the monthly cron). Same class as #1 but human-triggered. Also needs an admin_audit_log entry per transfer.
+3. **`agent-fleet-admin` transfers** — where the agent fleet moves credits/reserves on behalf of admin decisions. Read-audit hasn't happened yet; even flagging this as a money path is provisional pending the code-trace.
+
+**Package-escrow ruling:** RETIRE (recommendation, needs Jordan sign-off).
+- Superseded by the care-plan escrow flow (which now works after Finding #1's reconcile fix).
+- 30 stranded `maintenance_packages` rows exist (per the 2026-07-16 investigation logged in `CAR_CLUB_COMPLETION_PLAN.md` §5 area) — four months of members trying to buy packages that couldn't complete a real payment. **Needs a member-comms decision** before deletion: refund message? apology + credits? silent purge? The rows have no payment settlement to reconcile (no money moved either direction), so the choice is entirely about member experience, not accounting.
+- Interim: purchase path already hidden per Batch 1 fix #5 (`members-core.js:3081` `openPackageModal` guarded). Existing packages still display. No new stranded rows can accumulate.
+- Deferral is intentional: retirement is a product decision, not a code fix.
