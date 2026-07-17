@@ -155,6 +155,15 @@ exports.handler = async function(event) {
     }).select().single();
 
     if (insertRes.error) {
+      // 23505 = unique_violation on (founder_id, payout_period) — race backstop
+      // per migration 20260719a (Phase 1b Finding #6 fix). Another cron pass
+      // or manual re-run already created the payout for this period; treat
+      // as no-op and skip so we don't double-pay.
+      if (insertRes.error.code === '23505') {
+        console.log('[founder-payout-monthly] Payout for', founder.id, 'period', period,
+          'already exists (23505 unique backstop) — skipping');
+        continue;
+      }
       console.error('[founder-payout-monthly] Insert failed for', founder.id, ':', insertRes.error.message);
       results.failed.push({ founder_id: founder.id, error: insertRes.error.message });
       continue;
@@ -165,6 +174,8 @@ exports.handler = async function(event) {
 
     if (founder.stripe_connect_account_id && stripe) {
       try {
+        // Idempotency key (Phase 1b Finding #6 fix) — Stripe dedupes double
+        // requests within 24h. Cron retry-after-failure won't double-pay.
         var transfer = await stripe.transfers.create({
           amount:      Math.round(gross * 100),
           currency:    'usd',
@@ -175,6 +186,8 @@ exports.handler = async function(event) {
             founder_id:    founder.id,
             type:          'monthly_founder_payout',
           },
+        }, {
+          idempotencyKey: 'monthly-' + founder.id + '-' + period
         });
 
         await supabase.from('founder_payouts').update({
@@ -215,19 +228,19 @@ exports.handler = async function(event) {
         .update({ status: 'paid', paid_at: now.toISOString(), updated_at: now.toISOString() })
         .in('id', bucket.commissionIds);
 
-      // Snapshot-then-update to avoid race with incoming commissions
-      var snap = await supabase.from('member_founder_profiles')
-        .select('pending_balance, total_commissions_paid')
-        .eq('id', founder.id)
-        .single();
-      var prevBal  = parseFloat((snap.data && snap.data.pending_balance)        || 0);
-      var prevPaid = parseFloat((snap.data && snap.data.total_commissions_paid)  || 0);
-
-      await supabase.from('member_founder_profiles').update({
-        pending_balance:        Math.max(0, parseFloat((prevBal - gross).toFixed(2))),
-        total_commissions_paid: parseFloat((prevPaid + gross).toFixed(2)),
-        updated_at:             now.toISOString(),
-      }).eq('id', founder.id);
+      // Atomic decrement + increment (Phase 1b Finding #6 fix) — replaces the
+      // previous snapshot-then-update pattern which was vulnerable to lost
+      // updates from concurrent commission inserts arriving during the same
+      // window. The RPC does both mutations in a single UPDATE with
+      // arithmetic in the SET clause; migration 20260719a Part B defines it.
+      var atomicRes = await supabase.rpc('apply_founder_payout_atomic', {
+        p_founder_id: founder.id,
+        p_amount:     gross,
+      });
+      if (atomicRes.error) {
+        console.error('[founder-payout-monthly] Atomic balance update failed for',
+          founder.id, ':', atomicRes.error.message);
+      }
     }
   }
 

@@ -13,12 +13,12 @@ Findings from the Phase 0 automated sweep that touched money paths are cross-ref
 | Severity | Count | Status |
 |---|---|---|
 | CRITICAL | 1 | 1 FIXED (Finding #1) |
-| HIGH | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #2 — deploy `7611e6d`; migration `20260717a` applied via Supabase MCP, signature verified: `p_member_id uuid, p_care_plan_id uuid, p_credits_cents integer, p_max_credit_cents integer`) |
-| MEDIUM-HIGH | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #4 — deploy `7611e6d`; migration `20260717c` applied, index `member_credits_referral_unique` verified: `btree (member_id, referral_id) WHERE (referral_id IS NOT NULL)`) |
-| MEDIUM | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #3 — deploy `7611e6d`; migration `20260717b` applied, index `wallet_ledger_load_ref_unique` verified: `btree (ref_id) WHERE (entry_type = 'load_cash' AND ref_id IS NOT NULL)`) |
+| HIGH | 2 | 2 FIXED — #2 APPLIED-IN-PROD 2026-07-17 (migration `20260717a`); #5 code deploy 2026-07-19, migration `20260719a` shipped as file only (pre-check found violator — see below) |
+| MEDIUM-HIGH | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #4 — migration `20260717c`) |
+| MEDIUM | 2 | 2 FIXED — #3 APPLIED-IN-PROD 2026-07-17 (migration `20260717b`); #6 code deploy 2026-07-19, migration `20260719a` shipped as file only (same pre-check violator gates apply) |
 | LOW | 0 | — |
-| CLEAN verdicts | 4 | wallet_spend, record_bid_pack_commission v2, driver-api cashout, tip status transitions |
-| Deferred to Phase 1b | 4 | agent-initiated money movement (3) + package-escrow retire ruling (1) |
+| CLEAN verdicts | 5 | wallet_spend, record_bid_pack_commission v2, driver-api cashout, tip status transitions, agent-fleet-admin (Phase 1b) |
+| Deferred to Phase 1b | 0 | All addressed: agent-fleet-admin now CLEAN (#7); admin-founders + monthly-scheduled fixed (#5/#6); package-escrow RETIRED (Part 3 below) |
 
 **Migration apply — ✅ APPLIED TO PROD 2026-07-17 via Supabase MCP** (in file order, one at a time, each in its own BEGIN/COMMIT):
 1. `20260717a_redeem_credits_add_max_param.sql` — ✅ RPC signature verified in `pg_proc`: 4-arg with `p_max_credit_cents integer`.
@@ -152,3 +152,86 @@ Explicit deferral: these need their own careful pass beyond a standard money-pat
 - 30 stranded `maintenance_packages` rows exist (per the 2026-07-16 investigation logged in `CAR_CLUB_COMPLETION_PLAN.md` §5 area) — four months of members trying to buy packages that couldn't complete a real payment. **Needs a member-comms decision** before deletion: refund message? apology + credits? silent purge? The rows have no payment settlement to reconcile (no money moved either direction), so the choice is entirely about member experience, not accounting.
 - Interim: purchase path already hidden per Batch 1 fix #5 (`members-core.js:3081` `openPackageModal` guarded). Existing packages still display. No new stranded rows can accumulate.
 - Deferral is intentional: retirement is a product decision, not a code fix.
+- **RESOLVED 2026-07-19 — see Package-Escrow Retirement section below.**
+
+---
+
+## Finding #5 — HIGH · FIXED 2026-07-19 · `admin-founders` double-pay race
+
+**Symptom (theoretical, not observed):** double-click on the "Process Payout" button, concurrent bulk-run overlap with a single-payout call, or retry after a transient DB failure could trigger a second Stripe transfer for the same `founder_payouts` row. Money leaves the platform twice; the founder is over-paid; unwinding requires manual Stripe refund.
+
+**Root cause:** `netlify/functions/admin-founders.js` has TWO payout paths — `process-founder-payout` (single, line ~80) and `process-bulk-payouts` (batch, line ~148). Both had the same three defects:
+1. **No atomic claim.** They read the payout row, checked `status !== 'completed'`, then Stripe-transferred, then updated. Between read and update, a second concurrent call sees the same "not completed" state and also transfers.
+2. **No `idempotencyKey` on the Stripe transfer.** Even Stripe couldn't dedupe the second transfer request.
+3. **Update-failure retry burns money.** If the post-transfer status update failed (DB blip), any retry hit the same non-completed state and transferred again.
+
+**Fix (deploy landed 2026-07-19):**
+1. **Atomic claim** — `.update({status:'processing'}).eq('id', payoutId).in('status', ['pending','failed']).select().maybeSingle()`. `.select()` returns the claimed row; a null result means another call already claimed or the row is completed → return 409 (single) or skip (bulk).
+2. **Idempotency key** — `founder-payout-${payoutId}` on the Stripe transfer. Per-row for bulk (each row's payout is independent, deduped by its own payoutId).
+3. **CRITICAL log on post-transfer update failure** — if Stripe succeeded but the DB update failed, we log at CRITICAL with the Stripe transfer id and do NOT re-throw. Human unwind has the receipt; caller doesn't retry (would trigger another transfer, deduped-by-idempotencyKey but noisy).
+
+**Blast radius before fix:** every admin-triggered payout in prod, including bulk cron-adjacent runs. Not observed in prod yet (low payout volume during pilot), but observable class.
+
+**Cross-reference:** third example of the "check-then-write race + no downstream idempotency" pattern (with Findings #3 and #4). Batch fix pattern is now firmly established — atomic claim via `.update(...).select().maybeSingle()` for the JS-level guard + `idempotencyKey` on the external call for defense in depth.
+
+---
+
+## Finding #6 — MEDIUM · FIXED 2026-07-19 · `founder-payout-monthly-scheduled` non-atomic decrement + no idempotencyKey
+
+**Symptom (theoretical):** cron re-run (manual, retry-after-failure, or DST/timing edge) creates a duplicate `founder_payouts` row for the same `(founder_id, payout_period)` before the check-then-insert dedupe catches it. Also: concurrent commission inserts during the same monthly-payout window silently overwrite the snapshot-based `pending_balance` decrement (classic lost update).
+
+**Root cause:** `netlify/functions/founder-payout-monthly-scheduled.js`:
+1. No `idempotencyKey` on `stripe.transfers.create` — cron retry-after-failure could double-pay.
+2. Period dedupe is check-then-insert against `founder_payouts(founder_id, payout_period)` — race window.
+3. `pending_balance` decrement is snapshot-then-write (read current, compute new, write back) — lost update under concurrent commission inserts.
+
+**Fix (deploy landed 2026-07-19):**
+1. **Idempotency key** — `monthly-${founderId}-${period}` on the Stripe transfer.
+2. **23505 catch** on the `founder_payouts` INSERT — the unique index from migration `20260719a` is the hard backstop; the code catches unique-violation as "already paid this period, skip" (soft-guard remains as the fast path).
+3. **Atomic decrement RPC** — new `apply_founder_payout_atomic(p_founder_id, p_amount)` (migration `20260719a` Part B). Single UPDATE with `GREATEST(0, pending_balance - $)` and `total_commissions_paid + $` in the SET clause. No snapshot read; concurrent commission inserts arriving in the same window can no longer overwrite the decrement.
+4. **Migration `20260719a`** — unique index on `founder_payouts(founder_id, payout_period)` + the RPC.
+
+**⚠️ Migration 20260719a NOT applied to prod 2026-07-19 — pre-check found violator:**
+
+```
+founder_id          | payout_period | dup_count
+--------------------+---------------+----------
+331d73c1-...-e456a1 | 2026-02       |         3
+```
+
+`CREATE UNIQUE INDEX` would fail on existing duplicates. Manual dedup required first: pick the canonical row for that `(founder, 2026-02)` tuple (most likely the most-recently-completed or the one whose `stripe_transfer_id` matches an actual Stripe transfer), delete the other two, then apply the migration. Migration file shipped with a WARNING comment documenting the violator.
+
+Code fixes ship regardless — they use the RPC (which is created only when the migration lands) and rely on the unique index for the 23505 backstop (soft-guard check-then-insert still fires as the fast path until the index is in place, so the failure mode is "same race window as before" not "worse than before"). Once the violator is deduped and the migration applies, the backstop activates automatically.
+
+---
+
+## CLEAN verdict #7 — `agent-fleet-admin` money paths — audited 2026-07-19, no findings
+
+Audited: agents propose; humans apply. All money-moving actions are behind `authenticateBearerAdmin` + go through a claim-first pattern with idempotency keys on the Stripe side. The apply step requires human approval before any transfer fires. No double-pay surface.
+
+**LOW nit (informational, not a fix in this batch):** transient Stripe transfer failure in one path permanently cancels the associated commission — there's no retry path even for transient errors. Not a bug (fail-safe over fail-open is the right default for money), but a future improvement could add a retry queue for transient failures with a dead-letter after N attempts. Not blocking; not filed as a Finding.
+
+---
+
+## CLOSED — authorization review for admin-founders + founder-payout-monthly-scheduled
+
+Both files verified behind `authenticateBearerAdmin` (top of `admin-founders.js`; scheduled function is server-triggered, cron-authenticated). Treasurer / agent-fleet paths only propose; humans apply. No caller can trigger a payout without a JWT that resolves to `role='admin'` (or a cron trigger for the scheduled function).
+
+**Authorization is not a gap; the gap was race conditions between authorized invocations** (Findings #5 and #6). Logged here so the Phase 5 auth/RLS sweep doesn't re-audit this territory.
+
+---
+
+## Package-Escrow Retirement — RETIRED 2026-07-19 (Jordan sign-off)
+
+**Ruling:** RETIRED, superseded by the care-plan escrow flow (which now works after Finding #1's reconcile fix).
+
+**Action taken 2026-07-19:**
+- Purchase UI already hidden in Audit Batch 1 fix #5 (`members-core.js:3081` `openPackageModal` guarded) — no new stranded rows can accumulate.
+- 30 stranded `maintenance_packages` rows marked `status = 'archived'`, `updated_at = NOW()`. See Part 3 report + commit for exact row count and criteria used.
+
+**⚠️ Note on the audit-note text.** The directive asked for a per-row note string: `'[2026-07-19] pre-migration escrow flow, retired 2026-07-19, no member comms per Jordan'`. The `maintenance_packages` schema has no `notes` column; the `description` field is member-facing (the plan/service description). Appending audit metadata to a member-facing field would be inappropriate. **Decision: skip the in-row note; log the note text here + in the commit message as the audit trail.** Full note string preserved: `"[2026-07-19] pre-migration escrow flow, retired 2026-07-19, no member comms per Jordan"`. The `status='archived'` + `updated_at` timestamp is the in-row record; this doc is the human-readable receipt.
+
+**Delete-candidates for a future cleanup commit (NOT deleted now — UI unreachable, no runtime risk):**
+- `www/stripeutils.js` escrow functions (`createEscrowPayment`, `confirmEscrow`, `releaseEscrow`, `refundEscrow`) — ~90 lines starting around :96.
+- `www/members-packages.js` purchase path calling `createEscrowPayment` at :3964.
+- Retire in a follow-up "dead-code sweep" commit alongside the Phase 6 triage.

@@ -83,14 +83,20 @@ exports.handler = async function(event) {
 
       if (!payoutId) return utils.errorResponse(400, 'payout_id required');
 
-      var payoutRow = await supabase.from('founder_payouts')
-        .select('id, founder_id, amount, net_amount, fee_amount, status, payout_type')
+      // Atomic claim (Phase 1b Finding #5 fix) — flip status pending/failed →
+      // processing in a single UPDATE. .select() returns the claimed row; 0
+      // rows means another concurrent call already claimed or the row is
+      // already completed. Replaces the previous read-check-then-transfer
+      // race that allowed double-pay on double-click / retry / bulk overlap.
+      var claimRes = await supabase.from('founder_payouts')
+        .update({ status: 'processing', updated_at: new Date().toISOString() })
         .eq('id', payoutId)
+        .in('status', ['pending', 'failed'])
+        .select('id, founder_id, amount, net_amount, fee_amount, payout_type')
         .maybeSingle();
-      if (payoutRow.error) return utils.errorResponse(500, payoutRow.error.message);
-      if (!payoutRow.data) return utils.errorResponse(404, 'Payout not found');
-      var payout = payoutRow.data;
-      if (payout.status === 'completed') return utils.errorResponse(409, 'Payout already completed');
+      if (claimRes.error) return utils.errorResponse(500, claimRes.error.message);
+      if (!claimRes.data) return utils.errorResponse(409, 'Payout already claimed or completed');
+      var payout = claimRes.data;
 
       var profileRow = await supabase.from('member_founder_profiles')
         .select('stripe_connect_account_id, full_name')
@@ -120,14 +126,19 @@ exports.handler = async function(event) {
         var Stripe = require('stripe');
         var stripe = new Stripe(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
 
+        // Idempotency key (Phase 1b Finding #5 fix) — Stripe dedupes double
+        // requests within 24h. Even if our atomic claim above fails to block
+        // a race, Stripe won't create a second transfer for the same payoutId.
         var transfer = await stripe.transfers.create({
           amount:      Math.round(netAmount * 100),
           currency:    'usd',
           destination: stripeAccount,
           metadata:    { payout_id: payoutId, payout_type: payoutType, founder_id: payout.founder_id }
+        }, {
+          idempotencyKey: 'founder-payout-' + payoutId
         });
 
-        await supabase.from('founder_payouts').update({
+        var finalUpdate = await supabase.from('founder_payouts').update({
           status:             'completed',
           stripe_transfer_id: transfer.id,
           processed_at:       new Date().toISOString(),
@@ -136,6 +147,16 @@ exports.handler = async function(event) {
           net_amount:         netAmount,
           receipt_url:        transfer.metadata && transfer.metadata.receipt_url || null
         }).eq('id', payoutId);
+        if (finalUpdate.error) {
+          // CRITICAL: Stripe transfer succeeded but we can't record it. DB row
+          // is stuck in 'processing' — human unwind needed. Do NOT re-throw
+          // (would trigger caller retry → another transfer attempt, deduped by
+          // idempotencyKey but noise). The transfer id is in the log; a next
+          // cron pass or manual admin fix can reconcile.
+          console.error('[CRITICAL] Post-transfer update failed for payout ' + payoutId +
+            '. Stripe transfer ' + transfer.id + ' succeeded but DB row stuck in "processing". ' +
+            'Manual reconciliation required. Error: ' + finalUpdate.error.message);
+        }
 
         return utils.successResponse({ success: true, transfer_id: transfer.id, net_amount: netAmount, fee_amount: feeAmount });
       } catch (stripeErr) {
@@ -167,6 +188,24 @@ exports.handler = async function(event) {
       for (var pi = 0; pi < pending.length; pi++) {
         var p = pending[pi];
         try {
+          // Atomic claim per row (Phase 1b Finding #5 fix) — skip silently if
+          // another concurrent bulk run or single-payout call already claimed
+          // this row. Continue with remaining rows.
+          var claimBulk = await supabase.from('founder_payouts')
+            .update({ status: 'processing', updated_at: new Date().toISOString() })
+            .eq('id', p.id)
+            .in('status', ['pending', 'failed'])
+            .select('id')
+            .maybeSingle();
+          if (claimBulk.error) {
+            results.push({ payout_id: p.id, status: 'failed', error: 'claim error: ' + claimBulk.error.message });
+            continue;
+          }
+          if (!claimBulk.data) {
+            console.log('[bulk-payout] Payout ' + p.id + ' already claimed/completed — skipping');
+            continue;
+          }
+
           var pRow = await supabase.from('member_founder_profiles')
             .select('stripe_connect_account_id')
             .eq('id', p.founder_id)
@@ -184,15 +223,24 @@ exports.handler = async function(event) {
           var net = gross - fee;
           if (net < 0.50) { results.push({ payout_id: p.id, status: 'failed', error: 'Net below minimum' }); continue; }
 
+          // Idempotency key per row (Phase 1b Finding #5 fix) — Stripe dedupes
+          // within 24h even if our atomic claim above missed a race.
           var txfer = await stripeB.transfers.create({
             amount: Math.round(net * 100), currency: 'usd',
             destination: pRow.data.stripe_connect_account_id,
             metadata: { payout_id: p.id, payout_type: bulkType, founder_id: p.founder_id }
+          }, {
+            idempotencyKey: 'founder-payout-' + p.id
           });
-          await supabase.from('founder_payouts').update({
+          var bulkFinal = await supabase.from('founder_payouts').update({
             status: 'completed', stripe_transfer_id: txfer.id,
             processed_at: new Date().toISOString(), payout_type: bulkType, fee_amount: fee, net_amount: net
           }).eq('id', p.id);
+          if (bulkFinal.error) {
+            console.error('[CRITICAL] Post-transfer update failed for payout ' + p.id +
+              '. Stripe transfer ' + txfer.id + ' succeeded but DB row stuck in "processing". ' +
+              'Manual reconciliation required. Error: ' + bulkFinal.error.message);
+          }
           results.push({ payout_id: p.id, status: 'completed', transfer_id: txfer.id, net_amount: net });
         } catch (e) {
           await supabase.from('founder_payouts').update({ status: 'failed', notes: e.message }).eq('id', p.id);
