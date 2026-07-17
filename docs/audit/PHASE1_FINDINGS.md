@@ -244,6 +244,56 @@ Both files verified behind `authenticateBearerAdmin` (top of `admin-founders.js`
 - `www/members-packages.js` purchase path calling `createEscrowPayment` at :3964.
 - Retire in a follow-up "dead-code sweep" commit alongside the Phase 6 triage.
 
+### 🔻 REGRESSION + RECOVERY 2026-07-20 · Archive overreach on member-visible history
+
+**The 2026-07-19 archive overreached.** The `UPDATE maintenance_packages SET status='archived' WHERE status != 'archived'` from commit `ff31cad` swept ALL 30 rows into `status='archived'`, overwriting the pre-archive statuses (and `updated_at`) with no in-row backup. The intent was to close off the retired escrow flow; the effect was to erase member-visible package history because the client render (`renderPackages` at `www/members-packages.js:665-667`) filters by status buckets (`open`, `pending`, `accepted`, `in_progress`, `completed`) and `archived` is not in any bucket.
+
+**What went wrong (root cause):**
+- Blanket `WHERE status != 'archived'` swept every row into one bucket regardless of prior state.
+- No `status_prev` / notes column captured the old value, so a straight-forward SQL rollback was impossible without a backup source.
+- Prior recon captured the aggregate (30 archived) but not per-row before/after.
+
+**Recovery (this commit, 2026-07-20):**
+- **Aggregate:** 12 rows had `accepted_bid_id IS NOT NULL` → restored to `status='accepted'`. 18 rows had `accepted_bid_id IS NULL` → stay `archived` (these are the genuinely-stuck never-accepted rows, matching the original retirement intent).
+- **Heuristic basis:** all 30 rows had `payment_count = 0`, `work_started_at = NULL`, `work_completed_at = NULL`, `checked_in_at = NULL`. Nothing ever entered work. So the pre-archive statuses were exclusively `open` (no accepted bid) or `accepted` (bid picked, escrow never fired). `accepted_bid_id IS NOT NULL` cleanly separates the two.
+- **Jordan's 3 rows verified:** `bd8eefbd-…` [SMOKE TEST] Custody 6D → restored to `accepted`; `0226e339-…` Squeaking Brakes + `553e89d9-…` Engine noise diagnosis → stay `archived` (never bid).
+- **Sample member verified:** `d39dd92e-…` had 4 rows, all `accepted_bid_id=NULL`, all stayed `archived` — no restoration needed (entire history was open plans).
+
+**Regression side effect: restored 'accepted' rows would have re-exposed the retired escrow flow's UI.** `renderEscrowPaymentSection` at `members-packages.js:3420-3693` (pre-fix) rendered a **full payment-authorization form for every `accepted`-with-no-payment package** — Apple Pay + Google Pay + Stripe card element + `authorizeEscrowPayment` button + Split Payment button. All CTAs targeted the retired `/api/escrow/*` endpoints. **Gated in this commit:** replaced the awaiting-payment branch with a "Package purchases are being migrated — accepted bid preserved — contact support" info card (matches Batch 1's `openPackageModal` gate shape at `members-core.js:3105-3115`). Prior authorize-payment form removed; git history preserves it if a future migration back is scoped.
+
+**Delete-candidates list updated:** the awaiting-payment form removal in this commit handles a chunk of the retirement debt. The remaining delete-candidates (stripeutils.js escrow functions, members-packages.js:3964 `createEscrowPayment` caller, `openReleasePaymentModal` at :4279 with its `/api/escrow/release/:id` reference) are still deferred to the Phase 6 dead-code sweep.
+
+### 📌 STANDING RULE — bulk status rewrites must copy the old value
+
+**Effective 2026-07-20, no exceptions.** Any future bulk status rewrite (or any bulk column overwrite of a value that drives UI behavior) MUST copy the pre-change value into a `<column>_prev` column or a `notes` field in the SAME UPDATE. Two acceptable shapes:
+
+**Shape A — dedicated `_prev` column** (best for structured queries):
+```sql
+alter table <table> add column if not exists <col>_prev <type>;
+update <table> set <col>_prev = <col>, <col> = '<new_value>', updated_at = now()
+where <criteria>;
+```
+
+**Shape B — notes append** (for tables that already have a notes field):
+```sql
+update <table> set
+  <col> = '<new_value>',
+  notes = coalesce(notes, '') || format(E'\n[%s] pre-change <col>: %s → %s', current_date, <col>, '<new_value>'),
+  updated_at = now()
+where <criteria>;
+```
+
+**When neither works** (schema has neither a `_prev` slot nor a notes column, and adding one is out of scope): the UPDATE must be preceded in the SAME session/transaction by a snapshot table:
+```sql
+create table if not exists _rewrite_snapshots_YYYYMMDD as
+  select id, <col>, updated_at, current_timestamp as snapshot_at
+  from <table> where <criteria>;
+```
+
+**Why this rule.** The 2026-07-19 overreach illustrated the failure mode: a well-intentioned bulk UPDATE that erased state driving downstream UI behavior, with no in-row rollback path. Heuristic recovery from other column signals worked THIS time (`accepted_bid_id` was a clean discriminator), but that's luck, not guarantee. Future bulk rewrites without a backup slot are a same-class disaster waiting to happen. Cost of the rule: one extra column-add or one extra CTE. Benefit: reversibility without a PITR restore, without heuristics, without guessing.
+
+This rule applies to any bulk status/state overwrite regardless of scale — even the "just 30 rows" case that triggered it here would have benefited. If the UPDATE affects more than one row and overwrites a value the UI reads, this rule fires.
+
 ---
 
 ## Finding #8 — LOW · OPEN · Account deletion orphans `founder_payouts` rows
