@@ -119,8 +119,58 @@ async function handleMine(sb, user) {
   return json(200, { plans: result });
 }
 
+// ── Lazy escrow reconcile (Phase 1 fix, 2026-07-19) ─────────────────────────
+// GAP: nothing ever moved payment_status 'requires_payment' → 'held' on the
+// CARD path. The only 'held' writer was the wallet/credits-covers-all branch.
+// After the member authorized (client confirmCardPayment → PI status
+// 'requires_capture'), the DB never learned it: no confirm endpoint existed,
+// and stripe-webhook.js has no amount_capturable_updated handler — a manual-
+// capture AUTHORIZATION fires that event, not payment_intent.succeeded. Every
+// card-paid plan therefore stuck at requires_payment; handleComplete 409'd;
+// providers could never be paid; auth holds silently expired (~7 days).
+//
+// FIX: reconcile lazily against Stripe (source of truth) whenever a plan in
+// 'requires_payment' is read (handleGetOne — UI shows truth) or released
+// (handleComplete — heal, then proceed). Server-side PI retrieve — nothing is
+// trusted from the client. The conditional .eq guard makes concurrent heals
+// idempotent. A webhook amount_capturable_updated handler can be added later
+// as a faster path; this reconcile stays as the safety net either way.
+async function reconcileHeldFromStripe(sb, plan) {
+  if (!plan || plan.payment_status !== 'requires_payment' || !plan.stripe_payment_intent_id) return plan;
+  const st = stripe();
+  if (!st) return plan;
+  try {
+    const pi = await st.paymentIntents.retrieve(plan.stripe_payment_intent_id);
+    if (pi.status === 'requires_capture') {
+      const now = new Date().toISOString();
+      const { error: healErr } = await sb.from('care_plans')
+        .update({ payment_status: 'held', updated_at: now })
+        .eq('id', plan.id)
+        .eq('payment_status', 'requires_payment'); // idempotency guard
+      if (!healErr) {
+        await audit(sb, {
+          action: 'escrow_held_reconciled',
+          target_id: plan.id,
+          target_type: 'care_plan',
+          performed_by: 'system_reconcile',
+          metadata: {
+            stripe_payment_intent_id: plan.stripe_payment_intent_id,
+            pi_status: pi.status,
+            previous_payment_status: 'requires_payment',
+            new_payment_status: 'held',
+          },
+        });
+        return { ...plan, payment_status: 'held' };
+      }
+    }
+  } catch (e) {
+    console.warn('[care-plans] reconcile retrieve failed (non-fatal):', e.message);
+  }
+  return plan;
+}
+
 async function handleGetOne(sb, user, planId) {
-  const { data: plan, error } = await sb
+  const { data: planRow, error } = await sb
     .from('care_plans')
     .select(`
       *,
@@ -129,8 +179,9 @@ async function handleGetOne(sb, user, planId) {
     .eq('id', planId)
     .single();
 
-  if (error || !plan) return json(404, { error: 'Care plan not found' });
-  if (plan.member_id !== user.id) return json(403, { error: 'Forbidden' });
+  if (error || !planRow) return json(404, { error: 'Care plan not found' });
+  if (planRow.member_id !== user.id) return json(403, { error: 'Forbidden' });
+  const plan = await reconcileHeldFromStripe(sb, planRow);
 
   // Two-query stitch — the plan_bids.provider_id FK targets auth.users, not
   // profiles, so a `profiles!plan_bids_provider_id_fkey` embed makes PostgREST
@@ -430,9 +481,13 @@ async function handleComplete(event, sb, user, planId) {
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
 
-  const { data: plan } = await sb.from('care_plans').select('*').eq('id', planId).single();
-  if (!plan) return json(404, { error: 'Care plan not found' });
-  if (plan.member_id !== user.id) return json(403, { error: 'Forbidden' });
+  const { data: planRow } = await sb.from('care_plans').select('*').eq('id', planId).single();
+  if (!planRow) return json(404, { error: 'Care plan not found' });
+  if (planRow.member_id !== user.id) return json(403, { error: 'Forbidden' });
+  // Heal requires_payment → held first if the member already authorized
+  // (see reconcileHeldFromStripe — without this, release was impossible on
+  // the card path).
+  const plan = await reconcileHeldFromStripe(sb, planRow);
   if (plan.payment_status !== 'held') {
     return json(409, { error: 'Funds are not in held state for this care plan' });
   }
