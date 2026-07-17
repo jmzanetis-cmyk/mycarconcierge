@@ -112,6 +112,7 @@ function makeSupabase(opts = {}) {
       },
       select() { return b; },
       eq(col, val) { filters.push(r => r[col] === val); return b; },
+      in(col, arr) { filters.push(r => Array.isArray(arr) && arr.includes(r[col])); return b; },
       gte(col, val) { filters.push(r => r[col] >= val); return b; },
       not(col, op, val) {
         if (op === 'is') filters.push(r => r[col] != null);
