@@ -261,3 +261,58 @@ Both files verified behind `authenticateBearerAdmin` (top of `admin-founders.js`
 **Deferred to:** future account-deletion lifecycle audit (Phase 4a admin security area or a standalone audit). Not blocking; not Phase 1 money-path scope beyond flagging the class here.
 
 **Historical evidence discovered simultaneously — the founder payout pipeline has NEVER executed a real payout in prod.** `founder_payouts` had 3 total rows ever (all admin-founders phantom-race artifacts from Feb 2026, deleted 2026-07-19). `founder-payout-monthly-scheduled` has never inserted a row. First real payout will be Chris's Alpha commissions when they cross the threshold — this Phase 1b fix batch (Findings #5/#6) hardens the entire pipeline before that first real event.
+
+---
+
+## Stripe dashboard config check — 2026-07-20 (Jordan, guided)
+
+Live-account walkthrough of the Stripe dashboard's webhook config, event subscriptions, and endpoint inventory. Complements the code-side sweep with the missing "does prod's Stripe org actually deliver what the code expects" verification.
+
+**Preconditions cleared:**
+- **Account restriction on the org — RESOLVED** by Jordan (verification completed at the Stripe dashboard prompt). Prior to this, some Stripe features and events would have been silently blocked; all clear now.
+
+**Live endpoint confirmed:**
+- URL: `www.mycarconcierge.com/api/webhooks/stripe` → routed via `_redirects` to `stripe-webhook` Netlify function.
+- Status: **Active**, **0% error rate**, signing secret present. Matches the code path Finding #1's reconcile fallback assumes exists.
+
+**Event subscription change — 8 → 11 (added 3):**
+1. `charge.refunded` — pairs with `_handleFounderCommissionClawback` at `stripe-webhook.js:183-306` (was existing handler, now the event actually delivers).
+2. `charge.dispute.created` — same clawback path.
+3. `payment_intent.amount_capturable_updated` — this is the event Stripe fires on **manual-capture authorization** (Finding #1's root-cause event). Adding it enables the "webhook-driven fast path" that Finding #1's fix flagged as a future improvement — the lazy reconcile stays as the safety-net either way, but authorizations can now heal within seconds instead of at member's next visit.
+
+**⚠️ Handler follow-up:** the `payment_intent.amount_capturable_updated` handler doesn't yet exist in `stripe-webhook.js` (the code path Finding #1 documented). The event is now DELIVERING but hits the webhook's default "unknown event type" branch (200 with no work). Adding the handler is a low-effort follow-up commit — the reconcile logic already exists (`reconcileHeldFromStripe` at `care-plans.js:122`); just needs to be triggered from the webhook path. **Not blocking** — the lazy reconcile continues to work as designed; this just makes it faster.
+
+**New findings from the dashboard check:**
+
+### (a) MEDIUM · `identity.verification_session.*` events UNAVAILABLE — Stripe Identity product never activated
+
+**Symptom:** the app's identity verification feature (grep for `identity_verifications` table + `vehicle-verify.js` handlers) is end-to-end dead. Stripe Identity is the product that generates and confirms `identity.verification_session.*` events; if it's not activated on the org, no such events ever fire, and the whole verification flow has no back-end signal to complete.
+
+**Why unfixed:** this is a **product/cost decision**, not a code fix. Activating Stripe Identity has per-verification cost. Whether MCC wants identity verification live (and if so, for whom — providers only? members buying big packages? drivers?) is a product-strategy question. The code exists but has been dormant since it shipped.
+
+**Cross-reference:** the code-side finding in `PHASE0_FINDINGS.md` mentioned `bgcheck/status` as similar — features shipped without their backend infrastructure. Identity verification is the Stripe-side sibling of the same pattern.
+
+**Action:** flag for the pilot-readiness product-decision review. If activation is deferred, hide the identity-verification UI surfaces (they render prompts users can't complete). If activated, no code change needed — the events start delivering to existing handlers.
+
+### (b) MEDIUM · `account.updated` is Connect-destination-only — joins the Connect follow-up
+
+**Symptom:** the `account.updated` event fires only for Stripe Connect destination accounts (providers with their own Connect Express accounts). It's not a general "any account updated" signal. The code paths that expected it were assuming general-purpose delivery.
+
+**Why grouped with existing follow-up:** this joins the ALREADY-EXTINCT `transfer.paid` / `transfer.failed` handler class (driver payout tracking, pre-driver-launch work). Same root cause — Connect events assume a Connect-account population that doesn't exist yet at pilot scale.
+
+**Action:** deferred to the Connect-events follow-up. Not blocking pilot. When drivers or Connect-onboarded providers scale up, revisit the whole event family as one batch: `account.updated`, `transfer.paid`, `transfer.failed`, `capability.updated`, etc. Currently: dormant events, no code impact.
+
+### (c) LOW · Three RELIC webhook endpoints still Active — recommend disable (stale-secret liability)
+
+Three additional webhook endpoints registered against the Stripe org, currently **Active**, that should not be:
+- Old Replit deployment endpoint (pre-Netlify).
+- `.co` domain endpoint (pre-`.com` migration).
+- Foreign Supabase project endpoint (pre-`ifbyjxuaclwmadqbjcyp` migration).
+
+**Why LOW:** all three are Active but not routed to any live service — Stripe delivers, the destinations return errors or 404s, no code executes. **No data leak, no double-processing risk.**
+
+**Why still flagged:** each endpoint has a **signing secret** registered with Stripe. Anyone with historical access to any of the three (old Replit account, old `.co` DNS control, old Supabase project) could theoretically stand up a listener at that URL and receive signed webhook deliveries. Stale-secret liability — near-zero probability, non-zero if any of the three environments were compromised.
+
+**Action:** disable all three via the Stripe dashboard. Free operation, no dependencies. Small cleanup follow-up.
+
+**Summary for Phase 1 register:** three new sub-findings (a MEDIUM identity/product, a MEDIUM Connect-batch, a LOW relic-cleanup). None block the pilot flow. Not incrementing the top-of-doc counts because these are dashboard-config observations, not code findings — but noting here so a future reader sees the Stripe-side infrastructure state at 2026-07-20.
