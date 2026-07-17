@@ -90,3 +90,25 @@ The `INITIAL_SESSION` event fires exactly once after Supabase has finished its s
 **Blast radius:** every cold page load / hard-refresh. Users who catch it experience an unexpected logout → back-button-recovery. Users who don't catch the Back trick get frustrated / support-tickets / churn. Not a data-integrity issue; a first-impression UX issue.
 
 **Follow-up:** queue for the boot-hardening batch. If more race-class findings surface in the Phase 2 walk, add them to the same batch.
+
+---
+
+## Finding #4 — MEDIUM · OPEN · Get Started card doesn't persist dismissal + no auto-retire on core-step completion
+
+**Reproduction:** on the member overview, the "Get Started" onboarding card renders with a Dismiss button. Clicking Dismiss hides the card for the current session — refresh the page and it's back. Also: completing 4 of 5 core onboarding steps (add vehicle, first request posted, etc.) still shows the card as if nothing has progressed; there's no auto-retire threshold.
+
+**Two problems, one surface:**
+
+1. **Dismissal doesn't persist.** The Dismiss button appears to update in-memory state only (or writes to localStorage but not to the server). Every fresh page load re-shows the card. Users learn to ignore it rather than close it — the CTA loses signal value.
+
+2. **No auto-retire when core steps complete.** The card is meant to prompt new members through onboarding. Once a member has completed the "core" steps (vehicle added, first request created, etc.), the card should retire itself even if the "optional" steps (upload photo, invite household, etc.) haven't been touched. Instead it lingers indefinitely.
+
+**Fix shape (proposed, not shipped):** two-part, mirrors the existing profile-completion pattern already in the codebase:
+
+1. **Server-side `dismissed` flag on the member's profile** (or a `member_onboarding_state` row with a `getting_started_dismissed_at` timestamp). Dismiss button POSTs to a small endpoint that sets the flag; render logic checks the flag on load and skips the card if set. Persistent across sessions and devices.
+
+2. **Auto-retire threshold based on core-step completion.** Introduce a `coreSteps` vs `optionalSteps` split in the client-side onboarding progress calculator (or, better, compute on the server so the same signal drives the Dismiss endpoint's decisions). When all `coreSteps` are complete (4/5 with only `optionalSteps` remaining), auto-hide the card without requiring manual dismissal. Rationale: members who've done the meaningful onboarding shouldn't need to explicitly dismiss the prompt — completion IS the dismissal.
+
+**Not urgent:** cosmetic-plus-a-bit UX finding, not data-integrity. Card lingering is annoying, not broken. Batch with any other "onboarding state persistence" findings when they surface (Phase 2 walk is likely to find more of these).
+
+**Cross-reference:** the "no server-side dismissed flag" is a class — check other dismiss-able cards (banners, alerts, promo prompts) during the rest of the Phase 2 walk. If any use client-side-only state, they should get the same fix pattern.
