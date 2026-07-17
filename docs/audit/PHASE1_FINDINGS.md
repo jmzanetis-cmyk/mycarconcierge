@@ -13,19 +13,19 @@ Findings from the Phase 0 automated sweep that touched money paths are cross-ref
 | Severity | Count | Status |
 |---|---|---|
 | CRITICAL | 1 | 1 FIXED (Finding #1) |
-| HIGH | 1 | 1 FIXED (Finding #2 — deploy landed 2026-07-17; migration `20260717a` pending Studio apply) |
-| MEDIUM-HIGH | 1 | 1 FIXED (Finding #4 — deploy landed 2026-07-17; migration `20260717c` pending Studio apply) |
-| MEDIUM | 1 | 1 FIXED (Finding #3 — deploy landed 2026-07-17; migration `20260717b` pending Studio apply) |
+| HIGH | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #2 — deploy `7611e6d`; migration `20260717a` applied via Supabase MCP, signature verified: `p_member_id uuid, p_care_plan_id uuid, p_credits_cents integer, p_max_credit_cents integer`) |
+| MEDIUM-HIGH | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #4 — deploy `7611e6d`; migration `20260717c` applied, index `member_credits_referral_unique` verified: `btree (member_id, referral_id) WHERE (referral_id IS NOT NULL)`) |
+| MEDIUM | 1 | 1 FIXED · APPLIED-IN-PROD 2026-07-17 (Finding #3 — deploy `7611e6d`; migration `20260717b` applied, index `wallet_ledger_load_ref_unique` verified: `btree (ref_id) WHERE (entry_type = 'load_cash' AND ref_id IS NOT NULL)`) |
 | LOW | 0 | — |
 | CLEAN verdicts | 4 | wallet_spend, record_bid_pack_commission v2, driver-api cashout, tip status transitions |
 | Deferred to Phase 1b | 4 | agent-initiated money movement (3) + package-escrow retire ruling (1) |
 
-**Migration apply order (Studio, 2026-07-17):**
-1. `20260717a_redeem_credits_add_max_param.sql` (Finding #2 — RPC signature change + inert-guard fix)
-2. `20260717b_wallet_ledger_load_ref_unique.sql` (Finding #3 — unique partial index)
-3. `20260717c_member_credits_referral_unique.sql` (Finding #4 — unique partial index backstop)
+**Migration apply — ✅ APPLIED TO PROD 2026-07-17 via Supabase MCP** (in file order, one at a time, each in its own BEGIN/COMMIT):
+1. `20260717a_redeem_credits_add_max_param.sql` — ✅ RPC signature verified in `pg_proc`: 4-arg with `p_max_credit_cents integer`.
+2. `20260717b_wallet_ledger_load_ref_unique.sql` — ✅ index verified in `pg_indexes`: partial `WHERE (entry_type='load_cash' AND ref_id IS NOT NULL)`.
+3. `20260717c_member_credits_referral_unique.sql` — ✅ index verified in `pg_indexes`: partial `WHERE (referral_id IS NOT NULL)` on `(member_id, referral_id)`.
 
-Order is not strictly required (each migration is independent) but sequential apply matches file numbering. Pre-check results at apply time: both `wallet_ledger` (load_cash dups) and `member_credits` (member_id+referral_id dups) returned 0 rows in prod on 2026-07-17 — both indexes apply cleanly against current data.
+Pre-check results at apply time: both `wallet_ledger` (load_cash dups) and `member_credits` (member_id+referral_id dups) returned 0 rows in prod on 2026-07-17 — both indexes applied cleanly against current data.
 
 **`handleAccept` sequence audit — CLOSED 2026-07-17.** After Finding #2, I audited the full `handleAccept` function for the call-order antipattern (RPC invoked with fields the caller hasn't yet persisted on the plan row). Result: **CLOSED — only `redeem_credits_for_payment` was affected.** `handleAccept` has exactly two RPC calls total; the second is `wallet_spend` and its inputs (`p_owner_id`, `p_owner_type`, `p_amount_cents`, `p_ref_id`, `p_description`) don't depend on any plan row field set later in the function. Not the pattern-of-many I initially worried about — the antipattern was a one-off, and Finding #2 closes it. Logged here so future readers see the audit was scoped, not skipped.
 
