@@ -227,7 +227,7 @@ Both files verified behind `authenticateBearerAdmin` (top of `admin-founders.js`
 
 **Action taken 2026-07-19:**
 - Purchase UI already hidden in Audit Batch 1 fix #5 (`members-core.js:3081` `openPackageModal` guarded) — no new stranded rows can accumulate.
-- 30 stranded `maintenance_packages` rows marked `status = 'archived'`, `updated_at = NOW()`. See Part 3 report + commit for exact row count and criteria used.
+- 30 stranded `maintenance_packages` rows marked `status = 'archived'`, `updated_at = NOW()` via `UPDATE maintenance_packages SET status='archived', updated_at=NOW() WHERE status != 'archived'`. Executed via Supabase MCP 2026-07-19; post-update verify: `archived_count=30, unarchived_count=0, total_count=30` (soft-mark preserves rows for reference/audit; no deletion).
 
 **⚠️ Note on the audit-note text.** The directive asked for a per-row note string: `'[2026-07-19] pre-migration escrow flow, retired 2026-07-19, no member comms per Jordan'`. The `maintenance_packages` schema has no `notes` column; the `description` field is member-facing (the plan/service description). Appending audit metadata to a member-facing field would be inappropriate. **Decision: skip the in-row note; log the note text here + in the commit message as the audit trail.** Full note string preserved: `"[2026-07-19] pre-migration escrow flow, retired 2026-07-19, no member comms per Jordan"`. The `status='archived'` + `updated_at` timestamp is the in-row record; this doc is the human-readable receipt.
 
