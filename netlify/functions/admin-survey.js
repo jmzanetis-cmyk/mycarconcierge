@@ -331,9 +331,11 @@ async function handleExport(supabase, qs) {
   return {
     statusCode: 200,
     headers: {
-      'Content-Type':              'text/csv',
-      'Content-Disposition':       'attachment; filename="survey-leads-' + new Date().toISOString().slice(0, 10) + '.csv"',
-      'Access-Control-Allow-Origin': '*'
+      'Content-Type':                 'text/csv',
+      'Content-Disposition':          'attachment; filename="survey-leads-' + new Date().toISOString().slice(0, 10) + '.csv"',
+      'Access-Control-Allow-Origin':  '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, Authorization',
     },
     body: csv
   };

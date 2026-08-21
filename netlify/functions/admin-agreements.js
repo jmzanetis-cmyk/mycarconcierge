@@ -317,7 +317,9 @@ exports.handler = async function(event) {
         headers: {
           'Content-Type':        'application/pdf',
           'Content-Disposition': 'attachment; filename="MCC-Agreement-' + agreementId + '.pdf"',
-          'Access-Control-Allow-Origin': '*'
+          'Access-Control-Allow-Origin':  '*',
+          'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+          'Access-Control-Allow-Headers': 'Content-Type, Authorization',
         },
         body: pdfBuffer.toString('base64'),
         isBase64Encoded: true

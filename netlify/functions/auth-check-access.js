@@ -27,7 +27,12 @@ var utils = require('./utils');
 
 var UNAUTHORIZED = {
   statusCode: 401,
-  headers: { 'Content-Type': 'application/json', 'Access-Control-Allow-Origin': '*' },
+  headers: {
+    'Content-Type': 'application/json',
+    'Access-Control-Allow-Origin': '*',
+    'Access-Control-Allow-Methods': 'GET, OPTIONS',
+    'Access-Control-Allow-Headers': 'Content-Type, Authorization',
+  },
   body: JSON.stringify({ authorized: false, reason: 'not_authenticated' })
 };
 
