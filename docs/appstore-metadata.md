@@ -5,6 +5,12 @@ Copy each field exactly into App Store Connect. Character counts are noted where
 
 ---
 
+## Bundle ID decision
+
+Submission ships against `com.zanetisholdings.mycarconcierge` — the bundle ID the code, entitlements, Universal Links AASA, and Firebase/FCM registration are already built around. The alternative was reopening the prior App Store Connect record `co.mycarconcierge.app` (Apple ID 6756989757, carrying the Resolution Center history from the six-issue rejection), but the rework cost — Firebase/FCM re-registration, APNs certificate rotation, redoing Associated Domains + AASA + provisioning profile — outweighs the continuity benefit. Reviewers will get context via App Review Notes on the fresh App Store Connect record instead. This decision is final; Phase 8 metadata treats `com.zanetisholdings.mycarconcierge` as the authoritative bundle ID and should not re-litigate.
+
+---
+
 ## App Identity
 
 | Field | Value |
@@ -184,7 +190,7 @@ In App Store Connect, under **App Privacy**, declare the following data types. S
 
 ## Screenshot Requirements
 
-Apple requires screenshots for each device size used in submission. A new build requires at minimum the **6.7" display** and **6.1" display** sizes. The app is iPhone-only (`UIDeviceFamily = [1]`); iPad screenshots are not required or accepted.
+Apple requires screenshots for each device size used in submission. A new build requires at minimum the **6.7" display** and **6.1" display** sizes for iPhone, plus **13" iPad** for iPad. This submission ships **Universal** (`UIDeviceFamily = [1, 2]`, `TARGETED_DEVICE_FAMILY = "1,2"`) — 13" iPad screenshots (2064 × 2752 portrait / 2752 × 2064 landscape) are **required**. 11" iPad screenshots are optional.
 
 ### Required Device Sizes
 
@@ -192,32 +198,45 @@ Apple requires screenshots for each device size used in submission. A new build 
 |---|---|---|
 | **6.7" Super Retina XDR** | 1290 × 2796 | iPhone 15 Pro Max, iPhone 14 Pro Max |
 | **6.1" Super Retina XDR** | 1179 × 2556 | iPhone 15, iPhone 14 |
+| **13" iPad** | 2064 × 2752 | iPad Pro 13-inch, iPad Air 13-inch |
+| *(Optional)* 11" iPad | 1668 × 2388 | iPad Pro 11-inch, iPad Air 11-inch |
 | *(Optional)* 5.5" Retina HD | 1242 × 2208 | iPhone 8 Plus |
 
-### iPhone-only decision
+### iPad support
 
-The app is restricted to iPhone (`UIDeviceFamily = [1]` in `ios/App/App/Info.plist`) as of v1.
-iPad support can be added in a future release if there is demand.
+The app ships **Universal** (iPhone + iPad) as of the current submission:
+- `UIDeviceFamily = [1, 2]` in `ios/App/App/Info.plist`
+- `TARGETED_DEVICE_FAMILY = "1,2"` in `ios/App/App.xcodeproj/project.pbxproj` (both Debug and Release configs)
+- iPad orientation key `UISupportedInterfaceOrientations~ipad` present with all four orientations, per Apple guidance for iPad apps
+
+Prior submissions attempted iPhone-only (`UIDeviceFamily = [1]`). That produced a 2.3.3 rejection for stretched iPhone screenshots on 13" iPad. The response for this submission is a real iPad layout pass — sidebar-visible at tablet width, a proper responsive login split-view, purpose-designed 13" iPad screenshots — rather than another attempt at iPhone-only.
 
 **App Store Connect manual step required on next submission:**
 1. Go to App Store Connect → Your App → App Store → iPhone & iPad screenshots
-2. Delete any existing iPad screenshots from the listing (previously submitted stretched iPhone images)
-3. Under "App Information" → "Availability" confirm Devices shows iPhone only (this follows automatically from `UIDeviceFamily` once the new build is processed)
+2. Add the 13" iPad screenshot set (2064 × 2752 portrait for the marketing screens; landscape 2752 × 2064 optionally as an additional slot if you want to show tablet-landscape UI)
+3. Under "App Information" → "Availability" confirm Devices shows both iPhone and iPad (this follows automatically from `UIDeviceFamily = [1, 2]` once the new build is processed)
 
-### Recommended Screenshots (5–10 per device, minimum 3)
+### Screenshots delivered for this submission
 
-Capture the following screens in order. Use the iOS Simulator on a Mac or a physical device:
+**10 files total** — 8 core screens + login in both portrait and landscape orientations. Captured on the iPad Pro 13-inch (M5) simulator, iOS 26.2, at native 2064 × 2752 (portrait) / 2752 × 2064 (landscape).
 
-1. **Home / Onboarding splash** — "One app. Every auto need. Zero hassle." hero screen or welcome animation
-2. **Member Dashboard** — active vehicle summary with service recommendation panel
-3. **Post a Service Request** — request creation form showing category selection and description
-4. **Bids Received** — list of competitive bids from providers with the AI Smart Bid Analyzer card visible
-5. **OBD Diagnostic Scanner** — fault code entry and AI explanation result
-6. **Vehicle Management** — multi-vehicle garage view with maintenance history
-7. **Car Club Loyalty** — punch card in progress with reward progress bar
-8. **Car Academy** — AI chat expert or education article view
-9. **Secure Checkout / Escrow** — payment confirmation screen
-10. **Provider Profile** — provider card with ratings, reviews, and AI review summary
+Delivered in `~/Desktop/mcc-appstore-screens/`:
+
+1. **`13in-login-portrait.png`** — split-view login: brand pane left ("MyCarConcierge" + hand-icon + "Auto care. Handled." tagline), login card right (Welcome Back, Password/Magic Link tabs, escrow trust bar)
+2. **`13in-login-landscape.png`** — same content in landscape orientation
+3. **`13in-onboarding-splash-portrait.png`** — first-step signup: "What's your name?" · Open For Business pill · Apple/Google/Facebook OAuth
+4. **`13in-dashboard-portrait.png`** — Member Overview: hero + Get Started checklist + Founder callout + stat cards
+5. **`13in-service-request-portrait.png`** — Service Requests page with AI helper panel expanded ("Describe your car problem — AI creates your service request")
+6. **`13in-bids-received-portrait.png`** — expanded plan detail: real member description, Accepted Bid card, escrow authorize copy, 2 competitive bids visible ($149 accepted, $185 not selected)
+7. **`13in-obd-scanner-portrait.png`** — OBD Diagnostic Scanner modal with "What are OBD codes?" educational blue box + input field + photo-upload area + Analyze Codes CTA
+8. **`13in-vehicle-management-portrait.png`** — My Vehicles: 2022 Toyota Camry card with year/make/model/mileage + Edit/Photos/Delete actions
+9. **`13in-car-academy-portrait.png`** — Academy & Care Guide personalized to "My Camry" · Mechanical & Safety tab · 6 care-item cards (Oil Change, Tire Rotation, Brake Service, Cabin Air Filter, Engine Air Filter, Battery & Electrical) with prices, intervals, and Get Quotes CTAs
+10. **`13in-checkout-escrow-portrait.png`** — Awaiting Payment card: "Authorize $149.00 on your card. Funds will be held in escrow and released only when you Mark Complete." · card number field + Authorize Payment button · Bids Received list underneath
+
+**Two screens from the originally-planned 10 were dropped from this submission:**
+
+- **Car Club Loyalty (punch card + reward progress bar)** — dropped because the feature is incomplete: `car_club_programs_enabled` currently ships OFF in production (`platform_settings.setting_value.enabled: false`), and the server response at `netlify/functions/car-clubs.js:178-185` returns `reward_rule_id: null` as a "Slice 1" stub which suppresses the client's punch-card visual entirely at `www/car-club-member.html:886`. Punch-card marketing shot is not renderable against current code. Add in a future submission once the reward-rule wiring and provider personalization ship.
+- **Provider Profile with ratings/reviews/AI summary** — dropped because there is no safe in-app navigation path to a real, member-facing provider profile screen. The route we identified (`www/founding-provider-chris-agrapidis.html`) is a private legal contract page (Founding Provider Partner Agreement with actual commission terms and milestone bonus schedule), not a marketing profile. In-app bid provider names surface only as "Provider" without a tap-through profile modal. Add in a future submission once a public-facing provider profile screen is wired to the app.
 
 ### Screenshot Specs
 
