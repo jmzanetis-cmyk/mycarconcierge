@@ -215,6 +215,7 @@
     "completed": "Completados",
     "quickActions": "Acciones Rápidas",
     "newMaintenancePackage": "+ Nuevo Paquete de Mantenimiento",
+    "newServiceRequest": "+ Nueva Solicitud de Servicio",
     "recentActivity": "Actividad Reciente",
     "upcomingReminders": "Próximos Recordatorios",
     "noUpcomingReminders": "Sin recordatorios próximos.",

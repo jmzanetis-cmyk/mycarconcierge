@@ -215,6 +215,7 @@
     "completed": "已完成",
     "quickActions": "快捷操作",
     "newMaintenancePackage": "+ 新建保养套餐",
+    "newServiceRequest": "+ 新建服务请求",
     "recentActivity": "最近活动",
     "upcomingReminders": "即将到来的提醒",
     "noUpcomingReminders": "暂无即将到来的提醒。",

@@ -108,7 +108,7 @@
     [data-theme="light"] .sidebar-overlay {
       background: rgba(0, 0, 0, 0.3);
     }
-    @media (max-width: 900px) {
+    @media (max-width: 767px) {
       [data-theme="light"] .sidebar {
         background: linear-gradient(180deg, #ffffff 0%, #f3f4f6 100%);
       }
@@ -223,7 +223,7 @@
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
     /* Sidebar */
-    .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
+    .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: max(20px, env(safe-area-inset-top)) 12px 20px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
     .sidebar::-webkit-scrollbar { display: none; }
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
     .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
@@ -719,8 +719,8 @@
     .toast.success { border-color: var(--accent-green); }
     .toast.error { border-color: var(--accent-red); }
 
-    /* Mobile */
-    @media (max-width: 900px) {
+    /* Mobile — iPhone portrait. iPad (>=768pt both dims) uses the desktop sidebar layout below. */
+    @media (max-width: 767px) {
       body { display: block; overflow-x: hidden; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
       .sidebar { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 300px; padding: 16px 14px; padding-bottom: 100px; overflow-y: auto; -webkit-overflow-scrolling: touch; position: fixed; top: 0; left: 0; height: 100%; z-index: 100; background: rgba(12, 12, 18, 0.98); }
       .sidebar.open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,0.6); }
@@ -754,11 +754,17 @@
       .btn { min-height: 48px; }
       body.sidebar-open { overflow: hidden; }
     }
-    @media (min-width: 901px) { .mobile-header { display: none; } }
-    @media (min-width: 901px) {
+    @media (min-width: 768px) { .mobile-header { display: none; } }
+    @media (min-width: 768px) and (min-height: 768px) {
       body.has-bottom-nav { padding-bottom: 0; }
       body.has-bottom-nav .sidebar.hide-on-mobile { display: flex; }
       body.has-bottom-nav .mobile-bottom-nav { display: none; }
+    }
+    /* iPad landscape (>=1024pt wide) — use the space: wider content column,
+       vehicles-grid can spread further, richer stats layout. */
+    @media (min-width: 1024px) and (min-height: 700px) {
+      .main { max-width: 1360px; padding: 40px 56px 100px; }
+      .stats-grid { grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); }
     }
 
     /* Shop Section Styles */
@@ -1106,7 +1112,6 @@
     <div class="nav-label" data-i18n="member.navServices">Services</div>
     <div class="nav-item" id="nav-item-packages" data-section="packages" onclick="showSection('packages')"><span data-i18n="member.maintenancePackages"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> Maintenance Packages</span></div>
     <div class="nav-item" data-section="care-plans" onclick="showSection('care-plans')"><span data-i18n="member.carePlans"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 11.12a8.5 8.5 0 1 1-9.91-9.91"/><path d="M22 4 12 14.01l-3-3"/></svg></span> Service Requests</span> <span class="nav-badge" id="care-plans-count" style="display:none;background:var(--accent-gold);">0</span></div>
-    <div class="nav-item" data-section="shop" onclick="showSection('shop')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m2 7 4.41-4.41A2 2 0 0 1 7.83 2h8.34a2 2 0 0 1 1.42.59L22 7"/><path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8"/><path d="M15 22v-4a2 2 0 0 0-2-2h-2a2 2 0 0 0-2 2v4"/><path d="M2 7h20"/><path d="M22 7v3a2 2 0 0 1-2 2a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 16 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 12 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 8 12a2.7 2.7 0 0 1-1.59-.63.7.7 0 0 0-.82 0A2.7 2.7 0 0 1 4 12a2 2 0 0 1-2-2V7"/></svg></span> Shop</span></div>
     <div class="nav-item" data-section="order-history" onclick="showSection('order-history')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span> Order History</span></div>
     <div class="nav-item" data-section="cost-estimator" onclick="showSection('cost-estimator')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg></span> Cost Estimator</span></div>
     <!-- DRIVER-PHASE-OUT: restore when driver side launches
@@ -1234,7 +1239,7 @@
           <span data-i18n="member.addVehicle">+ Add Vehicle</span>
         </button>
         <button class="btn btn-secondary" onclick="openPackageModal()" style="padding: 12px 24px; font-weight: 600; border-radius: 100px; border: 2px solid var(--accent-gold); background: transparent; color: var(--accent-gold);">
-          <span data-i18n="member.newMaintenancePackage">+ New Service Request</span>
+          <span data-i18n="member.newServiceRequest">+ New Service Request</span>
         </button>
         <button class="btn btn-secondary" onclick="openConciergeRequestModal('','')" style="padding: 12px 24px; font-weight: 600; border-radius: 100px; border: 2px solid var(--accent-blue); background: transparent; color: var(--accent-blue);">
           <span><svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:4px;"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg>Request Vehicle Pickup</span>
@@ -2453,8 +2458,9 @@
       </div>
 
       <div style="margin-bottom: 24px;">
-        <!-- PHASE 0 BATCH 1 (2026-07-16): New Package creation disabled — /api/escrow/* endpoints do not exist on Netlify (orphaned in Express→Netlify migration). Existing packages still display; only NEW creation is blocked. Restore original button once package escrow is migrated per MCC_AUDIT_PLAN.md Phase 1. -->
-        <button class="btn btn-secondary" disabled style="opacity:0.6;cursor:not-allowed;" title="New package creation is temporarily unavailable — coming back soon.">+ New Package (Coming back soon)</button>
+        <button class="btn btn-secondary" onclick="openPackageModal()">
+          <span data-i18n="member.newServiceRequest">+ New Service Request</span>
+        </button>
       </div>
 
       <div class="tabs">
@@ -7037,7 +7043,7 @@
       </div>
       <div class="modal-footer">
         <button class="btn btn-secondary" onclick="closeModal('obd-results-modal')">Close</button>
-        <button class="btn btn-primary" onclick="createServiceRequestFromScan()">Create Service Request</button>
+        <button class="btn btn-primary" onclick="closeModal('obd-results-modal');openPackageModal();">Create Service Request</button>
       </div>
     </div>
   </div>
