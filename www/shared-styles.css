@@ -2022,3 +2022,101 @@ textarea:focus-visible {
 .mcc-logo--hero .mcc-logo-mark {
   height: 40px;
 }
+
+/* ==========================================================================
+   iPad Tablet Layout
+   Triggered when BOTH viewport dimensions >= 768pt.
+   iPhone landscape (max height ~430pt) does not match — phone tab bar stays.
+   iPhone portrait (width < 768pt) unaffected — phone layout preserved.
+   ========================================================================== */
+@media (min-width: 768px) and (min-height: 768px) {
+  /* Hide bottom tab bar on iPad; the full sidebar is the primary nav */
+  body.has-bottom-nav .mobile-bottom-nav {
+    display: none;
+  }
+  /* Drop the 72px bottom padding that made room for the phone tab bar */
+  body.has-bottom-nav {
+    padding-bottom: 0;
+  }
+  /* Restore the sidebar that has-bottom-nav had hidden for phone shells */
+  body.has-bottom-nav .sidebar.hide-on-mobile {
+    display: flex;
+  }
+  /* Chat widget: on phone-native we hide it (tab bar takes the FAB slot).
+     On iPad-native the tab bar is gone, so bring the widget back. */
+  body.has-bottom-nav .chat-widget-base.bottom-right,
+  body.has-bottom-nav .chat-widget-base.bottom-left {
+    display: block;
+  }
+}
+
+/* ==========================================================================
+   Shared tablet-split pattern for onboarding / signup wizards
+   Opt-in per page by wrapping the existing form container in:
+     <div class="tablet-split">
+       <aside class="tablet-context-panel">...marketing copy...</aside>
+       <div class="tablet-split-main"><!-- existing form container --></div>
+     </div>
+   On phone, .tablet-split is a normal block flow (aside hidden). On iPad it
+   becomes a 2-column grid with the aside on the left.
+   ========================================================================== */
+.tablet-context-panel {
+  display: none;
+}
+@media (min-width: 768px) and (min-height: 768px) {
+  .tablet-split {
+    display: grid;
+    grid-template-columns: minmax(300px, 1fr) minmax(420px, 640px);
+    gap: 56px;
+    align-items: center;
+    max-width: 1180px;
+    margin: 0 auto;
+    padding: 40px 40px;
+    min-height: 100vh;
+    box-sizing: border-box;
+  }
+  .tablet-context-panel {
+    display: block;
+    align-self: center;
+    padding: 32px;
+    font-family: 'Fraunces', Georgia, serif;
+  }
+  .tablet-context-panel h2 {
+    font-family: 'Fraunces', Georgia, serif;
+    font-size: 2.4rem;
+    font-weight: 500;
+    line-height: 1.18;
+    letter-spacing: -0.01em;
+    color: var(--text-primary, #f5f5f7);
+    margin: 0 0 20px;
+    max-width: 480px;
+  }
+  .tablet-context-panel p {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 1.08rem;
+    line-height: 1.6;
+    color: var(--text-secondary, #a0a8b8);
+    margin: 0 0 16px;
+    max-width: 460px;
+  }
+  .tablet-context-panel ul {
+    font-family: 'Inter', -apple-system, sans-serif;
+    font-size: 1rem;
+    line-height: 1.6;
+    color: var(--text-secondary, #a0a8b8);
+    margin: 20px 0 0;
+    padding-left: 20px;
+  }
+  .tablet-context-panel li { margin-bottom: 10px; }
+  .tablet-context-panel .tablet-context-accent {
+    color: var(--accent-gold, #c9a227);
+  }
+  .tablet-split-main {
+    min-width: 0; /* let grid item shrink correctly */
+  }
+}
+@media (min-width: 1024px) and (min-height: 768px) {
+  .tablet-split { column-gap: 72px; padding: 56px 56px; }
+  .tablet-context-panel h2 { font-size: 2.8rem; }
+  .tablet-context-panel p { font-size: 1.14rem; }
+}

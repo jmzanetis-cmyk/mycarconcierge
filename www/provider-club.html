@@ -340,11 +340,41 @@
     .toast.success { border-color: rgba(52,211,153,0.5); }
     @keyframes toastIn { from { transform: translateX(20px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
 
-    /* Tablet portrait / narrow — stack columns */
-    @media (max-width: 900px) {
+    /* iPhone portrait / narrow — stack columns. iPad (>=768pt both dims) keeps grid. */
+    @media (max-width: 767px) {
       .operate-grid { grid-template-columns: 1fr; }
       .page-header { flex-direction: column; align-items: flex-start; gap: 12px; }
       .container { padding: 16px; }
+    }
+
+    /* iPad tablet polish — scales the intake console for the primary
+       operational device. Additive over the base rules; phone unchanged. */
+    @media (min-width: 768px) and (min-height: 768px) {
+      .operate-card { min-height: 560px; padding: 36px; }
+      .operate-card h2 { font-size: 1.7rem; margin-bottom: 28px; }
+      .btn-primary { padding: 14px 32px; font-size: 1.05rem; }
+      .btn-large { padding: 20px 48px; font-size: 1.2rem; }
+      .btn-link { font-size: 1rem; padding: 12px 16px; }
+      .scanning-hint { font-size: 1rem; }
+      .confirm-message p { font-size: 1.25rem; }
+      .confirm-message .confirm-hint { font-size: 1rem; }
+      .qr-reader { max-width: 440px; min-height: 380px; }
+      .text-input { max-width: 420px; font-size: 1.1rem; padding: 14px 18px; }
+      .voucher-code-input { font-size: 1.6rem; letter-spacing: 0.2em; }
+      .input-label { font-size: 0.95rem; margin-left: max(calc(50% - 210px), 0px); }
+    }
+
+    /* iPad landscape (>=1024pt wide, e.g. 11" landscape 1194pt, 13" landscape
+       1366pt): center the operate console with a max-width so the two cards
+       don't strand in acres of empty gutter. Cards keep their proportion but
+       grow slightly taller for the extra vertical room the landscape shell
+       leaves after the compact header. */
+    @media (min-width: 1024px) and (min-height: 768px) {
+      .container { max-width: 1200px; padding: 40px 56px; }
+      .operate-grid { gap: 40px; }
+      .operate-card { min-height: 640px; padding: 44px; }
+      .operate-card h2 { font-size: 1.9rem; margin-bottom: 32px; }
+      .qr-reader { max-width: 520px; min-height: 440px; }
     }
   </style>
 </head>

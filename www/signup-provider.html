@@ -183,7 +183,33 @@
       .form-card { padding: 28px 20px; }
       .benefits { grid-template-columns: 1fr; }
     }
-  
+
+    /* iPad tablet layout: 800px container is already reasonable; add brand
+       accent copy and widen slightly for landscape. Additive over phone. */
+    @media (min-width: 768px) and (min-height: 768px) {
+      .container { max-width: 880px; padding: 40px 40px; }
+      body::before {
+        content: "Auto care. Handled.";
+        position: fixed;
+        top: 50%; left: 40px;
+        transform: translateY(-50%) rotate(-90deg);
+        transform-origin: left center;
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 1.15rem;
+        font-weight: 500;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(201, 168, 76, 0.55);
+        pointer-events: none;
+        z-index: 1;
+        white-space: nowrap;
+      }
+    }
+    @media (min-width: 1024px) and (min-height: 768px) {
+      .container { max-width: 980px; }
+      body::before { font-size: 1.3rem; left: 56px; }
+    }
+
     .icon-inline { display: inline-flex; align-items: center; vertical-align: middle; }
   </style>
   <script src="i18n.js"></script>

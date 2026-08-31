@@ -1003,6 +1003,9 @@
       // Update dashboard stat
       document.getElementById('stat-rating').textContent = avgRating;
       document.getElementById('stat-review-count').textContent = `(${totalReviews} reviews)`;
+      if (typeof window.toggleStatZeroHint === 'function') {
+        window.toggleStatZeroHint('stat-rating-hint', totalReviews);
+      }
 
       // Update reviews section stats
       document.getElementById('reviews-avg-rating').textContent = avgRating;

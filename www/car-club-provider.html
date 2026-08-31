@@ -130,7 +130,7 @@
     ::-webkit-scrollbar-thumb { background: var(--border-medium); border-radius: 4px; }
     ::-webkit-scrollbar-thumb:hover { background: var(--text-muted); }
 
-    .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: 20px 12px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
+    .sidebar { width: 260px; background: linear-gradient(180deg, rgba(18, 18, 28, 0.98) 0%, rgba(12, 12, 20, 0.99) 100%); border-right: 1px solid var(--border-subtle); padding: max(20px, env(safe-area-inset-top)) 12px 20px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow-y: auto; backdrop-filter: blur(20px); scrollbar-width: none; -ms-overflow-style: none; }
     .sidebar::-webkit-scrollbar { display: none; }
     .sidebar-brand { display: flex; align-items: center; justify-content: center; padding: 8px 12px 20px; border-bottom: 1px solid rgba(148, 148, 168, 0.08); margin-bottom: 20px; text-decoration: none; }
     .sidebar-brand-icon { height: 100px; width: auto; border-radius: var(--radius-md); image-rendering: auto; filter: brightness(1.1) contrast(1.05) drop-shadow(0 4px 16px rgba(212, 168, 85, 0.35)); transition: all 0.3s ease; }
@@ -472,7 +472,7 @@
     .empty-state-cta { display: inline-block; padding: 8px 20px; background: linear-gradient(135deg, var(--accent-gold), #c49a45); color: #12161c; font-weight: 600; border-radius: 100px; text-decoration: none; font-size: var(--text-sm); cursor: pointer; border: none; transition: all 0.2s; }
     .empty-state-cta:hover { opacity: 0.9; transform: translateY(-1px); }
 
-    @media (max-width: 900px) {
+    @media (max-width: 767px) {
       .sidebar { transform: translateX(-100%); transition: transform 0.3s ease; }
       .sidebar.open { transform: translateX(0); }
       .sidebar-overlay.active { display: block; }
@@ -1448,7 +1448,7 @@
       else if (name === 'orders') loadOrders();
       else if (name === 'analytics') loadAnalytics();
       else if (name === 'programs') loadPrograms();
-      if (window.innerWidth <= 900) toggleSidebar();
+      if (window.innerWidth <= 767) toggleSidebar();
     }
 
     function toggleSidebar() {

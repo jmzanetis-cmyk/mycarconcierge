@@ -452,12 +452,21 @@ function formatPickup(pickup) {
   return labels[pickup] || pickup || 'Standard';
 }
 
+// package-details-modal has a bespoke iPad split-view treatment (see the
+// #package-details-modal rules in providers.html): at ≥1024/768pt it renders
+// as a persistent right drawer, and .main needs padding-right reserved so
+// the drawer doesn't overlap the browse list. Prior version used CSS :has()
+// to reflow .main, but IPHONEOS_DEPLOYMENT_TARGET=14.0 predates :has() (added
+// iOS 15.4), so any real iPad on iOS 14.0-15.3 wouldn't reflow. Toggling a
+// body class from the JS layer works everywhere the app can install.
 function openModal(id) {
   document.getElementById(id).classList.add('active');
+  if (id === 'package-details-modal') document.body.classList.add('drawer-open');
 }
 
 function closeModal(id) {
   document.getElementById(id).classList.remove('active');
+  if (id === 'package-details-modal') document.body.classList.remove('drawer-open');
 }
 
 // ========== DELETE ACCOUNT ==========
@@ -532,23 +541,44 @@ window.openDeleteAccountModal = openDeleteAccountModal;
 window.confirmDeleteAccount = confirmDeleteAccount;
 
 // ========== STATS UPDATE ==========
+// Toggle the "zero-state hint" span next to a stat: shown when value === 0,
+// hidden otherwise. Kept as a local helper so both updateStats (this file)
+// and the reviews-rating render in providers.js can call it with matching
+// semantics. Fails silently if the hint element is missing.
+function toggleStatZeroHint(hintId, value) {
+  const el = document.getElementById(hintId);
+  if (!el) return;
+  el.style.display = value === 0 ? '' : 'none';
+}
+
 function updateStats() {
-  document.getElementById('stat-open').textContent = openPackages.length;
-  document.getElementById('stat-bids').textContent = myBids.filter(b => b.status === 'pending').length;
-  document.getElementById('stat-won').textContent = myBids.filter(b => b.status === 'accepted').length;
-  
+  const openCount = openPackages.length;
+  const pendingCount = myBids.filter(b => b.status === 'pending').length;
+  const wonCount = myBids.filter(b => b.status === 'accepted').length;
+  document.getElementById('stat-open').textContent = openCount;
+  document.getElementById('stat-bids').textContent = pendingCount;
+  document.getElementById('stat-won').textContent = wonCount;
+  toggleStatZeroHint('stat-open-hint', openCount);
+  toggleStatZeroHint('stat-bids-hint', pendingCount);
+  toggleStatZeroHint('stat-won-hint', wonCount);
+
   const totalCredits = (providerProfile?.bid_credits || 0) + (providerProfile?.free_trial_bids || 0);
   document.getElementById('stat-credits').textContent = totalCredits;
-  
+
   const dashboardCredits = document.getElementById('dashboard-bid-credits');
   if (dashboardCredits) dashboardCredits.textContent = totalCredits;
-  
+
   const browseCredits = document.getElementById('browse-credits-count');
   if (browseCredits) browseCredits.textContent = totalCredits;
-  
+
   const uniqueMembers = new Set(openPackages.map(p => p.member_id)).size;
   document.getElementById('stat-members-nearby').textContent = uniqueMembers;
+  toggleStatZeroHint('stat-members-nearby-hint', uniqueMembers);
 }
+
+// Exposed on window so providers.js's rating render (loadReviews) can call it
+// for the review-count zero state, without duplicating the DOM logic.
+window.toggleStatZeroHint = toggleStatZeroHint;
 
 // ========== BASIC POS STATUS ==========
 async function loadPosIntegrationStatus() {

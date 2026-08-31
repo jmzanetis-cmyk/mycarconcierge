@@ -25,6 +25,7 @@
         <key>UIDeviceFamily</key>
         <array>
                 <integer>1</integer>
+                <integer>2</integer>
         </array>
         <key>UILaunchStoryboardName</key>
         <string>LaunchScreen</string>
@@ -35,6 +36,13 @@
                 <string>armv7</string>
         </array>
         <key>UISupportedInterfaceOrientations</key>
+        <array>
+                <string>UIInterfaceOrientationPortrait</string>
+                <string>UIInterfaceOrientationPortraitUpsideDown</string>
+                <string>UIInterfaceOrientationLandscapeLeft</string>
+                <string>UIInterfaceOrientationLandscapeRight</string>
+        </array>
+        <key>UISupportedInterfaceOrientations~ipad</key>
         <array>
                 <string>UIInterfaceOrientationPortrait</string>
                 <string>UIInterfaceOrientationPortraitUpsideDown</string>
@@ -79,6 +87,8 @@
         <key>NSPhotoLibraryAddUsageDescription</key>
         <string>My Car Concierge needs permission to save photos to your library.</string>
         <key>NSLocationWhenInUseUsageDescription</key>
+        <string>My Car Concierge uses your location to find nearby service providers and enable temporary location sharing during vehicle service.</string>
+        <key>NSLocationAlwaysAndWhenInUseUsageDescription</key>
         <string>My Car Concierge uses your location to find nearby service providers and enable temporary location sharing during vehicle service.</string>
         <key>ITSAppUsesNonExemptEncryption</key>
         <false/>

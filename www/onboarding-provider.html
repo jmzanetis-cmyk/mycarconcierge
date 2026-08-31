@@ -1004,6 +1004,41 @@
       .category-grid { gap: 8px; }
       .category-card { padding: 12px; }
     }
+
+    /* iPad tablet layout: widen the wizard, add "Auto care. Handled." accent.
+       Same pattern as onboarding-member.html — phone rules untouched. */
+    @media (min-width: 768px) and (min-height: 768px) {
+      .onboarding { position: relative; }
+      .step { padding: 96px 48px 48px; }
+      .step-content { max-width: 680px; }
+      .step-question { font-size: 2.4rem; line-height: 1.2; }
+      .step-subtitle { font-size: 1.12rem; }
+      .step-icon { width: 88px; height: 88px; margin-bottom: 32px; }
+      .step-icon svg { width: 42px; height: 42px; }
+      .type-grid { grid-template-columns: repeat(3, 1fr); gap: 16px; }
+      .services-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
+      body::before {
+        content: "Auto care. Handled.";
+        position: fixed;
+        top: 50%; left: 40px;
+        transform: translateY(-50%) rotate(-90deg);
+        transform-origin: left center;
+        font-family: 'Fraunces', Georgia, serif;
+        font-size: 1.15rem;
+        font-weight: 500;
+        letter-spacing: 0.24em;
+        text-transform: uppercase;
+        color: rgba(201, 168, 76, 0.55);
+        pointer-events: none;
+        z-index: 1;
+        white-space: nowrap;
+      }
+    }
+    @media (min-width: 1024px) and (min-height: 768px) {
+      .step-content { max-width: 760px; }
+      .step-question { font-size: 2.8rem; }
+      body::before { font-size: 1.3rem; left: 56px; }
+    }
   </style>
 <!-- SEO-INJECT:START -->
   <link rel="canonical" href="https://www.mycarconcierge.com/onboarding-provider.html" />

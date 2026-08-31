@@ -728,6 +728,182 @@
       background: var(--accent-gold);
       width: 22px; border-radius: 4px;
     }
+
+    /* ── iPad tablet layout: login split panel + intro carousel scaled ────────
+       Active when both viewport dims >= 768pt (iPad in any orientation).
+       Excludes iPhone landscape (max height ~430pt on 6.7"). Additive over the
+       existing phone-first rules — iPhone layout is unaffected.               */
+    @media (min-width: 768px) and (min-height: 768px) {
+      body { padding: 40px; }
+
+      /* Login container becomes a 2-column split: brand pane + card pane.
+         The DOM order is logo → tagline → (language-switcher) → login-card.
+         Grid template puts logo+tagline in column 1 and card in column 2 by
+         using grid-column assignments below. */
+      .login-container {
+        max-width: 960px;
+        display: grid;
+        grid-template-columns: minmax(280px, 1fr) minmax(360px, 480px);
+        grid-template-areas:
+          "brand  card"
+          "tagline card";
+        column-gap: 48px;
+        row-gap: 20px;
+        align-items: center;
+      }
+
+      /* Brand lockup (mcc-logo <a>) — stretches to fill the full brand
+         grid-column width. Base .mcc-logo in shared-styles.css is
+         display:inline-flex with no justify-content, so the wordmark + mark
+         were left-packed inside the wider grid cell. Center them within the
+         cell instead of hugging the left edge.
+         Also drop the navy chip box (background + border + border-radius +
+         side/bottom padding from the base rule) — on the iPad split-view
+         the lockup should sit directly on the dark page bg like the
+         tagline below it, matching how it appears elsewhere in the app. */
+      .login-container > .mcc-logo {
+        grid-area: brand;
+        align-self: end;
+        justify-content: center;
+        background: none;
+        border: none;
+        border-radius: 0;
+        padding: 24px 0 0;
+        gap: 18px;
+      }
+      /* :hover on the base rule adds a gold outline glow — kill it too so
+         the pointerless native surface doesn't get a stray focus ring. */
+      .login-container > .mcc-logo:hover {
+        border-color: transparent;
+        box-shadow: none;
+      }
+      .login-container > .mcc-logo .mcc-logo-word {
+        /* Portrait 11" iPad (820pt wide, brand grid column = 280px) can't
+           fit the 2.4rem wordmark + 85px mark + 18px gap = ~410px lockup —
+           it overflows 65px on each side with justify-content:center, so
+           "M" clips off the viewport and the icon spills into the card
+           column. Landscape (1024+) rule below explicitly re-sets both
+           font-size and mark dims, so the shrunk values here only affect
+           portrait 11" iPad; landscape 11"/13" and portrait 13" all get
+           the larger values. Measured: wordmark ≈ font-size × 7.99 px, so
+           1.5rem × 8 ≈ 192px + 60px mark + 18px gap = 270px in a 280px
+           column → 10px buffer. */
+        font-size: 1.5rem;
+        letter-spacing: -0.01em;
+      }
+      .login-container > .mcc-logo .mcc-logo-mark {
+        /* WebKit (WKWebView) flex quirk: an inline SVG with viewBox but no
+           explicit width/height attrs, sized via `height` only and left at
+           the base `width: auto`, can collapse to intrinsic-width 0 inside
+           a flex container — the icon renders invisibly even though the
+           <svg> element is in the DOM. Blink/Chromium infers width from
+           the viewBox aspect ratio; WebKit historically does not.
+           Aspect ratio here is 797/374 ≈ 2.131 from viewBox="284 452 797
+           374"; width = height × 2.131. Also set flex-shrink:0 so a tight
+           parent flex line can't shrink us back to zero.
+           Portrait 11" iPad values (see wordmark comment above). */
+        height: 28px;
+        width: 60px;
+        flex-shrink: 0;
+      }
+
+      /* Tagline element (see DOM insert below the mcc-logo) — visible on iPad
+         only. Inline style="display:none" hides it on phone; !important needed
+         here to override that inline default at the iPad breakpoint. */
+      .login-brand-tagline {
+        display: block !important;
+        grid-area: tagline;
+        align-self: start;
+        font-family: 'Fraunces', serif;
+        font-size: 1.35rem;
+        font-weight: 400;
+        line-height: 1.4;
+        color: var(--text-secondary);
+        max-width: 360px;
+        margin: 0;
+        padding-bottom: 24px;
+      }
+
+      /* Language switcher (empty on native, populated on web) — pin to brand
+         column and align beneath the tagline. On native it's already hidden by
+         body.native-app rules elsewhere in this file. */
+      #language-switcher {
+        grid-column: 1;
+        justify-self: start;
+        margin: 0;
+      }
+
+      /* Card pane (right column) spans both brand rows so it sits centered
+         vertically across the height of the brand pane. */
+      .login-card {
+        grid-area: card;
+        margin: 0;
+        padding: 44px 40px;
+      }
+
+      /* Native-app compact overrides are phone-tuned; on iPad, restore the
+         full sizes and re-show marketing chrome like the login footer. */
+      body.native-app .login-card     { padding: 44px 40px; }
+      body.native-app .login-header   { margin-bottom: 24px; }
+      body.native-app .login-header h1 { font-size: var(--text-3xl); }
+      body.native-app .login-header p  { font-size: var(--text-base); }
+      body.native-app .form-group     { margin-bottom: 20px; }
+      body.native-app .form-input     { padding: 14px 16px; }
+      body.native-app .btn            { padding: 14px 24px; margin-top: 8px; }
+      body.native-app .signup-links,
+      body.native-app .divider        { display: flex; }
+      body.native-app .trust-bar      { display: flex; }
+
+      /* Hide the phone-layout "Forgot password?" link in .login-footer at
+         tablet width — the login card at line ~981 already has its own
+         "Forgot password?" right-aligned above the Sign In button, so the
+         footer copy would show as a duplicate orphaned near the copyright.
+         "Need help?" and the copyright line stay visible. */
+      .login-footer > a[href="forgot-password.html"] { display: none; }
+
+      /* Intro carousel — the phone version renders a 640px text island in a
+         100vw slide with the CTA left-aligned. On iPad, restructure each slide
+         to a two-column grid: brand accent + headline stack on the left,
+         supporting graphic (dot pattern) on the right, CTA centered. */
+      .mcc-intro-slide {
+        padding: calc(env(safe-area-inset-top, 0px) + 96px) 96px
+                 calc(env(safe-area-inset-bottom, 0px) + 128px);
+        justify-content: center;
+      }
+      .mcc-intro-slide h2 {
+        font-size: 3.6rem;
+        line-height: 1.12;
+        max-width: 880px;
+        margin: 0 auto 32px;
+      }
+      .mcc-intro-slide p {
+        font-size: 1.28rem;
+        line-height: 1.65;
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      .mcc-intro-cta {
+        align-self: center;
+        margin-top: 56px;
+        padding: 18px 42px;
+        font-size: 1.1rem;
+      }
+      #mcc-intro-skip { font-size: 1rem; top: calc(28px + env(safe-area-inset-top, 0px)); right: 40px; }
+      #mcc-intro-dots { bottom: calc(40px + env(safe-area-inset-bottom, 0px)); }
+      .mcc-intro-dot { width: 9px; height: 9px; }
+      .mcc-intro-dot.active { width: 28px; }
+    }
+
+    /* iPad landscape (>=1024pt wide) — push the intro carousel type even
+       larger and use extra horizontal space; login split gets slightly wider. */
+    @media (min-width: 1024px) and (min-height: 768px) {
+      .login-container { max-width: 1080px; column-gap: 72px; }
+      .login-brand-tagline { font-size: 1.55rem; max-width: 420px; }
+      .login-container > .mcc-logo .mcc-logo-word { font-size: 2.8rem; }
+      .login-container > .mcc-logo .mcc-logo-mark { height: 48px; width: 102px; flex-shrink: 0; }
+      .mcc-intro-slide h2 { font-size: 4.4rem; max-width: 960px; }
+      .mcc-intro-slide p { font-size: 1.36rem; max-width: 800px; }
+    }
   </style>
   <script src="i18n.js"></script>
 <!-- SEO-INJECT:START -->
@@ -793,6 +969,8 @@
     </g>
   </svg>
 </a>
+    <!-- iPad-only marketing tagline (hidden on phone via display:none default) -->
+    <p class="login-brand-tagline" style="display:none;">Auto care. Handled. The marketplace where trusted providers compete for your work.</p>
     <div id="language-switcher" style="display:flex;justify-content:center;margin-bottom:16px;"></div>
 
     <div class="login-card">

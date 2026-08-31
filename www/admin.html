@@ -130,7 +130,7 @@
     ::-webkit-scrollbar-corner { background: transparent; }
     * { scrollbar-width: thin; scrollbar-color: rgba(148, 148, 168, 0.3) transparent; }
 
-    .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: 24px 16px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow: hidden; }
+    .sidebar { width: 260px; background: var(--bg-card); border-right: 1px solid var(--border-subtle); padding: max(24px, env(safe-area-inset-top)) 16px 24px; display: flex; flex-direction: column; position: fixed; height: 100vh; z-index: 50; overflow: hidden; }
     .sidebar-nav { flex: 1; overflow-y: auto; margin-right: -8px; padding-right: 8px; }
     .sidebar-brand { display: flex; align-items: center; gap: 12px; padding: 0 12px 24px; border-bottom: 1px solid var(--border-subtle); margin-bottom: 24px; text-decoration: none; }
     .sidebar-brand img { height: 120px; border-radius: var(--radius-md); image-rendering: auto; filter: drop-shadow(0 6px 24px rgba(212, 168, 85, 0.25)); transition: all 0.3s ease; }
