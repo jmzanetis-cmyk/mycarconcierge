@@ -1509,6 +1509,30 @@ body.has-bottom-nav .main {
   padding-top: max(24px, env(safe-area-inset-top));
 }
 
+/* Modal safe-area on iPhone with native tab bar.
+   The shared .modal is centered inside a 100vh flex .modal-backdrop; without
+   this rule the modal centers over the full viewport, so its bottom edge
+   (containing .modal-footer with the primary submit button) renders BEHIND
+   the fixed .mobile-bottom-nav (60px) + env(safe-area-inset-bottom, ~34pt on
+   Home-Indicator iPhones). Scrolling the modal to bottom reaches the true
+   scrollHeight, but the footer button is occluded — reported as "cramped"
+   for short modals (Add Vehicle) and "won't scroll past last section"
+   for tall modals (New Service Request) where users mistake occlusion for
+   a scroll block.
+   Fix: add safe padding to the backdrop's bottom (shifts the centered modal
+   up) and cap .modal max-height so it fits within the newly-shortened
+   available area. Fires ONLY at iPhone widths AND when the native tab bar
+   is present (body.has-bottom-nav). iPad + web unaffected. */
+@media (max-width: 767px) {
+  body.has-bottom-nav .modal-backdrop {
+    padding-top: max(24px, env(safe-area-inset-top));
+    padding-bottom: calc(24px + 60px + env(safe-area-inset-bottom));
+  }
+  body.has-bottom-nav .modal {
+    max-height: calc(100vh - max(24px, env(safe-area-inset-top)) - 24px - 60px - env(safe-area-inset-bottom));
+  }
+}
+
 /* ==========================================================================
    Touch Interaction Improvements
    ========================================================================== */
