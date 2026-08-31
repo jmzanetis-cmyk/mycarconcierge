@@ -69,6 +69,7 @@
 const {
   getSupabase, authorizeAgentInvocation, jsonResponse, logAction
 } = require('./agent-fleet-runtime');
+const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 const SLUG = 'director';
 const MCC_APP_URL = process.env.MCC_APP_URL || 'https://mycarconcierge.com';
@@ -847,8 +848,23 @@ async function checkPaymentAutoRelease(supabase) {
   const captured = [];
   const failed   = [];
 
+  const skippedReviewer = [];
   for (const pmt of payments) {
     const piId = pmt.stripe_payment_intent_id || pmt.stripe_payment_intent || pmt.stripe_payment_id;
+    // Reviewer-account guard: skip PIs belonging to App Store reviewer
+    // accounts so the cron doesn't attempt to capture a mock PI (which
+    // Stripe would 404). Two cheap checks first (mock-id prefix) before
+    // the DB lookup so the common case pays nothing extra.
+    if (typeof piId === 'string' && piId.startsWith('pi_reviewer_mock')) {
+      skippedReviewer.push(pmt.id);
+      await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+      continue;
+    }
+    if (pmt.member_id && await isReviewerAccount(supabase, pmt.member_id)) {
+      skippedReviewer.push(pmt.id);
+      await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+      continue;
+    }
     if (piId && stripe) {
       try {
         await stripe.paymentIntents.capture(piId);
@@ -863,15 +879,15 @@ async function checkPaymentAutoRelease(supabase) {
     captured.push(pmt.id);
   }
 
-  if (captured.length === 0 && failed.length === 0) return null;
+  if (captured.length === 0 && failed.length === 0 && skippedReviewer.length === 0) return null;
 
   return {
     alert_key: `payment_auto_release_${now.slice(0, 10)}`,
     severity: failed.length > 0 ? 'high' : 'info',
-    title: `Payment auto-release: ${captured.length} captured, ${failed.length} failed`,
-    body: `${captured.length} overdue payment${captured.length === 1 ? '' : 's'} auto-released via Stripe capture.${failed.length > 0 ? ` ${failed.length} capture${failed.length === 1 ? '' : 's'} failed — manual review required.` : ''}`,
+    title: `Payment auto-release: ${captured.length} captured, ${failed.length} failed${skippedReviewer.length ? `, ${skippedReviewer.length} reviewer-skipped` : ''}`,
+    body: `${captured.length} overdue payment${captured.length === 1 ? '' : 's'} auto-released via Stripe capture.${failed.length > 0 ? ` ${failed.length} capture${failed.length === 1 ? '' : 's'} failed — manual review required.` : ''}${skippedReviewer.length > 0 ? ` ${skippedReviewer.length} reviewer-account payment${skippedReviewer.length === 1 ? '' : 's'} released without Stripe capture.` : ''}`,
     next_action: failed.length > 0 ? 'review_failed_captures' : null,
-    payload: { captured, failed }
+    payload: { captured, failed, skipped_reviewer: skippedReviewer }
   };
 }
 

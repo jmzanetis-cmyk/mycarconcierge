@@ -7,6 +7,7 @@ const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { dispatchBidAcceptedPush } = require('./notifications-bid-accepted-push');
 const { audit: sharedAudit } = require('./_shared/audit');
+const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 // Money-path audit wrapper: always log + alert on failure. A failed audit
 // must NEVER throw into the money operation — the shared helper guarantees
@@ -252,7 +253,10 @@ async function notifyAcceptedProvider(sb, providerId, callerId, planId, planTitl
     console.warn('[accept-bid] in-app notification insert failed:', err.message);
   }
   try {
-    await dispatchBidAcceptedPush(sb, providerId, title, Number(bidAmount));
+    // Pass callerId so dispatchBidAcceptedPush can apply the reviewer-account
+    // guard (skips FCM to real providers when the accepting member is a
+    // reviewer — protects Chris from being paged by App Store review flows).
+    await dispatchBidAcceptedPush(sb, providerId, title, Number(bidAmount), callerId);
   } catch (err) {
     console.warn('[accept-bid] push dispatch failed:', err.message);
   }
@@ -420,6 +424,54 @@ async function handleAcceptBid(event, sb, user, planId) {
     piParams.transfer_data = { destination: provProfile.stripe_account_id };
   }
 
+  // Reviewer-account guard: skip Stripe PaymentIntent creation entirely for
+  // App Store reviewer accounts. Mimic the wallet-fully-covered branch
+  // (:400-405 above) so state is consistent — plan moves to awarded/held
+  // without a PI, the client re-renders and sees the "Mark Complete" panel
+  // instead of the card-authorize panel (which would break trying to mount
+  // Stripe.js with no client_secret). handleComplete has a matching guard
+  // that skips the capture step when stripe_payment_intent_id is null.
+  if (await isReviewerAccount(sb, user.id)) {
+    const { error: updateErr } = await sb.from('care_plans').update({
+      accepted_bid_id: bid_id,
+      provider_id: bid.provider_id,
+      status: 'awarded',
+      payment_status: 'held',
+      escrow_amount: bid.amount,
+      accepted_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    }).eq('id', planId);
+    if (updateErr) return json(500, { error: updateErr.message });
+    await sb.from('plan_bids').update({ status: 'accepted' }).eq('id', bid_id);
+    const { error: sweepErr } = await sb.from('plan_bids').update({ status: 'rejected' })
+      .eq('care_plan_id', planId).neq('id', bid_id).eq('status', 'pending');
+    if (sweepErr) console.error('[accept-bid][reviewer-mock] competitor sweep failed:', sweepErr);
+    await audit(sb, {
+      action: 'bid_accepted',
+      target_id: planId,
+      target_type: 'care_plan',
+      performed_by: user.id,
+      metadata: {
+        bid_id,
+        provider_id: bid.provider_id,
+        escrow_status: 'held',
+        escrow_amount: bid.amount,
+        reviewer_mock: true,
+      },
+    });
+    // notifyAcceptedProvider passes callerId through to dispatchBidAcceptedPush,
+    // which has its own reviewer guard — the FCM push is skipped. The in-app
+    // notifications row still lands in the reviewer-provider's inbox, which is
+    // harmless (no one reads it).
+    await notifyAcceptedProvider(sb, bid.provider_id, user.id, planId, plan.title, bid.amount);
+    return json(200, {
+      success: true,
+      paid_by_wallet: true,
+      credit_applied_cents: appliedCreditsCents,
+      reviewer_mock: true,
+    });
+  }
+
   let pi;
   try {
     pi = await st.paymentIntents.create(piParams);
@@ -488,19 +540,37 @@ async function handleComplete(event, sb, user, planId) {
   // Heal requires_payment → held first if the member already authorized
   // (see reconcileHeldFromStripe — without this, release was impossible on
   // the card path).
-  const plan = await reconcileHeldFromStripe(sb, planRow);
-  if (plan.payment_status !== 'held') {
-    return json(409, { error: 'Funds are not in held state for this care plan' });
-  }
-  if (!plan.stripe_payment_intent_id) return json(400, { error: 'No payment intent on record' });
+  // Reviewer-account guard is checked BEFORE reconcile + PI presence so a
+  // reviewer-mocked plan (no stripe_payment_intent_id) still completes
+  // cleanly. Skips both the reconcile-from-Stripe step and the capture step;
+  // preserves the held-status precondition so we can't complete a plan the
+  // reviewer never accepted.
+  const isReviewer = await isReviewerAccount(sb, user.id);
 
-  const st = stripe();
-  if (!st) return json(500, { error: 'Payment system unavailable' });
+  let plan;
+  if (isReviewer) {
+    plan = planRow;
+    if (plan.payment_status !== 'held') {
+      return json(409, { error: 'Funds are not in held state for this care plan' });
+    }
+  } else {
+    // Heal requires_payment → held first if the member already authorized
+    // (see reconcileHeldFromStripe — without this, release was impossible on
+    // the card path).
+    plan = await reconcileHeldFromStripe(sb, planRow);
+    if (plan.payment_status !== 'held') {
+      return json(409, { error: 'Funds are not in held state for this care plan' });
+    }
+    if (!plan.stripe_payment_intent_id) return json(400, { error: 'No payment intent on record' });
 
-  try {
-    await st.paymentIntents.capture(plan.stripe_payment_intent_id);
-  } catch (stripeErr) {
-    return json(500, { error: stripeErr.message || 'Failed to capture payment' });
+    const st = stripe();
+    if (!st) return json(500, { error: 'Payment system unavailable' });
+
+    try {
+      await st.paymentIntents.capture(plan.stripe_payment_intent_id);
+    } catch (stripeErr) {
+      return json(500, { error: stripeErr.message || 'Failed to capture payment' });
+    }
   }
 
   const { error: updateErr } = await sb.from('care_plans').update({
@@ -523,6 +593,7 @@ async function handleComplete(event, sb, user, planId) {
       escrow_amount: plan.escrow_amount,
       previous_status: 'held',
       new_status: 'captured',
+      reviewer_mock: isReviewer || undefined,
     },
   });
 

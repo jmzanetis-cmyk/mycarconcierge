@@ -14,6 +14,7 @@
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { audit: sharedAudit } = require('./_shared/audit');
+const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 // Money-path audit wrapper: always log + alert on failure. A failed audit
 // must NEVER throw into the money operation.
@@ -99,6 +100,30 @@ exports.handler = async function(event) {
       },
     });
     return resp(200, { success: true, stripe_captured: false });
+  }
+
+  // Reviewer-account guard: skip the Stripe capture call. Mark released in
+  // DB via the same RPC so downstream state transitions match; audit records
+  // reviewer_mock=true so the log is honest. Return the "already released"
+  // shape variant that indicates no Stripe involvement.
+  const isReviewer = await isReviewerAccount(supabase, user.id);
+  if (isReviewer) {
+    await supabase.rpc('member_release_payment', { p_package_id: packageId });
+    await audit(supabase, {
+      action: 'payment_released_by_member',
+      target_id: payment.id,
+      target_type: 'payment',
+      performed_by: user.id,
+      metadata: {
+        package_id: packageId,
+        stripe_payment_intent_id: piId,
+        previous_status: payment.status,
+        new_status: 'released',
+        stripe_captured: false,
+        reviewer_mock: true,
+      },
+    });
+    return resp(200, { success: true, stripe_captured: false, reviewer_mock: true });
   }
 
   const stripe = getStripe();

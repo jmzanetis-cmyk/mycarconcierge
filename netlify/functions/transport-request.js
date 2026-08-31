@@ -14,6 +14,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 // TNC permit not yet obtained — passenger rides disabled until further notice.
 // Flip to true only after regulatory approval is confirmed.
@@ -257,23 +258,32 @@ async function handleMemberRequest(event, supabase, body) {
       return jsonResponse(400, { error: 'No saved payment method found. Please add a card before requesting a pickup.' });
     }
 
-    try {
-      const pi = await stripe.paymentIntents.create({
-        amount:         Math.round(memberRate * 100),
-        currency:       'usd',
-        customer:       memberProfile.stripe_customer_id,
-        payment_method: defaultPM,
-        capture_method: 'manual',
-        confirm:        true,
-        off_session:    true,
-        description:    `MCC Member Pickup — Ride ${data.id}`,
-        metadata: { ride_id: data.id, type: 'member_pickup', member_id: user.id },
-      });
-      await supabase.from('rides').update({ stripe_payment_intent_id: pi.id }).eq('id', data.id);
-    } catch (chargeErr) {
-      console.error('[transport-request] member charge error:', chargeErr.message);
-      await supabase.from('rides').delete().eq('id', data.id);
-      return jsonResponse(402, { error: 'Payment authorisation failed: ' + chargeErr.message });
+    // Reviewer-account guard: skip real Stripe hold; mark the ride with a
+    // namespaced mock PI id so the row is queryable and post-flow steps
+    // (cancel, tip) can detect it and short-circuit similarly.
+    if (await isReviewerAccount(supabase, user.id)) {
+      await supabase.from('rides').update({
+        stripe_payment_intent_id: `pi_reviewer_mock_${data.id}`,
+      }).eq('id', data.id);
+    } else {
+      try {
+        const pi = await stripe.paymentIntents.create({
+          amount:         Math.round(memberRate * 100),
+          currency:       'usd',
+          customer:       memberProfile.stripe_customer_id,
+          payment_method: defaultPM,
+          capture_method: 'manual',
+          confirm:        true,
+          off_session:    true,
+          description:    `MCC Member Pickup — Ride ${data.id}`,
+          metadata: { ride_id: data.id, type: 'member_pickup', member_id: user.id },
+        });
+        await supabase.from('rides').update({ stripe_payment_intent_id: pi.id }).eq('id', data.id);
+      } catch (chargeErr) {
+        console.error('[transport-request] member charge error:', chargeErr.message);
+        await supabase.from('rides').delete().eq('id', data.id);
+        return jsonResponse(402, { error: 'Payment authorisation failed: ' + chargeErr.message });
+      }
     }
   }
 
@@ -403,21 +413,24 @@ async function handleProviderRequest(event, supabase, body) {
 
   // Charge provider for their subsidised portion
   if (providerPays > 0 && providerStripeCustomerId && providerDefaultPM) {
-    try {
-      await getStripe().paymentIntents.create({
-        amount:         Math.round(providerPays * 100),
-        currency:       'usd',
-        customer:       providerStripeCustomerId,
-        payment_method: providerDefaultPM,
-        confirm:        true,
-        off_session:    true,
-        description:    `MCC Provider Subsidy — Ride ${data.id}`,
-        metadata:       { ride_id: data.id, type: 'provider_subsidy', provider_id: user.id },
-      });
-    } catch (chargeErr) {
-      // Subsidy charge failed — roll back the ride to avoid an uncharged subsidy
-      await supabase.from('rides').delete().eq('id', data.id);
-      return jsonResponse(402, { error: 'Subsidy payment failed: ' + chargeErr.message });
+    // Reviewer-account guard: skip the Stripe subsidy charge.
+    if (!(await isReviewerAccount(supabase, user.id))) {
+      try {
+        await getStripe().paymentIntents.create({
+          amount:         Math.round(providerPays * 100),
+          currency:       'usd',
+          customer:       providerStripeCustomerId,
+          payment_method: providerDefaultPM,
+          confirm:        true,
+          off_session:    true,
+          description:    `MCC Provider Subsidy — Ride ${data.id}`,
+          metadata:       { ride_id: data.id, type: 'provider_subsidy', provider_id: user.id },
+        });
+      } catch (chargeErr) {
+        // Subsidy charge failed — roll back the ride to avoid an uncharged subsidy
+        await supabase.from('rides').delete().eq('id', data.id);
+        return jsonResponse(402, { error: 'Subsidy payment failed: ' + chargeErr.message });
+      }
     }
   }
 
@@ -653,29 +666,37 @@ async function _cancelWithPolicy(supabase, ride, user) {
       // Fall back to saved card
       const { data: profile } = await svc.from('profiles').select('stripe_customer_id').eq('id', user.id).single();
       if (profile?.stripe_customer_id) {
-        try {
-          const stripe = getStripe();
-          const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
-          const defaultPM = customer.invoice_settings?.default_payment_method
-            || (await stripe.paymentMethods.list({ customer: profile.stripe_customer_id, type: 'card', limit: 1 })).data[0]?.id
-            || null;
-          if (defaultPM) {
-            const pi = await stripe.paymentIntents.create({
-              amount:         totalFeeCents,
-              currency:       'usd',
-              customer:       profile.stripe_customer_id,
-              payment_method: defaultPM,
-              confirm:        true,
-              off_session:    true,
-              description:    `MCC Cancellation fee — Ride ${ride.id}`,
-              metadata:       { ride_id: ride.id, cancellation_id: cancelRow.id, type: 'cancel_fee' },
-            }, { idempotencyKey: `cancel_fee_${ride.id}` });
-            stripePI  = pi.id;
-            feeCharged = totalFeeCents;
+        // Reviewer-account guard: skip the Stripe fee charge. Mark stripePI
+        // as a mock id so ride_cancellations.stripe_payment_intent_id stays
+        // populated and the audit doesn't look like a silent write drop.
+        if (await isReviewerAccount(svc, user.id)) {
+          stripePI = `pi_reviewer_mock_cancel_${ride.id}`;
+          feeCharged = totalFeeCents;
+        } else {
+          try {
+            const stripe = getStripe();
+            const customer = await stripe.customers.retrieve(profile.stripe_customer_id);
+            const defaultPM = customer.invoice_settings?.default_payment_method
+              || (await stripe.paymentMethods.list({ customer: profile.stripe_customer_id, type: 'card', limit: 1 })).data[0]?.id
+              || null;
+            if (defaultPM) {
+              const pi = await stripe.paymentIntents.create({
+                amount:         totalFeeCents,
+                currency:       'usd',
+                customer:       profile.stripe_customer_id,
+                payment_method: defaultPM,
+                confirm:        true,
+                off_session:    true,
+                description:    `MCC Cancellation fee — Ride ${ride.id}`,
+                metadata:       { ride_id: ride.id, cancellation_id: cancelRow.id, type: 'cancel_fee' },
+              }, { idempotencyKey: `cancel_fee_${ride.id}` });
+              stripePI  = pi.id;
+              feeCharged = totalFeeCents;
+            }
+          } catch (chargeErr) {
+            console.warn('[transport-request] cancel fee charge failed (non-fatal):', chargeErr.message);
+            // Record as owed — member flagged at next booking attempt
           }
-        } catch (chargeErr) {
-          console.warn('[transport-request] cancel fee charge failed (non-fatal):', chargeErr.message);
-          // Record as owed — member flagged at next booking attempt
         }
       }
     }
@@ -800,7 +821,13 @@ async function handleTip(event, supabase, body) {
   }).select('id').single();
   if (tipInsertErr) return jsonResponse(500, { error: tipInsertErr.message });
 
-  // Charge the member's saved card
+  // Charge the member's saved card. Reviewer-account guard skips real Stripe
+  // charge and just marks the tip row as charged so the client's toast is
+  // consistent with a real success.
+  if (await isReviewerAccount(supabase, user.id)) {
+    await supabase.from('driver_tips').update({ status: 'charged' }).eq('id', tip.id);
+    return jsonResponse(201, { tipped: true, reviewer_mock: true });
+  }
   try {
     await stripe.paymentIntents.create({
       amount:         amount_cents,

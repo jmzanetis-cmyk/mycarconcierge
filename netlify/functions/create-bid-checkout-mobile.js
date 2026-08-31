@@ -20,6 +20,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 function utils() { return require('./utils'); }
 
@@ -77,34 +78,42 @@ exports.handler = async function(event) {
 
   const stripe = require('stripe')(stripeKey, { apiVersion: STRIPE_API_VERSION });
 
+  // Reviewer-account guard: skip real Stripe PI creation. Fake the succeeded
+  // shape so the downstream credit-grant + response paths run identically to
+  // a real charge; the fake pi.id is namespaced so the idempotency check
+  // won't collide with any real payment.
   let pi;
-  try {
-    pi = await stripe.paymentIntents.create({
-      amount:         priceInCents,
-      currency:       'usd',
-      payment_method: paymentMethodId,
-      confirm:        true,
-      // return_url required for some wallet flows (3DS, redirects)
-      return_url: 'https://www.mycarconcierge.com/providers.html?purchase=success',
-      description: `${pack.name} — ${totalBids} bid credits`,
-      metadata: {
-        provider_id: authedProviderId,
-        pack_id:     packId,
-        bids:        pack.bid_count.toString(),
-        bonus_bids:  (pack.bonus_bids || 0).toString(),
-        wallet_type: walletType || 'unknown',
-      },
-    });
-  } catch (err) {
-    console.error('[create-bid-checkout-mobile] Stripe error:', err.message);
-    let msg = 'Payment failed';
-    if (err.type === 'StripeAuthenticationError')  msg = 'Payment service configuration error. Please contact support.';
-    if (err.type === 'StripeCardError')             msg = err.message;
-    return utils().errorResponse(402, msg);
-  }
+  if (await isReviewerAccount(supabase, authedProviderId)) {
+    pi = { status: 'succeeded', id: `pi_reviewer_mock_${Date.now()}_${authedProviderId.slice(0, 8)}` };
+  } else {
+    try {
+      pi = await stripe.paymentIntents.create({
+        amount:         priceInCents,
+        currency:       'usd',
+        payment_method: paymentMethodId,
+        confirm:        true,
+        // return_url required for some wallet flows (3DS, redirects)
+        return_url: 'https://www.mycarconcierge.com/providers.html?purchase=success',
+        description: `${pack.name} — ${totalBids} bid credits`,
+        metadata: {
+          provider_id: authedProviderId,
+          pack_id:     packId,
+          bids:        pack.bid_count.toString(),
+          bonus_bids:  (pack.bonus_bids || 0).toString(),
+          wallet_type: walletType || 'unknown',
+        },
+      });
+    } catch (err) {
+      console.error('[create-bid-checkout-mobile] Stripe error:', err.message);
+      let msg = 'Payment failed';
+      if (err.type === 'StripeAuthenticationError')  msg = 'Payment service configuration error. Please contact support.';
+      if (err.type === 'StripeCardError')             msg = err.message;
+      return utils().errorResponse(402, msg);
+    }
 
-  if (pi.status !== 'succeeded') {
-    return utils().errorResponse(402, `Payment not completed (status: ${pi.status}). Please try again.`);
+    if (pi.status !== 'succeeded') {
+      return utils().errorResponse(402, `Payment not completed (status: ${pi.status}). Please try again.`);
+    }
   }
 
   // Idempotency guard before granting credits

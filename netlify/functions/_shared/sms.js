@@ -123,6 +123,45 @@ function twilioHealthCheck(env = process.env) {
 }
 
 async function sendSms({ supabase, toPhone, body, userId = null, env = process.env }) {
+  // Reviewer-account guard: block Twilio delivery for App Store reviewer
+  // accounts. Runs BEFORE the STOP/opt-out check so a reviewer never even
+  // triggers a phone-lookup Twilio round-trip. Matches the { sent:false,
+  // reason:'...' } shape callers already handle for opt-out.
+  //
+  // Two lookup paths, mirroring isOptedOut(): (1) if userId is known, load
+  // profiles.email by id; (2) if only phone is known, load by normalized
+  // phone. Uses isReviewerEmail (sync) so we don't recompute the env set
+  // per row. Fails CLOSED to "not a reviewer" if the profile lookup errors
+  // — guard-side failure must never block a real user's SMS.
+  var { isReviewerEmail } = require('./reviewer-guard');
+  try {
+    if (userId && supabase) {
+      var byId = await supabase
+        .from('profiles')
+        .select('email')
+        .eq('id', userId)
+        .maybeSingle();
+      if (!byId.error && byId.data && isReviewerEmail(byId.data.email)) {
+        return { sent: false, reason: 'reviewer' };
+      }
+    }
+    var e164 = normalizePhone(toPhone);
+    if (e164 && supabase) {
+      var byPhone = await supabase
+        .from('profiles')
+        .select('email')
+        .or(`phone.eq.${e164},phone.eq.${e164.replace(/^\+1/, '')}`)
+        .limit(1);
+      if (!byPhone.error && Array.isArray(byPhone.data)) {
+        for (var i = 0; i < byPhone.data.length; i++) {
+          if (isReviewerEmail(byPhone.data[i] && byPhone.data[i].email)) {
+            return { sent: false, reason: 'reviewer' };
+          }
+        }
+      }
+    }
+  } catch (_e) { /* fall through — guard failure must not block real users */ }
+
   if (await isOptedOut({ supabase, userId, phone: toPhone })) {
     return { sent: false, reason: 'sms_opt_out' };
   }

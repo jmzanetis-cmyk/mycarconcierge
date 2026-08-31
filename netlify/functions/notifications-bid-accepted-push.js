@@ -115,7 +115,20 @@ async function isBidAcceptedAllowed(supabase, providerId) {
   return true;
 }
 
-async function dispatchBidAcceptedPush(supabase, providerId, packageTitle, bidAmount) {
+async function dispatchBidAcceptedPush(supabase, providerId, packageTitle, bidAmount, acceptingMemberId = null) {
+  // Reviewer-account guard: when the ACCEPTING member is an App Store reviewer,
+  // skip the FCM dispatch so a reviewer's accept-flow test can't page the real
+  // pilot provider (Chris) on his device. Optional param stays null for legacy
+  // callers — those flows will simply not benefit from the guard until the
+  // accepting-member id is threaded through. Both current callers pass it:
+  // notifyAcceptedProvider(care-plans.js:255) → callerId; HTTP handler:264 →
+  // callerId. Fails-open on lookup errors per reviewer-guard's contract.
+  if (acceptingMemberId) {
+    var { isReviewerAccount } = require('./_shared/reviewer-guard');
+    if (await isReviewerAccount(supabase, acceptingMemberId)) {
+      return { sent: false, reason: 'reviewer', success: 0, failure: 0 };
+    }
+  }
   if (!process.env.FCM_SERVICE_ACCOUNT_JSON) {
     return { sent: false, reason: 'not_configured', success: 0, failure: 0 };
   }
@@ -265,7 +278,8 @@ exports.handler = async function(event) {
     supabase,
     providerId,
     dbPackageTitle,
-    dbBidAmount
+    dbBidAmount,
+    callerId
   );
 
   return utils.successResponse({ ok: true, ...result });

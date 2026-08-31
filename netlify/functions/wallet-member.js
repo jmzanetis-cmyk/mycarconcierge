@@ -12,6 +12,7 @@
 
 const { createClient } = require('@supabase/supabase-js');
 const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 function getStripe() {
   const key = process.env.STRIPE_SECRET_KEY;
@@ -123,25 +124,36 @@ exports.handler = async function(event) {
       await svc.from('profiles').update({ stripe_customer_id: customerId }).eq('id', user.id);
     }
 
-    // Charge the load amount
+    // Reviewer-account guard: skip real Stripe PI. Belt-and-suspenders —
+    // the FEATURE_WALLET !== 'true' gate at :51 already blocks this entire
+    // handler with 404 WALLET_DISABLED, so this path is currently
+    // unreachable in TestFlight. Patched anyway so the guard travels with
+    // the feature flag; the day FEATURE_WALLET flips true, the reviewer
+    // protection is already in place.
     let pi;
-    try {
-      pi = await stripe.paymentIntents.create({
-        amount:         amount_cents,
-        currency:       'usd',
-        customer:       customerId,
-        payment_method: payment_method_id,
-        confirm:        true,
-        off_session:    false, // member is present for wallet loads
-        description:    `MCC Wallet top-up — $${(amount_cents / 100).toFixed(2)}`,
-        metadata:       { user_id: user.id, type: 'wallet_load', bonus_cents },
-      }, { idempotencyKey: `wallet_load_${user.id}_${amount_cents}_${payment_method_id}` });
-    } catch (stripeErr) {
-      return resp(402, { error: 'Payment failed: ' + stripeErr.message });
-    }
+    if (await isReviewerAccount(svc, user.id)) {
+      // Namespace mock id per (timestamp + user prefix) so repeat top-ups
+      // don't collide on any downstream idempotency check.
+      pi = { status: 'succeeded', id: `pi_reviewer_mock_${Date.now()}_${String(user.id).slice(0, 8)}` };
+    } else {
+      try {
+        pi = await stripe.paymentIntents.create({
+          amount:         amount_cents,
+          currency:       'usd',
+          customer:       customerId,
+          payment_method: payment_method_id,
+          confirm:        true,
+          off_session:    false, // member is present for wallet loads
+          description:    `MCC Wallet top-up — $${(amount_cents / 100).toFixed(2)}`,
+          metadata:       { user_id: user.id, type: 'wallet_load', bonus_cents },
+        }, { idempotencyKey: `wallet_load_${user.id}_${amount_cents}_${payment_method_id}` });
+      } catch (stripeErr) {
+        return resp(402, { error: 'Payment failed: ' + stripeErr.message });
+      }
 
-    if (pi.status !== 'succeeded') {
-      return resp(402, { error: 'Payment not confirmed — status: ' + pi.status });
+      if (pi.status !== 'succeeded') {
+        return resp(402, { error: 'Payment not confirmed — status: ' + pi.status });
+      }
     }
 
     // Credit the wallet via RPC
