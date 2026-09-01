@@ -309,8 +309,20 @@
     window.toggleAiAssistantPanel = toggleAiAssistantPanel;
     window.dismissAiSuggestion = dismissAiSuggestion;
 
+    // Upsell / "Additional Work" client functions were previously duplicated
+    // here AND in members-core.js. Because members-packages.js loads AFTER
+    // members-core.js (members.html:8729,8740), the duplicates in this file
+    // were shadowing the members-core.js versions. The pre-migration code was
+    // silently broken end-to-end (wrote to a table missing the money-path
+    // columns, no PaymentIntent ever created). Migration 20260901a fixes it.
+    // Canonical implementations of loadUpsellRequests, renderUpsells,
+    // acknowledgeUpdate, requestCallBack, openReplyModal, submitReply,
+    // approveUpsell + mountUpsellCardModal + upsellApi, declineUpsell,
+    // rebidUpsell, getTimeRemaining ALL now live in members-core.js and are
+    // wired to the /api/upsell/* Netlify function. Do NOT re-add copies here.
+
     async function loadUpsellRequests() {
-      const { data } = await supabaseClient.from('upsell_requests')
+      const { data } = await supabaseClient.from('additional_work_requests')
         .select('*, maintenance_packages(title, vehicles(year, make, model, fuel_injection_type))')
         .eq('member_id', currentUser.id)
         .order('created_at', { ascending: false });
@@ -465,39 +477,42 @@
     }
     
     async function acknowledgeUpdate(updateId) {
-      await supabaseClient.from('upsell_requests').update({
-        status: 'approved',
-        member_action: 'acknowledged',
-        responded_at: new Date().toISOString()
-      }).eq('id', updateId);
-      showToast('Update acknowledged. Provider has been notified.', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'acknowledge' });
+        showToast('Update acknowledged. Provider has been notified.', 'success');
+      } catch (e) {
+        showToast('Could not acknowledge: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
-    
+
     async function requestCallBack(updateId) {
-      await supabaseClient.from('upsell_requests').update({
-        call_requested: true,
-        member_action: 'call_me'
-      }).eq('id', updateId);
-      showToast('Call requested! Provider will call you shortly.', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'request_call' });
+        showToast('Call requested! Provider will call you shortly.', 'success');
+      } catch (e) {
+        showToast('Could not send call request: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
-    
+
     function openReplyModal(updateId, title) {
       const reply = prompt(`Reply to: "${title}"\n\nEnter your response:`);
       if (reply && reply.trim()) {
         submitReply(updateId, reply.trim());
       }
     }
-    
+
     async function submitReply(updateId, reply) {
-      await supabaseClient.from('upsell_requests').update({
-        status: 'approved',
-        member_response: reply,
-        member_action: 'replied',
-        responded_at: new Date().toISOString()
-      }).eq('id', updateId);
-      showToast('Reply sent to provider!', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', {
+          action: 'reply',
+          member_response: reply,
+        });
+        showToast('Reply sent to provider!', 'success');
+      } catch (e) {
+        showToast('Could not send reply: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
 
@@ -514,33 +529,45 @@
 
     async function approveUpsell(upsellId) {
       const upsell = upsellRequests.find(u => u.id === upsellId);
-      if (!confirm(`Approve this additional work for $${(upsell?.estimated_cost || 0).toFixed(2)}?\n\nThis amount will be added to your escrow payment.`)) return;
+      const amount = Number(upsell?.estimated_cost || 0);
+      if (!confirm(`Approve this additional work for $${amount.toFixed(2)}?\n\nYou'll authorize the charge on your card next — funds will be held (not charged) until the job is marked complete.`)) return;
 
-      await supabaseClient.from('upsell_requests').update({
-        status: 'approved',
-        responded_at: new Date().toISOString()
-      }).eq('id', upsellId);
-
-      // Update payment to add upsell amount
-      if (upsell?.package_id) {
-        const { data: payment } = await supabaseClient.from('payments')
-          .select('*')
-          .eq('package_id', upsell.package_id)
-          .single();
-        
-        if (payment) {
-          const newTotal = (payment.amount_total || 0) + (upsell.estimated_cost || 0);
-          
-          await supabaseClient.rpc('member_approve_additional_work', {
-            p_payment_id: payment.id,
-            p_new_total: newTotal,
-            p_new_provider: newTotal,
-            p_new_mcc_fee: 0
-          });
-        }
+      let approveResp;
+      try {
+        approveResp = await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/approve', {});
+      } catch (e) {
+        showToast('Could not start approval: ' + e.message, 'error');
+        return;
+      }
+      if (approveResp.reviewer_mock) {
+        showToast('Additional work approved (reviewer demo — no live charge).', 'success');
+        await loadUpsellRequests();
+        return;
+      }
+      if (!approveResp.client_secret) {
+        showToast('Approval initiated but no card authorization needed. Refreshing.', 'success');
+        await loadUpsellRequests();
+        return;
       }
 
-      showToast('Additional work approved. Payment updated.', 'success');
+      const pi = await mountUpsellCardModal(approveResp.client_secret, {
+        title: upsell?.title || 'Additional work',
+        amount,
+      });
+      if (!pi) return;
+      if (pi.status !== 'requires_capture' && pi.status !== 'succeeded') {
+        showToast('Card was not authorized. Please try again.', 'error');
+        return;
+      }
+
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/confirm-authorization', {});
+      } catch (e) {
+        showToast('Card authorized, but sync failed: ' + e.message + '. Refresh to update.', 'error');
+        await loadUpsellRequests();
+        return;
+      }
+      showToast('Additional work approved. Funds are held in escrow until job completion.', 'success');
       await loadUpsellRequests();
     }
 
@@ -548,22 +575,21 @@
       const upsell = upsellRequests.find(u => u.id === upsellId);
       const pkg = packages.find(p => p.id === upsell?.package_id);
       const originalBid = pkg?._acceptedBid?.amount || pkg?.accepted_bid_amount;
-      
+
       let confirmMsg = 'Decline this additional work?\n\n';
       if (originalBid) {
         confirmMsg += `You will only pay the original bid amount of $${originalBid.toFixed(2)}.\n\n`;
       }
       confirmMsg += 'The provider will complete only the originally agreed scope of work.';
-      
+
       if (!confirm(confirmMsg)) return;
 
-      await supabaseClient.from('upsell_requests').update({
-        status: 'declined',
-        member_action: 'declined',
-        responded_at: new Date().toISOString()
-      }).eq('id', upsellId);
-
-      showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {});
+        showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+      } catch (e) {
+        showToast('Could not decline: ' + e.message, 'error');
+      }
       await loadUpsellRequests();
     }
 
@@ -573,7 +599,6 @@
       const upsell = upsellRequests.find(u => u.id === upsellId);
       const pkg = packages.find(p => p.id === upsell?.package_id);
 
-      // Create new package for the upsell work
       const packageData = {
         member_id: currentUser.id,
         vehicle_id: pkg?.vehicle_id,
@@ -586,21 +611,29 @@
         pickup_preference: 'either',
         status: 'open'
       };
-      
-      // Check if member has a preferred provider for exclusive first look
+
       if (userProfile?.preferred_provider_id) {
         packageData.exclusive_provider_id = userProfile.preferred_provider_id;
         packageData.exclusive_until = new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString();
       }
-      
+
       const { data: newPkg } = await supabaseClient.from('maintenance_packages').insert(packageData).select().single();
 
-      // Update upsell request
-      await supabaseClient.from('upsell_requests').update({
-        status: 'rebid',
-        responded_at: new Date().toISOString(),
-        rebid_package_id: newPkg?.id
-      }).eq('id', upsellId);
+      // Decline via the API (cancels any dangling PI), then stamp rebid_package_id.
+      try {
+        await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {
+          member_response_note: 'Sent out for competing bids: ' + (newPkg?.id || ''),
+        });
+        if (newPkg?.id) {
+          await supabaseClient.from('additional_work_requests').update({
+            status: 'rebid',
+            rebid_package_id: newPkg.id,
+            updated_at: new Date().toISOString(),
+          }).eq('id', upsellId);
+        }
+      } catch (e) {
+        showToast('New package created but decline sync failed: ' + e.message, 'error');
+      }
 
       showToast('New package created for competitive bidding!', 'success');
       await loadUpsellRequests();

@@ -31,6 +31,8 @@
 /api/care-plans/* /.netlify/functions/care-plans 200
 /api/plan-bids /.netlify/functions/plan-bids 200
 /api/plan-bids/* /.netlify/functions/plan-bids 200
+/api/upsell /.netlify/functions/upsell 200
+/api/upsell/* /.netlify/functions/upsell 200
 /api/geocode /.netlify/functions/geocode 200
 /api/provider/profile/save /.netlify/functions/provider-profile-save 200
 /api/provider/packages /.netlify/functions/provider-packages 200

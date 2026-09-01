@@ -608,7 +608,190 @@ async function handleComplete(event, sb, user, planId) {
     }).catch(() => {});
   }
 
-  return json(200, { success: true });
+  // ── Supplemental capture loop (upsell / additional-work) ───────────────────
+  // For every approved additional_work_requests row on this care_plan, attempt
+  // to capture its supplemental manual-capture PI. Two invariants per Jordan's
+  // spec:
+  //   1) IDEMPOTENT: retrieve PI first; if already succeeded, mark our row
+  //      consistent and skip. If not in requires_capture, don't attempt capture
+  //      (skip + notify). Prevents double-capture on retry / duplicate invoke.
+  //   2) FAILURE-ISOLATED: any per-row error records capture_error + notifies
+  //      member & provider, but never rolls back or blocks the base plan
+  //      completion above. The base capture has already succeeded and the plan
+  //      is already 'completed' — a failed supplemental is a separate money
+  //      issue to reconcile async, not a reason to un-complete a finished job.
+  const supplementalOutcomes = await captureSupplementalPIs(sb, planId, user.id, isReviewer, plan);
+
+  return json(200, {
+    success: true,
+    supplementals: supplementalOutcomes,
+  });
+}
+
+// Iterates approved additional_work_requests for this care_plan and captures
+// each supplemental PI. Called at the end of handleComplete after the base PI
+// is safely captured. See invariants above the call site. Returns per-row
+// outcomes so the response can surface partial-failure info to the client.
+async function captureSupplementalPIs(sb, planId, callerId, isReviewer, plan) {
+  const outcomes = [];
+  const { data: rows, error: listErr } = await sb
+    .from('additional_work_requests')
+    .select('id, provider_id, member_id, title, estimated_cost, status, payment_intent_id, care_plan_id')
+    .eq('care_plan_id', planId)
+    .eq('status', 'approved');
+  if (listErr) {
+    console.warn('[care-plans] supplemental list failed:', listErr.message);
+    return outcomes;
+  }
+  if (!rows || rows.length === 0) return outcomes;
+
+  const now = () => new Date().toISOString();
+
+  // Reviewer path: skip Stripe, mark all supplementals consistent with the
+  // reviewer-mocked base capture.
+  if (isReviewer) {
+    for (const row of rows) {
+      const { error } = await sb.from('additional_work_requests').update({
+        status: 'captured',
+        captured_at: now(),
+        updated_at: now(),
+      }).eq('id', row.id).eq('status', 'approved');
+      outcomes.push({
+        id: row.id,
+        outcome: error ? 'update_failed' : 'captured',
+        error: error?.message,
+        reviewer_mock: true,
+      });
+    }
+    return outcomes;
+  }
+
+  const st = stripe();
+  if (!st) {
+    // Payment system down mid-complete: don't fail the outer, just record.
+    for (const row of rows) {
+      outcomes.push({ id: row.id, outcome: 'skipped_no_stripe' });
+    }
+    return outcomes;
+  }
+
+  for (const row of rows) {
+    if (!row.payment_intent_id) {
+      // Approved with no PI — data-integrity issue, note + skip.
+      await sb.from('additional_work_requests').update({
+        status: 'capture_failed',
+        capture_error: 'approved row has no payment_intent_id',
+        updated_at: now(),
+      }).eq('id', row.id);
+      await notifySupplementalCaptureFailure(sb, row, plan, callerId, 'approved row has no payment_intent_id');
+      outcomes.push({ id: row.id, outcome: 'capture_failed', reason: 'missing_pi' });
+      continue;
+    }
+
+    // Invariant #1 — idempotency: check current PI status before attempting capture.
+    let pi;
+    try {
+      pi = await st.paymentIntents.retrieve(row.payment_intent_id);
+    } catch (retrErr) {
+      console.warn('[care-plans] supplemental PI retrieve failed:', row.id, retrErr.message);
+      await sb.from('additional_work_requests').update({
+        status: 'capture_failed',
+        capture_error: 'retrieve: ' + retrErr.message,
+        updated_at: now(),
+      }).eq('id', row.id);
+      await notifySupplementalCaptureFailure(sb, row, plan, callerId, retrErr.message);
+      outcomes.push({ id: row.id, outcome: 'capture_failed', reason: 'retrieve_error' });
+      continue;
+    }
+
+    if (pi.status === 'succeeded') {
+      // Already captured (retry after a prior handleComplete crash between
+      // Stripe success and our DB write). Bring our row in line.
+      await sb.from('additional_work_requests').update({
+        status: 'captured',
+        captured_at: now(),
+        updated_at: now(),
+      }).eq('id', row.id).neq('status', 'captured');
+      outcomes.push({ id: row.id, outcome: 'already_captured' });
+      continue;
+    }
+
+    if (pi.status !== 'requires_capture') {
+      // PI is not in a capturable state (canceled, requires_action, failed, etc.).
+      // Record + notify without attempting a doomed capture.
+      const reason = 'PI status not requires_capture: ' + pi.status;
+      await sb.from('additional_work_requests').update({
+        status: 'capture_failed',
+        capture_error: reason,
+        updated_at: now(),
+      }).eq('id', row.id);
+      await notifySupplementalCaptureFailure(sb, row, plan, callerId, reason);
+      outcomes.push({ id: row.id, outcome: 'capture_failed', reason: 'not_capturable', pi_status: pi.status });
+      continue;
+    }
+
+    // Invariant #2 — failure-isolated capture attempt.
+    try {
+      await st.paymentIntents.capture(row.payment_intent_id);
+      await sb.from('additional_work_requests').update({
+        status: 'captured',
+        captured_at: now(),
+        updated_at: now(),
+      }).eq('id', row.id);
+      await audit(sb, {
+        action: 'upsell_captured',
+        target_id: row.id,
+        target_type: 'additional_work_request',
+        performed_by: callerId,
+        metadata: {
+          care_plan_id: planId,
+          stripe_payment_intent_id: row.payment_intent_id,
+          amount: row.estimated_cost,
+        },
+      });
+      outcomes.push({ id: row.id, outcome: 'captured' });
+    } catch (capErr) {
+      console.warn('[care-plans] supplemental PI capture failed:', row.id, capErr.message);
+      await sb.from('additional_work_requests').update({
+        status: 'capture_failed',
+        capture_error: 'capture: ' + capErr.message,
+        updated_at: now(),
+      }).eq('id', row.id);
+      await notifySupplementalCaptureFailure(sb, row, plan, callerId, capErr.message);
+      outcomes.push({ id: row.id, outcome: 'capture_failed', reason: 'stripe_error', message: capErr.message });
+      // Continue to next supplemental — base plan completion already succeeded.
+    }
+  }
+
+  return outcomes;
+}
+
+// Notify both member and provider that a supplemental capture failed. In-app
+// rows only (no push) — a follow-up admin action is required to recover so a
+// noisy notification isn't the primary signal.
+async function notifySupplementalCaptureFailure(sb, row, plan, callerId, reason) {
+  const shortReason = String(reason || '').slice(0, 200);
+  const messages = [
+    { user_id: row.member_id,   role: 'member' },
+    { user_id: row.provider_id, role: 'provider' },
+  ];
+  for (const m of messages) {
+    if (!m.user_id) continue;
+    try {
+      await sb.from('notifications').insert({
+        user_id: m.user_id,
+        type: 'additional_work_capture_failed',
+        title: 'Additional-work charge failed',
+        message: m.role === 'member'
+          ? `We could not charge for the additional work "${row.title}" on your job. Support will follow up — no action needed right now.`
+          : `The additional-work charge for "${row.title}" on the completed job could not be captured (${shortReason}). Support will follow up.`,
+        entity_type: 'additional_work_request',
+        entity_id: row.id,
+      });
+    } catch (nErr) {
+      console.warn('[care-plans] supplemental-failure notify insert failed:', nErr.message);
+    }
+  }
 }
 
 async function handleDispute(event, sb, user, planId) {

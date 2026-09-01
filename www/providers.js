@@ -2003,7 +2003,7 @@
       
       // Check for pending cost increases that have expired (4 hours passed)
       const { data: pendingUpsells } = await supabaseClient
-        .from('upsell_requests')
+        .from('additional_work_requests')
         .select('*')
         .eq('package_id', packageId)
         .eq('provider_id', providerId)
@@ -3548,32 +3548,37 @@
         return showToast('Please provide an estimated cost.', 'error');
       }
 
-      const requiresResponse = updateType !== 'car_ready';
       const finalIsUrgent = isUrgent || updateType === 'work_paused' || updateType === 'request_call';
 
-      // Cost increases have 4-hour deadline, others have 24 hours
-      const deadlineHours = updateType === 'cost_increase' ? 4 : 24;
-      const expiresAt = new Date(Date.now() + deadlineHours * 60 * 60 * 1000).toISOString();
-      
-      const { error } = await supabaseClient.from('upsell_requests').insert({
-        package_id: currentUpsellPackageId,
-        provider_id: currentUser.id,
-        member_id: currentUpsellMemberId,
-        title: title,
-        description: description,
-        estimated_cost: cost || null,
-        urgency: urgency,
-        status: 'pending',
-        update_type: updateType,
-        requires_response: requiresResponse,
-        is_urgent: finalIsUrgent,
-        call_requested: updateType === 'request_call',
-        expires_at: expiresAt
-      });
-
-      if (error) {
-        console.error('Error sending update:', error);
-        return showToast('Failed to send update: ' + error.message, 'error');
+      // Server owns response-window and side-effects (notifications, care_plan
+      // resolution). Client sends the raw fields; server computes expires_at.
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+        const resp = await fetch(apiBase + '/api/upsell', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: 'Bearer ' + session.access_token } : {}),
+          },
+          body: JSON.stringify({
+            package_id: currentUpsellPackageId,
+            title,
+            description,
+            estimated_cost: cost || null,
+            update_type: updateType,
+            urgency,
+            is_urgent: finalIsUrgent,
+          }),
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          console.error('Error sending update:', data);
+          return showToast('Failed to send update: ' + (data.error || 'server error'), 'error');
+        }
+      } catch (netErr) {
+        console.error('Network error sending update:', netErr);
+        return showToast('Failed to send update: ' + netErr.message, 'error');
       }
 
       const pkg = myJobs.find(j => j.id === currentUpsellPackageId) || openPackages.find(p => p.id === currentUpsellPackageId);
@@ -3617,55 +3622,29 @@
     
     async function suspendWork(packageId, upsellId) {
       if (!confirm('Suspend work on this job until the member responds to your price adjustment?\n\nThe member will be notified that work is paused.')) return;
-      
-      // Update upsell request status to indicate work is suspended
-      const { error: upsellError } = await supabaseClient
-        .from('upsell_requests')
-        .update({ 
-          status: 'expired',
-          work_suspended: true,
-          suspended_at: new Date().toISOString()
-        })
-        .eq('id', upsellId);
-      
-      if (upsellError) {
-        console.error('Error suspending work:', upsellError);
-        showToast('Failed to suspend work: ' + upsellError.message, 'error');
+
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+        const resp = await fetch(apiBase + '/api/upsell/' + encodeURIComponent(upsellId) + '/suspend-work', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(session?.access_token ? { Authorization: 'Bearer ' + session.access_token } : {}),
+          },
+        });
+        const data = await resp.json().catch(() => ({}));
+        if (!resp.ok) {
+          console.error('Error suspending work:', data);
+          showToast('Failed to suspend work: ' + (data.error || 'server error'), 'error');
+          return;
+        }
+      } catch (netErr) {
+        console.error('Network error suspending work:', netErr);
+        showToast('Failed to suspend work: ' + netErr.message, 'error');
         return;
       }
-      
-      // Notify the member
-      const pkg = myJobs.find(j => j.id === packageId);
-      if (pkg?.member_id) {
-        try {
-          await supabaseClient.from('notifications').insert({
-            user_id: pkg.member_id,
-            type: 'work_suspended',
-            title: '⏸️ Work Suspended',
-            message: `${providerProfile?.business_name || 'Your provider'} has suspended work on "${pkg.title || 'your service'}" pending your response to the price adjustment request.`,
-            link_type: 'upsell'
-          });
-          
-          // Also send email/SMS notification
-          await fetch('/api/notify/urgent-update', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              memberId: pkg.member_id,
-              providerName: providerProfile?.business_name || 'Your Provider',
-              updateType: 'work_paused',
-              title: 'Work Suspended - Response Required',
-              description: 'Work has been suspended pending your approval of the price adjustment. Please respond as soon as possible.',
-              isUrgent: true,
-              packageTitle: pkg.title || 'Your Service Request',
-              dashboardUrl: ((window.MCC_CONFIG && window.MCC_CONFIG.siteUrl) || 'https://mycarconcierge.com') + '/members.html'
-            })
-          });
-        } catch (e) {
-          console.log('Notification failed (non-critical):', e);
-        }
-      }
-      
+
       showToast('Work suspended. Member has been notified.', 'success');
       await renderMyJobs();
     }

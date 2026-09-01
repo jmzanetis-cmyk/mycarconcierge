@@ -637,11 +637,12 @@ function setupRealtimeSubscriptions() {
       }
     })
 
-    // Upsell requests
+    // Upsell / additional work requests — Realtime channel now watches the
+    // canonical additional_work_requests table (see migration 20260901a).
     .on('postgres_changes', {
       event: 'INSERT',
       schema: 'public',
-      table: 'upsell_requests',
+      table: 'additional_work_requests',
       filter: `member_id=eq.${currentUser.id}`
     }, async (payload) => {
       console.log('[REALTIME] New upsell request:', payload.new);
@@ -1233,7 +1234,12 @@ async function loadVehicles() {
 }
 
 async function loadUpsellRequests() {
-  const { data } = await supabaseClient.from('upsell_requests')
+  // Read directly from additional_work_requests — RLS allows member SELECT
+  // where auth.uid() = member_id (see migration 20260901a). Server-side
+  // /api/upsell/mine exists too but the join to maintenance_packages+vehicles
+  // is simpler with supabase-js embeds; we go direct here and reserve the API
+  // for the write path where money is actually moving.
+  const { data } = await supabaseClient.from('additional_work_requests')
     .select('*, maintenance_packages(title, vehicles(year, make, model, fuel_injection_type))')
     .eq('member_id', currentUser.id)
     .order('created_at', { ascending: false });
@@ -1387,22 +1393,39 @@ function renderUpsells() {
   }).join('');
 }
 
+// upsellApi() — wrap fetch to /api/upsell/* with bearer auth + JSON.
+async function upsellApi(path, body) {
+  const { data: { session } } = await supabaseClient.auth.getSession();
+  const apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+  const headers = { 'Content-Type': 'application/json' };
+  if (session?.access_token) headers.Authorization = 'Bearer ' + session.access_token;
+  const resp = await fetch(apiBase + path, {
+    method: 'POST',
+    headers,
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const data = await resp.json().catch(() => ({}));
+  if (!resp.ok) throw new Error(data.error || 'Request failed');
+  return data;
+}
+
 async function acknowledgeUpdate(updateId) {
-  await supabaseClient.from('upsell_requests').update({
-    status: 'approved',
-    member_action: 'acknowledged',
-    responded_at: new Date().toISOString()
-  }).eq('id', updateId);
-  showToast('Update acknowledged. Provider has been notified.', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'acknowledge' });
+    showToast('Update acknowledged. Provider has been notified.', 'success');
+  } catch (e) {
+    showToast('Could not acknowledge: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
 async function requestCallBack(updateId) {
-  await supabaseClient.from('upsell_requests').update({
-    call_requested: true,
-    member_action: 'call_me'
-  }).eq('id', updateId);
-  showToast('Call requested! Provider will call you shortly.', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', { action: 'request_call' });
+    showToast('Call requested! Provider will call you shortly.', 'success');
+  } catch (e) {
+    showToast('Could not send call request: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
@@ -1414,13 +1437,15 @@ function openReplyModal(updateId, title) {
 }
 
 async function submitReply(updateId, reply) {
-  await supabaseClient.from('upsell_requests').update({
-    status: 'approved',
-    member_response: reply,
-    member_action: 'replied',
-    responded_at: new Date().toISOString()
-  }).eq('id', updateId);
-  showToast('Reply sent to provider!', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(updateId) + '/respond', {
+      action: 'reply',
+      member_response: reply,
+    });
+    showToast('Reply sent to provider!', 'success');
+  } catch (e) {
+    showToast('Could not send reply: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
@@ -1437,58 +1462,182 @@ function getTimeRemaining(expiresAt) {
 
 async function approveUpsell(upsellId) {
   const upsell = upsellRequests.find(u => u.id === upsellId);
-  if (!confirm(`Approve this additional work for $${(upsell?.estimated_cost || 0).toFixed(2)}?\n\nThis amount will be added to your escrow payment.`)) return;
+  const amount = Number(upsell?.estimated_cost || 0);
+  if (!confirm(`Approve this additional work for $${amount.toFixed(2)}?\n\nYou'll authorize the charge on your card next — funds will be held (not charged) until the job is marked complete.`)) return;
 
-  await supabaseClient.from('upsell_requests').update({
-    status: 'approved',
-    responded_at: new Date().toISOString()
-  }).eq('id', upsellId);
-
-  // Update payment to add upsell amount
-  if (upsell?.package_id) {
-    const { data: payment } = await supabaseClient.from('payments')
-      .select('*')
-      .eq('package_id', upsell.package_id)
-      .single();
-    
-    if (payment) {
-      const newTotal = (payment.amount_total || 0) + (upsell.estimated_cost || 0);
-      const mccFee = newTotal * 0.075;
-      const providerAmount = newTotal - mccFee;
-      
-      await supabaseClient.rpc('member_approve_additional_work', {
-        p_payment_id: payment.id,
-        p_new_total: newTotal,
-        p_new_provider: providerAmount,
-        p_new_mcc_fee: mccFee
-      });
-    }
+  // Step 1 — server creates the supplemental manual-capture PI and returns
+  // its client_secret. Reviewer accounts skip Stripe entirely and get back
+  // { success: true, reviewer_mock: true } — treat as fully approved.
+  let approveResp;
+  try {
+    approveResp = await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/approve', {});
+  } catch (e) {
+    showToast('Could not start approval: ' + e.message, 'error');
+    return;
+  }
+  if (approveResp.reviewer_mock) {
+    showToast('Additional work approved (reviewer demo — no live charge).', 'success');
+    await loadUpsellRequests();
+    return;
+  }
+  if (!approveResp.client_secret) {
+    showToast('Approval initiated but no card authorization needed. Refreshing.', 'success');
+    await loadUpsellRequests();
+    return;
   }
 
-  showToast('Additional work approved. Payment updated.', 'success');
+  // Step 2 — mount Stripe.js card entry, confirm the PaymentIntent (holds funds).
+  const pi = await mountUpsellCardModal(approveResp.client_secret, {
+    title: upsell?.title || 'Additional work',
+    amount,
+  });
+  if (!pi) {
+    // User canceled or card errored. Server-side state stays authorization_pending
+    // until they retry (idempotent /approve returns the same client_secret).
+    return;
+  }
+  if (pi.status !== 'requires_capture' && pi.status !== 'succeeded') {
+    showToast('Card was not authorized. Please try again.', 'error');
+    return;
+  }
+
+  // Step 3 — tell the server the PI is now in requires_capture; server flips
+  // row to 'approved' and notifies provider.
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/confirm-authorization', {});
+  } catch (e) {
+    // PI is authorized in Stripe already, but our DB is behind. Surface the
+    // error but the funds are held — the server-side reconcile job (future)
+    // will pick it up. Don't lose the toast.
+    showToast('Card authorized, but sync failed: ' + e.message + '. Refresh to update.', 'error');
+    await loadUpsellRequests();
+    return;
+  }
+  showToast('Additional work approved. Funds are held in escrow until job completion.', 'success');
   await loadUpsellRequests();
+}
+
+// mountUpsellCardModal — compact card-entry overlay reusing the same Stripe
+// Elements pattern as members-care-plans.js:mountAcceptBidCard. Resolves the
+// Stripe PaymentIntent object (or null on cancel).
+async function mountUpsellCardModal(clientSecret, opts) {
+  if (typeof window.initStripe !== 'function') {
+    showToast('Payment system unavailable. Please refresh.', 'error');
+    return null;
+  }
+  const stripe = await window.initStripe();
+  if (!stripe) {
+    showToast('Payment system unavailable. Please refresh.', 'error');
+    return null;
+  }
+  const amountLabel = '$' + Number(opts?.amount || 0).toFixed(2);
+  const overlay = document.createElement('div');
+  overlay.className = 'modal-backdrop active';
+  overlay.id = 'upsell-authorize-modal';
+  overlay.style.zIndex = '10000';
+  overlay.innerHTML =
+    '<div class="modal" style="max-width:480px;">' +
+      '<div class="modal-header">' +
+        '<h3 class="modal-title">Authorize ' + amountLabel + '</h3>' +
+        '<button class="modal-close" id="upsell-auth-close">×</button>' +
+      '</div>' +
+      '<div class="modal-body">' +
+        '<p style="color:var(--text-secondary);margin:0 0 12px;">' +
+          'For: <strong>' + (opts?.title || 'Additional work').replace(/</g,'&lt;') + '</strong>' +
+        '</p>' +
+        '<p style="color:var(--text-secondary);font-size:0.88rem;margin:0 0 16px;">' +
+          'This authorizes ' + amountLabel + ' on your card. Funds are held (not charged) until the job is marked complete.' +
+        '</p>' +
+        '<div id="upsell-card-element" style="padding:14px;border:1px solid var(--border-subtle);border-radius:var(--radius-md);background:var(--bg-input);min-height:44px;"></div>' +
+        '<div id="upsell-card-errors" style="color:var(--accent-red);font-size:0.85rem;margin-top:8px;min-height:18px;"></div>' +
+      '</div>' +
+      '<div class="modal-footer">' +
+        '<button class="btn btn-secondary" id="upsell-auth-cancel">Cancel</button>' +
+        '<button class="btn btn-primary" id="upsell-auth-confirm" disabled aria-disabled="true">Authorize ' + amountLabel + '</button>' +
+      '</div>' +
+    '</div>';
+  document.body.appendChild(overlay);
+
+  return new Promise((resolve) => {
+    const isDark = !document.documentElement.classList.contains('light-theme');
+    const elements = stripe.elements({
+      appearance: {
+        theme: isDark ? 'night' : 'stripe',
+        variables: { colorPrimary: '#c9a227', borderRadius: '8px' },
+      },
+    });
+    const card = elements.create('card', {
+      style: {
+        base: {
+          color: isDark ? '#f5f5f7' : '#0f172a',
+          fontFamily: 'Inter, -apple-system, sans-serif',
+          fontSize: '16px',
+          '::placeholder': { color: '#6b7280' },
+        },
+        invalid: { color: '#f87171', iconColor: '#f87171' },
+      },
+    });
+    card.mount('#upsell-card-element');
+    const errEl = document.getElementById('upsell-card-errors');
+    const btn = document.getElementById('upsell-auth-confirm');
+    card.on('change', (ev) => {
+      if (errEl) errEl.textContent = ev.error ? ev.error.message : '';
+      if (btn) {
+        const ready = !!ev.complete && !ev.error;
+        btn.disabled = !ready;
+        btn.setAttribute('aria-disabled', ready ? 'false' : 'true');
+      }
+    });
+    const cleanup = () => { try { card.unmount(); } catch (_) {} overlay.remove(); };
+    const onCancel = () => { cleanup(); resolve(null); };
+    document.getElementById('upsell-auth-close').addEventListener('click', onCancel);
+    document.getElementById('upsell-auth-cancel').addEventListener('click', onCancel);
+    document.getElementById('upsell-auth-confirm').addEventListener('click', async () => {
+      btn.disabled = true;
+      btn.setAttribute('aria-disabled', 'true');
+      btn.textContent = 'Authorizing…';
+      try {
+        const result = await stripe.confirmCardPayment(clientSecret, {
+          payment_method: { card },
+        });
+        if (result.error) {
+          if (errEl) errEl.textContent = result.error.message || 'Card declined.';
+          btn.disabled = false;
+          btn.setAttribute('aria-disabled', 'false');
+          btn.textContent = 'Authorize ' + amountLabel;
+          return;
+        }
+        cleanup();
+        resolve(result.paymentIntent);
+      } catch (e) {
+        if (errEl) errEl.textContent = e.message || 'Authorization failed';
+        btn.disabled = false;
+        btn.setAttribute('aria-disabled', 'false');
+        btn.textContent = 'Authorize ' + amountLabel;
+      }
+    });
+  });
 }
 
 async function declineUpsell(upsellId) {
   const upsell = upsellRequests.find(u => u.id === upsellId);
   const pkg = packages.find(p => p.id === upsell?.package_id);
   const originalBid = pkg?._acceptedBid?.amount || pkg?.accepted_bid_amount;
-  
+
   let confirmMsg = 'Decline this additional work?\n\n';
   if (originalBid) {
     confirmMsg += `You will only pay the original bid amount of $${originalBid.toFixed(2)}.\n\n`;
   }
   confirmMsg += 'The provider will complete only the originally agreed scope of work.';
-  
+
   if (!confirm(confirmMsg)) return;
 
-  await supabaseClient.from('upsell_requests').update({
-    status: 'declined',
-    member_action: 'declined',
-    responded_at: new Date().toISOString()
-  }).eq('id', upsellId);
-
-  showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {});
+    showToast('Additional work declined. You will only pay the original bid amount.', 'success');
+  } catch (e) {
+    showToast('Could not decline: ' + e.message, 'error');
+  }
   await loadUpsellRequests();
 }
 
@@ -1520,12 +1669,24 @@ async function rebidUpsell(upsellId, title, estimatedCost) {
   
   const { data: newPkg } = await supabaseClient.from('maintenance_packages').insert(packageData).select().single();
 
-  // Update upsell request
-  await supabaseClient.from('upsell_requests').update({
-    status: 'rebid',
-    responded_at: new Date().toISOString(),
-    rebid_package_id: newPkg?.id
-  }).eq('id', upsellId);
+  // Rebid path re-uses the decline endpoint (which cancels any PI, if one
+  // exists) then stamps the rebid_package_id via a supabase-js update.
+  // Combining these in a dedicated /rebid endpoint would be cleaner; kept
+  // client-side for the Path C minimum-viable scope.
+  try {
+    await upsellApi('/api/upsell/' + encodeURIComponent(upsellId) + '/decline', {
+      member_response_note: 'Sent out for competing bids: ' + (newPkg?.id || ''),
+    });
+    if (newPkg?.id) {
+      await supabaseClient.from('additional_work_requests').update({
+        status: 'rebid',
+        rebid_package_id: newPkg.id,
+        updated_at: new Date().toISOString(),
+      }).eq('id', upsellId);
+    }
+  } catch (e) {
+    showToast('New package created but decline sync failed: ' + e.message, 'error');
+  }
 
   showToast('New package created for competitive bidding!', 'success');
   await loadUpsellRequests();
