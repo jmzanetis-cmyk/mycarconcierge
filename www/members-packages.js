@@ -1750,10 +1750,20 @@
         }),
         // bid_closes_at omitted — BEFORE INSERT trigger set_care_plan_closes_at sets +72h
       };
-      const { error: carePlanError } = await supabaseClient.from('care_plans').insert(carePlanData);
+      // Capture care_plans.id so we can stamp it on the maintenance_packages
+      // row as care_plan_id (migration 20260902a). This is the real FK the
+      // upsell handler prefers over the legacy (member_id, title) join.
+      const { data: newCarePlan, error: carePlanError } = await supabaseClient
+        .from('care_plans')
+        .insert(carePlanData)
+        .select('id')
+        .single();
       if (carePlanError) {
         console.error('Care plan creation error:', carePlanError);
         return showToast('Failed to publish to job board: ' + (carePlanError.message || 'Unknown error'), 'error');
+      }
+      if (newCarePlan?.id) {
+        packageData.care_plan_id = newCarePlan.id;
       }
 
       // Legacy bridge — care_plans already succeeded, so any failure here is non-fatal:

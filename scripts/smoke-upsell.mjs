@@ -3,10 +3,11 @@
 // Upsell / additional-work smoke test — end-to-end verification against real
 // Stripe test-mode API + prod DB (schema post-migration 20260901a).
 //
-// Exercises the actual Netlify function handlers (upsell.js `_testing` export
-// + care-plans.js handleComplete's captureSupplementalPIs) by calling them
-// with a service-role Supabase client + a mocked `user` object. Same shape
-// deployed Netlify would use, minus the bearer-token unwrap.
+// Exercises the actual Netlify function handlers (imported from
+// netlify/functions/_shared/upsell-handlers.js, same module the deployed
+// upsell.js router uses) by calling them with a service-role Supabase
+// client + a mocked `user` object. Same shape deployed Netlify would use,
+// minus the bearer-token unwrap.
 //
 // Flow #1 (approve → capture):
 //   1. Provider submits cost_increase upsell → row inserted status=pending
@@ -64,48 +65,17 @@ process.env.STRIPE_SECRET_KEY = STRIPE_KEY;
 
 // Override REVIEWER_EMAILS for this run so demo@ is NOT treated as a
 // reviewer account. Without this, the approve handler takes the reviewer-
-// mock branch (upsell.js ~L265) that skips Stripe entirely and returns
-// { reviewer_mock: true } — which is correct production behavior for App
-// Store review, but blocks us from exercising the real PI-create path.
-// _shared/reviewer-guard.js reads this env var and falls back to a
-// hardcoded default only when it's unset/empty.
+// mock branch that skips Stripe entirely and returns { reviewer_mock: true }
+// — which is correct production behavior for App Store review, but blocks
+// us from exercising the real PI-create path. _shared/reviewer-guard.js
+// reads this env var and falls back to a hardcoded default only when it's
+// unset/empty.
 process.env.REVIEWER_EMAILS = 'smoke-nobody@example.com';
 
-// The smoke script re-requires upsell.js after temporarily augmenting it to
-// expose its internal handlers, then reverts the file. Keeps upsell.js clean
-// in the committed diff (no test-only exports baked in) while still letting
-// the smoke reach the internal handlers without a full extract-to-shared
-// refactor tonight. If this pattern ever gets touched again, the durable fix
-// is to move the handlers into netlify/functions/_shared/upsell-handlers.js
-// so both the deployed function and the smoke import them from the same
-// place. Flagged as a fast-follow, not built here.
-import { readFileSync, writeFileSync } from 'node:fs';
-const UPSELL_PATH = new URL('../netlify/functions/upsell.js', import.meta.url).pathname;
-const _originalUpsellSrc = readFileSync(UPSELL_PATH, 'utf8');
-const _upsellTestExport = `
-
-// TEMPORARY (smoke test) — this block is written by scripts/smoke-upsell.mjs
-// at run-time and stripped again before the process exits. If you see this
-// in a committed file, the smoke crashed mid-run — delete this block.
-module.exports._testing = {
-  handleSubmit,
-  handleApprove,
-  handleConfirmAuthorization,
-  handleDecline,
-  handleRespond,
-  handleSuspendWork,
-  resolveCarePlanId,
-};
-`;
-writeFileSync(UPSELL_PATH, _originalUpsellSrc + _upsellTestExport);
-process.on('exit', () => {
-  try { writeFileSync(UPSELL_PATH, _originalUpsellSrc); } catch (_) {}
-});
-process.on('SIGINT', () => { process.exit(130); });
-process.on('SIGTERM', () => { process.exit(143); });
-
-const upsellHandlers = require('../netlify/functions/upsell.js')._testing;
-const carePlansModule = require('../netlify/functions/care-plans.js');
+// Handlers live in netlify/functions/_shared/upsell-handlers.js — same module
+// the deployed Netlify function imports from. No test-only scaffolding on
+// either side; the smoke and the router both consume the same public export.
+const upsellHandlers = require('../netlify/functions/_shared/upsell-handlers');
 
 // ── Test-data constants ────────────────────────────────────────────────────
 // Use existing seed users so we don't need to create auth users.
@@ -161,11 +131,15 @@ async function seed() {
   createdRows.care_plan = cp.id;
   log('  care_plan:', cp.id);
 
-  // 2. maintenance_package with same title (savePackage() dual-write pattern).
+  // 2. maintenance_package with same title AND care_plan_id (savePackage()
+  //    dual-write pattern post-migration 20260902a — the mp captures the
+  //    care_plans.id it was created alongside so resolveCarePlanId() prefers
+  //    the FK over the (member_id, title) join).
   const { data: mp, error: mpErr } = await sb.from('maintenance_packages').insert({
     member_id: MEMBER_ID,
     vehicle_id: VEHICLE_ID,
     title,
+    care_plan_id: cp.id,
     category: 'maintenance',
     frequency: 'one_time',
     pickup_preference: 'either',
