@@ -2141,6 +2141,42 @@
         };
       });
 
+      // Fetch provider stats + performance for every provider that bid.
+      // Endpoint (/api/bids/provider-summary) verifies caller owns the package
+      // and returns ONLY whitelisted safe fields — provider_stats has no
+      // member-read RLS policy so we can't hit that table directly. See
+      // netlify/functions/bid-provider-summary.js.
+      //
+      // GRACEFUL DEGRADATION: if the fetch fails for any reason (network,
+      // 500, missing session), fall back to empty maps. The modal still
+      // opens; bid cards render without rating/tier/badges. Pre-fix
+      // behavior — a hard ReferenceError inside bids.map() that killed the
+      // modal — must NOT return under any failure mode. This is the whole
+      // point of the fix: prevent one flaky server call from making the
+      // "view and accept bids" surface unreachable.
+      let providerStats = {};
+      let providerPerformance = {};
+      if (bids && bids.length > 0) {
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session) {
+            const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+            const resp = await fetch(`${apiBase}/api/bids/provider-summary?package_id=${encodeURIComponent(packageId)}`, {
+              headers: { Authorization: `Bearer ${session.access_token}` },
+            });
+            if (resp.ok) {
+              const payload = await resp.json();
+              providerStats = payload.stats || {};
+              providerPerformance = payload.performance || {};
+            } else {
+              console.warn('[viewPackage] provider-summary non-2xx:', resp.status);
+            }
+          }
+        } catch (err) {
+          console.warn('[viewPackage] provider-summary fetch failed (non-fatal, bids still render):', err.message);
+        }
+      }
+
       const vehicle = pkg.vehicles;
       const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
 
