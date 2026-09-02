@@ -1443,7 +1443,7 @@ button:active,
   justify-content: space-around;
   align-items: center;
   height: 60px;
-  padding: 0 8px;
+  padding: 0 16px;
 }
 
 .mobile-bottom-nav-item {
