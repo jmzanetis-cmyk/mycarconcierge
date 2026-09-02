@@ -2180,6 +2180,32 @@
       const vehicle = pkg.vehicles;
       const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Unknown Vehicle';
 
+      // Has this member already reviewed this package? Only ask on the
+      // completed-branch template below (guard skips work for other statuses).
+      // FAIL-SAFE: on any query error, default to false — worst case is one
+      // "Leave a Review" button on a package already reviewed. The alternative
+      // (fail-safe to true) would silently hide the button and block a
+      // legitimate first review. There's no DB unique on (member_id,
+      // package_id) so a duplicate insert isn't caught server-side either
+      // — the button-visibility is purely UX. See openReviewModal at :4441
+      // and provider_reviews RLS policy reviews_select_published.
+      let hasReviewed = false;
+      if (pkg.status === 'completed' && currentUser?.id) {
+        try {
+          const { data: existing } = await supabaseClient
+            .from('provider_reviews')
+            .select('id')
+            .eq('member_id', currentUser.id)
+            .eq('package_id', packageId)
+            .eq('status', 'published')
+            .limit(1)
+            .maybeSingle();
+          hasReviewed = !!existing;
+        } catch (err) {
+          console.warn('[viewPackage] hasReviewed check failed (non-fatal, defaulting to false):', err.message);
+        }
+      }
+
       document.getElementById('view-package-title').textContent = pkg.title;
       document.getElementById('view-package-body').innerHTML = `
         <div class="form-section">
@@ -7412,6 +7438,34 @@
       }).join('');
 
       updateSplitAmountStatus(totalAmountCents);
+    }
+
+    // Running-total indicator for the split-payment participant form.
+    // Called from renderSplitParticipantsList after any re-render — sums the
+    // per-participant amounts and shows "$X of $Y allocated" in
+    // #split-amount-status. Color codes: green when they match (form is
+    // submittable), orange when short, red when over.
+    // Match the exact validation shape at submitAdditionalWorkSplitPayment
+    // :3243-3248 (currentTotal !== totalAmountCents) so the status here can't
+    // disagree with the submit-time check.
+    function updateSplitAmountStatus(totalAmountCents) {
+      const statusEl = document.getElementById('split-amount-status');
+      if (!statusEl) return;
+      const currentTotal = (splitParticipantRows || []).reduce((sum, p) => sum + (Number(p.amount_cents) || 0), 0);
+      const totalStr = '$' + (totalAmountCents / 100).toFixed(2);
+      const currentStr = '$' + (currentTotal / 100).toFixed(2);
+      if (currentTotal === totalAmountCents) {
+        statusEl.style.color = 'var(--accent-green)';
+        statusEl.innerHTML = mccIcon('check', 14) + ' ' + currentStr + ' of ' + totalStr + ' allocated';
+      } else if (currentTotal < totalAmountCents) {
+        const remaining = '$' + ((totalAmountCents - currentTotal) / 100).toFixed(2);
+        statusEl.style.color = 'var(--accent-orange)';
+        statusEl.textContent = currentStr + ' of ' + totalStr + ' allocated (' + remaining + ' remaining)';
+      } else {
+        const over = '$' + ((currentTotal - totalAmountCents) / 100).toFixed(2);
+        statusEl.style.color = 'var(--accent-red)';
+        statusEl.textContent = currentStr + ' of ' + totalStr + ' allocated (' + over + ' over)';
+      }
     }
 
     function updateSplitParticipant(index, field, value) {
