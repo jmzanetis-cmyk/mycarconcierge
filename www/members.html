@@ -334,7 +334,7 @@
     .health-badge.poor { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
     
     /* Recall Alert Badge */
-    .recall-badge { position: absolute; top: 12px; left: 12px; padding: 5px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: linear-gradient(135deg, #ef5f5f, #dc3545); color: white; display: flex; align-items: center; gap: 5px; cursor: pointer; animation: pulse-recall 2s infinite; z-index: 5; box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); }
+    .recall-badge { position: static; margin: 0 0 12px; padding: 5px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: linear-gradient(135deg, #ef5f5f, #dc3545); color: white; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; animation: pulse-recall 2s infinite; box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); }
     .recall-badge:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(239, 95, 95, 0.5); }
     @keyframes pulse-recall { 0%, 100% { box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); } 50% { box-shadow: 0 2px 16px rgba(239, 95, 95, 0.7); } }
     
