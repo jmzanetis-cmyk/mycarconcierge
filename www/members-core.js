@@ -973,8 +973,18 @@ function renderVehicles() {
           </div>
           <button class="btn btn-primary btn-sm" onclick="openOBDScanner('${v.id}')">📊 Scan</button>
         </div>
+        ${!v.registration_verified ? `
+        <div class="vehicle-obd-prompt">
+          <div class="vehicle-obd-prompt-text">
+            <strong>Verify Vehicle Ownership</strong>
+            <span>Upload your registration to confirm you own this vehicle</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openRegistrationModal('${v.id}')">📋 Verify</button>
+        </div>
+        ` : ''}
         <div class="vehicle-card-actions">
           <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
+          <button class="btn btn-sm" onclick="viewVehicleDetails('${v.id}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">Details</button>
           <button class="btn btn-sm" onclick="openVehiclePhotos('${v.id}','${escapeHtml(displayName).replace(/'/g,"\\'")}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">📷 Photos</button>
           <button class="btn btn-sm btn-danger" onclick="deleteVehicle('${v.id}')">Delete</button>
         </div>
