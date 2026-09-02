@@ -2251,7 +2251,8 @@ async function handleOBDPhotoSelect(event) {
 
     document.getElementById('obd-ocr-loading').style.display = 'block';
     try {
-      const response = await fetch('/api/obd/scan-ocr', {
+      const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+      const response = await fetch(`${apiBase}/api/obd/scan-ocr`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -2305,10 +2306,11 @@ async function submitOBDScan() {
   document.getElementById('obd-submit-btn').textContent = 'Analyzing...';
 
   try {
+    const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
     const session = await supabaseClient.auth.getSession();
     const token = session.data.session?.access_token;
 
-    const scanResponse = await fetch('/api/obd/scan', {
+    const scanResponse = await fetch(`${apiBase}/api/obd/scan`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({
@@ -2324,7 +2326,7 @@ async function submitOBDScan() {
       throw new Error(scanData.error || 'Failed to submit scan');
     }
 
-    const interpretResponse = await fetch('/api/obd/interpret', {
+    const interpretResponse = await fetch(`${apiBase}/api/obd/interpret`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
       body: JSON.stringify({ scanId: scanData.scan.id })
