@@ -7908,9 +7908,17 @@
             'Content-Type': 'application/json',
             'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
           },
-          body: JSON.stringify({ 
-            settings,
-            admin_password: currentAdminPassword 
+          body: JSON.stringify({
+            settings
+            // NB: previously sent `admin_password: currentAdminPassword` here,
+            // but (a) `currentAdminPassword` was never declared anywhere,
+            // ReferenceError-crashing every payout-settings save, and (b) the
+            // server-side POST /api/admin/payout-settings handler at
+            // netlify/functions/admin-founders.js:337-361 doesn't read the
+            // field either — it authenticates on the Bearer JWT +
+            // profiles.role='admin' check only. Field removed as dead weight;
+            // a real password re-auth would need both a client capture UI and
+            // matching server validation, which don't exist today.
           })
         });
 
