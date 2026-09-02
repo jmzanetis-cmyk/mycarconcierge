@@ -52,11 +52,46 @@
     return ymm;
   }
 
+  // Canonical service_type codes -> display labels. Mirrors the label map
+  // used for provider specialties in members-packages.js: raw stored values
+  // (snake_case keys or legacy free-text) must never reach the UI unmapped.
+  const SERVICE_TYPE_LABELS = {
+    'oil_change': 'Oil Change', 'brakes': 'Brakes', 'brake_service': 'Brake Service',
+    'tires': 'Tires / Alignment', 'engine': 'Engine Repair', 'transmission': 'Transmission',
+    'electrical': 'Electrical', 'ac_heating': 'AC / Heating', 'diagnostics': 'Diagnostics',
+    'body_work': 'Body Work', 'paint': 'Paint / Refinish', 'detailing': 'Detailing',
+    'car_wash': 'Car Wash', 'glass': 'Glass Repair', 'exhaust': 'Exhaust',
+    'suspension': 'Suspension', 'inspection': 'State Inspection', 'mobile_service': 'Mobile Service',
+    'other': 'Other'
+  };
+  function humanizeServiceType(raw) {
+    if (!raw) return '';
+    const s = String(raw).trim();
+    const key = s.toLowerCase();
+    if (SERVICE_TYPE_LABELS[key]) return SERVICE_TYPE_LABELS[key];
+    if (s.includes('_') || s === key) {
+      return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+    }
+    return s;
+  }
+
+  // Mirrors locales/en.json's member.cpPS_* strings. Used as a reliable local
+  // fallback so a payment_status enum value (e.g. "requires_payment") is never
+  // shown raw if the async-loaded i18n translations haven't resolved yet.
+  const PAYMENT_STATUS_LABELS = {
+    none: 'not started', requires_payment: 'awaiting payment', held: 'held',
+    captured: 'released', disputed: 'disputed', failed: 'failed', cancelled: 'cancelled'
+  };
+  function paymentStatusLabel(status) {
+    const key = status || 'none';
+    return t('member.cpPS_' + key, PAYMENT_STATUS_LABELS[key] || key.replace(/_/g, ' '));
+  }
+
   function servicesLabel(plan) {
     const arr = Array.isArray(plan.service_types) && plan.service_types.length
       ? plan.service_types
       : (Array.isArray(plan.services) ? plan.services.map(s => (typeof s === 'string' ? s : (s && (s.name || s.label || s.type)))) : []);
-    return arr.filter(Boolean).join(', ');
+    return arr.filter(Boolean).map(humanizeServiceType).join(', ');
   }
 
   // Bidding window is open iff bid_closes_at is set and still in the future.
@@ -201,7 +236,7 @@
       const pendingBids = p.pending_bid_count || 0;
       const accepted = p.accepted_bid;
       const hint = accepted
-        ? t('member.cpAwardedTo', 'Awarded \u2014 payment {{state}}', { state: t('member.cpPS_' + (p.payment_status || 'none'), p.payment_status || 'none') })
+        ? t('member.cpAwardedTo', 'Awarded \u2014 payment {{state}}', { state: paymentStatusLabel(p.payment_status) })
         : (pendingBids
             ? t('member.cpPendingBids', '{{n}} bid(s) waiting for your review', { n: pendingBids })
             : t('member.cpNoBidsYet', 'No bids yet \u2014 check back soon'));
