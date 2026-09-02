@@ -1082,6 +1082,36 @@ async function loadLoyaltyNetwork() {
   ]);
 }
 
+// Advance the POS check-in wizard to step N (1-6). Toggles .active on the
+// stepper header dot AND on the corresponding #pos-step-N content div,
+// marks earlier steps .completed for the progress checkmark, and updates
+// the #pos-stepper-fill progress bar width proportionally. Called at
+// walkin-save step-1 (:1922) and OTP-verify success (:1966); both call
+// sites currently `typeof`-guard the call so the wizard silently stayed on
+// step 1 until this function was defined. See providers.html:5877 for the
+// stepper DOM shape.
+function posGoToStep(step) {
+  const n = Math.max(1, Math.min(6, Number(step) || 1));
+  const stepper = document.getElementById('pos-stepper');
+  if (!stepper) return;
+  // Header dots.
+  stepper.querySelectorAll('.pos-step').forEach(el => {
+    const idx = Number(el.dataset.step) || 0;
+    el.classList.remove('active', 'completed');
+    if (idx < n) el.classList.add('completed');
+    else if (idx === n) el.classList.add('active');
+  });
+  // Progress bar fill — 6 steps → 5 gaps → each gap is 20% of total width.
+  const fill = document.getElementById('pos-stepper-fill');
+  if (fill) fill.style.width = ((n - 1) / 5 * 100) + '%';
+  // Content panels.
+  for (let i = 1; i <= 6; i++) {
+    const panel = document.getElementById('pos-step-' + i);
+    if (!panel) continue;
+    panel.classList.toggle('active', i === n);
+  }
+}
+
 async function loadLoyaltyQrCode() {
   const container = document.getElementById('loyalty-qr-container');
   if (!container) return;
@@ -1098,8 +1128,8 @@ async function loadLoyaltyQrCode() {
       </div>
     `;
     
-    if (typeof QRCreator !== 'undefined') {
-      QRCreator.render({
+    if (typeof QrCreator !== 'undefined') {
+      QrCreator.render({
         text: referralLink,
         radius: 0.4,
         ecLevel: 'M',

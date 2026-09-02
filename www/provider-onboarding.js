@@ -348,10 +348,14 @@ class ProviderOnboarding {
 
   goToSection(section) {
     this.dismiss();
+    // provider-onboarding.js only loads on providers.html (see :7048 script
+    // tag). `showSection` is defined at providers.js:1343 and loads before
+    // this file. The previous code had a `navigateToSection` fallback but
+    // that function only exists in admin.js — it's never reachable from
+    // this page. Removed to eliminate the undeclared-identifier reference
+    // even though the `typeof` guard made it safe at runtime.
     if (typeof showSection === 'function') {
       showSection(section);
-    } else if (typeof navigateToSection === 'function') {
-      navigateToSection(section);
     }
   }
 }
