@@ -448,7 +448,7 @@
           pending: mccIcon('clock', 16) + ' Pending Review',
           approved: mccIcon('check-circle', 16) + ' Approved',
           rejected: mccIcon('x', 16) + ' Rejected',
-          needs_review: mccIcon('search', 16) + ' Needs Manual Review'
+          manual_review: mccIcon('search', 16) + ' Needs Manual Review'
         };
         document.getElementById('registration-status-display').innerHTML = `
           <span class="registration-status-badge ${status.status}">${statusLabels[status.status] || status.status}</span>
@@ -597,7 +597,7 @@
               borderColor: 'rgba(74,200,140,0.3)',
               color: 'var(--accent-green)'
             },
-            needs_review: {
+            manual_review: {
               icon: mccIcon('search', 48),
               title: 'Manual Review Required',
               message: 'Your registration requires manual review. We\'ll verify it within 24-48 hours.',
@@ -1352,7 +1352,7 @@
                     ? '<span style="color:var(--accent-green);">' + mccIcon('check-circle', 14) + ' Verified</span>' 
                     : vehicleRegistrationStatus[vehicleId]?.status === 'pending' 
                       ? '<span style="color:var(--accent-orange);">' + mccIcon('refresh-cw', 14) + ' Pending Review</span>'
-                      : vehicleRegistrationStatus[vehicleId]?.status === 'needs_review'
+                      : vehicleRegistrationStatus[vehicleId]?.status === 'manual_review'
                         ? '<span style="color:var(--accent-blue);">' + mccIcon('search', 16) + ' Under Review</span>'
                         : 'Not verified yet'}
                 </div>
