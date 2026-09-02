@@ -949,11 +949,13 @@ function renderVehicles() {
       ? `<span class="recall-badge" onclick="openRecallsModal('${v.id}')" title="${recallCount} active recall${recallCount > 1 ? 's' : ''}">⚠ ${recallCount} Recall${recallCount > 1 ? 's' : ''}</span>`
       : '';
     return `
-      <div class="vehicle-card" data-id="${v.id}" style="position:relative;">
-        ${recallBadge}
+      <div class="vehicle-card" data-id="${v.id}">
         <div class="vehicle-card-header">
-          <h3>${escapeHtml(displayName)}</h3>
-          ${trimInfo}
+          <div class="vehicle-card-title-group">
+            <h3>${escapeHtml(displayName)}</h3>
+            ${trimInfo}
+          </div>
+          ${recallBadge}
         </div>
         <div class="vehicle-card-body">
           <p><strong>Year:</strong> ${v.year}</p>

@@ -310,7 +310,9 @@
     /* Vehicle Cards */
     /* Premium Vehicle Cards - Turo Style */
     .vehicles-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(340px, 1fr)); gap: 24px; }
-    .vehicle-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; overflow: hidden; transition: all 0.3s ease; }
+    .vehicle-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: 20px; overflow: hidden; transition: all 0.3s ease; padding: 20px 24px 24px; }
+    .vehicle-card-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+    .vehicle-card-title-group { flex: 1; min-width: 0; }
     .vehicle-card:hover { border-color: var(--accent-gold); transform: translateY(-6px); box-shadow: 0 20px 60px rgba(0,0,0,0.3); }
     .vehicle-card-photo { position: relative; height: 200px; background: linear-gradient(135deg, var(--bg-elevated), var(--bg-input)); display: flex; align-items: center; justify-content: center; overflow: hidden; }
     .vehicle-card-photo img { width: 100%; height: 100%; object-fit: cover; }
@@ -319,7 +321,7 @@
     .vehicle-card-badge.excellent { background: linear-gradient(135deg, #4CAF50, #45a049); color: white; }
     .vehicle-card-badge.good { background: linear-gradient(135deg, var(--accent-gold), #c9a227); color: #1a1a2e; }
     .vehicle-card-badge.fair { background: linear-gradient(135deg, #ff9800, #f57c00); color: white; }
-    .vehicle-card-body { padding: 20px 24px 24px; }
+    .vehicle-card-body { padding: 12px 0 0; }
     .vehicle-card-title { font-size: 1.25rem; font-weight: 700; margin-bottom: 4px; letter-spacing: -0.3px; }
     .vehicle-card-subtitle { font-size: 0.9rem; color: var(--text-secondary); margin-bottom: 12px; }
     .vehicle-card-meta { display: flex; align-items: center; gap: 16px; margin-bottom: 16px; font-size: 0.85rem; color: var(--text-muted); }
@@ -334,7 +336,7 @@
     .health-badge.poor { background: rgba(239, 95, 95, 0.15); color: var(--accent-red); }
     
     /* Recall Alert Badge */
-    .recall-badge { position: static; margin: 0 0 12px; padding: 5px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: linear-gradient(135deg, #ef5f5f, #dc3545); color: white; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; animation: pulse-recall 2s infinite; box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); }
+    .recall-badge { position: static; margin: 0; padding: 5px 12px; border-radius: 100px; font-size: 0.75rem; font-weight: 600; background: linear-gradient(135deg, #ef5f5f, #dc3545); color: white; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; animation: pulse-recall 2s infinite; box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); flex-shrink: 0; white-space: nowrap; }
     .recall-badge:hover { transform: scale(1.05); box-shadow: 0 4px 12px rgba(239, 95, 95, 0.5); }
     @keyframes pulse-recall { 0%, 100% { box-shadow: 0 2px 8px rgba(239, 95, 95, 0.4); } 50% { box-shadow: 0 2px 16px rgba(239, 95, 95, 0.7); } }
     
@@ -734,6 +736,7 @@
       .mobile-header .header-theme-toggle { margin-left: auto; }
       /* Native shell: status-bar clearance + hide hamburger + lift toasts above tab bar */
       body.has-bottom-nav .mobile-header { padding-top: max(16px, env(safe-area-inset-top)); margin-bottom: 16px; }
+      body.has-bottom-nav .main { padding-top: 0; }
       body.has-bottom-nav .mobile-menu-btn { display: none; }
       body.has-bottom-nav .toast-container { bottom: 84px; }
       .header-bell-btn { position: relative; display: flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-secondary); cursor: pointer; transition: color 0.2s, background 0.2s; flex-shrink: 0; }
@@ -748,7 +751,7 @@
       .shop-cart-sidebar { position: relative !important; top: 0 !important; order: -1; margin-bottom: 24px; }
       #mobile-cart-btn { display: block !important; }
       .shop-products-grid { grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)) !important; }
-      .vehicle-card-body { padding: 16px 20px 20px; }
+      .vehicle-card-body { padding: 12px 0 0; }
       .vehicle-card-actions { flex-wrap: wrap; }
       .nav-item { padding: 13px 16px; font-size: 0.95rem; border-radius: 12px; margin-bottom: 3px; }
       .nav-label { padding: 20px 16px 10px; font-size: 0.68rem; }
