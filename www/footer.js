@@ -234,7 +234,17 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 (function loadCookieConsent() {
+  // Two independent native checks, not one — this banner (a gold-bordered
+  // pill fixed to the bottom of the screen) was showing up as a stray
+  // curved line/arc peeking above the home indicator on iOS. Root cause:
+  // window.Capacitor.isNativePlatform() alone isn't a reliable enough
+  // signal for every load path, so also honor the body.native-app class
+  // that's already stamped synchronously in <head> (see the inline script
+  // near the top of login.html/members.html) — a signal already proven
+  // reliable elsewhere in this app (it's what hides the web-only signup
+  // links and trust bar on native).
   if (window.Capacitor?.isNativePlatform?.()) return;
+  if (document.body.classList.contains('native-app')) return;
   if (document.getElementById('mcc-cookie-consent-script')) return;
   const s = document.createElement('script');
   s.id = 'mcc-cookie-consent-script';

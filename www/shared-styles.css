@@ -2144,3 +2144,14 @@ textarea:focus-visible {
   .tablet-context-panel h2 { font-size: 2.8rem; }
   .tablet-context-panel p { font-size: 1.14rem; }
 }
+
+/* Cookie-consent banner (cookie-consent.js) is web-only — it has no
+   business rendering inside the native app. footer.js already guards the
+   injection, but this is a belt-and-suspenders CSS failsafe in case that
+   guard ever races Capacitor's bridge init: this hid a stray gold-bordered
+   arc peeking above the home indicator on iOS when the banner's collapsed
+   pill state (bottom:16px; right:16px; border-radius:999px) got injected
+   anyway. */
+body.native-app #mcc-cookie-banner {
+  display: none !important;
+}
