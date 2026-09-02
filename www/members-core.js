@@ -3287,7 +3287,7 @@ function openPackageModal() {
   const noVehicleHint = document.getElementById('p-vehicle-empty-hint');
   if (vehicles.length > 0) {
     pVehicleSelect.innerHTML = '<option value="">Select a vehicle...</option>' +
-      vehicles.map(v => `<option value="${v.id}">${v.nickname || `${v.year || ''} ${v.make} ${v.model}`.trim()}</option>`).join('');
+      vehicles.map(v => `<option value="${v.id}">${v.nickname || `${v.year || ''} ${v.make} ${v.model}`.trim()}${!v.registration_verified ? ' — registration required' : ''}</option>`).join('');
     if (vehicles.length === 1) {
       pVehicleSelect.value = vehicles[0].id;
     } else {

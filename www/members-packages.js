@@ -1584,6 +1584,20 @@
       const category = document.getElementById('p-category').value;
       const isSnowRemoval = category === 'snow_removal';
       if (!isSnowRemoval && !vehicleId) return showToast('Vehicle is required', 'error');
+
+      // Require a verified registration before a vehicle can be used to
+      // request service — protects providers from bidding on jobs for a
+      // car whose ownership hasn't been confirmed yet.
+      if (!isSnowRemoval) {
+        const selectedVehicle = vehicles.find(v => v.id === vehicleId);
+        if (!selectedVehicle?.registration_verified) {
+          showToast('Please verify this vehicle\'s registration before requesting service.', 'error');
+          closeModal('package-modal');
+          if (typeof openRegistrationModal === 'function') openRegistrationModal(vehicleId);
+          return;
+        }
+      }
+
       if (!title) return showToast('Title is required', 'error');
       if (isSnowRemoval && !document.getElementById('p-property-address').value.trim()) return showToast('Property address is required for snow removal', 'error');
 
