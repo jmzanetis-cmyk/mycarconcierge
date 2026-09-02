@@ -837,6 +837,38 @@
       return labels[type] || type;
     }
 
+    // Canonical services_offered / specialty keys -> display labels.
+    // provider_applications.services_offered is a mixed bag in production:
+    // canonical snake_case keys from the signup checkboxes, extended category
+    // keys, AND legacy free-text strings from older rows (see
+    // netlify/functions/provider-application.js ALLOWED_SERVICES). Bid cards
+    // must never render the raw stored value.
+    const SPECIALTY_LABELS = {
+      'oil_change': 'Oil Change', 'brakes': 'Brakes', 'tires': 'Tires / Alignment',
+      'engine': 'Engine Repair', 'transmission': 'Transmission', 'electrical': 'Electrical',
+      'ac_heating': 'AC / Heating', 'diagnostics': 'Diagnostics', 'body_work': 'Body Work',
+      'paint': 'Paint / Refinish', 'detailing': 'Detailing', 'car_wash': 'Car Wash',
+      'glass': 'Glass Repair', 'exhaust': 'Exhaust', 'suspension': 'Suspension',
+      'inspection': 'State Inspection', 'mobile_service': 'Mobile Service', 'other': 'Other',
+      'audio_electronics': 'Audio / Electronics', 'lighting': 'Lighting', 'interior': 'Interior',
+      'offroad': 'Off-Road', 'ev_hybrid': 'EV / Hybrid', 'classic_vintage': 'Classic / Vintage',
+      'fleet_graphics': 'Fleet Graphics', 'premium_protection': 'Premium Protection',
+      'convertible': 'Convertible', 'motorcycle': 'Motorcycle', 'rv_camper': 'RV / Camper',
+      'boat_marine': 'Boat / Marine', 'snow_removal': 'Snow Removal', 'manufacturer': 'Manufacturer Specialist'
+    };
+    function humanizeSpecialty(raw) {
+      if (!raw) return '';
+      const s = String(raw).trim();
+      const key = s.toLowerCase();
+      if (SPECIALTY_LABELS[key]) return SPECIALTY_LABELS[key];
+      // Unmapped slug (has underscores) or all-lowercase legacy string: de-slug + title-case.
+      // Anything already mixed-case (e.g. a brand name like "Toyota" or "BMW") is left as-is.
+      if (s.includes('_') || s === key) {
+        return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+      }
+      return s;
+    }
+
     function getWhyItsDueExplanation(reminder) {
       const type = reminder.type;
       const milesDriven = reminder.milesDriven || null;
@@ -2310,7 +2342,7 @@
                     ${isVerified || specialties.length > 0 ? `
                       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
                         ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">${mccIcon('check', 16)} Concierge Verified</span>` : ''}
-                        ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${s}</span>`).join('')}
+                        ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${humanizeSpecialty(s)}</span>`).join('')}
                       </div>
                     ` : ''}
                     
