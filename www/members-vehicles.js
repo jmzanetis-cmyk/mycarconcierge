@@ -2219,10 +2219,13 @@ function closePhotoLightbox() {
 // ========== END VEHICLE PHOTOS ==========
 
 // ========== OBD SCANNER SECTION ==========
-// Restored: this was fully implemented (UI + /api/obd/scan + /api/obd/interpret
-// backend) but its trigger button and handler functions were dropped from the
-// vehicle card / this file during an earlier refactor, leaving the feature
-// (and its Playwright coverage in tests/obd-scanner.spec.js) unreachable.
+// Restored: this UI was fully implemented but its trigger button and handler
+// functions were dropped from the vehicle card / this file during an earlier
+// refactor, leaving the feature unreachable. Rewired to call the deployed
+// netlify/functions/obd-scan.js contract directly (/api/obd/interpret takes
+// one { code, vehicle_id } at a time; there is no /api/obd/scan endpoint in
+// production — the old members.js.bak version targeted a different,
+// no-longer-deployed server.js backend).
 let currentOBDScan = null;
 let obdPhotoBase64 = null;
 
@@ -2258,7 +2261,7 @@ async function handleOBDPhotoSelect(event) {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
         },
-        body: JSON.stringify({ imageBase64: obdPhotoBase64 })
+        body: JSON.stringify({ image_base64: obdPhotoBase64, vehicle_id: document.getElementById('obd-scan-vehicle-id').value })
       });
       const data = await response.json();
       document.getElementById('obd-ocr-loading').style.display = 'none';
@@ -2289,7 +2292,6 @@ function clearOBDPhoto() {
 async function submitOBDScan() {
   const vehicleId = document.getElementById('obd-scan-vehicle-id').value;
   const codesInput = document.getElementById('obd-codes-input').value.trim();
-  const notes = document.getElementById('obd-notes').value.trim();
 
   if (!codesInput) {
     showToast('Please enter at least one diagnostic code', 'error');
@@ -2301,6 +2303,7 @@ async function submitOBDScan() {
     showToast('No valid codes found. Codes should be like P0420, C0035, etc.', 'error');
     return;
   }
+  const uniqueCodes = [...new Set(codes)];
 
   document.getElementById('obd-submit-btn').disabled = true;
   document.getElementById('obd-submit-btn').textContent = 'Analyzing...';
@@ -2310,34 +2313,24 @@ async function submitOBDScan() {
     const session = await supabaseClient.auth.getSession();
     const token = session.data.session?.access_token;
 
-    const scanResponse = await fetch(`${apiBase}/api/obd/scan`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({
-        vehicleId,
-        codes: [...new Set(codes)],
-        notes,
-        source: obdPhotoBase64 ? 'photo_ocr' : 'manual'
-      })
-    });
-    const scanData = await scanResponse.json();
-
-    if (!scanData.success) {
-      throw new Error(scanData.error || 'Failed to submit scan');
+    // netlify/functions/obd-scan.js only implements /api/obd/interpret (one code per
+    // call, via { code, vehicle_id }) and /api/obd/scan-ocr — there is no /api/obd/scan
+    // "submit" endpoint in production, so interpret each code directly.
+    const results = [];
+    for (const code of uniqueCodes) {
+      const res = await fetch(`${apiBase}/api/obd/interpret`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+        body: JSON.stringify({ code, vehicle_id: vehicleId })
+      });
+      const data = await res.json();
+      if (!data.success) {
+        throw new Error(data.error || `Failed to interpret ${code}`);
+      }
+      results.push(data.interpretation || {});
     }
 
-    const interpretResponse = await fetch(`${apiBase}/api/obd/interpret`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-      body: JSON.stringify({ scanId: scanData.scan.id })
-    });
-    const interpretData = await interpretResponse.json();
-
-    if (!interpretData.success) {
-      throw new Error(interpretData.error || 'Failed to interpret codes');
-    }
-
-    currentOBDScan = { ...scanData.scan, ...interpretData };
+    currentOBDScan = { codes: uniqueCodes, results };
     closeModal('obd-scanner-modal');
     showOBDResults(currentOBDScan);
 
@@ -2350,7 +2343,6 @@ async function submitOBDScan() {
 }
 
 function showOBDResults(scan) {
-  const interpretation = scan.interpretation || {};
   const severityColors = {
     low: 'var(--accent-green)',
     medium: 'var(--accent-gold)',
@@ -2364,57 +2356,54 @@ function showOBDResults(scan) {
     critical: '🚨 Critical - Immediate attention needed'
   };
 
-  document.getElementById('obd-results-body').innerHTML = `
-    <div style="margin-bottom:20px;">
-      <div style="font-weight:600;margin-bottom:8px;">Codes Analyzed:</div>
-      <div style="font-family:monospace;font-size:1.2rem;color:var(--accent-gold);">${scan.codes?.join(', ') || 'N/A'}</div>
-    </div>
+  const sections = (scan.results || []).map(interp => {
+    const sev = (interp.severity || '').toLowerCase();
+    const color = severityColors[sev] || 'var(--bg-input)';
+    return `
+      <div style="margin-bottom:20px;padding-bottom:20px;border-bottom:1px solid var(--border-subtle);">
+        <div style="font-family:monospace;font-size:1.1rem;color:var(--accent-gold);font-weight:600;margin-bottom:8px;">${interp.code || ''}${interp.name ? ' — ' + interp.name : ''}</div>
 
-    <div style="padding:16px;background:${severityColors[scan.severity] || 'var(--bg-input)'}20;border:1px solid ${severityColors[scan.severity] || 'var(--border-subtle)'};border-radius:var(--radius-md);margin-bottom:20px;">
-      <div style="font-weight:600;color:${severityColors[scan.severity] || 'inherit'};">${severityLabels[scan.severity] || 'Unknown Severity'}</div>
-      ${interpretation.safeToKeepDriving !== undefined ? `<div style="margin-top:8px;font-size:0.9rem;">Safe to drive: ${interpretation.safeToKeepDriving ? 'Yes, with caution' : 'No - get checked immediately'}</div>` : ''}
-    </div>
+        <div style="padding:14px 16px;background:${color}20;border:1px solid ${color};border-radius:var(--radius-md);margin-bottom:16px;">
+          <div style="font-weight:600;color:${color};">${severityLabels[sev] || 'Unknown Severity'}</div>
+          ${interp.urgency ? `<div style="margin-top:6px;font-size:0.9rem;">${interp.urgency}</div>` : ''}
+        </div>
 
-    <div style="margin-bottom:20px;">
-      <div style="font-weight:600;margin-bottom:8px;">What This Means:</div>
-      <div style="line-height:1.6;color:var(--text-secondary);">${interpretation.summary || 'Analysis in progress...'}</div>
-    </div>
+        ${interp.description ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:6px;">What This Means:</div>
+            <div style="line-height:1.6;color:var(--text-secondary);">${interp.description}</div>
+          </div>
+        ` : ''}
 
-    ${interpretation.likelyCauses?.length ? `
-      <div style="margin-bottom:20px;">
-        <div style="font-weight:600;margin-bottom:8px;">Likely Causes:</div>
-        <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
-          ${interpretation.likelyCauses.map(c => `<li style="margin-bottom:4px;">${c}</li>`).join('')}
-        </ul>
+        ${interp.symptoms?.length ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:6px;">Symptoms:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interp.symptoms.map(s => `<li style="margin-bottom:4px;">${s}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${interp.common_causes?.length ? `
+          <div style="margin-bottom:16px;">
+            <div style="font-weight:600;margin-bottom:6px;">Common Causes:</div>
+            <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+              ${interp.common_causes.map(c => `<li style="margin-bottom:4px;">${c}</li>`).join('')}
+            </ul>
+          </div>
+        ` : ''}
+
+        ${interp.estimated_repair_cost_range ? `
+          <div>
+            <div style="font-weight:600;margin-bottom:6px;">Estimated Repair Cost:</div>
+            <div style="font-size:1.05rem;color:var(--accent-gold);">${interp.estimated_repair_cost_range}</div>
+          </div>
+        ` : ''}
       </div>
-    ` : ''}
+    `;
+  }).join('');
 
-    ${interpretation.estimatedCostRange ? `
-      <div style="margin-bottom:20px;">
-        <div style="font-weight:600;margin-bottom:8px;">Estimated Repair Cost:</div>
-        <div style="font-size:1.1rem;color:var(--accent-gold);">${interpretation.estimatedCostRange}</div>
-      </div>
-    ` : ''}
-
-    ${interpretation.recommendations?.length ? `
-      <div style="margin-bottom:20px;">
-        <div style="font-weight:600;margin-bottom:8px;">Recommendations:</div>
-        <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
-          ${interpretation.recommendations.map(r => `<li style="margin-bottom:4px;">${r}</li>`).join('')}
-        </ul>
-      </div>
-    ` : ''}
-
-    ${interpretation.questionsForMechanic?.length ? `
-      <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;">
-        <div style="font-weight:600;margin-bottom:8px;">💡 Questions to Ask Your Mechanic:</div>
-        <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
-          ${interpretation.questionsForMechanic.map(q => `<li style="margin-bottom:4px;">${q}</li>`).join('')}
-        </ul>
-      </div>
-    ` : ''}
-  `;
-
+  document.getElementById('obd-results-body').innerHTML = sections || '<p style="color:var(--text-muted);">No results returned.</p>';
   document.getElementById('obd-results-modal').classList.add('active');
 }
 // ========== END OBD SCANNER SECTION ==========
