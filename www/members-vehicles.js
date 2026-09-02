@@ -351,11 +351,7 @@
           .from('registrations')
           .getPublicUrl(filePath);
         
-        if (publicData?.publicUrl) {
-          return publicData.publicUrl;
-        }
-        
-        return null;
+        return { url: publicData?.publicUrl || null, path: filePath };
       } catch (error) {
         console.error('Upload error:', error);
         showToast('Failed to upload document', 'error');
@@ -363,7 +359,7 @@
       }
     }
     
-    async function verifyRegistration(registrationUrl, vehicleId) {
+    async function verifyRegistration(registrationUrl, registrationPath, vehicleId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
         const { data: { session } } = await supabaseClient.auth.getSession();
@@ -373,6 +369,7 @@
           headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({
             registrationUrl: registrationUrl,
+            registrationPath: registrationPath,
             vehicleId: vehicleId
           })
         });
@@ -568,11 +565,11 @@
       document.getElementById('registration-progress-bar').style.width = '20%';
       
       try {
-        const registrationUrl = await uploadRegistrationDocument(pendingRegistrationFile, currentRegistrationVehicleId);
+        const uploadResult = await uploadRegistrationDocument(pendingRegistrationFile, currentRegistrationVehicleId);
         
         document.getElementById('registration-progress-bar').style.width = '50%';
         
-        if (!registrationUrl) {
+        if (!uploadResult) {
           throw new Error('Failed to upload document');
         }
         
@@ -581,7 +578,7 @@
         document.getElementById('registration-loading-subtext').textContent = 'Extracting registration details with AI';
         document.getElementById('registration-progress-bar').style.width = '70%';
         
-        const result = await verifyRegistration(registrationUrl, currentRegistrationVehicleId);
+        const result = await verifyRegistration(uploadResult.url, uploadResult.path, currentRegistrationVehicleId);
         
         document.getElementById('registration-progress-bar').style.width = '100%';
         await new Promise(resolve => setTimeout(resolve, 300));

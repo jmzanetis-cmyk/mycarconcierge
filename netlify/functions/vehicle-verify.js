@@ -170,7 +170,7 @@ async function handleVerify(event, supabase) {
 
   let body;
   try { body = JSON.parse(event.body || '{}'); } catch { return json(400, { error: 'Invalid JSON' }); }
-  const { registrationUrl, vehicleId, contextNote } = body;
+  const { registrationUrl, registrationPath, vehicleId, contextNote } = body;
 
   if (!registrationUrl) return json(400, { error: 'registrationUrl required' });
   if (!vehicleId)       return json(400, { error: 'vehicleId required' });
@@ -185,15 +185,29 @@ async function handleVerify(event, supabase) {
     .select('full_name').eq('id', user.id).single();
   const profileName = profile?.full_name || '';
 
-  // Fetch image and encode as base64 for Claude vision
+  // Fetch image and encode as base64 for Claude vision.
+  // Prefer downloading via the service-role storage client (works
+  // regardless of whether the 'registrations' bucket is public — the
+  // service role bypasses bucket/RLS policy entirely), falling back to a
+  // plain HTTP fetch of the stored URL if no storage path was given.
   let imageB64, mediaType;
   try {
-    const imgRes = await fetch(registrationUrl, { signal: AbortSignal.timeout(15000) });
-    if (!imgRes.ok) throw new Error(`Image fetch ${imgRes.status}`);
-    const buf = await imgRes.arrayBuffer();
-    imageB64  = Buffer.from(buf).toString('base64');
-    const ct  = imgRes.headers.get('content-type') || 'image/jpeg';
-    mediaType = ct.startsWith('image/png') ? 'image/png' : 'image/jpeg';
+    let buf, contentType;
+    if (registrationPath) {
+      const { data: fileBlob, error: dlErr } = await supabase.storage
+        .from('registrations')
+        .download(registrationPath);
+      if (dlErr || !fileBlob) throw new Error(dlErr?.message || 'storage download failed');
+      buf = Buffer.from(await fileBlob.arrayBuffer());
+      contentType = fileBlob.type || 'image/jpeg';
+    } else {
+      const imgRes = await fetch(registrationUrl, { signal: AbortSignal.timeout(15000) });
+      if (!imgRes.ok) throw new Error(`Image fetch ${imgRes.status}`);
+      buf = Buffer.from(await imgRes.arrayBuffer());
+      contentType = imgRes.headers.get('content-type') || 'image/jpeg';
+    }
+    imageB64  = buf.toString('base64');
+    mediaType = contentType.startsWith('image/png') ? 'image/png' : 'image/jpeg';
   } catch (err) {
     console.error('[vehicle-verify] image fetch error:', err.message);
     return json(502, { error: 'Failed to fetch registration image' });
