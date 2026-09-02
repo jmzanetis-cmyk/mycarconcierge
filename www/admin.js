@@ -5285,6 +5285,26 @@
       setTimeout(() => { toast.style.opacity = '0'; setTimeout(() => toast.remove(), 300); }, 3000);
     }
 
+    // Generic modal helper for admin.js — used by driver-detail (:6447) and
+    // ride-detail (:6592) views. Renders into #admin-generic-modal in
+    // admin.html. Any HTML is trusted (admin-only surface, admin composes
+    // the body themselves from vetted data). If a caller ever passes
+    // user-supplied text, escape it at the call site — same rule as the
+    // agreement-modal-body render pattern above.
+    function showModal(title, html) {
+      const titleEl = document.getElementById('admin-generic-modal-title');
+      const bodyEl = document.getElementById('admin-generic-modal-body');
+      const backdrop = document.getElementById('admin-generic-modal');
+      if (!titleEl || !bodyEl || !backdrop) {
+        console.warn('[admin.showModal] #admin-generic-modal not in DOM — did admin.html get updated?');
+        return;
+      }
+      titleEl.textContent = title || 'Details';
+      bodyEl.innerHTML = html || '';
+      backdrop.style.display = 'flex';
+      backdrop.classList.add('active');
+    }
+
     // ========== HUBSPOT CRM ==========
     let crmContactsData = [];
     let crmDealsData = [];
@@ -5529,8 +5549,14 @@
     }
     globalThis.saveCrmRecord = saveCrmRecord;
 
-    async function syncMembersToHubSpot() {
-      const btn = event.target;
+    // Accept the click event explicitly instead of leaning on legacy window.event.
+    // window.event still populates during synchronous onclick dispatch in
+    // WebKit, but any programmatic caller (retry logic, keyboard shortcut,
+    // etc.) would find it null. Passing evt through the onclick attribute
+    // makes the dependency explicit. Called from admin.html:4383.
+    async function syncMembersToHubSpot(evt) {
+      const btn = evt?.target || evt?.currentTarget;
+      if (!btn) return; // no button to disable = probably not a real click; bail.
       btn.disabled = true;
       btn.textContent = 'Syncing...';
       try {
@@ -7359,7 +7385,7 @@
       const ratePercent = Number.parseInt(document.getElementById('commission-rate-input').value);
       
       if (isNaN(ratePercent) || ratePercent < 0 || ratePercent > 100) {
-        showNotification('Please enter a valid rate between 0 and 100', 'error');
+        showToast('Please enter a valid rate between 0 and 100', 'error');
         return;
       }
 
@@ -7382,12 +7408,12 @@
           throw new Error(result.error || 'Failed to update commission rate');
         }
 
-        showNotification(`Commission rate updated to ${ratePercent}%`, 'success');
+        showToast(`Commission rate updated to ${ratePercent}%`, 'success');
         closeCommissionModal();
         await loadFounderPayouts();
       } catch (err) {
         console.error('Error updating commission rate:', err);
-        showNotification(err.message || 'Failed to update commission rate', 'error');
+        showToast(err.message || 'Failed to update commission rate', 'error');
       }
     }
 
@@ -7841,7 +7867,7 @@
         document.getElementById('setting-weekly-fee').value = payoutSettings.weekly_payout_fee || 0.00;
       } catch (err) {
         console.error('Error loading payout settings:', err);
-        showNotification('Failed to load payout settings', 'error');
+        showToast('Failed to load payout settings', 'error');
       }
     }
 
@@ -7855,22 +7881,22 @@
       };
 
       if (settings.min_payout_threshold < 1) {
-        showNotification('Minimum payout threshold must be at least $1', 'error');
+        showToast('Minimum payout threshold must be at least $1', 'error');
         return;
       }
 
       if (settings.instant_payout_fee_percent < 0 || settings.instant_payout_fee_percent > 10) {
-        showNotification('Instant fee percentage must be between 0% and 10%', 'error');
+        showToast('Instant fee percentage must be between 0% and 10%', 'error');
         return;
       }
 
       if (settings.instant_payout_fee_min < 0 || settings.instant_payout_fee_max < 0) {
-        showNotification('Fee amounts cannot be negative', 'error');
+        showToast('Fee amounts cannot be negative', 'error');
         return;
       }
 
       if (settings.instant_payout_fee_min > settings.instant_payout_fee_max) {
-        showNotification('Minimum fee cannot be greater than maximum fee', 'error');
+        showToast('Minimum fee cannot be greater than maximum fee', 'error');
         return;
       }
 
@@ -7895,10 +7921,10 @@
         }
 
         payoutSettings = settings;
-        showNotification('Payout settings saved successfully', 'success');
+        showToast('Payout settings saved successfully', 'success');
       } catch (err) {
         console.error('Error saving payout settings:', err);
-        showNotification(err.message || 'Failed to save payout settings', 'error');
+        showToast(err.message || 'Failed to save payout settings', 'error');
       }
     }
 
@@ -8038,14 +8064,17 @@
     }
 
     async function payMilestone(milestoneId, description, amount) {
-      const confirmed = await showConfirmDialog(
-        'Pay Milestone Bonus',
-        `Are you sure you want to mark this milestone as paid?<br><br>
-        <strong>${description}</strong><br>
-        Amount: <span style="color:var(--accent-gold);font-weight:600;">$${amount.toLocaleString()}</span><br><br>
-        <small style="color:var(--text-muted);">This will deduct from the bonus reserve balance.</small>`
+      // Native confirm — admin.js uses this pattern throughout (see :2200,
+      // :2228, etc.). `showConfirmDialog` never existed. Losing the HTML
+      // formatting here is a small UX cost but the pattern matches.
+      const confirmed = confirm(
+        'Pay Milestone Bonus\n\n' +
+        'Are you sure you want to mark this milestone as paid?\n\n' +
+        description + '\n' +
+        'Amount: $' + amount.toLocaleString() + '\n\n' +
+        'This will deduct from the bonus reserve balance.'
       );
-      
+
       if (!confirmed) return;
       
       const stripeTransferId = prompt('Enter Stripe Transfer ID (optional):');
@@ -8212,13 +8241,13 @@
         return;
       }
       
-      const confirmed = await showConfirmDialog(
-        'Adjust Bonus Reserve',
-        `Are you sure you want to adjust the reserve balance?<br><br>
-        Amount: <span style="font-weight:600;color:${amount >= 0 ? 'var(--accent-green)' : 'var(--accent-orange)'};">${amount >= 0 ? '+' : ''}$${amount.toFixed(2)}</span><br>
-        Notes: ${notes}`
+      const confirmed = confirm(
+        'Adjust Bonus Reserve\n\n' +
+        'Are you sure you want to adjust the reserve balance?\n\n' +
+        'Amount: ' + (amount >= 0 ? '+$' : '-$') + Math.abs(amount).toFixed(2) + '\n' +
+        'Notes: ' + notes
       );
-      
+
       if (!confirmed) return;
       
       try {
