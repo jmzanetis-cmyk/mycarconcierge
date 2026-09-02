@@ -12,13 +12,22 @@
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
 const MAX_IMAGE_BYTES = 5 * 1024 * 1024; // 5 MB base64 limit
 
+// Keep this list in exact sync with the <select id="p-category"> options in
+// members.html and with netlify/functions/ai-describe-to-package.js — a
+// category the AI picks that isn't a real form option silently fails to
+// select, leaving the field on "Maintenance & Mechanical".
 const CATEGORIES = [
-  'maintenance', 'manufacturer_service', 'accident_repair',
-  'performance', 'cosmetic', 'offroad', 'tires', 'diagnostics',
-  'electrical', 'other',
+  'maintenance', 'manufacturer_service', 'detailing', 'cosmetic',
+  'accident_repair', 'performance', 'audio_electronics', 'lighting',
+  'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics',
+  'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper',
+  'boat_marine', 'snow_removal', 'other',
 ];
 
-const SYSTEM = `You are an expert automotive service advisor for My Car Concierge.
+const SYSTEM = `You are an expert service advisor for My Car Concierge, a concierge
+platform covering far more than mechanical repair — detailing, cosmetic and body
+work, audio/electronics, interior, off-road, EV/hybrid, classic cars, motorcycles,
+RVs, boats, snow removal, and more.
 A member has uploaded a photo of their car issue for diagnosis.
 Analyze the image and provide structured service request fields.
 
@@ -31,6 +40,11 @@ Respond with ONLY valid JSON in this exact shape:
   "explanation": "1-2 sentence plain English explanation of what you see in the photo",
   "lowConfidence": false
 }
+
+Pick the MOST SPECIFIC category that fits what's in the photo — for example a
+dirty/dull interior or exterior is "detailing", not "maintenance"; a dent or
+scratch is "cosmetic"; a cracked headlight lens is "lighting". Only use
+"maintenance" for actual mechanical/repair issues.
 
 If the image is unclear, not car-related, or you cannot diagnose from it:
 {"title":"","description":"","category":"other","urgency":"flexible","explanation":"I couldn't clearly identify a car issue from this photo. Please describe the problem in the text box.","lowConfidence":true}`;

@@ -16,9 +16,17 @@ const API_KEY = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPI
 const MODEL   = 'claude-haiku-4-5-20251001';
 
 const URGENCY_LEVELS = ['critical', 'high', 'medium', 'low'];
+// Keep this list in exact sync with the <select id="p-category"> options in
+// members.html and with netlify/functions/ai-describe-to-package.js — a
+// category the AI picks that isn't a real form option silently fails to
+// select in aiCarePlanToModal() (members-packages.js), leaving the field on
+// whatever was already chosen.
 const CATEGORIES = [
-  'maintenance', 'manufacturer_service', 'accident_repair',
-  'performance', 'cosmetic', 'tires', 'diagnostics', 'electrical', 'other',
+  'maintenance', 'manufacturer_service', 'detailing', 'cosmetic',
+  'accident_repair', 'performance', 'audio_electronics', 'lighting',
+  'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics',
+  'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper',
+  'boat_marine', 'snow_removal', 'other',
 ];
 
 const SYSTEM = `You are an expert automotive service advisor for My Car Concierge.
@@ -29,7 +37,7 @@ Respond with ONLY valid JSON (no prose, no markdown fences) matching this shape 
 {
   "title": "Short, specific service title (max 80 chars)",
   "service_type": "One of: oil_change, tire_service, brake_service, engine_repair, transmission, electrical, body_repair, detailing, inspection, other",
-  "category": "One of: maintenance, manufacturer_service, accident_repair, performance, cosmetic, tires, diagnostics, electrical, other",
+  "category": "One of: ${CATEGORIES.join(', ')}",
   "urgency": "One of: critical, high, medium, low",
   "detailed_description": "Professional description of the issue and recommended service (2-4 sentences)",
   "estimated_min": <integer USD, lower bound of the price range — omit or null only if truly unquotable, e.g. "not sure what's wrong">,
@@ -44,7 +52,11 @@ Urgency guide:
 - critical: safety issue (brakes, steering, suspension failure) — drive to shop immediately
 - high: will worsen quickly if ignored (oil leak, overheating, transmission slip)
 - medium: should be addressed within 1-2 months
-- low: cosmetic or convenience item, no immediate risk`;
+- low: cosmetic or convenience item, no immediate risk
+
+Category: pick the MOST SPECIFIC one that fits (e.g. a full detail or wash is
+"detailing" not "maintenance"; a dent or scratch is "cosmetic"; a stereo/wiring
+job is "audio_electronics"). Only use "maintenance" for actual mechanical work.`;
 
 function jsonResponse(status, body) {
   return {

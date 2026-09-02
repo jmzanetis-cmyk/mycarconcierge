@@ -16,14 +16,45 @@
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
 
+// Keep this list in exact sync with the <select id="p-category"> options in
+// members.html — if the AI picks a value that isn't a real form option, the
+// frontend silently fails to select it and the field is left on whatever was
+// already chosen (defaulting to "Maintenance & Mechanical"), which biases
+// every non-mechanical request toward that category.
 const CATEGORIES = [
-  'maintenance', 'manufacturer_service', 'accident_repair',
-  'performance', 'cosmetic', 'offroad', 'tires', 'diagnostics',
-  'electrical', 'other',
+  'maintenance', 'manufacturer_service', 'detailing', 'cosmetic',
+  'accident_repair', 'performance', 'audio_electronics', 'lighting',
+  'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics',
+  'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper',
+  'boat_marine', 'snow_removal', 'other',
 ];
 
-const SYSTEM = `You are an expert automotive service advisor for My Car Concierge.
-A member has described a car problem or service need in plain language.
+const CATEGORY_HINTS = `- maintenance: routine mechanical work, oil changes, brakes, engine/transmission issues, check engine light
+- manufacturer_service: factory-scheduled maintenance, recalls, warranty service
+- detailing: washing, waxing, interior cleaning, full detail, pre-sale prep
+- cosmetic: dents, scratches, paint chips, bumper/body cosmetic repair (non-collision)
+- accident_repair: collision damage, insurance claims, structural body work
+- performance: tuning, upgrades, aftermarket performance parts
+- audio_electronics: stereo, speakers, infotainment, wiring, electronics installs
+- lighting: headlights, taillights, underglow, lighting upgrades or repair
+- interior: upholstery, seats, carpet, dash repair/replacement
+- offroad: lift kits, off-road tires/suspension, trail prep
+- ev_hybrid: EV/hybrid-specific service (battery, charging, drivetrain)
+- classic_vintage: restoration or service of classic/vintage vehicles
+- fleet_graphics: fleet vehicle wraps, decals, commercial graphics
+- premium_protection: PPF, ceramic coating, paint protection
+- convertible_specialty: convertible tops and specialty mechanisms
+- motorcycle: motorcycle service or repair
+- rv_camper: RV or camper service or repair
+- boat_marine: boat or marine vessel service or repair
+- snow_removal: snow plowing/removal for a property
+- other: anything that doesn't clearly fit above`;
+
+const SYSTEM = `You are an expert service advisor for My Car Concierge, a concierge
+platform covering far more than mechanical repair — detailing, cosmetic and body
+work, audio/electronics, interior, off-road, EV/hybrid, classic cars, motorcycles,
+RVs, boats, snow removal, and more.
+A member has described a problem or service need in plain language.
 Extract structured fields for a service request form.
 
 Respond with ONLY valid JSON (no prose, no markdown fences) in this exact shape:
@@ -35,10 +66,15 @@ Respond with ONLY valid JSON (no prose, no markdown fences) in this exact shape:
   "estimated_cost_range": "rough USD range, e.g. '$150–$300' or null if unknown"
 }
 
+Category guide:
+${CATEGORY_HINTS}
+
 Rules:
 - title should be action-oriented, e.g. "Brake pad replacement" not "Fix brakes"
 - description should help providers understand the scope and any symptoms mentioned
-- category must be exactly one of the listed values
+- category must be exactly one of the listed values — pick the MOST SPECIFIC one that
+  fits the description. Do not default to "maintenance" just because the request is
+  car-related; only use it for actual mechanical/repair work
 - urgency: asap if safety issue or car won't start; this_week if inconvenient; flexible otherwise
 - If the description is too vague to parse meaningfully, still return your best guess`;
 
