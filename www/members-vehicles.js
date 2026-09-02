@@ -2217,3 +2217,202 @@ function closePhotoLightbox() {
   if (lb) lb.style.display = 'none';
 }
 // ========== END VEHICLE PHOTOS ==========
+
+// ========== OBD SCANNER SECTION ==========
+// Restored: this was fully implemented (UI + /api/obd/scan + /api/obd/interpret
+// backend) but its trigger button and handler functions were dropped from the
+// vehicle card / this file during an earlier refactor, leaving the feature
+// (and its Playwright coverage in tests/obd-scanner.spec.js) unreachable.
+let currentOBDScan = null;
+let obdPhotoBase64 = null;
+
+function openOBDScanner(vehicleId) {
+  document.getElementById('obd-scan-vehicle-id').value = vehicleId;
+  document.getElementById('obd-codes-input').value = '';
+  document.getElementById('obd-notes').value = '';
+  document.getElementById('obd-photo-preview').style.display = 'none';
+  document.getElementById('obd-extracted-codes').style.display = 'none';
+  document.getElementById('obd-ocr-loading').style.display = 'none';
+  obdPhotoBase64 = null;
+  currentOBDScan = null;
+  document.getElementById('obd-scanner-modal').classList.add('active');
+}
+
+async function handleOBDPhotoSelect(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+
+  const reader = new FileReader();
+  reader.onload = async (e) => {
+    obdPhotoBase64 = e.target.result.split(',')[1];
+    document.getElementById('obd-photo-img').src = e.target.result;
+    document.getElementById('obd-photo-preview').style.display = 'block';
+    document.getElementById('obd-photo-upload-area').style.display = 'none';
+
+    document.getElementById('obd-ocr-loading').style.display = 'block';
+    try {
+      const response = await fetch('/api/obd/scan-ocr', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${(await supabaseClient.auth.getSession()).data.session?.access_token}`
+        },
+        body: JSON.stringify({ imageBase64: obdPhotoBase64 })
+      });
+      const data = await response.json();
+      document.getElementById('obd-ocr-loading').style.display = 'none';
+
+      if (data.codes && data.codes.length > 0) {
+        document.getElementById('obd-extracted-codes').style.display = 'block';
+        document.getElementById('obd-extracted-codes-list').textContent = data.codes.join(', ');
+        document.getElementById('obd-codes-input').value = data.codes.join(', ');
+      } else {
+        showToast('No codes found in image. Please enter codes manually.', 'warning');
+      }
+    } catch (err) {
+      document.getElementById('obd-ocr-loading').style.display = 'none';
+      showToast('Could not read image. Please enter codes manually.', 'error');
+    }
+  };
+  reader.readAsDataURL(file);
+}
+
+function clearOBDPhoto() {
+  obdPhotoBase64 = null;
+  document.getElementById('obd-photo-input').value = '';
+  document.getElementById('obd-photo-preview').style.display = 'none';
+  document.getElementById('obd-photo-upload-area').style.display = 'block';
+  document.getElementById('obd-extracted-codes').style.display = 'none';
+}
+
+async function submitOBDScan() {
+  const vehicleId = document.getElementById('obd-scan-vehicle-id').value;
+  const codesInput = document.getElementById('obd-codes-input').value.trim();
+  const notes = document.getElementById('obd-notes').value.trim();
+
+  if (!codesInput) {
+    showToast('Please enter at least one diagnostic code', 'error');
+    return;
+  }
+
+  const codes = codesInput.toUpperCase().match(/[PCBU][0-9]{4}/g);
+  if (!codes || codes.length === 0) {
+    showToast('No valid codes found. Codes should be like P0420, C0035, etc.', 'error');
+    return;
+  }
+
+  document.getElementById('obd-submit-btn').disabled = true;
+  document.getElementById('obd-submit-btn').textContent = 'Analyzing...';
+
+  try {
+    const session = await supabaseClient.auth.getSession();
+    const token = session.data.session?.access_token;
+
+    const scanResponse = await fetch('/api/obd/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({
+        vehicleId,
+        codes: [...new Set(codes)],
+        notes,
+        source: obdPhotoBase64 ? 'photo_ocr' : 'manual'
+      })
+    });
+    const scanData = await scanResponse.json();
+
+    if (!scanData.success) {
+      throw new Error(scanData.error || 'Failed to submit scan');
+    }
+
+    const interpretResponse = await fetch('/api/obd/interpret', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+      body: JSON.stringify({ scanId: scanData.scan.id })
+    });
+    const interpretData = await interpretResponse.json();
+
+    if (!interpretData.success) {
+      throw new Error(interpretData.error || 'Failed to interpret codes');
+    }
+
+    currentOBDScan = { ...scanData.scan, ...interpretData };
+    closeModal('obd-scanner-modal');
+    showOBDResults(currentOBDScan);
+
+  } catch (err) {
+    showToast(err.message, 'error');
+  } finally {
+    document.getElementById('obd-submit-btn').disabled = false;
+    document.getElementById('obd-submit-btn').textContent = 'Analyze Codes';
+  }
+}
+
+function showOBDResults(scan) {
+  const interpretation = scan.interpretation || {};
+  const severityColors = {
+    low: 'var(--accent-green)',
+    medium: 'var(--accent-gold)',
+    high: 'var(--accent-orange)',
+    critical: 'var(--accent-red)'
+  };
+  const severityLabels = {
+    low: '✅ Low - Minor issue',
+    medium: '⚠️ Medium - Should address soon',
+    high: '🔶 High - Address promptly',
+    critical: '🚨 Critical - Immediate attention needed'
+  };
+
+  document.getElementById('obd-results-body').innerHTML = `
+    <div style="margin-bottom:20px;">
+      <div style="font-weight:600;margin-bottom:8px;">Codes Analyzed:</div>
+      <div style="font-family:monospace;font-size:1.2rem;color:var(--accent-gold);">${scan.codes?.join(', ') || 'N/A'}</div>
+    </div>
+
+    <div style="padding:16px;background:${severityColors[scan.severity] || 'var(--bg-input)'}20;border:1px solid ${severityColors[scan.severity] || 'var(--border-subtle)'};border-radius:var(--radius-md);margin-bottom:20px;">
+      <div style="font-weight:600;color:${severityColors[scan.severity] || 'inherit'};">${severityLabels[scan.severity] || 'Unknown Severity'}</div>
+      ${interpretation.safeToKeepDriving !== undefined ? `<div style="margin-top:8px;font-size:0.9rem;">Safe to drive: ${interpretation.safeToKeepDriving ? 'Yes, with caution' : 'No - get checked immediately'}</div>` : ''}
+    </div>
+
+    <div style="margin-bottom:20px;">
+      <div style="font-weight:600;margin-bottom:8px;">What This Means:</div>
+      <div style="line-height:1.6;color:var(--text-secondary);">${interpretation.summary || 'Analysis in progress...'}</div>
+    </div>
+
+    ${interpretation.likelyCauses?.length ? `
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:600;margin-bottom:8px;">Likely Causes:</div>
+        <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+          ${interpretation.likelyCauses.map(c => `<li style="margin-bottom:4px;">${c}</li>`).join('')}
+        </ul>
+      </div>
+    ` : ''}
+
+    ${interpretation.estimatedCostRange ? `
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:600;margin-bottom:8px;">Estimated Repair Cost:</div>
+        <div style="font-size:1.1rem;color:var(--accent-gold);">${interpretation.estimatedCostRange}</div>
+      </div>
+    ` : ''}
+
+    ${interpretation.recommendations?.length ? `
+      <div style="margin-bottom:20px;">
+        <div style="font-weight:600;margin-bottom:8px;">Recommendations:</div>
+        <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+          ${interpretation.recommendations.map(r => `<li style="margin-bottom:4px;">${r}</li>`).join('')}
+        </ul>
+      </div>
+    ` : ''}
+
+    ${interpretation.questionsForMechanic?.length ? `
+      <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:16px;">
+        <div style="font-weight:600;margin-bottom:8px;">💡 Questions to Ask Your Mechanic:</div>
+        <ul style="margin:0;padding-left:20px;color:var(--text-secondary);">
+          ${interpretation.questionsForMechanic.map(q => `<li style="margin-bottom:4px;">${q}</li>`).join('')}
+        </ul>
+      </div>
+    ` : ''}
+  `;
+
+  document.getElementById('obd-results-modal').classList.add('active');
+}
+// ========== END OBD SCANNER SECTION ==========

@@ -966,6 +966,13 @@ function renderVehicles() {
           ${v.mileage ? `<p><strong>Mileage:</strong> ${v.mileage.toLocaleString()}</p>` : ''}
         </div>
         ${renderPredictionsSection(v.id)}
+        <div class="vehicle-obd-prompt">
+          <div class="vehicle-obd-prompt-text">
+            <strong>Check Engine Light?</strong>
+            <span>Upload diagnostic codes for AI-powered insights</span>
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="openOBDScanner('${v.id}')">📊 Scan</button>
+        </div>
         <div class="vehicle-card-actions">
           <button class="btn btn-sm btn-secondary" onclick="editVehicle('${v.id}')">Edit</button>
           <button class="btn btn-sm" onclick="openVehiclePhotos('${v.id}','${escapeHtml(displayName).replace(/'/g,"\\'")}')" style="background:var(--bg-elevated);border:1px solid var(--border-subtle);color:var(--text-secondary);">📷 Photos</button>
