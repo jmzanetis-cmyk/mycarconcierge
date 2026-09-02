@@ -859,7 +859,7 @@ function renderPredictionsSection(vehicleId) {
     return `<div class="prediction-item" data-vehicle-id="${vehicleId}" data-prediction-idx="${idx}" data-prediction-title="${escapeHtml(p.title)}">
       <div class="prediction-item-left">
         <span class="prediction-urgency-dot" style="background:${config.color};"></span>
-        <div>
+        <div class="prediction-item-text">
           <div class="prediction-item-title">${escapeHtml(p.title)}</div>
           <div class="prediction-item-meta">${timeInfo ? timeInfo + ' — ' : ''}${escapeHtml(p.reason)}</div>
         </div>
