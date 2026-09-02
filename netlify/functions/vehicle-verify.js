@@ -359,7 +359,23 @@ async function handleGetVerifications(event, supabase) {
         usersById = Object.fromEntries((users || []).map(u => [u.id, u]));
       }
     }
-    const stitched = rows.map(r => ({ ...r, user: usersById[r.user_id] || null }));
+    // The 'registrations' bucket is private (20260902b), so the stored
+    // registration_url — a public-object URL computed at upload time —
+    // no longer resolves for an unauthenticated <img src>. Generate a
+    // short-lived signed URL per row so the admin review UI can actually
+    // display the document. registration_image_url is additive; the raw
+    // registration_url is left untouched for audit/reference.
+    const stitched = await Promise.all(rows.map(async r => {
+      let registrationImageUrl = null;
+      const pathMatch = (r.registration_url || '').match(/\/registrations\/(.+)$/);
+      if (pathMatch) {
+        const { data: signed } = await supabase.storage
+          .from('registrations')
+          .createSignedUrl(pathMatch[1], 3600);
+        registrationImageUrl = signed?.signedUrl || null;
+      }
+      return { ...r, user: usersById[r.user_id] || null, registration_image_url: registrationImageUrl };
+    }));
     return json(200, { success: true, verifications: stitched });
   }
 

@@ -9527,7 +9527,7 @@
     }
 
     function updateRegistrationStats() {
-      const needsReview = registrationVerifications.filter(v => v.status === 'needs_review').length;
+      const needsReview = registrationVerifications.filter(v => ['needs_review', 'manual_review'].includes(v.status)).length;
       const pending = registrationVerifications.filter(v => v.status === 'pending').length;
       const approved = registrationVerifications.filter(v => v.status === 'approved').length;
       const rejected = registrationVerifications.filter(v => v.status === 'rejected').length;
@@ -9626,7 +9626,7 @@
             <span class="detail-label">Vehicle:</span>
             <span class="detail-value">${vehicleInfo}</span>
             <span class="detail-label">Status:</span>
-            <span class="detail-value"><span class="status-badge ${v.status === 'needs_review' ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${v.status?.replace('_', ' ') || 'unknown'}</span></span>
+            <span class="detail-value"><span class="status-badge ${(v.status === 'needs_review' || v.status === 'manual_review') ? 'orange' : v.status === 'pending' ? 'blue' : v.status === 'approved' ? 'approved' : v.status === 'rejected' ? 'rejected' : 'muted'}">${v.status?.replace('_', ' ') || 'unknown'}</span></span>
             <span class="detail-label">Submitted:</span>
             <span class="detail-value">${v.created_at ? new Date(v.created_at).toLocaleString() : 'N/A'}</span>
           </div>
@@ -9634,12 +9634,12 @@
 
         <div class="form-section">
           <div class="form-section-title">${mccIcon('camera', 24)} Registration Image</div>
-          ${v.image_url ? `
+          ${v.registration_image_url ? `
             <div style="background:var(--bg-input);padding:16px;border-radius:var(--radius-md);text-align:center;">
-              <img src="${v.image_url}" alt="Registration Document" style="max-width:100%;max-height:400px;border-radius:var(--radius-sm);cursor:pointer;" onclick="window.open('${v.image_url}', '_blank')">
+              <img src="${v.registration_image_url}" alt="Registration Document" style="max-width:100%;max-height:400px;border-radius:var(--radius-sm);cursor:pointer;" onclick="window.open('${v.registration_image_url}', '_blank')">
               <div style="margin-top:8px;font-size:0.8rem;color:var(--text-muted);">Click image to open in new tab</div>
             </div>
-          ` : '<p style="color:var(--text-muted);">No image uploaded</p>'}
+          ` : '<p style="color:var(--text-muted);">No image uploaded (or link expired — refresh to view)</p>'}
         </div>
 
         <div class="form-section">
