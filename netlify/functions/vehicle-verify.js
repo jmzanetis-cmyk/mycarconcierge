@@ -236,7 +236,7 @@ async function handleVerify(event, supabase) {
             { type: 'image', source: { type: 'base64', media_type: mediaType, data: imageB64 } },
             { type: 'text', text:
               'This is a vehicle registration document. Extract ONLY these fields and return valid JSON:\n' +
-              '{"owner_name": "<registered owner name exactly as printed>", "vin": "<VIN if visible>", "plate": "<license plate if visible>", "raw_text": "<first 400 chars of visible text>"}\n' +
+              '{"owner_name": "<registered owner name exactly as printed>", "vin": "<VIN if visible>", "plate": "<license plate if visible>", "year": "<vehicle model year if visible>", "make": "<vehicle make if visible>", "model": "<vehicle model if visible>", "state": "<2-letter issuing state abbreviation if visible>", "expiration_date": "<registration expiration date, formatted YYYY-MM-DD, if visible>", "raw_text": "<first 400 chars of visible text>"}\n' +
               'If a field is not visible, use null. Return only the JSON object, no other text.'
             },
           ],
@@ -296,9 +296,24 @@ async function handleVerify(event, supabase) {
     status,
     name_match_score:     score,
     extracted_owner_name: extractedOwnerName,
-    details: status === 'approved'
+    message: status === 'approved'
       ? 'Registration verified — your vehicle is now unlocked for all services.'
       : 'We need to manually review your registration. You\'ll be notified within 24 hours.',
+    // Object shape, not the human-readable message above — this is what the
+    // "Review Extracted Info" form (submitRegistrationVerification() in
+    // members-vehicles.js) reads field-by-field (d.vin, d.licensePlate, ...).
+    // It was previously a plain string here, which meant every field in that
+    // form silently showed "(not detected)" no matter what Claude actually
+    // extracted.
+    details: {
+      vin:            (extracted.vin || '').trim() || null,
+      licensePlate:   (extracted.plate || '').trim() || null,
+      year:           (extracted.year || '').toString().trim() || null,
+      make:           (extracted.make || '').trim() || null,
+      model:          (extracted.model || '').trim() || null,
+      state:          (extracted.state || '').trim() || null,
+      expirationDate: (extracted.expiration_date || '').trim() || null,
+    },
   });
 }
 
