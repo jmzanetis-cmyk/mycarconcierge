@@ -201,7 +201,7 @@
       const pendingBids = p.pending_bid_count || 0;
       const accepted = p.accepted_bid;
       const hint = accepted
-        ? t('member.cpAwardedTo', 'Awarded \u2014 escrow {{state}}', { state: t('member.cpPS_' + (p.payment_status || 'none'), p.payment_status || 'none') })
+        ? t('member.cpAwardedTo', 'Awarded \u2014 payment {{state}}', { state: t('member.cpPS_' + (p.payment_status || 'none'), p.payment_status || 'none') })
         : (pendingBids
             ? t('member.cpPendingBids', '{{n}} bid(s) waiting for your review', { n: pendingBids })
             : t('member.cpNoBidsYet', 'No bids yet \u2014 check back soon'));
@@ -320,7 +320,7 @@
             '<button class="btn btn-primary" type="button" id="cp-mark-complete-btn">' + escapeHtml(t('member.cpMarkComplete', 'Mark Complete & Release Funds')) + '</button>' +
             '<button class="btn" type="button" id="cp-raise-dispute-btn" style="border-color:var(--accent-red,#ef4444);color:var(--accent-red,#ef4444);">' + escapeHtml(t('member.cpRaiseDispute', 'Raise Dispute')) + '</button>' +
           '</div>' +
-          '<p style="font-size:0.83rem;color:var(--text-secondary,#9ca3af);margin:10px 0 0;">' + escapeHtml(t('member.cpHeldHelp', 'Funds are held in escrow. Mark Complete to release them to the provider, or Raise Dispute to freeze them pending review.')) + '</p>';
+          '<p style="font-size:0.83rem;color:var(--text-secondary,#9ca3af);margin:10px 0 0;">' + escapeHtml(t('member.cpHeldHelp', 'Funds are held securely. Mark Complete to release them to the provider, or Raise Dispute to freeze them pending review.')) + '</p>';
       } else if (ps === 'captured') {
         actionHtml = '<div style="padding:12px;border-radius:8px;background:rgba(34,197,94,0.08);color:var(--accent-green,#22c55e);">' + escapeHtml(t('member.cpCapturedNote', 'Payment released to provider. Thanks for using My Car Concierge!')) + '</div>';
       } else if (ps === 'disputed') {
@@ -536,7 +536,7 @@
     return '' +
       '<div style="margin-top:8px;">' +
         creditLine +
-        '<p style="margin:0 0 10px;color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpAuthorizeIntro', 'Authorize {{amt}} on your card. Funds will be held in escrow and released only when you Mark Complete.', { amt: fmtMoney(chargeAmount) })) + '</p>' +
+        '<p style="margin:0 0 10px;color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpAuthorizeIntro', 'Authorize {{amt}} on your card. Funds will be held securely and released only when you Mark Complete.', { amt: fmtMoney(chargeAmount) })) + '</p>' +
         '<div id="cp-card-element" style="padding:14px;border:1px solid var(--border-color,#2c2f36);border-radius:10px;background:rgba(20,24,30,0.6);min-height:44px;"></div>' +
         '<div id="cp-card-errors" style="color:var(--accent-red,#ef4444);font-size:0.85rem;margin-top:8px;min-height:18px;"></div>' +
         '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">' +
@@ -666,7 +666,7 @@
       }
       const pi = result.paymentIntent;
       if (pi && (pi.status === 'requires_capture' || pi.status === 'succeeded')) {
-        showToast(t('member.cpAuthSuccess', 'Payment authorized. Funds are held in escrow.'), 'success');
+        showToast(t('member.cpAuthSuccess', 'Payment authorized. Funds are held securely.'), 'success');
         activeStripe = activeElements = activeCardElement = null;
         activeClientSecret = null;
         await loadCarePlansSection();

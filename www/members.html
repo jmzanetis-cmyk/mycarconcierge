@@ -2515,7 +2515,7 @@
     <section id="care-plans" class="section">
       <div class="page-header">
         <h1 class="page-title" data-i18n="member.carePlans">Service Requests</h1>
-        <p class="page-subtitle" data-i18n="member.carePlansSubtitle">Manage your service-request bids, accept providers, and release escrow when work is complete.</p>
+        <p class="page-subtitle" data-i18n="member.carePlansSubtitle">Manage your service-request bids, accept providers, and release payment when work is complete.</p>
       </div>
 
       <!-- AI Service Request Helper -->
@@ -4138,7 +4138,7 @@
                 <input type="checkbox" id="push-payment-released" checked>
                 <div>
                   <span style="font-weight:500;"><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Payment Released</span>
-                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when escrow payment is released after job completion</p>
+                  <p style="font-size:0.82rem;color:var(--text-muted);margin:2px 0 0;">Alerts when your held payment is released after job completion</p>
                 </div>
               </label>
               <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
@@ -4716,7 +4716,7 @@
           </div>
           <div style="display:flex;align-items:flex-start;gap:14px;">
             <div style="width:28px;height:28px;border-radius:50%;background:var(--accent-gold-soft);border:1px solid var(--accent-gold);display:flex;align-items:center;justify-content:center;font-size:0.78rem;font-weight:700;color:var(--accent-gold);flex-shrink:0;">4</div>
-            <div style="padding-top:4px;color:var(--text-secondary);line-height:1.6;">Funds stay in escrow until you confirm the work is done.</div>
+            <div style="padding-top:4px;color:var(--text-secondary);line-height:1.6;">Funds stay securely held until you confirm the work is done.</div>
           </div>
         </div>
       </div>
@@ -8073,7 +8073,7 @@
             <span>$25.00</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-size:0.9rem;margin-bottom:8px;">
-            <span>Service Escrow:</span>
+            <span>Service Payment Hold:</span>
             <span id="emergency-escrow-preview">$0.00</span>
           </div>
           <div style="display:flex;justify-content:space-between;font-weight:600;padding-top:8px;border-top:1px solid var(--border-subtle);">
@@ -8144,7 +8144,7 @@
             <span style="font-weight:600;">$25.00</span>
           </div>
           <div style="display:flex;justify-content:space-between;margin-bottom:12px;">
-            <span style="color:var(--text-secondary);">Service Escrow:</span>
+            <span style="color:var(--text-secondary);">Service Payment Hold:</span>
             <span style="font-weight:600;" id="payment-modal-escrow">$0.00</span>
           </div>
           <div style="display:flex;justify-content:space-between;padding-top:12px;border-top:1px solid var(--border-subtle);">
@@ -8159,7 +8159,7 @@
             <div style="font-size:0.9rem;color:var(--text-secondary);line-height:1.5;">
               <strong style="color:var(--text-primary);">Your card will be charged $25.00 immediately.</strong><br>
               An additional <span id="payment-modal-escrow-text">$0.00</span> will be held until service is complete. 
-              The escrow is only captured when you confirm the service is done. If no provider responds, the escrow hold will be released.
+              The held payment is only captured when you confirm the service is done. If no provider responds, the hold will be released.
             </div>
           </div>
         </div>
@@ -8625,7 +8625,7 @@
         <div style="background:var(--bg-input);border-radius:var(--radius-md);padding:12px;margin-bottom:20px;">
           <div style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:0.85rem;">
             <span><span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="18" height="11" x="3" y="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></span></span>
-            <span>Payment is secured and held in escrow. Funds are only captured when the full job is complete.</span>
+            <span>Payment is secured and held. Funds are only captured when the full job is complete.</span>
           </div>
         </div>
         

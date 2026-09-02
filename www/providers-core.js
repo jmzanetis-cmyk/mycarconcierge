@@ -750,7 +750,7 @@ function renderEarnings() {
           ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
         </div>
         <div style="font-size:0.8rem;color:var(--text-muted);">
-          ${p.status === 'held' ? mccIcon('clock', 16) + ' In Escrow' : p.status === 'released' ? mccIcon('check', 16) + ' Released' : p.status === 'refunded' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Refunded' : p.status}
+          ${p.status === 'held' ? mccIcon('clock', 16) + ' Payment Held' : p.status === 'released' ? mccIcon('check', 16) + ' Released' : p.status === 'refunded' ? '<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/></svg> Refunded' : p.status}
         </div>
       </div>
     </div>

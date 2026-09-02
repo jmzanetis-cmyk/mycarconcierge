@@ -1259,7 +1259,7 @@
                 ${p.status === 'released' ? '+' : ''}$${(p.amount_provider || 0).toFixed(2)}
               </div>
               <div style="font-size:0.8rem;color:var(--text-muted);">
-                ${p.status === 'held' ? '⏳ In Escrow' : p.status === 'released' ? '✓ Released' : p.status === 'refunded' ? '↩ Refunded' : p.status}
+                ${p.status === 'held' ? '⏳ Payment Held' : p.status === 'released' ? '✓ Released' : p.status === 'refunded' ? '↩ Refunded' : p.status}
               </div>
             </div>
           </div>
@@ -2038,7 +2038,7 @@
           
           ${pkgStatus === 'accepted' ? `
             <div class="alert" style="background:var(--accent-blue-soft);border:1px solid rgba(74,124,255,0.3);color:var(--accent-blue);margin-bottom:16px;padding:12px;border-radius:var(--radius-md);font-size:0.88rem;">
-              ${mccIcon('dollar-sign', 14)} Payment is held in escrow. Coordinate with member and start work when ready!
+              ${mccIcon('dollar-sign', 14)} Payment is held securely. Coordinate with member and start work when ready!
             </div>
           ` : ''}
           
@@ -6509,7 +6509,7 @@
               <div style="text-align:end;">
                 ${countdownHtml}
                 <div style="font-size:1.1rem;font-weight:600;color:var(--accent-green);margin-top:4px;">${mccIcon('dollar-sign', 14)} ${escrowAmount}</div>
-                <div style="font-size:0.75rem;color:var(--text-muted);">escrow authorized</div>
+                <div style="font-size:0.75rem;color:var(--text-muted);">payment authorized</div>
               </div>
             </div>
             ${e.address ? `<div style="font-size:0.9rem;color:var(--text-secondary);margin-bottom:8px;">${e.address}</div>` : ''}
@@ -6673,7 +6673,7 @@
           
           ${e.escrow_amount ? `
             <div style="margin-bottom:16px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);">
-              <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('dollar-sign', 14)} Member Escrow Authorized</div>
+              <div style="font-size:0.85rem;color:var(--text-muted);">${mccIcon('dollar-sign', 14)} Payment Authorized</div>
               <div style="font-size:1.2rem;font-weight:600;color:var(--accent-green);">$${Number.parseFloat(e.escrow_amount).toFixed(2)}</div>
             </div>
           ` : ''}
@@ -10706,7 +10706,7 @@
       container.innerHTML = jobs.map(job => {
         const vehicleName = job.vehicleName || 'No vehicle info';
         const escrowBadge = job.escrowFunded 
-          ? `<span style="background:var(--accent-green-soft);color:var(--accent-green);padding:4px 10px;border-radius:100px;font-size:0.8rem;font-weight:500;">✓ Escrow Funded</span>`
+          ? `<span style="background:var(--accent-green-soft);color:var(--accent-green);padding:4px 10px;border-radius:100px;font-size:0.8rem;font-weight:500;">✓ Payment Secured</span>`
           : `<span style="background:var(--accent-gold-soft);color:var(--accent-gold);padding:4px 10px;border-radius:100px;font-size:0.8rem;font-weight:500;">${mccIcon('credit-card', 14)} Payment Needed</span>`;
         
         return `
@@ -10756,14 +10756,14 @@
         if (!resp.ok) throw new Error(data.error || 'Failed to link job');
         
         if (data.escrowFunded) {
-          posShowMarketplaceSuccess('Vehicle checked in successfully! Escrow is already funded - work can begin immediately.');
+          posShowMarketplaceSuccess('Vehicle checked in successfully! Payment is already secured - work can begin immediately.');
         } else if (data.needsPayment) {
           posState.paymentClientSecret = data.clientSecret;
           posState.totalCents = data.totalCents;
           document.getElementById('pos-pay-total').textContent = `$${(data.totalCents / 100).toFixed(2)}`;
           let breakdownHtml = `
             <div style="display:flex;justify-content:space-between;padding:8px 0;border-bottom:1px solid var(--border-subtle);">
-              <span>Marketplace Job (Escrow)</span>
+              <span>Marketplace Job (Payment Held)</span>
               <span>$${(data.totalCents / 100).toFixed(2)}</span>
             </div>
           `;
@@ -11285,7 +11285,7 @@
           const selectedJob = posState.marketplaceJobs?.find(j => j.bidId === posState.selectedBidId);
           vehicleStr = selectedJob?.vehicleName || 'Marketplace Vehicle';
           document.getElementById('pos-success-title').textContent = 'Marketplace Job Started!';
-          document.getElementById('pos-success-message').textContent = 'Payment received. The escrow is funded and work can begin.';
+          document.getElementById('pos-success-message').textContent = 'Payment received. Funds are held and work can begin.';
         } else {
           total = posState.service ? (posState.service.laborPrice + posState.service.partsPrice) : 0;
           const vehicle = posState.vehicles.find(v => v.id === posState.selectedVehicleId) || posState.newVehicle;

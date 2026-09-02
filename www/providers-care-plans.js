@@ -53,7 +53,7 @@
     } else if (ps === 'captured' || compStatus === 'completed') {
       label = 'Paid out'; color = 'var(--accent-green,#10b981)';
     } else if (ps === 'held') {
-      label = 'Held in escrow'; color = 'var(--accent-gold,#b8942d)';
+      label = 'Payment Held'; color = 'var(--accent-gold,#b8942d)';
     } else if (ps === 'requires_payment') {
       label = 'Awaiting member payment'; color = 'var(--accent-blue,#4a7cff)';
     } else if (ps === 'refunded') {

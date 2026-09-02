@@ -567,7 +567,7 @@
         await loadUpsellRequests();
         return;
       }
-      showToast('Additional work approved. Funds are held in escrow until job completion.', 'success');
+      showToast('Additional work approved. Funds are held securely until job completion.', 'success');
       await loadUpsellRequests();
     }
 
@@ -867,6 +867,34 @@
         return key.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
       }
       return s;
+    }
+
+    // 5-star visual rating (out of 5), matching the familiar Uber/Lyft-style
+    // pattern - full/half/empty stars plus the numeric average, rather than
+    // the raw 0-100 composite score.
+    function renderStarRow(ratingValue, size) {
+      size = size || 14;
+      if (ratingValue === null || ratingValue === undefined || ratingValue === 'New') return '';
+      const r = Math.max(0, Math.min(5, parseFloat(ratingValue)));
+      if (isNaN(r)) return '';
+      const nearestHalf = Math.round(r * 2) / 2;
+      const fullStars = Math.floor(nearestHalf);
+      const hasHalf = (nearestHalf - fullStars) === 0.5;
+      const emptyStars = 5 - fullStars - (hasHalf ? 1 : 0);
+      const outlineSvg = MCC_ICONS['star'];
+      const filledSvg = outlineSvg.replace('fill="none"', 'fill="currentColor"');
+      const sized = (svg) => svg.replace(/width="1em"/, `width="${size}"`).replace(/height="1em"/, `height="${size}"`);
+      let stars = '';
+      for (let i = 0; i < fullStars; i++) {
+        stars += `<span style="display:inline-flex;width:${size}px;height:${size}px;color:var(--accent-gold);">${sized(filledSvg)}</span>`;
+      }
+      if (hasHalf) {
+        stars += `<span style="position:relative;display:inline-flex;width:${size}px;height:${size}px;color:var(--border-subtle);">${sized(outlineSvg)}<span style="position:absolute;top:0;left:0;width:50%;height:100%;overflow:hidden;color:var(--accent-gold);"><span style="display:inline-flex;width:${size}px;height:${size}px;">${sized(filledSvg)}</span></span></span>`;
+      }
+      for (let i = 0; i < emptyStars; i++) {
+        stars += `<span style="display:inline-flex;width:${size}px;height:${size}px;color:var(--border-subtle);">${sized(outlineSvg)}</span>`;
+      }
+      return `<span style="display:inline-flex;align-items:center;gap:1px;vertical-align:middle;">${stars}</span><span style="margin-left:4px;font-weight:500;">${r.toFixed(1)}</span>`;
     }
 
     function getWhyItsDueExplanation(reminder) {
@@ -2300,7 +2328,6 @@
                 const tier = perf?.tier || 'bronze';
                 const tierIcon = {'platinum': mccIcon('sparkles', 16), 'gold': mccIcon('award', 16), 'silver': mccIcon('award', 16), 'bronze': mccIcon('award', 16)}[tier] || mccIcon('award', 16);
                 const tierColors = {'platinum': '#e5e4e2', 'gold': 'var(--accent-gold)', 'silver': '#c0c0c0', 'bronze': '#cd7f32'};
-                const overallScore = perf?.overall_score ? Math.round(perf.overall_score) : null;
                 const onTimeRate = perf?.on_time_rate && jobs > 0 ? Math.round(perf.on_time_rate) : null;
                 const badges = perf?.badges || [];
                 const badgeIcons = {'top_rated': mccIcon('trophy', 16), 'quick_responder': mccIcon('zap', 16), 'veteran': mccIcon('award', 16), 'perfect_score': mccIcon('star', 16), 'dispute_free': mccIcon('shield', 16)};
@@ -2323,10 +2350,9 @@
                             ${yearsInBusiness ? `${yearsInBusiness} years in business` : ''}
                           </div>
                           <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">
-                            ${mccIcon('star', 16)} ${rating} 
+                            ${renderStarRow(rating, 14)}
                             ${jobs > 0 ? `• ${jobs} jobs` : '• New provider'}
                             ${onTimeRate !== null ? ` • ${onTimeRate}% on-time` : ''}
-                            ${overallScore !== null ? ` • Score: ${overallScore}` : ''}
                           </div>
                           ${badges.length > 0 ? `<div style="display:flex;gap:4px;margin-top:6px;">${badges.map(b => `<span title="${b.replace('_', ' ')}" style="font-size:1rem;">${badgeIcons[b] || ''}</span>`).join('')}</div>` : ''}
                         </div>
@@ -2341,7 +2367,7 @@
                     
                     ${isVerified || specialties.length > 0 ? `
                       <div style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px;">
-                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;">${mccIcon('check', 16)} Concierge Verified</span>` : ''}
+                        ${isVerified ? `<span style="display:inline-flex;align-items:center;gap:4px;background:linear-gradient(135deg, var(--accent-gold), #c49a45);color:#0a0a0f;padding:4px 10px;border-radius:100px;font-size:0.75rem;font-weight:600;cursor:help;" title="License, insurance, and certifications confirmed by MyCarConcierge">${mccIcon('check', 16)} Credentials Verified</span>` : ''}
                         ${specialties.map(s => `<span style="display:inline-block;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${humanizeSpecialty(s)}</span>`).join('')}
                       </div>
                     ` : ''}
@@ -2707,7 +2733,7 @@
       
       const amount = bid.price || 0;
 
-      if (!confirm(`Accept this bid for $${amount.toFixed(2)}?\n\nThis will:\n• Hold payment in escrow\n• Close the package to other providers\n• Notify the provider to begin work`)) return;
+      if (!confirm(`Accept this bid for $${amount.toFixed(2)}?\n\nThis will:\n• Hold your payment securely\n• Close the package to other providers\n• Notify the provider to begin work`)) return;
 
       try {
         // Update this bid to accepted
@@ -2773,7 +2799,7 @@
         }
 
         closeModal('view-package-modal');
-        showToast('Bid accepted! Please authorize payment to hold funds in escrow.', 'success');
+        showToast('Bid accepted! Please authorize payment to hold funds securely.', 'success');
         await loadPackages();
 
         const _pkg = packages.find(p => p.id === packageId);
@@ -3667,7 +3693,7 @@
                   <span style="font-size:1.5rem;">${mccIcon('lock', 24)}</span>
                   <div>
                     <div style="font-weight:600;color:var(--accent-blue);font-size:1.1rem;">Payment Authorized</div>
-                    <div style="color:var(--text-secondary);font-size:0.9rem;">Funds held securely in escrow</div>
+                    <div style="color:var(--text-secondary);font-size:0.9rem;">Funds held securely</div>
                   </div>
                 </div>
                 <div style="text-align:right;">
@@ -4072,7 +4098,7 @@
           // Step 3: Mark payment as held in database
           await confirmEscrowHeld(packageId);
           
-          showToast('Payment authorized! Funds are now held in escrow.', 'success');
+          showToast('Payment authorized! Funds are now held securely.', 'success');
           
           // Refresh the view to show updated status
           await loadPackages();
@@ -4150,7 +4176,7 @@
           throw new Error('Mobile payment not available');
         }
 
-        const result = await MobilePay.requestApplePay(amount, 'My Car Concierge - Escrow Payment');
+        const result = await MobilePay.requestApplePay(amount, 'My Car Concierge - Payment Hold');
         
         if (result.success && result.paymentMethodId) {
           const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
@@ -4171,7 +4197,7 @@
           }
 
           await confirmEscrowHeld(packageId);
-          showToast('Payment authorized with Apple Pay! Funds are now held in escrow.', 'success');
+          showToast('Payment authorized with Apple Pay! Funds are now held securely.', 'success');
           
           await loadPackages();
           setTimeout(() => viewPackage(packageId), 300);
@@ -4209,7 +4235,7 @@
           throw new Error('Mobile payment not available');
         }
 
-        const result = await MobilePay.requestGooglePay(amount, 'My Car Concierge - Escrow Payment');
+        const result = await MobilePay.requestGooglePay(amount, 'My Car Concierge - Payment Hold');
         
         if (result.success && result.paymentMethodId) {
           const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
@@ -4230,7 +4256,7 @@
           }
 
           await confirmEscrowHeld(packageId);
-          showToast('Payment authorized with Google Pay! Funds are now held in escrow.', 'success');
+          showToast('Payment authorized with Google Pay! Funds are now held securely.', 'success');
           
           await loadPackages();
           setTimeout(() => viewPackage(packageId), 300);
@@ -4258,7 +4284,7 @@
     }
 
     async function confirmJobAndReleasePayment(packageId) {
-      if (!confirm('Confirm that the work is complete and you have received your vehicle?\n\nThis will release the escrowed payment to the provider.')) return;
+      if (!confirm('Confirm that the work is complete and you have received your vehicle?\n\nThis will release the held payment to the provider.')) return;
       
       try {
         showToast('Releasing payment...', 'info');

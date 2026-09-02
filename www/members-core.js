@@ -1513,7 +1513,7 @@ async function approveUpsell(upsellId) {
     await loadUpsellRequests();
     return;
   }
-  showToast('Additional work approved. Funds are held in escrow until job completion.', 'success');
+  showToast('Additional work approved. Funds are held securely until job completion.', 'success');
   await loadUpsellRequests();
 }
 

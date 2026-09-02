@@ -69,7 +69,7 @@
     "applyAsProvider": "Εγγραφή ως Πάροχος",
     "joinAsProvider": "Εγγραφείτε ως Πάροχος",
     "trustVettedProviders": "Πιστοποιημένοι Πάροχοι",
-    "trustEscrowProtection": "Προστασία Μεσεγγύησης",
+    "trustEscrowProtection": "Ασφαλής Κράτηση Πληρωμής",
     "trustVerifiedRegistration": "Επαληθευμένη Εγγραφή",
     "trustNoBillShock": "Χωρίς Εκπλήξεις στον Λογαριασμό",
     "whyChooseUs": "4 Μπιλιέ Ιδιοκτησίας Αυτοκινήτου",
@@ -126,7 +126,7 @@
     "getStartedFree": "Ξεκινήστε Δωρεάν",
     "capStripeSecured": "Πληρωμές με ασφάλεια Stripe",
     "capBackgroundChecked": "Κάθε πάροχος με ελεγμένο ιστορικό",
-    "capEscrowProtected": "Προστασία μεσεγγύησης — πληρώνετε μόνο όταν η εργασία ολοκληρωθεί"
+    "capEscrowProtected": "Τα χρήματα κρατούνται μέχρι να επιβεβαιώσετε ότι η εργασία έχει ολοκληρωθεί"
   },
   "auth": {
     "welcomeBack": "Καλώς Ήρθατε Πίσω",

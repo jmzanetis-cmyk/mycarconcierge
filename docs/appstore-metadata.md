@@ -59,7 +59,7 @@ CAR CLUB LOYALTY REWARDS
 Earn punches toward free services with your favorite providers. Car Club loyalty programs let providers reward your repeat business with exclusive perks only available through My Car Concierge.
 
 SECURE PAYMENTS, ALWAYS
-Every transaction goes through our escrow payment system — funds are held securely until you confirm the work is done. No cash, no surprises.
+Every transaction goes through our secure payment hold — funds are held securely until you confirm the work is done. No cash, no surprises.
 
 MY NEXT CAR
 Researching your next vehicle? Use the VIN lookup tool, Dream Car Finder AI search, and Google Vision-powered registration scan to build a shortlist of prospective vehicles alongside your current ones.
@@ -75,7 +75,7 @@ Shop My Car Concierge branded gear through our in-app store, with orders fulfill
 
 WHAT SETS US APART
 • Competitive bidding — providers compete for your business
-• Escrow payments — money held until job is done
+• Secure payment holds — money held until job is done
 • Vetted providers with verified ratings and reviews
 • Vehicle maintenance tracking in one place
 • AI-powered diagnostics and car education
@@ -231,7 +231,7 @@ Delivered in `~/Desktop/mcc-appstore-screens/`:
 7. **`13in-obd-scanner-portrait.png`** — OBD Diagnostic Scanner modal with "What are OBD codes?" educational blue box + input field + photo-upload area + Analyze Codes CTA
 8. **`13in-vehicle-management-portrait.png`** — My Vehicles: 2022 Toyota Camry card with year/make/model/mileage + Edit/Photos/Delete actions
 9. **`13in-car-academy-portrait.png`** — Academy & Care Guide personalized to "My Camry" · Mechanical & Safety tab · 6 care-item cards (Oil Change, Tire Rotation, Brake Service, Cabin Air Filter, Engine Air Filter, Battery & Electrical) with prices, intervals, and Get Quotes CTAs
-10. **`13in-checkout-escrow-portrait.png`** — Awaiting Payment card: "Authorize $149.00 on your card. Funds will be held in escrow and released only when you Mark Complete." · card number field + Authorize Payment button · Bids Received list underneath
+10. **`13in-checkout-escrow-portrait.png`** — Awaiting Payment card: "Authorize $149.00 on your card. Funds will be held securely and released only when you Mark Complete." · card number field + Authorize Payment button · Bids Received list underneath
 
 **Two screens from the originally-planned 10 were dropped from this submission:**
 
@@ -290,9 +290,9 @@ Replace `REPLACE_WITH_TEAM_ID` with that string, then save and run `bash build-i
 For the initial submission (1.0.0), App Store Connect requires a "What's New" entry. Use:
 
 ```
-Welcome to My Car Concierge — your complete auto ownership platform. Post service requests and receive competitive bids from vetted local providers, manage your vehicles and maintenance history, scan OBD fault codes with AI-powered explanations, and earn loyalty rewards through Car Club programs. Secure escrow payments protect every transaction. Built for car owners, by car enthusiasts.
+Welcome to My Car Concierge — your complete auto ownership platform. Post service requests and receive competitive bids from vetted local providers, manage your vehicles and maintenance history, scan OBD fault codes with AI-powered explanations, and earn loyalty rewards through Car Club programs. Secure payment holds protect every transaction. Built for car owners, by car enthusiasts.
 ```
-*(370 chars)*
+*(387 chars)*
 
 ---
 

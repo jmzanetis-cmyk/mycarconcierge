@@ -209,7 +209,7 @@
 
       <h3>Core Value Propositions</h3>
       <ul>
-        <li><strong>For Members:</strong> Anonymous bidding, escrow protection, verified providers, and vehicle pickup &amp; delivery (coming soon, pending regulatory approval)</li>
+        <li><strong>For Members:</strong> Anonymous bidding, secure payment protection, verified providers, and vehicle pickup &amp; delivery (coming soon, pending regulatory approval)</li>
         <li><strong>For Providers:</strong> Access to qualified leads, fair competition, professional business tools, and future vehicle transport integration to offer free pickup and win more bids</li>
         <li><strong>For Drivers (coming soon):</strong> Competitive earnings model with industry-leading take-home rate, zero platform fees during founding period, built-in mileage tracking and tax tools — transportation services pending regulatory approval</li>
         <li><strong>For Founders:</strong> Referral commissions and passive income opportunities</li>
@@ -322,7 +322,7 @@
         <li>Create and manage vehicle profiles in Digital Garage</li>
         <li>Submit service requests (Maintenance Packages)</li>
         <li>Receive anonymous bids from providers</li>
-        <li>Accept bids with escrow-protected payments</li>
+        <li>Accept bids with secure payment holds</li>
         <li>Rate and review completed services</li>
         <li>Access maintenance reminders and service history</li>
       </ul>
@@ -362,7 +362,7 @@
       <h3>Core Features</h3>
       <ul>
         <li><strong>Anonymous Bidding:</strong> Providers bid without seeing competitor prices</li>
-        <li><strong>Escrow Payments:</strong> Funds held securely until work confirmed complete</li>
+        <li><strong>Secure Payment Hold:</strong> Funds held securely until work confirmed complete</li>
         <li><strong>Real-time Messaging:</strong> Direct chat between members and providers</li>
         <li><strong>Push Notifications:</strong> Instant alerts for bids, messages, and status updates</li>
         <li><strong>Multi-language Support:</strong> 6 languages with auto-detection</li>
@@ -549,7 +549,7 @@
         </tr>
         <tr>
           <td><code>payments</code></td>
-          <td>Payment records with escrow status</td>
+          <td>Payment records with hold status</td>
         </tr>
         <tr>
           <td><code>disputes</code></td>
@@ -597,7 +597,7 @@
       <ol>
         <li><strong>Bid Accepted:</strong> Member accepts provider bid</li>
         <li><strong>Authorization:</strong> Stripe PaymentIntent created with <code>capture_method: 'manual'</code></li>
-        <li><strong>Escrow:</strong> Card authorized but NOT charged (funds held)</li>
+        <li><strong>Payment Hold:</strong> Card authorized but NOT charged (funds held)</li>
         <li><strong>Work Completed:</strong> Provider marks job complete</li>
         <li><strong>Member Confirmation:</strong> Member confirms work satisfaction</li>
         <li><strong>Capture:</strong> Payment captured and distributed</li>
@@ -607,7 +607,7 @@
       <h3>Stripe Products Used</h3>
       <ul>
         <li><strong>Stripe Connect:</strong> Provider payouts via Express accounts</li>
-        <li><strong>Payment Intents API:</strong> Authorization/capture flow for escrow</li>
+        <li><strong>Payment Intents API:</strong> Authorization/capture flow for payment holds</li>
         <li><strong>Webhooks:</strong> Async payment status updates</li>
         <li><strong>Checkout Sessions:</strong> Bid pack purchases</li>
       </ul>
@@ -821,7 +821,7 @@
         </tr>
         <tr>
           <td>Stripe</td>
-          <td>Payments, Escrow, Connect</td>
+          <td>Payments, Payment Holds, Connect</td>
           <td><span class="badge badge-green">Active</span></td>
         </tr>
         <tr>
