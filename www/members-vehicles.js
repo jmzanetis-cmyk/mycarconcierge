@@ -366,9 +366,11 @@
     async function verifyRegistration(registrationUrl, vehicleId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
         const response = await fetch(`${apiBase}/api/registration/verify`, {
           method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
           body: JSON.stringify({
             registrationUrl: registrationUrl,
             vehicleId: vehicleId
@@ -404,7 +406,11 @@
     async function checkRegistrationStatus(vehicleId) {
       try {
         const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
-        const response = await fetch(`${apiBase}/api/registration/verifications?vehicleId=${vehicleId}`);
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        const token = session?.access_token || '';
+        const response = await fetch(`${apiBase}/api/registration/verifications?vehicleId=${vehicleId}`, {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
         const data = await response.json();
         
         if (data.success && data.verifications && data.verifications.length > 0) {
