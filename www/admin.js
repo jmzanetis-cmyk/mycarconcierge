@@ -6187,11 +6187,12 @@
         const profileIds = (data || []).map(p => p.id);
         let driverRows = [];
         if (profileIds.length) {
-          const { data: driversData } = await supabaseClient
-            .from('drivers')
-            .select('profile_id, notes, status, bgc_status, bgc_report_id, bgc_invite_url')
-            .in('profile_id', profileIds);
-          driverRows = driversData || [];
+          // Task: admin-portal audit Tier 3 — drivers has no admin RLS policy
+          // (by design, it's PII); admin_list_drivers() is the only sanctioned
+          // read path. Filter client-side to just this batch of applicants.
+          const { data: driversData, error: driversErr } = await supabaseClient.rpc('admin_list_drivers');
+          if (driversErr) console.error('admin_list_drivers failed:', driversErr);
+          driverRows = (driversData || []).filter(d => profileIds.includes(d.profile_id));
         }
         const driverByProfileId = {};
         driverRows.forEach(d => { driverByProfileId[d.profile_id] = d; });
@@ -6367,41 +6368,34 @@
       if (!confirm(`Approve ${profile.full_name || profile.email} as an MCC Driver?`)) return;
 
       try {
-        const { error: profileError } = await supabaseClient
-          .from('profiles')
-          .update({ role: 'driver' })
-          .eq('id', profileId);
-
-        if (profileError) {
-          showToast('Failed to update profile role', 'error');
-          console.error('approveDriver profile error:', profileError);
+        // Task: admin-portal audit Tier 3 — both writes below used to go
+        // straight to supabaseClient (profiles.role had no working admin
+        // policy since 20260515c; drivers never had one at all), so this
+        // silently did nothing. RPC first: it re-checks the BGC gate
+        // server-side, so the profile role never flips to 'driver' unless
+        // the drivers-table write actually succeeds.
+        const { error: driverError } = await supabaseClient.rpc('admin_approve_driver', {
+          p_profile_id: profileId,
+          p_full_name: profile.full_name || null,
+          p_phone: profile.phone || null,
+          p_email: profile.email || null
+        });
+        if (driverError) {
+          showToast('Failed to approve driver: ' + driverError.message, 'error');
+          console.error('admin_approve_driver error:', driverError);
           return;
         }
 
-        const driver = profile._driver;
-        let notes = {};
-        try { notes = JSON.parse(driver?.notes || '{}'); } catch { /* ignore */ }
-
-        if (driver) {
-          await supabaseClient
-            .from('drivers')
-            .update({ status: 'active', onboarded_at: new Date().toISOString() })
-            .eq('profile_id', profileId);
-        } else {
-          await supabaseClient.from('drivers').insert({
-            profile_id: profileId,
-            full_name: profile.full_name || 'Driver',
-            phone: profile.phone || '',
-            email: profile.email || '',
-            status: 'active',
-            vehicle_class: [],
-            hourly_rate_cents: 0,
-            per_job_rate_cents: 0,
-            stripe_payouts_enabled: false,
-            total_ratings: 0,
-            total_rides_completed: 0,
-            onboarded_at: new Date().toISOString()
-          });
+        const res = await fetch('/api/admin/provider-actions/update-user-role', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: profileId, role: 'driver', actor_id: currentUser?.id || null })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast('Driver approved, but profile role failed to update: ' + (json.error || res.status), 'error');
+          console.error('update-user-role error:', json);
+          return;
         }
 
         showToast(`${profile.full_name || 'Driver'} approved!`, 'success');
@@ -6418,14 +6412,15 @@
       if (!confirm(`Reject driver application from ${profile.full_name || profile.email}?`)) return;
 
       try {
-        const { error } = await supabaseClient
-          .from('profiles')
-          .update({ role: 'rejected_driver' })
-          .eq('id', profileId);
-
-        if (error) {
-          showToast('Failed to reject application', 'error');
-          console.error('rejectDriver error:', error);
+        const res = await fetch('/api/admin/provider-actions/update-user-role', {
+          method: 'POST',
+          headers: { ...getAdminHeaders(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ user_id: profileId, role: 'rejected_driver', actor_id: currentUser?.id || null })
+        });
+        const json = await res.json().catch(() => ({}));
+        if (!res.ok) {
+          showToast('Failed to reject application: ' + (json.error || res.status), 'error');
+          console.error('rejectDriver error:', json);
           return;
         }
 
@@ -6445,18 +6440,19 @@
     // ========== MEMBER FOUNDER APPLICATIONS ==========
     let memberFounderApplications = [];
     // ========== ACTIVE DRIVERS ==========
+    let _activeDriversCache = [];
 
     async function loadActiveDrivers() {
       const tbody = document.getElementById('active-drivers-table');
       if (!tbody) return;
       tbody.innerHTML = '<tr><td colspan="9" class="empty-state">Loading…</td></tr>';
       try {
-        const { data, error } = await supabaseClient
-          .from('drivers')
-          .select('id, profile_id, full_name, phone, email, status, bgc_status, bgc_checked_at, stripe_connect_account_id, stripe_payouts_enabled, total_rides_completed, average_rating, created_at, vehicle_class, hourly_rate_cents')
-          .order('created_at', { ascending: false });
+        // Task: admin-portal audit Tier 3 — drivers has no admin RLS policy;
+        // admin_list_drivers() is the sanctioned read path (see 20260903d).
+        const { data, error } = await supabaseClient.rpc('admin_list_drivers');
         if (error) throw error;
         const rows = data || [];
+        _activeDriversCache = rows;
 
         const dEl = id => document.getElementById(id);
         if (dEl('active-drivers-total'))    dEl('active-drivers-total').textContent   = rows.length;
@@ -6511,7 +6507,7 @@
     }
 
     async function viewActiveDriver(driverId) {
-      const { data: d } = await supabaseClient.from('drivers').select('*').eq('id', driverId).maybeSingle();
+      const d = _activeDriversCache.find(x => x.id === driverId);
       if (!d) return alert('Driver not found');
       const html = `<div class="form-section">
         <div class="form-section-title">Driver Profile</div>
@@ -6535,14 +6531,14 @@
 
     async function suspendDriver(driverId) {
       if (!confirm('Suspend this driver? They will not receive new ride requests.')) return;
-      const { error } = await supabaseClient.from('drivers').update({ status: 'suspended' }).eq('id', driverId);
+      const { error } = await supabaseClient.rpc('admin_set_driver_status', { p_driver_id: driverId, p_status: 'suspended' });
       if (error) return alert('Error: ' + error.message);
       loadActiveDrivers();
     }
 
     async function reactivateDriver(driverId) {
       if (!confirm('Reactivate this driver?')) return;
-      const { error } = await supabaseClient.from('drivers').update({ status: 'active' }).eq('id', driverId);
+      const { error } = await supabaseClient.rpc('admin_set_driver_status', { p_driver_id: driverId, p_status: 'active' });
       if (error) return alert('Error: ' + error.message);
       loadActiveDrivers();
     }

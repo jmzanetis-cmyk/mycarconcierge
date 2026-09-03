@@ -628,7 +628,11 @@ async function _handleUpdateUserRole(supabase, body) {
   // first pair, the dual-role checkboxes write the second). Allow either.
   const BOOL_FIELDS = ['also_member', 'also_provider', 'is_also_member', 'is_also_provider', 'is_founding_provider'];
   const updates = {};
-  if (body.role === 'member' || body.role === 'provider') updates.role = body.role;
+  // Task: admin-portal audit Tier 3 (2026-09-03) — extended to cover driver
+  // approve/reject, which wrote to profiles.role directly from the browser
+  // and had been silently no-op'ing since the broad admin-update policy was
+  // dropped in 20260515c, same as every other role flip this route now covers.
+  if (['member', 'provider', 'driver', 'rejected_driver'].includes(body.role)) updates.role = body.role;
   for (const field of BOOL_FIELDS) {
     if (typeof body[field] === 'boolean') updates[field] = body[field];
   }
