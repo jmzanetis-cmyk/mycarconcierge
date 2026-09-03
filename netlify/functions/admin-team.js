@@ -30,6 +30,24 @@ function jsonResponse(statusCode, data) {
   };
 }
 
+// See the 2026-09-03 fix note above exports.handler for why this exists
+// instead of the old chained-regex approach.
+function normalizeTeamPath(raw) {
+  const patterns = [
+    [/^\/?\.netlify\/functions\/admin-team\/members\/?/, 'members/'],
+    [/^\/?\.netlify\/functions\/admin-team\/invites\/?/, 'invites/'],
+    [/^\/?api\/admin\/team-members\/?/, 'members/'],
+    [/^\/?api\/admin\/team-invites\/?/, 'invites/'],
+  ];
+  for (const [re, prefix] of patterns) {
+    if (re.test(raw)) {
+      const rest = raw.replace(re, '');
+      return (prefix + rest).replace(/\/$/, '');
+    }
+  }
+  return raw.replace(/^\/+/, '');
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
 
@@ -40,10 +58,7 @@ exports.handler = async function(event) {
   if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   const rawPath = event.path || '';
-  const path = rawPath
-    .replace(/^\/?\.netlify\/functions\/admin-team\/?/, '')
-    .replace(/^\/api\/admin\/team\/?/, '')
-    .replace(/^\/+/, '');
+  const path = normalizeTeamPath(rawPath);
   const method = event.httpMethod;
   let body = {};
   if (event.body) {
@@ -296,7 +311,7 @@ exports.handler = async function(event) {
       return jsonResponse(200, { success: true });
     }
 
-    return jsonResponse(404, { error: `Not found [debug rawPath=${JSON.stringify(rawPath)} path=${JSON.stringify(path)} method=${method}]` });
+    return jsonResponse(404, { error: 'Not found' });
   } catch (err) {
     return jsonResponse(500, { error: err.message || 'Internal error' });
   }
