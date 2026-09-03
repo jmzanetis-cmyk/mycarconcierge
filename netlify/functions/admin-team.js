@@ -296,7 +296,7 @@ exports.handler = async function(event) {
       return jsonResponse(200, { success: true });
     }
 
-    return jsonResponse(404, { error: 'Not found' });
+    return jsonResponse(404, { error: `Not found [debug rawPath=${JSON.stringify(rawPath)} path=${JSON.stringify(path)} method=${method}]` });
   } catch (err) {
     return jsonResponse(500, { error: err.message || 'Internal error' });
   }
