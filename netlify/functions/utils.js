@@ -1,4 +1,5 @@
 var crypto = require('node:crypto');
+var ADMIN_ROLE_PERMISSIONS = require('../../lib/admin-role-permissions');
 
 var headers = {
   'Access-Control-Allow-Origin': '*',
@@ -94,6 +95,58 @@ async function authenticateBearerAdmin(event, supabase) {
   return user;
 }
 
+// Task: Team Login (2026-09-03). Section-scoped auth for team members who
+// are NOT full admins (profiles.role !== 'admin') but hold a role in
+// admin_team_members (marketing, operations, finance, support,
+// crm_manager) — checked against the SAME lib/admin-role-permissions.js
+// map that drives the admin-panel nav filter (www/admin.js's
+// applyRolePermissions), so a role's real backend access can never be
+// broader than what its own UI shows it. `section` is the data-section
+// this endpoint backs (see data-section values in www/admin.html) — pass
+// a single string, or an array when one function backs more than one
+// section (e.g. admin-survey.js backs both survey-analytics and
+// member-surveys). Pass a falsy section only for a route with no natural
+// single section — that skips the section check entirely, so prefer
+// naming one wherever possible.
+//
+// profiles.role === 'admin' still gets an unconditional bypass, identical
+// to authenticateBearerAdmin — this is Jordan's own super-admin login,
+// which predates admin_team_members and must keep working unchanged.
+//
+// IMPORTANT: not every admin Netlify function has been retrofitted to call
+// this — only the endpoints backing sections a team role actually uses
+// today. Every other admin function still calls authenticateBearerAdmin
+// above, which continues to reject any non-'admin' caller outright — that
+// default-deny is the deliberate boundary for payments, disputes, refunds,
+// agreements, team-management, driver PII, and everything else that
+// hasn't been individually reviewed and given a section here yet.
+async function authenticateAdminSection(event, supabase, section) {
+  var authHeader = (event.headers['authorization'] || event.headers['Authorization'] || '').trim();
+  if (!authHeader.startsWith('Bearer ')) return null;
+  var token = authHeader.slice(7).trim();
+  if (!token) return null;
+  var authResult = await supabase.auth.getUser(token);
+  var user = authResult.data && authResult.data.user;
+  if (authResult.error || !user) return null;
+
+  var profileResult = await supabase.from('profiles').select('role').eq('id', user.id).single();
+  var profile = !profileResult.error ? profileResult.data : null;
+  if (profile && profile.role === 'admin') {
+    return { id: user.id, email: user.email, role: 'super_admin', user: user };
+  }
+
+  var memberResult = await supabase.from('admin_team_members')
+    .select('id, role, status, display_name').eq('user_id', user.id).maybeSingle();
+  var member = memberResult.data;
+  if (memberResult.error || !member || member.status !== 'active') return null;
+
+  var allowed = ADMIN_ROLE_PERMISSIONS[member.role] || [];
+  var required = Array.isArray(section) ? section : (section ? [section] : null);
+  if (required && !required.some(function(s) { return allowed.includes(s); })) return null;
+
+  return { id: user.id, email: user.email, role: member.role, displayName: member.display_name, user: user };
+}
+
 function errorResponse(statusCode, message) {
   return {
     statusCode: statusCode,
@@ -180,6 +233,7 @@ module.exports = {
   createSupabaseClient: createSupabaseClient,
   authenticateBearerAdminOrTeam: authenticateBearerAdminOrTeam,
   authenticateBearerAdmin: authenticateBearerAdmin,
+  authenticateAdminSection: authenticateAdminSection,
   errorResponse: errorResponse,
   successResponse: successResponse,
   optionsResponse: optionsResponse,

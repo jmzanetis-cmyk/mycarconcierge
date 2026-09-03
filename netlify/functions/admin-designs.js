@@ -6,7 +6,10 @@
 //   DELETE /api/admin/designs/:filename    — remove a design
 //
 // Uses Supabase Storage bucket "designs" (create it in the Supabase dashboard first).
-// Auth: Authorization: Bearer <supabase_token> → verify with getUser → profiles.role === 'admin'
+// Auth: Authorization: Bearer <supabase_token> → profiles.role === 'admin', OR an
+// active admin_team_members row whose role has 'merch-manager' in
+// lib/admin-role-permissions.js (Team Login, 2026-09-03 — see
+// utils.authenticateAdminSection).
 
 'use strict';
 
@@ -27,7 +30,7 @@ exports.handler = async function(event) {
   const supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
 
-  const admin = await utils.authenticateBearerAdmin(event, supabase);
+  const admin = await utils.authenticateAdminSection(event, supabase, 'merch-manager');
   if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   const path   = parsePath(event);

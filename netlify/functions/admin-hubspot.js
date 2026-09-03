@@ -12,7 +12,10 @@
 //   POST /api/admin/hubspot/companies      → create company
 //   POST /api/admin/hubspot/sync-members   → sync Supabase profiles → HubSpot
 //
-// Auth: Supabase Bearer JWT, role must be 'admin'
+// Auth: Supabase Bearer JWT — profiles.role === 'admin', OR an active
+// admin_team_members row whose role has 'crm' in
+// lib/admin-role-permissions.js (Team Login, 2026-09-03 — see
+// utils.authenticateAdminSection).
 // HubSpot: HUBSPOT_PRIVATE_APP_TOKEN env var (private app bearer token)
 
 'use strict';
@@ -197,7 +200,7 @@ exports.handler = async function(event) {
 
   var supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
-  var admin = await utils.authenticateBearerAdmin(event, supabase);
+  var admin = await utils.authenticateAdminSection(event, supabase, 'crm');
   if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   var path   = parsePath(event);

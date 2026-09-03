@@ -11344,33 +11344,13 @@ async function handleHelpdeskRequest(req, res, requestId) {
   });
 }
 
-// Task: admin-portal audit follow-up (2026-09-03). super_admin was missing 18
-// of the 44 real nav sections (data-section values in www/admin.html) — this
-// only mattered the moment Team Login (Tier 4, separate work) starts working,
-// since Jordan's own super-admin password login bypasses this map entirely
-// (applyRolePermissions(null) in admin.js shows every section regardless).
-// Brought super_admin to full parity with every section so that gap is gone
-// whenever Team Login does get built.
-//
-// marketing was extended per Jordan's explicit scope: today it's just him
-// (super_admin) plus one marketing/communications hire, who should see
-// survey/lead data and marketing tools — added traffic (referral/campaign
-// data), survey-analytics ("Survey Leads" nav label), and member-surveys
-// ("Survey Analytics" nav label). Explicitly NOT given: agreements (where
-// the Chris contract lives), payments, disputes, refunds, commission-payouts,
-// or any founder-related section.
-//
-// crm_manager / operations / finance / support are untouched — nobody is in
-// those seats yet, so rather than guess their real boundaries they're left
-// as they were; define them for real once Jordan actually hires for a role.
-const ADMIN_ROLE_PERMISSIONS = {
-  super_admin: ['dashboard', 'analytics', 'applications', 'pilot-applications', 'member-founders', 'commission-payouts', 'providers', 'violations', 'car-reviews', 'packages', 'payments', 'disputes', 'refunds', 'registration-verifications', 'tickets', 'ai-chat-insights', 'members', 'user-roles', 'user-management', 'agreements', 'merch-manager', 'crm', 'documents', 'settings', 'team-management', 'marketing-outreach', 'active-drivers', 'agent-fleet', 'ai-ops', 'api-usage', 'audit-log', 'bgc-dashboard', 'car-clubs', 'driver-applications', 'driver-payouts', 'feature-flags', 'member-surveys', 'referrals', 'saas-subscriptions', 'sms-log', 'survey-analytics', 'traffic', 'transport', 'white-label'],
-  crm_manager: ['dashboard', 'crm'],
-  marketing: ['dashboard', 'crm', 'ai-chat-insights', 'analytics', 'merch-manager', 'marketing-outreach', 'traffic', 'survey-analytics', 'member-surveys'],
-  operations: ['dashboard', 'analytics', 'applications', 'providers', 'violations', 'car-reviews', 'packages', 'members', 'user-roles', 'user-management', 'registration-verifications'],
-  finance: ['dashboard', 'analytics', 'payments', 'disputes', 'refunds', 'commission-payouts', 'pilot-applications', 'member-founders'],
-  support: ['dashboard', 'tickets', 'ai-chat-insights', 'members', 'user-management', 'violations']
-};
+// Task: Team Login (2026-09-03) — moved to lib/admin-role-permissions.js so
+// the real Netlify Functions backing Team Login (utils.js's
+// authenticateAdminSection, admin-team-login.js) read the exact same map
+// this dev server does, instead of a second hand-copied version that could
+// drift. See that file for the full history/reasoning behind each role's
+// section list.
+const ADMIN_ROLE_PERMISSIONS = require('./lib/admin-role-permissions');
 
 const adminSessions = new Map();
 

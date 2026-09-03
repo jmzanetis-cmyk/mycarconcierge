@@ -70,7 +70,14 @@ exports.handler = async function(event) {
     const supabase = utils.createSupabaseClient();
     if (!supabase) return utils.errorResponse(500, 'Server configuration error');
 
-    const caller = await utils.authenticateBearerAdminOrTeam(event, supabase);
+    // Tries the existing ADMIN_TEAM_TOKENS / full-admin check first (unchanged,
+    // still covers whatever automation already relies on it — see
+    // netlify/functions-tests/admin-team-functions.test.js). Falls back to a
+    // Team Login team member whose role has 'traffic' in
+    // lib/admin-role-permissions.js (2026-09-03 — see
+    // utils.authenticateAdminSection).
+    const caller = (await utils.authenticateBearerAdminOrTeam(event, supabase))
+      || (await utils.authenticateAdminSection(event, supabase, 'traffic'));
     if (!caller) return utils.errorResponse(401, 'Unauthorized');
 
     try {

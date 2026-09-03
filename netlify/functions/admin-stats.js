@@ -15,7 +15,10 @@
 //   GET /api/admin/stats/users?period=week|month|quarter|year
 //   GET /api/admin/stats/orders?period=week|month|quarter|year
 //
-// Auth: Authorization: Bearer <supabase_token> → verify with getUser → profiles.role === 'admin'
+// Auth: Authorization: Bearer <supabase_token> → profiles.role === 'admin', OR an
+// active admin_team_members row whose role has 'dashboard' in
+// lib/admin-role-permissions.js (Team Login, 2026-09-03 — see
+// utils.authenticateAdminSection).
 
 'use strict';
 
@@ -251,7 +254,7 @@ exports.handler = async function(event) {
   var supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
 
-  var admin = await utils.authenticateBearerAdmin(event, supabase);
+  var admin = await utils.authenticateAdminSection(event, supabase, 'dashboard');
   if (!admin) return utils.errorResponse(401, 'Authentication required');
 
   var route = parsePath(event);

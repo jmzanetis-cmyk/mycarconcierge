@@ -255,6 +255,11 @@ const AI_OPS_ROUTES = [
   { method: 'GET',    subPath: 'care-plan-completions' },
   { method: 'POST',   subPath: 'care-plan-completions' },
   { method: 'PATCH',  subPath: `care-plan-completions/${SAMPLE_UUID}` },
+  // Task: AI Ops audit follow-up (2026-09-03) — real Stripe capture/refund
+  // for the Care Plan Completions table buttons. See _captureCarePlanEscrow
+  // / _refundCarePlanEscrow in ai-ops-admin.js.
+  { method: 'POST',   subPath: `care-plan-completions/${SAMPLE_UUID}/capture` },
+  { method: 'POST',   subPath: `care-plan-completions/${SAMPLE_UUID}/refund` },
   { method: 'POST',   subPath: 'daily-digest/run' }
 ];
 
@@ -324,7 +329,7 @@ function assertCompleteness() {
   // ai-ops-admin.js: the GET /escalations branch uses a compound condition
   // (`path === 'escalations' || path.startsWith(...)`) that the simple regex
   // above doesn't catch, so the count is 12 even though there are 13 routes.
-  const EXPECTED_OPS_CONDITIONALS = 12;
+  const EXPECTED_OPS_CONDITIONALS = 14; // +2 for care-plan-completions/:id/{capture,refund} (2026-09-03)
 
   assert.strictEqual(fleetCount, EXPECTED_FLEET_ROUTES,
     `agent-fleet-admin.js exposes ${fleetCount} ROUTES table entries but the lockdown ` +
