@@ -22,11 +22,39 @@
   }
 
   function track() {
-    // Audit Batch 2 (2026-07-16): /api/analytics/track endpoint not built.
-    // Was firing on every page load; sendBeacon fails silently but fetch
-    // fallback surfaces 404s in console. No-op until the endpoint ships
-    // (page_views table exists; ingest handler is Phase 6 decision).
-    return;
+    // Task: admin-portal audit (2026-09-03) — /api/analytics/track now
+    // exists (netlify/functions/analytics.js + www/_redirects), so this is
+    // re-enabled after being a no-op since the 2026-07-16 audit.
+    var payload = JSON.stringify({
+      page: window.location.pathname,
+      referrer: document.referrer || '',
+      device: getDevice(),
+      visitorId: vid
+    });
+
+    var apiBase = (window.MCC_CONFIG && window.MCC_CONFIG.apiBaseUrl) || '';
+    var url = apiBase + '/api/analytics/track';
+
+    // sendBeacon is fire-and-forget and survives page unload, so it's the
+    // right primary path for a tracking call; fall back to fetch with
+    // keepalive when it's unavailable or rejects the payload outright.
+    var sent = false;
+    if (navigator.sendBeacon) {
+      try {
+        var blob = new Blob([payload], { type: 'application/json' });
+        sent = navigator.sendBeacon(url, blob);
+      } catch (_e) { sent = false; }
+    }
+    if (!sent) {
+      try {
+        fetch(url, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: payload,
+          keepalive: true
+        }).catch(function() { /* best-effort — never let analytics break the page */ });
+      } catch (_e) { /* ignore */ }
+    }
   }
 
   if (document.readyState === 'complete' || document.readyState === 'interactive') {

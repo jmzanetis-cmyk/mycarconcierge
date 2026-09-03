@@ -316,3 +316,7 @@
 # Provider job board pretty URL (providers.html nav linked here; was a 404)
 /provider/jobs /job-board.html 200
 /api/job-board /.netlify/functions/job-board 200
+
+# Feature: Site analytics (Traffic admin section) — Task: admin-portal audit
+/api/analytics/track /.netlify/functions/analytics/track 200
+/api/analytics/data  /.netlify/functions/analytics/data 200

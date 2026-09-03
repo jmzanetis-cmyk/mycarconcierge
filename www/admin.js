@@ -946,8 +946,8 @@
           supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
           supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
           Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 })),
-          Promise.resolve(supabaseClient.from('violation_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
-          Promise.resolve(supabaseClient.from('completed_activity_reviews').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('circumvention_reports').select('*', { count: 'exact', head: true }).eq('status', 'pending')).catch(() => ({ count: 0 })),
+          Promise.resolve(supabaseClient.from('corrective_action_responses').select('*', { count: 'exact', head: true }).in('status', ['pending', 'under_review'])).catch(() => ({ count: 0 })),
           supabaseClient.from('pilot_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('member_founder_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
           supabaseClient.from('founder_payouts').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
@@ -2349,7 +2349,7 @@
       // Task #355 — missing/expired admin session surfaces the shared "Sign
       // in again" prompt instead of silently returning.
       if (!session) {
-        const tbody = document.getElementById('agreements-tbody');
+        const tbody = document.getElementById('agreements-table');
         if (tbody) {
           const err = new Error('No admin session — please sign in again to view agreements.');
           err.code = 'NO_ADMIN_AUTH';
@@ -2399,7 +2399,7 @@
       } catch (err) {
         console.error('Error loading agreements:', err);
         if (isAdminAuthError(err)) {
-          const tbody = document.getElementById('agreements-tbody');
+          const tbody = document.getElementById('agreements-table');
           if (tbody) renderAdminAuthErrorRow(tbody, 8, err, () => loadAgreements(page));
           return;
         }
@@ -3551,6 +3551,75 @@
         paginationContainer.innerHTML = renderPaginationControls(paginationState.providers, 'changeProvidersPage');
       }
     }
+
+    // Task: admin-portal audit — the "View" button called viewProvider(), which
+    // never existed, so it silently threw and did nothing. Built as a
+    // read-only detail modal over data already in `providers` (no extra
+    // fetch); "Manage Credits" reuses the existing, already-wired
+    // quickAddCredits() rather than duplicating that logic.
+    function viewProvider(providerId) {
+      const p = providers.find(pr => pr.id === providerId);
+      if (!p) { showToast('Provider not found', 'error'); return; }
+
+      const stats = p.provider_stats?.[0] || {};
+      const isSuspended = !!(p.suspension_reason || stats.suspended);
+      const totalCredits = (p.bid_credits || 0) + (p.free_trial_bids || 0);
+
+      const body = document.getElementById('provider-detail-modal-body');
+      body.innerHTML = `
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('user', 24)} Provider Information</div>
+          <div class="detail-grid">
+            <span class="detail-label">Business Name:</span>
+            <span class="detail-value">${escapeHtml(p.business_name || p.full_name || 'Unnamed')}${p.is_founding_provider ? ' <span style="background:linear-gradient(135deg,var(--accent-gold),#f0d78c);color:#0a0a0f;padding:2px 8px;border-radius:4px;font-size:0.7rem;font-weight:600;margin-left:6px;">FOUNDING</span>' : ''}</span>
+            <span class="detail-label">Contact Name:</span>
+            <span class="detail-value">${escapeHtml(p.full_name || '—')}</span>
+            <span class="detail-label">Email:</span>
+            <span class="detail-value">${escapeHtml(p.email || '—')}</span>
+            <span class="detail-label">Phone:</span>
+            <span class="detail-value">${escapeHtml(p.phone || '—')}</span>
+            <span class="detail-label">Joined:</span>
+            <span class="detail-value">${p.created_at ? new Date(p.created_at).toLocaleDateString() : '—'}</span>
+            <span class="detail-label">Status:</span>
+            <span class="detail-value"><span class="status-badge ${isSuspended ? 'rejected' : 'approved'}">${isSuspended ? 'Suspended' : 'Active'}</span>${isSuspended && p.suspension_reason ? ` <span style="color:var(--text-muted);font-size:0.85rem;">(${escapeHtml(p.suspension_reason)})</span>` : ''}</span>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <div class="form-section-title">${mccIcon('bar-chart', 24)} Performance</div>
+          <div class="detail-grid">
+            <span class="detail-label">Rating:</span>
+            <span class="detail-value">${stats.average_rating?.toFixed(1) || 'New'}${stats.total_reviews ? ` (${stats.total_reviews} reviews)` : ''}</span>
+            <span class="detail-label">Jobs Completed:</span>
+            <span class="detail-value">${stats.jobs_completed || 0}</span>
+            <span class="detail-label">Total Earnings:</span>
+            <span class="detail-value">$${(stats.total_earnings || 0).toLocaleString()}</span>
+            <span class="detail-label">Bid Credits:</span>
+            <span class="detail-value">${totalCredits} (${p.bid_credits || 0} paid + ${p.free_trial_bids || 0} trial)</span>
+          </div>
+        </div>
+
+        <div class="form-section" style="border-bottom:none;">
+          <div class="form-section-title">${mccIcon('shield', 24)} Verification</div>
+          <div class="detail-grid">
+            <span class="detail-label">Application:</span>
+            <span class="detail-value">${escapeHtml(p.application_status || '—')}</span>
+            <span class="detail-label">Background Check:</span>
+            <span class="detail-value">${escapeHtml(p.bgcheck_status || 'not started')}${p.bgc_live_mode === true ? ' (live)' : p.bgc_live_mode === false ? ' (mock)' : ''}</span>
+            <span class="detail-label">Identity Verified:</span>
+            <span class="detail-value">${p.identity_verified ? 'Yes' : 'No'}</span>
+          </div>
+        </div>
+      `;
+
+      document.getElementById('provider-detail-modal-footer').innerHTML = `
+        <button class="btn btn-secondary" onclick="closeModal('provider-detail-modal')">Close</button>
+        <button class="btn btn-primary" onclick="closeModal('provider-detail-modal'); quickAddCredits('${p.id}');">Manage Credits</button>
+      `;
+
+      document.getElementById('provider-detail-modal').classList.add('active');
+    }
+    globalThis.viewProvider = viewProvider;
 
     function filterProvidersData() {
       const statusFilter = document.getElementById('provider-status-filter')?.value || 'all';
@@ -15098,13 +15167,12 @@
         const res = await fetch('/api/admin/sms-log/refresh-status', {
           method: 'POST',
           headers: getAdminHeaders(),
-          body: JSON.stringify({ sids: [sid] })
+          body: JSON.stringify({ message_sid: sid })
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error || 'Failed');
-        const result = data.results?.[0];
-        if (result?.status) {
-          if (globalThis.showToast) showToast(`Status updated: ${result.status}`, 'success');
+        if (data?.status) {
+          if (globalThis.showToast) showToast(`Status updated: ${data.status}`, 'success');
           await loadSmsLog(smsLogPage);
         }
       } catch (err) {

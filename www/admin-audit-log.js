@@ -278,23 +278,20 @@
     return params.toString();
   }
 
-  // Read the admin password the rest of admin.js already cached on the
-  // session storage during /verify so the GET inherits the same credential.
+  // Task: admin-portal audit — this used to send x-admin-token/x-admin-password,
+  // but netlify/functions/admin-audit-log.js authenticates via
+  // utils.authenticateBearerAdmin, which only reads Authorization: Bearer
+  // <supabase JWT> (see netlify/functions/utils.js). Every request was
+  // 401ing regardless of role. Mirror the correct pattern already used
+  // everywhere else in admin.js: getAdminHeaders() (~L11319).
   function adminHeaders() {
     const h = { 'Content-Type': 'application/json' };
-    // Mirror the pattern used by the rest of admin.js (~L1876, ~L8167):
-    // team token first, otherwise the cached admin password.
     try {
+      const bearer = globalThis._adminBearer;
       const teamToken = globalThis.adminTeamToken;
-      if (teamToken) {
-        h['x-admin-token'] = teamToken;
-        return h;
-      }
+      if (bearer) h['Authorization'] = 'Bearer ' + bearer;
+      else if (teamToken) h['Authorization'] = 'Bearer ' + teamToken;
     } catch (_e) { /* ignore */ }
-    try {
-      const cached = localStorage.getItem('mcc_admin_pass');
-      if (cached) h['x-admin-password'] = cached;
-    } catch (_e) { /* localStorage may be disabled */ }
     return h;
   }
 
