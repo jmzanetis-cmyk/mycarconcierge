@@ -320,3 +320,7 @@
 # Feature: Site analytics (Traffic admin section) — Task: admin-portal audit
 /api/analytics/track /.netlify/functions/analytics/track 200
 /api/analytics/data  /.netlify/functions/analytics/data 200
+
+# Feature: Tier 2 money-integrity fixes — Task: admin-portal audit
+/api/admin/payments/*  /.netlify/functions/admin-release-payment/:splat 200
+/api/admin/disputes/*  /.netlify/functions/admin-dispute-resolve/:splat 200

@@ -571,7 +571,16 @@ async function handleCancel(event, supabase, body) {
 
   const { data: ride } = await supabase.from('rides').select('id, status, member_id').eq('id', ride_id).single();
   if (!ride) return jsonResponse(404, { error: 'Ride not found' });
-  if (ride.member_id !== user.id) return jsonResponse(403, { error: 'Not your ride' });
+
+  // Admins can cancel any ride, not just their own. Only checked when the
+  // caller isn't the ride's own member, so the common member-cancels-
+  // their-own-ride path skips the extra profiles lookup.
+  let isAdminCancel = false;
+  if (ride.member_id !== user.id) {
+    const { data: profile } = await supabase.from('profiles').select('role').eq('id', user.id).maybeSingle();
+    if (profile?.role !== 'admin') return jsonResponse(403, { error: 'Not your ride' });
+    isAdminCancel = true;
+  }
 
   const CANCELLABLE = ['requested','pending','pending_name_review','pending_dispatch','searching','dispatched','driver_assigned','driver_accepted'];
   const LATE_CANCEL  = ['driver_en_route','driver_arrived'];
@@ -579,18 +588,21 @@ async function handleCancel(event, supabase, body) {
     return jsonResponse(400, { error: 'Ride cannot be cancelled at this stage' });
   }
 
-  if (process.env.FEATURE_CANCELLATION_POLICY === 'true') {
+  // Admin overrides skip the cancellation-fee policy entirely — an admin
+  // stepping in to cancel a ride shouldn't trigger a fault-based fee
+  // charge against the member.
+  if (!isAdminCancel && process.env.FEATURE_CANCELLATION_POLICY === 'true') {
     return await _cancelWithPolicy(supabase, ride, user);
   }
 
   const { error } = await supabase.from('rides').update({
     status: 'cancelled_member',
     cancelled_at: new Date().toISOString(),
-    cancellation_reason: 'member_cancelled'
+    cancellation_reason: isAdminCancel ? 'admin_cancelled' : 'member_cancelled'
   }).eq('id', ride_id);
 
   if (error) return jsonResponse(500, { error: error.message });
-  return jsonResponse(200, { cancelled: true, late_cancel_fee: LATE_CANCEL.includes(ride.status) });
+  return jsonResponse(200, { cancelled: true, late_cancel_fee: !isAdminCancel && LATE_CANCEL.includes(ride.status) });
 }
 
 // No-fault reason codes: driver can state these without penalty.

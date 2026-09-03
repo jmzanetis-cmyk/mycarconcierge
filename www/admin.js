@@ -4347,7 +4347,7 @@
           <td>${escapeHtml(d.maintenance_packages?.title) || 'Package'}</td>
           <td>${escapeHtml(d.filed_by_profile?.full_name) || 'User'} (${escapeHtml(d.filed_by_role)})</td>
           <td>${escapeHtml(d.reason)}</td>
-          <td>$${(d.payments?.amount_total || 0).toFixed(2)}</td>
+          <td>$${(d.maintenance_packages?.payments?.[0]?.amount_total || 0).toFixed(2)}</td>
           <td>${new Date(d.created_at).toLocaleDateString()}</td>
           <td><span class="status-badge ${d.status === 'open' ? 'open' : d.status.includes('resolved') ? 'resolved' : 'pending'}">${escapeHtml(d.status)}</span></td>
           <td><button class="btn btn-secondary btn-sm" onclick="viewDispute('${escapeHtml(d.id)}')">Review</button></td>
@@ -4864,14 +4864,14 @@
 
       const { data: evidence } = await supabaseClient.from('dispute_evidence').select('*').eq('dispute_id', disputeId);
       const d = currentDispute;
-      const isHighValue = d.payments?.amount_total > 1000;
+      const isHighValue = (d.maintenance_packages?.payments?.[0]?.amount_total || 0) > 1000;
 
       document.getElementById('dispute-modal-body').innerHTML = `
         <div class="form-section">
           <div class="form-section-title">Dispute Details</div>
           <div class="detail-grid">
             <span class="detail-label">Package:</span><span class="detail-value">${d.maintenance_packages?.title || 'N/A'}</span>
-            <span class="detail-label">Amount:</span><span class="detail-value">$${(d.payments?.amount_total || 0).toFixed(2)}</span>
+            <span class="detail-label">Amount:</span><span class="detail-value">$${(d.maintenance_packages?.payments?.[0]?.amount_total || 0).toFixed(2)}</span>
             <span class="detail-label">Filed By:</span><span class="detail-value">${d.filed_by_profile?.full_name || 'User'} (${d.filed_by_role})</span>
             <span class="detail-label">Reason:</span><span class="detail-value">${d.reason}</span>
             <span class="detail-label">Filed:</span><span class="detail-value">${new Date(d.created_at).toLocaleString()}</span>
@@ -4900,7 +4900,7 @@
 
         <div class="form-group">
           <label class="form-label">Resolution Amount ($)</label>
-          <input type="number" class="form-input" id="resolution-amount" placeholder="Amount to refund to member" value="${d.payments?.amount_total || 0}">
+          <input type="number" class="form-input" id="resolution-amount" placeholder="Amount to refund to member" value="${d.maintenance_packages?.payments?.[0]?.amount_total || 0}">
         </div>
 
         <div class="form-group">
@@ -4957,40 +4957,24 @@
 
       if (!notes) return showToast('Please provide resolution notes', 'error');
 
-      // Update dispute
-      await supabaseClient.from('disputes').update({
-        status: `resolved_${winner}`,
-        resolution_amount: winner === 'member' ? resolutionAmount : 0,
-        resolution_notes: notes,
-        resolved_by: currentUser.id,
-        resolved_at: new Date().toISOString()
-      }).eq('id', currentDispute.id);
+      try {
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/disputes/${currentDispute.id}/resolve`, {
+          method: 'POST',
+          headers: getAdminHeaders(),
+          body: JSON.stringify({ winner, resolution_amount: resolutionAmount, notes })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to resolve dispute');
 
-      // Process refund if member wins
-      const disputePaymentId = currentDispute.maintenance_packages?.payments?.[0]?.id;
-      if (winner === 'member' && disputePaymentId) {
-        await supabaseClient.from('payments').update({
-          status: 'refunded',
-          refund_amount: resolutionAmount,
-          refund_reason: notes,
-          refunded_at: new Date().toISOString()
-        }).eq('id', disputePaymentId);
+        closeModal('dispute-modal');
+        showToast(data.stripe_refunded ? 'Dispute resolved and refund processed in Stripe' : 'Dispute resolved');
+        await loadDisputes();
+        await loadPayments();
+        updateDashboard();
+      } catch (err) {
+        showToast('Resolve failed: ' + err.message, 'error');
       }
-
-      // If provider loses, add a strike
-      if (winner === 'member') {
-        // Get provider from payment
-        const payment = payments.find(p => p.id === disputePaymentId);
-        if (payment?.provider_id) {
-          await supabaseClient.rpc('increment_provider_strikes', { provider_id: payment.provider_id });
-        }
-      }
-
-      closeModal('dispute-modal');
-      showToast('Dispute resolved');
-      await loadDisputes();
-      await loadPayments();
-      updateDashboard();
     }
 
     async function scheduleInspection() {
@@ -5109,14 +5093,21 @@
     async function releasePayment(paymentId) {
       if (!confirm('Release this payment to the provider?')) return;
 
-      await supabaseClient.from('payments').update({
-        status: 'released',
-        released_at: new Date().toISOString()
-      }).eq('id', paymentId);
+      try {
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/admin/payments/${paymentId}/release`, {
+          method: 'POST',
+          headers: getAdminHeaders()
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || 'Failed to release payment');
 
-      showToast('Payment released');
-      await loadPayments();
-      updateDashboard();
+        showToast(data.stripe_captured ? 'Payment released and captured in Stripe' : 'Payment released');
+        await loadPayments();
+        updateDashboard();
+      } catch (err) {
+        showToast('Release failed: ' + err.message, 'error');
+      }
     }
 
     function editPayment(paymentId) {
@@ -7663,13 +7654,14 @@
 
         const payout = founderPayouts.find(p => p.id === payoutId);
         if (payout) {
-          await supabaseClient
-            .from('member_founder_profiles')
-            .update({
-              total_commissions_paid: supabaseClient.raw('total_commissions_paid + ?', [payout.amount]),
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', payout.founder_id);
+          const { error: incrementError } = await supabaseClient.rpc('increment_founder_commissions_paid', {
+            p_founder_id: payout.founder_id,
+            p_amount: payout.amount
+          });
+          if (incrementError) {
+            console.error('increment_founder_commissions_paid failed:', incrementError);
+            showToast('Payout marked completed, but the founder total failed to update — check manually', 'error');
+          }
         }
 
         showToast('Payout marked as completed', 'success');
