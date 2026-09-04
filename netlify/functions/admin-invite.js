@@ -28,6 +28,29 @@ function createSupabaseClient() {
   return createClient(url, key);
 }
 
+// 2026-09-04e — "Remove" in Team Management (admin-team.js DELETE
+// /members/:id) deliberately bans the Supabase Auth account for 100 years
+// instead of hard-deleting it, so a mistaken removal can still be undone.
+// That means the Auth user for that email still exists, so re-inviting the
+// same email and accepting a fresh invite hits auth.admin.createUser's
+// "already registered" error every time — "remove, then re-invite", the
+// normal way to reset a team member, could never actually complete. The
+// supabase-js admin SDK has no getUserByEmail()/listUsers(email) filter, so
+// this hits GoTrue's admin REST endpoint directly (same raw-fetch pattern
+// already used against this same endpoint in admin-data.js).
+async function findAuthUserByEmail(email) {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  const res = await fetch(`${url}/auth/v1/admin/users?email=${encodeURIComponent(email)}`, {
+    headers: { apikey: key, Authorization: `Bearer ${key}` }
+  });
+  if (!res.ok) return null;
+  const data = await res.json();
+  const users = Array.isArray(data) ? data : (data.users || []);
+  const target = email.toLowerCase();
+  return users.find(u => (u.email || '').toLowerCase() === target) || null;
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return { statusCode: 204, headers: CORS, body: '' };
 
@@ -84,14 +107,30 @@ exports.handler = async function(event) {
       email_confirm: true
     });
 
+    let userId;
     if (signUpErr) {
-      if (signUpErr.message && signUpErr.message.toLowerCase().includes('already registered')) {
+      const alreadyRegistered = signUpErr.message && signUpErr.message.toLowerCase().includes('already registered');
+      if (!alreadyRegistered) {
+        return json(500, { error: signUpErr.message || 'Failed to create account' });
+      }
+      // Reactivate the existing (likely removed/banned) Auth account for
+      // this email instead of failing — see findAuthUserByEmail above.
+      const existingUser = await findAuthUserByEmail(invite.email);
+      if (!existingUser) {
         return json(409, { error: 'An account with this email already exists' });
       }
-      return json(500, { error: signUpErr.message || 'Failed to create account' });
+      const { error: reactivateErr } = await supabase.auth.admin.updateUserById(existingUser.id, {
+        password, email_confirm: true, ban_duration: 'none'
+      });
+      if (reactivateErr) return json(500, { error: reactivateErr.message || 'Failed to reactivate account' });
+      userId = existingUser.id;
+      // A roster row for this user_id shouldn't normally exist — Remove
+      // already deletes it — but clear out any stale leftover defensively
+      // so the insert below can't collide with it.
+      await supabase.from('admin_team_members').delete().eq('user_id', userId);
+    } else {
+      userId = authData.user.id;
     }
-
-    const userId = authData.user.id;
 
     // Insert team member record
     await supabase.from('admin_team_members').insert({
