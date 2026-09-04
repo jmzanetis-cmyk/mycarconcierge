@@ -18,7 +18,10 @@
 //   GET  /markets                      → market metadata (beachhead arc, regulatory hook, how to play it)
 //   GET  /bid-packs                    → static pricing-tier reference table
 //   GET  /prospects?market=<market>    → prospects for one market, ordered by priority then row_number
-//   PUT  /prospects/:id                → update the caller-entered fields on one prospect
+//                                         (each row includes a computed `locked` flag — see pclIsLocked)
+//   PUT  /prospects/:id                → update the caller-entered fields on one prospect; 423 if the
+//                                         prospect's outcome already shows a completed survey and the
+//                                         caller isn't super_admin (2026-09-04d — see pclIsLocked)
 //   GET  /results?market=<market>      → survey results: per-question answer breakdowns,
 //                                         interest-rating distribution, free-text answers, and
 //                                         a daily activity trend (2026-09-04c — see handleResults)
@@ -53,6 +56,21 @@ var EDITABLE_FIELDS = [
   'c1_referral', 'bid_pack_pitched', 'bid_pack_decline_reason', 'what_they_said',
   'c2_first_refusal', 'interest_rating', 'notes'
 ];
+
+// 2026-09-04d — a completed survey locks. With multiple callers working the
+// same list, once a prospect's Outcome shows the survey was completed, no
+// further edits should be possible except by Jordan (super_admin): letting
+// a second caller reopen a "done" prospect risks a duplicate call to a
+// provider a caller can now see is receptive, and risks clobbering the
+// first caller's answers. There's no separate boolean column for this —
+// "survey complete" is already the single source of truth used by the
+// Rollup and Results views (see computeRollup and handleResults below), so
+// the lock reuses that exact same signal rather than introducing a second
+// one that could drift out of sync with what those views count.
+var PCL_SURVEY_COMPLETE_RE = /survey complete/i;
+function pclIsLocked(outcome) {
+  return PCL_SURVEY_COMPLETE_RE.test((outcome || '').trim());
+}
 
 // Path parsing follows the lesson learned the hard way in admin-team.js
 // (2026-09-04 fix, e2246a2): Netlify hands a redirected function's
@@ -114,7 +132,7 @@ function computeRollup(prospects) {
     if (p.attempt_1) dialed++;
     var outcome = (p.outcome || '').trim();
     if (/^reached/i.test(outcome)) live++;
-    if (/survey complete/i.test(outcome)) surveys++;
+    if (PCL_SURVEY_COMPLETE_RE.test(outcome)) surveys++;
     if (/wants jordan/i.test(outcome)) wantsJordan++;
     if (/^yes/i.test(p.b1_send_bid || '')) b1Yes++;
     if (/^yes/i.test(p.bid_pack_pitched || '')) packPitched++;
@@ -197,7 +215,10 @@ async function handleProspects(supabase, qs) {
     .order('priority', { ascending: true })
     .order('row_number', { ascending: true });
   if (res.error) throw new Error(res.error.message);
-  return { prospects: res.data || [] };
+  var prospects = (res.data || []).map(function (p) {
+    return Object.assign({}, p, { locked: pclIsLocked(p.outcome) });
+  });
+  return { prospects: prospects };
 }
 
 // 2026-09-04c — Survey Results & Trend. The screening-fields migration
@@ -297,7 +318,7 @@ async function handleResults(supabase, qs) {
   prospects.forEach(function (p) {
     var outcome = (p.outcome || '').trim();
     var isLive = /^reached/i.test(outcome);
-    var isSurvey = /survey complete/i.test(outcome);
+    var isSurvey = PCL_SURVEY_COMPLETE_RE.test(outcome);
     if (!p.attempt_1 && !isLive && !isSurvey) return;
     var day = String(p.updated_at || p.created_at || '').slice(0, 10);
     if (!day) return;
@@ -322,8 +343,25 @@ async function handleResults(supabase, qs) {
   };
 }
 
-async function handleUpdateProspect(supabase, id, body) {
+async function handleUpdateProspect(supabase, id, body, admin) {
   if (!id) throw Object.assign(new Error('Prospect id is required'), { statusCode: 400 });
+
+  // Lock check happens against the CURRENT (pre-update) outcome, never the
+  // incoming payload — otherwise a caller could set outcome to "...survey
+  // complete" and every other field in the very same request that trips
+  // the lock. Only super_admin (Jordan's own login, not a team-login role)
+  // may edit a prospect that's already locked, so a mistake can still be
+  // corrected without opening the door back up to every caller.
+  var curRes = await supabase.from('provider_call_prospects').select('outcome').eq('id', id).maybeSingle();
+  if (curRes.error) throw new Error(curRes.error.message);
+  if (!curRes.data) throw Object.assign(new Error('Prospect not found'), { statusCode: 404 });
+  var isSuperAdmin = !!admin && admin.role === 'super_admin';
+  if (pclIsLocked(curRes.data.outcome) && !isSuperAdmin) {
+    throw Object.assign(new Error(
+      'This survey is already marked complete and is locked to prevent a duplicate call. Ask Jordan to make a correction.'
+    ), { statusCode: 423 });
+  }
+
   var update = {};
   EDITABLE_FIELDS.forEach(function (f) {
     if (Object.prototype.hasOwnProperty.call(body, f)) update[f] = body[f];
@@ -334,7 +372,7 @@ async function handleUpdateProspect(supabase, id, body) {
   var res = await supabase.from('provider_call_prospects').update(update).eq('id', id).select().maybeSingle();
   if (res.error) throw new Error(res.error.message);
   if (!res.data) throw Object.assign(new Error('Prospect not found'), { statusCode: 404 });
-  return { prospect: res.data };
+  return { prospect: Object.assign({}, res.data, { locked: pclIsLocked(res.data.outcome) }) };
 }
 
 exports.handler = async function (event) {
@@ -372,7 +410,7 @@ exports.handler = async function (event) {
     }
     var updateMatch = /^prospects\/([^\/]+)$/.exec(path);
     if (method === 'PUT' && updateMatch) {
-      return jsonResponse(200, await handleUpdateProspect(supabase, updateMatch[1], body));
+      return jsonResponse(200, await handleUpdateProspect(supabase, updateMatch[1], body, admin));
     }
 
     return jsonResponse(404, { error: 'Unknown route: ' + method + ' ' + path });

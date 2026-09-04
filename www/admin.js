@@ -12523,6 +12523,17 @@
       html += '</tr></thead><tbody>';
       pclProspects.forEach(p => {
         const isEditing = pclEditingId === p.id;
+        // 2026-09-04d — a completed survey locks so a second caller can't
+        // reopen it (and see a provider is receptive) or clobber the first
+        // caller's answers. adminTeamToken is only set for a team-login
+        // session (e.g. Maria's marketing role) — Jordan's own super_admin
+        // login never sets it — so it doubles as "am I allowed to override
+        // the lock" without a separate round trip.
+        const isLocked = !!p.locked;
+        const lockedForMe = isLocked && !!adminTeamToken;
+        const logCallCell = lockedForMe
+          ? '<span style="color:var(--text-muted);font-size:0.8rem;white-space:nowrap;" title="Survey complete — locked. Ask Jordan to make changes.">🔒 Completed</span>'
+          : `<button class="btn btn-sm" onclick="togglePclCallLog(${escapeHtml(JSON.stringify(p.id))})">${isEditing ? 'Close' : (isLocked ? 'Edit (Admin)' : 'Log Call')}</button>`;
         html += `<tr>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${p.row_number}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${pclPriorityChip(p.priority)}</td>
@@ -12535,9 +12546,9 @@
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">${escapeHtml(p.phone || '—')}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">${p.google_rating ?? '—'} (${p.review_count ?? 0})</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${escapeHtml(p.contact_name || '—')}</td>
-          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);max-width:180px;">${escapeHtml(p.outcome || 'Not attempted')}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);max-width:180px;">${escapeHtml(p.outcome || 'Not attempted')}${isLocked ? ' 🔒' : ''}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">
-            <button class="btn btn-sm" onclick="togglePclCallLog(${escapeHtml(JSON.stringify(p.id))})">${isEditing ? 'Close' : 'Log Call'}</button>
+            ${logCallCell}
           </td>
         </tr>`;
         if (isEditing) {
@@ -12581,7 +12592,11 @@
 
     function pclCallLogRowHtml(p) {
       const iv = p.interest_rating != null ? String(p.interest_rating) : '';
+      const lockNotice = p.locked
+        ? `<div style="margin-bottom:12px;padding:8px 10px;border-radius:6px;background:var(--bg-tertiary);color:var(--text-muted);font-size:0.78rem;">🔒 This survey is marked complete and is locked for other callers — you're editing it as super admin.</div>`
+        : '';
       return `<tr id="pcl-edit-row-${p.id}"><td colspan="9" style="padding:14px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);">
+        ${lockNotice}
         <div style="display:flex;flex-wrap:wrap;gap:12px;">
           ${pclField('pcl-f-contact_name-' + p.id, 'Contact Name', p.contact_name, '160px')}
           ${pclField('pcl-f-attempt_1-' + p.id, 'Attempt 1 (date)', p.attempt_1, '130px')}
