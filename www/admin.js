@@ -12208,6 +12208,7 @@
         const panel = document.getElementById(panelId);
         if (panel) panel.style.display = 'block';
         if (tab.dataset.tab === 'growth-funnel') loadGrowthFunnel();
+        if (tab.dataset.tab === 'provider-calls') initProviderCallList();
         // Task #269 — re-run Outreach Engine init on every click of its
         // mo-tab (even when already active). If a transient error caused
         // the first init to fail and leave the panel blank, the user now
@@ -12219,6 +12220,256 @@
         }
       });
     });
+
+    // ------------------------------------------------------------------
+    // Provider Call List — manual B2B provider-acquisition cold-call
+    // tracking. Separate from the AI Outreach Engine above (that one
+    // auto-discovers leads and has AI draft+send email/SMS at scale).
+    // This is a human caller (Maria) working a fixed phone list market by
+    // market. Backed by netlify/functions/admin-provider-outreach.js and
+    // supabase/migrations/20260904_provider_call_prospects.sql.
+    // ------------------------------------------------------------------
+    let pclMarkets = [];
+    let pclSelectedMarket = null;
+    let pclProspects = [];
+    let pclEditingId = null;
+
+    function pclHeaders() { return getMarketingHeaders(); }
+
+    async function initProviderCallList() {
+      await loadProviderCallRollup();
+    }
+    globalThis.initProviderCallList = initProviderCallList;
+
+    function pclPriorityChip(priority) {
+      const map = { 1: ['P1', 'var(--accent-green,#4ade80)'], 2: ['P2', 'var(--accent-orange,#fb923c)'], 3: ['P3', 'var(--accent-red,#f87171)'] };
+      const [label, color] = map[priority] || ['—', 'var(--text-muted)'];
+      return `<span style="display:inline-block;padding:2px 8px;border-radius:10px;font-size:0.75rem;font-weight:700;color:#0a0a0a;background:${color};">${label}</span>`;
+    }
+
+    async function loadProviderCallRollup() {
+      const grid = document.getElementById('pcl-market-grid');
+      const summary = document.getElementById('pcl-rollup-summary');
+      if (!grid) return;
+      try {
+        const [rollupRes, marketsRes] = await Promise.all([
+          fetch('/api/admin/provider-outreach/rollup', { headers: pclHeaders() }),
+          fetch('/api/admin/provider-outreach/markets', { headers: pclHeaders() })
+        ]);
+        if (!rollupRes.ok || !marketsRes.ok) {
+          const status = !rollupRes.ok ? rollupRes.status : marketsRes.status;
+          if ((status === 401 || status === 403) && typeof globalThis.renderAdminAuthError === 'function') {
+            globalThis.renderAdminAuthError(grid, Object.assign(new Error('Admin session rejected on Provider Call List (HTTP ' + status + '). Sign in again.'), { code: 'ADMIN_AUTH_REJECTED' }), loadProviderCallRollup);
+            return;
+          }
+          grid.innerHTML = `<p style="color:var(--accent-red);">Failed to load rollup (HTTP ${status}).</p>`;
+          return;
+        }
+        const rollupData = await rollupRes.json();
+        const marketsData = await marketsRes.json();
+        pclMarkets = marketsData.markets || [];
+        const byMarket = {};
+        (pclMarkets || []).forEach(m => { byMarket[m.market] = m; });
+        const rollups = rollupData.markets || [];
+        const all = rollupData.all_markets || {};
+
+        if (summary) {
+          summary.textContent = `${all.prospects || 0} total prospects across ${rollups.length} markets · ${all.dialed || 0} dialed · ${all.surveys_complete || 0} surveys complete`;
+        }
+
+        if (!rollups.length) {
+          grid.innerHTML = '<p style="color:var(--text-muted);">No markets found. Run the provider_call_prospects migration in Supabase.</p>';
+          return;
+        }
+
+        grid.innerHTML = rollups.map(r => {
+          const meta = byMarket[r.market] || {};
+          const active = r.market === pclSelectedMarket;
+          const thresholdColor = r.threshold_met ? 'var(--accent-green,#4ade80)' : 'var(--text-muted)';
+          return `<div class="card" style="cursor:pointer;padding:14px;border:2px solid ${active ? 'var(--accent-blue)' : 'transparent'};" onclick="selectProviderCallMarket(${JSON.stringify(r.market)})">
+            <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
+              <strong style="font-size:0.95rem;">#${meta.market_rank ?? r.market_rank ?? ''} ${escapeHtml(r.market)}</strong>
+            </div>
+            <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 10px;font-size:0.8rem;color:var(--text-secondary);">
+              <span>Prospects: <strong>${r.prospects}</strong></span>
+              <span>Priority 1: <strong>${r.priority_1}</strong></span>
+              <span>Dialed: <strong>${r.dialed}</strong></span>
+              <span>Live contact: <strong>${r.live_contact}</strong></span>
+              <span>Surveys: <strong>${r.surveys_complete}</strong></span>
+              <span>Wants Jordan: <strong>${r.wants_jordan}</strong></span>
+              <span>Reach rate: <strong>${r.reach_rate_pct != null ? r.reach_rate_pct + '%' : '—'}</strong></span>
+              <span>Survey rate: <strong>${r.survey_rate_pct != null ? r.survey_rate_pct + '%' : '—'}</strong></span>
+            </div>
+            <div style="margin-top:8px;font-size:0.78rem;color:${thresholdColor};font-weight:600;">${escapeHtml(r.threshold_label)}</div>
+          </div>`;
+        }).join('');
+        if (typeof mccIcon !== 'undefined') initInlineIcons(grid);
+
+        if (!pclSelectedMarket && rollups.length) {
+          selectProviderCallMarket(rollups[0].market);
+        }
+      } catch (e) {
+        grid.innerHTML = `<p style="color:var(--accent-red);">Error loading rollup: ${escapeHtml(e.message)}</p>`;
+      }
+    }
+    globalThis.loadProviderCallRollup = loadProviderCallRollup;
+
+    function selectProviderCallMarket(market) {
+      pclSelectedMarket = market;
+      document.querySelectorAll('#pcl-market-grid .card').forEach(c => c.style.border = '2px solid transparent');
+      loadProviderCallRollup();
+      renderProviderCallMarketContext(market);
+      loadProviderCallProspects(market);
+    }
+    globalThis.selectProviderCallMarket = selectProviderCallMarket;
+
+    function renderProviderCallMarketContext(market) {
+      const card = document.getElementById('pcl-market-context-card');
+      const title = document.getElementById('pcl-context-title');
+      const body = document.getElementById('pcl-market-context');
+      const meta = (pclMarkets || []).find(m => m.market === market);
+      if (!card || !body || !meta) return;
+      title.textContent = `Market context — ${meta.market}`;
+      body.innerHTML = `
+        <p><strong>Beachhead arc:</strong> ${escapeHtml(meta.beachhead_arc || '—')}</p>
+        <p><strong>Regulatory context:</strong> ${escapeHtml(meta.regulatory_context || '—')}</p>
+        <p><strong>How to play it:</strong> ${escapeHtml(meta.how_to_play_it || '—')}</p>
+      `;
+      card.style.display = 'block';
+    }
+
+    async function loadProviderCallProspects(market) {
+      const wrap = document.getElementById('pcl-prospects-table');
+      const card = document.getElementById('pcl-prospects-card');
+      const title = document.getElementById('pcl-prospects-title');
+      if (!wrap || !market) return;
+      card.style.display = 'block';
+      title.textContent = `Prospects — ${market}`;
+      wrap.innerHTML = '<p style="color:var(--text-muted);padding:16px 0;">Loading…</p>';
+      try {
+        const res = await fetch('/api/admin/provider-outreach/prospects?market=' + encodeURIComponent(market), { headers: pclHeaders() });
+        if (!res.ok) { wrap.innerHTML = `<p style="color:var(--accent-red);">Failed to load prospects (HTTP ${res.status}).</p>`; return; }
+        const data = await res.json();
+        pclProspects = data.prospects || [];
+        renderProviderCallProspectsTable();
+      } catch (e) {
+        wrap.innerHTML = `<p style="color:var(--accent-red);">Error: ${escapeHtml(e.message)}</p>`;
+      }
+    }
+    globalThis.loadProviderCallProspects = loadProviderCallProspects;
+
+    function renderProviderCallProspectsTable() {
+      const wrap = document.getElementById('pcl-prospects-table');
+      if (!wrap) return;
+      if (!pclProspects.length) {
+        wrap.innerHTML = '<p style="color:var(--text-muted);padding:16px 0;">No prospects in this market.</p>';
+        return;
+      }
+      let html = '<table style="width:100%;border-collapse:collapse;font-size:0.85rem;"><thead><tr>';
+      ['#', 'Priority', 'Business', 'City', 'Phone', 'Rating', 'Contact', 'Outcome', ''].forEach(h => {
+        html += `<th style="text-align:left;padding:8px 10px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;white-space:nowrap;">${h}</th>`;
+      });
+      html += '</tr></thead><tbody>';
+      pclProspects.forEach(p => {
+        const isEditing = pclEditingId === p.id;
+        html += `<tr>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${p.row_number}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${pclPriorityChip(p.priority)}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">
+            <div style="font-weight:600;">${escapeHtml(p.business_name)}</div>
+            <div style="color:var(--text-muted);font-size:0.78rem;">${escapeHtml(p.segment || '')}${p.screening_flags ? ' · ⚠ ' + escapeHtml(p.screening_flags) : ''}</div>
+            <div style="color:var(--text-muted);font-size:0.78rem;max-width:320px;">${escapeHtml(p.why_this_one || '')}</div>
+          </td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">${escapeHtml(p.city || '')}${p.county ? ', ' + escapeHtml(p.county) : ''}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">${escapeHtml(p.phone || '—')}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">${p.google_rating ?? '—'} (${p.review_count ?? 0})</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${escapeHtml(p.contact_name || '—')}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);max-width:180px;">${escapeHtml(p.outcome || 'Not attempted')}</td>
+          <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">
+            <button class="btn btn-sm" onclick="togglePclCallLog(${JSON.stringify(p.id)})">${isEditing ? 'Close' : 'Log Call'}</button>
+          </td>
+        </tr>`;
+        if (isEditing) {
+          html += pclCallLogRowHtml(p);
+        }
+      });
+      html += '</tbody></table>';
+      wrap.innerHTML = html;
+      if (typeof mccIcon !== 'undefined') initInlineIcons(wrap);
+    }
+
+    function pclField(id, label, value, width) {
+      return `<label style="display:flex;flex-direction:column;gap:3px;font-size:0.75rem;color:var(--text-muted);${width ? 'width:' + width + ';' : ''}">${label}
+        <input id="${id}" value="${escapeHtml(value ?? '')}" style="padding:6px 8px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-elevated);color:var(--text-primary);font-size:0.85rem;">
+      </label>`;
+    }
+
+    function pclCallLogRowHtml(p) {
+      return `<tr id="pcl-edit-row-${p.id}"><td colspan="9" style="padding:14px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);">
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          ${pclField('pcl-f-contact_name-' + p.id, 'Contact Name', p.contact_name, '160px')}
+          ${pclField('pcl-f-attempt_1-' + p.id, 'Attempt 1 (date)', p.attempt_1, '130px')}
+          ${pclField('pcl-f-attempt_2-' + p.id, 'Attempt 2 (date)', p.attempt_2, '130px')}
+          ${pclField('pcl-f-attempt_3-' + p.id, 'Attempt 3 (date)', p.attempt_3, '130px')}
+          ${pclField('pcl-f-outcome-' + p.id, 'Outcome', p.outcome, '220px')}
+          ${pclField('pcl-f-b1_send_bid-' + p.id, 'B1 Send a bid at $10?', p.b1_send_bid, '140px')}
+          ${pclField('pcl-f-b2_fair_price-' + p.id, 'B2 Fair price ($)', p.b2_fair_price, '110px')}
+          ${pclField('pcl-f-b2_price_unit-' + p.id, 'B2b Price unit', p.b2_price_unit, '150px')}
+          ${pclField('pcl-f-b3_bid_style-' + p.id, 'B3 Bid style', p.b3_bid_style, '150px')}
+          ${pclField('pcl-f-bid_pack_pitched-' + p.id, 'Bid pack pitched?', p.bid_pack_pitched, '140px')}
+          ${pclField('pcl-f-c2_first_refusal-' + p.id, 'C2 First refusal', p.c2_first_refusal, '160px')}
+        </div>
+        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;">
+          ${pclField('pcl-f-r3_yes_reason-' + p.id, 'R3 What makes it a YES', p.r3_yes_reason, '260px')}
+          ${pclField('pcl-f-r3_no_reason-' + p.id, 'R3 What makes it a NO', p.r3_no_reason, '260px')}
+          ${pclField('pcl-f-what_they_said-' + p.id, 'What they said to it', p.what_they_said, '260px')}
+          ${pclField('pcl-f-notes-' + p.id, 'Notes', p.notes, '260px')}
+        </div>
+        <div style="margin-top:12px;display:flex;gap:8px;">
+          <button class="btn btn-sm btn-primary" onclick="savePclCallLog(${JSON.stringify(p.id)})"><span class="icon-inline" data-icon="save"></span> Save</button>
+          <button class="btn btn-sm" onclick="togglePclCallLog(${JSON.stringify(p.id)})">Cancel</button>
+        </div>
+      </td></tr>`;
+    }
+
+    function togglePclCallLog(id) {
+      pclEditingId = pclEditingId === id ? null : id;
+      renderProviderCallProspectsTable();
+    }
+    globalThis.togglePclCallLog = togglePclCallLog;
+
+    const PCL_EDITABLE_FIELDS = [
+      'contact_name', 'attempt_1', 'attempt_2', 'attempt_3', 'outcome',
+      'b1_send_bid', 'b2_fair_price', 'b2_price_unit', 'b3_bid_style',
+      'r3_yes_reason', 'r3_no_reason', 'bid_pack_pitched', 'what_they_said',
+      'c2_first_refusal', 'notes'
+    ];
+
+    async function savePclCallLog(id) {
+      const payload = {};
+      PCL_EDITABLE_FIELDS.forEach(f => {
+        const el = document.getElementById('pcl-f-' + f + '-' + id);
+        if (el) payload[f] = el.value === '' ? null : el.value;
+      });
+      if (payload.b2_fair_price != null) {
+        const n = Number(payload.b2_fair_price);
+        payload.b2_fair_price = Number.isFinite(n) ? n : null;
+      }
+      try {
+        const res = await fetch('/api/admin/provider-outreach/prospects/' + encodeURIComponent(id), {
+          method: 'PUT', headers: pclHeaders(), body: JSON.stringify(payload)
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || ('HTTP ' + res.status));
+        showToast('Call logged');
+        pclEditingId = null;
+        await loadProviderCallProspects(pclSelectedMarket);
+        await loadProviderCallRollup();
+      } catch (e) {
+        showToast('Failed to save: ' + e.message, 'error');
+      }
+    }
+    globalThis.savePclCallLog = savePclCallLog;
 
     async function generateSocialPosts() {
       const topic = document.getElementById('social-topic').value;

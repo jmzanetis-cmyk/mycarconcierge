@@ -1169,6 +1169,7 @@
           <button class="btn btn-sm mo-tab" data-tab="research-outreach">Research & Outreach</button>
           <button class="btn btn-sm mo-tab" data-tab="saved-content">Saved Content</button>
           <button class="btn btn-sm mo-tab" data-tab="growth-funnel">Growth Funnel</button>
+          <button class="btn btn-sm mo-tab" data-tab="provider-calls">Provider Call List</button>
         </div>
       </div>
 
@@ -2048,6 +2049,41 @@
               <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="globe"></span> Top Regions</h2></div>
               <div id="funnel-top-regions" style="padding:16px;min-height:250px;"><p style="color:var(--text-muted);text-align:center;padding:20px;">No data available</p></div>
             </div>
+          </div>
+        </div>
+      </div>
+
+      <div id="mo-provider-calls" class="mo-panel" style="display:none;">
+        <div style="display:flex;flex-direction:column;gap:20px;">
+          <div class="card">
+            <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="phone"></span> Provider Call List — how to work it</h2></div>
+            <div style="padding:16px;font-size:0.9rem;line-height:1.6;color:var(--text-secondary);">
+              Manual B2B cold-call tracking for provider acquisition — separate from the Outreach Engine above, which is AI-driven email/SMS. This list is worked by phone only.
+              Target: <strong>7 minutes per call</strong>. Minimum <strong>6 completed surveys</strong> per market before drawing any conclusion about it. Best calling window: <strong>Tue–Thu</strong>.
+              Escalate, never guess, on: launch timing, coverage area, job volume, insurance/background-check requirements, commission/territory/contract terms, who else is on the platform, or any discount/trial — say
+              "Good question, and I don't want to guess. Let me get Jordan on it — when's a good time for him to call you?" and set Outcome to <em>Reached - wants Jordan call</em>.
+            </div>
+          </div>
+
+          <div class="card">
+            <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="bar-chart-2"></span> Market Rollup</h2></div>
+            <div id="pcl-rollup-summary" style="padding:0 16px 8px;font-size:0.85rem;color:var(--text-muted);"></div>
+            <div id="pcl-market-grid" style="padding:16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:14px;">
+              <p style="color:var(--text-muted);">Loading markets…</p>
+            </div>
+          </div>
+
+          <div class="card" id="pcl-market-context-card" style="display:none;">
+            <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="map"></span> <span id="pcl-context-title">Market context</span></h2></div>
+            <div id="pcl-market-context" style="padding:16px;font-size:0.9rem;line-height:1.6;color:var(--text-secondary);"></div>
+          </div>
+
+          <div class="card" id="pcl-prospects-card" style="display:none;">
+            <div class="card-header" style="display:flex;justify-content:space-between;align-items:center;">
+              <h2 class="card-title"><span class="icon-inline" data-icon="list"></span> <span id="pcl-prospects-title">Prospects</span></h2>
+              <button class="btn btn-sm" onclick="loadProviderCallProspects(pclSelectedMarket)"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+            </div>
+            <div id="pcl-prospects-table" style="overflow-x:auto;padding:0 16px 16px;"></div>
           </div>
         </div>
       </div>

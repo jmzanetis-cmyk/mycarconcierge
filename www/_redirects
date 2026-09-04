@@ -154,6 +154,7 @@
 /api/admin/send-bulk-welcome-emails /.netlify/functions/admin-welcome-email 200
 /api/admin/hubspot/* /.netlify/functions/admin-hubspot/:splat 200
 /api/admin/marketing/* /.netlify/functions/admin-marketing/:splat 200
+/api/admin/provider-outreach/* /.netlify/functions/admin-provider-outreach/:splat 200
 
 # Account deletion (App Store Guideline 5.1.1(v))
 /api/account/delete /.netlify/functions/account-delete 200
