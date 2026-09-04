@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v147';
+const CACHE_NAME = 'mcc-cache-v148';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -100,8 +100,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Network-first for chat widget files to ensure latest version
-  if (url.pathname === '/chat-widget-base.js' || url.pathname === '/helpdesk-widget.js') {
+  // Network-first for all app JS/CSS. This app ships frequent same-day
+  // deploys and CACHE_NAME is only bumped by hand — a cache-first strategy
+  // here means any browser (or long-lived incognito session) that already
+  // has a service worker installed keeps serving OLD .js/.css forever,
+  // silently, even after a brand-new deploy is live and "Published" on
+  // Netlify. That's exactly what happened 2026-09-04: Provider Call List's
+  // Market Rollup panel was stuck on "Loading markets..." because the
+  // browser was still executing a service-worker-cached admin.js from
+  // before the feature existed, despite the correct code being live at
+  // the origin. Falls back to cache only if the network request fails
+  // (e.g. offline), so this still works as a PWA offline shell.
+  if (url.pathname.endsWith('.js') || url.pathname.endsWith('.css')) {
     event.respondWith(
       fetch(request).then((response) => {
         if (response && response.status === 200) {
@@ -114,8 +124,9 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Cache-first is fine for images/fonts — these rarely change, and if one
+  // ever does, bumping CACHE_NAME below still cuts everyone over.
   if (request.destination === 'image' || request.destination === 'font' ||
-      url.pathname.endsWith('.js') || url.pathname.endsWith('.css') ||
       url.pathname.endsWith('.png') || url.pathname.endsWith('.jpg') ||
       url.pathname.endsWith('.webp') || url.pathname.endsWith('.woff2')) {
     event.respondWith(
