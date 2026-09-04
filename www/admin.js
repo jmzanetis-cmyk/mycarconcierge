@@ -596,6 +596,22 @@
     let adminTeamUser = null;
     let adminPermissions = null;
     let _adminBearer = null;
+    // 2026-09-04h — a single sign-in can trigger BOTH the calling code's own
+    // continuation (performAdminLogin, or the page-load session check) AND
+    // the separately-registered onAuthStateChange('SIGNED_IN') listener,
+    // since supabaseClient.auth.signInWithPassword()/getSession() both fire
+    // that listener too. Nothing stopped completeAdminAuth() /
+    // completeTeamLoginFrom() from both running for the same login — each
+    // full run re-fetches dashboard data, re-renders charts, and
+    // re-registers every click listener in setupEventListeners(), so two
+    // overlapping runs looks exactly like the page "jumping" a viewer
+    // reported after logging in: duplicate chart re-renders and doubled
+    // nav-click handlers (each click firing showSection() + scrollTo()
+    // twice) fighting each other. This is an in-flight lock, not a
+    // "run once ever" flag — completeAdminAuth() is legitimately called
+    // again much later by the 401 reauth-retry flow (openAiOpsReauth /
+    // _aiOpsReauthRetry, further down this file), which must still work.
+    let _authCompletionInFlight = false;
     let currentModalState = 'loading'; // 'loading', 'login', 'password', 'not-admin', 'team-login'
     
     function showModalState(state) {
@@ -864,24 +880,30 @@
     }
 
     async function completeAdminAuth() {
+      if (_authCompletionInFlight) return;
+      _authCompletionInFlight = true;
       try {
-        const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session?.access_token) {
-          _adminBearer = session.access_token;
-          globalThis._adminBearer = session.access_token;
+        try {
+          const { data: { session } } = await supabaseClient.auth.getSession();
+          if (session?.access_token) {
+            _adminBearer = session.access_token;
+            globalThis._adminBearer = session.access_token;
+          }
+        } catch { /* non-fatal */ }
+        adminPasswordVerified = false;
+        adminPermissions = null;
+        document.getElementById('admin-password-modal').style.display = 'none';
+        applyRolePermissions(null);
+        if (typeof _aiOpsReauthRetry === 'function') {
+          const fn = _aiOpsReauthRetry;
+          _aiOpsReauthRetry = null;
+          try { await fn(); } catch (retryErr) { console.error('[Admin] reauth retry failed:', retryErr); }
+        } else {
+          await loadAllData();
+          setupEventListeners();
         }
-      } catch { /* non-fatal */ }
-      adminPasswordVerified = false;
-      adminPermissions = null;
-      document.getElementById('admin-password-modal').style.display = 'none';
-      applyRolePermissions(null);
-      if (typeof _aiOpsReauthRetry === 'function') {
-        const fn = _aiOpsReauthRetry;
-        _aiOpsReauthRetry = null;
-        try { await fn(); } catch (retryErr) { console.error('[Admin] reauth retry failed:', retryErr); }
-      } else {
-        await loadAllData();
-        setupEventListeners();
+      } finally {
+        _authCompletionInFlight = false;
       }
     }
 
@@ -11345,22 +11367,28 @@
     // checked profiles.role === 'admin'. Whichever path resolves team
     // membership finishes the same way, via this one function.
     async function completeTeamLoginFrom(data) {
-      adminTeamToken = data.token;
-      adminTeamUser = data.user;
-      adminPermissions = data.permissions;
-      adminPasswordVerified = false;
-      // Expose to window + localStorage so external helper scripts (e.g.
-      // www/admin-agent-activity.js) can read the same credential when
-      // assembling auth headers. Mirrors how mcc_admin_pass is persisted.
+      if (_authCompletionInFlight) return;
+      _authCompletionInFlight = true;
       try {
-        globalThis.adminTeamToken = data.token;
-        if (data.token) localStorage.setItem('adminTeamToken', data.token);
-      } catch { /* Intentionally silent */ }
+        adminTeamToken = data.token;
+        adminTeamUser = data.user;
+        adminPermissions = data.permissions;
+        adminPasswordVerified = false;
+        // Expose to window + localStorage so external helper scripts (e.g.
+        // www/admin-agent-activity.js) can read the same credential when
+        // assembling auth headers. Mirrors how mcc_admin_pass is persisted.
+        try {
+          globalThis.adminTeamToken = data.token;
+          if (data.token) localStorage.setItem('adminTeamToken', data.token);
+        } catch { /* Intentionally silent */ }
 
-      document.getElementById('admin-password-modal').style.display = 'none';
-      applyRolePermissions(data.permissions);
-      await loadAllData();
-      setupEventListeners();
+        document.getElementById('admin-password-modal').style.display = 'none';
+        applyRolePermissions(data.permissions);
+        await loadAllData();
+        setupEventListeners();
+      } finally {
+        _authCompletionInFlight = false;
+      }
     }
 
     // Resolve team membership from email+password (the ordinary Sign In
