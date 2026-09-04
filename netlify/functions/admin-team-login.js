@@ -33,10 +33,36 @@ const ADMIN_ROLE_PERMISSIONS = require('../../lib/admin-role-permissions');
 
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
-  if (event.httpMethod !== 'POST') return utils.errorResponse(405, 'Method not allowed');
 
   const supabase = utils.createSupabaseClient();
   if (!supabase) return utils.errorResponse(500, 'Server configuration error');
+
+  // GET /api/admin/team-login — "who am I" for a session that's already
+  // signed in via plain Supabase Auth (Authorization: Bearer <access_token>)
+  // rather than this endpoint's own POST. 2026-09-04f: a team member's real
+  // credentials also pass the admin portal's ordinary Sign In form (they're
+  // genuine auth.users accounts), and that form only ever checked
+  // profiles.role === 'admin' — so a team member using it, or just
+  // reloading the page with that session still active, landed on "Access
+  // Denied" even though their account was perfectly valid. www/admin.js
+  // now falls back to this route (no password needed — the bearer token
+  // already proves who they are) before giving up. Reuses
+  // authenticateAdminSection with no section filter, i.e. "any active
+  // team member, whatever their role" — same identity shape POST returns.
+  if (event.httpMethod === 'GET') {
+    const admin = await utils.authenticateAdminSection(event, supabase, null);
+    if (!admin || admin.role === 'super_admin') {
+      return utils.errorResponse(403, 'This account is not set up for team admin access');
+    }
+    return utils.successResponse({
+      success: true,
+      token: (event.headers['authorization'] || event.headers['Authorization'] || '').trim().slice(7).trim(),
+      user: { displayName: admin.displayName, role: admin.role, email: admin.email },
+      permissions: ADMIN_ROLE_PERMISSIONS[admin.role] || []
+    });
+  }
+
+  if (event.httpMethod !== 'POST') return utils.errorResponse(405, 'Method not allowed');
 
   let body = {};
   try { body = JSON.parse(event.body || '{}'); } catch { return utils.errorResponse(400, 'Invalid JSON'); }

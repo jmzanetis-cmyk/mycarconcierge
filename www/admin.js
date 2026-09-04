@@ -705,13 +705,23 @@
           currentUser = data.user;
           // Check if admin
           const { data: profile } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
-          
+
           if (!profile || profile.role !== 'admin') {
+            // 2026-09-04f — not a super_admin, but this Sign In form just
+            // verified real Supabase credentials, and a team member's
+            // credentials are just as real (see admin-team-login.js). Try
+            // resolving team membership before declaring Access Denied.
+            const teamResult = await tryTeamLoginByPassword(email, password);
+            if (teamResult.ok) {
+              btn.disabled = false;
+              await completeTeamLoginFrom(teamResult.data);
+              return;
+            }
             showModalState('not-admin');
             btn.disabled = false;
             return;
           }
-          
+
           // Admin confirmed — complete auth directly (no password step needed)
           btn.disabled = false;
           await completeAdminAuth();
@@ -737,7 +747,14 @@
         if (profile && profile.role === 'admin') {
           await completeAdminAuth();
         } else {
-          showModalState('not-admin');
+          // 2026-09-04f — see performAdminLogin: try team membership via
+          // the session token we already have before declaring denial.
+          const teamResult = session.access_token ? await tryTeamLoginByToken(session.access_token) : { ok: false };
+          if (teamResult.ok) {
+            await completeTeamLoginFrom(teamResult.data);
+          } else {
+            showModalState('not-admin');
+          }
         }
       }
     });
@@ -817,7 +834,17 @@
           if (profile && profile.role === 'admin') {
             await completeAdminAuth();
           } else {
-            showModalState('not-admin');
+            // 2026-09-04f — see performAdminLogin: try team membership via
+            // the session token we already have before declaring denial.
+            // Covers, e.g., a team member reloading the page after a
+            // successful sign-in — this same check used to re-fail every
+            // time since it only ever recognized profiles.role === 'admin'.
+            const teamResult = session.access_token ? await tryTeamLoginByToken(session.access_token) : { ok: false };
+            if (teamResult.ok) {
+              await completeTeamLoginFrom(teamResult.data);
+            } else {
+              showModalState('not-admin');
+            }
           }
         } else {
           // No session - show login form (NO REDIRECT!)
@@ -11311,21 +11338,38 @@
       return headers;
     }
 
-    async function performTeamLogin() {
-      const email = document.getElementById('team-login-email')?.value?.trim();
-      const password = document.getElementById('team-login-password')?.value;
-      const errorEl = document.getElementById('team-login-error');
-      const btn = document.getElementById('admin-modal-btn');
-      
-      if (!email || !password) {
-        if (errorEl) { errorEl.textContent = 'Please enter email and password.'; errorEl.style.display = 'block'; }
-        return;
-      }
-      
-      btn.textContent = 'Signing in...';
-      btn.disabled = true;
-      if (errorEl) errorEl.style.display = 'none';
-      
+    // 2026-09-04f — shared by the explicit Team Login form AND the
+    // fallback paths below: a team member's real credentials also pass the
+    // ordinary admin Sign In form (they're genuine Supabase Auth accounts),
+    // which used to dead-end at "Access Denied" because it only ever
+    // checked profiles.role === 'admin'. Whichever path resolves team
+    // membership finishes the same way, via this one function.
+    async function completeTeamLoginFrom(data) {
+      adminTeamToken = data.token;
+      adminTeamUser = data.user;
+      adminPermissions = data.permissions;
+      adminPasswordVerified = false;
+      // Expose to window + localStorage so external helper scripts (e.g.
+      // www/admin-agent-activity.js) can read the same credential when
+      // assembling auth headers. Mirrors how mcc_admin_pass is persisted.
+      try {
+        globalThis.adminTeamToken = data.token;
+        if (data.token) localStorage.setItem('adminTeamToken', data.token);
+      } catch { /* Intentionally silent */ }
+
+      document.getElementById('admin-password-modal').style.display = 'none';
+      applyRolePermissions(data.permissions);
+      await loadAllData();
+      setupEventListeners();
+    }
+
+    // Resolve team membership from email+password (the ordinary Sign In
+    // form already has both in hand after a successful Supabase sign-in).
+    // Always resolves to {ok, data} rather than throwing/returning null, so
+    // callers that DO want the specific server error message (the explicit
+    // Team Login form) and callers that only care about ok/not-ok (the
+    // fallback paths below) can both use it.
+    async function tryTeamLoginByPassword(email, password) {
       try {
         const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
         const response = await fetch(`${apiBase}/api/admin/team-login`, {
@@ -11334,35 +11378,52 @@
           body: JSON.stringify({ email, password })
         });
         const data = await response.json();
-        
-        if (!response.ok || !data.success) {
-          if (errorEl) { errorEl.textContent = data.error || 'Login failed'; errorEl.style.display = 'block'; }
-          btn.textContent = 'Sign In';
-          btn.disabled = false;
-          return;
-        }
-        
-        adminTeamToken = data.token;
-        adminTeamUser = data.user;
-        adminPermissions = data.permissions;
-        adminPasswordVerified = false;
-        // Expose to window + localStorage so external helper scripts (e.g.
-        // www/admin-agent-activity.js) can read the same credential when
-        // assembling auth headers. Mirrors how mcc_admin_pass is persisted.
-        try {
-          globalThis.adminTeamToken = data.token;
-          if (data.token) localStorage.setItem('adminTeamToken', data.token);
-        } catch { /* Intentionally silent */ }
-        
-        document.getElementById('admin-password-modal').style.display = 'none';
-        applyRolePermissions(data.permissions);
-        await loadAllData();
-        setupEventListeners();
+        return { ok: response.ok && !!data.success, data };
       } catch (err) {
-        if (errorEl) { errorEl.textContent = 'Login failed. Please try again.'; errorEl.style.display = 'block'; }
+        return { ok: false, data: { error: 'Login failed. Please try again.' } };
+      }
+    }
+
+    // Resolve team membership from an EXISTING Supabase session token, no
+    // password needed — for the onAuthStateChange / page-reload paths that
+    // never see a plaintext password (e.g. she signed in once, then just
+    // reloaded the page). Hits the GET /api/admin/team-login "whoami" route.
+    async function tryTeamLoginByToken(accessToken) {
+      try {
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const response = await fetch(`${apiBase}/api/admin/team-login`, {
+          headers: { Authorization: 'Bearer ' + accessToken }
+        });
+        const data = await response.json();
+        return { ok: response.ok && !!data.success, data };
+      } catch (err) {
+        return { ok: false, data: {} };
+      }
+    }
+
+    async function performTeamLogin() {
+      const email = document.getElementById('team-login-email')?.value?.trim();
+      const password = document.getElementById('team-login-password')?.value;
+      const errorEl = document.getElementById('team-login-error');
+      const btn = document.getElementById('admin-modal-btn');
+
+      if (!email || !password) {
+        if (errorEl) { errorEl.textContent = 'Please enter email and password.'; errorEl.style.display = 'block'; }
+        return;
+      }
+
+      btn.textContent = 'Signing in...';
+      btn.disabled = true;
+      if (errorEl) errorEl.style.display = 'none';
+
+      const result = await tryTeamLoginByPassword(email, password);
+      if (!result.ok) {
+        if (errorEl) { errorEl.textContent = result.data.error || 'Login failed'; errorEl.style.display = 'block'; }
         btn.textContent = 'Sign In';
         btn.disabled = false;
+        return;
       }
+      await completeTeamLoginFrom(result.data);
     }
     globalThis.performTeamLogin = performTeamLogin;
 
