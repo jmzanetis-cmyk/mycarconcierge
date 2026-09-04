@@ -12238,6 +12238,18 @@
 
     async function initProviderCallList() {
       await loadProviderCallRollup();
+      // 2026-09-04c — Survey Results & Trend lives behind a collapsed
+      // <details>, same lazy-load-on-first-expand pattern as the Hunter &
+      // Promoter activity strip (see initMarketingHub above).
+      const resultsDetails = document.getElementById('pcl-results-details');
+      if (resultsDetails && !resultsDetails.__pclBound) {
+        resultsDetails.__pclBound = true;
+        resultsDetails.addEventListener('toggle', () => {
+          if (!resultsDetails.open || resultsDetails.__pclLoaded) return;
+          resultsDetails.__pclLoaded = true;
+          loadProviderCallResults();
+        });
+      }
     }
     globalThis.initProviderCallList = initProviderCallList;
 
@@ -12268,6 +12280,7 @@
         const rollupData = await rollupRes.json();
         const marketsData = await marketsRes.json();
         pclMarkets = marketsData.markets || [];
+        pclPopulateResultsMarketFilter();
         const byMarket = {};
         (pclMarkets || []).forEach(m => { byMarket[m.market] = m; });
         const rollups = rollupData.markets || [];
@@ -12313,6 +12326,144 @@
       }
     }
     globalThis.loadProviderCallRollup = loadProviderCallRollup;
+
+    // ------------------------------------------------------------------
+    // 2026-09-04c — Survey Results & Trend. Tabulates the 9 fixed-choice
+    // screening questions (S1/P1-P7/L1) and the interest rating into
+    // breakdowns, surfaces the free-text verbatim answers (R1/R2/C1/etc.)
+    // as a readable list, and shows a daily dialed/reached/surveyed trend.
+    // Backed by GET /api/admin/provider-outreach/results — see
+    // handleResults() in netlify/functions/admin-provider-outreach.js.
+    // ------------------------------------------------------------------
+    function pclPopulateResultsMarketFilter() {
+      const sel = document.getElementById('pcl-results-market-filter');
+      if (!sel) return;
+      const current = sel.value;
+      const sorted = (pclMarkets || []).slice().sort((a, b) => (a.market_rank ?? 0) - (b.market_rank ?? 0));
+      sel.innerHTML = '<option value="">All Markets</option>' +
+        sorted.map(m => `<option value="${escapeHtml(m.market)}">${escapeHtml(m.market)}</option>`).join('');
+      if (sorted.some(m => m.market === current)) sel.value = current;
+    }
+    globalThis.pclPopulateResultsMarketFilter = pclPopulateResultsMarketFilter;
+
+    async function loadProviderCallResults() {
+      const body = document.getElementById('pcl-results-body');
+      if (!body) return;
+      const filterEl = document.getElementById('pcl-results-market-filter');
+      const market = filterEl ? filterEl.value : '';
+      body.innerHTML = '<p style="color:var(--text-muted);">Loading…</p>';
+      try {
+        const qs = market ? ('?market=' + encodeURIComponent(market)) : '';
+        const res = await fetch('/api/admin/provider-outreach/results' + qs, { headers: pclHeaders() });
+        if (!res.ok) {
+          if ((res.status === 401 || res.status === 403) && typeof globalThis.renderAdminAuthError === 'function') {
+            globalThis.renderAdminAuthError(body, Object.assign(new Error('Admin session rejected on Survey Results (HTTP ' + res.status + '). Sign in again.'), { code: 'ADMIN_AUTH_REJECTED' }), loadProviderCallResults);
+            return;
+          }
+          body.innerHTML = `<p style="color:var(--accent-red);">Failed to load results (HTTP ${res.status}).</p>`;
+          return;
+        }
+        const data = await res.json();
+        body.innerHTML = pclResultsHtml(data);
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(body);
+      } catch (e) {
+        body.innerHTML = `<p style="color:var(--accent-red);">Error loading results: ${escapeHtml(e.message)}</p>`;
+      }
+    }
+    globalThis.loadProviderCallResults = loadProviderCallResults;
+
+    function pclBarBreakdown(options, total) {
+      if (!options.length || !total) return '<p style="color:var(--text-muted);font-size:0.78rem;">No data.</p>';
+      return options.map(o => {
+        const pct = total > 0 ? Math.round((o.count / total) * 100) : 0;
+        return `<div style="margin-bottom:6px;">
+          <div style="display:flex;justify-content:space-between;font-size:0.75rem;color:var(--text-secondary);">
+            <span>${escapeHtml(o.value)}</span><span>${o.count} (${pct}%)</span>
+          </div>
+          <div style="height:6px;background:var(--bg-elevated);border-radius:3px;overflow:hidden;">
+            <div style="height:100%;width:${pct}%;background:var(--accent-blue);border-radius:3px;"></div>
+          </div>
+        </div>`;
+      }).join('');
+    }
+
+    function pclResultsHtml(data) {
+      if (!data.prospects_counted) {
+        return '<p style="color:var(--text-muted);">No prospects in this market yet.</p>';
+      }
+
+      let html = '';
+
+      html += `<div style="margin-bottom:20px;">
+        <h3 style="font-size:0.9rem;font-weight:600;margin:0 0 8px;">Daily Activity Trend</h3>`;
+      if (!data.trend.length) {
+        html += '<p style="color:var(--text-muted);font-size:0.85rem;">No calls logged yet — this fills in as attempts get logged.</p>';
+      } else {
+        html += `<table style="width:100%;border-collapse:collapse;font-size:0.82rem;"><thead><tr>
+          <th style="text-align:left;padding:6px 10px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Day</th>
+          <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Dialed</th>
+          <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Live Contact</th>
+          <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Surveys Complete</th>
+          <th style="text-align:right;padding:6px 10px;border-bottom:1px solid var(--border-subtle);color:var(--text-muted);font-weight:500;">Cumulative Surveys</th>
+        </tr></thead><tbody>`;
+        data.trend.forEach(d => {
+          html += `<tr>
+            <td style="padding:6px 10px;border-bottom:1px solid var(--border-subtle);">${escapeHtml(d.day)}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid var(--border-subtle);text-align:right;">${d.dialed}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid var(--border-subtle);text-align:right;">${d.live}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid var(--border-subtle);text-align:right;">${d.surveys}</td>
+            <td style="padding:6px 10px;border-bottom:1px solid var(--border-subtle);text-align:right;font-weight:600;">${d.cumulative_surveys}</td>
+          </tr>`;
+        });
+        html += '</tbody></table>';
+      }
+      html += '</div>';
+
+      const ir = data.interest_rating;
+      html += `<div style="margin-bottom:20px;">
+        <h3 style="font-size:0.9rem;font-weight:600;margin:0 0 8px;">Interest Rating (1-5)</h3>`;
+      if (!ir.n) {
+        html += '<p style="color:var(--text-muted);font-size:0.85rem;">No ratings captured yet.</p>';
+      } else {
+        html += `<p style="font-size:0.85rem;color:var(--text-secondary);margin:0 0 8px;">Average: <strong>${ir.average}</strong> across ${ir.n} rated call${ir.n === 1 ? '' : 's'}</p>`;
+        html += pclBarBreakdown([1, 2, 3, 4, 5].map(n => ({ value: String(n), count: ir.counts[String(n)] || 0 })), ir.n);
+      }
+      html += '</div>';
+
+      html += `<div style="margin-bottom:20px;">
+        <h3 style="font-size:0.9rem;font-weight:600;margin:0 0 8px;">Screening Question Breakdowns</h3>
+        <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(260px,1fr));gap:16px;">`;
+      data.question_breakdowns.forEach(q => {
+        html += `<div>
+          <div style="font-size:0.8rem;font-weight:600;margin-bottom:4px;">${escapeHtml(q.label)}</div>`;
+        if (!q.answered) {
+          html += '<p style="color:var(--text-muted);font-size:0.78rem;">Not answered yet.</p>';
+        } else {
+          html += `<div style="font-size:0.75rem;color:var(--text-muted);margin-bottom:4px;">${q.answered} answered</div>`;
+          html += pclBarBreakdown(q.options, q.answered);
+        }
+        html += '</div>';
+      });
+      html += '</div></div>';
+
+      html += `<details>
+        <summary style="cursor:pointer;font-size:0.9rem;font-weight:600;margin-bottom:8px;">Verbatim Answers (${data.free_text.length})</summary>
+        <div style="max-height:400px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;padding-top:8px;">`;
+      if (!data.free_text.length) {
+        html += '<p style="color:var(--text-muted);font-size:0.85rem;">No verbatim answers captured yet.</p>';
+      } else {
+        data.free_text.forEach(ft => {
+          html += `<div style="border-left:2px solid var(--border-subtle);padding-left:10px;">
+            <div style="font-size:0.75rem;color:var(--text-muted);">${escapeHtml(ft.label)} · ${escapeHtml(ft.business_name)} · ${escapeHtml(ft.market)}</div>
+            <div style="font-size:0.85rem;color:var(--text-secondary);">${escapeHtml(ft.value)}</div>
+          </div>`;
+        });
+      }
+      html += '</div></details>';
+
+      return html;
+    }
+    globalThis.pclResultsHtml = pclResultsHtml;
 
     function selectProviderCallMarket(market) {
       pclSelectedMarket = market;

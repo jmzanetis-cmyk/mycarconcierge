@@ -19,6 +19,9 @@
 //   GET  /bid-packs                    → static pricing-tier reference table
 //   GET  /prospects?market=<market>    → prospects for one market, ordered by priority then row_number
 //   PUT  /prospects/:id                → update the caller-entered fields on one prospect
+//   GET  /results?market=<market>      → survey results: per-question answer breakdowns,
+//                                         interest-rating distribution, free-text answers, and
+//                                         a daily activity trend (2026-09-04c — see handleResults)
 //
 // Auth: Supabase Bearer JWT, either profiles.role === 'admin' (super_admin)
 // or an active admin_team_members row whose role includes 'marketing-outreach'
@@ -197,6 +200,128 @@ async function handleProspects(supabase, qs) {
   return { prospects: res.data || [] };
 }
 
+// 2026-09-04c — Survey Results & Trend. The screening-fields migration
+// (20260904b) added 19 columns for the discovery/screening half of the call
+// script, but nothing ever aggregated them: they only ever showed up one
+// prospect at a time inside the Log Call editor. This backs a results view
+// that answers "what did people actually say" (per-question breakdowns +
+// the qualitative verbatim answers) and "are we making progress" (a daily
+// activity trend), across one market or all of them.
+//
+// The 9 fields below are the ones captured via a fixed multiple-choice list
+// in the Log Call editor (see PCL_S1_OPTIONS etc. in www/admin.js) — these
+// get a real breakdown (count per answer). Free-text fields don't aggregate
+// meaningfully, so they're surfaced as a flat, readable list instead.
+var PCL_SELECT_QUESTIONS = [
+  { field: 's1_operating_model', label: 'S1 — Mobile / shop / both' },
+  { field: 'p1_how_found', label: 'P1 — How new customers find them' },
+  { field: 'p2_booking_process', label: 'P2 — First call to job done' },
+  { field: 'p3_growth_attempts', label: 'P3 — What they tried for more work' },
+  { field: 'p4_platform_experience', label: 'P4 — Paid-lead-platform experience' },
+  { field: 'p5_ideal_customer', label: 'P5 — Job/customer they want more of' },
+  { field: 'p6_monthly_spend', label: 'P6 — Monthly spend on new customers' },
+  { field: 'p7_slowest_time', label: 'P7 — Slowest time of week' },
+  { field: 'l1_regulatory_impact', label: 'L1 — Regulatory cycle impact' }
+];
+
+var PCL_FREE_TEXT_FIELDS = [
+  { field: 'r1_first_reaction', label: 'R1 — First reaction (verbatim)' },
+  { field: 'r2_first_worry', label: 'R2 — First worry (verbatim)' },
+  { field: 'c1_referral', label: 'C1 — Who else to call' },
+  { field: 'p2_where_lose_jobs', label: 'P2 probe — where they lose jobs' },
+  { field: 'p3_attempt_cost', label: 'P3 probe — did it work / what it cost' },
+  { field: 'p4b_which_platforms', label: 'P4b — Which platform(s)' },
+  { field: 'p5_not_worth_time', label: "P5 probe — what isn't worth their time" },
+  { field: 'l1_detail', label: 'L1 detail' },
+  { field: 'r3_yes_reason', label: 'R3 — What makes it a YES' },
+  { field: 'r3_no_reason', label: 'R3 — What makes it a NO' },
+  { field: 'bid_pack_decline_reason', label: 'Bid pack decline reason' },
+  { field: 'what_they_said', label: 'What they said to the bid pack' },
+  { field: 'c2_first_refusal', label: 'C2 — First refusal' },
+  { field: 'notes', label: 'Notes' }
+];
+
+async function handleResults(supabase, qs) {
+  var market = qs.market || '';
+  var query = supabase.from('provider_call_prospects').select('*');
+  if (market) query = query.eq('market', market);
+  var res = await query;
+  if (res.error) throw new Error(res.error.message);
+  var prospects = res.data || [];
+
+  var breakdowns = PCL_SELECT_QUESTIONS.map(function (q) {
+    var counts = {};
+    var answered = 0;
+    prospects.forEach(function (p) {
+      var v = p[q.field];
+      if (v == null || v === '') return;
+      answered++;
+      counts[v] = (counts[v] || 0) + 1;
+    });
+    var options = Object.keys(counts).map(function (k) { return { value: k, count: counts[k] }; })
+      .sort(function (a, b) { return b.count - a.count; });
+    return { field: q.field, label: q.label, answered: answered, options: options };
+  });
+
+  var ratings = prospects.map(function (p) { return p.interest_rating; }).filter(function (v) { return v != null; });
+  var ratingCounts = { '1': 0, '2': 0, '3': 0, '4': 0, '5': 0 };
+  ratings.forEach(function (r) { ratingCounts[String(r)] = (ratingCounts[String(r)] || 0) + 1; });
+  var avgRating = ratings.length
+    ? Math.round((ratings.reduce(function (a, b) { return a + b; }, 0) / ratings.length) * 10) / 10
+    : null;
+
+  // Free-text qualitative answers, newest edit first. No cap: at 130
+  // prospects x up to 14 free-text fields this can never realistically
+  // exceed a browser-friendly size, and truncating silently would hide
+  // exactly the color this view exists to surface.
+  var freeText = [];
+  prospects.forEach(function (p) {
+    PCL_FREE_TEXT_FIELDS.forEach(function (f) {
+      var v = p[f.field];
+      if (v == null || String(v).trim() === '') return;
+      freeText.push({
+        market: p.market, business_name: p.business_name,
+        field: f.field, label: f.label, value: v, updated_at: p.updated_at
+      });
+    });
+  });
+  freeText.sort(function (a, b) { return new Date(b.updated_at) - new Date(a.updated_at); });
+
+  // Daily activity trend. There is no separate call-attempt log — this
+  // buckets by each prospect's updated_at, which is last-touch only (a
+  // row edited twice on different days only ever shows its most recent
+  // day, not both), so treat this as a progress trend, not a precise
+  // historical audit. Nothing to bucket before today: attempt dates were
+  // never captured anywhere except paper before this feature existed.
+  var byDay = {};
+  prospects.forEach(function (p) {
+    var outcome = (p.outcome || '').trim();
+    var isLive = /^reached/i.test(outcome);
+    var isSurvey = /survey complete/i.test(outcome);
+    if (!p.attempt_1 && !isLive && !isSurvey) return;
+    var day = String(p.updated_at || p.created_at || '').slice(0, 10);
+    if (!day) return;
+    if (!byDay[day]) byDay[day] = { day: day, dialed: 0, live: 0, surveys: 0 };
+    if (p.attempt_1) byDay[day].dialed++;
+    if (isLive) byDay[day].live++;
+    if (isSurvey) byDay[day].surveys++;
+  });
+  var days = Object.keys(byDay).sort();
+  var cumSurveys = 0;
+  var trend = days.map(function (d) {
+    cumSurveys += byDay[d].surveys;
+    return Object.assign({ cumulative_surveys: cumSurveys }, byDay[d]);
+  });
+
+  return {
+    prospects_counted: prospects.length,
+    question_breakdowns: breakdowns,
+    interest_rating: { average: avgRating, counts: ratingCounts, n: ratings.length },
+    free_text: freeText,
+    trend: trend
+  };
+}
+
 async function handleUpdateProspect(supabase, id, body) {
   if (!id) throw Object.assign(new Error('Prospect id is required'), { statusCode: 400 });
   var update = {};
@@ -241,6 +366,9 @@ exports.handler = async function (event) {
     }
     if (method === 'GET' && path === 'prospects') {
       return jsonResponse(200, await handleProspects(supabase, qs));
+    }
+    if (method === 'GET' && path === 'results') {
+      return jsonResponse(200, await handleResults(supabase, qs));
     }
     var updateMatch = /^prospects\/([^\/]+)$/.exec(path);
     if (method === 'PUT' && updateMatch) {

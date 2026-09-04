@@ -1137,13 +1137,20 @@
            the page. Fetch + render is now deferred to first expand
            (see the 'toggle' listener in www/admin.js, initMarketingHub). -->
       <style>
+        /* 2026-09-04c: widened from an ID-scoped selector to a plain class
+           selector so this same collapsible-disclosure look is reusable
+           anywhere (originally only backed #mo-agent-activity-details). */
+        details.mo-collapsible-card > summary.mo-collapsible-summary,
         #mo-agent-activity-details > summary.mo-collapsible-summary {
           cursor: pointer; user-select: none; list-style: none; outline: none;
           font-weight: 600; font-size: 0.95rem; color: var(--text-primary);
           padding: 14px 16px; display: flex; align-items: center; gap: 8px;
         }
+        details.mo-collapsible-card > summary.mo-collapsible-summary::-webkit-details-marker,
         #mo-agent-activity-details > summary.mo-collapsible-summary::-webkit-details-marker { display: none; }
+        details.mo-collapsible-card > summary.mo-collapsible-summary::before,
         #mo-agent-activity-details > summary.mo-collapsible-summary::before { content: '▸'; color: var(--text-muted); }
+        details.mo-collapsible-card[open] > summary.mo-collapsible-summary::before,
         #mo-agent-activity-details[open] > summary.mo-collapsible-summary::before { content: '▾'; }
       </style>
       <details class="card" id="mo-agent-activity-details" style="margin-bottom:20px;">
@@ -2088,6 +2095,28 @@
               <p style="color:var(--text-muted);">Loading markets…</p>
             </div>
           </div>
+
+          <!-- 2026-09-04c: Survey Results & Trend — tabulates the screening-
+               question answers (S1/P1-P7/L1/interest rating) and surfaces
+               the free-text verbatim answers, plus a daily activity trend,
+               across one market or all of them. Collapsed by default and
+               lazy-loaded on first expand, same pattern as the Hunter &
+               Promoter activity strip above (see initProviderCallList in
+               www/admin.js). -->
+          <details class="card mo-collapsible-card" id="pcl-results-details">
+            <summary class="mo-collapsible-summary"><span class="icon-inline" data-icon="trending-up"></span> Survey Results &amp; Trend</summary>
+            <div style="padding:0 16px 16px;">
+              <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
+                <label style="font-size:0.85rem;color:var(--text-muted);display:flex;align-items:center;gap:6px;">Market:
+                  <select id="pcl-results-market-filter" onchange="loadProviderCallResults()" style="padding:6px 8px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-elevated);color:var(--text-primary);">
+                    <option value="">All Markets</option>
+                  </select>
+                </label>
+                <button class="btn btn-sm" onclick="loadProviderCallResults()"><span class="icon-inline" data-icon="refresh-cw"></span> Refresh</button>
+              </div>
+              <div id="pcl-results-body"><p style="color:var(--text-muted);">Expand to load…</p></div>
+            </div>
+          </details>
 
           <div class="card" id="pcl-market-context-card" style="display:none;">
             <div class="card-header"><h2 class="card-title"><span class="icon-inline" data-icon="map"></span> <span id="pcl-context-title">Market context</span></h2></div>
