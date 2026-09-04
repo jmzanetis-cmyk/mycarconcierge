@@ -3,6 +3,13 @@
   let outreachState = {};
   let outreachLeads = [];
   let outreachPipeline = [];
+  // Task (2026-09-04, decluttering) — the pipeline table was rendering
+  // every matching row in one shot (hundreds at once, sometimes dozens of
+  // near-duplicate leads back to back). Render a page at a time instead;
+  // "Load more" reveals the next slice of the already-fetched array, no
+  // extra network round trip needed.
+  const PIPELINE_PAGE_SIZE = 25;
+  let pipelineVisibleCount = PIPELINE_PAGE_SIZE;
   let outreachMessages = [];
   let outreachCampaigns = [];
   let currentOutreachTab = 'pipeline';
@@ -1407,21 +1414,33 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
 
     const priority = document.getElementById('pipeline-filter-priority')?.value || '';
     const stage = document.getElementById('pipeline-filter-stage')?.value || '';
+    const type = document.getElementById('pipeline-filter-type')?.value || '';
     const params = new URLSearchParams();
     if (priority) params.set('priority', priority);
     if (stage) params.set('stage', stage);
+    if (type) params.set('type', type);
 
     container.innerHTML = '<div class="loading-spinner" style="padding:40px;text-align:center;"><div style="width:32px;height:32px;border:3px solid var(--border-subtle);border-top-color:var(--accent-blue);border-radius:50%;animation:spin 1s linear infinite;margin:0 auto;"></div></div>';
 
     const res = await outreachFetch('/pipeline?' + params.toString());
     outreachPipeline = await res.json();
+    pipelineVisibleCount = PIPELINE_PAGE_SIZE;
 
     if (!outreachPipeline.length) {
       container.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text-muted);"><p>No opportunities in the pipeline yet.</p><p style="margin-top:8px;">Add leads manually or import from Google Places to get started.</p></div>';
       return;
     }
 
-    container.innerHTML = outreachPipeline.map(opp => {
+    renderPipelineRows();
+  }
+
+  function renderPipelineRows() {
+    const container = document.getElementById('outreach-pipeline-list');
+    if (!container) return;
+    const visible = outreachPipeline.slice(0, pipelineVisibleCount);
+    const remaining = outreachPipeline.length - visible.length;
+
+    const rowsHtml = visible.map(opp => {
       const lead = opp.outreach_leads || {};
       const isDuplicate = lead.crm_sync_status === 'duplicate';
       const isReengagement = lead.source === 'crm_reengagement';
@@ -1452,7 +1471,20 @@ supabase/migrations/20260425_outreach_crm_bridge.sql
         </div>
       `;
     }).join('');
+
+    const footerHtml = `<div style="padding:14px;text-align:center;color:var(--text-muted);font-size:0.85rem;">
+      Showing ${visible.length} of ${outreachPipeline.length}
+      ${remaining > 0 ? `<button class="btn btn-sm" style="margin-left:10px;" onclick="globalThis.loadMorePipelineRows()">Load ${Math.min(remaining, PIPELINE_PAGE_SIZE)} more</button>` : ''}
+    </div>`;
+
+    container.innerHTML = rowsHtml + footerHtml;
   }
+
+  function loadMorePipelineRows() {
+    pipelineVisibleCount += PIPELINE_PAGE_SIZE;
+    renderPipelineRows();
+  }
+  globalThis.loadMorePipelineRows = loadMorePipelineRows;
 
   async function loadMessageQueue() {
     const container = document.getElementById('outreach-queue-list');

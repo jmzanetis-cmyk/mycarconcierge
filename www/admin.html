@@ -1130,10 +1130,26 @@
         </div>
       </div>
 
-      <!-- Task #139: Hunter & Promoter agent activity strip -->
-      <div class="card" style="margin-bottom:20px;">
-        <div id="mo-agent-activity"></div>
-      </div>
+      <!-- Task #139: Hunter & Promoter agent activity strip.
+           2026-09-04 (decluttering) — collapsed by default. It used to
+           render up to ~30 full activity cards (each with its own
+           "Show details" drawer) every time this tab loaded, dominating
+           the page. Fetch + render is now deferred to first expand
+           (see the 'toggle' listener in www/admin.js, initMarketingHub). -->
+      <style>
+        #mo-agent-activity-details > summary.mo-collapsible-summary {
+          cursor: pointer; user-select: none; list-style: none; outline: none;
+          font-weight: 600; font-size: 0.95rem; color: var(--text-primary);
+          padding: 14px 16px; display: flex; align-items: center; gap: 8px;
+        }
+        #mo-agent-activity-details > summary.mo-collapsible-summary::-webkit-details-marker { display: none; }
+        #mo-agent-activity-details > summary.mo-collapsible-summary::before { content: '▸'; color: var(--text-muted); }
+        #mo-agent-activity-details[open] > summary.mo-collapsible-summary::before { content: '▾'; }
+      </style>
+      <details class="card" id="mo-agent-activity-details" style="margin-bottom:20px;">
+        <summary class="mo-collapsible-summary">Recent Hunter & Promoter Activity</summary>
+        <div id="mo-agent-activity" style="padding:0 16px 16px;"></div>
+      </details>
 
       <!-- Task #222: Launch broadcast send progress + bounce stats -->
       <div class="card" id="launch-broadcast-card" style="margin-bottom:20px;">

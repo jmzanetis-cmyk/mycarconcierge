@@ -12607,12 +12607,28 @@
       updatePlatformVisibility();
       await loadSavedCampaigns();
       // Task #139 — Hunter & Promoter activity strip at top of section.
-      if (typeof globalThis.renderAgentActivityPanel === 'function') {
-        try { globalThis.renderAgentActivityPanel('mo-agent-activity', {
-          agentSlug: ['hunter', 'promoter'], limit: 15,
-          title: 'Recent Hunter & Promoter Activity', showEmpty: true,
-          linkContext: { section: 'marketing-outreach' }
-        }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
+      // 2026-09-04 (decluttering): this used to render eagerly here, which
+      // meant every visit to Marketing & Outreach fetched and drew up to
+      // ~30 full activity cards (each with its own "Show details" drawer)
+      // whether or not anyone looked at them. It now lives behind a
+      // collapsed <details> (see www/admin.html) and only fetches/renders
+      // the first time it's actually expanded.
+      const moActivityDetails = document.getElementById('mo-agent-activity-details');
+      if (moActivityDetails && !moActivityDetails.__aapBound) {
+        moActivityDetails.__aapBound = true;
+        moActivityDetails.addEventListener('toggle', () => {
+          if (!moActivityDetails.open || moActivityDetails.__aapLoaded) return;
+          moActivityDetails.__aapLoaded = true;
+          if (typeof globalThis.renderAgentActivityPanel === 'function') {
+            try { globalThis.renderAgentActivityPanel('mo-agent-activity', {
+              // title left blank — the <summary> above already labels this
+              // section, no need to repeat it inside the expanded panel.
+              agentSlug: ['hunter', 'promoter'], limit: 15,
+              title: '', showEmpty: true,
+              linkContext: { section: 'marketing-outreach' }
+            }); } catch (e) { console.warn('[admin] marketing agent panel failed:', e); }
+          }
+        });
       }
       // Task #222 — Launch broadcast send progress + bounces.
       try { await loadLaunchBroadcastStats(); }
