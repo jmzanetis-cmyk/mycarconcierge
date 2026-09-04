@@ -12286,7 +12286,7 @@
           const meta = byMarket[r.market] || {};
           const active = r.market === pclSelectedMarket;
           const thresholdColor = r.threshold_met ? 'var(--accent-green,#4ade80)' : 'var(--text-muted)';
-          return `<div class="card" style="cursor:pointer;padding:14px;border:2px solid ${active ? 'var(--accent-blue)' : 'transparent'};" onclick="selectProviderCallMarket(${JSON.stringify(r.market)})">
+          return `<div class="card" style="cursor:pointer;padding:14px;border:2px solid ${active ? 'var(--accent-blue)' : 'transparent'};" onclick="selectProviderCallMarket(${escapeHtml(JSON.stringify(r.market))})">
             <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:6px;">
               <strong style="font-size:0.95rem;">#${meta.market_rank ?? r.market_rank ?? ''} ${escapeHtml(r.market)}</strong>
             </div>
@@ -12386,7 +12386,7 @@
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);">${escapeHtml(p.contact_name || '—')}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);max-width:180px;">${escapeHtml(p.outcome || 'Not attempted')}</td>
           <td style="padding:8px 10px;border-bottom:1px solid var(--border-subtle);white-space:nowrap;">
-            <button class="btn btn-sm" onclick="togglePclCallLog(${JSON.stringify(p.id)})">${isEditing ? 'Close' : 'Log Call'}</button>
+            <button class="btn btn-sm" onclick="togglePclCallLog(${escapeHtml(JSON.stringify(p.id))})">${isEditing ? 'Close' : 'Log Call'}</button>
           </td>
         </tr>`;
         if (isEditing) {
@@ -12485,8 +12485,8 @@
         </div>
 
         <div style="margin-top:12px;display:flex;gap:8px;">
-          <button class="btn btn-sm btn-primary" onclick="savePclCallLog(${JSON.stringify(p.id)})"><span class="icon-inline" data-icon="save"></span> Save</button>
-          <button class="btn btn-sm" onclick="togglePclCallLog(${JSON.stringify(p.id)})">Cancel</button>
+          <button class="btn btn-sm btn-primary" onclick="savePclCallLog(${escapeHtml(JSON.stringify(p.id))})"><span class="icon-inline" data-icon="save"></span> Save</button>
+          <button class="btn btn-sm" onclick="togglePclCallLog(${escapeHtml(JSON.stringify(p.id))})">Cancel</button>
         </div>
       </td></tr>`;
     }
@@ -12656,7 +12656,7 @@
           </div>
           <div style="font-size:0.9rem;color:var(--text-secondary);white-space:pre-wrap;max-height:80px;overflow:hidden;text-overflow:ellipsis;">${p.content.substring(0, 200)}${p.content.length > 200 ? '...' : ''}</div>
         </div>
-        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(${JSON.stringify(p.content).replaceAll('\'', "\\'")}); showToast('Copied');"><span class="icon-inline" data-icon="clipboard"></span></button>
+        <button class="btn btn-sm" onclick="navigator.clipboard.writeText(${escapeHtml(JSON.stringify(p.content).replaceAll('\'', "\\'"))}); showToast('Copied');"><span class="icon-inline" data-icon="clipboard"></span></button>
       </div>`).join('');
     }
     globalThis.loadSocialPostHistory = loadSocialPostHistory;
@@ -14517,7 +14517,7 @@
               <td style="padding:10px 14px;text-align:center;">${badge(r.skip_identity_verification)}</td>
               <td style="padding:10px 14px;text-align:center;">${badge(r.is_active)}</td>
               <td style="padding:10px 14px;color:var(--text-muted);font-size:0.82rem;">${r.created_at ? new Date(r.created_at).toLocaleDateString() : '—'}</td>
-              <td style="padding:10px 14px;"><button class="btn btn-secondary btn-sm" onclick="showAdminQr(${JSON.stringify(qrUrl)},${JSON.stringify(r.code||'')},${JSON.stringify(p.full_name||'Provider')})">QR</button></td>
+              <td style="padding:10px 14px;"><button class="btn btn-secondary btn-sm" onclick="showAdminQr(${escapeHtml(JSON.stringify(qrUrl))},${escapeHtml(JSON.stringify(r.code||''))},${escapeHtml(JSON.stringify(p.full_name||'Provider'))})">QR</button></td>
             </tr>`;
           }).join('')}
           </tbody></table>`;
@@ -14546,7 +14546,7 @@
               <td style="padding:10px 14px;text-align:center;">${f.total_provider_referrals||0}</td>
               <td style="padding:10px 14px;text-align:center;">${f.total_member_referrals||0}</td>
               <td style="padding:10px 14px;text-align:right;font-weight:600;">$${((f.total_commissions_earned||0)/100).toFixed(2)}</td>
-              <td style="padding:10px 14px;">${qrUrl ? `<button class="btn btn-secondary btn-sm" onclick="showAdminQr(${JSON.stringify(qrUrl)},${JSON.stringify(f.referral_code||'')},${JSON.stringify(f.full_name||'Founder')})">QR</button>` : ''}</td>
+              <td style="padding:10px 14px;">${qrUrl ? `<button class="btn btn-secondary btn-sm" onclick="showAdminQr(${escapeHtml(JSON.stringify(qrUrl))},${escapeHtml(JSON.stringify(f.referral_code||''))},${escapeHtml(JSON.stringify(f.full_name||'Founder'))})">QR</button>` : ''}</td>
             </tr>`;
           }).join('')}
           </tbody></table>`;
