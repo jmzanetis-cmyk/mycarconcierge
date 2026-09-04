@@ -185,7 +185,16 @@ exports.handler = async function(event) {
         email_confirm: true
       });
       if (signUpErr) {
-        if (signUpErr.message && signUpErr.message.toLowerCase().includes('already registered')) {
+        // 2026-09-04g — GoTrue's actual current wording is "...has already
+        // BEEN registered", which `.includes('already registered')` never
+        // matches (see the same fix in admin-invite.js) — so this check
+        // silently never fired and a raw Supabase error message leaked
+        // through instead of this friendly one. Also check `.code`
+        // ('email_exists' in newer GoTrue responses), a more stable signal
+        // than message text.
+        const alreadyRegistered = signUpErr.code === 'email_exists'
+          || /already\s+(?:\w+\s+)?registered/i.test(signUpErr.message || '');
+        if (alreadyRegistered) {
           return jsonResponse(409, { error: 'A user with this email already exists' });
         }
         return jsonResponse(500, { error: signUpErr.message || 'Failed to create account' });

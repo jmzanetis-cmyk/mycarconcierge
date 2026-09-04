@@ -28,6 +28,21 @@ function createSupabaseClient() {
   return createClient(url, key);
 }
 
+// 2026-09-04g — the current GoTrue wording is "A user with this email
+// address has already been registered" (an extra "been" vs. the shorter
+// "already registered" this file's own check, and admin-team.js's matching
+// check, were both written against) — so `.includes('already registered')`
+// never matched, this whole reactivation path never ran, and the RAW
+// Supabase message reached the user instead. Also check `err.code`
+// ('email_exists' in newer GoTrue responses) as a more stable signal than
+// message text, which the wording above shows can drift without an API
+// version bump making it obvious.
+function isAlreadyRegisteredError(err) {
+  if (!err) return false;
+  if (err.code === 'email_exists') return true;
+  return /already\s+(?:\w+\s+)?registered/i.test(err.message || '');
+}
+
 // 2026-09-04e — "Remove" in Team Management (admin-team.js DELETE
 // /members/:id) deliberately bans the Supabase Auth account for 100 years
 // instead of hard-deleting it, so a mistaken removal can still be undone.
@@ -109,7 +124,7 @@ exports.handler = async function(event) {
 
     let userId;
     if (signUpErr) {
-      const alreadyRegistered = signUpErr.message && signUpErr.message.toLowerCase().includes('already registered');
+      const alreadyRegistered = isAlreadyRegisteredError(signUpErr);
       if (!alreadyRegistered) {
         return json(500, { error: signUpErr.message || 'Failed to create account' });
       }
