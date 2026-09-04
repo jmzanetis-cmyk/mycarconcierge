@@ -12404,7 +12404,32 @@
       </label>`;
     }
 
+    function pclSelectField(id, label, value, options, width) {
+      const opts = ['<option value="">—</option>'].concat(options.map(o =>
+        `<option value="${escapeHtml(o)}"${value === o ? ' selected' : ''}>${escapeHtml(o)}</option>`
+      )).join('');
+      return `<label style="display:flex;flex-direction:column;gap:3px;font-size:0.75rem;color:var(--text-muted);${width ? 'width:' + width + ';' : ''}">${label}
+        <select id="${id}" style="padding:6px 8px;border:1px solid var(--border-subtle);border-radius:4px;background:var(--bg-elevated);color:var(--text-primary);font-size:0.85rem;">${opts}</select>
+      </label>`;
+    }
+
+    const PCL_S1_OPTIONS = ['Mobile only', 'Shop + mobile', 'Shop only', 'Would consider mobile'];
+    const PCL_P1_OPTIONS = ['Word of mouth', 'Google', 'online ads', 'Repeat only', 'Social media', 'Walk-ins', 'location', 'Paid lead platform'];
+    const PCL_P2_OPTIONS = ['Phone only', 'Text', 'messaging', 'Online booking', 'Walk-in', 'first come', 'Mix of phone + text'];
+    const PCL_P3_OPTIONS = ['Paid ads', 'Asked for referrals', 'Tried a lead-gen platform', 'Discounts', 'promos', "Nothing — haven't tried"];
+    const PCL_P4_OPTIONS = ['Good experience', 'Got burned', 'quit', 'Mixed results', 'Never used one', 'Heard of them — avoided'];
+    const PCL_P5_OPTIONS = ['Bigger repair jobs', 'Repeat', 'loyal', "Don't haggle", 'Specific vehicle types', 'Local', 'nearby', 'Fleet', 'commercial'];
+    const PCL_P6_OPTIONS = ['$0', 'Under $100', '$100–500', '$500–1500', '$1500+', "Wouldn't say"];
+    const PCL_P7_OPTIONS = ['Mornings', 'Mid-week', 'Weekends', 'Seasonal', 'winter', 'Booked solid'];
+    const PCL_L1_OPTIONS = ['Big effect — describe', 'Some effect', 'No effect', "Hadn't thought about it", 'Not set up for it'];
+    const PCL_INTEREST_OPTIONS = ['1', '2', '3', '4', '5'];
+
+    function pclSectionLabel(text) {
+      return `<div style="font-weight:600;font-size:0.8rem;margin-top:14px;margin-bottom:2px;color:var(--text-primary);">${text}</div>`;
+    }
+
     function pclCallLogRowHtml(p) {
+      const iv = p.interest_rating != null ? String(p.interest_rating) : '';
       return `<tr id="pcl-edit-row-${p.id}"><td colspan="9" style="padding:14px;background:var(--bg-elevated);border-bottom:1px solid var(--border-subtle);">
         <div style="display:flex;flex-wrap:wrap;gap:12px;">
           ${pclField('pcl-f-contact_name-' + p.id, 'Contact Name', p.contact_name, '160px')}
@@ -12412,19 +12437,53 @@
           ${pclField('pcl-f-attempt_2-' + p.id, 'Attempt 2 (date)', p.attempt_2, '130px')}
           ${pclField('pcl-f-attempt_3-' + p.id, 'Attempt 3 (date)', p.attempt_3, '130px')}
           ${pclField('pcl-f-outcome-' + p.id, 'Outcome', p.outcome, '220px')}
+        </div>
+
+        ${pclSectionLabel('Screen + Core')}
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          ${pclSelectField('pcl-f-s1_operating_model-' + p.id, 'S1 Mobile / shop / both', p.s1_operating_model, PCL_S1_OPTIONS, '190px')}
+          ${pclSelectField('pcl-f-p1_how_found-' + p.id, 'P1 How new customers find them', p.p1_how_found, PCL_P1_OPTIONS, '190px')}
+          ${pclSelectField('pcl-f-p2_booking_process-' + p.id, 'P2 First call → job done', p.p2_booking_process, PCL_P2_OPTIONS, '190px')}
+          ${pclField('pcl-f-p2_where_lose_jobs-' + p.id, 'P2 probe: where they lose jobs', p.p2_where_lose_jobs, '220px')}
+          ${pclSelectField('pcl-f-p3_growth_attempts-' + p.id, 'P3 What they tried for more work', p.p3_growth_attempts, PCL_P3_OPTIONS, '190px')}
+          ${pclField('pcl-f-p3_attempt_cost-' + p.id, 'P3 probe: did it work / cost', p.p3_attempt_cost, '220px')}
+          ${pclSelectField('pcl-f-p4_platform_experience-' + p.id, 'P4 Paid-lead-platform experience', p.p4_platform_experience, PCL_P4_OPTIONS, '190px')}
+          ${pclField('pcl-f-p4b_which_platforms-' + p.id, 'P4b Which platform(s)', p.p4b_which_platforms, '190px')}
+          ${pclSelectField('pcl-f-p5_ideal_customer-' + p.id, 'P5 Job/customer they want more of', p.p5_ideal_customer, PCL_P5_OPTIONS, '190px')}
+          ${pclField('pcl-f-p5_not_worth_time-' + p.id, 'P5 probe: not worth their time', p.p5_not_worth_time, '220px')}
+          ${pclSelectField('pcl-f-p6_monthly_spend-' + p.id, 'P6 Monthly spend on new customers', p.p6_monthly_spend, PCL_P6_OPTIONS, '190px')}
+          ${pclSelectField('pcl-f-p7_slowest_time-' + p.id, 'P7 Slowest time of week', p.p7_slowest_time, PCL_P7_OPTIONS, '190px')}
+          ${pclSelectField('pcl-f-l1_regulatory_impact-' + p.id, 'L1 Regulatory cycle impact', p.l1_regulatory_impact, PCL_L1_OPTIONS, '190px')}
+          ${pclField('pcl-f-l1_detail-' + p.id, 'L1 detail (if Big effect)', p.l1_detail, '220px')}
+        </div>
+
+        ${pclSectionLabel('Reaction')}
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          ${pclField('pcl-f-r1_first_reaction-' + p.id, 'R1 First thing that comes to mind (verbatim)', p.r1_first_reaction, '260px')}
+          ${pclField('pcl-f-r2_first_worry-' + p.id, 'R2 First thing that worries them (verbatim)', p.r2_first_worry, '260px')}
+        </div>
+
+        ${pclSectionLabel('Price Test')}
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
           ${pclField('pcl-f-b1_send_bid-' + p.id, 'B1 Send a bid at $10?', p.b1_send_bid, '140px')}
           ${pclField('pcl-f-b2_fair_price-' + p.id, 'B2 Fair price ($)', p.b2_fair_price, '110px')}
           ${pclField('pcl-f-b2_price_unit-' + p.id, 'B2b Price unit', p.b2_price_unit, '150px')}
           ${pclField('pcl-f-b3_bid_style-' + p.id, 'B3 Bid style', p.b3_bid_style, '150px')}
-          ${pclField('pcl-f-bid_pack_pitched-' + p.id, 'Bid pack pitched?', p.bid_pack_pitched, '140px')}
-          ${pclField('pcl-f-c2_first_refusal-' + p.id, 'C2 First refusal', p.c2_first_refusal, '160px')}
-        </div>
-        <div style="display:flex;flex-wrap:wrap;gap:12px;margin-top:10px;">
           ${pclField('pcl-f-r3_yes_reason-' + p.id, 'R3 What makes it a YES', p.r3_yes_reason, '260px')}
           ${pclField('pcl-f-r3_no_reason-' + p.id, 'R3 What makes it a NO', p.r3_no_reason, '260px')}
+        </div>
+
+        ${pclSectionLabel('Close')}
+        <div style="display:flex;flex-wrap:wrap;gap:12px;">
+          ${pclField('pcl-f-c1_referral-' + p.id, 'C1 Who else should Maria call', p.c1_referral, '260px')}
+          ${pclField('pcl-f-bid_pack_pitched-' + p.id, 'Bid pack pitched?', p.bid_pack_pitched, '140px')}
+          ${pclField('pcl-f-bid_pack_decline_reason-' + p.id, 'Why not (if declined)', p.bid_pack_decline_reason, '220px')}
           ${pclField('pcl-f-what_they_said-' + p.id, 'What they said to it', p.what_they_said, '260px')}
+          ${pclField('pcl-f-c2_first_refusal-' + p.id, 'C2 First refusal', p.c2_first_refusal, '160px')}
+          ${pclSelectField('pcl-f-interest_rating-' + p.id, 'Interest (1-5)', iv, PCL_INTEREST_OPTIONS, '100px')}
           ${pclField('pcl-f-notes-' + p.id, 'Notes', p.notes, '260px')}
         </div>
+
         <div style="margin-top:12px;display:flex;gap:8px;">
           <button class="btn btn-sm btn-primary" onclick="savePclCallLog(${JSON.stringify(p.id)})"><span class="icon-inline" data-icon="save"></span> Save</button>
           <button class="btn btn-sm" onclick="togglePclCallLog(${JSON.stringify(p.id)})">Cancel</button>
@@ -12440,9 +12499,15 @@
 
     const PCL_EDITABLE_FIELDS = [
       'contact_name', 'attempt_1', 'attempt_2', 'attempt_3', 'outcome',
+      's1_operating_model', 'p1_how_found', 'p2_booking_process', 'p2_where_lose_jobs',
+      'p3_growth_attempts', 'p3_attempt_cost', 'p4_platform_experience', 'p4b_which_platforms',
+      'p5_ideal_customer', 'p5_not_worth_time', 'p6_monthly_spend', 'p7_slowest_time',
+      'l1_regulatory_impact', 'l1_detail',
+      'r1_first_reaction', 'r2_first_worry',
       'b1_send_bid', 'b2_fair_price', 'b2_price_unit', 'b3_bid_style',
-      'r3_yes_reason', 'r3_no_reason', 'bid_pack_pitched', 'what_they_said',
-      'c2_first_refusal', 'notes'
+      'r3_yes_reason', 'r3_no_reason',
+      'c1_referral', 'bid_pack_pitched', 'bid_pack_decline_reason', 'what_they_said',
+      'c2_first_refusal', 'interest_rating', 'notes'
     ];
 
     async function savePclCallLog(id) {
@@ -12454,6 +12519,10 @@
       if (payload.b2_fair_price != null) {
         const n = Number(payload.b2_fair_price);
         payload.b2_fair_price = Number.isFinite(n) ? n : null;
+      }
+      if (payload.interest_rating != null) {
+        const n = Number(payload.interest_rating);
+        payload.interest_rating = Number.isFinite(n) ? n : null;
       }
       try {
         const res = await fetch('/api/admin/provider-outreach/prospects/' + encodeURIComponent(id), {

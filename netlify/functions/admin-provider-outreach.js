@@ -35,9 +35,20 @@ var utils = require('./utils');
 // Places is intentionally excluded so a caller can never overwrite it.
 var EDITABLE_FIELDS = [
   'contact_name', 'attempt_1', 'attempt_2', 'attempt_3', 'outcome',
+  // Screen + Core (2026-09-04b: discovery/screening half of the call script,
+  // originally only ever captured on the paper worksheet, never on a column)
+  's1_operating_model', 'p1_how_found', 'p2_booking_process', 'p2_where_lose_jobs',
+  'p3_growth_attempts', 'p3_attempt_cost', 'p4_platform_experience', 'p4b_which_platforms',
+  'p5_ideal_customer', 'p5_not_worth_time', 'p6_monthly_spend', 'p7_slowest_time',
+  'l1_regulatory_impact', 'l1_detail',
+  // Describe + reaction
+  'r1_first_reaction', 'r2_first_worry',
+  // Price test (original schema)
   'b1_send_bid', 'b2_fair_price', 'b2_price_unit', 'b3_bid_style',
-  'r3_yes_reason', 'r3_no_reason', 'bid_pack_pitched', 'what_they_said',
-  'c2_first_refusal', 'notes'
+  'r3_yes_reason', 'r3_no_reason',
+  // Close
+  'c1_referral', 'bid_pack_pitched', 'bid_pack_decline_reason', 'what_they_said',
+  'c2_first_refusal', 'interest_rating', 'notes'
 ];
 
 // Path parsing follows the lesson learned the hard way in admin-team.js
