@@ -12160,7 +12160,7 @@
       }
       html += '</div>';
       container.innerHTML = html;
-      if (typeof mccIcon !== 'undefined') initInlineIcons(container);
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(container);
     }
 
     function renderTopPages(pages) {
@@ -12303,7 +12303,7 @@
             <div style="margin-top:8px;font-size:0.78rem;color:${thresholdColor};font-weight:600;">${escapeHtml(r.threshold_label)}</div>
           </div>`;
         }).join('');
-        if (typeof mccIcon !== 'undefined') initInlineIcons(grid);
+        if (typeof initInlineIcons !== 'undefined') initInlineIcons(grid);
 
         if (!pclSelectedMarket && rollups.length) {
           selectProviderCallMarket(rollups[0].market);
@@ -12395,7 +12395,7 @@
       });
       html += '</tbody></table>';
       wrap.innerHTML = html;
-      if (typeof mccIcon !== 'undefined') initInlineIcons(wrap);
+      if (typeof initInlineIcons !== 'undefined') initInlineIcons(wrap);
     }
 
     function pclField(id, label, value, width) {
