@@ -54,6 +54,22 @@ exports.handler = async function (event) {
     if (!admin || admin.role === 'super_admin') {
       return utils.errorResponse(403, 'This account is not set up for team admin access');
     }
+
+    // 2026-09-04g: this "whoami" path is a real, successful sign-in for the
+    // team member (it's how the page-reload / onAuthStateChange fallback
+    // resolves their session) but it was never recording last_login the way
+    // the POST path does below — so anyone who only ever landed here (rather
+    // than through the password-based Sign In form) showed "Never" in Team
+    // Management even after actually logging in and using the portal.
+    // Best-effort, same as POST — a failed write must not block the response.
+    try {
+      await supabase.from('admin_team_members')
+        .update({ last_login: new Date().toISOString() })
+        .eq('user_id', admin.id);
+    } catch (e) {
+      console.error('[admin-team-login] GET last_login update failed (non-fatal):', e.message);
+    }
+
     return utils.successResponse({
       success: true,
       token: (event.headers['authorization'] || event.headers['Authorization'] || '').trim().slice(7).trim(),
