@@ -45,7 +45,15 @@ exports.handler = async function (event) {
   const password = body.password || '';
   if (!email || !password) return utils.errorResponse(400, 'Email and password are required');
 
-  const { data: signInData, error: signInErr } = await supabase.auth.signInWithPassword({ email, password });
+  // Verify the password on a SEPARATE client instance, not `supabase` — calling
+  // auth.signInWithPassword() rebinds whichever client it's called on to that
+  // user's session, so every later .from() query on the SAME instance would run
+  // RLS-scoped as that user instead of as the service role it was created with.
+  // admin_team_members has RLS enabled with zero policies (service-role-only
+  // access by design), so reusing `supabase` here silently zeroed out the
+  // lookup below on every real login attempt.
+  const authClient = utils.createSupabaseClient();
+  const { data: signInData, error: signInErr } = await authClient.auth.signInWithPassword({ email, password });
   if (signInErr || !signInData || !signInData.user || !signInData.session) {
     // Deliberately generic — don't reveal whether the email exists at all.
     return utils.errorResponse(401, 'Invalid email or password');
