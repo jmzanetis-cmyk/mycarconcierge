@@ -115,8 +115,12 @@ async function listMyClubs(sb, user) {
 
   const clubIds = memberships.map(m => m.club_id);
 
-  // 3. Club summaries + ledger balances — independent queries, run in parallel.
-  const [clubsRes, ledgerRes] = await Promise.all([
+  // 3. Club summaries + ledger balances + reward catalog — independent
+  //    queries, run in parallel. rewardsRes feeds the per-reward progress
+  //    bars added below (2026-09-09) — previously balances always shipped
+  //    a single reward_rule_id: null entry, which suppressed all
+  //    progress-bar rendering client-side (car-club-member.html:886).
+  const [clubsRes, ledgerRes, rewardsRes] = await Promise.all([
     sb.from('car_clubs')
       .select('id, provider_id, name, description, logo_url, banner_url, welcome_message, is_active, vehicle_make, vehicle_model, region, member_count, theme_color, rules_text, points_enabled, coupons_enabled, comp_services_enabled, punch_card_enabled, created_at')
       .in('id', clubIds)
@@ -125,10 +129,24 @@ async function listMyClubs(sb, user) {
       .select('club_id, delta_points, created_at')
       .eq('member_id', user.id)
       .in('club_id', clubIds),
+    sb.from('club_rewards')
+      .select('id, club_id, title, point_cost')
+      .in('club_id', clubIds)
+      .eq('active', true)
+      .order('point_cost', { ascending: true }),
   ]);
 
-  if (clubsRes.error)  return json(500, { error: 'Failed to load clubs' });
-  if (ledgerRes.error) return json(500, { error: 'Failed to load balances' });
+  if (clubsRes.error)   return json(500, { error: 'Failed to load clubs' });
+  if (ledgerRes.error)  return json(500, { error: 'Failed to load balances' });
+  if (rewardsRes.error) return json(500, { error: 'Failed to load rewards' });
+
+  // Group active rewards by club so each can get its own progress bar.
+  const rewardsByClub = new Map();
+  for (const reward of (rewardsRes.data || [])) {
+    const list = rewardsByClub.get(reward.club_id) || [];
+    list.push(reward);
+    rewardsByClub.set(reward.club_id, list);
+  }
 
   // 4. Roll up ledger per club: SUM(delta_points), MAX(created_at).
   const rollup = new Map();
@@ -169,20 +187,23 @@ async function listMyClubs(sb, user) {
       comp_services_enabled: club.comp_services_enabled,
       punch_card_enabled:    club.punch_card_enabled,
       joined_at:             membership ? membership.joined_at : null,
-      // Client at car-club-member.html:877-899 iterates `club.balances`.
-      // Slice 1: one aggregate balance per club. reward_rule_id is null so the
-      // client's `if (!b.reward_rule_id) return;` at line 880 skips
-      // progress-bar rendering — clean "no reward rules set up yet" fallback.
-      // last_activity_at populated so loadActivity() at line 1138 still shows
-      // generic points-earning activity items per club.
-      balances: [{
-        reward_rule_id:   null,
+      // Client at car-club-member.html:877-899 iterates `club.balances`,
+      // skipping any entry whose reward_rule_id is falsy (that's the "no
+      // reward rules set up yet" fallback — preserved below when a club
+      // has no active club_rewards rows). One entry per active reward so
+      // the client can render one progress bar per reward, each against
+      // the member's real points balance vs. that reward's real point_cost
+      // (2026-09-09 — previously always shipped a single null-rule entry).
+      balances: (rewardsByClub.get(club.id) || [{ id: null, title: null, point_cost: 0 }]).map(reward => ({
+        reward_rule_id:   reward.id,
+        reward_title:     reward.title,
+        point_cost:       reward.point_cost,
         points_balance:   roll.points_balance,
         last_activity_at: roll.last_activity_at,
         punch_count:      0,
         visit_count:      0,
         total_spend:      0,
-      }],
+      })),
     };
   });
 

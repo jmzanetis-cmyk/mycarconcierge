@@ -884,21 +884,30 @@
             let progressHtml = '';
             balances.forEach(b => {
               if (!b.reward_rule_id) return;
-              const balance = {
-                punch_count: b.punch_count || 0,
-                total_spend: b.total_spend || 0,
-                visit_count: b.visit_count || 0,
-                points_balance: b.points_balance || 0
-              };
-              const params = { punches_required: 10 };
-              const result = RewardEngine.evaluate('punch_card', balance, params);
+              // 2026-09-09: real per-reward points progress (was a hardcoded
+              // "10 punches" punch_card evaluation regardless of the actual
+              // club_rewards catalog — see reward-engine.js's points_reward
+              // evaluator, fed by car-clubs.js listMyClubs()'s real
+              // points_balance vs. this reward's real point_cost).
+              const balance = { points_balance: b.points_balance || 0 };
+              const params = { point_cost: b.point_cost };
+              const result = RewardEngine.evaluate('points_reward', balance, params);
+              // buildPunchRow draws one dot per unit of `total` — fine for
+              // punch_card (threshold is always a small visit count), but a
+              // points reward's threshold can be in the hundreds, so scale
+              // both ends down to the same 20-dot display instead of just
+              // capping the total (which would render as visually "full"
+              // for any balance past 20 points, regardless of real %).
               const displayTotal = Math.min(result.threshold, 20);
+              const displayCurrent = result.threshold > 0
+                ? Math.round((result.progress / result.threshold) * displayTotal)
+                : 0;
               progressHtml += `<div class="reward-progress">
                 <div class="reward-progress-header">
-                  <span class="reward-progress-name">Punch Card</span>
+                  <span class="reward-progress-name">${escHtml(b.reward_title || 'Reward')}</span>
                   <span class="reward-progress-pct">${result.percentage}%</span>
                 </div>
-                ${buildPunchRow(result.progress, displayTotal)}
+                ${buildPunchRow(displayCurrent, displayTotal)}
                 <div class="punch-label">${result.label}</div>
                 ${result.isEarned ? '<div style="margin-top:8px;"><span class="reward-earned-badge">✨ Reward Available!</span></div>' : ''}
               </div>`;

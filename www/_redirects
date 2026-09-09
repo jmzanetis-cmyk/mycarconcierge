@@ -252,6 +252,17 @@
 /api/car-club/* /.netlify/functions/car-clubs 200
 /api/car-club/free-bids /.netlify/functions/car-clubs 200
 
+# 2026-09-09: car-club-provider.html is a fully-built self-serve provider
+# portal (club create/update, reward templates, leaderboard, promotions,
+# analytics, merch catalog) calling ~15 /api/car-club/* endpoints that were
+# never implemented in car-clubs.js — the plan calls this "Slice 3, full
+# portal", deferred. Nothing in the app links to this page, but it's still
+# directly reachable by URL and would silently fail every action. Redirect
+# to provider-club.html (the real, wired provider club page — punch/redeem/
+# validate-voucher, confirmed working) until Slice 3 is actually built.
+# Remove this line, not the source file, when that work starts.
+/car-club-provider.html /provider-club.html 302
+
 # Feature: Member Founder earnings API
 /api/member-founder /.netlify/functions/member-founder-api 200
 /api/member-founder/* /.netlify/functions/member-founder-api 200

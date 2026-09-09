@@ -30,6 +30,26 @@ const RewardEngine = {
       };
     },
 
+    // 2026-09-09: real points-catalog progress — a member's running
+    // club_points_ledger balance against one club_rewards.point_cost.
+    // Distinct from punch_card (which counts visits, not points) — this is
+    // what actually backs the per-reward progress bars in
+    // car-club-member.html now that listMyClubs() returns one balances[]
+    // entry per active reward instead of a single reward_rule_id:null stub.
+    points_reward(balance, params) {
+      const current = balance.points_balance || 0;
+      const needed = Number.parseInt(params.point_cost) || 1;
+      return {
+        progress: current,
+        threshold: needed,
+        percentage: Math.min(100, Math.round((current / needed) * 100)),
+        isEarned: current >= needed,
+        label: `${current} / ${needed} points`,
+        remaining: Math.max(0, needed - current),
+        nearMilestone: (needed - current <= Math.max(1, Math.round(needed * 0.1))) && current > 0
+      };
+    },
+
     spend_discount(balance, params) {
       return {
         progress: 0,
