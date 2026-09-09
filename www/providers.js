@@ -4102,7 +4102,7 @@
           package_id: packageId,
           provider_id: currentUser.id,
           price: 0, // Price to be discussed directly with customer
-          notes: 'Private job - accepted directly without bidding',
+          description: 'Private job - accepted directly without bidding',
           status: 'accepted',
           provider_alias: providerProfile?.provider_alias || null,
           business_name: providerProfile?.business_name || null,
@@ -4618,7 +4618,7 @@
         labor_cost: document.getElementById('bid-labor').value ? Number(document.getElementById('bid-labor').value) : null,
         estimated_duration: document.getElementById('bid-duration').value.trim() || null,
         available_dates: document.getElementById('bid-availability').value.trim() || null,
-        notes: document.getElementById('bid-notes').value.trim() || null,
+        description: document.getElementById('bid-notes').value.trim() || null,
         updated_at: new Date().toISOString(),
         include_free_pickup: !isUpdatingBid && (document.getElementById('bid-include-pickup')?.checked || false),
         provider_alias: providerProfile?.provider_alias || null,

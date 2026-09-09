@@ -2395,7 +2395,7 @@
                     ` : ''}
                     ${bid.estimated_duration ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('clock', 16)} Estimated time: ${bid.estimated_duration}</div>` : ''}
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 16)} Availability: ${bid.available_dates}</div>` : ''}
-                    ${bid.notes ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.notes}"</div>` : ''}
+                    ${bid.description ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.description}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                       <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}', '${bid.profiles?.provider_alias || ''}')">${mccIcon('message-square', 16)} Message</button>
                       ${pkg.status === 'open' && bid.status === 'pending' ? `<button class="btn btn-primary btn-sm" onclick="acceptBid('${bid.id}', '${packageId}')">${mccIcon('check', 16)} Accept Bid</button>` : ''}
