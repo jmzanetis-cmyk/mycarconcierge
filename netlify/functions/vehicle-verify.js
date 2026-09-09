@@ -333,10 +333,21 @@ async function handleGetVerifications(event, supabase) {
   if (isAdmin) {
     // Two-query stitch — registration_verifications.user_id FK targets
     // auth.users, not profiles, so the previous `user:profiles!...` embed
-    // returned an error which was surfaced as 500. Keep the vehicle embed
-    // (it targets vehicles via a resolvable implicit FK).
+    // returned an error which was surfaced as 500.
+    //
+    // 2026-09-09: the vehicle embed (`vehicle:vehicles(...)`) turned out to
+    // be broken too, just silently — vehicles.registration_verification_id
+    // (added when an admin approves a verification, see
+    // handleUpdateVerification below) and registration_verifications.vehicle_id
+    // are two separate FKs between the same pair of tables in opposite
+    // directions, so PostgREST can't pick one for an implicit embed and
+    // fails every call with "Could not embed because more than one
+    // relationship was found for 'registration_verifications' and
+    // 'vehicles'". That 500 is what the admin Registration Reviews page was
+    // silently swallowing into an empty "No verification requests found"
+    // list. Stitched manually below instead, same pattern as the user fetch.
     let q = supabase.from('registration_verifications')
-      .select(`*, vehicle:vehicles(year,make,model)`)
+      .select('*')
       .order('created_at', { ascending: false })
       .limit(200);
     if (qs.status && qs.status !== 'all') q = q.eq('status', qs.status);
@@ -359,6 +370,19 @@ async function handleGetVerifications(event, supabase) {
         usersById = Object.fromEntries((users || []).map(u => [u.id, u]));
       }
     }
+    const vehicleIds = [...new Set(rows.map(r => r.vehicle_id).filter(Boolean))];
+    let vehiclesById = {};
+    if (vehicleIds.length > 0) {
+      const { data: vehicles, error: vehiclesErr } = await supabase
+        .from('vehicles')
+        .select('id, year, make, model')
+        .in('id', vehicleIds);
+      if (vehiclesErr) {
+        console.error('[vehicle-verify] vehicles stitch failed:', vehiclesErr.message);
+      } else {
+        vehiclesById = Object.fromEntries((vehicles || []).map(v => [v.id, v]));
+      }
+    }
     // The 'registrations' bucket is private (20260902b), so the stored
     // registration_url — a public-object URL computed at upload time —
     // no longer resolves for an unauthenticated <img src>. Generate a
@@ -374,7 +398,7 @@ async function handleGetVerifications(event, supabase) {
           .createSignedUrl(pathMatch[1], 3600);
         registrationImageUrl = signed?.signedUrl || null;
       }
-      return { ...r, user: usersById[r.user_id] || null, registration_image_url: registrationImageUrl };
+      return { ...r, user: usersById[r.user_id] || null, vehicle: vehiclesById[r.vehicle_id] || null, registration_image_url: registrationImageUrl };
     }));
     return json(200, { success: true, verifications: stitched });
   }
@@ -725,14 +749,38 @@ async function handleGetInsuranceVerifications(event, supabase) {
   const qs = event.queryStringParameters || {};
 
   if (isAdmin) {
+    // 2026-09-09: same latent bug as handleGetVerifications above —
+    // vehicles.insurance_verification_id and insurance_verifications.vehicle_id
+    // are two FKs between the same pair of tables, so the implicit
+    // `vehicle:vehicles(...)` embed is ambiguous to PostgREST and fails.
+    // The `user:profiles!insurance_verifications_user_id_fkey(...)` embed is
+    // fine as-is — it already disambiguates via the explicit fkey hint.
     let q = supabase.from('insurance_verifications')
-      .select(`*, user:profiles!insurance_verifications_user_id_fkey(full_name, email), vehicle:vehicles(year,make,model,vin)`)
+      .select(`*, user:profiles!insurance_verifications_user_id_fkey(full_name, email)`)
       .order('created_at', { ascending: false })
       .limit(200);
     if (qs.status && qs.status !== 'all') q = q.eq('status', qs.status);
     const { data, error } = await q;
-    if (error) return json(500, { error: error.message });
-    return json(200, { success: true, verifications: data || [] });
+    if (error) {
+      console.error('[vehicle-verify] insurance verifications select failed:', error.message);
+      return json(500, { error: error.message });
+    }
+    const rows = data || [];
+    const vehicleIds = [...new Set(rows.map(r => r.vehicle_id).filter(Boolean))];
+    let vehiclesById = {};
+    if (vehicleIds.length > 0) {
+      const { data: vehicles, error: vehiclesErr } = await supabase
+        .from('vehicles')
+        .select('id, year, make, model, vin')
+        .in('id', vehicleIds);
+      if (vehiclesErr) {
+        console.error('[vehicle-verify] insurance vehicles stitch failed:', vehiclesErr.message);
+      } else {
+        vehiclesById = Object.fromEntries((vehicles || []).map(v => [v.id, v]));
+      }
+    }
+    const stitched = rows.map(r => ({ ...r, vehicle: vehiclesById[r.vehicle_id] || null }));
+    return json(200, { success: true, verifications: stitched });
   }
 
   const { vehicleId } = qs;
