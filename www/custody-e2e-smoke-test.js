@@ -290,7 +290,7 @@ async function main() {
 
     // ── Full-chain read, as the UI would render it ──────────────────────────
     console.log('--- GET /jobs/:jobId (full chain, as the member/provider UI renders it) ---');
-    const chain = await api('/api/custody/jobs/' + job.id, memberSession.token);
+    const chain = await api(`/api/custody/jobs/${job.id}`, memberSession.token);
     check('GET /jobs/:jobId → 200', chain.status === 200, 'got ' + chain.status);
     check('chain response includes both handoffs', chain.body && Array.isArray(chain.body.handoffs) && chain.body.handoffs.length === 2, 'got ' + (chain.body && chain.body.handoffs ? chain.body.handoffs.length : 'n/a'));
 
