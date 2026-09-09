@@ -11,7 +11,12 @@ export type HandoffLeg =
   | 'shop_to_driver'     // 3. return after service
   | 'driver_to_member'   // 4. delivery
   | 'driver_to_driver'   // relay
-  | 'member_to_provider'; // direct member → provider drop-off (no driver leg)
+  | 'member_to_provider' // direct member → provider drop-off (no driver leg)
+  | 'provider_to_member'; // direct provider → member return (no driver leg)
+  // 2026-09-09: provider_to_member was already live in the DB handoff_leg
+  // enum (confirmed via `SELECT enum_range(NULL::handoff_leg)`) and is what
+  // providers.js's startCustodyReturn() actually sends — this type was just
+  // never updated to match, drifting from the real schema.
 
 export type HandoffStatus =
   | 'pending'
@@ -24,7 +29,11 @@ export type AttestationType = 'release' | 'accept' | 'dispute';
 export type PhotoAngle =
   | 'front' | 'rear' | 'driver_side' | 'passenger_side' | 'roof'
   | 'wheel_fl' | 'wheel_fr' | 'wheel_rl' | 'wheel_rr'
-  | 'interior_front' | 'interior_rear' | 'cargo' | 'odometer' | 'other';
+  | 'interior_front' | 'interior_rear' | 'cargo' | 'odometer' | 'fuel_gauge' | 'other';
+  // fuel_gauge added to the DB photo_angle enum by
+  // 20260605a_custody_hardening.sql but never added here (or to
+  // netlify/functions/custody.js's VALID_ANGLE allowlist — fixed alongside
+  // this) — a DB-valid angle the API layer silently rejected.
 
 export type DisputeType =
   | 'new_damage'

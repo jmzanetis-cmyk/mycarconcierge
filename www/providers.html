@@ -5010,6 +5010,60 @@
     </div>
   </div>
 
+  <!-- Custody Accept / Dispute Modal (mirrors members.html's custody-accept-modal —
+       same element IDs, since these are separate documents; used when the provider
+       is the RECEIVING party on a custody_handoffs row, e.g. a member's pickup
+       drop-off (member_to_provider), via acceptCustodyPickup() in providers.js). -->
+  <div class="modal-backdrop" id="custody-accept-modal">
+    <div class="modal" style="max-width:460px;">
+      <div class="modal-header">
+        <h3 class="modal-title">Verify Vehicle Receipt</h3>
+        <button class="modal-close" onclick="closeCustodyAcceptModal()">×</button>
+      </div>
+      <div class="modal-body">
+        <!-- Binary choice -->
+        <div id="custody-choice-section">
+          <p style="color:var(--text-secondary);margin-bottom:20px;">Did everything go as expected with the vehicle?</p>
+          <div style="display:flex;flex-direction:column;gap:12px;">
+            <button class="btn btn--success" style="justify-content:center;padding:14px;" onclick="submitCustodyAccept()">
+              ✓ Everything looks good
+            </button>
+            <button class="btn btn--secondary" style="justify-content:center;padding:14px;" onclick="showCustodyDisputeForm()">
+              ⚠ I see a problem
+            </button>
+          </div>
+        </div>
+        <!-- Dispute form (hidden until "I see a problem") -->
+        <div id="custody-dispute-section" style="display:none;">
+          <p style="color:var(--text-secondary);margin-bottom:16px;font-size:0.9rem;">What issue did you find?</p>
+          <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px;">
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="new_damage"> New damage found
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="missing_item"> Missing item
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="condition_mismatch"> Condition mismatch
+            </label>
+            <label style="display:flex;align-items:center;gap:10px;cursor:pointer;padding:10px;background:var(--bg-input);border-radius:var(--radius-md);border:1px solid var(--border-subtle);">
+              <input type="radio" name="custody_dispute_type" value="cleaning_revealed"> Cleaning revealed damage
+            </label>
+          </div>
+          <textarea id="custody-dispute-notes" class="form-textarea" rows="3" placeholder="Additional notes (optional)" style="margin-bottom:12px;resize:vertical;"></textarea>
+          <div style="margin-bottom:16px;">
+            <button class="btn btn--secondary btn--small" onclick="captureCustodyDisputePhotos()">📷 Add Photo Evidence</button>
+            <div id="custody-dispute-photo-status" style="font-size:0.8rem;color:var(--text-muted);margin-top:6px;"></div>
+          </div>
+        </div>
+      </div>
+      <div class="modal-footer" id="custody-modal-footer-dispute" style="display:none;">
+        <button class="btn btn--secondary" onclick="showCustodyChoiceSection()">← Back</button>
+        <button class="btn btn--danger" onclick="submitCustodyDispute()">Submit Dispute</button>
+      </div>
+    </div>
+  </div>
+
   <!-- Driver Assignment Modal -->
   <div class="modal-backdrop" id="dest-driver-modal">
     <div class="modal" style="max-width:480px;">

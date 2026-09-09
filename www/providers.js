@@ -3187,6 +3187,149 @@
       }
     }
 
+    // Accept side of a member's pickup drop-off (member_to_provider leg).
+    // Mirror of members-extras.js's startCustodyReturn() — the provider
+    // never CREATES this handoff (the member already did, via
+    // startCustodyPickup() on their side); the provider just needs to find
+    // the one awaiting their acceptance and open the accept/dispute modal.
+    // 2026-09-09: added — previously openKeyExchangeModal only intercepted
+    // stage === 'return', so a provider's "pickup" verification always fell
+    // through to the legacy plain-photo modal even with the flag on, and a
+    // completed member_to_provider handoff had no way to be accepted at all.
+    async function acceptCustodyPickup(packageId) {
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) {
+          showToast('No job found for this package', 'error');
+          return;
+        }
+        const jobId = jobs[0].id;
+
+        const chainRes = await fetch(`${apiBase}/api/custody/jobs/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!chainRes.ok) {
+          showToast('Failed to load custody chain', 'error');
+          return;
+        }
+        const chain = await chainRes.json();
+        const pending = (chain.handoffs || []).find(h => h.leg === 'member_to_provider' && h.status === 'awaiting_receiver');
+        if (!pending) {
+          showToast('The member has not yet dropped off the vehicle', 'info');
+          return;
+        }
+        openCustodyAcceptModal(pending.id, jobId, packageId);
+      } catch (e) {
+        console.error('[acceptCustodyPickup]', e);
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    // State for the accept/dispute modal (mirrors members-extras.js).
+    let _custodyHandoffId = null;
+    let _custodyHandoffJobId = null;
+    let _custodyHandoffPackageId = null;
+
+    function openCustodyAcceptModal(handoffId, jobId, packageId) {
+      _custodyHandoffId = handoffId;
+      _custodyHandoffJobId = jobId;
+      _custodyHandoffPackageId = packageId;
+      document.getElementById('custody-choice-section').style.display = '';
+      document.getElementById('custody-dispute-section').style.display = 'none';
+      document.getElementById('custody-dispute-notes').value = '';
+      document.getElementById('custody-dispute-photo-status').textContent = '';
+      const radios = document.querySelectorAll('input[name="custody_dispute_type"]');
+      radios.forEach(r => { r.checked = false; });
+      document.getElementById('custody-accept-modal').classList.add('active');
+    }
+
+    function closeCustodyAcceptModal() {
+      document.getElementById('custody-accept-modal').classList.remove('active');
+    }
+
+    function showCustodyDisputeForm() {
+      document.getElementById('custody-choice-section').style.display = 'none';
+      document.getElementById('custody-dispute-section').style.display = '';
+      document.getElementById('custody-modal-footer-dispute').style.display = '';
+    }
+
+    function showCustodyChoiceSection() {
+      document.getElementById('custody-choice-section').style.display = '';
+      document.getElementById('custody-dispute-section').style.display = 'none';
+      document.getElementById('custody-modal-footer-dispute').style.display = 'none';
+    }
+
+    async function submitCustodyAccept() {
+      if (!_custodyHandoffId) return;
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/handoffs/${_custodyHandoffId}/accept`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({})
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to accept handoff', 'error');
+        }
+        closeCustodyAcceptModal();
+        showToast('Vehicle receipt confirmed', 'success');
+        renderActiveJobs();
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
+    async function captureCustodyDisputePhotos() {
+      if (!_custodyHandoffId || !_custodyHandoffJobId) return;
+      const statusEl = document.getElementById('custody-dispute-photo-status');
+      statusEl.textContent = 'Starting camera…';
+      try {
+        const result = await window.CustodyCapture.captureHandoffPhotos(
+          _custodyHandoffId, _custodyHandoffJobId, 'provider'
+        );
+        if (result && result.photos.length > 0) {
+          statusEl.textContent = `${result.photos.length} photo(s) captured`;
+        } else {
+          statusEl.textContent = 'No photos captured';
+        }
+      } catch (e) {
+        statusEl.textContent = 'Photo capture failed';
+      }
+    }
+
+    async function submitCustodyDispute() {
+      if (!_custodyHandoffId) return;
+      const type = document.querySelector('input[name="custody_dispute_type"]:checked')?.value;
+      if (!type) return showToast('Please select a dispute type', 'error');
+      const notes = document.getElementById('custody-dispute-notes').value.trim();
+      try {
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return showToast('Not authenticated', 'error');
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/handoffs/${_custodyHandoffId}/dispute`, {
+          method: 'POST',
+          headers: { 'Authorization': `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ type, description: notes || undefined })
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(() => ({}));
+          return showToast(err.error || 'Failed to submit dispute', 'error');
+        }
+        closeCustodyAcceptModal();
+        showToast('Dispute filed — our team has been notified', 'success');
+        renderActiveJobs();
+      } catch (e) {
+        showToast('Error: ' + (e.message || 'Unknown error'), 'error');
+      }
+    }
+
     // ========== KEY EXCHANGE VERIFICATION ==========
 
     function _openKeyExchangeModalLegacy(packageId, stage) {
@@ -3203,9 +3346,16 @@
     }
 
     function openKeyExchangeModal(packageId, stage) {
-      if (window._mccCustodyEnabled && stage === 'return') {
-        startCustodyReturn(packageId);
-        return;
+      if (window._mccCustodyEnabled) {
+        // return: provider releases custody to the member (creates the
+        //   provider_to_member handoff and captures release photos).
+        // pickup: provider ACCEPTS the member_to_provider handoff the member
+        //   already created via their own drop-off flow — see
+        //   acceptCustodyPickup() above. 2026-09-09: previously only
+        //   'return' was intercepted here, so 'pickup' always fell through
+        //   to the legacy modal below even with the flag on.
+        if (stage === 'return') { startCustodyReturn(packageId); return; }
+        if (stage === 'pickup') { acceptCustodyPickup(packageId); return; }
       }
       _openKeyExchangeModalLegacy(packageId, stage);
     }
@@ -3347,7 +3497,107 @@
       }
     }
 
+    // 2026-09-09: the legacy key_exchanges-table rendering below never
+    // reflected custody-chain state (custody handoffs live in
+    // custody_handoffs, a different table) — the only custody-aware thing
+    // this section used to do was relabel the return card's button text.
+    // Once a pickup drop-off (member_to_provider) or a return (provider_to_
+    // member) actually goes through the custody flow, key_exchanges never
+    // gets a row for it, so the legacy card would show "not verified"
+    // forever even after a real handoff completed. When the flag is on,
+    // render from custody_handoffs instead, for both legs.
+    const CUSTODY_LEG_LABELS = {
+      member_to_provider: 'Pickup Custody Handoff',
+      provider_to_member: 'Return Custody Handoff',
+    };
+    const CUSTODY_STATUS_BADGE = {
+      pending:           { label: 'Pending',                   color: 'var(--accent-gold)' },
+      released:          { label: 'Released',                  color: 'var(--accent-blue)' },
+      awaiting_receiver: { label: 'Awaiting Your Confirmation', color: 'var(--accent-orange)' },
+      accepted:          { label: 'Accepted',                   color: 'var(--accent-green)' },
+      disputed:          { label: 'Disputed',                   color: 'var(--accent-red)' },
+    };
+
+    async function getCustodyChainForPackage(packageId) {
+      try {
+        const { data: jobs } = await supabaseClient.from('concierge_jobs').select('id').eq('package_id', packageId).limit(1);
+        if (!jobs || !jobs.length) return null;
+        const jobId = jobs[0].id;
+        const { data: { session } } = await supabaseClient.auth.getSession();
+        if (!session) return null;
+        const apiBase = window.MCC_CONFIG?.apiBaseUrl || '';
+        const res = await fetch(`${apiBase}/api/custody/jobs/${jobId}`, {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        });
+        if (!res.ok) return null;
+        const chain = await res.json();
+        return { jobId, handoffs: chain.handoffs || [] };
+      } catch (e) {
+        console.error('[getCustodyChainForPackage]', e);
+        return null;
+      }
+    }
+
+    async function renderCustodyExchangeSection(packageId) {
+      const chain = await getCustodyChainForPackage(packageId);
+      const handoffs = chain?.handoffs || [];
+      const pickup = handoffs.find(h => h.leg === 'member_to_provider');
+      const ret    = handoffs.find(h => h.leg === 'provider_to_member');
+      const uid = currentUser?.id || '';
+
+      const renderCard = (h, stage, icon) => {
+        const label = CUSTODY_LEG_LABELS[stage === 'pickup' ? 'member_to_provider' : 'provider_to_member'];
+        if (!h) {
+          // No handoff row yet. For pickup, the provider can't start one —
+          // only the member's drop-off flow creates member_to_provider.
+          // For return, the provider's own "Verify" button creates it.
+          const action = stage === 'return'
+            ? `<button class="btn btn--secondary btn--small" onclick="openKeyExchangeModal('${packageId}', '${stage}')">${mccIcon('key', 14)} Verify ${label}</button>`
+            : `<div style="font-size:0.8rem;color:var(--text-muted);">Awaiting member drop-off</div>`;
+          return `
+            <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-inline-start:3px solid var(--border-subtle);margin-bottom:12px;">
+              <div style="font-size:20px;opacity:0.5;">${icon}</div>
+              <div style="flex:1;">
+                <div style="font-weight:600;font-size:0.9rem;margin-bottom:4px;color:var(--text-muted);">${label}</div>
+                ${action}
+              </div>
+            </div>`;
+        }
+        const badge = CUSTODY_STATUS_BADGE[h.status] || { label: h.status, color: 'var(--text-muted)' };
+        const isReceiver = h.receiving_party_id === uid && h.status === 'awaiting_receiver';
+        const ts = h.released_at ? new Date(h.released_at).toLocaleString() : (h.created_at ? new Date(h.created_at).toLocaleString() : '');
+        return `
+          <div style="display:flex;gap:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-md);border-inline-start:3px solid ${badge.color};margin-bottom:12px;">
+            <div style="font-size:20px;">${icon}</div>
+            <div style="flex:1;">
+              <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+                <span style="font-weight:600;font-size:0.9rem;">${label}</span>
+                <span style="background:${badge.color}22;color:${badge.color};border:1px solid ${badge.color}55;padding:2px 8px;border-radius:12px;font-size:0.7rem;font-weight:600;">${badge.label}</span>
+              </div>
+              ${ts ? `<div style="font-size:0.75rem;color:var(--text-muted);">${ts}</div>` : ''}
+              ${isReceiver ? `<button class="btn btn--success btn--small" style="margin-top:8px;" onclick="openCustodyAcceptModal('${h.id}','${chain.jobId}','${packageId}')">Review &amp; Confirm Receipt</button>` : ''}
+            </div>
+          </div>`;
+      };
+
+      return `
+        <div class="logistics-section">
+          <div class="logistics-section-header">
+            <div class="logistics-section-title">${mccIcon('key', 16)} Custody Handoffs</div>
+          </div>
+          <div class="logistics-section-content">
+            <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem;">Photo-verified custody, protecting both you and the member.</p>
+            ${renderCard(pickup, 'pickup', mccIcon('circle', 16))}
+            ${renderCard(ret, 'return', mccIcon('circle', 16))}
+          </div>
+        </div>
+      `;
+    }
+
     async function renderKeyExchangeSection(packageId) {
+      if (window._mccCustodyEnabled) {
+        return renderCustodyExchangeSection(packageId);
+      }
       const { data: keyExchanges, error } = await supabaseClient
         .from('key_exchanges')
         .select('*')
@@ -3408,7 +3658,7 @@
           <div class="logistics-section-content">
             <p style="color:var(--text-muted);margin-bottom:16px;font-size:0.9rem;">Document key handoffs to verify custody and protect both parties.</p>
             ${renderExchangeCard(pickupExchange, 'pickup', 'Pickup Key Exchange', mccIcon('circle', 16))}
-            ${renderExchangeCard(returnExchange, 'return', window._mccCustodyEnabled ? 'Return Custody Handoff' : 'Return Key Exchange', mccIcon('circle', 16))}
+            ${renderExchangeCard(returnExchange, 'return', 'Return Key Exchange', mccIcon('circle', 16))}
           </div>
         </div>
       `;
