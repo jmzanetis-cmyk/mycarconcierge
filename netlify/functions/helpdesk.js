@@ -37,7 +37,15 @@ async function loadRecentHistory(supabase, conversationId) {
 }
 
 async function persistTurn(supabase, conversationId, mode, userMessage, assistantReply) {
-  if (!supabase || !conversationId) return;
+  // 2026-09-09: returns the newly-inserted assistant message's id so the
+  // caller can hand it back to the widget — that id is what
+  // handleFeedback() below needs to record a thumbs up/down against the
+  // right row. Previously this returned nothing, which is exactly why the
+  // feedback buttons could only ever write to localStorage (see the
+  // migration's own header comment on this: "requires matching a message
+  // to its server-side row ... was flagged as a separate, deferrable
+  // follow-up").
+  if (!supabase || !conversationId) return { assistantMessageId: null };
   try {
     await supabase.from('chat_conversations').upsert({
       conversation_id: conversationId,
@@ -45,10 +53,16 @@ async function persistTurn(supabase, conversationId, mode, userMessage, assistan
       last_message_at: new Date().toISOString()
     }, { onConflict: 'conversation_id', ignoreDuplicates: false });
 
-    await supabase.from('chat_messages').insert([
+    var insertResult = await supabase.from('chat_messages').insert([
       { conversation_id: conversationId, role: 'user', content: userMessage },
       { conversation_id: conversationId, role: 'assistant', content: assistantReply }
-    ]);
+    ]).select('id, role');
+    if (insertResult.error) {
+      console.error('[helpdesk] message insert failed (non-fatal, reply already sent):', insertResult.error.message);
+      return { assistantMessageId: null };
+    }
+    var insertedRows = insertResult.data || [];
+    var assistantRow = insertedRows.find(function(r) { return r.role === 'assistant'; });
 
     // Best-effort counter bump — a lost increment here just means the
     // insights panel's message_count reads slightly stale, never wrong in
@@ -63,8 +77,66 @@ async function persistTurn(supabase, conversationId, mode, userMessage, assistan
         .update({ message_count: countResult.count })
         .eq('conversation_id', conversationId);
     }
+
+    return { assistantMessageId: assistantRow ? assistantRow.id : null };
   } catch (e) {
     console.error('[helpdesk] persistTurn failed (non-fatal, reply already sent):', e.message);
+    return { assistantMessageId: null };
+  }
+}
+
+// PATCH — record thumbs up/down feedback on a specific assistant message.
+// Same anonymous, no-auth-required posture as the rest of this widget (see
+// the migration's header comment: conversations are keyed purely by the
+// client-generated conversationId, no Supabase Auth session involved
+// anywhere in this flow). Scoped tightly instead: messageId must be a real
+// UUID, feedback must be exactly 'up' or 'down' (matches the DB check
+// constraint), and the update only ever touches role='assistant' rows —
+// there's nothing meaningful to rate a user's own message on.
+var MESSAGE_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+async function handleFeedback(event) {
+  var supabase = null;
+  try { supabase = utils.createSupabaseClient(); } catch (e) { /* fall through to the 500 below */ }
+  if (!supabase) return utils.errorResponse(500, 'Service unavailable');
+
+  var body;
+  try {
+    body = JSON.parse(event.body || '{}');
+  } catch (e) {
+    return utils.errorResponse(400, 'Invalid JSON');
+  }
+
+  var messageId = typeof body.messageId === 'string' ? body.messageId.trim() : '';
+  var feedback = body.feedback;
+  if (!MESSAGE_ID_RE.test(messageId)) {
+    return utils.errorResponse(400, 'messageId must be a valid message id');
+  }
+  if (feedback !== 'up' && feedback !== 'down') {
+    return utils.errorResponse(400, 'feedback must be "up" or "down"');
+  }
+
+  try {
+    var result = await supabase
+      .from('chat_messages')
+      .update({ feedback: feedback })
+      .eq('id', messageId)
+      .eq('role', 'assistant')
+      .select('id');
+    if (result.error) {
+      console.error('[helpdesk] feedback update failed:', result.error.message);
+      return utils.errorResponse(500, 'Failed to record feedback');
+    }
+    if (!result.data || result.data.length === 0) {
+      return utils.errorResponse(404, 'Message not found');
+    }
+    return {
+      statusCode: 200,
+      headers: utils.headers,
+      body: JSON.stringify({ success: true })
+    };
+  } catch (e) {
+    console.error('[helpdesk] feedback error:', e.message);
+    return utils.errorResponse(500, 'Failed to record feedback');
   }
 }
 
@@ -94,10 +166,6 @@ exports.handler = async function(event) {
     return { statusCode: 200, headers: utils.headers, body: '' };
   }
 
-  if (event.httpMethod !== 'POST') {
-    return utils.errorResponse(405, 'Method not allowed');
-  }
-
   var clientIP = (event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown').split(',')[0].trim();
   if (!checkHelpdeskRateLimit(clientIP)) {
     return {
@@ -105,6 +173,17 @@ exports.handler = async function(event) {
       headers: utils.headers,
       body: JSON.stringify({ error: 'Too many requests', message: 'Please wait before sending another message.' })
     };
+  }
+
+  // PATCH /api/helpdesk — record feedback on a message. Same endpoint URL
+  // as the chat POST below (no new www/_redirects rule needed), routed by
+  // HTTP method instead. Shares the rate limiter above.
+  if (event.httpMethod === 'PATCH') {
+    return handleFeedback(event);
+  }
+
+  if (event.httpMethod !== 'POST') {
+    return utils.errorResponse(405, 'Method not allowed');
   }
 
   var apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
@@ -160,12 +239,12 @@ exports.handler = async function(event) {
     // already swallows its own errors internally, so awaiting it here can't
     // fail the response — it only guarantees the write actually completes
     // before this invocation ends.
-    await persistTurn(supabase, conversationId, mode, message, reply);
+    var persistResult = await persistTurn(supabase, conversationId, mode, message, reply);
 
     return {
       statusCode: 200,
       headers: utils.headers,
-      body: JSON.stringify({ reply: reply })
+      body: JSON.stringify({ reply: reply, messageId: persistResult.assistantMessageId })
     };
   } catch (err) {
     console.error('Helpdesk AI error:', err.message);
