@@ -446,11 +446,29 @@ async function handleUpdateVerification(event, supabase, verifId) {
       registration_verification_id: verifId,
     }).eq('id', verif.vehicle_id);
 
-    // Also release any rides held pending this vehicle's name review
-    await supabase.from('rides').update({ status: 'requested' })
-      .eq('member_id', verif.user_id)
-      .eq('member_vehicle_id', verif.vehicle_id) // denormalised column if present; safe no-op if not
-      .eq('status', 'pending_name_review');
+    // Also release any rides held pending this vehicle's name review.
+    // 2026-09-09: rides has no vehicle_id or member_vehicle_id column at
+    // all — confirmed against the live schema, it only stores
+    // member_vehicle_make/model/year as plain text at ride-creation time.
+    // The old `.eq('member_vehicle_id', ...)` filter targeted a column
+    // that doesn't exist, so this update silently errored (never checked)
+    // on every single approval and never actually released a held ride —
+    // only the manual "Approve" button on the Held Pickups tab worked.
+    // Matched instead via the same (make, model, year) fields, same
+    // approach as the Held Pickups list fix in handleGetHeldRides below.
+    const { data: approvedVehicle } = await supabase.from('vehicles')
+      .select('make, model, year').eq('id', verif.vehicle_id).single();
+    if (approvedVehicle) {
+      const { error: releaseErr } = await supabase.from('rides').update({ status: 'requested' })
+        .eq('member_id', verif.user_id)
+        .eq('member_vehicle_make', approvedVehicle.make)
+        .eq('member_vehicle_model', approvedVehicle.model)
+        .eq('member_vehicle_year', approvedVehicle.year)
+        .eq('status', 'pending_name_review');
+      if (releaseErr) {
+        console.error('[vehicle-verify] failed to release held ride(s) after approval:', releaseErr.message);
+      }
+    }
   }
 
   return json(200, { success: true, status });
@@ -462,19 +480,23 @@ async function handleGetHeldRides(event, supabase) {
   if (auth.error) return auth.error;
 
   // Two-query stitch — rides.member_id FK targets auth.users, not profiles,
-  // so the previous `member:profiles!...` embed returned an error. Keep the
-  // vehicle embed intact (implicit FK to vehicles works).
+  // so the previous `member:profiles!...` embed returned an error.
+  //
+  // 2026-09-09: the vehicle embed was broken too, but differently from the
+  // registration_verifications/insurance_verifications ambiguous-FK bug
+  // fixed elsewhere in this file — here there's no relationship for
+  // PostgREST to be ambiguous ABOUT. Checked the live schema directly:
+  // rides has no vehicle_id or member_vehicle_id column at all, only
+  // member_vehicle_make/model/year stored as plain text at ride-creation
+  // time. So `vehicle:vehicles(...)` failed every call with "Could not
+  // find a relationship between 'rides' and 'vehicles' in the schema
+  // cache" — a flat-out missing link, not a disambiguation problem.
   const { data, error } = await supabase
     .from('rides')
     .select(`
       id, status, created_at, pickup_address, dropoff_address,
       estimated_fare, stripe_payment_intent_id, member_id,
-      member_vehicle_make, member_vehicle_model, member_vehicle_year,
-      vehicle:vehicles(id, registration_verified, registration_verification_id,
-        verif:registration_verifications(
-          name_match_score, extracted_owner_name, profile_name, context_note, status
-        )
-      )
+      member_vehicle_make, member_vehicle_model, member_vehicle_year
     `)
     .eq('status', 'pending_name_review')
     .order('created_at', { ascending: false });
@@ -497,7 +519,64 @@ async function handleGetHeldRides(event, supabase) {
       membersById = Object.fromEntries((members || []).map(m => [m.id, m]));
     }
   }
-  const stitched = rows.map(r => ({ ...r, member: membersById[r.member_id] || null }));
+
+  // No FK to join on, so match each ride to a vehicle the same way the
+  // rest of the app associates them: same owner, same make/model/year —
+  // the best identifier available given rides only stores that as text.
+  let vehiclesByOwner = {};
+  if (memberIds.length > 0) {
+    const { data: vehicles, error: vehiclesErr } = await supabase
+      .from('vehicles')
+      .select('id, owner_id, make, model, year, registration_verified, registration_verification_id')
+      .in('owner_id', memberIds);
+    if (vehiclesErr) {
+      console.error('[vehicle-verify] held-rides vehicles stitch failed:', vehiclesErr.message);
+    } else {
+      for (const v of (vehicles || [])) {
+        (vehiclesByOwner[v.owner_id] = vehiclesByOwner[v.owner_id] || []).push(v);
+      }
+    }
+  }
+  const matchedVehicles = rows.map(r => {
+    const candidates = vehiclesByOwner[r.member_id] || [];
+    return candidates.find(v =>
+      v.make === r.member_vehicle_make &&
+      v.model === r.member_vehicle_model &&
+      String(v.year) === String(r.member_vehicle_year)
+    ) || null;
+  });
+
+  const verifVehicleIds = [...new Set(matchedVehicles.filter(Boolean).map(v => v.id))];
+  let latestVerifByVehicleId = {};
+  if (verifVehicleIds.length > 0) {
+    const { data: verifs, error: verifsErr } = await supabase
+      .from('registration_verifications')
+      .select('vehicle_id, name_match_score, extracted_owner_name, profile_name, context_note, status, created_at')
+      .in('vehicle_id', verifVehicleIds)
+      .order('created_at', { ascending: false });
+    if (verifsErr) {
+      console.error('[vehicle-verify] held-rides verifications stitch failed:', verifsErr.message);
+    } else {
+      for (const v of (verifs || [])) {
+        // Already ordered newest-first, so the first hit per vehicle wins.
+        if (!latestVerifByVehicleId[v.vehicle_id]) latestVerifByVehicleId[v.vehicle_id] = v;
+      }
+    }
+  }
+
+  const stitched = rows.map((r, i) => {
+    const veh = matchedVehicles[i];
+    return {
+      ...r,
+      member: membersById[r.member_id] || null,
+      vehicle: veh ? {
+        id: veh.id,
+        registration_verified: veh.registration_verified,
+        registration_verification_id: veh.registration_verification_id,
+        verif: latestVerifByVehicleId[veh.id] || null
+      } : null
+    };
+  });
   return json(200, { success: true, rides: stitched });
 }
 
