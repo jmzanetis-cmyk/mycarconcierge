@@ -1,0 +1,39 @@
+-- =============================================================================
+-- Add 'provider_to_member' to the handoff_leg enum — catch-up migration
+-- (2026-09-09)
+-- =============================================================================
+-- WHY THIS FILE EXISTS AND WHY IT'S DIFFERENT FROM THE OTHER TWO CATCH-UP FILES:
+--   20260528_custody_chain_base_schema.sql and
+--   20260529_option_b_concierge_jobs_package_bridge.sql both catch up a
+--   schema change that has a clear, documented source: an untracked "paste
+--   this into Supabase" spec file under docs/specs/custody-and-car-clubs/.
+--
+--   'provider_to_member' has no such source. It is confirmed LIVE in
+--   production today (verified 2026-09-09 via
+--   `SELECT enum_range(NULL::handoff_leg)`, which returned all seven values
+--   including this one), and it is the value providers.js's
+--   startCustodyReturn() actually sends for a direct provider->member
+--   return (no transport driver). But there is no migration file, spec doc,
+--   commit, or PR anywhere in this repo that added it. The only trace found
+--   anywhere is a comment in the header of the already-tracked
+--   20260611000001_live_tracking.sql migration, which notes in passing that
+--   the enum has seven values including this one and that an earlier
+--   "step 0 report incorrectly omitted the last two" — i.e. by the time
+--   that migration was written, this value already existed; nothing in this
+--   repo shows when or how it was added.
+--
+--   This migration exists purely to give this already-live, already-in-use
+--   enum value a tracked home, so the tracked migration history stops
+--   silently disagreeing with the real schema. It makes no other change.
+--
+-- IDEMPOTENCY: ADD VALUE IF NOT EXISTS is natively idempotent.
+--
+-- MUST RUN AFTER: 20260528_custody_chain_base_schema.sql (creates handoff_leg)
+--             AND: 20260529_option_b_concierge_jobs_package_bridge.sql
+--                  (not a hard dependency, but keeps the enum's value order
+--                  in this migration history matching the order the values
+--                  are believed to have actually been added in production:
+--                  member_to_provider before provider_to_member).
+-- =============================================================================
+
+ALTER TYPE handoff_leg ADD VALUE IF NOT EXISTS 'provider_to_member';
