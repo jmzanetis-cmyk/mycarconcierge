@@ -14,6 +14,18 @@
 //   GET /api/admin/stats/revenue?period=week|month|quarter|year
 //   GET /api/admin/stats/users?period=week|month|quarter|year
 //   GET /api/admin/stats/orders?period=week|month|quarter|year
+//   GET /api/admin/stats/kpis
+//
+// kpis (added 2026-09-10) backs the Dashboard's top stat-card row
+// (Pending Applications / Active Providers / In Escrow / Open Disputes /
+// Revenue / Active Packages — www/admin.html stat-pending-apps etc.).
+// Those cards previously queried supabaseClient directly from the browser
+// (www/admin.js updateDashboard()), which only ever worked for a real
+// profiles.role=admin session — a Team Login session has no such session,
+// so every card read 0 for every team-login user, permission layer or not.
+// This route moves the same queries server-side behind the same
+// authenticateAdminSection(..., dashboard) gate everything else on this
+// page already uses.
 //
 // Auth: Authorization: Bearer <supabase_token> → profiles.role === 'admin', OR an
 // active admin_team_members row whose role has 'dashboard' in
@@ -247,6 +259,42 @@ async function handleOrders(supabase, qs) {
   };
 }
 
+async function handleKpis(supabase) {
+  var results = await Promise.all([
+    supabase.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
+    supabase.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
+    supabase.from('payments').select('amount_total').eq('status', 'held'),
+    supabase.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
+    supabase.from('payments').select('amount_mcc_fee').eq('status', 'released'),
+    supabase.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
+    // helpdesk_tickets doesn't exist in every environment (mirrors the same
+    // defensive wrap the old client-side query used) — don't let a missing
+    // table take down the whole KPI row.
+    Promise.resolve(supabase.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(function() { return { count: 0 }; })
+  ]);
+
+  var pendingAppsCount     = results[0].count;
+  var activeProvidersCount = results[1].count;
+  var heldPaymentsData     = results[2].data || [];
+  var openDisputesCount    = results[3].count;
+  var releasedPaymentsData = results[4].data || [];
+  var activePackagesCount  = results[5].count;
+  var openTicketsCount     = results[6].count;
+
+  var escrowAmount = heldPaymentsData.reduce(function(sum, p) { return sum + (p.amount_total || 0); }, 0);
+  var revenue       = releasedPaymentsData.reduce(function(sum, p) { return sum + (p.amount_mcc_fee || 0); }, 0);
+
+  return {
+    pendingApps:    pendingAppsCount    || 0,
+    activeProviders: activeProvidersCount || 0,
+    escrowAmount,
+    openDisputes:   openDisputesCount   || 0,
+    revenue,
+    activePackages: activePackagesCount || 0,
+    openTickets:    openTicketsCount    || 0
+  };
+}
+
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
   if (event.httpMethod !== 'GET') return utils.errorResponse(405, 'Method not allowed');
@@ -270,6 +318,8 @@ exports.handler = async function(event) {
       data = await handleUsers(supabase, qs);
     } else if (route === 'orders') {
       data = await handleOrders(supabase, qs);
+    } else if (route === 'kpis') {
+      data = await handleKpis(supabase);
     } else {
       return utils.errorResponse(404, 'Unknown stats route: ' + route);
     }

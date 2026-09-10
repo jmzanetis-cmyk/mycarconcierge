@@ -2953,36 +2953,30 @@
     // ========== DASHBOARD ==========
     async function updateDashboard() {
       try {
-        const [
-          { count: pendingAppsCount },
-          { count: activeProvidersCount },
-          { data: heldPaymentsData },
-          { count: openDisputesCount },
-          { data: releasedPaymentsData },
-          { count: activePackagesCount },
-          { count: openTicketsCount }
-        ] = await Promise.all([
-          supabaseClient.from('provider_applications').select('*', { count: 'exact', head: true }).eq('status', 'pending'),
-          supabaseClient.from('profiles').select('*', { count: 'exact', head: true }).eq('role', 'provider').eq('application_status', 'approved').is('suspended_at', null),
-          supabaseClient.from('payments').select('amount_total').eq('status', 'held'),
-          supabaseClient.from('disputes').select('*', { count: 'exact', head: true }).eq('status', 'open'),
-          supabaseClient.from('payments').select('amount_mcc_fee').eq('status', 'released'),
-          supabaseClient.from('maintenance_packages').select('*', { count: 'exact', head: true }).in('status', ['open', 'accepted', 'in_progress']),
-          Promise.resolve(supabaseClient.from('helpdesk_tickets').select('*', { count: 'exact', head: true }).eq('status', 'open')).catch(() => ({ count: 0 }))
-        ]);
+        // Task #61 (2026-09-10) — these used to query supabaseClient
+        // directly from the browser, which only ever resolves real rows
+        // for a profiles.role=admin session; a Team Login session has no
+        // such session, so every card here silently read 0 for every
+        // team-login user regardless of their permissions. Routed through
+        // GET /api/admin/stats/kpis (authenticateAdminSection(..., 'dashboard'),
+        // service-role client server-side) so this works the same way the
+        // rest of the page's team-login-aware sections already do.
+        const apiBase = globalThis.MCC_CONFIG?.apiBaseUrl || '';
+        const kpisRes = await fetch(`${apiBase}/api/admin/stats/kpis`, { headers: getAdminHeaders() });
+        const kpisJson = await kpisRes.json();
+        if (!kpisRes.ok || !kpisJson.success) throw new Error(kpisJson.error || 'Failed to load dashboard KPIs');
+        const kpis = kpisJson.data;
+
+        const pendingAppsCount = kpis.pendingApps;
+        const openDisputesCount = kpis.openDisputes;
+        const openTicketsCount = kpis.openTickets;
 
         document.getElementById('stat-pending-apps').textContent = pendingAppsCount || 0;
-        document.getElementById('stat-active-providers').textContent = activeProvidersCount || 0;
-        
-        const heldAmount = (heldPaymentsData || []).reduce((sum, p) => sum + (p.amount_total || 0), 0);
-        document.getElementById('stat-escrow').textContent = '$' + heldAmount.toLocaleString();
-        
+        document.getElementById('stat-active-providers').textContent = kpis.activeProviders || 0;
+        document.getElementById('stat-escrow').textContent = '$' + (kpis.escrowAmount || 0).toLocaleString();
         document.getElementById('stat-open-disputes').textContent = openDisputesCount || 0;
-        
-        const revenue = (releasedPaymentsData || []).reduce((sum, p) => sum + (p.amount_mcc_fee || 0), 0);
-        document.getElementById('stat-revenue').textContent = '$' + revenue.toLocaleString();
-        
-        document.getElementById('stat-packages').textContent = activePackagesCount || 0;
+        document.getElementById('stat-revenue').textContent = '$' + (kpis.revenue || 0).toLocaleString();
+        document.getElementById('stat-packages').textContent = kpis.activePackages || 0;
 
         const attentionItems = [];
         if (pendingAppsCount > 0) attentionItems.push({ icon: mccIcon('clipboard-list', 16), text: `${pendingAppsCount} provider application(s) awaiting review`, section: 'applications' });
