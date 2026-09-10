@@ -1,3 +1,42 @@
+// Car Club — punch (POST /api/car-club/punch) concurrency/integrity test.
+//
+// 2026-09-09 REWRITE: the previous version of this script targeted an older
+// API shape that no longer exists — POST /api/car-club/log-activity against
+// a punch_count column on member_club_balances, driven by a
+// club_reward_rules "reward_rule_id" created via a reward-templates catalog.
+// None of that survived the Slice 1/2 points-ledger rebuild (migrations
+// 20260703a-h): there is no member_club_balances table, no
+// club_promotions table, no reward-templates endpoint, and
+// POST /api/car-clubs/:id/punch (nested) is now a deliberate 403 stub that
+// tells callers to use the real route below (car-clubs.js:426-428).
+//
+// Current architecture (car-clubs.js punchMember(), ~line 473):
+//   POST /api/car-club/punch   body: { club_id, qr_token }
+//   - PROVIDER-authenticated (not member!) — the security boundary is
+//     car_clubs.provider_id === auth.uid(); a member can never punch
+//     themselves. auth 403 if the caller doesn't own the club.
+//   - qr_token resolves via profiles.qr_code_token first, falling back to
+//     profiles.id when the token itself looks like a UUID — so a member's
+//     own auth uid works directly as qr_token without needing their real
+//     QR code. That's what this test uses (avoids the qr_code_token
+//     schema-drift risk documented at car-clubs.js:469-471).
+//   - Every call is a rule-agnostic INSERT into club_points_ledger
+//     (delta_points: 1, reason: 'earn_spend'). There is no reward_rule_id
+//     column on that table and no punches_required threshold enforced
+//     server-side any more — thresholds are evaluated client-side against
+//     club_rewards.point_cost at render/redeem time, not at earn time.
+//
+// What changed about the race condition under test:
+//   The old bug class was a read-modify-write lost-update race on a shared
+//   punch_count integer (read count, add 1 in JS, write back — two
+//   concurrent calls for the same member could read the same stale value).
+//   The ledger-INSERT model structurally can't lose an update that way:
+//   every successful call appends its own row, and the balance is a SUM.
+//   So this test no longer expects to *find* that specific race — but it
+//   still verifies real invariants that a regression could break: every
+//   successful call must produce exactly one ledger row worth exactly 1
+//   point (no dropped writes under burst load, no double-inserts), and the
+//   provider-only auth boundary must hold under concurrent calls too.
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ifbyjxuaclwmadqbjcyp.supabase.co';
@@ -26,7 +65,6 @@ const CONFIG = {
   burstConcurrency: param('burst-concurrency', 10),
   membersToTest:    param('members', 3),
   punchesPerMember: param('punches-per-member', 20),
-  punchesRequired:  param('punches-required', 50),
   requestTimeout:   10000,
   interRequestDelay: 10,
   baseUrl:          strParam('base-url', process.env.STRESS_TEST_BASE_URL || 'http://localhost:5000'),
@@ -43,18 +81,17 @@ function createMetric(name) {
 }
 
 const metrics = {
-  logActivity: createMetric('POST /api/car-club/log-activity'),
+  punch: createMetric('POST /api/car-club/punch'),
 };
 
 let workerUnhandledErrors = 0;
 
+// Always created fresh by this run (createClub() has no dedupe/409 any more
+// — every provider POST /api/car-club/create makes a new club), so cleanup
+// is unconditional: delete everything this run created, no "was it
+// pre-existing" branch needed.
 const createdIds = {
   clubId: null,
-  ruleId: null,
-  membershipIds: [],
-  memberIds: [],
-  clubCreatedByTest: false,
-  ruleCreatedByTest: false,
 };
 
 function addLatency(metric, latency) {
@@ -109,8 +146,8 @@ async function fetchJson(url, options = {}) {
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timeout);
-    if (!res.ok) return { status: res.status, data: null };
-    const data = await res.json();
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
     return { status: res.status, data };
   } catch (err) {
     clearTimeout(timeout);
@@ -128,198 +165,108 @@ async function getSession(email) {
 }
 
 async function setupClubAndMemberships(providerSession, memberSessions) {
-  console.log('  Setting up dedicated test club...');
+  console.log('  Creating dedicated test club...');
 
   const createRes = await fetchJson(`${BASE_URL}/api/car-club/create`, {
     method: 'POST',
     headers: { 'Authorization': `Bearer ${providerSession.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({ name: `Punch Race Test ${RUN_ID}`, description: 'Created for punch card concurrency test — auto-deleted on completion' }),
+    body: JSON.stringify({ name: `Punch Race Test ${RUN_ID}`, description: 'Created for punch concurrency test — auto-deleted on completion' }),
   });
 
-  let clubId = null;
-
-  if (createRes.data?.club) {
-    clubId = createRes.data.club.id;
-    createdIds.clubCreatedByTest = true;
-  } else if (createRes.status === 409) {
-    const myClubRes = await fetchJson(`${BASE_URL}/api/car-club/my-club`, {
-      headers: { 'Authorization': `Bearer ${providerSession.token}` },
-    });
-    if (myClubRes.data?.club) {
-      clubId = myClubRes.data.club.id;
-      console.log('  Provider already has a club — reusing it (will only delete test-created resources)');
-    }
-  }
-
-  if (!clubId) {
-    console.error('  Could not create or find car club. Aborting.');
+  if (createRes.status === 403) {
+    console.error('  Could not create car club — 403 Not available.');
+    console.error('  The car_club_programs_enabled feature flag is almost certainly off for');
+    console.error('  this provider test account. Enable it (globally or for test users) and re-run.');
     return null;
   }
+  if (!createRes.data?.club) {
+    console.error(`  Could not create car club (status=${createRes.status}): ${JSON.stringify(createRes.data)}`);
+    return null;
+  }
+
+  const clubId = createRes.data.club.id;
   createdIds.clubId = clubId;
-
-  const tplRes = await fetchJson(`${BASE_URL}/api/car-club/reward-templates`, {
-    headers: { 'Authorization': `Bearer ${providerSession.token}` },
-  });
-  const punchTpl = (tplRes.data?.templates || []).find(t => t.slug === 'punch_card');
-  if (!punchTpl) {
-    console.error('  No punch_card reward template found. Aborting.');
-    return null;
-  }
-
-  const myClubCheck = await fetchJson(`${BASE_URL}/api/car-club/my-club`, {
-    headers: { 'Authorization': `Bearer ${providerSession.token}` },
-  });
-  const existingRules = myClubCheck.data?.club?.reward_rules || [];
-  const activeRules = existingRules.filter(r => r.is_active);
-  if (activeRules.length >= 3) {
-    const staleTestRules = activeRules.filter(r => r.name && r.name.startsWith('Punch Race'));
-    const toDeactivate = staleTestRules.length > 0 ? staleTestRules : [activeRules[activeRules.length - 1]];
-    for (const stale of toDeactivate) {
-      await fetch(`${BASE_URL}/api/car-club/rewards/${stale.id}`, {
-        method: 'DELETE',
-        headers: { 'Authorization': `Bearer ${providerSession.token}` },
-      });
-      console.log(`  Deactivated rule ${stale.id} (${stale.name || 'unnamed'}) to make room`);
-    }
-  }
-
-  const rewardReq = {
-    method: 'POST',
-    headers: { 'Authorization': `Bearer ${providerSession.token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify({
-      template_id: punchTpl.id,
-      name: `Punch Race Rule ${RUN_ID}`,
-      description: `${CONFIG.punchesRequired} punches for reward — test-only`,
-      parameters: { punches_required: CONFIG.punchesRequired, auto_reset: false },
-    }),
-  };
-  const rewardRawRes = await fetch(`${BASE_URL}/api/car-club/rewards`, rewardReq);
-  let rewardData = null;
-  try { rewardData = await rewardRawRes.json(); } catch (_) {}
-
-  if (!rewardData?.reward_rule) {
-    console.error(`  Could not create punch_card reward rule (status=${rewardRawRes.status}): ${JSON.stringify(rewardData)}`);
-    return null;
-  }
-  const rewardRes = { data: rewardData };
-
-  const ruleId = rewardRes.data.reward_rule.id;
-  createdIds.ruleId = ruleId;
-  createdIds.ruleCreatedByTest = true;
-
-  const actualParams = rewardRes.data.reward_rule.parameters || {};
-  const actualPunchesRequired = Number.parseInt(actualParams.punches_required) || CONFIG.punchesRequired;
-  const actualAutoReset = actualParams.auto_reset !== false;
-
-  console.log(`  Club ID: ${clubId}${createdIds.clubCreatedByTest ? ' (created)' : ' (reused)'}`);
-  console.log(`  Reward Rule ID: ${ruleId} (created)`);
-  console.log(`  Rule params: punches_required=${actualPunchesRequired}, auto_reset=${actualAutoReset}`);
-
-  if (actualAutoReset) {
-    console.warn('  WARNING: auto_reset is true — punch counts will reset at threshold, making integrity check unreliable.');
-    console.warn(`  Set --punches-required high enough (currently ${CONFIG.punchesRequired}) so threshold is never reached during test.`);
-  }
-
-  const { data: activePromos } = await supabaseAdmin
-    .from('club_promotions')
-    .select('id, punch_multiplier')
-    .eq('club_id', clubId)
-    .eq('is_active', true);
-
-  let punchMultiplier = 1;
-  if (activePromos && activePromos.length > 0) {
-    punchMultiplier = Math.max(...activePromos.map(p => Number.parseInt(p.punch_multiplier) || 1));
-    console.warn(`  WARNING: Active promotion detected with punch_multiplier=${punchMultiplier}`);
-    console.warn('  Integrity check will account for this multiplier in expected punch counts.');
-  }
+  console.log(`  Club ID: ${clubId} (created)`);
 
   console.log(`  Joining ${memberSessions.length} members to club...`);
-  const membershipIdsCreated = [];
   for (const ms of memberSessions) {
     const joinRes = await fetchJson(`${BASE_URL}/api/car-club/join`, {
       method: 'POST',
       headers: { 'Authorization': `Bearer ${ms.token}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ club_id: clubId }),
     });
-    if (joinRes.data?.membership_id) {
-      membershipIdsCreated.push(joinRes.data.membership_id);
+    // join returns { success: true } with no membership_id — membership
+    // itself isn't needed downstream; the ledger is keyed on
+    // (club_id, member_id) directly, not on a membership row id.
+    if (joinRes.status !== 200) {
+      console.warn(`  WARNING: join failed for member ${ms.userId.slice(0, 8)}... (status=${joinRes.status})`);
     }
   }
 
-  const assignments = [];
-  for (const ms of memberSessions) {
-    const myClubsRes = await fetchJson(`${BASE_URL}/api/car-club/my-clubs`, {
-      headers: { 'Authorization': `Bearer ${ms.token}` },
-    });
-    for (const club of (myClubsRes.data?.clubs || [])) {
-      if (club.club_id === clubId && club.is_active) {
-        assignments.push({
-          memberId: ms.userId,
-          memberToken: ms.token,
-          clubId,
-          ruleId,
-          providerToken: providerSession.token,
-          membershipId: club.membership_id,
-        });
-        if (!membershipIdsCreated.includes(club.membership_id)) {
-          membershipIdsCreated.push(club.membership_id);
-        }
-      }
-    }
-  }
+  const assignments = memberSessions.map(ms => ({
+    memberId: ms.userId,
+    memberToken: ms.token,
+    clubId,
+    providerToken: providerSession.token,
+  }));
 
-  createdIds.membershipIds = membershipIdsCreated;
-  createdIds.memberIds = assignments.map(a => a.memberId);
+  console.log(`  ${assignments.length} members set up`);
+  return { clubId, assignments };
+}
 
-  console.log(`  ${assignments.length} active member-club assignments confirmed`);
-  if (assignments.length === 0) {
-    console.error('  No member-club assignments found. Aborting.');
+// Direct service-role read of club_points_ledger — the source of truth for
+// both "how many points does this member have" (SUM delta_points) and "how
+// many ledger rows did they get" (COUNT), in one query. Scoped to a single
+// club_id that this run created and will delete, so every row returned
+// unambiguously belongs to this test run — no member_id/reason filtering
+// needed for isolation.
+async function getLedgerStats(clubId) {
+  const { data, error } = await supabaseAdmin
+    .from('club_points_ledger')
+    .select('member_id, delta_points')
+    .eq('club_id', clubId);
+  if (error) {
+    console.error('  Failed to read club_points_ledger:', error.message);
     return null;
   }
-
-  return { clubId, ruleId, assignments, punchMultiplier };
-}
-
-async function getPunchCounts(assignments) {
-  const totals = {};
-  const memberTokens = {};
-  for (const a of assignments) memberTokens[a.memberId] = a.memberToken;
-
-  for (const memberId of Object.keys(memberTokens)) {
-    const token = memberTokens[memberId];
-    const res = await fetchJson(`${BASE_URL}/api/car-club/my-clubs`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    for (const club of (res.data?.clubs || [])) {
-      const matching = assignments.find(a => a.membershipId === club.membership_id);
-      if (!matching) continue;
-      let punches = 0;
-      for (const bal of (club.balances || [])) {
-        if (bal.reward_rule_id === matching.ruleId) punches += (bal.punch_count || 0);
-      }
-      totals[memberId] = (totals[memberId] || 0) + punches;
-    }
+  const balances = {};
+  const rowCounts = {};
+  for (const row of (data || [])) {
+    balances[row.member_id] = (balances[row.member_id] || 0) + row.delta_points;
+    rowCounts[row.member_id] = (rowCounts[row.member_id] || 0) + 1;
   }
-  return totals;
+  return { balances, rowCounts };
 }
 
-async function fireLogActivityBurst(assignment, count) {
+// Bonus regression check (cheap, one call): confirm the documented
+// provider-only security boundary (car-clubs.js:489) still holds — a
+// member calling their own punch endpoint must be rejected, not silently
+// award themselves points.
+async function checkMemberCannotPunchSelf(assignment) {
+  const res = await fetchJson(`${BASE_URL}/api/car-club/punch`, {
+    method: 'POST',
+    headers: { 'Authorization': `Bearer ${assignment.memberToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ club_id: assignment.clubId, qr_token: assignment.memberId }),
+  });
+  return res.status === 403;
+}
+
+async function firePunchBurst(assignment, count) {
   const promises = [];
   const successTracker = [];
 
   for (let i = 0; i < count; i++) {
-    const p = timedFetch(`${BASE_URL}/api/car-club/log-activity`, {
+    const p = timedFetch(`${BASE_URL}/api/car-club/punch`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${assignment.providerToken}`,
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        member_id: assignment.memberId,
-        reward_rule_id: assignment.ruleId,
-        activity_type: 'service_completed',
-        quantity: 1,
-        description: `Punch concurrency test ${RUN_ID}`,
+        club_id: assignment.clubId,
+        // Member's own auth uid — a valid qr_token per the profiles.id
+        // fallback in punchMember() (car-clubs.js:501-505).
+        qr_token: assignment.memberId,
       }),
     });
     promises.push(p);
@@ -332,10 +279,10 @@ async function fireLogActivityBurst(assignment, count) {
 
   for (const result of results) {
     if (result.timeout) {
-      recordMetric('logActivity', result.latency, 0);
-      metrics.logActivity.timeouts++;
+      recordMetric('punch', result.latency, 0);
+      metrics.punch.timeouts++;
     } else {
-      recordMetric('logActivity', result.latency, result.status);
+      recordMetric('punch', result.latency, result.status);
     }
     if (result.ok) successTracker.push(true);
   }
@@ -356,7 +303,7 @@ async function runBurstRounds(assignments) {
 
     while (sent < totalPunches) {
       const batchSize = Math.min(burstSize, totalPunches - sent);
-      const successes = await fireLogActivityBurst(a, batchSize);
+      const successes = await firePunchBurst(a, batchSize);
       successesByMember[a.memberId] += successes;
       sent += batchSize;
       process.stdout.write(`    Sent ${sent}/${totalPunches} (${successesByMember[a.memberId]} successful so far)\r`);
@@ -369,10 +316,10 @@ async function runBurstRounds(assignments) {
 
 function printResults(testDurationSec) {
   console.log('\n====================================================');
-  console.log('  CAR CLUB PUNCH CARD CONCURRENCY TEST RESULTS');
+  console.log('  CAR CLUB PUNCH CONCURRENCY TEST RESULTS');
   console.log('====================================================\n');
 
-  const m = metrics.logActivity;
+  const m = metrics.punch;
   const p50 = percentile(m, 50);
   const p95 = percentile(m, 95);
   const p99 = percentile(m, 99);
@@ -401,113 +348,73 @@ function printResults(testDurationSec) {
   return { p95, errorRate };
 }
 
-async function checkPunchIntegrity(assignments, successesByMember, punchesBefore, punchMultiplier) {
-  const punchesAfter = await getPunchCounts(assignments);
-
-  console.log('\n  PUNCH COUNT INTEGRITY — BALANCE CHECK (per member)');
-  if (punchMultiplier > 1) {
-    console.log(`  (punch_multiplier=${punchMultiplier} — expected = successes * multiplier)`);
-  }
-  console.log('  ' + '-'.repeat(70));
-  console.log(`  ${'Member'.padEnd(12)} ${'Before'.padStart(8)} ${'After'.padStart(8)} ${'Awarded'.padStart(9)} ${'Expected'.padStart(10)} ${'Delta'.padStart(7)} ${'Result'.padStart(8)}`);
-  console.log('  ' + '-'.repeat(70));
+function checkPunchIntegrity(assignments, successesByMember, before, after) {
+  console.log('\n  POINTS LEDGER INTEGRITY (club_points_ledger — direct read, service role)');
+  console.log('  ' + '-'.repeat(78));
+  console.log(`  ${'Member'.padEnd(12)} ${'Before'.padStart(8)} ${'After'.padStart(8)} ${'Awarded'.padStart(9)} ${'Rows+'.padStart(7)} ${'Expected'.padStart(10)} ${'Delta'.padStart(7)} ${'Result'.padStart(8)}`);
+  console.log('  ' + '-'.repeat(78));
 
   let totalAwarded = 0;
+  let totalNewRows = 0;
   let totalExpected = 0;
   let anyOvercount = false;
   let anyUndercount = false;
+  let anyRowMismatch = false;
 
   for (const a of assignments) {
-    const before = punchesBefore[a.memberId] || 0;
-    const after = punchesAfter[a.memberId] || 0;
-    const awarded = after - before;
-    const expected = (successesByMember[a.memberId] || 0) * punchMultiplier;
+    const beforeBal = before.balances[a.memberId] || 0;
+    const afterBal = after.balances[a.memberId] || 0;
+    const beforeRows = before.rowCounts[a.memberId] || 0;
+    const afterRows = after.rowCounts[a.memberId] || 0;
+    const awarded = afterBal - beforeBal;
+    const newRows = afterRows - beforeRows;
+    const expected = successesByMember[a.memberId] || 0;
     const delta = awarded - expected;
 
     totalAwarded += awarded;
+    totalNewRows += newRows;
     totalExpected += expected;
 
     let result = 'OK';
     if (delta > 0) { result = 'OVER'; anyOvercount = true; }
     else if (delta < 0) { result = 'UNDER'; anyUndercount = true; }
+    if (newRows !== awarded) anyRowMismatch = true; // would mean a row with delta_points != 1 snuck in
 
-    console.log(`  ${a.memberId.slice(0, 10).padEnd(12)} ${String(before).padStart(8)} ${String(after).padStart(8)} ${String(awarded).padStart(9)} ${String(expected).padStart(10)} ${(delta >= 0 ? '+' : '') + String(delta).padStart(6)} ${result.padStart(8)}`);
+    console.log(`  ${a.memberId.slice(0, 10).padEnd(12)} ${String(beforeBal).padStart(8)} ${String(afterBal).padStart(8)} ${String(awarded).padStart(9)} ${('+' + newRows).padStart(7)} ${String(expected).padStart(10)} ${(delta >= 0 ? '+' : '') + String(delta).padStart(6)} ${result.padStart(8)}`);
   }
 
-  console.log('  ' + '-'.repeat(70));
+  console.log('  ' + '-'.repeat(78));
   const totalDelta = totalAwarded - totalExpected;
-  console.log(`  ${'TOTAL'.padEnd(12)} ${''.padStart(8)} ${''.padStart(8)} ${String(totalAwarded).padStart(9)} ${String(totalExpected).padStart(10)} ${(totalDelta >= 0 ? '+' : '') + String(totalDelta).padStart(6)} ${(totalDelta === 0 ? 'EXACT' : totalDelta > 0 ? 'OVER' : 'UNDER').padStart(8)}`);
+  console.log(`  ${'TOTAL'.padEnd(12)} ${''.padStart(8)} ${''.padStart(8)} ${String(totalAwarded).padStart(9)} ${('+' + totalNewRows).padStart(7)} ${String(totalExpected).padStart(10)} ${(totalDelta >= 0 ? '+' : '') + String(totalDelta).padStart(6)} ${(totalDelta === 0 ? 'EXACT' : totalDelta > 0 ? 'OVER' : 'UNDER').padStart(8)}`);
 
-  console.log('\n  PUNCH COUNT INTEGRITY — ACTIVITY LOG ROW AUDIT');
-  console.log('  ' + '-'.repeat(70));
-
-  let totalLogRows = 0;
-  let totalSuccessful = 0;
-  let logRowMismatch = false;
-
-  for (const a of assignments) {
-    const { count, error } = await supabaseAdmin
-      .from('club_activity_log')
-      .select('id', { count: 'exact', head: true })
-      .eq('membership_id', a.membershipId)
-      .eq('reward_rule_id', a.ruleId);
-
-    const dbRows = error ? null : (count || 0);
-    const expectedRows = successesByMember[a.memberId] || 0;
-
-    if (dbRows === null) {
-      logRowMismatch = null;
-      console.log(`  ${a.memberId.slice(0, 10).padEnd(12)}  DB rows: (RLS blocked)  Expected: ${String(expectedRows).padStart(5)}  — skipped (no access)`);
-      totalSuccessful += expectedRows;
-      continue;
-    }
-
-    const rowDelta = dbRows - expectedRows;
-    totalLogRows += dbRows;
-    totalSuccessful += expectedRows;
-
-    const rowResult = rowDelta === 0 ? 'OK' : (rowDelta > 0 ? 'EXTRA' : 'MISSING');
-    if (logRowMismatch !== null && rowDelta !== 0) logRowMismatch = true;
-
-    console.log(`  ${a.memberId.slice(0, 10).padEnd(12)}  DB rows: ${String(dbRows).padStart(5)}  Expected: ${String(expectedRows).padStart(5)}  Delta: ${(rowDelta >= 0 ? '+' : '') + String(rowDelta).padStart(4)}  ${rowResult}`);
+  if (anyUndercount) {
+    console.log(`\n  NOTE: Under-count detected — ${Math.abs(totalDelta)} punch(es) awarded fewer points than`);
+    console.log('  successful API calls. Under the ledger-INSERT model this would mean a');
+    console.log('  successful call (2xx) did not durably commit its row — a real regression,');
+    console.log('  not the old read-modify-write race (there is no shared counter to race).');
+  }
+  if (anyOvercount) {
+    console.log(`\n  WARNING: Over-count detected — members received more points than`);
+    console.log('  successful API calls. This indicates a double-insert bug.');
+  }
+  if (anyRowMismatch) {
+    console.log(`\n  WARNING: A ledger row with delta_points != 1 was inserted for this club —`);
+    console.log('  unexpected for this test (only punchMember() should write here), investigate.');
   }
 
-  if (logRowMismatch === null) {
-    console.log(`  ${'TOTAL'.padEnd(12)}  (activity log audit skipped — RLS blocks service_role access)`);
-  } else {
-    const logRowDelta = totalLogRows - totalSuccessful;
-    console.log(`  ${'TOTAL'.padEnd(12)}  DB rows: ${String(totalLogRows).padStart(5)}  Expected: ${String(totalSuccessful).padStart(5)}  Delta: ${(logRowDelta >= 0 ? '+' : '') + String(logRowDelta).padStart(4)}  ${logRowDelta === 0 ? 'EXACT' : logRowMismatch ? 'MISMATCH' : 'OK'}`);
-  }
-
-  return { totalAwarded, totalExpected, anyOvercount, anyUndercount, totalDelta, logRowMismatch, totalLogRows, totalSuccessful };
+  return { totalAwarded, totalExpected, totalDelta, anyOvercount, anyUndercount, anyRowMismatch };
 }
 
 async function cleanupTestData() {
-  console.log('\n[Cleanup] Removing test-created data only...');
+  console.log('\n[Cleanup] Removing test-created data...');
 
-  if (createdIds.membershipIds.length > 0) {
-    await supabaseAdmin.from('club_reward_redemptions').delete().in('membership_id', createdIds.membershipIds);
-    await supabaseAdmin.from('club_activity_log').delete().in('membership_id', createdIds.membershipIds);
-    await supabaseAdmin.from('member_club_balances').delete().in('membership_id', createdIds.membershipIds);
-    await supabaseAdmin.from('club_memberships').delete().in('id', createdIds.membershipIds);
-    console.log(`  Deleted redemptions, activity logs, balances, and ${createdIds.membershipIds.length} memberships`);
-  }
-
-  if (createdIds.ruleCreatedByTest && createdIds.ruleId) {
-    await supabaseAdmin.from('club_reward_rules').delete().eq('id', createdIds.ruleId);
-    console.log(`  Deleted reward rule ${createdIds.ruleId}`);
-  }
-
-  if (createdIds.clubCreatedByTest && createdIds.clubId) {
+  if (createdIds.clubId) {
+    await supabaseAdmin.from('club_points_ledger').delete().eq('club_id', createdIds.clubId);
+    await supabaseAdmin.from('club_memberships').delete().eq('club_id', createdIds.clubId);
     await supabaseAdmin.from('car_clubs').delete().eq('id', createdIds.clubId);
-    console.log(`  Deleted car club ${createdIds.clubId}`);
-  } else if (createdIds.clubId) {
-    console.log(`  Kept car club ${createdIds.clubId} (pre-existing, not created by this test)`);
-  }
-
-  if (createdIds.memberIds.length > 0) {
-    await supabaseAdmin.from('notification_queue').delete().in('user_id', createdIds.memberIds);
-    console.log('  Cleaned up notification queue entries');
+    console.log(`  Deleted ledger rows, memberships, and car club ${createdIds.clubId}`);
+  } else {
+    console.log('  Nothing to clean up (club was never created).');
   }
 
   console.log('  Cleanup complete.\n');
@@ -515,21 +422,20 @@ async function cleanupTestData() {
 
 async function main() {
   console.log('\n====================================================');
-  console.log('  My Car Concierge — Car Club Punch Card Concurrency Test');
+  console.log('  My Car Concierge — Car Club Punch Concurrency Test');
   console.log('====================================================');
   console.log(`  Run ID:              ${RUN_ID}`);
   console.log(`  Target:              ${CONFIG.baseUrl}`);
   console.log(`  Burst concurrency:   ${CONFIG.burstConcurrency}`);
   console.log(`  Members to test:     ${CONFIG.membersToTest}`);
   console.log(`  Punches per member:  ${CONFIG.punchesPerMember}`);
-  console.log(`  Punches required:    ${CONFIG.punchesRequired} (auto_reset=false to prevent threshold resets)`);
   console.log(`  Request timeout:     ${CONFIG.requestTimeout}ms`);
   console.log(`  Inter-request delay: ${CONFIG.interRequestDelay}ms`);
-  console.log(`\n  Race condition under test:`);
-  console.log(`    POST /api/car-club/log-activity does a read-modify-write on`);
-  console.log(`    member_club_balances.punch_count without DB-level locking.`);
-  console.log(`    Concurrent calls for the SAME member can read the same stale`);
-  console.log(`    punch_count and both write count+1 instead of count+2.`);
+  console.log(`\n  Endpoint under test:`);
+  console.log(`    POST /api/car-club/punch — provider-authenticated, INSERTs one`);
+  console.log(`    club_points_ledger row (delta_points=1) per call. No shared counter`);
+  console.log(`    to race; this test checks for dropped/duplicated writes under burst`);
+  console.log(`    concurrency instead of the old read-modify-write lost-update bug.`);
   console.log('====================================================\n');
 
   let exitCode = 1;
@@ -571,17 +477,22 @@ async function main() {
 
     console.log(`  Authenticated: ${memberSessions.length} members, 1 provider\n`);
 
-    console.log('[Phase 2/5] Setting up car club, reward rule, and memberships...');
+    console.log('[Phase 2/5] Creating car club and memberships...');
     const setupResult = await setupClubAndMemberships(providerSession, memberSessions);
     if (!setupResult) return;
 
-    const { clubId, ruleId, assignments, punchMultiplier } = setupResult;
+    const { clubId, assignments } = setupResult;
     console.log('  Setup complete.\n');
 
-    console.log('[Phase 3/5] Recording baseline punch counts...');
-    const punchesBefore = await getPunchCounts(assignments);
+    console.log('  Verifying provider-only auth boundary (member cannot punch self)...');
+    const boundaryHeld = await checkMemberCannotPunchSelf(assignments[0]);
+    console.log(`  ${boundaryHeld ? 'OK' : 'FAIL'} — member-authenticated punch call ${boundaryHeld ? 'correctly rejected (403)' : 'was NOT rejected — security regression'}\n`);
+
+    console.log('[Phase 3/5] Recording baseline ledger state...');
+    const before = await getLedgerStats(clubId);
+    if (!before) return;
     for (const a of assignments) {
-      console.log(`  Member ${a.memberId.slice(0, 8)}...: ${punchesBefore[a.memberId] || 0} punches`);
+      console.log(`  Member ${a.memberId.slice(0, 8)}...: ${before.balances[a.memberId] || 0} points`);
     }
     console.log('');
 
@@ -591,7 +502,9 @@ async function main() {
     const testDurationSec = (Date.now() - testStart) / 1000;
 
     const { p95, errorRate } = printResults(testDurationSec);
-    const integrityResult = await checkPunchIntegrity(assignments, successesByMember, punchesBefore, punchMultiplier);
+    const after = await getLedgerStats(clubId);
+    if (!after) return;
+    const integrityResult = checkPunchIntegrity(assignments, successesByMember, before, after);
 
     console.log('\n  PASS/FAIL CRITERIA');
     console.log('  ' + '-'.repeat(60));
@@ -599,9 +512,10 @@ async function main() {
     const criteria = [
       { name: 'p95 < 2000ms',                    value: `${p95}ms`,                                                                  pass: p95 < 2000 },
       { name: 'Error rate < 1% (incl timeouts)',  value: `${errorRate.toFixed(2)}%`,                                                  pass: errorRate < 1 },
-      { name: 'No punch over-count (per member)', value: `${integrityResult.totalAwarded} awarded / ${integrityResult.totalExpected} expected (delta: ${integrityResult.totalDelta >= 0 ? '+' : ''}${integrityResult.totalDelta})`, pass: !integrityResult.anyOvercount },
-      { name: 'Exact punch count match',          value: `${integrityResult.totalDelta === 0 ? 'exact' : `off by ${integrityResult.totalDelta}`}`,                                                                                  pass: integrityResult.totalDelta === 0 },
-      { name: 'Activity log rows match calls',    value: integrityResult.logRowMismatch === null ? 'skipped (RLS)' : `${integrityResult.totalLogRows} rows / ${integrityResult.totalSuccessful} calls`,                                    pass: integrityResult.logRowMismatch === null || !integrityResult.logRowMismatch },
+      { name: 'No ledger over-count (per member)', value: `${integrityResult.totalAwarded} awarded / ${integrityResult.totalExpected} expected (delta: ${integrityResult.totalDelta >= 0 ? '+' : ''}${integrityResult.totalDelta})`, pass: !integrityResult.anyOvercount },
+      { name: 'Exact ledger balance match',        value: `${integrityResult.totalDelta === 0 ? 'exact' : `off by ${integrityResult.totalDelta}`}`,                                                                                  pass: integrityResult.totalDelta === 0 },
+      { name: 'No malformed ledger rows',          value: integrityResult.anyRowMismatch ? 'mismatch found' : 'all rows = 1 point',                                                                                                   pass: !integrityResult.anyRowMismatch },
+      { name: 'Provider-only auth boundary holds', value: boundaryHeld ? '403 as expected' : 'NOT rejected',                                                                                                                            pass: boundaryHeld },
     ];
 
     for (const c of criteria) {
@@ -609,15 +523,10 @@ async function main() {
     }
 
     if (integrityResult.anyUndercount) {
-      console.log(`\n  NOTE: Under-count detected — ${Math.abs(integrityResult.totalDelta)} punch(es) lost to read-modify-write race.`);
-      console.log('  The server reads punch_count, adds 1 in JS, and writes back without');
-      console.log('  a DB lock. Concurrent calls for the same member read the same stale');
-      console.log('  value, causing lost increments.');
-    }
-
-    if (integrityResult.anyOvercount) {
-      console.log(`\n  WARNING: Over-count detected — members received more punches than`);
-      console.log('  successful API calls. This indicates a double-increment bug.');
+      console.log(`\n  NOTE: Under-count detected — ${Math.abs(integrityResult.totalDelta)} punch(es) lost.`);
+      console.log('  A successful (2xx) call did not durably produce a ledger row — investigate');
+      console.log('  as a genuine regression, since INSERTs don\'t lose-update the way the old');
+      console.log('  read-modify-write counter did.');
     }
 
     console.log('\n====================================================\n');
@@ -636,6 +545,6 @@ async function main() {
 }
 
 main().catch(err => {
-  console.error('\nPunch card concurrency test failed:', err);
+  console.error('\nPunch concurrency test failed:', err);
   cleanupTestData().catch(() => {}).finally(() => process.exit(1));
 });

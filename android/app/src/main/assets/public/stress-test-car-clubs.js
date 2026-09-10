@@ -1,3 +1,26 @@
+// Car Club — general API load/soak test (ramp-up / sustained / spike /
+// cool-down), mixing the same 4 flows a real pilot would generate.
+//
+// 2026-09-09 REWRITE: this targeted an API shape that no longer exists —
+// GET /api/car-club/my-club returning `reward_rules[]` with a
+// `template_slug`, a reward-templates catalog endpoint, and
+// POST /api/car-club/log-activity keyed on a punch_count balance. None of
+// that survived the Slice 1/2 points-ledger rebuild. See
+// stress-test-car-club-punch.js's header comment for the full architecture
+// change — the short version: punching is now POST /api/car-club/punch
+// (provider-authenticated, body { club_id, qr_token }), rule-agnostic, and
+// needs no reward-rule/template setup at all — every INSERT just appends
+// 1 point to club_points_ledger. That removes an entire setup phase this
+// script used to need.
+//
+// Flows under test (all via server API, user-context JWT):
+//   1. Browse clubs  — GET /api/car-club/browse
+//   2. My clubs      — GET /api/car-club/my-clubs
+//   3. Punch         — POST /api/car-club/punch (provider awards a point)
+//   4. My rewards    — GET /api/car-club/my-rewards (legacy club_reward_rules
+//                       read path — no current writer populates this table,
+//                       so expect empty responses; still real production
+//                       traffic shape worth load-testing as-is)
 const { createClient } = require('@supabase/supabase-js');
 
 const SUPABASE_URL = process.env.SUPABASE_URL || 'https://ifbyjxuaclwmadqbjcyp.supabase.co';
@@ -39,12 +62,13 @@ const CONFIG = {
 const BASE_URL = CONFIG.baseUrl;
 const SIM_DOMAIN = '@mcc-sim.test';
 const SIM_PASSWORD = 'SimPass123!';
+const RUN_ID = Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 
 const metrics = {
-  browse:      { name: 'Browse clubs',   requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
-  myClubs:     { name: 'My clubs',       requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
-  logActivity: { name: 'Log activity',   requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
-  myRewards:   { name: 'My rewards',     requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
+  browse:  { name: 'Browse clubs', requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
+  myClubs: { name: 'My clubs',     requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
+  punch:   { name: 'Punch',        requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
+  myRewards: { name: 'My rewards', requests: 0, errors: 0, rateLimited: 0, timeouts: 0, latencies: [], statusCodes: {} },
 };
 
 let workerUnhandledErrors = 0;
@@ -102,8 +126,8 @@ async function fetchJson(url, options = {}) {
   try {
     const res = await fetch(url, { ...options, signal: controller.signal });
     clearTimeout(timeout);
-    if (!res.ok) return { status: res.status, data: null };
-    const data = await res.json();
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
     return { status: res.status, data };
   } catch (err) {
     clearTimeout(timeout);
@@ -111,87 +135,60 @@ async function fetchJson(url, options = {}) {
   }
 }
 
+// clubData[i]: { clubId, providerId, providerToken, clubCreatedByTest }
+// Multi-club-per-provider is explicitly allowed by the schema (car-clubs.js
+// :729-735 — "creates freely, no 409 on second club"), so there's no reuse
+// branch to fall back to for the disposable sim providers: each run just
+// makes its own club, tagged with RUN_ID, and deletes it in cleanup. The
+// one exception is an externally-supplied real provider (--provider-jwt) —
+// reuse their existing club if they already have one, so repeated runs
+// don't pile up throwaway clubs on a real account.
 async function ensureClubsAndMemberships(providerSessions, memberSessions) {
-  console.log('  Ensuring car clubs exist for each provider...');
+  console.log('  Setting up car clubs for each provider...');
   const clubData = [];
-
-  let punchCardTemplateId = null;
 
   for (const ps of providerSessions) {
     if (!ps.userId) continue;
 
-    const clubRes = await fetchJson(`${BASE_URL}/api/car-club/my-club`, {
-      headers: { 'Authorization': `Bearer ${ps.token}` },
-    });
-
+    const isExternal = CONFIG.providerUserId && ps.userId === CONFIG.providerUserId;
     let clubId = null;
-    let existingPunchCardRuleId = null;
+    let clubCreatedByTest = false;
 
-    if (clubRes.data?.club) {
-      clubId = clubRes.data.club.id;
-      const punchRule = (clubRes.data.club.reward_rules || []).find(
-        r => r.template_slug === 'punch_card' && r.is_active
-      );
-      if (punchRule) existingPunchCardRuleId = punchRule.id;
-    } else {
+    if (isExternal) {
+      const mineRes = await fetchJson(`${BASE_URL}/api/car-club/my-provider-clubs`, {
+        headers: { 'Authorization': `Bearer ${ps.token}` },
+      });
+      const existing = (mineRes.data?.clubs || [])[0];
+      if (existing) {
+        clubId = existing.id;
+        console.log(`  External provider already has a club (${clubId}) — reusing it`);
+      }
+    }
+
+    if (!clubId) {
       const createRes = await fetchJson(`${BASE_URL}/api/car-club/create`, {
         method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${ps.token}`,
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Authorization': `Bearer ${ps.token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          name: `Stress Test Club ${ps.userId.slice(0, 8)}`,
-          description: 'Auto-created for stress testing',
+          name: `Stress Test Club ${RUN_ID} ${ps.userId.slice(0, 8)}`,
+          description: 'Auto-created for stress testing — auto-deleted on completion',
         }),
       });
+      if (createRes.status === 403) {
+        console.warn(`  Provider ${ps.userId.slice(0, 8)}... got 403 creating a club — car_club_programs_enabled likely off for this account, skipping`);
+        continue;
+      }
       if (createRes.data?.club) {
         clubId = createRes.data.club.id;
-      } else if (createRes.status === 409) {
-        const retryRes = await fetchJson(`${BASE_URL}/api/car-club/my-club`, {
-          headers: { 'Authorization': `Bearer ${ps.token}` },
-        });
-        clubId = retryRes.data?.club?.id || null;
+        clubCreatedByTest = true;
       }
     }
 
     if (!clubId) continue;
-
-    let ruleId = existingPunchCardRuleId;
-    if (!ruleId) {
-      if (!punchCardTemplateId) {
-        const tplRes = await fetchJson(`${BASE_URL}/api/car-club/reward-templates`, {
-          headers: { 'Authorization': `Bearer ${ps.token}` },
-        });
-        const punchTpl = (tplRes.data?.templates || []).find(t => t.slug === 'punch_card');
-        punchCardTemplateId = punchTpl?.id || null;
-      }
-
-      if (punchCardTemplateId) {
-        const rewardRes = await fetchJson(`${BASE_URL}/api/car-club/rewards`, {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${ps.token}`,
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            template_id: punchCardTemplateId,
-            name: 'Stress Test Punch Card',
-            description: '10 punches for a reward',
-            parameters: { punches_required: 10 },
-          }),
-        });
-        if (rewardRes.data?.reward_rule) {
-          ruleId = rewardRes.data.reward_rule.id;
-        }
-      }
-    }
-
-    if (!ruleId) continue;
-    clubData.push({ clubId, ruleId, providerId: ps.userId, providerToken: ps.token });
+    clubData.push({ clubId, providerId: ps.userId, providerToken: ps.token, clubCreatedByTest });
   }
 
-  console.log(`  ${clubData.length} clubs ready with punch_card reward rules`);
+  console.log(`  ${clubData.length} clubs ready`);
 
   if (clubData.length === 0) {
     console.error('  No clubs could be set up. Aborting.');
@@ -207,7 +204,7 @@ async function ensureClubsAndMemberships(providerSessions, memberSessions) {
   for (let i = 0; i < memberSessions.length; i++) {
     const ms = memberSessions[i];
     const targetClub = (externalClub && i === 0) ? externalClub : pick(clubData);
-    await fetchJson(`${BASE_URL}/api/car-club/join`, {
+    const joinRes = await fetchJson(`${BASE_URL}/api/car-club/join`, {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${ms.token}`,
@@ -215,13 +212,19 @@ async function ensureClubsAndMemberships(providerSessions, memberSessions) {
       },
       body: JSON.stringify({ club_id: targetClub.clubId }),
     });
-    joined++;
+    // 200 = joined, 409 = already a member (fine, still assigned below) —
+    // both count as "usable" for this run.
+    if (joinRes.status === 200 || joinRes.status === 409) joined++;
   }
-  console.log(`  ${joined} member-club joins attempted${externalClub ? ' (first member deterministically joined to external provider club)' : ''}`);
+  console.log(`  ${joined} member-club joins confirmed${externalClub ? ' (first member deterministically joined to external provider club)' : ''}`);
 
   const clubDataByClubId = {};
   for (const cd of clubData) clubDataByClubId[cd.clubId] = cd;
 
+  // No membership_id in the current my-clubs response shape (listMyClubs
+  // returns club_id + balances, not the membership row's own id) — and we
+  // don't need one. The ledger is keyed on (club_id, member_id) directly,
+  // so that pair is all downstream code needs to track a punch assignment.
   const memberClubAssignments = [];
   for (const ms of memberSessions) {
     const myClubsRes = await fetchJson(`${BASE_URL}/api/car-club/my-clubs`, {
@@ -229,15 +232,13 @@ async function ensureClubsAndMemberships(providerSessions, memberSessions) {
     });
     for (const club of (myClubsRes.data?.clubs || [])) {
       const cd = clubDataByClubId[club.club_id];
-      if (cd && club.is_active) {
+      if (cd) {
         memberClubAssignments.push({
           memberId: ms.userId,
           memberToken: ms.token,
           clubId: cd.clubId,
-          ruleId: cd.ruleId,
           providerId: cd.providerId,
           providerToken: cd.providerToken,
-          membershipId: club.membership_id,
         });
       }
     }
@@ -312,44 +313,48 @@ async function loadSimData() {
   const { clubData, memberClubAssignments } = await ensureClubsAndMemberships(providerSessions, memberSessions);
 
   const trackedMemberIds = [...new Set(memberClubAssignments.map(a => a.memberId))];
-  const trackedMembershipIds = [...new Set(memberClubAssignments.map(a => a.membershipId))];
+  const trackedClubIds   = [...new Set(memberClubAssignments.map(a => a.clubId))];
+  const trackedPairKeys  = new Set(memberClubAssignments.map(a => `${a.clubId}:${a.memberId}`));
 
-  const totalPunchesBefore = await getPunchCountsViaApi(memberClubAssignments);
+  const ledgerBefore = await getLedgerStats(trackedClubIds, trackedPairKeys);
 
   return {
     memberSessions,
     providerSessions,
     clubData,
     memberClubAssignments,
-    totalPunchesBefore,
+    ledgerBefore,
     trackedMemberIds,
-    trackedMembershipIds,
+    trackedClubIds,
+    trackedPairKeys,
   };
 }
 
-async function getPunchCountsViaApi(memberClubAssignments) {
-  const memberTokens = {};
-  for (const a of memberClubAssignments) memberTokens[a.memberId] = a.memberToken;
-
-  let total = 0;
-  const seen = new Set();
-  for (const memberId of Object.keys(memberTokens)) {
-    const token = memberTokens[memberId];
-    const res = await fetchJson(`${BASE_URL}/api/car-club/my-clubs`, {
-      headers: { 'Authorization': `Bearer ${token}` },
-    });
-    for (const club of (res.data?.clubs || [])) {
-      const key = club.membership_id;
-      if (seen.has(key)) continue;
-      const tracked = memberClubAssignments.some(a => a.membershipId === key);
-      if (!tracked) continue;
-      seen.add(key);
-      for (const bal of (club.balances || [])) {
-        total += bal.punch_count || 0;
-      }
-    }
+// Direct service-role read of club_points_ledger, scoped to the tracked
+// (club_id, member_id) pairs this run created/joined. Used as a before/after
+// snapshot — the diff is correct even when a club is reused from a real
+// external provider with pre-existing, unrelated ledger history, because
+// only the delta across the test window is ever reported, not the absolute
+// totals.
+async function getLedgerStats(clubIds, pairKeys) {
+  if (clubIds.length === 0) return { balances: {}, rowCounts: {} };
+  const { data, error } = await supabaseAdmin
+    .from('club_points_ledger')
+    .select('club_id, member_id, delta_points')
+    .in('club_id', clubIds);
+  if (error) {
+    console.error('  Failed to read club_points_ledger:', error.message);
+    return { balances: {}, rowCounts: {} };
   }
-  return total;
+  const balances = {};
+  const rowCounts = {};
+  for (const row of (data || [])) {
+    const key = `${row.club_id}:${row.member_id}`;
+    if (!pairKeys.has(key)) continue; // not one of our tracked members — don't mix in real club activity
+    balances[key] = (balances[key] || 0) + row.delta_points;
+    rowCounts[key] = (rowCounts[key] || 0) + 1;
+  }
+  return { balances, rowCounts };
 }
 
 async function runBrowse(session) {
@@ -378,28 +383,30 @@ async function runMyClubs(session) {
   recordMetric(metrics.myClubs, result.latency, result.status);
 }
 
-async function runLogActivity(assignment) {
-  const result = await timedFetch(`${BASE_URL}/api/car-club/log-activity`, {
+// POST /api/car-club/punch — provider-authenticated (car-clubs.js:473-526).
+// Body: { club_id, qr_token }. qr_token uses the member's own auth uid,
+// valid via the profiles.id fallback resolution path — see
+// stress-test-car-club-punch.js's header for why that's preferred over the
+// schema-drift-risky profiles.qr_code_token column.
+async function runPunch(assignment) {
+  const result = await timedFetch(`${BASE_URL}/api/car-club/punch`, {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${assignment.providerToken}`,
       'Content-Type': 'application/json',
     },
     body: JSON.stringify({
-      member_id: assignment.memberId,
-      reward_rule_id: assignment.ruleId,
-      activity_type: 'service_completed',
-      quantity: 1,
-      description: 'Stress test punch',
+      club_id: assignment.clubId,
+      qr_token: assignment.memberId,
     }),
   });
   if (result.timeout) {
-    metrics.logActivity.timeouts++;
-    metrics.logActivity.requests++;
-    metrics.logActivity.latencies.push(result.latency);
+    metrics.punch.timeouts++;
+    metrics.punch.requests++;
+    metrics.punch.latencies.push(result.latency);
     return;
   }
-  recordMetric(metrics.logActivity, result.latency, result.status);
+  recordMetric(metrics.punch, result.latency, result.status);
 }
 
 async function runMyRewards(session) {
@@ -426,7 +433,7 @@ async function runWorker(data, stopSignal) {
       } else if (action <= 5) {
         await runMyClubs(pick(memberSessions));
       } else if (action <= 8) {
-        await runLogActivity(pick(memberClubAssignments));
+        await runPunch(pick(memberClubAssignments));
       } else {
         await runMyRewards(pick(memberSessions));
       }
@@ -506,7 +513,7 @@ function printResults(data, testDurationSec) {
   console.log('  ' + '-'.repeat(60));
 
   const getLatencies  = [...metrics.browse.latencies, ...metrics.myClubs.latencies, ...metrics.myRewards.latencies];
-  const postLatencies = metrics.logActivity.latencies;
+  const postLatencies = metrics.punch.latencies;
   const realErrorRate = totalRequests > 0 ? (totalErrors / totalRequests) * 100 : 0;
   const getP95  = percentile(getLatencies, 95);
   const postP95 = percentile(postLatencies, 95);
@@ -521,43 +528,82 @@ function printResults(data, testDurationSec) {
     console.log(`  [${c.pass ? 'PASS' : 'FAIL'}] ${c.name.padEnd(28)} ${c.value}`);
   }
 
-  return { criteria, totalPunchesBefore: data.totalPunchesBefore, trackedMembershipIds: data.trackedMembershipIds, memberClubAssignments: data.memberClubAssignments };
+  return { criteria, data };
 }
 
 async function checkPunchIntegrity(result) {
-  const totalPunchesAfter = await getPunchCountsViaApi(result.memberClubAssignments);
-  const successfulLogs = metrics.logActivity.statusCodes[200] || 0;
-  const punchesAwarded = totalPunchesAfter - result.totalPunchesBefore;
-  const overcounted    = punchesAwarded > successfulLogs;
-  const undercounted   = punchesAwarded < successfulLogs;
+  const { data } = result;
+  const ledgerAfter = await getLedgerStats(data.trackedClubIds, data.trackedPairKeys);
 
-  console.log(`\n  PUNCH COUNT INTEGRITY`);
-  console.log(`  Tracked memberships: ${result.trackedMembershipIds.length}`);
-  console.log(`  Punches before:      ${result.totalPunchesBefore}`);
-  console.log(`  Punches after:       ${totalPunchesAfter}`);
-  console.log(`  Punches awarded:     ${punchesAwarded}`);
-  console.log(`  Successful logs:     ${successfulLogs}`);
-  console.log(`  Rate limited logs:   ${metrics.logActivity.rateLimited}`);
+  let pointsAwarded = 0;
+  for (const key of data.trackedPairKeys) {
+    pointsAwarded += (ledgerAfter.balances[key] || 0) - (data.ledgerBefore.balances[key] || 0);
+  }
+  const successfulPunches = metrics.punch.statusCodes[200] || 0;
+  const overcounted  = pointsAwarded > successfulPunches;
+  const undercounted = pointsAwarded < successfulPunches;
 
-  if (punchesAwarded === successfulLogs) {
-    console.log(`  [PASS] No over-count — punches awarded matches successful log-activity calls exactly`);
+  console.log(`\n  PUNCH LEDGER INTEGRITY (club_points_ledger — direct read, service role)`);
+  console.log(`  Tracked (club, member) pairs: ${data.trackedPairKeys.size}`);
+  console.log(`  Points awarded (after-before): ${pointsAwarded}`);
+  console.log(`  Successful punch calls (200):  ${successfulPunches}`);
+  console.log(`  Rate limited punch calls:      ${metrics.punch.rateLimited}`);
+
+  if (pointsAwarded === successfulPunches) {
+    console.log(`  [PASS] Points awarded matches successful punch calls exactly`);
   } else if (overcounted) {
-    console.log(`  [FAIL] OVER-COUNT detected — punches awarded (${punchesAwarded}) > successful calls (${successfulLogs}), delta: +${punchesAwarded - successfulLogs}`);
-    console.log(`         Members received more punches than log-activity calls succeeded — double-increment bug`);
+    console.log(`  [FAIL] OVER-COUNT — points awarded (${pointsAwarded}) > successful calls (${successfulPunches}), delta: +${pointsAwarded - successfulPunches}`);
+    console.log('         Indicates a double-insert bug in punchMember().');
   } else if (undercounted) {
-    console.log(`  [PASS] No over-count — punches awarded (${punchesAwarded}) < successful calls (${successfulLogs}), delta: -${successfulLogs - punchesAwarded}`);
-    console.log(`         ${successfulLogs - punchesAwarded} punch(es) lost (concurrent race or auto-reset — members under-awarded, not over-awarded)`);
+    console.log(`  [FAIL] UNDER-COUNT — points awarded (${pointsAwarded}) < successful calls (${successfulPunches}), delta: -${successfulPunches - pointsAwarded}`);
+    console.log('         A 2xx response did not durably produce a ledger row — investigate as a regression.');
   }
 
   result.criteria.push({
-    name: 'No punch over-count',
-    value: `${punchesAwarded} awarded / ${successfulLogs} calls`,
-    pass: !overcounted,
+    name: 'Punch ledger matches call count',
+    value: `${pointsAwarded} awarded / ${successfulPunches} calls`,
+    pass: pointsAwarded === successfulPunches,
   });
-  console.log(`  [${!overcounted ? 'PASS' : 'FAIL'}] ${'No punch over-count'.padEnd(28)} ${punchesAwarded} awarded / ${successfulLogs} calls`);
+  console.log(`  [${pointsAwarded === successfulPunches ? 'PASS' : 'FAIL'}] ${'Punch ledger matches call count'.padEnd(28)} ${pointsAwarded} awarded / ${successfulPunches} calls`);
 
   console.log('\n====================================================\n');
-  return !overcounted;
+  return pointsAwarded === successfulPunches;
+}
+
+// Test-created clubs get fully torn down (ledger rows, memberships, then
+// the club itself). Reused clubs (the external --provider-jwt path, when
+// that provider already had one) are never deleted or have their pre-test
+// history touched — only THIS run's own ledger rows (time-boxed) are
+// removed, and the test members' memberships are deactivated via the same
+// is_active=false path leaveClub() uses (never a hard delete — matches
+// car-clubs.js:298's "preserves ledger" convention), never hard-deleted.
+async function cleanup(data, testStartIso) {
+  console.log('\n[Cleanup] Removing test-created data...');
+
+  for (const cd of data.clubData) {
+    const memberIdsInThisClub = data.memberClubAssignments
+      .filter(a => a.clubId === cd.clubId)
+      .map(a => a.memberId);
+    if (memberIdsInThisClub.length === 0) continue;
+
+    if (cd.clubCreatedByTest) {
+      await supabaseAdmin.from('club_points_ledger').delete().eq('club_id', cd.clubId);
+      await supabaseAdmin.from('club_memberships').delete().eq('club_id', cd.clubId);
+      await supabaseAdmin.from('car_clubs').delete().eq('id', cd.clubId);
+      console.log(`  Deleted test-created club ${cd.clubId} (ledger + memberships + club row)`);
+    } else {
+      await supabaseAdmin.from('club_points_ledger').delete()
+        .eq('club_id', cd.clubId)
+        .in('member_id', memberIdsInThisClub)
+        .gte('created_at', testStartIso);
+      await supabaseAdmin.from('club_memberships').update({ is_active: false })
+        .eq('club_id', cd.clubId)
+        .in('member_id', memberIdsInThisClub);
+      console.log(`  Kept pre-existing club ${cd.clubId} — removed this run's ledger rows + deactivated test members' memberships only`);
+    }
+  }
+
+  console.log('  Cleanup complete.\n');
 }
 
 async function main() {
@@ -572,9 +618,9 @@ async function main() {
   console.log(`  Request timeout:     ${CONFIG.requestTimeout}ms`);
   console.log(`\n  Flows under test (all via server API, user-context JWT):`);
   console.log(`    1. Browse clubs  — GET /api/car-club/browse (club listing for members)`);
-  console.log(`    2. My clubs      — GET /api/car-club/my-clubs (member's joined clubs + balances)`);
-  console.log(`    3. Log activity  — POST /api/car-club/log-activity (provider awards punch to member)`);
-  console.log(`    4. My rewards    — GET /api/car-club/my-rewards (member's available redemptions)`);
+  console.log(`    2. My clubs      — GET /api/car-club/my-clubs (member's joined clubs + ledger balances)`);
+  console.log(`    3. Punch         — POST /api/car-club/punch (provider awards a point to member)`);
+  console.log(`    4. My rewards    — GET /api/car-club/my-rewards (legacy reward-rules read path)`);
   console.log('====================================================\n');
 
   console.log('[Setup] Loading test data and setting up car clubs...');
@@ -582,34 +628,44 @@ async function main() {
   console.log('  Setup complete.\n');
 
   const testStartTime = Date.now();
+  const testStartIso = new Date(testStartTime).toISOString();
 
-  const rampSteps = [
-    { concurrency: Math.ceil(CONFIG.concurrency * 0.1), duration: Math.ceil(CONFIG.rampUpTime / 3) },
-    { concurrency: Math.ceil(CONFIG.concurrency * 0.5), duration: Math.ceil(CONFIG.rampUpTime / 3) },
-    { concurrency: CONFIG.concurrency,                   duration: Math.ceil(CONFIG.rampUpTime / 3) },
-  ];
+  let exitCode = 1;
+  try {
+    const rampSteps = [
+      { concurrency: Math.ceil(CONFIG.concurrency * 0.1), duration: Math.ceil(CONFIG.rampUpTime / 3) },
+      { concurrency: Math.ceil(CONFIG.concurrency * 0.5), duration: Math.ceil(CONFIG.rampUpTime / 3) },
+      { concurrency: CONFIG.concurrency,                   duration: Math.ceil(CONFIG.rampUpTime / 3) },
+    ];
 
-  console.log('[Phase 1/4] Ramp-up...');
-  for (const step of rampSteps) {
-    await runPhase(`Ramp ${step.concurrency}`, step.concurrency, step.duration * 1000, data);
+    console.log('[Phase 1/4] Ramp-up...');
+    for (const step of rampSteps) {
+      await runPhase(`Ramp ${step.concurrency}`, step.concurrency, step.duration * 1000, data);
+    }
+
+    console.log(`\n[Phase 2/4] Sustained load — ${CONFIG.concurrency} concurrent for ${CONFIG.duration}s...`);
+    await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, data);
+
+    const spikeConcurrency = CONFIG.concurrency * CONFIG.spikeMultiplier;
+    console.log(`\n[Phase 3/4] Spike — ${spikeConcurrency} concurrent for ${CONFIG.spikeDuration}s...`);
+    await runPhase('Spike', spikeConcurrency, CONFIG.spikeDuration * 1000, data);
+
+    console.log(`\n[Phase 4/4] Cool-down — ${CONFIG.coolDownConcurrency} concurrent for ${CONFIG.coolDownDuration}s...`);
+    await runPhase('Cool-down', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, data);
+
+    const testDurationSec = (Date.now() - testStartTime) / 1000;
+    const result = printResults(data, testDurationSec);
+    const punchCheckPassed = await checkPunchIntegrity(result);
+
+    exitCode = (result.criteria.every(c => c.pass) && punchCheckPassed) ? 0 : 1;
+  } finally {
+    try {
+      await cleanup(data, testStartIso);
+    } catch (cleanupErr) {
+      console.error('  Cleanup error:', cleanupErr.message);
+    }
+    process.exit(exitCode);
   }
-
-  console.log(`\n[Phase 2/4] Sustained load — ${CONFIG.concurrency} concurrent for ${CONFIG.duration}s...`);
-  await runPhase('Sustained', CONFIG.concurrency, CONFIG.duration * 1000, data);
-
-  const spikeConcurrency = CONFIG.concurrency * CONFIG.spikeMultiplier;
-  console.log(`\n[Phase 3/4] Spike — ${spikeConcurrency} concurrent for ${CONFIG.spikeDuration}s...`);
-  await runPhase('Spike', spikeConcurrency, CONFIG.spikeDuration * 1000, data);
-
-  console.log(`\n[Phase 4/4] Cool-down — ${CONFIG.coolDownConcurrency} concurrent for ${CONFIG.coolDownDuration}s...`);
-  await runPhase('Cool-down', CONFIG.coolDownConcurrency, CONFIG.coolDownDuration * 1000, data);
-
-  const testDurationSec = (Date.now() - testStartTime) / 1000;
-  const result = printResults(data, testDurationSec);
-  const punchCheckPassed = await checkPunchIntegrity(result);
-
-  const allPassed = result.criteria.every(c => c.pass) && punchCheckPassed;
-  process.exit(allPassed ? 0 : 1);
 }
 
 main().catch(err => {
