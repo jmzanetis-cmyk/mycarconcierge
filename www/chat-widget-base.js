@@ -674,12 +674,12 @@ class ChatWidgetBase {
           localStorage.setItem('mcc-chat-feedback', JSON.stringify(existing));
         } catch (e) {}
         // 2026-09-09: server-side feedback hook. Left as a no-op here on
-        // purpose — this base class is shared by more than one widget (see
-        // www/ai-chat.js), and only the ones with real server-side message
-        // persistence (currently just www/helpdesk-widget.js) should
-        // override this to actually send anything. Everything above this
-        // line (the "Thanks for the feedback!" swap and the localStorage
-        // write) is unchanged and still happens for every widget either way.
+        // purpose — this base class is shared by more than one widget, and
+        // only the ones with real server-side message persistence
+        // (currently just www/helpdesk-widget.js) should override this to
+        // actually send anything. Everything above this line (the "Thanks
+        // for the feedback!" swap and the localStorage write) is unchanged
+        // and still happens for every widget either way.
         const message = (msgIndex >= 0 && this.messages[msgIndex]) ? this.messages[msgIndex] : null;
         this.onFeedbackGiven(feedback, message, msgIndex);
       }
@@ -687,8 +687,8 @@ class ChatWidgetBase {
   }
 
   // Override in a subclass to actually persist feedback server-side. Default
-  // is a no-op so widgets that only ever tracked feedback in localStorage
-  // (e.g. AIChatWidget in www/ai-chat.js) keep behaving exactly as before.
+  // is a no-op so a widget that only ever tracks feedback in localStorage
+  // keeps behaving exactly as before.
   onFeedbackGiven(feedback, message, msgIndex) {}
 
   toggle() {
