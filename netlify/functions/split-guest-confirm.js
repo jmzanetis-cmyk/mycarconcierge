@@ -1,5 +1,15 @@
-let utils = require('./utils');
-let { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
+'use strict';
+
+// POST /api/split/guest-confirm/:participantId
+// Body: { token, payment_intent_id }
+// Guest counterpart of split-confirm.js -- re-verifies the PaymentIntent
+// actually succeeded via Stripe (guests have no session to trust), then
+// shares the same completion logic via _shared/split-completion.js.
+
+var utils = require('./utils');
+var { isFeatureEnabledForUser } = require('./_shared/feature-flag-check');
+var { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
+var { completeSplitParticipant } = require('./_shared/split-completion');
 
 exports.handler = async function(event) {
   if (event.httpMethod === 'OPTIONS') {
@@ -11,15 +21,15 @@ exports.handler = async function(event) {
   }
 
   try {
-    let participantId = utils.extractPathParam(event.path);
+    var participantId = utils.extractPathParam(event.path);
 
     if (!utils.isValidUUID(participantId)) {
       return utils.errorResponse(400, 'Invalid participant ID');
     }
 
-    let body = JSON.parse(event.body || '{}');
-    let token = body.token;
-    let payment_intent_id = body.payment_intent_id;
+    var body = JSON.parse(event.body || '{}');
+    var token = body.token;
+    var payment_intent_id = body.payment_intent_id;
 
     if (!utils.verifyGuestToken(participantId, token)) {
       return utils.errorResponse(403, 'Invalid or expired token');
@@ -29,12 +39,12 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'Missing payment_intent_id');
     }
 
-    let supabase = utils.createSupabaseClient();
+    var supabase = utils.createSupabaseClient();
     if (!supabase) {
       return utils.errorResponse(503, 'Service temporarily unavailable');
     }
 
-    let result = await supabase
+    var result = await supabase
       .from('split_participants')
       .select('id, status, payment_intent_id, split_payment_id, split_payments(expires_at, status, created_by)')
       .eq('id', participantId)
@@ -44,12 +54,12 @@ exports.handler = async function(event) {
       return utils.errorResponse(404, 'Participant not found');
     }
 
-    let participant = result.data;
-    let splitPayment = participant.split_payments;
+    var participant = result.data;
+    var splitPayment = participant.split_payments;
 
     // Feature gate (ships dark for launch) — resolve via the split's organizer.
-    let organizerId = splitPayment && splitPayment.created_by;
-    let spEnabled = organizerId
+    var organizerId = splitPayment && splitPayment.created_by;
+    var spEnabled = organizerId
       ? await isFeatureEnabledForUser(supabase, 'split_payments_enabled', organizerId)
       : false;
     if (!spEnabled) return utils.errorResponse(403, 'feature_disabled');
@@ -70,134 +80,23 @@ exports.handler = async function(event) {
       return utils.errorResponse(400, 'Payment intent mismatch');
     }
 
-    let { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
-    let stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
-    let paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
+    var stripe = require('stripe')(process.env.STRIPE_SECRET_KEY, { apiVersion: STRIPE_API_VERSION });
+    var paymentIntent = await stripe.paymentIntents.retrieve(payment_intent_id);
 
     if (paymentIntent.status !== 'succeeded') {
       return utils.errorResponse(400, 'Payment has not been completed. Status: ' + paymentIntent.status);
     }
 
-    await supabase
-      .from('split_participants')
-      .update({
-        status: 'paid',
-        paid_at: new Date().toISOString()
-      })
-      .eq('id', participantId);
+    var completion = await completeSplitParticipant(supabase, participantId);
+    if (completion.error === 'not_found') return utils.errorResponse(404, 'Participant not found');
+    if (completion.error) return utils.errorResponse(500, 'Failed to update payment status');
 
-    let allParticipants = await supabase
-      .from('split_participants')
-      .select('id, status')
-      .eq('split_payment_id', participant.split_payment_id);
-
-    if (allParticipants.data) {
-      let allPaid = true;
-      for (var i = 0; i < allParticipants.data.length; i++) {
-        if (allParticipants.data[i].id === participantId) continue;
-        if (allParticipants.data[i].status !== 'paid') {
-          allPaid = false;
-          break;
-        }
-      }
-
-      if (allPaid) {
-        let splitResult = await supabase
-          .from('split_payments')
-          .select('id, package_id, total_amount_cents, created_by')
-          .eq('id', participant.split_payment_id)
-          .single();
-
-        let packageId = splitResult.data && splitResult.data.package_id;
-        let splitPaymentData = splitResult.data || {};
-
-        await supabase
-          .from('split_payments')
-          .update({ status: 'complete', updated_at: new Date().toISOString() })
-          .eq('id', participant.split_payment_id);
-
-        if (packageId) {
-          await supabase
-            .from('maintenance_packages')
-            .update({
-              status: 'payment_held',
-              split_payment_id: participant.split_payment_id,
-              updated_at: new Date().toISOString()
-            })
-            .eq('id', packageId);
-
-          let pendingWorkResult = await supabase
-            .from('additional_work_requests')
-            .select('id, provider_id, title, estimated_cost')
-            .eq('package_id', packageId)
-            .eq('status', 'pending')
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (pendingWorkResult.data && pendingWorkResult.data.length > 0) {
-            let work = pendingWorkResult.data[0];
-            let workAmountCents = Math.round((work.estimated_cost || 0) * 100);
-            if (workAmountCents === splitPaymentData.total_amount_cents) {
-              await supabase
-                .from('additional_work_requests')
-                .update({ status: 'approved', updated_at: new Date().toISOString() })
-                .eq('id', work.id);
-
-              if (work.provider_id) {
-                await supabase.from('notifications').insert({
-                  user_id: work.provider_id,
-                  type: 'additional_work_approved',
-                  title: 'Additional Work Approved & Funded',
-                  message: 'Additional work "' + (work.title || 'Additional Work') + '" has been crowd-funded and approved. You may proceed with the work.',
-                  entity_type: 'additional_work_request',
-                  entity_id: work.id
-                });
-              }
-            }
-          }
-
-          if (splitPaymentData.created_by) {
-            await supabase.from('notifications').insert({
-              user_id: splitPaymentData.created_by,
-              type: 'split_payment_complete',
-              title: 'Split Payment Complete!',
-              message: 'All participants have paid their share. The service can now proceed.',
-              entity_type: 'split_payment',
-              entity_id: participant.split_payment_id
-            });
-          }
-
-          let acceptedBidResult = await supabase
-            .from('maintenance_packages')
-            .select('accepted_bid_id')
-            .eq('id', packageId)
-            .single();
-
-          if (acceptedBidResult.data && acceptedBidResult.data.accepted_bid_id) {
-            let bidResult = await supabase
-              .from('bids')
-              .select('provider_id')
-              .eq('id', acceptedBidResult.data.accepted_bid_id)
-              .single();
-
-            if (bidResult.data && bidResult.data.provider_id) {
-              await supabase.from('notifications').insert({
-                user_id: bidResult.data.provider_id,
-                type: 'payment_received',
-                title: 'Payment Received',
-                message: 'The split payment has been completed. You can now begin the service.',
-                entity_type: 'package',
-                entity_id: packageId
-              });
-            }
-          }
-        }
-
-        return utils.successResponse({ success: true, participantPaid: true, allPaid: true, splitComplete: true });
-      }
-    }
-
-    return utils.successResponse({ success: true, participantPaid: true, allPaid: false, splitComplete: false });
+    return utils.successResponse({
+      success: true,
+      participantPaid: true,
+      allPaid: !!completion.splitComplete,
+      splitComplete: !!completion.splitComplete,
+    });
   } catch (err) {
     console.error('split-guest-confirm error:', err);
     return utils.errorResponse(500, 'Internal server error');

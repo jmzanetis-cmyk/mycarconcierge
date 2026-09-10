@@ -547,8 +547,21 @@ async function handleComplete(event, sb, user, planId) {
   // reviewer never accepted.
   const isReviewer = await isReviewerAccount(sb, user.id);
 
+  // Paid via split-pay (netlify/functions/split-pay.js /
+  // split-guest-pay.js): every participant's share is its own
+  // capture_method:'automatic' PaymentIntent, captured individually as each
+  // person paid. _shared/split-completion.js already moved the plan to
+  // payment_status 'held' with no stripe_payment_intent_id once the last
+  // share cleared, so there's nothing left here to capture.
+  const isSplitPaid = !isReviewer && !!planRow.split_payment_id && !planRow.stripe_payment_intent_id;
+
   let plan;
   if (isReviewer) {
+    plan = planRow;
+    if (plan.payment_status !== 'held') {
+      return json(409, { error: 'Funds are not in held state for this care plan' });
+    }
+  } else if (isSplitPaid) {
     plan = planRow;
     if (plan.payment_status !== 'held') {
       return json(409, { error: 'Funds are not in held state for this care plan' });
@@ -594,6 +607,7 @@ async function handleComplete(event, sb, user, planId) {
       previous_status: 'held',
       new_status: 'captured',
       reviewer_mock: isReviewer || undefined,
+      split_paid: isSplitPaid || undefined,
     },
   });
 
