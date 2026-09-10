@@ -11906,12 +11906,28 @@
           operations: 'badge-orange', finance: 'badge-gold', support: 'badge-teal'
         };
 
-        if (invites.length === 0) {
+        // Display-only dedupe: an email can end up with more than one
+        // accepted invite row over time (e.g. re-invited after already
+        // accepting once) — harmless in the DB, but clutters this list with
+        // repeats. invites is already sorted created_at desc, so keep the
+        // first (newest) accepted row per email and drop older accepted
+        // duplicates. Pending/revoked rows are never deduped or touched,
+        // and no rows are altered server-side.
+        const seenAcceptedEmails = new Set();
+        const visibleInvites = invites.filter(inv => {
+          if (inv.status !== 'accepted') return true;
+          const key = (inv.email || '').toLowerCase();
+          if (seenAcceptedEmails.has(key)) return false;
+          seenAcceptedEmails.add(key);
+          return true;
+        });
+
+        if (visibleInvites.length === 0) {
           tbody.innerHTML = '<tr><td colspan="6" class="loading-cell">No pending invites</td></tr>';
           return;
         }
 
-        tbody.innerHTML = invites.map(inv => {
+        tbody.innerHTML = visibleInvites.map(inv => {
           const roleLabel = (inv.role || '').replaceAll('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
           const badgeClass = roleBadgeClass[inv.role] || 'badge-blue';
           const statusClass = inv.status === 'pending' ? 'badge-orange' : inv.status === 'accepted' ? 'badge-green' : 'badge-red';
