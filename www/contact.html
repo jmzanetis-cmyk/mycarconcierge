@@ -713,7 +713,7 @@
             formType: form.getAttribute('data-type')
           };
 
-          fetch('https://02d27e1f-6d6d-48b8-b938-06bb7cd16658-00-3tgt4fe0973fs.worf.replit.dev/api/contact', {
+          fetch('/api/contact', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify(payload)

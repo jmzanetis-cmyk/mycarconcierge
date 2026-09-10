@@ -46,6 +46,7 @@
 /api/notifications/bid-accepted-push /.netlify/functions/notifications-bid-accepted-push 200
 /api/messages/send /.netlify/functions/messages-send 200
 /api/helpdesk /.netlify/functions/helpdesk 200
+/api/contact /.netlify/functions/contact 200
 /api/helpdesk-email /.netlify/functions/helpdesk-email 200
 /api/admin/stats/* /.netlify/functions/admin-stats/:splat 200
 /api/admin/providers /.netlify/functions/admin-data/providers 200
