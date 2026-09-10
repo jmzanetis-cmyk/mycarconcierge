@@ -139,7 +139,7 @@ async function upsertProfile(userId, email, fields) {
 async function ensureVehicle(ownerId) {
   const { data: existing } = await supabase
     .from('vehicles')
-    .select('id')
+    .select('id, registration_verified')
     .eq('owner_id', ownerId)
     .eq('year', 2022)
     .eq('make', 'Toyota')
@@ -148,6 +148,14 @@ async function ensureVehicle(ownerId) {
 
   if (existing && existing.length > 0) {
     console.log(`  [vehicle] already exists (${existing[0].id})`);
+    // Pre-existing reviewer vehicles predate the registration-verification
+    // gate (2026-09) that now blocks "New Service Request" on any unverified
+    // vehicle. Heal them here on every re-run so a stale reviewer account
+    // doesn't dead-end an App Store reviewer who tries to create a fresh
+    // request instead of just opening the two pre-seeded ones.
+    if (!existing[0].registration_verified) {
+      await ensureRegistrationVerified(existing[0].id);
+    }
     return existing[0].id;
   }
 
@@ -162,13 +170,32 @@ async function ensureVehicle(ownerId) {
       color: 'Silver',
       nickname: 'My Camry',
       mileage: 34200,
-      health_score: 78
+      health_score: 78,
+      // Reviewer vehicles are exempt from the registration-verification
+      // gate from creation — there's no real registration document for a
+      // seeded demo car, and Apple's reviewer must be able to post a fresh
+      // service request without first fabricating paperwork.
+      registration_verified: true
     })
     .select('id')
     .single();
   if (error) throw new Error(`vehicles insert: ${error.message}`);
-  console.log(`  [vehicle] created 2022 Toyota Camry (${data.id})`);
+  console.log(`  [vehicle] created 2022 Toyota Camry (${data.id}), registration pre-verified`);
   return data.id;
+}
+
+// ---------------------------------------------------------------------------
+// Helper: force registration_verified = true on a vehicle that predates the
+// gate. Best-effort — warns rather than throwing, matching the
+// provider_stats upsert pattern above.
+// ---------------------------------------------------------------------------
+async function ensureRegistrationVerified(vehicleId) {
+  const { error } = await supabase
+    .from('vehicles')
+    .update({ registration_verified: true })
+    .eq('id', vehicleId);
+  if (error) console.warn(`  [vehicle] registration_verified heal warning: ${error.message}`);
+  else console.log(`  [vehicle] healed registration_verified -> true (${vehicleId})`);
 }
 
 // ---------------------------------------------------------------------------
