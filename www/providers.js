@@ -3117,7 +3117,7 @@
         });
         if (!res.ok) return;
         const flags = await res.json();
-        window._mccCustodyEnabled = !!(flags.custody_chain_enabled);
+        window._mccCustodyEnabled = !!(flags.flags && flags.flags.custody_chain_enabled);
       } catch { /* leave false */ }
     }
 
