@@ -1528,10 +1528,10 @@
           ${transfer.return_address ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('home', 16)} Return: ${transfer.return_address}</div>` : ''}
           
           <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;">
-            ${transfer.vehicle_status === 'pending' || transfer.vehicle_status === 'scheduled' ? `
+            ${transfer.vehicle_status === 'pending' || transfer.vehicle_status === 'scheduled' || transfer.vehicle_status === 'with_member' ? `
               <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'pickup')">${mccIcon('check', 16)} Confirm Handoff</button>
             ` : ''}
-            ${transfer.vehicle_status === 'in_transit_to_member' || transfer.vehicle_status === 'work_complete' ? `
+            ${transfer.vehicle_status === 'in_transit_to_member' || transfer.vehicle_status === 'work_complete' || transfer.vehicle_status === 'ready_for_return' ? `
               <button class="btn btn-success btn-sm" onclick="confirmVehicleHandoff('${transfer.id}', '${packageId}', 'return')">${mccIcon('check', 16)} Confirm Vehicle Received</button>
             ` : ''}
           </div>
