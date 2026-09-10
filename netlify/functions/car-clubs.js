@@ -355,6 +355,16 @@ async function listMyRewards(sb, user) {
   });
 }
 
+// 2026-09-10: members may only be an active member of ONE Car Club at a
+// time. See supabase/migrations/20260910_club_memberships_one_active_per_member.sql
+// for the actual guarantee (a partial unique index on member_id WHERE
+// is_active=true) and the reasoning for why that's needed even with the
+// pre-check below (the pre-check alone can't close the race between two
+// concurrent join requests to different clubs). ONE_CLUB_MSG is shared by
+// both the pre-check and the 23505-violation fallback so the caller sees
+// the same message either way.
+const ONE_CLUB_MSG = 'You can only be an active member of one Car Club at a time. Leave your current club before joining a new one.';
+
 async function joinClub(sb, user, clubId) {
   const { data: club } = await sb.from('car_clubs').select('id, is_active, member_count').eq('id', clubId).single();
   if (!club) return json(404, { error: 'Club not found' });
@@ -365,10 +375,22 @@ async function joinClub(sb, user, clubId) {
 
   if (existing?.is_active) return json(409, { error: 'Already a member' });
 
+  const { data: otherActive } = await sb.from('club_memberships')
+    .select('id').eq('member_id', user.id).eq('is_active', true).neq('club_id', clubId).limit(1).maybeSingle();
+  if (otherActive) return json(409, { error: ONE_CLUB_MSG });
+
   if (existing) {
-    await sb.from('club_memberships').update({ is_active: true }).eq('id', existing.id);
+    const { error: updateErr } = await sb.from('club_memberships').update({ is_active: true }).eq('id', existing.id);
+    if (updateErr) {
+      if (updateErr.code === '23505') return json(409, { error: ONE_CLUB_MSG });
+      return json(500, { error: 'Failed to join club' });
+    }
   } else {
-    await sb.from('club_memberships').insert({ club_id: clubId, member_id: user.id });
+    const { error: insertErr } = await sb.from('club_memberships').insert({ club_id: clubId, member_id: user.id });
+    if (insertErr) {
+      if (insertErr.code === '23505') return json(409, { error: ONE_CLUB_MSG });
+      return json(500, { error: 'Failed to join club' });
+    }
     await sb.from('car_clubs').update({ member_count: (club.member_count || 0) + 1 }).eq('id', clubId);
   }
 
