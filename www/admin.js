@@ -5764,7 +5764,8 @@
 
     const FLAG_LABELS = {
       custody_chain_enabled:      { title: 'Custody Chain',      desc: 'Photo verification + return fees for vehicle handoffs.' },
-      car_club_programs_enabled:  { title: 'Car Club Programs',  desc: 'Points, coupons, and comp services for car club providers.' }
+      car_club_programs_enabled:  { title: 'Car Club Programs',  desc: 'Points, coupons, and comp services for car club providers.' },
+      split_payments_enabled:     { title: 'Split Payments',     desc: 'Let a member invite guests to split a care plan’s charge before payment is authorized.' }
     };
 
     async function loadFeatureFlags() {

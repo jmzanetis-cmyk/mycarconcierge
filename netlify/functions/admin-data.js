@@ -146,11 +146,21 @@ async function handlePackages(supabase, qs) {
 // Stored in platform_settings as { "enabled": bool, "test_users": ["uuid",...] }
 // A flag is on for a user if global enabled=true OR their id is in test_users.
 
+// Every dark-launched flag the admin UI can manage. Adding a new one here
+// (and to the two `allowed` arrays below) is enough to surface it in
+// Feature Flags — no DB seed required first: the toggle/test-user handlers
+// upsert, so the platform_settings row is created on first write if it
+// doesn't exist yet. (split_payments_enabled had no row and no admin-UI
+// wiring at all until this fix — it was silently "off" only because
+// isFeatureEnabledForUser fails closed on a missing row, not because
+// anyone had deliberately disabled it.)
+var MANAGED_FEATURE_FLAGS = ['custody_chain_enabled', 'car_club_programs_enabled', 'split_payments_enabled'];
+
 async function handleFeatureFlags(supabase) {
   var result = await supabase
     .from('platform_settings')
     .select('setting_key, setting_value, description, updated_at, updated_by')
-    .in('setting_key', ['custody_chain_enabled', 'car_club_programs_enabled'])
+    .in('setting_key', MANAGED_FEATURE_FLAGS)
     .order('setting_key');
   if (result.error) throw result.error;
   return { success: true, flags: result.data || [] };
@@ -159,8 +169,7 @@ async function handleFeatureFlags(supabase) {
 async function handleFeatureFlagToggle(supabase, body, adminUserId) {
   var key     = (body.key     || '').trim();
   var enabled = body.enabled;
-  var allowed = ['custody_chain_enabled', 'car_club_programs_enabled'];
-  if (!allowed.includes(key)) {
+  if (!MANAGED_FEATURE_FLAGS.includes(key)) {
     var e = new Error('Unknown flag key'); e.statusCode = 400; throw e;
   }
   if (typeof enabled !== 'boolean') {
@@ -173,10 +182,11 @@ async function handleFeatureFlagToggle(supabase, body, adminUserId) {
     .single();
   var currentVal = (existing.data && existing.data.setting_value) || { enabled: false, test_users: [] };
   var newVal = Object.assign({}, currentVal, { enabled });
+  // Upsert (not update): the row may not exist yet for a flag that was
+  // never seeded — update() would silently match zero rows and do nothing.
   var upd = await supabase
     .from('platform_settings')
-    .update({ setting_value: newVal, updated_at: new Date().toISOString(), updated_by: adminUserId })
-    .eq('setting_key', key);
+    .upsert({ setting_key: key, setting_value: newVal, updated_at: new Date().toISOString(), updated_by: adminUserId }, { onConflict: 'setting_key' });
   if (upd.error) throw upd.error;
   return { success: true, key, enabled, message: key + ' ' + (enabled ? 'enabled' : 'disabled') + ' globally' };
 }
@@ -185,8 +195,7 @@ async function handleFeatureFlagTestUsers(supabase, body, adminUserId) {
   var key    = (body.key     || '').trim();
   var userId = (body.user_id || '').trim();
   var action = (body.action  || '').trim(); // 'add' | 'remove'
-  var allowed = ['custody_chain_enabled', 'car_club_programs_enabled'];
-  if (!allowed.includes(key)) {
+  if (!MANAGED_FEATURE_FLAGS.includes(key)) {
     var e = new Error('Unknown flag key'); e.statusCode = 400; throw e;
   }
   if (!userId || !/^[0-9a-f-]{36}$/i.test(userId)) {
@@ -205,10 +214,10 @@ async function handleFeatureFlagTestUsers(supabase, body, adminUserId) {
   if (action === 'add' && !users.includes(userId)) users.push(userId);
   if (action === 'remove') users = users.filter(function(u) { return u !== userId; });
   var newVal = Object.assign({}, currentVal, { test_users: users });
+  // Upsert (not update) for the same reason as handleFeatureFlagToggle above.
   var upd = await supabase
     .from('platform_settings')
-    .update({ setting_value: newVal, updated_at: new Date().toISOString(), updated_by: adminUserId })
-    .eq('setting_key', key);
+    .upsert({ setting_key: key, setting_value: newVal, updated_at: new Date().toISOString(), updated_by: adminUserId }, { onConflict: 'setting_key' });
   if (upd.error) throw upd.error;
   return { success: true, key, action, user_id: userId, test_users: users };
 }
