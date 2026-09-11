@@ -1,5 +1,5 @@
 {
-  "_readme": "Grandfathered allow-list for client-api-coverage.test.js (Task #457). Every entry is a /api/... URL extracted from www/*.js + www/*.html that has no matching rule in www/_redirects and no entry in _dev-only-api-routes.json. Two categories: (1) 'broken' — no handler anywhere, flagged by the Task #352 audit, tracked in #455/#456; (2) 'dev-only' — handled by a www/server.js regex route that the _dev-only-api-routes.json prefix list doesn't capture. Any NEW unhandled URL added after this snapshot must either gain a www/_redirects rule, a _dev-only-api-routes.json entry, OR an explicit entry here with a reason and ticket.",
+  "_readme": "Grandfathered allow-list for client-api-coverage.test.js (Task #457). Every entry is a /api/... URL extracted from www/*.js + www/*.html that has no matching rule in www/_redirects and no entry in _dev-only-api-routes.json. Two categories: (1) 'broken' \u2014 no handler anywhere, flagged by the Task #352 audit, tracked in #455/#456; (2) 'dev-only' \u2014 handled by a www/server.js regex route that the _dev-only-api-routes.json prefix list doesn't capture. Any NEW unhandled URL added after this snapshot must either gain a www/_redirects rule, a _dev-only-api-routes.json entry, OR an explicit entry here with a reason and ticket.",
   "urls": [
     {
       "url": "/api/additional-work/:param",
@@ -214,7 +214,7 @@
     {
       "url": "/api/obd/scans/:param",
       "caller": "members.js:7727",
-      "reason": "No handler in _redirects or server.js — audit-identified broken caller",
+      "reason": "No handler in _redirects or server.js \u2014 audit-identified broken caller",
       "ticket": "#456"
     },
     {
@@ -430,19 +430,19 @@
     {
       "url": "/api/fleet/update-mileage",
       "caller": "fleet-driver.html:499",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere -- the server.js dev route was removed and never ported. Confirmed with Jordan 2026-09-11: the whole 'fleet' B2B product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is not a priority -- intentionally NOT being revived, not a bug to fix. Member-facing nav + subscription card are already dead-code-gated off (www/members.html:1130,9429, comment 'PHASE 0 BATCH 1'); fleet.html/fleet-driver.html (the standalone fleet-manager/driver pages) remain live but unused. Left broken deliberately -- do not resurrect without a product decision.",
       "ticket": ""
     },
     {
       "url": "/api/fleet/check-approval",
       "caller": "fleet-driver.html:589",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere -- the server.js dev route was removed and never ported. Confirmed with Jordan 2026-09-11: the whole 'fleet' B2B product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is not a priority -- intentionally NOT being revived, not a bug to fix. Member-facing nav + subscription card are already dead-code-gated off (www/members.html:1130,9429, comment 'PHASE 0 BATCH 1'); fleet.html/fleet-driver.html (the standalone fleet-manager/driver pages) remain live but unused. Left broken deliberately -- do not resurrect without a product decision.",
       "ticket": ""
     },
     {
       "url": "/api/fleet/import-vehicles",
       "caller": "fleet.html:984",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere -- the server.js dev route was removed and never ported. Confirmed with Jordan 2026-09-11: the whole 'fleet' B2B product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is not a priority -- intentionally NOT being revived, not a bug to fix. Member-facing nav + subscription card are already dead-code-gated off (www/members.html:1130,9429, comment 'PHASE 0 BATCH 1'); fleet.html/fleet-driver.html (the standalone fleet-manager/driver pages) remain live but unused. Left broken deliberately -- do not resurrect without a product decision.",
       "ticket": ""
     },
     {
@@ -454,7 +454,7 @@
     {
       "url": "/api/fleet/subscription",
       "caller": "members.html:9438",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere -- the server.js dev route was removed and never ported. Confirmed with Jordan 2026-09-11: the whole 'fleet' B2B product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is not a priority -- intentionally NOT being revived, not a bug to fix. Member-facing nav + subscription card are already dead-code-gated off (www/members.html:1130,9429, comment 'PHASE 0 BATCH 1'); fleet.html/fleet-driver.html (the standalone fleet-manager/driver pages) remain live but unused. Left broken deliberately -- do not resurrect without a product decision.",
       "ticket": ""
     },
     {

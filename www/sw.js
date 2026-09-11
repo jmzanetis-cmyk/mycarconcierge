@@ -1,4 +1,4 @@
-const CACHE_NAME = 'mcc-cache-v148';
+const CACHE_NAME = 'mcc-cache-v149';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -7,7 +7,6 @@ const STATIC_ASSETS = [
   '/signup-provider.html',
   '/members.html',
   '/providers.html',
-  '/fleet.html',
   '/provider-info.html',
   '/provider-pilot.html',
   '/privacy.html',
