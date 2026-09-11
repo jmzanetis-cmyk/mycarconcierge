@@ -13,6 +13,14 @@
   let isSubmitting = false;
   const DISPUTE_REASONS = ['quality', 'incomplete', 'overcharged', 'no_show', 'damaged', 'other'];
 
+  // -- split payments (Task #81 port of members-packages.js's split-pay UI,
+  // care_plan_id-based instead of package_id-based) --------------------
+  let splitParticipantRows = [];
+  let activeSplitCardElement = null;
+  let activeSplitElements = null;
+  let activeSplitParticipantId = null;
+  let splitCountdownTimer = null;
+
   function t(key, fallback, vars) {
     try {
       if (typeof window.t === 'function') {
@@ -349,6 +357,12 @@
       if (ps === 'requires_payment') {
         // Member needs to authorize the card. We re-mount the card element.
         actionHtml = renderCardAuthorizePanel(plan.id, acceptedBid.id, acceptedBid.amount, plan.credit_applied_cents || 0);
+      } else if (ps === 'pending_split_payment') {
+        // Split payment in flight -- loadSplitPaymentStatus (called after
+        // this HTML is mounted, see below) fetches and fills this in.
+        actionHtml = '<div id="cp-split-status-' + escapeHtml(plan.id) + '">' +
+          escapeHtml(t('member.cpSplitLoading', 'Loading split payment…')) +
+        '</div>';
       } else if (ps === 'held') {
         actionHtml = '' +
           '<div style="display:flex;flex-wrap:wrap;gap:10px;">' +
@@ -424,6 +438,17 @@
     // If we just rendered the card-authorize panel, mount the Stripe element.
     if (acceptedBid && ps === 'requires_payment') {
       mountAcceptBidCard(plan.id, acceptedBid.id, acceptedBid.amount, plan.credit_applied_cents || 0);
+      const splitBtn = document.getElementById('cp-split-pay-btn');
+      if (splitBtn) splitBtn.addEventListener('click', function () {
+        const applied = plan.credit_applied_cents || activeCreditsCents || 0;
+        const chargeAmount = Math.max(Number(acceptedBid.amount) - applied / 100, 0.5);
+        openCreateSplitModal(plan.id, Math.round(chargeAmount * 100));
+      });
+    }
+
+    // If we just rendered the split-payment placeholder, load its live status.
+    if (acceptedBid && ps === 'pending_split_payment') {
+      loadSplitPaymentStatus(plan.id);
     }
   }
 
@@ -576,6 +601,9 @@
         '<div id="cp-card-errors" style="color:var(--accent-red,#ef4444);font-size:0.85rem;margin-top:8px;min-height:18px;"></div>' +
         '<div style="display:flex;gap:10px;margin-top:14px;flex-wrap:wrap;">' +
           '<button class="btn btn-primary" type="button" id="cp-authorize-btn" data-bid-id="' + escapeHtml(bidId) + '" disabled aria-disabled="true">' + escapeHtml(t('member.cpAuthorizePay', 'Authorize Payment')) + '</button>' +
+          (window._mccFlags && window._mccFlags.split_payments_enabled
+            ? '<button class="btn" type="button" id="cp-split-pay-btn">' + escapeHtml(t('member.cpSplitPayment', 'Split Payment')) + '</button>'
+            : '') +
           '<button class="btn" type="button" id="cp-cancel-card">' + escapeHtml(t('common.cancel', 'Cancel')) + '</button>' +
         '</div>' +
       '</div>';
@@ -863,6 +891,466 @@
       if (btn) { btn.disabled = false; btn.textContent = t('member.cpDisputeSubmit', 'Submit Dispute'); }
     } finally {
       isSubmitting = false;
+    }
+  }
+
+  // -- split payments -------------------------------------------------
+  // Port of members-packages.js's split-pay modal/status-card/invite-link UI
+  // (package_id-based) onto care_plan_id. Uses the same openInlineModal /
+  // api() helpers as the rest of this file instead of the old raw-HTML-modal
+  // + inline-onclick style, so every request automatically carries the
+  // Authorization header (api() does this via authHeaders()) -- fixing the
+  // missing-auth-header bug split-status.js's own comment calls out, without
+  // needing a separate fix.
+
+  function splitInviteLink(carePlanId, participant) {
+    var url = window.location.origin + '/split-pay.html?participant=' + encodeURIComponent(participant.id);
+    if (!participant.member_id && participant.invite_token) {
+      url += '&guest=true&token=' + encodeURIComponent(participant.invite_token);
+    }
+    return url;
+  }
+
+  async function shareOrCopyLink(url, shareTitle) {
+    if (navigator.share) {
+      try { await navigator.share({ title: shareTitle || 'My Car Concierge', url: url }); return; } catch (_) { /* user cancelled or unsupported — fall through to clipboard */ }
+    }
+    try {
+      await navigator.clipboard.writeText(url);
+      showToast(t('member.cpLinkCopied', 'Invite link copied to clipboard'), 'success');
+    } catch (_) {
+      showToast(url, 'info');
+    }
+  }
+
+  // -- create / reactivate split modal ---------------------------------
+
+  function renderSplitRowsHtml(totalAmountCents) {
+    return splitParticipantRows.map(function (row, i) {
+      var isMe = i === 0; // row 0 is always the current member, mirrors old UI
+      return '' +
+        '<div style="background:var(--bg-input,rgba(20,24,30,0.6));border:1px solid var(--border-color,#2c2f36);border-radius:10px;padding:14px;margin-bottom:10px;">' +
+          '<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;gap:8px;">' +
+            '<span style="font-weight:600;font-size:0.9rem;">' + (isMe ? escapeHtml(t('member.cpSplitYou', 'You')) : escapeHtml(t('member.cpSplitParticipant', 'Participant {{n}}', { n: i + 1 }))) + '</span>' +
+            (!isMe ? '<button type="button" class="btn" data-split-remove="' + i + '" style="padding:2px 10px;font-size:0.78rem;">' + escapeHtml(t('common.remove', 'Remove')) + '</button>' : '') +
+          '</div>' +
+          '<input type="email" data-split-field="email" data-split-idx="' + i + '" value="' + escapeHtml(row.email) + '" ' + (isMe ? 'readonly style="opacity:0.7;"' : '') + ' placeholder="email@example.com" style="width:100%;padding:9px;margin-bottom:8px;border-radius:7px;border:1px solid var(--border-color,#2c2f36);background:rgba(20,24,30,0.6);color:var(--text-primary,#f5f5f7);box-sizing:border-box;" />' +
+          '<input type="text" data-split-field="display_name" data-split-idx="' + i + '" value="' + escapeHtml(row.display_name || '') + '" placeholder="' + escapeHtml(t('member.cpSplitNamePh', 'Name (optional)')) + '" style="width:100%;padding:9px;margin-bottom:8px;border-radius:7px;border:1px solid var(--border-color,#2c2f36);background:rgba(20,24,30,0.6);color:var(--text-primary,#f5f5f7);box-sizing:border-box;" />' +
+          '<input type="number" step="0.01" min="0.50" data-split-field="amount" data-split-idx="' + i + '" value="' + ((row.amount_cents / 100).toFixed(2)) + '" style="width:100%;padding:9px;border-radius:7px;border:1px solid var(--border-color,#2c2f36);background:rgba(20,24,30,0.6);color:var(--text-primary,#f5f5f7);box-sizing:border-box;" />' +
+        '</div>';
+    }).join('');
+  }
+
+  function updateSplitModalStatus(totalAmountCents) {
+    var statusEl = document.getElementById('cp-split-amount-status');
+    if (!statusEl) return;
+    var currentTotal = splitParticipantRows.reduce(function (sum, p) { return sum + (Number(p.amount_cents) || 0); }, 0);
+    var totalStr = fmtMoney(totalAmountCents / 100);
+    var currentStr = fmtMoney(currentTotal / 100);
+    if (currentTotal === totalAmountCents) {
+      statusEl.style.color = 'var(--accent-green,#22c55e)';
+      statusEl.textContent = t('member.cpSplitAllocatedOk', '{{cur}} of {{total}} allocated', { cur: currentStr, total: totalStr });
+    } else if (currentTotal < totalAmountCents) {
+      statusEl.style.color = 'var(--accent-orange,#f59e0b)';
+      statusEl.textContent = t('member.cpSplitAllocatedShort', '{{cur}} of {{total}} allocated ({{rem}} remaining)', { cur: currentStr, total: totalStr, rem: fmtMoney((totalAmountCents - currentTotal) / 100) });
+    } else {
+      statusEl.style.color = 'var(--accent-red,#ef4444)';
+      statusEl.textContent = t('member.cpSplitAllocatedOver', '{{cur}} of {{total}} allocated ({{over}} over)', { cur: currentStr, total: totalStr, over: fmtMoney((currentTotal - totalAmountCents) / 100) });
+    }
+  }
+
+  function rerenderSplitRows(totalAmountCents) {
+    var list = document.getElementById('cp-split-rows');
+    if (list) list.innerHTML = renderSplitRowsHtml(totalAmountCents);
+    updateSplitModalStatus(totalAmountCents);
+  }
+
+  function wireSplitModal(totalAmountCents, onSubmit) {
+    const modal = document.getElementById('cp-inline-modal');
+    if (!modal) return;
+    modal.addEventListener('input', function (e) {
+      const idx = e.target.getAttribute('data-split-idx');
+      const field = e.target.getAttribute('data-split-field');
+      if (idx == null || !field || !splitParticipantRows[idx]) return;
+      if (field === 'amount') {
+        splitParticipantRows[idx].amount_cents = Math.round((parseFloat(e.target.value) || 0) * 100);
+        updateSplitModalStatus(totalAmountCents);
+      } else {
+        splitParticipantRows[idx][field] = e.target.value;
+      }
+    });
+    modal.addEventListener('click', function (e) {
+      const removeIdx = e.target.getAttribute('data-split-remove');
+      if (removeIdx != null) {
+        splitParticipantRows.splice(Number(removeIdx), 1);
+        rerenderSplitRows(totalAmountCents);
+        return;
+      }
+      if (e.target.id === 'cp-split-add-row') {
+        splitParticipantRows.push({ email: '', amount_cents: 0, display_name: '', is_guest: true });
+        rerenderSplitRows(totalAmountCents);
+        return;
+      }
+      if (e.target.id === 'cp-split-even') {
+        const count = splitParticipantRows.length || 1;
+        const each = Math.floor(totalAmountCents / count);
+        const remainder = totalAmountCents - each * count;
+        splitParticipantRows.forEach(function (row, i) { row.amount_cents = each + (i === 0 ? remainder : 0); });
+        rerenderSplitRows(totalAmountCents);
+        return;
+      }
+      if (e.target.id === 'cp-split-cancel') { closeInlineModal(); return; }
+      if (e.target.id === 'cp-split-submit') { onSubmit(); return; }
+    });
+  }
+
+  function splitModalHtml(totalAmountCents, headingText, submitLabel) {
+    return '' +
+      '<h3 style="margin:0 0 4px;">' + mccIcon('users', 18) + ' ' + escapeHtml(headingText) + '</h3>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;background:var(--bg-input,rgba(20,24,30,0.6));border:1px solid var(--border-color,#2c2f36);border-radius:8px;padding:10px 14px;margin:10px 0 14px;">' +
+        '<span style="color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpSplitTotal', 'Total Amount')) + '</span>' +
+        '<span style="font-weight:700;color:var(--accent-gold,#c9a227);">' + escapeHtml(fmtMoney(totalAmountCents / 100)) + '</span>' +
+      '</div>' +
+      '<div id="cp-split-rows">' + renderSplitRowsHtml(totalAmountCents) + '</div>' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;margin:6px 0 14px;flex-wrap:wrap;gap:8px;">' +
+        '<div style="display:flex;gap:8px;">' +
+          '<button type="button" class="btn" id="cp-split-add-row">' + escapeHtml(t('member.cpSplitAddRow', '+ Add Participant')) + '</button>' +
+          '<button type="button" class="btn" id="cp-split-even">' + escapeHtml(t('member.cpSplitEven', 'Split Evenly')) + '</button>' +
+        '</div>' +
+        '<div id="cp-split-amount-status" style="font-size:0.85rem;"></div>' +
+      '</div>' +
+      '<div id="cp-split-error" style="color:var(--accent-red,#ef4444);font-size:0.85rem;margin-bottom:10px;min-height:18px;"></div>' +
+      '<div style="display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;">' +
+        '<button class="btn" type="button" id="cp-split-cancel">' + escapeHtml(t('common.cancel', 'Cancel')) + '</button>' +
+        '<button class="btn btn-primary" type="button" id="cp-split-submit">' + escapeHtml(submitLabel) + '</button>' +
+      '</div>';
+  }
+
+  async function currentMemberEmail() {
+    try {
+      const sb = window.supabaseClient || window.supabase;
+      const { data } = await sb.auth.getSession();
+      return (data && data.session && data.session.user && data.session.user.email) || '';
+    } catch (_) {
+      return '';
+    }
+  }
+
+  async function openCreateSplitModal(planId, totalAmountCents) {
+    const userEmail = await currentMemberEmail();
+    const half = Math.floor(totalAmountCents / 2);
+    splitParticipantRows = [
+      { email: userEmail, amount_cents: half, display_name: '', is_guest: false },
+      { email: '', amount_cents: totalAmountCents - half, display_name: '', is_guest: true }
+    ];
+    openInlineModal(splitModalHtml(totalAmountCents, t('member.cpSplitCreateTitle', 'Split Payment'), t('member.cpSplitCreateBtn', 'Create Split Payment')), function () {
+      wireSplitModal(totalAmountCents, function () { submitCreateSplit(planId, totalAmountCents); });
+    });
+  }
+
+  async function openReactivateSplitModal(planId, splitId, totalAmountCents) {
+    const userEmail = await currentMemberEmail();
+    const half = Math.floor(totalAmountCents / 2);
+    splitParticipantRows = [
+      { email: userEmail, amount_cents: half, display_name: '', is_guest: false },
+      { email: '', amount_cents: totalAmountCents - half, display_name: '', is_guest: true }
+    ];
+    openInlineModal(splitModalHtml(totalAmountCents, t('member.cpSplitReactivateTitle', 'Reactivate Split Payment'), t('member.cpSplitReactivateBtn', 'Reactivate Split Payment')), function () {
+      wireSplitModal(totalAmountCents, function () { submitReactivateSplit(planId, splitId, totalAmountCents); });
+    });
+  }
+
+  function validateSplitRows(totalAmountCents, errEl) {
+    for (const p of splitParticipantRows) {
+      if (!p.email || p.email.indexOf('@') === -1) {
+        errEl.textContent = t('member.cpSplitErrEmail', 'All participants must have a valid email address.');
+        return false;
+      }
+      if (!p.amount_cents || p.amount_cents < 50) {
+        errEl.textContent = t('member.cpSplitErrMin', 'Each participant must pay at least $0.50.');
+        return false;
+      }
+    }
+    const currentTotal = splitParticipantRows.reduce(function (sum, p) { return sum + p.amount_cents; }, 0);
+    if (currentTotal !== totalAmountCents) {
+      errEl.textContent = t('member.cpSplitErrTotal', 'Amounts must total {{total}}. Currently: {{cur}}', { total: fmtMoney(totalAmountCents / 100), cur: fmtMoney(currentTotal / 100) });
+      return false;
+    }
+    const emails = splitParticipantRows.map(function (p) { return p.email.toLowerCase(); });
+    if (new Set(emails).size !== emails.length) {
+      errEl.textContent = t('member.cpSplitErrUnique', 'Each participant must have a unique email address.');
+      return false;
+    }
+    return true;
+  }
+
+  async function submitCreateSplit(planId, totalAmountCents) {
+    if (isSubmitting) return;
+    const errEl = document.getElementById('cp-split-error');
+    const btn = document.getElementById('cp-split-submit');
+    if (errEl) errEl.textContent = '';
+    if (!validateSplitRows(totalAmountCents, errEl)) return;
+    isSubmitting = true;
+    if (btn) { btn.disabled = true; btn.textContent = t('member.cpSplitCreating', 'Creating…'); }
+    try {
+      await api('POST', '/api/split/create', {
+        care_plan_id: planId,
+        participants: splitParticipantRows.map(function (p) {
+          return { email: p.email, amount_cents: p.amount_cents, display_name: p.display_name || undefined, is_guest: !!p.is_guest };
+        })
+      });
+      closeInlineModal();
+      showToast(t('member.cpSplitCreateOk', 'Split payment created! Participants have been notified.'), 'success');
+      await loadCarePlansSection();
+      await viewCarePlan(planId);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message || t('member.cpSplitCreateFail', 'Failed to create split payment. Please try again.');
+      if (btn) { btn.disabled = false; btn.textContent = t('member.cpSplitCreateBtn', 'Create Split Payment'); }
+    } finally {
+      isSubmitting = false;
+    }
+  }
+
+  async function submitReactivateSplit(planId, splitId, totalAmountCents) {
+    if (isSubmitting) return;
+    const errEl = document.getElementById('cp-split-error');
+    const btn = document.getElementById('cp-split-submit');
+    if (errEl) errEl.textContent = '';
+    if (!validateSplitRows(totalAmountCents, errEl)) return;
+    isSubmitting = true;
+    if (btn) { btn.disabled = true; btn.textContent = t('member.cpSplitReactivating', 'Reactivating…'); }
+    try {
+      await api('POST', `/api/split/reactivate/${splitId}`, {
+        participants: splitParticipantRows.map(function (p) {
+          return { email: p.email, amount_cents: p.amount_cents, display_name: p.display_name || undefined, is_guest: !!p.is_guest };
+        })
+      });
+      closeInlineModal();
+      showToast(t('member.cpSplitReactivateOk', 'Split payment reactivated! Participants have been notified.'), 'success');
+      await loadCarePlansSection();
+      await viewCarePlan(planId);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message || t('member.cpSplitReactivateFail', 'Failed to reactivate split payment. Please try again.');
+      if (btn) { btn.disabled = false; btn.textContent = t('member.cpSplitReactivateBtn', 'Reactivate Split Payment'); }
+    } finally {
+      isSubmitting = false;
+    }
+  }
+
+  // -- status card (mounted into #cp-split-status-<planId>) -------------
+
+  function stopSplitCountdown() {
+    if (splitCountdownTimer) { clearInterval(splitCountdownTimer); splitCountdownTimer = null; }
+  }
+
+  function startSplitCountdown(planId, expiresAt) {
+    stopSplitCountdown();
+    const expiresMs = new Date(expiresAt).getTime();
+    function tick() {
+      const container = document.getElementById('cp-split-countdown-' + planId);
+      if (!container) { stopSplitCountdown(); return; }
+      const remaining = expiresMs - Date.now();
+      const hEl = document.getElementById('cp-split-cd-h-' + planId);
+      const mEl = document.getElementById('cp-split-cd-m-' + planId);
+      const sEl = document.getElementById('cp-split-cd-s-' + planId);
+      if (remaining <= 0) {
+        if (hEl) hEl.textContent = '00'; if (mEl) mEl.textContent = '00'; if (sEl) sEl.textContent = '00';
+        stopSplitCountdown();
+        return;
+      }
+      const h = Math.floor(remaining / 3600000);
+      const m = Math.floor((remaining % 3600000) / 60000);
+      const s = Math.floor((remaining % 60000) / 1000);
+      if (hEl) hEl.textContent = String(h).padStart(2, '0');
+      if (mEl) mEl.textContent = String(m).padStart(2, '0');
+      if (sEl) sEl.textContent = String(s).padStart(2, '0');
+      const color = remaining < 900000 ? 'var(--accent-red,#ef4444)' : remaining < 3600000 ? 'var(--accent-orange,#f59e0b)' : 'var(--accent-blue,#38bdf8)';
+      [hEl, mEl, sEl].forEach(function (el) { if (el) el.style.color = color; });
+    }
+    tick();
+    splitCountdownTimer = setInterval(tick, 1000);
+  }
+
+  function renderSplitParticipantRow(carePlanId, currentUserId, p, isCreator) {
+    const statusColors = { invited: 'var(--accent-orange,#f59e0b)', pending: 'var(--accent-blue,#38bdf8)', paid: 'var(--accent-green,#22c55e)', refunded: 'var(--text-muted,#6b7280)', partially_refunded: 'var(--accent-orange,#f59e0b)', failed: 'var(--accent-red,#ef4444)', cancelled: 'var(--text-muted,#6b7280)' };
+    const isMe = p.member_id === currentUserId;
+    // invite_token only comes back from split-status.js for the creator (see
+    // its comment) -- only offer the copy-link button when we actually have
+    // a usable link to give out.
+    const canShare = isCreator && !p.member_id && p.status !== 'paid' && p.status !== 'cancelled';
+    return '' +
+      '<div style="display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 12px;background:var(--bg-input,rgba(20,24,30,0.6));border-radius:8px;margin-bottom:8px;flex-wrap:wrap;' + (isMe ? 'border:1px solid var(--accent-gold,#c9a227);' : '') + '">' +
+        '<div>' +
+          '<div style="font-weight:' + (isMe ? '600' : '400') + ';">' + escapeHtml(p.display_name || p.email) + (isMe ? ' ' + escapeHtml(t('member.cpSplitYouParen', '(You)')) : '') + '</div>' +
+          '<div style="font-size:0.8rem;color:var(--text-secondary,#9ca3af);">' + escapeHtml(p.email) + '</div>' +
+        '</div>' +
+        '<div style="text-align:right;display:flex;align-items:center;gap:10px;">' +
+          (canShare ? '<button type="button" class="btn" data-split-share="' + escapeHtml(p.id) + '" title="' + escapeHtml(t('member.cpSplitCopyLink', 'Copy invite link')) + '" style="padding:4px 8px;">' + mccIcon('link', 14) + '</button>' : '') +
+          '<div>' +
+            '<div style="font-weight:600;">' + escapeHtml(fmtMoney(p.amount_cents / 100)) + '</div>' +
+            '<div style="font-size:0.78rem;color:' + (statusColors[p.status] || 'var(--text-muted,#6b7280)') + ';">' + escapeHtml(p.status.charAt(0).toUpperCase() + p.status.slice(1)) + '</div>' +
+          '</div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  async function loadSplitPaymentStatus(planId) {
+    const container = document.getElementById('cp-split-status-' + planId);
+    if (!container) return;
+    try {
+      const data = await api('GET', `/api/split/status/${planId}`);
+      const splitPayment = data.splitPayment, participants = data.participants || [], isCreator = data.isCreator;
+      const sb = window.supabaseClient || window.supabase;
+      let currentUserId = null;
+      try { const s = await sb.auth.getSession(); currentUserId = s && s.data && s.data.session && s.data.session.user && s.data.session.user.id; } catch (_) {}
+
+      const paidCount = participants.filter(function (p) { return p.status === 'paid'; }).length;
+      const total = participants.length;
+      const pct = total > 0 ? Math.round((paidCount / total) * 100) : 0;
+      const myParticipant = participants.find(function (p) { return p.member_id === currentUserId; });
+
+      const statusLabel = splitPayment.status === 'complete' ? t('member.cpSplitStatComplete', 'Complete')
+        : splitPayment.status === 'expired' ? t('member.cpSplitStatExpired', 'Expired')
+        : splitPayment.status === 'cancelled' ? t('member.cpSplitStatCancelled', 'Cancelled')
+        : t('member.cpSplitStatInProgress', 'In Progress');
+
+      let actionButtons = '';
+      if (myParticipant && myParticipant.status !== 'paid' && myParticipant.status !== 'cancelled' && splitPayment.status === 'pending') {
+        actionButtons += '<button class="btn btn-primary" type="button" id="cp-split-pay-mine" style="width:100%;margin-bottom:10px;">' + mccIcon('credit-card', 16) + ' ' + escapeHtml(t('member.cpSplitPayMine', 'Pay My Share ({{amt}})', { amt: fmtMoney(myParticipant.amount_cents / 100) })) + '</button>';
+      }
+      if (isCreator && splitPayment.status === 'pending') {
+        actionButtons += '<button class="btn" type="button" id="cp-split-cancel-btn" style="width:100%;border-color:var(--accent-red,#ef4444);color:var(--accent-red,#ef4444);">' + mccIcon('x', 16) + ' ' + escapeHtml(t('member.cpSplitCancelBtn', 'Cancel Split Payment')) + '</button>';
+      }
+      if (isCreator && (splitPayment.status === 'expired' || splitPayment.status === 'cancelled')) {
+        actionButtons += '<button class="btn btn-primary" type="button" id="cp-split-reactivate-btn" style="width:100%;">' + mccIcon('refresh-cw', 16) + ' ' + escapeHtml(t('member.cpSplitReactivateBtn', 'Reactivate Split Payment')) + '</button>';
+      }
+
+      container.innerHTML = '' +
+        '<div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:14px;flex-wrap:wrap;gap:10px;">' +
+          '<div>' +
+            '<div style="font-weight:600;color:var(--accent-blue,#38bdf8);font-size:1.05rem;">' + escapeHtml(t('member.cpSplitTitle', 'Split Payment {{status}}', { status: statusLabel })) + '</div>' +
+            '<div style="font-size:0.85rem;color:var(--text-secondary,#9ca3af);">' + escapeHtml(t('member.cpSplitCreatedBy', 'Created by {{name}}', { name: data.creatorName || '' })) + '</div>' +
+          '</div>' +
+          '<div style="text-align:right;">' +
+            '<div style="font-size:1.25rem;font-weight:700;">' + escapeHtml(fmtMoney(splitPayment.total_amount_cents / 100)) + '</div>' +
+            '<div style="font-size:0.8rem;color:var(--text-muted,#6b7280);">' + escapeHtml(t('member.cpSplitPaidCount', '{{paid}}/{{total}} paid', { paid: paidCount, total: total })) + '</div>' +
+          '</div>' +
+        '</div>' +
+        '<div style="background:rgba(20,24,30,0.6);border-radius:8px;height:8px;margin-bottom:14px;overflow:hidden;">' +
+          '<div style="height:100%;width:' + pct + '%;background:var(--accent-green,#22c55e);"></div>' +
+        '</div>' +
+        '<div style="margin-bottom:14px;">' + participants.map(function (p) { return renderSplitParticipantRow(planId, currentUserId, p, isCreator); }).join('') + '</div>' +
+        (splitPayment.expires_at && splitPayment.status === 'pending'
+          ? '<div id="cp-split-countdown-' + planId + '" style="background:rgba(20,24,30,0.6);border:1px solid var(--border-color,#2c2f36);border-radius:10px;padding:12px;margin-bottom:14px;text-align:center;">' +
+              '<div style="font-size:0.7rem;text-transform:uppercase;letter-spacing:1px;color:var(--text-muted,#6b7280);margin-bottom:6px;">' + escapeHtml(t('member.cpSplitTimeRemaining', 'Time Remaining')) + '</div>' +
+              '<div style="display:flex;justify-content:center;gap:6px;font-variant-numeric:tabular-nums;font-size:1.3rem;font-weight:700;">' +
+                '<span id="cp-split-cd-h-' + planId + '">--</span>:<span id="cp-split-cd-m-' + planId + '">--</span>:<span id="cp-split-cd-s-' + planId + '">--</span>' +
+              '</div>' +
+            '</div>'
+          : '') +
+        '<div id="cp-split-pay-container-' + planId + '"></div>' +
+        actionButtons;
+
+      if (splitPayment.expires_at && splitPayment.status === 'pending') startSplitCountdown(planId, splitPayment.expires_at);
+      else stopSplitCountdown();
+
+      // Wire actions (delegated within the status container so re-render is cheap)
+      container.addEventListener('click', function (e) {
+        const shareId = e.target.closest && e.target.closest('[data-split-share]') && e.target.closest('[data-split-share]').getAttribute('data-split-share');
+        if (shareId) {
+          const participant = participants.find(function (p) { return p.id === shareId; });
+          if (participant) shareOrCopyLink(splitInviteLink(planId, participant), t('member.cpSplitShareTitle', 'Pay your share'));
+          return;
+        }
+        if (e.target.id === 'cp-split-pay-mine' && myParticipant) { openPaySplitShareModal(myParticipant.id, planId); return; }
+        if (e.target.id === 'cp-split-cancel-btn') { cancelSplitPayment(splitPayment.id, planId); return; }
+        if (e.target.id === 'cp-split-reactivate-btn') { openReactivateSplitModal(planId, splitPayment.id, splitPayment.total_amount_cents); return; }
+      }, { once: false });
+    } catch (e) {
+      container.innerHTML = '<p style="color:var(--text-secondary,#9ca3af);">' + escapeHtml(e.message || t('member.cpSplitLoadFail', 'Unable to load split payment status.')) + '</p>';
+    }
+  }
+
+  async function cancelSplitPayment(splitId, planId) {
+    if (!confirm(t('member.cpSplitCancelConfirm', 'Cancel this split payment? Any paid participants will be refunded.'))) return;
+    try {
+      await api('POST', `/api/split/cancel/${splitId}`);
+      showToast(t('member.cpSplitCancelOk', 'Split payment cancelled. Refunds have been processed.'), 'success');
+      stopSplitCountdown();
+      await loadCarePlansSection();
+      await viewCarePlan(planId);
+    } catch (e) {
+      showToast(e.message || t('member.cpSplitCancelFail', 'Failed to cancel split payment'), 'error');
+    }
+  }
+
+  // -- pay-my-share modal -------------------------------------------------
+
+  async function openPaySplitShareModal(participantId, planId) {
+    try {
+      showToast(t('member.cpSplitPreparing', 'Preparing payment…'), 'info');
+      const data = await api('POST', `/api/split/pay/${participantId}`);
+
+      if (data.reviewer_mock) {
+        showToast(data.splitComplete
+          ? t('member.cpSplitAllPaid', 'All shares paid! The service can now proceed.')
+          : t('member.cpSplitShareOk', 'Your share has been paid successfully!'), 'success');
+        await loadCarePlansSection();
+        await viewCarePlan(planId);
+        return;
+      }
+
+      if (typeof window.initStripe !== 'function') { showToast(t('member.cpStripeUnavail', 'Payment system unavailable. Please refresh.'), 'error'); return; }
+      const stripe = await window.initStripe();
+      if (!stripe) { showToast(t('member.cpStripeUnavail', 'Payment system unavailable. Please refresh.'), 'error'); return; }
+
+      const payContainer = document.getElementById('cp-split-pay-container-' + planId);
+      if (!payContainer) return;
+      payContainer.innerHTML = '' +
+        '<div style="margin-top:6px;margin-bottom:14px;padding:14px;border:1px solid var(--border-color,#2c2f36);border-radius:10px;background:rgba(20,24,30,0.6);">' +
+          '<div style="text-align:center;font-weight:700;color:var(--accent-gold,#c9a227);margin-bottom:10px;">' + escapeHtml(fmtMoney(data.amountCents / 100)) + '</div>' +
+          '<div id="cp-split-card-element" style="padding:12px;border:1px solid var(--border-color,#2c2f36);border-radius:8px;background:rgba(0,0,0,0.2);min-height:44px;"></div>' +
+          '<div id="cp-split-card-errors" style="color:var(--accent-red,#ef4444);font-size:0.82rem;margin-top:8px;min-height:16px;"></div>' +
+          '<button class="btn btn-primary" type="button" id="cp-split-confirm-pay-btn" style="width:100%;margin-top:8px;">' + mccIcon('credit-card', 16) + ' ' + escapeHtml(t('member.cpSplitPayBtn', 'Pay {{amt}}', { amt: fmtMoney(data.amountCents / 100) })) + '</button>' +
+        '</div>';
+
+      const isDark = !document.documentElement.classList.contains('light-theme');
+      activeSplitElements = stripe.elements({ clientSecret: data.clientSecret, appearance: { theme: isDark ? 'night' : 'stripe' } });
+      activeSplitCardElement = activeSplitElements.create('card', {
+        style: { base: { color: isDark ? '#f5f5f7' : '#0f172a', fontFamily: 'Inter, -apple-system, sans-serif', fontSize: '16px', '::placeholder': { color: '#6b7280' } }, invalid: { color: '#f87171' } }
+      });
+      activeSplitCardElement.mount('#cp-split-card-element');
+      activeSplitParticipantId = participantId;
+
+      const confirmBtn = document.getElementById('cp-split-confirm-pay-btn');
+      if (confirmBtn) confirmBtn.addEventListener('click', function () { confirmSplitShare(participantId, planId, data.clientSecret); });
+    } catch (e) {
+      showToast(e.message || t('member.cpSplitPrepFail', 'Failed to initiate payment'), 'error');
+    }
+  }
+
+  async function confirmSplitShare(participantId, planId, clientSecret) {
+    const btn = document.getElementById('cp-split-confirm-pay-btn');
+    const errEl = document.getElementById('cp-split-card-errors');
+    if (!activeSplitCardElement) { if (errEl) errEl.textContent = t('member.cpSplitFormErr', 'Payment form not loaded. Please try again.'); return; }
+    try {
+      if (btn) { btn.disabled = true; btn.textContent = t('member.cpSplitProcessing', 'Processing…'); }
+      if (errEl) errEl.textContent = '';
+      const stripe = await window.initStripe();
+      const result = await stripe.confirmCardPayment(clientSecret, { payment_method: { card: activeSplitCardElement } });
+      if (result.error) throw new Error(result.error.message);
+      if (!result.paymentIntent || result.paymentIntent.status !== 'succeeded') throw new Error(t('member.cpCardErr', 'Card declined.'));
+
+      const confirmData = await api('POST', `/api/split/confirm/${participantId}`);
+      showToast(confirmData.splitComplete
+        ? t('member.cpSplitAllPaid', 'All shares paid! The service can now proceed.')
+        : t('member.cpSplitShareOk', 'Your share has been paid successfully!'), 'success');
+      activeSplitCardElement = null; activeSplitElements = null; activeSplitParticipantId = null;
+      await loadCarePlansSection();
+      await viewCarePlan(planId);
+    } catch (e) {
+      if (errEl) errEl.textContent = e.message || t('member.cpSplitPayFail', 'Payment failed. Please try again.');
+      if (btn) { btn.disabled = false; btn.textContent = t('member.cpSplitConfirmRetry', 'Retry'); }
     }
   }
 

@@ -65,6 +65,21 @@ exports.handler = async function(event) {
   if (!isCreator && !isParticipant)
     return utils.errorResponse(403, 'Not authorized to view this split payment');
 
+  // Guest invite tokens are never stored -- generateGuestToken derives them
+  // deterministically (HMAC of the participant id + server secret), same as
+  // split-create.js does at creation time. Only the creator gets them back
+  // here, and only for guests who haven't paid yet, so the status card can
+  // always re-render/copy a share link without needing the one-time value
+  // returned by split-create.js's response.
+  if (isCreator) {
+    participants = participants.map(function (p) {
+      if (!p.member_id && p.status !== 'paid') {
+        return Object.assign({}, p, { invite_token: utils.generateGuestToken(p.id) });
+      }
+      return p;
+    });
+  }
+
   var planRes = await supabase.from('care_plans').select('title, status, payment_status').eq('id', carePlanId).single();
   var plan = planRes.data || {};
 
