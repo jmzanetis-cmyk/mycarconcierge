@@ -1,5 +1,5 @@
 {
-  "_readme": "Grandfathered allow-list for client-api-coverage.test.js (Task #457). Every entry is a /api/... URL extracted from www/*.js + www/*.html that has no matching rule in www/_redirects and no entry in _dev-only-api-routes.json. Two categories: (1) 'broken' \u2014 no handler anywhere, flagged by the Task #352 audit, tracked in #455/#456; (2) 'dev-only' \u2014 handled by a www/server.js regex route that the _dev-only-api-routes.json prefix list doesn't capture. Any NEW unhandled URL added after this snapshot must either gain a www/_redirects rule, a _dev-only-api-routes.json entry, OR an explicit entry here with a reason and ticket.",
+  "_readme": "Grandfathered allow-list for client-api-coverage.test.js (Task #457). Every entry is a /api/... URL extracted from www/*.js + www/*.html that has no matching rule in www/_redirects and no entry in _dev-only-api-routes.json. Two categories: (1) 'broken' — no handler anywhere, flagged by the Task #352 audit, tracked in #455/#456; (2) 'dev-only' — handled by a www/server.js regex route that the _dev-only-api-routes.json prefix list doesn't capture. Any NEW unhandled URL added after this snapshot must either gain a www/_redirects rule, a _dev-only-api-routes.json entry, OR an explicit entry here with a reason and ticket.",
   "urls": [
     {
       "url": "/api/additional-work/:param",
@@ -214,7 +214,7 @@
     {
       "url": "/api/obd/scans/:param",
       "caller": "members.js:7727",
-      "reason": "No handler in _redirects or server.js \u2014 audit-identified broken caller",
+      "reason": "No handler in _redirects or server.js — audit-identified broken caller",
       "ticket": "#456"
     },
     {
@@ -490,13 +490,13 @@
     {
       "url": "/api/bgcheck/status/:param",
       "caller": "providers-settings.js:542",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere as of 2026-09-11. This is not just a stale route -- Task #372 already built a real, live BackgroundChecks.com integration (/api/provider/initiate-background-check, /api/provider-bgc-compliance, /api/provider/bgc/config+decrypt-token, bgc-admin, initiate-driver-bgc), confirmed with Jordan 2026-09-11 as the current vendor. But it has a different shape than this old /api/bgcheck/* generation: initiate-background-check.js requires an existing employeeId and only orders employee-level checks (no provider-self-check path), and provider-bgc-compliance.js is a public member-facing compliance-badge lookup by provider_ids, not an authed provider's own detailed check-status view. There is currently no live endpoint at all for 'a provider views their own/team's detailed BGC status' or 'a provider self-initiates their own check' the way this old UI expects -- needs a product decision, not just a URL swap. Also called from providers.js:5878, providers.js:6269, providers.js:12378 (all /api/bgcheck/status/:id, same dead route, only one representative caller tracked here).",
       "ticket": ""
     },
     {
       "url": "/api/bgcheck/report-url/:param",
       "caller": "providers-settings.js:849",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere as of 2026-09-11. This is not just a stale route -- Task #372 already built a real, live BackgroundChecks.com integration (/api/provider/initiate-background-check, /api/provider-bgc-compliance, /api/provider/bgc/config+decrypt-token, bgc-admin, initiate-driver-bgc), confirmed with Jordan 2026-09-11 as the current vendor. But it has a different shape than this old /api/bgcheck/* generation: initiate-background-check.js requires an existing employeeId and only orders employee-level checks (no provider-self-check path), and provider-bgc-compliance.js is a public member-facing compliance-badge lookup by provider_ids, not an authed provider's own detailed check-status view. There is currently no live endpoint at all for 'a provider views their own/team's detailed BGC status' or 'a provider self-initiates their own check' the way this old UI expects -- needs a product decision, not just a URL swap. Also called from providers.js:5878, providers.js:6269, providers.js:12378 (all /api/bgcheck/status/:id, same dead route, only one representative caller tracked here).",
       "ticket": ""
     },
     {
@@ -508,7 +508,7 @@
     {
       "url": "/api/bgcheck/initiate",
       "caller": "providers.js:6422",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
+      "reason": "No handler anywhere as of 2026-09-11. This is not just a stale route -- Task #372 already built a real, live BackgroundChecks.com integration (/api/provider/initiate-background-check, /api/provider-bgc-compliance, /api/provider/bgc/config+decrypt-token, bgc-admin, initiate-driver-bgc), confirmed with Jordan 2026-09-11 as the current vendor. But it has a different shape than this old /api/bgcheck/* generation: initiate-background-check.js requires an existing employeeId and only orders employee-level checks (no provider-self-check path), and provider-bgc-compliance.js is a public member-facing compliance-badge lookup by provider_ids, not an authed provider's own detailed check-status view. There is currently no live endpoint at all for 'a provider views their own/team's detailed BGC status' or 'a provider self-initiates their own check' the way this old UI expects -- needs a product decision, not just a URL swap. Also called from providers.js:5878, providers.js:6269, providers.js:12378 (all /api/bgcheck/status/:id, same dead route, only one representative caller tracked here).",
       "ticket": ""
     },
     {
