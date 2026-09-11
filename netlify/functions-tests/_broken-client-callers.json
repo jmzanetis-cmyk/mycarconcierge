@@ -422,12 +422,6 @@
       "ticket": ""
     },
     {
-      "url": "/api/shop/book",
-      "caller": "booking-widget.js:99",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
-      "ticket": ""
-    },
-    {
       "url": "/api/fleet/update-mileage",
       "caller": "fleet-driver.html:499",
       "reason": "No handler anywhere -- the server.js dev route was removed and never ported. Confirmed with Jordan 2026-09-11: the whole 'fleet' B2B product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is not a priority -- intentionally NOT being revived, not a bug to fix. Member-facing nav + subscription card are already dead-code-gated off (www/members.html:1130,9429, comment 'PHASE 0 BATCH 1'); fleet.html/fleet-driver.html (the standalone fleet-manager/driver pages) remain live but unused. Left broken deliberately -- do not resurrect without a product decision.",
@@ -443,12 +437,6 @@
       "url": "/api/fleet/import-vehicles",
       "caller": "fleet.html:984",
       "reason": "No handler anywhere -- the server.js dev route was removed and never ported. Confirmed with Jordan 2026-09-11: the whole 'fleet' B2B product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is not a priority -- intentionally NOT being revived, not a bug to fix. Member-facing nav + subscription card are already dead-code-gated off (www/members.html:1130,9429, comment 'PHASE 0 BATCH 1'); fleet.html/fleet-driver.html (the standalone fleet-manager/driver pages) remain live but unused. Left broken deliberately -- do not resurrect without a product decision.",
-      "ticket": ""
-    },
-    {
-      "url": "/api/founder/campaign-stats",
-      "caller": "founder-dashboard.js:1291",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
       "ticket": ""
     },
     {
@@ -484,12 +472,6 @@
     {
       "url": "/api/tenant/approval-workflow",
       "caller": "members.html:10058",
-      "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
-      "ticket": ""
-    },
-    {
-      "url": "/api/provider/profile/publish",
-      "caller": "providers-settings.js:1317",
       "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
       "ticket": ""
     },

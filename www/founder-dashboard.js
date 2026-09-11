@@ -1283,10 +1283,7 @@
       loadWefunderClickStats().catch(() => {});
 
       try {
-        // PHASE 0 BATCH 1 (2026-07-16): /api/founder/campaign-stats not built.
-        // See MCC_AUDIT_PLAN.md §2a Founder Dashboard backlog. Placeholder
-        // shown; restore original fetch when endpoint ships.
-        throw new Error('endpoint_pending');
+        // 2026-09-11: /api/founder/campaign-stats now built (founder-campaign-stats.js).
         const token = (await supabase.auth.getSession()).data.session?.access_token;
         const res = await fetch('/api/founder/campaign-stats', {
           headers: token ? { 'Authorization': `Bearer ${token}` } : {}

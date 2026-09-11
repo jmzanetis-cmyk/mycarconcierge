@@ -39,6 +39,7 @@
 /api/bids/provider-summary /.netlify/functions/bid-provider-summary 200
 /api/geocode /.netlify/functions/geocode 200
 /api/provider/profile/save /.netlify/functions/provider-profile-save 200
+/api/provider/profile/publish /.netlify/functions/provider-profile-publish 200
 /api/provider/packages /.netlify/functions/provider-packages 200
 /api/appointments/* /.netlify/functions/appointment-ical 200
 /api/ai/* /.netlify/functions/ai-member/:splat 200
@@ -273,6 +274,7 @@
 # Feature: Member Founder earnings API
 /api/member-founder /.netlify/functions/member-founder-api 200
 /api/member-founder/* /.netlify/functions/member-founder-api 200
+/api/founder/campaign-stats /.netlify/functions/founder-campaign-stats 200
 
 # Feature: Vehicle Ownership Verification (VIN decode + registration AI verify)
 /api/vehicle/decode-vin /.netlify/functions/vehicle-verify/decode-vin 200
@@ -344,3 +346,6 @@
 # Feature: Tier 2 money-integrity fixes — Task: admin-portal audit
 /api/admin/payments/*  /.netlify/functions/admin-release-payment/:splat 200
 /api/admin/disputes/*  /.netlify/functions/admin-dispute-resolve/:splat 200
+
+# Feature: public booking-widget.js embed (broken-client-caller cleanup, 2026-09-11)
+/api/shop/book /.netlify/functions/shop-book 200
