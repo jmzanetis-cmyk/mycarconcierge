@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Tenancy Program – My Car Concierge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="description" content="Run your own branded car-care platform on My Car Concierge's infrastructure. Custom domain, your brand, your provider network -- powered by MCC." />
+  <meta name="theme-color" content="#12161c" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/logo-lockup.css">
+  <style>
+    :root {
+      --bg-deep: #12161c;
+      --bg-card: rgba(26, 32, 42, 0.95);
+      --bg-elevated: rgba(36, 44, 56, 0.95);
+      --text-primary: #f5f5f7;
+      --text-secondary: #a0a8b8;
+      --text-muted: #6b7280;
+      --accent-gold: #c9a227;
+      --accent-gold-soft: rgba(201, 162, 39, 0.15);
+      --accent-teal: #2cc4b4;
+      --border-subtle: rgba(160, 168, 184, 0.15);
+      --radius-md: 12px;
+      --radius-lg: 16px;
+      --radius-xl: 24px;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Inter', -apple-system, sans-serif; background: var(--bg-deep); color: var(--text-primary); }
+    a { color: inherit; }
+
+    nav {
+      position: fixed; top: 0; left: 0; right: 0;
+      background: rgba(18, 22, 28, 0.95);
+      backdrop-filter: blur(12px);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 14px 24px;
+      display: flex; align-items: center; justify-content: space-between;
+      z-index: 200;
+    }
+    nav img { height: 40px; }
+    .btn-nav { background: var(--accent-gold); color: #12161c; padding: 9px 22px; border-radius: var(--radius-md); font-weight: 600; font-size: 14px; text-decoration: none; }
+
+    .hero { padding: 140px 24px 80px; text-align: center; max-width: 780px; margin: 0 auto; }
+    .hero-badge {
+      display: inline-flex; align-items: center; gap: 8px;
+      background: var(--accent-gold-soft); border: 1px solid rgba(201, 162, 39, 0.35);
+      color: var(--accent-gold); padding: 6px 16px; border-radius: 999px;
+      font-size: 13px; font-weight: 600; letter-spacing: 0.02em; margin-bottom: 24px;
+    }
+    .hero h1 { font-family: 'Fraunces', serif; font-size: clamp(32px, 5vw, 52px); line-height: 1.15; margin-bottom: 20px; }
+    .hero p { color: var(--text-secondary); font-size: 18px; line-height: 1.6; margin-bottom: 32px; }
+    .hero-cta { display: flex; gap: 14px; justify-content: center; flex-wrap: wrap; }
+    .btn-primary { background: var(--accent-gold); color: #12161c; padding: 14px 30px; border-radius: var(--radius-md); font-weight: 700; text-decoration: none; font-size: 16px; }
+    .btn-secondary { background: var(--bg-elevated); color: var(--text-primary); padding: 14px 30px; border-radius: var(--radius-md); font-weight: 600; text-decoration: none; font-size: 16px; border: 1px solid var(--border-subtle); }
+
+    .section { max-width: 1080px; margin: 0 auto; padding: 60px 24px; }
+    .section h2 { font-family: 'Fraunces', serif; font-size: 32px; text-align: center; margin-bottom: 12px; }
+    .section-sub { text-align: center; color: var(--text-secondary); max-width: 620px; margin: 0 auto 44px; line-height: 1.6; }
+
+    .benefits { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 24px; }
+    .benefit-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 28px; }
+    .benefit-card .icon { font-size: 28px; margin-bottom: 14px; }
+    .benefit-card h3 { font-size: 17px; margin-bottom: 8px; }
+    .benefit-card p { color: var(--text-secondary); font-size: 14px; line-height: 1.55; }
+
+    .plans { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 24px; }
+    .plan-card { background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-lg); padding: 32px 26px; display: flex; flex-direction: column; }
+    .plan-card.featured { border-color: var(--accent-gold); box-shadow: 0 0 0 1px var(--accent-gold); position: relative; }
+    .plan-card.featured::before { content: 'MOST POPULAR'; position: absolute; top: -12px; left: 50%; transform: translateX(-50%); background: var(--accent-gold); color: #12161c; font-size: 11px; font-weight: 700; padding: 4px 14px; border-radius: 999px; letter-spacing: 0.05em; }
+    .plan-name { font-size: 15px; color: var(--text-secondary); font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 10px; }
+    .plan-price { font-family: 'Fraunces', serif; font-size: 38px; margin-bottom: 4px; }
+    .plan-price span { font-size: 15px; color: var(--text-secondary); font-family: 'Inter', sans-serif; }
+    .plan-features { list-style: none; margin: 20px 0 26px; flex: 1; }
+    .plan-features li { color: var(--text-secondary); font-size: 14px; padding: 6px 0; padding-left: 22px; position: relative; line-height: 1.4; }
+    .plan-features li::before { content: '✓'; position: absolute; left: 0; color: var(--accent-teal); font-weight: 700; }
+    .plan-cta { text-align: center; background: var(--bg-elevated); color: var(--text-primary); padding: 12px; border-radius: var(--radius-md); font-weight: 600; text-decoration: none; }
+    .plan-card.featured .plan-cta { background: var(--accent-gold); color: #12161c; }
+
+    .plans-loading, .plans-error { text-align: center; color: var(--text-secondary); padding: 40px; }
+
+    footer { text-align: center; padding: 40px 24px 60px; color: var(--text-muted); font-size: 13px; }
+  </style>
+</head>
+<body>
+  <nav>
+    <img src="icons/icon-192.png" alt="My Car Concierge" style="border-radius:8px;" />
+    <a class="btn-nav" href="white-label-signup.html">Apply Now</a>
+  </nav>
+
+  <div class="hero">
+    <div class="hero-badge">🤝 Tenancy Program</div>
+    <h1>Run your own branded car-care platform</h1>
+    <p>Deploy a fully white-labeled version of My Car Concierge under your own domain and brand -- your customers, your providers, our infrastructure. No app to build, no platform to maintain.</p>
+    <div class="hero-cta">
+      <a class="btn-primary" href="white-label-signup.html">Apply for Tenancy</a>
+      <a class="btn-secondary" href="#pricing">See Pricing</a>
+    </div>
+  </div>
+
+  <div class="section">
+    <h2>What you get</h2>
+    <p class="section-sub">Everything MCC members and providers already rely on, wrapped in your own brand.</p>
+    <div class="benefits">
+      <div class="benefit-card"><div class="icon">🎨</div><h3>Your brand, your domain</h3><p>Custom subdomain out of the box, with a custom domain and full color/logo branding on higher tiers.</p></div>
+      <div class="benefit-card"><div class="icon">👥</div><h3>Your own member &amp; provider roster</h3><p>A dedicated portal to manage who belongs to your tenant, with seat limits that scale with your plan.</p></div>
+      <div class="benefit-card"><div class="icon">🔁</div><h3>Loyalty &amp; approval workflows</h3><p>Configure punch-card loyalty rewards and require-approval rules for bookings, tailored to how you operate.</p></div>
+      <div class="benefit-card"><div class="icon">📊</div><h3>Analytics dashboard</h3><p>Track activity across your tenant as it grows (Pro and Business plans).</p></div>
+      <div class="benefit-card"><div class="icon">⚙️</div><h3>Zero infrastructure to run</h3><p>MCC hosts, maintains, and updates the platform underneath you -- you focus on your brand and your customers.</p></div>
+      <div class="benefit-card"><div class="icon">🚀</div><h3>Launch in days, not months</h3><p>Apply, pick a plan, and your workspace is provisioned automatically once payment goes through.</p></div>
+    </div>
+  </div>
+
+  <div class="section" id="pricing">
+    <h2>Pricing</h2>
+    <p class="section-sub">Straightforward monthly plans. Cancel anytime.</p>
+    <div id="plans-container" class="plans-loading">Loading pricing…</div>
+  </div>
+
+  <footer>&copy; 2026 My Car Concierge. <a href="white-label-signup.html" style="color:var(--accent-gold);">Apply for tenancy</a></footer>
+
+  <script>
+    var API_BASE = (function() {
+      var h = window.location.hostname;
+      var isNetlify = h.includes('netlify') || h === 'mycarconcierge.com' || h === 'www.mycarconcierge.com';
+      return isNetlify ? '' : '';
+    })();
+
+    function money(cents) {
+      return '$' + (cents / 100).toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 });
+    }
+
+    fetch(API_BASE + '/api/saas/plans')
+      .then(function(r) { return r.json(); })
+      .then(function(data) {
+        var wl = data && data.plans && data.plans.white_label;
+        var container = document.getElementById('plans-container');
+        if (!wl || !wl.tiers) { container.textContent = 'Pricing is being updated -- please check back shortly or apply to get in touch.'; return; }
+
+        var order = ['starter', 'pro', 'business'];
+        var html = '<div class="plans">';
+        order.forEach(function(key) {
+          var tier = wl.tiers[key];
+          if (!tier) return;
+          var featured = key === 'pro';
+          html += '<div class="plan-card' + (featured ? ' featured' : '') + '">';
+          html += '<div class="plan-name">' + tier.name + '</div>';
+          html += '<div class="plan-price">' + money(tier.price_monthly) + '<span>/mo</span></div>';
+          html += '<ul class="plan-features">';
+          (tier.features || []).forEach(function(f) { html += '<li>' + f + '</li>'; });
+          html += '</ul>';
+          html += '<a class="plan-cta" href="white-label-signup.html?plan=' + key + '">Apply for ' + tier.name + '</a>';
+          html += '</div>';
+        });
+        html += '</div>';
+        container.outerHTML = html;
+      })
+      .catch(function() {
+        document.getElementById('plans-container').textContent = 'Could not load pricing right now -- please apply and we\'ll follow up with details.';
+      });
+  </script>
+</body>
+</html>

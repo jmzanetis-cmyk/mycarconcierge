@@ -448,6 +448,48 @@ async function testWhiteLabelJoin() {
     assert.strictEqual(lastStatus, 429);
   });
 
+  await check('join: provider already exclusive to a DIFFERENT tenant -> 409', async () => {
+    const handler = freshHandler('white-label-join');
+    const token = mintDomainToken('tenant-2', 'provider-1');
+    supabaseImpl = {
+      white_label_tenants: { maybeSingle: () => ({ data: { id: 'tenant-2', max_members: 500, max_providers: 50 }, error: null }) },
+      profiles: { maybeSingle: () => ({ data: { role: 'provider' }, error: null }) },
+      white_label_tenant_users: {
+        // Distinguish the two maybeSingle() lookups by their filters: the
+        // "already a member of THIS tenant" check filters on
+        // tenant_id+user_id (no neq); the exclusivity check filters on
+        // user_id+role with neq_tenant_id set.
+        maybeSingle: (filters) => (filters.neq_tenant_id !== undefined
+          ? { data: { id: 'existing-membership-elsewhere', tenant_id: 'tenant-1' }, error: null }
+          : { data: null, error: null }),
+        insert: () => { throw new Error('should not insert -- exclusivity check must short-circuit first'); },
+      },
+    };
+    authImpl = defaultAuth({ id: 'provider-1' });
+    const res = await handler(authEvent('POST', { domain_join_token: token }, 'tok-caller'));
+    assert.strictEqual(res.statusCode, 409);
+  });
+
+  await check('join: provider exclusivity race -> DB unique-violation on insert also -> 409 (not 500)', async () => {
+    const handler = freshHandler('white-label-join');
+    const token = mintDomainToken('tenant-2', 'provider-1');
+    supabaseImpl = {
+      white_label_tenants: { maybeSingle: () => ({ data: { id: 'tenant-2', max_members: 500, max_providers: 50 }, error: null }) },
+      profiles: { maybeSingle: () => ({ data: { role: 'provider' }, error: null }) },
+      white_label_tenant_users: {
+        // App-level exclusivity check finds nothing (simulating a race --
+        // another request inserted the competing row between this check and
+        // the insert below), so the DB's partial unique index must catch it.
+        maybeSingle: () => ({ data: null, error: null }),
+        count: () => ({ count: 0, error: null }),
+        insert: () => ({ data: null, error: { code: '23505', message: 'duplicate key value violates unique constraint "white_label_tenant_users_provider_exclusive"' } }),
+      },
+    };
+    authImpl = defaultAuth({ id: 'provider-1' });
+    const res = await handler(authEvent('POST', { domain_join_token: token }, 'tok-caller'));
+    assert.strictEqual(res.statusCode, 409);
+  });
+
   await check('join: GET -> 405', async () => {
     const handler = freshHandler('white-label-join');
     const res = await handler({ httpMethod: 'GET', headers: {} });

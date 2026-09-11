@@ -2,7 +2,10 @@
 // stripe-webhook — handles real-time Stripe events
 //
 // Events handled:
-//   checkout.session.completed                     — grant bid credits; record founder commission
+//   checkout.session.completed                     — grant bid credits; record founder commission;
+//                                                     provision a white_label tenant on paid signup
+//   customer.subscription.updated                  — sync white_label_tenants.status with billing state
+//   customer.subscription.deleted                  — mark white_label_tenants.status='canceled'
 //   charge.refunded                                — void/claw back founder commission on refund
 //   charge.dispute.created                         — void/claw back founder commission on dispute
 //   payment_intent.succeeded                       — update tip/subsidy status
@@ -63,8 +66,173 @@ async function adminEmail(subject, html) {
 
 // ── checkout.session.completed ─────────────────────────────────────────────
 
+// Provisions the real white_label_tenants row once a tenancy application is
+// paid for. white-label-apply.js only ever creates a white_label_applications
+// row + Stripe Checkout session -- this is the ONLY code path that inserts
+// into white_label_tenants. 2026-09-11.
+async function _provisionWhiteLabelTenant(session, meta, supabase) {
+  if (session.payment_status !== 'paid') return;
+
+  const { data: application, error: appErr } = await supabase
+    .from('white_label_applications')
+    .select('*')
+    .eq('id', meta.application_id)
+    .maybeSingle();
+
+  if (appErr || !application) {
+    console.error('[stripe-webhook] white_label application not found for', meta.application_id);
+    return;
+  }
+
+  // Idempotency: the top-level event gate already de-dupes Stripe retries,
+  // but this guards against re-provisioning if the gate is ever bypassed.
+  if (application.status === 'provisioned') {
+    console.log('[stripe-webhook] white_label application already provisioned', application.id);
+    return;
+  }
+
+  // Member/provider seat limits come from saas_plans (source of truth for
+  // pricing/limits), not a hardcoded map, so a future price change doesn't
+  // silently desync from what a paying tenant actually gets.
+  const { data: planRow } = await supabase
+    .from('saas_plans')
+    .select('limits')
+    .eq('product', 'white_label')
+    .eq('plan', application.plan)
+    .maybeSingle();
+  const limits      = (planRow && planRow.limits) || {};
+  const maxMembers   = typeof limits.members === 'number' ? limits.members : 500;
+  const maxProviders = typeof limits.providers === 'number' ? limits.providers : 50;
+
+  const { data: tenant, error: insErr } = await supabase
+    .from('white_label_tenants')
+    .insert({
+      name: application.business_name,
+      brand_name: application.business_name,
+      subdomain: application.subdomain,
+      support_email: application.support_email || null,
+      support_phone: application.support_phone || null,
+      plan: application.plan,
+      status: 'active',
+      owner_user_id: application.user_id,
+      stripe_subscription_id: session.subscription || null,
+      max_members: maxMembers,
+      max_providers: maxProviders,
+    })
+    .select()
+    .single();
+
+  if (insErr) {
+    // Most likely cause: a subdomain race between two paid applications for
+    // the same name (the app-level check in white-label-apply.js isn't a
+    // hard guarantee -- the DB UNIQUE constraint on subdomain is). The
+    // customer already paid, so this needs a human, not a silent drop.
+    await supabase.from('white_label_applications').update({
+      status: 'failed',
+      failure_reason: insErr.message,
+    }).eq('id', application.id);
+    console.error('[stripe-webhook] white_label_tenants insert failed for application', application.id, insErr.message);
+    await adminEmail(
+      'White-label provisioning FAILED (customer already paid)',
+      `Application ${application.id} for "${application.business_name}" (subdomain "${application.subdomain}") ` +
+      `failed to provision after payment: ${insErr.message}. Stripe session: ${session.id}. Needs manual follow-up.`
+    );
+    return;
+  }
+
+  await supabase.from('white_label_tenant_users').insert({
+    tenant_id: tenant.id,
+    user_id: application.user_id,
+    role: 'owner',
+  });
+
+  // Best-effort, matches the join.js/tenant-portal.js pattern.
+  try {
+    await supabase.from('profiles').update({ tenant_id: tenant.id }).eq('id', application.user_id).is('tenant_id', null);
+  } catch (e) { /* non-fatal */ }
+
+  await supabase.from('white_label_applications').update({
+    status: 'provisioned',
+    tenant_id: tenant.id,
+  }).eq('id', application.id);
+
+  console.log(`[stripe-webhook] provisioned white_label tenant ${tenant.id} for application ${application.id}`);
+
+  await audit(supabase, {
+    action: 'white_label_tenant_provisioned',
+    target_id: tenant.id,
+    target_type: 'white_label_tenant',
+    performed_by: 'stripe_webhook',
+    metadata: {
+      application_id: application.id,
+      user_id: application.user_id,
+      plan: application.plan,
+      subdomain: application.subdomain,
+      stripe_session_id: session.id,
+      stripe_subscription_id: session.subscription || null,
+    },
+  });
+}
+
+// Subscription lifecycle -> white_label_tenants.status sync. Fires on both
+// customer.subscription.updated (covers past_due/unpaid on failed renewal
+// payments) and customer.subscription.deleted (fully canceled). Only acts
+// on subscriptions carrying metadata.product === 'white_label' (stamped at
+// checkout time in white-label-apply.js). Deliberately does NOT touch
+// white_label_tenant_users or profiles.tenant_id -- suspending/canceling a
+// tenant stops it from serving (white-label-config.js only resolves
+// status='active' tenants) without destroying the underlying
+// member/provider relationships. Reabsorbing providers as direct MCC
+// providers after a tenant is truly done is left as a deliberate admin
+// action, not an automatic side effect of a bounced card.
+async function handleSubscriptionStatusSync(subscription, supabase) {
+  const meta = subscription.metadata || {};
+  if (meta.product !== 'white_label') return;
+
+  const { data: tenant } = await supabase
+    .from('white_label_tenants')
+    .select('id, status')
+    .eq('stripe_subscription_id', subscription.id)
+    .maybeSingle();
+  if (!tenant) return;
+
+  let nextStatus;
+  if (subscription.status === 'active' || subscription.status === 'trialing') {
+    nextStatus = 'active';
+  } else if (subscription.status === 'canceled') {
+    nextStatus = 'canceled';
+  } else {
+    // past_due, unpaid, incomplete, incomplete_expired
+    nextStatus = 'suspended';
+  }
+
+  const prevStatus = tenant.status;
+  if (nextStatus === prevStatus) return;
+
+  await supabase.from('white_label_tenants').update({ status: nextStatus }).eq('id', tenant.id);
+  console.log(`[stripe-webhook] white_label tenant ${tenant.id} status ${prevStatus} -> ${nextStatus} (subscription ${subscription.status})`);
+
+  await audit(supabase, {
+    action: 'white_label_tenant_status_synced',
+    target_id: tenant.id,
+    target_type: 'white_label_tenant',
+    performed_by: 'stripe_webhook',
+    metadata: {
+      previous_status: prevStatus,
+      new_status: nextStatus,
+      stripe_subscription_id: subscription.id,
+      stripe_subscription_status: subscription.status,
+    },
+  });
+}
+
 async function handleCheckoutComplete(session, supabase) {
   const meta      = session.metadata || {};
+
+  if (meta.product === 'white_label' && meta.application_id) {
+    return _provisionWhiteLabelTenant(session, meta, supabase);
+  }
+
   const totalBids = parseInt(meta.bids || '0', 10) + parseInt(meta.bonus_bids || '0', 10);
 
   // Only bid-pack purchases carry provider_id + bids in metadata
@@ -944,6 +1112,12 @@ exports.handler = async function(event) {
     switch (stripeEvent.type) {
       case 'checkout.session.completed':
         await handleCheckoutComplete(stripeEvent.data.object, supabase);
+        break;
+      case 'customer.subscription.updated':
+        await handleSubscriptionStatusSync(stripeEvent.data.object, supabase);
+        break;
+      case 'customer.subscription.deleted':
+        await handleSubscriptionStatusSync(stripeEvent.data.object, supabase);
         break;
       case 'charge.refunded':
         await handleChargeRefunded(stripeEvent.data.object, supabase);

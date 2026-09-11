@@ -187,6 +187,7 @@
 /api/white-label/config /.netlify/functions/white-label-config 200
 /api/tenant/config /.netlify/functions/white-label-config 200
 /api/white-label/tenant/join /.netlify/functions/white-label-join 200
+/api/white-label/apply /.netlify/functions/white-label-apply 200
 
 # White-label tenant admin portal (broken-client-caller cleanup, 2026-09-11)
 /api/tenant/me /.netlify/functions/tenant-portal/me 200

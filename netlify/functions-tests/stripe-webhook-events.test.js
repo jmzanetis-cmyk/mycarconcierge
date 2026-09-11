@@ -602,6 +602,126 @@ async function main() {
     eq(fetchCalls.length, 1, 'admin email sent on transfer failure');
   });
 
+  // ── checkout.session.completed: white_label tenant provisioning ──────────
+  // (2026-09-11 -- self-serve "apply for tenancy" flow: white-label-apply.js
+  // creates the application + Stripe session; this is the only code path
+  // that actually inserts into white_label_tenants.)
+
+  await run('checkout.session.completed: white_label metadata -> provisions tenant + owner membership', async () => {
+    currentSupabase = makeSupabase({
+      tables: {
+        white_label_applications: [{ id: 'app-1', user_id: 'user-1', business_name: 'Acme Co', subdomain: 'acme', plan: 'starter', status: 'pending_payment' }],
+        saas_plans: [{ product: 'white_label', plan: 'starter', limits: { members: 500, providers: 50 } }],
+      },
+    });
+    const session = { id: 'cs_wl1', subscription: 'sub_wl1', payment_status: 'paid', metadata: { application_id: 'app-1', product: 'white_label', plan: 'starter' } };
+    currentStripe = stripeWith(event('checkout.session.completed', session));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.white_label_applications[0].status, 'provisioned');
+    eq(currentSupabase._tables.white_label_tenants.length, 1);
+    eq(currentSupabase._tables.white_label_tenants[0].subdomain, 'acme');
+    eq(currentSupabase._tables.white_label_tenants[0].max_members, 500);
+    eq(currentSupabase._tables.white_label_tenants[0].max_providers, 50);
+    eq(currentSupabase._tables.white_label_tenant_users.length, 1);
+    eq(currentSupabase._tables.white_label_tenant_users[0].role, 'owner');
+  });
+
+  await run('checkout.session.completed: white_label already provisioned -> idempotent, no duplicate tenant', async () => {
+    currentSupabase = makeSupabase({
+      tables: {
+        white_label_applications: [{ id: 'app-2', user_id: 'user-1', business_name: 'Acme Co', subdomain: 'acme', plan: 'starter', status: 'provisioned', tenant_id: 'tenant-existing' }],
+      },
+    });
+    const session = { id: 'cs_wl2', subscription: 'sub_wl2', payment_status: 'paid', metadata: { application_id: 'app-2', product: 'white_label', plan: 'starter' } };
+    currentStripe = stripeWith(event('checkout.session.completed', session));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq((currentSupabase._tables.white_label_tenants || []).length, 0, 'no new tenant inserted');
+  });
+
+  await run('checkout.session.completed: white_label provisioning DB error -> application marked failed + admin emailed (still 200)', async () => {
+    fetchCalls = [];
+    currentSupabase = makeSupabase({
+      tables: {
+        white_label_applications: [{ id: 'app-3', user_id: 'user-1', business_name: 'Acme Co', subdomain: 'taken', plan: 'starter', status: 'pending_payment' }],
+        saas_plans: [{ product: 'white_label', plan: 'starter', limits: { members: 500, providers: 50 } }],
+      },
+      insertErrors: { white_label_tenants: { code: '23505', message: 'duplicate key value violates unique constraint "white_label_tenants_subdomain_key"' } },
+    });
+    const session = { id: 'cs_wl3', subscription: 'sub_wl3', payment_status: 'paid', metadata: { application_id: 'app-3', product: 'white_label', plan: 'starter' } };
+    currentStripe = stripeWith(event('checkout.session.completed', session));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200, 'must still return 200 -- customer already paid, no Stripe retry storm');
+    eq(currentSupabase._tables.white_label_applications[0].status, 'failed');
+    eq(fetchCalls.length, 1, 'admin emailed about failed provisioning after payment');
+  });
+
+  await run('checkout.session.completed: white_label unpaid session -> no-op, no tenant created', async () => {
+    currentSupabase = makeSupabase({
+      tables: { white_label_applications: [{ id: 'app-4', user_id: 'user-1', business_name: 'Acme', subdomain: 'acme4', plan: 'starter', status: 'pending_payment' }] },
+    });
+    const session = { id: 'cs_wl4', payment_status: 'unpaid', metadata: { application_id: 'app-4', product: 'white_label', plan: 'starter' } };
+    currentStripe = stripeWith(event('checkout.session.completed', session));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.white_label_applications[0].status, 'pending_payment', 'untouched -- session was never paid');
+  });
+
+  // ── subscription lifecycle -> white_label_tenants.status sync ────────────
+
+  await run('customer.subscription.updated: past_due -> tenant suspended', async () => {
+    currentSupabase = makeSupabase({
+      tables: { white_label_tenants: [{ id: 'tenant-1', status: 'active', stripe_subscription_id: 'sub_1' }] },
+    });
+    const subscription = { id: 'sub_1', status: 'past_due', metadata: { product: 'white_label' } };
+    currentStripe = stripeWith(event('customer.subscription.updated', subscription));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.white_label_tenants[0].status, 'suspended');
+  });
+
+  await run('customer.subscription.updated: active again -> tenant reactivated from suspended', async () => {
+    currentSupabase = makeSupabase({
+      tables: { white_label_tenants: [{ id: 'tenant-1', status: 'suspended', stripe_subscription_id: 'sub_1' }] },
+    });
+    const subscription = { id: 'sub_1', status: 'active', metadata: { product: 'white_label' } };
+    currentStripe = stripeWith(event('customer.subscription.updated', subscription));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.white_label_tenants[0].status, 'active');
+  });
+
+  await run('customer.subscription.deleted: tenant canceled', async () => {
+    currentSupabase = makeSupabase({
+      tables: { white_label_tenants: [{ id: 'tenant-1', status: 'active', stripe_subscription_id: 'sub_1' }] },
+    });
+    const subscription = { id: 'sub_1', status: 'canceled', metadata: { product: 'white_label' } };
+    currentStripe = stripeWith(event('customer.subscription.deleted', subscription));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.white_label_tenants[0].status, 'canceled');
+  });
+
+  await run('customer.subscription.updated: non-white_label subscription -> ignored, no tenant touched', async () => {
+    currentSupabase = makeSupabase({
+      tables: { white_label_tenants: [{ id: 'tenant-1', status: 'active', stripe_subscription_id: 'sub_other' }] },
+    });
+    const subscription = { id: 'sub_other', status: 'past_due', metadata: {} };
+    currentStripe = stripeWith(event('customer.subscription.updated', subscription));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+    eq(currentSupabase._tables.white_label_tenants[0].status, 'active', 'untouched -- not a white_label subscription');
+  });
+
+  await run('customer.subscription.updated: no matching tenant for this subscription id -> no-op', async () => {
+    currentSupabase = makeSupabase({ tables: { white_label_tenants: [] } });
+    const subscription = { id: 'sub_unknown', status: 'past_due', metadata: { product: 'white_label' } };
+    currentStripe = stripeWith(event('customer.subscription.updated', subscription));
+    const res = await handler(makeRequest({}));
+    eq(res.statusCode, 200);
+  });
+
   // ── edge cases ─────────────────────────────────────────────────────────────
 
   await run('unknown event type → silently ignored, returns 200', async () => {

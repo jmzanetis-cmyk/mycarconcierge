@@ -27,6 +27,14 @@
 // -- schema drift, added directly in Supabase. Trusting it exists, matching
 // the original handler (same situation as provider-profile-publish.js's
 // directory_slug/directory_opt_in).
+//
+// 2026-09-11: providers are exclusive to one tenant at a time (Jordan --
+// "make sure a provider under one tenant could not be under a different
+// tenant"). Enforced two ways: an app-level pre-check here (for a clean 409
+// instead of a raw DB error), AND a DB-level partial unique index
+// (white_label_tenant_users_provider_exclusive, see
+// 20260911_wl_provider_exclusive.sql) as the real guarantee against races.
+// Members/admins/owners are unrestricted -- only 'provider' is exclusive.
 'use strict';
 
 var crypto = require('node:crypto');
@@ -105,6 +113,8 @@ async function resolveTenantFromAdminFallback(supabase, body, event) {
   return { tenant: tenantRes.data };
 }
 
+var PROVIDER_EXCLUSIVE_MESSAGE = 'This account is already registered as a provider under a different tenant. A provider can only belong to one tenant at a time -- leave the other tenant first.';
+
 exports.handler = async function (event) {
   if (event.httpMethod === 'OPTIONS') return utils.optionsResponse();
   if (event.httpMethod !== 'POST') return utils.errorResponse(405, 'Method not allowed');
@@ -145,6 +155,28 @@ exports.handler = async function (event) {
     var profileRole = profileRes.data ? profileRes.data.role : null;
     var role = (profileRole === 'provider' || profileRole === 'pending_provider') ? 'provider' : 'member';
 
+    // Existing-membership short-circuit: never downgrades an existing role.
+    // Checked before the exclusivity check so re-joining the SAME tenant
+    // (e.g. a stale client retrying) is always a no-op, never a 409.
+    var existingRes = await supabase.from('white_label_tenant_users').select('*').eq('tenant_id', tenant.id).eq('user_id', user.id).maybeSingle();
+    if (existingRes.data) {
+      return utils.successResponse({ success: true, membership: existingRes.data, already_member: true });
+    }
+
+    // Provider exclusivity: a provider may only belong to ONE tenant at a
+    // time. Does not apply to members/admins/owners.
+    if (role === 'provider') {
+      var otherRes = await supabase.from('white_label_tenant_users')
+        .select('id')
+        .eq('user_id', user.id)
+        .eq('role', 'provider')
+        .neq('tenant_id', tenant.id)
+        .maybeSingle();
+      if (otherRes.data) {
+        return utils.errorResponse(409, PROVIDER_EXCLUSIVE_MESSAGE);
+      }
+    }
+
     // Seat limit check (skip if unlimited, -1).
     var limitCol = role === 'provider' ? 'max_providers' : 'max_members';
     var limit = tenant[limitCol];
@@ -155,14 +187,15 @@ exports.handler = async function (event) {
       }
     }
 
-    // Existing-membership short-circuit: never downgrades an existing role.
-    var existingRes = await supabase.from('white_label_tenant_users').select('*').eq('tenant_id', tenant.id).eq('user_id', user.id).maybeSingle();
-    if (existingRes.data) {
-      return utils.successResponse({ success: true, membership: existingRes.data, already_member: true });
-    }
-
     var insertRes = await supabase.from('white_label_tenant_users').insert({ tenant_id: tenant.id, user_id: user.id, role: role }).select().single();
-    if (insertRes.error) throw new Error(insertRes.error.message);
+    if (insertRes.error) {
+      // Defence-in-depth against the provider-exclusivity race: the DB-level
+      // partial unique index (white_label_tenant_users_provider_exclusive)
+      // is the real guarantee; this converts its violation into the same
+      // friendly message instead of a raw 500.
+      if (insertRes.error.code === '23505') return utils.errorResponse(409, PROVIDER_EXCLUSIVE_MESSAGE);
+      throw new Error(insertRes.error.message);
+    }
 
     // Best-effort: stamp profiles.tenant_id only if it isn't already set.
     try {
