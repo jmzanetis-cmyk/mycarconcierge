@@ -83,6 +83,13 @@ const U = {
   part3: 'c3333333-3333-4333-8333-333333333333',
   part4a:'c4444444-1111-4111-8111-111111111111',
   part4b:'c4444444-2222-4222-8222-222222222222',
+  plan6: 'a6666666-6666-4666-8666-666666666666',
+  split6: 'b6666666-6666-4666-8666-666666666666',
+  part6: 'c6666666-6666-4666-8666-666666666666',
+  member2: '66666666-6666-4666-8666-666666666666',
+  plan7: 'a7777777-7777-4777-8777-777777777777',
+  split7: 'b7777777-7777-4777-8777-777777777777',
+  part7: 'c7777777-7777-4777-8777-777777777777',
 };
 
 // ── in-memory DB + Supabase stub ────────────────────────────────────────
@@ -159,6 +166,17 @@ function makeSupabase(db, opts = {}) {
             const store = tableStore(table, db) || {};
             for (const id in store) {
               if (store[id][col] === val) Object.assign(store[id], patch);
+            }
+            return { then(resolve) { resolve({ data: null, error: null }); } };
+          },
+        };
+      },
+      delete() {
+        return {
+          eq(col, val) {
+            const store = tableStore(table, db) || {};
+            for (const id of Object.keys(store)) {
+              if (store[id][col] === val) delete store[id];
             }
             return { then(resolve) { resolve({ data: null, error: null }); } };
           },
@@ -418,6 +436,128 @@ async function main() {
     assert.strictEqual(db.carePlans[U.plan1].stripe_payment_intent_id, null);
     assert.strictEqual(db.carePlans[U.plan1].split_payment_id, data.split_id);
     assert.strictEqual(data.participants.length, 2);
+  });
+
+  await run('split-cancel.js: rejects a non-creator (403) and does not touch the plan', async () => {
+    const db = makeDb();
+    db.profiles[U.member1] = { id: U.member1, email: 'member@example.com' };
+    db.profiles[U.member2] = { id: U.member2, email: 'other@example.com' };
+    db.carePlans[U.plan6] = { id: U.plan6, provider_id: U.provider, payment_status: 'pending_split_payment', split_payment_id: U.split6 };
+    db.splitPayments[U.split6] = { id: U.split6, package_id: U.plan6, created_by: U.member1, total_amount_cents: 4000, status: 'pending' };
+    db.splitParticipants[U.part6] = { id: U.part6, split_payment_id: U.split6, member_id: U.member1, email: 'member@example.com', amount_cents: 4000, status: 'invited' };
+
+    currentSupabase = makeSupabase(db, { authUser: { id: U.member2, email: 'other@example.com' } });
+    currentStripe = makeStripe();
+    delete require.cache[require.resolve('../functions/split-cancel')];
+    const { handler } = require('../functions/split-cancel');
+
+    const res = await handler(eventFor(`cancel/${U.split6}`, { token: 'tok', body: {} }));
+    assert.strictEqual(res.statusCode, 403, `expected 403, got ${res.statusCode}: ${res.body}`);
+    assert.strictEqual(db.carePlans[U.plan6].payment_status, 'pending_split_payment', 'plan must be untouched by a rejected cancel');
+    assert.strictEqual(db.splitPayments[U.split6].status, 'pending');
+  });
+
+  await run('split-cancel.js: creator cancel refunds a paid share and resets the plan to requires_payment', async () => {
+    const db = makeDb();
+    db.profiles[U.member1] = { id: U.member1, email: 'member@example.com' };
+    db.carePlans[U.plan6] = { id: U.plan6, provider_id: U.provider, title: 'Tune-up', payment_status: 'pending_split_payment', split_payment_id: U.split6 };
+    db.splitPayments[U.split6] = { id: U.split6, package_id: U.plan6, created_by: U.member1, total_amount_cents: 4000, status: 'pending' };
+    db.splitParticipants[U.part6] = { id: U.part6, split_payment_id: U.split6, member_id: U.member1, email: 'member@example.com', amount_cents: 4000, status: 'paid', payment_intent_id: 'pi_paid_1' };
+
+    currentSupabase = makeSupabase(db, { authUser: { id: U.member1, email: 'member@example.com' } });
+    let refunded = [];
+    currentStripe = makeStripe({
+      retrieve: async (id) => ({ id, status: 'succeeded' }),
+    });
+    currentStripe.refunds = { create: async (params) => { refunded.push(params); return { id: 're_1' }; } };
+    delete require.cache[require.resolve('../functions/split-cancel')];
+    const { handler } = require('../functions/split-cancel');
+
+    const res = await handler(eventFor(`cancel/${U.split6}`, { token: 'tok', body: {} }));
+    const data = parseBody(res);
+    assert.strictEqual(res.statusCode, 200, `expected 200, got ${res.statusCode}: ${res.body}`);
+    assert.strictEqual(data.refundedCount, 1);
+    assert.deepStrictEqual(refunded, [{ payment_intent: 'pi_paid_1' }]);
+    assert.strictEqual(db.splitParticipants[U.part6].status, 'cancelled');
+    assert.strictEqual(db.splitPayments[U.split6].status, 'cancelled');
+    assert.strictEqual(db.carePlans[U.plan6].payment_status, 'requires_payment', 'plan must reset so the existing accept-bid resume path can mint a fresh PI');
+    assert.strictEqual(db.carePlans[U.plan6].stripe_payment_intent_id, null);
+    assert.strictEqual(db.carePlans[U.plan6].split_payment_id, null);
+  });
+
+  await run('split-reactivate.js: rejects when participant amounts do not match the original split total', async () => {
+    const db = makeDb();
+    db.profiles[U.member1] = { id: U.member1, email: 'member@example.com' };
+    db.carePlans[U.plan7] = { id: U.plan7, provider_id: U.provider, payment_status: 'requires_payment', split_payment_id: null };
+    db.splitPayments[U.split7] = { id: U.split7, package_id: U.plan7, created_by: U.member1, total_amount_cents: 5000, status: 'cancelled' };
+
+    currentSupabase = makeSupabase(db, { authUser: { id: U.member1, email: 'member@example.com' } });
+    delete require.cache[require.resolve('../functions/split-reactivate')];
+    const { handler } = require('../functions/split-reactivate');
+
+    const res = await handler(eventFor(`reactivate/${U.split7}`, {
+      token: 'tok',
+      body: { participants: [{ email: 'a@example.com', amount_cents: 1000 }, { email: 'b@example.com', amount_cents: 1000 }] },
+    }));
+    assert.strictEqual(res.statusCode, 400, `expected 400, got ${res.statusCode}: ${res.body}`);
+    assert.strictEqual(db.carePlans[U.plan7].payment_status, 'requires_payment', 'plan must be untouched by a rejected reactivate');
+  });
+
+  await run('split-reactivate.js: happy path re-links the plan and flips it back to pending_split_payment', async () => {
+    const db = makeDb();
+    db.profiles[U.member1] = { id: U.member1, email: 'member@example.com' };
+    db.carePlans[U.plan7] = { id: U.plan7, provider_id: U.provider, title: 'Alignment', payment_status: 'requires_payment', split_payment_id: null };
+    db.splitPayments[U.split7] = { id: U.split7, package_id: U.plan7, created_by: U.member1, total_amount_cents: 5000, status: 'cancelled' };
+
+    currentSupabase = makeSupabase(db, { authUser: { id: U.member1, email: 'member@example.com' } });
+    delete require.cache[require.resolve('../functions/split-reactivate')];
+    const { handler } = require('../functions/split-reactivate');
+
+    const res = await handler(eventFor(`reactivate/${U.split7}`, {
+      token: 'tok',
+      body: { participants: [{ email: 'member@example.com', amount_cents: 2500 }, { email: 'friend@example.com', amount_cents: 2500, is_guest: true }] },
+    }));
+    const data = parseBody(res);
+    assert.strictEqual(res.statusCode, 200, `expected 200, got ${res.statusCode}: ${res.body}`);
+    assert.strictEqual(db.splitPayments[U.split7].status, 'pending');
+    assert.strictEqual(db.carePlans[U.plan7].payment_status, 'pending_split_payment');
+    assert.strictEqual(db.carePlans[U.plan7].split_payment_id, U.split7);
+    assert.strictEqual(data.participants.length, 2);
+  });
+
+  await run('split-status.js: rejects a caller who is neither creator nor participant', async () => {
+    const db = makeDb();
+    db.profiles[U.member1] = { id: U.member1, email: 'member@example.com' };
+    db.profiles[U.member2] = { id: U.member2, email: 'other@example.com' };
+    db.carePlans[U.plan6] = { id: U.plan6, provider_id: U.provider, title: 'Tune-up', payment_status: 'pending_split_payment', split_payment_id: U.split6 };
+    db.splitPayments[U.split6] = { id: U.split6, package_id: U.plan6, created_by: U.member1, total_amount_cents: 4000, status: 'pending' };
+    db.splitParticipants[U.part6] = { id: U.part6, split_payment_id: U.split6, member_id: U.member1, email: 'member@example.com', amount_cents: 4000, status: 'invited' };
+
+    currentSupabase = makeSupabase(db, { authUser: { id: U.member2, email: 'other@example.com' } });
+    delete require.cache[require.resolve('../functions/split-status')];
+    const { handler } = require('../functions/split-status');
+
+    const res = await handler(eventFor(`status/${U.plan6}`, { method: 'GET', token: 'tok' }));
+    assert.strictEqual(res.statusCode, 403, `expected 403, got ${res.statusCode}: ${res.body}`);
+  });
+
+  await run('split-status.js: creator can view the split status', async () => {
+    const db = makeDb();
+    db.profiles[U.member1] = { id: U.member1, email: 'member@example.com' };
+    db.carePlans[U.plan6] = { id: U.plan6, provider_id: U.provider, title: 'Tune-up', payment_status: 'pending_split_payment', split_payment_id: U.split6 };
+    db.splitPayments[U.split6] = { id: U.split6, package_id: U.plan6, created_by: U.member1, total_amount_cents: 4000, status: 'pending' };
+    db.splitParticipants[U.part6] = { id: U.part6, split_payment_id: U.split6, member_id: U.member1, email: 'member@example.com', amount_cents: 4000, status: 'invited' };
+
+    currentSupabase = makeSupabase(db, { authUser: { id: U.member1, email: 'member@example.com' } });
+    delete require.cache[require.resolve('../functions/split-status')];
+    const { handler } = require('../functions/split-status');
+
+    const res = await handler(eventFor(`status/${U.plan6}`, { method: 'GET', token: 'tok' }));
+    const data = parseBody(res);
+    assert.strictEqual(res.statusCode, 200, `expected 200, got ${res.statusCode}: ${res.body}`);
+    assert.strictEqual(data.isCreator, true);
+    assert.strictEqual(data.participants.length, 1);
+    assert.strictEqual(data.planTitle, 'Tune-up');
   });
 
   console.log(`\n${testsRun - testsFailed}/${testsRun} passed`);
