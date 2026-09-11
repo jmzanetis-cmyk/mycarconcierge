@@ -5875,7 +5875,7 @@
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
         if (!session) return;
-        const response = await fetch(`/api/bgcheck/status/${currentUser.id}`, {
+        const response = await fetch(`/api/provider/bgc/status/${currentUser.id}`, {
           headers: { 'Authorization': `Bearer ${session.access_token}` }
         });
         if (!response.ok) return;
@@ -6266,7 +6266,7 @@
           ? { 'Authorization': `Bearer ${session.access_token}` }
           : {};
 
-        const response = await fetch(`/api/bgcheck/status/${currentUser.id}`, { headers });
+        const response = await fetch(`/api/provider/bgc/status/${currentUser.id}`, { headers });
         if (!response.ok) throw new Error('Failed to fetch background check status');
         const data = await response.json();
 
@@ -6419,7 +6419,7 @@
         const [firstName, ...lastParts] = (teamMember?.name || `${currentUser.user_metadata?.first_name || ''} ${currentUser.user_metadata?.last_name || ''}`.trim() || email.split('@')[0]).split(' ');
         const lastName = lastParts.join(' ') || firstName;
 
-        const response = await fetch('/api/bgcheck/initiate', {
+        const response = await fetch('/api/provider/bgc/initiate', {
           method: 'POST',
           headers: authHeaders,
           body: JSON.stringify({
@@ -12375,7 +12375,7 @@
 
         managementBgcMap = {};
         try {
-          const bgcResponse = await fetch(`/api/bgcheck/status/${providerProfile.id}`, {
+          const bgcResponse = await fetch(`/api/provider/bgc/status/${providerProfile.id}`, {
             headers: { 'Authorization': `Bearer ${session.access_token}` }
           });
           if (bgcResponse.ok) {

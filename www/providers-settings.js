@@ -525,21 +525,15 @@ async function loadBackgroundCheckStatus(opts = {}) {
 
   if (!providerContainer && !teamContainer && !dashCard) return;
 
-  // Audit Batch 2 (2026-07-16): /api/bgcheck/status/:id endpoint not built.
-  // BGC data model exists (provider_background_checks, employee_background_checks,
-  // bgc_notifications) but is currently 0-rows in prod (pre-Checkr integration).
-  // Hide status widget with a pending-integration message rather than fire a
-  // known-void fetch. Reinstate when Checkr feed lands.
-  const pendingHtml = '<div style="padding:16px;color:var(--text-secondary);font-size:0.9rem;">Background check status will appear here once Checkr integration is live.</div>';
-  if (providerContainer) providerContainer.innerHTML = pendingHtml;
-  if (teamContainer)     teamContainer.innerHTML     = pendingHtml;
-  if (dashCard)          dashCard.style.display      = 'none';
-  return;
-  /* eslint-disable no-unreachable */
+  // 2026-09-11: reinstated. bgc-provider-status.js (/api/provider/bgc/status/:id)
+  // now backs this -- previously dead-called at /api/bgcheck/status/:id (see
+  // git history for the "Audit Batch 2 (2026-07-16)" placeholder this
+  // replaced). ClearChecks/BackgroundChecks.com is the live vendor (Checkr
+  // was retired) -- confirmed with Jordan 2026-09-11.
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const effectiveId = providerProfile?.team_provider_id || currentUser?.id;
-    const response = await fetch(`/api/bgcheck/status/${effectiveId}`, {
+    const response = await fetch(`/api/provider/bgc/status/${effectiveId}`, {
       headers: { 'Authorization': `Bearer ${session?.access_token}` }
     });
 
@@ -781,7 +775,7 @@ async function submitBackgroundCheck() {
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
     const providerId = providerProfile?.team_provider_id || currentUser?.id;
-    const response = await fetch('/api/provider/initiate-background-check', {
+    const response = await fetch('/api/provider/bgc/initiate', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -825,12 +819,9 @@ async function submitBackgroundCheck() {
 }
 
 async function viewBgCheckReport(checkId) {
-  // Audit Batch 2 (2026-07-16): /api/bgcheck/report-url/:id endpoint not
-  // built. Paired with loadBackgroundCheckStatus early-return above; both
-  // reinstate when Checkr integration lands.
-  showToast('Background check reports will be viewable once Checkr integration is live.', 'info');
-  return;
-  /* eslint-disable no-unreachable */
+  // 2026-09-11: reinstated. bgc-provider-report-url.js
+  // (/api/provider/bgc/report-url/:id) now backs this -- previously
+  // dead-called at /api/bgcheck/report-url/:id.
   const modal = document.getElementById('bg-report-viewer-modal');
   const iframe = document.getElementById('bg-report-viewer-iframe');
   const loader = document.getElementById('bg-report-viewer-loader');
@@ -846,7 +837,7 @@ async function viewBgCheckReport(checkId) {
 
   try {
     const { data: { session } } = await supabaseClient.auth.getSession();
-    const response = await fetch(`/api/bgcheck/report-url/${checkId}`, {
+    const response = await fetch(`/api/provider/bgc/report-url/${checkId}`, {
       headers: { 'Authorization': `Bearer ${session?.access_token}` }
     });
     const data = await response.json().catch(() => ({}));

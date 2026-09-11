@@ -488,27 +488,9 @@
       "ticket": ""
     },
     {
-      "url": "/api/bgcheck/status/:param",
-      "caller": "providers-settings.js:542",
-      "reason": "No handler anywhere as of 2026-09-11. This is not just a stale route -- Task #372 already built a real, live BackgroundChecks.com integration (/api/provider/initiate-background-check, /api/provider-bgc-compliance, /api/provider/bgc/config+decrypt-token, bgc-admin, initiate-driver-bgc), confirmed with Jordan 2026-09-11 as the current vendor. But it has a different shape than this old /api/bgcheck/* generation: initiate-background-check.js requires an existing employeeId and only orders employee-level checks (no provider-self-check path), and provider-bgc-compliance.js is a public member-facing compliance-badge lookup by provider_ids, not an authed provider's own detailed check-status view. There is currently no live endpoint at all for 'a provider views their own/team's detailed BGC status' or 'a provider self-initiates their own check' the way this old UI expects -- needs a product decision, not just a URL swap. Also called from providers.js:5878, providers.js:6269, providers.js:12378 (all /api/bgcheck/status/:id, same dead route, only one representative caller tracked here).",
-      "ticket": ""
-    },
-    {
-      "url": "/api/bgcheck/report-url/:param",
-      "caller": "providers-settings.js:849",
-      "reason": "No handler anywhere as of 2026-09-11. This is not just a stale route -- Task #372 already built a real, live BackgroundChecks.com integration (/api/provider/initiate-background-check, /api/provider-bgc-compliance, /api/provider/bgc/config+decrypt-token, bgc-admin, initiate-driver-bgc), confirmed with Jordan 2026-09-11 as the current vendor. But it has a different shape than this old /api/bgcheck/* generation: initiate-background-check.js requires an existing employeeId and only orders employee-level checks (no provider-self-check path), and provider-bgc-compliance.js is a public member-facing compliance-badge lookup by provider_ids, not an authed provider's own detailed check-status view. There is currently no live endpoint at all for 'a provider views their own/team's detailed BGC status' or 'a provider self-initiates their own check' the way this old UI expects -- needs a product decision, not just a URL swap. Also called from providers.js:5878, providers.js:6269, providers.js:12378 (all /api/bgcheck/status/:id, same dead route, only one representative caller tracked here).",
-      "ticket": ""
-    },
-    {
       "url": "/api/provider/profile/publish",
       "caller": "providers-settings.js:1317",
       "reason": "No handler anywhere as of 2026-09-11: the server.js dev route was removed (pre-dates this session; discovered only after fixing api-route-parity.test.js's SERVER_PATH, which had pointed at the deleted www/server.js for months) and no www/_redirects rule / Netlify function was ever added. Frontend caller is still live -- this is a genuine broken call, not a dev-only gap.",
-      "ticket": ""
-    },
-    {
-      "url": "/api/bgcheck/initiate",
-      "caller": "providers.js:6422",
-      "reason": "No handler anywhere as of 2026-09-11. This is not just a stale route -- Task #372 already built a real, live BackgroundChecks.com integration (/api/provider/initiate-background-check, /api/provider-bgc-compliance, /api/provider/bgc/config+decrypt-token, bgc-admin, initiate-driver-bgc), confirmed with Jordan 2026-09-11 as the current vendor. But it has a different shape than this old /api/bgcheck/* generation: initiate-background-check.js requires an existing employeeId and only orders employee-level checks (no provider-self-check path), and provider-bgc-compliance.js is a public member-facing compliance-badge lookup by provider_ids, not an authed provider's own detailed check-status view. There is currently no live endpoint at all for 'a provider views their own/team's detailed BGC status' or 'a provider self-initiates their own check' the way this old UI expects -- needs a product decision, not just a URL swap. Also called from providers.js:5878, providers.js:6269, providers.js:12378 (all /api/bgcheck/status/:id, same dead route, only one representative caller tracked here).",
       "ticket": ""
     },
     {
