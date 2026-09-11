@@ -31,7 +31,18 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const ROOT = path.resolve(__dirname, '..', '..');
-const SERVER_PATH    = path.join(ROOT, 'www', 'server.js');
+// 2026-04-28's commit 56cd3fd deleted www/server.js as part of a Replit->
+// current-layout restructure (attached_assets cleanup, .netlify manifest,
+// etc) -- NOT because the dev routing pipeline was actually ported to
+// Netlify. The pipeline itself just moved to the repo root as server.js and
+// kept growing there (last touched 2026-09-03). This constant pointed at the
+// deleted www/ path for months, which silently blinded sections 3/5 below --
+// they degraded to serverExists=false and skipped dev-route extraction
+// entirely instead of failing loudly. Discovered 2026-09-11 while chasing
+// down why split-status/reactivate/cancel could 404 in prod for months
+// without this guard ever flagging them.
+const SERVER_PATH    = path.join(ROOT, 'server.js');
+
 const REDIRECTS_PATH = path.join(ROOT, 'www', '_redirects');
 const FUNCTIONS_DIR  = path.join(ROOT, 'netlify', 'functions');
 const ALLOWLIST_PATH = path.join(__dirname, '_dev-only-api-routes.json');

@@ -4,7 +4,7 @@
   "description": "My Car Concierge - Automotive Service Marketplace",
   "main": "electron/main.js",
   "scripts": {
-    "start": "node www/server.js",
+    "start": "node server.js",
     "test": "bash scripts/run-function-tests.sh",
     "smoke": "node scripts/smoke-test.mjs",
     "stress:new": "bash scripts/run-new-stress-tests.sh",
