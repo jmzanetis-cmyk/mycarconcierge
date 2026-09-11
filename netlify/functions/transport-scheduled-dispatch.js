@@ -19,10 +19,17 @@ function getSupabase() {
 }
 
 exports.handler = async (event) => {
-  // Allow manual HTTP trigger (admin use) as well as scheduled invocation
-  const isScheduled = event.type === 'scheduled';
+  // Allow manual HTTP trigger (admin use) as well as scheduled invocation.
+  // Netlify's runtime delivers genuine scheduled invocations WITH
+  // `httpMethod: 'POST'` set (same as any HTTP call) plus an
+  // `x-netlify-event: schedule` header — `event.type === 'scheduled'` is not
+  // a shape Netlify actually sends and made every scheduled tick 401.
+  const headers    = event.headers || {};
+  const isScheduled = headers['x-netlify-event'] === 'schedule'
+                    || headers['X-Netlify-Event'] === 'schedule'
+                    || event.httpMethod === undefined;
   const isManual    = event.httpMethod === 'POST';
-  const authHeader  = event.headers?.authorization || event.headers?.Authorization || '';
+  const authHeader  = headers.authorization || headers.Authorization || '';
   if (!isScheduled && (!isManual || authHeader !== `Bearer ${process.env.INTERNAL_SECRET}`)) {
     return { statusCode: 401, body: JSON.stringify({ error: 'Unauthorized' }) };
   }
