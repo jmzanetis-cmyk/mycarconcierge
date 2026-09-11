@@ -183,6 +183,19 @@
 /api/admin/white-label/tenants /.netlify/functions/admin-white-label/tenants 200
 /api/admin/white-label/* /.netlify/functions/admin-white-label/:splat 200
 
+# White-label public config + tenant join (broken-client-caller cleanup, 2026-09-11)
+/api/white-label/config /.netlify/functions/white-label-config 200
+/api/tenant/config /.netlify/functions/white-label-config 200
+/api/white-label/tenant/join /.netlify/functions/white-label-join 200
+
+# White-label tenant admin portal (broken-client-caller cleanup, 2026-09-11)
+/api/tenant/me /.netlify/functions/tenant-portal/me 200
+/api/tenant/roster /.netlify/functions/tenant-portal/roster 200
+/api/tenant/roster/* /.netlify/functions/tenant-portal/roster/:splat 200
+/api/tenant/analytics /.netlify/functions/tenant-portal/analytics 200
+/api/tenant/loyalty-config /.netlify/functions/tenant-portal/loyalty-config 200
+/api/tenant/approval-workflow /.netlify/functions/tenant-portal/approval-workflow 200
+
 # AI API Usage & Keys
 /api/admin/api-usage /.netlify/functions/admin-api-usage 200
 /api/admin/api-keys/* /.netlify/functions/admin-api-usage/:splat 200
