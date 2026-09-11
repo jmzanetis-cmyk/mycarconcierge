@@ -3,7 +3,8 @@
    --------------------------------------------------------------------------
    This file is the ONE place that defines the post-signup survey:
      • The questions and answer options shown in onboarding-member.html
-     • The ALLOWED enum map used by POST /api/member/survey in server.js
+     • The ALLOWED enum map used by POST /api/member/survey
+       (netlify/functions/member-survey.js)
      • The display labels used by admin.js (Member Survey Analytics charts)
 
    If you add, remove, or rename a question or option, edit ONLY this file.
