@@ -1100,7 +1100,7 @@
         })
       });
       closeInlineModal();
-      showToast(t('member.cpSplitCreateOk', 'Split payment created! Participants have been notified.'), 'success');
+      showToast(t('member.cpSplitCreateOk', 'Split payment created! Copy each participant\u2019s link below and send it to them \u2014 no email is sent automatically.'), 'success');
       await loadCarePlansSection();
       await viewCarePlan(planId);
     } catch (e) {
@@ -1126,7 +1126,7 @@
         })
       });
       closeInlineModal();
-      showToast(t('member.cpSplitReactivateOk', 'Split payment reactivated! Participants have been notified.'), 'success');
+      showToast(t('member.cpSplitReactivateOk', 'Split payment reactivated! Copy each participant\u2019s link below and send it to them \u2014 no email is sent automatically.'), 'success');
       await loadCarePlansSection();
       await viewCarePlan(planId);
     } catch (e) {
