@@ -2638,7 +2638,7 @@
         downloadBtn.style.display = 'inline-flex';
       }
 
-      document.getElementById('agreement-modal').classList.add('active');
+      openModal('agreement-modal');
     }
     globalThis.viewAgreement = viewAgreement;
 
@@ -3660,7 +3660,7 @@
         <button class="btn btn-primary" onclick="closeModal('provider-detail-modal'); quickAddCredits('${p.id}');">Manage Credits</button>
       `;
 
-      document.getElementById('provider-detail-modal').classList.add('active');
+      openModal('provider-detail-modal');
     }
     globalThis.viewProvider = viewProvider;
 
@@ -4330,7 +4330,7 @@
         catch (e) { console.warn('[admin] refund outreach history panel failed:', e); }
       }
 
-      document.getElementById('refund-modal').classList.add('active');
+      openModal('refund-modal');
     }
 
     async function denyRefund(refundId) {
@@ -4776,7 +4776,7 @@
         modalBody.appendChild(agentDiv);
       }
 
-      document.getElementById('application-modal').classList.add('active');
+      openModal('application-modal');
       if (app.user_id && typeof globalThis.renderOutreachHistoryPanel === 'function') {
         globalThis.renderOutreachHistoryPanel('application-outreach-history-body', app.user_id);
       }
@@ -4982,7 +4982,7 @@
         dBody.appendChild(ad);
       }
 
-      document.getElementById('dispute-modal').classList.add('active');
+      openModal('dispute-modal');
       if (typeof globalThis.renderAgentActivityPanel === 'function') {
         try { globalThis.renderAgentActivityPanel(`dispute-agent-${d.id}`, {
           targetId: d.id, targetKind: 'dispute',
@@ -5103,7 +5103,7 @@
         }); } catch (e) { console.warn('[admin] ticket agent panel failed:', e); }
       }
 
-      document.getElementById('ticket-modal').classList.add('active');
+      openModal('ticket-modal');
     }
 
     async function sendTicketReply() {
@@ -6116,7 +6116,7 @@
         `;
       }
 
-      document.getElementById('application-modal').classList.add('active');
+      openModal('application-modal');
     }
 
     async function approvePilotApplication(id) {
@@ -6372,7 +6372,7 @@
           ${approveModalBtn}
         `;
       }
-      document.getElementById('application-modal').classList.add('active');
+      openModal('application-modal');
     }
 
     async function runDriverBgc(profileId) {
@@ -6965,7 +6965,7 @@
         `;
       }
 
-      document.getElementById('application-modal').classList.add('active');
+      openModal('application-modal');
     }
 
     function generateReferralCode(name) {
@@ -7617,7 +7617,7 @@
         <button class="btn btn-secondary" onclick="closeModal('application-modal')">Close</button>
         ${Number.parseFloat(founder.pending_balance || 0) >= 25 ? `<button class="btn btn-success" onclick="createPayout('${founder.id}'); closeModal('application-modal');">Create Payout</button>` : ''}
       `;
-      document.getElementById('application-modal').classList.add('active');
+      openModal('application-modal');
     }
 
     async function createPayout(founderId) {
@@ -9498,7 +9498,7 @@
         `;
       }
       
-      document.getElementById('car-modal').classList.add('active');
+      openModal('car-modal');
     }
 
     function showCARRejectionForm() {
@@ -9823,7 +9823,12 @@
         `;
       }
 
-      document.getElementById('verification-modal').classList.add('active');
+      // Note: verification-modal (like every .modal-backdrop) has an inline
+      // style="display:none;" baked into its HTML, which beats any CSS rule
+      // (including .modal-backdrop.active { display:flex }) by specificity.
+      // classList.add('active') alone silently does nothing visible — use
+      // the shared openModal() helper, which also flips style.display.
+      openModal('verification-modal');
     }
     globalThis.openVerificationDetail = openVerificationDetail;
 
