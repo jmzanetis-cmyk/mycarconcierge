@@ -1325,7 +1325,39 @@
       // Fast path: skip login screen for already-authenticated users
       try {
         const { data: { session } } = await supabaseClient.auth.getSession();
-        if (session) { const portal = localStorage.getItem('mcc_portal'); window.location.replace(portal === 'provider' ? 'providers.html' : portal === 'admin' ? 'admin.html' : 'members.html'); return; }
+        if (session) {
+          const portal = localStorage.getItem('mcc_portal');
+          let target = 'members.html';
+          if (portal === 'provider' || portal === 'admin') {
+            // Task: fix login<->providers/admin redirect loop ("spasming").
+            // mcc_portal is just a UI convenience from the last portal the
+            // browser visited — it can go stale (switched accounts, an old
+            // provider/admin login on a shared browser, etc.). Blindly
+            // trusting it here used to send the user straight to
+            // providers.html/admin.html; if that account no longer has
+            // access, THAT page immediately bounces back to login.html,
+            // which trusted the same stale flag again — an infinite loop.
+            // Verify actual access first, and self-heal the flag if it's
+            // wrong so this can't loop even if some other code path leaves
+            // a bad value behind.
+            try {
+              const { data: { user } } = await supabaseClient.auth.getUser();
+              const { data: profile } = await supabaseClient.from('profiles').select('role,is_also_provider').eq('id', user.id).single();
+              if (portal === 'admin' && profile && profile.role === 'admin') {
+                target = 'admin.html';
+              } else if (portal === 'provider' && profile && (profile.role === 'provider' || profile.is_also_provider)) {
+                target = 'providers.html';
+              } else {
+                localStorage.setItem('mcc_portal', 'member');
+              }
+            } catch (_) {
+              // Couldn't verify — fall back to the safe default (members.html)
+              // rather than risk another loop.
+            }
+          }
+          window.location.replace(target);
+          return;
+        }
       } catch (_) {}
 
       const icon = document.querySelector('.theme-icon');

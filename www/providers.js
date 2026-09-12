@@ -145,6 +145,10 @@
           }
           providerProfile = newProfile;
         } else if (profile.role !== 'provider' && !profile.is_also_provider) {
+          // Self-heal: clear the stale "last portal" flag so login.html's
+          // fast path doesn't send this browser straight back here and
+          // loop forever (Task: fix login<->providers redirect "spasming").
+          try { localStorage.setItem('mcc_portal', 'member'); } catch (_) {}
           showToast('This account does not have provider access. Please contact support.', 'error');
           return window.location.href = 'login.html';
         } else {
