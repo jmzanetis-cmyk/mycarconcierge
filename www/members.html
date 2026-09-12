@@ -1127,15 +1127,23 @@
     <div class="nav-item" data-section="maintenance-schedule" onclick="showSection('maintenance-schedule')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></span> Maintenance Schedule</span> <span class="nav-badge" id="maintenance-due-count" style="display:none;background:var(--accent-orange);">0</span></div>
     <div class="nav-item" data-section="learn" onclick="showSection('learn')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.42 10.922a1 1 0 0 0-.019-1.838L12.83 5.18a2 2 0 0 0-1.66 0L2.6 9.08a1 1 0 0 0 0 1.832l8.57 3.908a2 2 0 0 0 1.66 0z"/><path d="M22 10v6"/><path d="M6 12.5V16c0 1 2.5 3 6 3s6-2 6-3v-3.5"/></svg></span> My Car Concierge Academy & Care Guide</span></div>
     <div class="nav-item" data-section="household" onclick="showSection('household')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span> Household</span> <span class="nav-badge" id="household-count" style="display:none;">0</span></div>
-    <!-- 2026-09-11: confirmed with Jordan -- the fleet product line (fleets/fleet_members/fleet_vehicles, Task #88) has zero real signups and is intentionally shelved, not being revived right now. This nav item + loadFleetSubscription() stay gated off deliberately -- do not re-enable without Jordan deciding fleet is relevant again. fleet-signup.html is retained as a public waitlist entry (posts to the real /api/waitlist/join, not the still-missing /api/fleet/setup) so interest can be measured in the meantime. -->
+    <!-- PHASE 0 BATCH 1 (2026-07-16): member-side fleet UI hidden — /api/fleet/* endpoints (setup, import-vehicles, subscription, check-approval, update-mileage) do not exist. fleet-signup.html is retained as public waitlist entry. Re-enable this nav item + loadFleetSubscription when the fleet backend ships. -->
     <!-- <div class="nav-item" data-section="fleet" onclick="showSection('fleet')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="7" height="9" x="3" y="3" rx="1"/><rect width="7" height="5" x="14" y="3" rx="1"/><rect width="7" height="9" x="14" y="12" rx="1"/><rect width="7" height="5" x="3" y="16" rx="1"/></svg></span> Fleet</span> <span class="nav-badge" id="fleet-count" style="display:none;">0</span></div> -->
     <div class="nav-item" data-section="reminders" onclick="showSection('reminders')"><span data-i18n="member.reminders"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span> Reminders</span> <span class="nav-badge" id="reminder-count" style="display:none;">0</span></div>
     <div class="nav-item" data-section="referrals" onclick="showSection('referrals')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="8" width="18" height="4" rx="1"/><path d="M12 8v13"/><path d="M19 12v7a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2v-7"/><path d="M7.5 8a2.5 2.5 0 0 1 0-5A4.8 8 0 0 1 12 8a4.8 8 0 0 1 4.5-5 2.5 2.5 0 0 1 0 5"/></svg></span> Refer a Friend</span> <span class="nav-badge" id="referral-credits-badge" style="display:none;background:var(--accent-green);">$0</span></div>
     <div class="nav-item" data-section="founder" onclick="showSection('founder')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" x2="12" y1="2" y2="22"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Refer a Provider</span> <span class="nav-badge" id="founder-earn-badge" style="display:none;background:var(--accent-gold);color:#000;"></span></div>
 
     <div class="nav-label" data-i18n="member.navServices">Services</div>
-    <div class="nav-item" id="nav-item-packages" data-section="packages" onclick="showSection('packages')"><span data-i18n="member.maintenancePackages"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> My Requests</span></div>
+    <!-- Reordered ahead of the legacy "My Requests" item below (Hackensack
+         pilot provider-readiness check, 2026-09-12): this is the current,
+         fully-working bid/accept/pay/complete flow (care_plans + plan_bids).
+         See pilot/hackensack/PROVIDER-READINESS.md for why order matters here
+         — "My Requests" can no longer show bids placed through this flow. -->
     <div class="nav-item" data-section="care-plans" onclick="showSection('care-plans')"><span data-i18n="member.carePlans"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.91 11.12a8.5 8.5 0 1 1-9.91-9.91"/><path d="M22 4 12 14.01l-3-3"/></svg></span> Service Requests</span> <span class="nav-badge" id="care-plans-count" style="display:none;background:var(--accent-gold);">0</span></div>
+    <!-- Legacy maintenance_packages/bids view. Kept (not hidden) because
+         packages created before the 2026-09-02 care_plans bridge only exist
+         here — hiding it would cut off access to real, pre-bridge bids. -->
+    <div class="nav-item" id="nav-item-packages" data-section="packages" onclick="showSection('packages')"><span data-i18n="member.maintenancePackages"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span> My Requests</span></div>
     <div class="nav-item" data-section="order-history" onclick="showSection('order-history')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span> Order History</span></div>
     <div class="nav-item" data-section="cost-estimator" onclick="showSection('cost-estimator')"><span><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="16" height="20" x="4" y="2" rx="2"/><line x1="8" x2="16" y1="6" y2="6"/><line x1="16" x2="16" y1="14" y2="18"/><path d="M16 10h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M12 14h.01"/><path d="M8 14h.01"/><path d="M12 18h.01"/><path d="M8 18h.01"/></svg></span> Cost Estimator</span></div>
     <!-- DRIVER-PHASE-OUT: restore when driver side launches
@@ -8801,6 +8809,7 @@
   <script src="members-push.js?v=20260319"></script>
   <script src="pwa-init.js?v=20260213"></script>
   <script src="chat-widget-base.js?v=20260213"></script>
+  <script src="ai-chat.js?v=20260213"></script>
   <script src="helpdesk-widget.js?v=20260213"></script>
   <script>
     function toggleTheme() {
@@ -9674,10 +9683,15 @@
     }
 
     async function loadWlTenantPortal() {
-      // 2026-09-11: confirmed with Jordan -- /api/tenant/* endpoints are now
-      // built (tenant-portal.js) and the white-label pricing (already
-      // configured in saas_plans) stays as-is. Re-enabling this section.
+      // PHASE 0 BATCH 1 (2026-07-16): white-label tenant admin section hidden
+      // — /api/tenant/* endpoints (me, roster, analytics, loyalty-config,
+      // approval-workflow) do not exist. Whole section is dead until the
+      // white-label feature ships. Card default is display:none; early
+      // return prevents any tenant-* fetch from firing. Re-enable by
+      // removing this block once /api/tenant/* endpoints are implemented.
       const card = document.getElementById('wl-tenant-portal-card');
+      if (card) card.style.display = 'none';
+      return;
       const el = document.getElementById('wl-tenant-portal-content');
       if (!card || !el) return;
       try {
@@ -10189,7 +10203,12 @@
         <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M19 17h2c.6 0 1-.4 1-1v-3c0-.9-.7-1.7-1.5-1.9C18.7 10.6 16 10 16 10s-1.3-1.4-2.2-2.3c-.5-.4-1.1-.7-1.8-.7H5c-.6 0-1.1.4-1.4.9l-1.4 2.9A3.7 3.7 0 0 0 2 12v4c0 .6.4 1 1 1h2"/><circle cx="7" cy="17" r="2"/><path d="M9 17h6"/><circle cx="17" cy="17" r="2"/></svg></span>
         Garage
       </button>
-      <button class="mobile-bottom-nav-item" data-section="packages" onclick="showSection('packages')" aria-label="Requests">
+      <!-- Repointed from the legacy "packages" section to "care-plans"
+           (2026-09-12): the mobile bottom nav had no entry for the working
+           bid flow at all, so mobile members' only "Requests" tab led
+           straight to a page that can never show bids placed today. See
+           pilot/hackensack/PROVIDER-READINESS.md. -->
+      <button class="mobile-bottom-nav-item" data-section="care-plans" onclick="showSection('care-plans')" aria-label="Requests">
         <span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m7.5 4.27 9 5.15"/><path d="M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"/><path d="m3.3 7 8.7 5 8.7-5"/><path d="M12 22V12"/></svg></span>
         Requests
       </button>
