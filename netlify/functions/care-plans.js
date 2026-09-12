@@ -612,14 +612,23 @@ async function handleComplete(event, sb, user, planId) {
   });
 
   // Notify provider
+  // NOTE: Supabase's PostgrestBuilder only implements .then(), not .catch()/
+  // .finally() (see node_modules/@supabase/postgrest-js/src/PostgrestBuilder.ts).
+  // Chaining .catch() directly on it throws "TypeError: ...catch is not a
+  // function" and crashes this whole invocation (surfacing as an HTTP 502)
+  // even though the plan was already successfully completed above. Use a
+  // real try/catch instead so this best-effort notification can never take
+  // down the request.
   if (plan.provider_id) {
-    await sb.from('notifications').insert({
-      user_id: plan.provider_id,
-      type: 'care_plan_completed',
-      title: 'Care plan completed — funds released',
-      message: 'The member has marked the care plan complete. Funds are on their way.',
-      metadata: { care_plan_id: planId },
-    }).catch(() => {});
+    try {
+      await sb.from('notifications').insert({
+        user_id: plan.provider_id,
+        type: 'care_plan_completed',
+        title: 'Care plan completed — funds released',
+        message: 'The member has marked the care plan complete. Funds are on their way.',
+        metadata: { care_plan_id: planId },
+      });
+    } catch (_) {}
   }
 
   // ── Supplemental capture loop (upsell / additional-work) ───────────────────
@@ -846,21 +855,29 @@ async function handleDispute(event, sb, user, planId) {
   });
 
   // Record in disputes table for admin review
-  await sb.from('disputes').insert({
-    filed_by: user.id,
-    filed_by_role: 'member',
-    reason: dispute_reason,
-    description: dispute_description,
-    status: 'open',
-  }).catch(() => {});
+  // NOTE: PostgrestBuilder has no .catch()/.finally() (only .then()) — see the
+  // comment above handleComplete()'s provider notification for the full
+  // explanation. Use try/catch, not .catch() chaining, so a failure here can
+  // never crash the request with a false 502.
+  try {
+    await sb.from('disputes').insert({
+      filed_by: user.id,
+      filed_by_role: 'member',
+      reason: dispute_reason,
+      description: dispute_description,
+      status: 'open',
+    });
+  } catch (_) {}
 
   // Notify admin via notifications (admin monitors this type)
-  await sb.from('notifications').insert({
-    type: 'care_plan_disputed',
-    title: 'Care plan disputed',
-    message: `Member raised a dispute: ${dispute_reason}`,
-    metadata: { care_plan_id: planId, member_id: user.id, provider_id: plan.provider_id, reason: dispute_reason },
-  }).catch(() => {});
+  try {
+    await sb.from('notifications').insert({
+      type: 'care_plan_disputed',
+      title: 'Care plan disputed',
+      message: `Member raised a dispute: ${dispute_reason}`,
+      metadata: { care_plan_id: planId, member_id: user.id, provider_id: plan.provider_id, reason: dispute_reason },
+    });
+  } catch (_) {}
 
   return json(200, { success: true });
 }
