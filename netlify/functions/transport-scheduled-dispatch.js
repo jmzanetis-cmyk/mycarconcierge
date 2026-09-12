@@ -76,9 +76,15 @@ exports.handler = async (event) => {
     event_type: 'scheduled_dispatch_triggered',
     data:       { triggered_at: new Date().toISOString(), window_minutes: 30 },
   }));
-  await sb.from('ride_events').insert(events).catch(e =>
-    console.warn('[transport-scheduled-dispatch] ride_events insert skipped:', e.message)
-  );
+  // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+  // directly on it throws and crashes this run before it can log/return
+  // success, even though the ride promotion above already succeeded.
+  // Use try/catch.
+  try {
+    await sb.from('ride_events').insert(events);
+  } catch (e) {
+    console.warn('[transport-scheduled-dispatch] ride_events insert skipped:', e.message);
+  }
 
   console.log(`[transport-scheduled-dispatch] promoted ${ids.length} ride(s) to requested:`, ids);
   return { statusCode: 200, body: JSON.stringify({ dispatched: ids.length, ride_ids: ids }) };

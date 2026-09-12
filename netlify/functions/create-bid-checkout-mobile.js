@@ -121,19 +121,28 @@ exports.handler = async function(event) {
     .select('id').eq('stripe_payment_id', pi.id).limit(1).maybeSingle();
 
   if (!existing) {
-    await supabase.from('bid_credit_purchases').insert({
-      provider_id:      authedProviderId,
-      pack_id:          packId,
-      bids_purchased:   totalBids,
-      amount_paid:      pack.price,
-      stripe_session_id: `mobile_${pi.id}`,
-      stripe_payment_id: pi.id,
-      status:           'completed',
-      created_at:       new Date().toISOString(),
-    }).catch(e => {
+    // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+    // directly on it throws unconditionally (not just "on a race with the
+    // webhook"), which crashed this handler with an unhandled exception
+    // (HTTP 502) BEFORE the profiles.bid_credits update below ever ran —
+    // even though Stripe had already successfully charged the card above.
+    // Use try/catch so a real double-insert race is swallowed but credits
+    // still get granted.
+    try {
+      await supabase.from('bid_credit_purchases').insert({
+        provider_id:      authedProviderId,
+        pack_id:          packId,
+        bids_purchased:   totalBids,
+        amount_paid:      pack.price,
+        stripe_session_id: `mobile_${pi.id}`,
+        stripe_payment_id: pi.id,
+        status:           'completed',
+        created_at:       new Date().toISOString(),
+      });
+    } catch (e) {
       // Race with webhook — only log if it's not a uniqueness violation
       if (!e.message?.includes('23505')) console.error('[create-bid-checkout-mobile] purchase insert error:', e.message);
-    });
+    }
 
     const { data: balanceRow } = await supabase.from('profiles')
       .select('bid_credits').eq('id', authedProviderId).maybeSingle();

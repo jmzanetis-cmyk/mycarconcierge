@@ -1380,11 +1380,15 @@ async function runEngineCycle(supabase) {
 
       const result = await draftMessageWithAI(lead, opp.recommended_channel || 'email', 1);
       if (!result) {
-        await supabase.from('outreach_activity_log').insert({
-          lead_id: opp.lead_id,
-          event_type: 'draft_failed',
-          metadata: { channel: opp.recommended_channel || 'email', lead_type: lead.type }
-        }).catch(() => {});
+        // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+        // directly on it throws and crashes the run. Use try/catch.
+        try {
+          await supabase.from('outreach_activity_log').insert({
+            lead_id: opp.lead_id,
+            event_type: 'draft_failed',
+            metadata: { channel: opp.recommended_channel || 'email', lead_type: lead.type }
+          });
+        } catch (_) {}
         continue;
       }
       {
@@ -1600,7 +1604,11 @@ Rules: pipeline_alert if active<3; follow_up_sms if stale>5; re_engagement if in
   }
 
   const outcome = shadowMode ? 'shadow_logged' : (executedActions.length > 0 ? 'executed' : 'no_action');
-  await supabase.from('ai_action_log').insert({ module: 'outreach_engine', action_type: 'ai_decision_layer', target_id: 'pipeline', decision: { ...decision, stats: pipelineStats, executed: executedActions, shadowed: shadowedActions }, confidence: aiConfidence, auto_executed: !shadowMode && executedActions.length > 0, escalated: actions.includes('pipeline_alert'), outcome, execution_time_ms: 0, created_at: new Date().toISOString() }).catch(() => {});
+  // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+  // directly on it throws and crashes the run. Use try/catch.
+  try {
+    await supabase.from('ai_action_log').insert({ module: 'outreach_engine', action_type: 'ai_decision_layer', target_id: 'pipeline', decision: { ...decision, stats: pipelineStats, executed: executedActions, shadowed: shadowedActions }, confidence: aiConfidence, auto_executed: !shadowMode && executedActions.length > 0, escalated: actions.includes('pipeline_alert'), outcome, execution_time_ms: 0, created_at: new Date().toISOString() });
+  } catch (_) {}
 
   console.log(`[OutreachEngine] AI decision layer (shadow=${shadowMode}):`, decision.reasoning, '| Actions:', (shadowMode ? shadowedActions : executedActions).join(', ') || 'none');
   return { actions: shadowMode ? shadowedActions : executedActions, reasoning: decision.reasoning, priority: decision.priority, shadow_mode: shadowMode };

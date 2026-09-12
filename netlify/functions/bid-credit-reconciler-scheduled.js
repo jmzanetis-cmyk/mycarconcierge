@@ -237,13 +237,19 @@ async function recordBidPackCommissions({ supabase, stripe, now = Date.now() }) 
       }
 
       // Enqueue for admin payout review
-      await supabase.from('commission_reconciliation_queue').insert({
-        commission_id: inserted.id,
-        founder_id:    founder.id,
-        amount:        commissionAmt,
-        status:        'pending',
-        created_at:    new Date().toISOString(),
-      }).catch(e => console.warn('[BidCreditReconciler] recon queue insert skipped:', e.message));
+      // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+      // directly on it throws and crashes the cron run. Use try/catch.
+      try {
+        await supabase.from('commission_reconciliation_queue').insert({
+          commission_id: inserted.id,
+          founder_id:    founder.id,
+          amount:        commissionAmt,
+          status:        'pending',
+          created_at:    new Date().toISOString(),
+        });
+      } catch (e) {
+        console.warn('[BidCreditReconciler] recon queue insert skipped:', e.message);
+      }
 
       // Update running totals on the founder profile
       await supabase.from('member_founder_profiles').update({

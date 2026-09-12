@@ -51,13 +51,19 @@ exports.handler = async function (event) {
       userId = profile?.id || null;
     }
 
+    // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+    // directly on it throws unconditionally, and since every request in
+    // this loop hits one of these update() calls, that TypeError used to
+    // crash this whole cron run (including out of the catch block below)
+    // on the very first request. Use try/catch instead.
     if (!userId) {
       // No MCC user linked — mark not_found so we stop retrying
-      await supabase
-        .from('fb_data_deletion_requests')
-        .update({ status: 'not_found', completed_at: new Date().toISOString() })
-        .eq('id', req.id)
-        .catch(() => {});
+      try {
+        await supabase
+          .from('fb_data_deletion_requests')
+          .update({ status: 'not_found', completed_at: new Date().toISOString() })
+          .eq('id', req.id);
+      } catch (_) {}
       skipped++;
       continue;
     }
@@ -67,16 +73,19 @@ exports.handler = async function (event) {
       let update = result?.success
         ? { status: 'completed', completed_at: new Date().toISOString(), error_message: null }
         : { status: 'error', completed_at: new Date().toISOString(), error_message: (result?.error || 'Unknown error').slice(0, 500) };
-      await supabase.from('fb_data_deletion_requests').update(update).eq('id', req.id).catch(() => {});
+      try {
+        await supabase.from('fb_data_deletion_requests').update(update).eq('id', req.id);
+      } catch (_) {}
       if (result?.success) succeeded++;
       else failed++;
     } catch (err) {
       console.error('[facebook-deletion-scheduled] cascade error for', req.id, ':', err.message);
-      await supabase
-        .from('fb_data_deletion_requests')
-        .update({ status: 'error', error_message: err.message.slice(0, 500), completed_at: new Date().toISOString() })
-        .eq('id', req.id)
-        .catch(() => {});
+      try {
+        await supabase
+          .from('fb_data_deletion_requests')
+          .update({ status: 'error', error_message: err.message.slice(0, 500), completed_at: new Date().toISOString() })
+          .eq('id', req.id);
+      } catch (_) {}
       failed++;
     }
   }

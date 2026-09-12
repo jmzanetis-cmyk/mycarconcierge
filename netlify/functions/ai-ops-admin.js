@@ -557,11 +557,17 @@ async function _maybeGrantCarClubReturnBonus(supabase, providerId, memberId) {
       provider_id: providerId, member_id: memberId, club_id: clubId,
       credits_granted: BONUS_CREDITS,
     });
-    await supabase.from('bid_credit_purchases').insert({
-      provider_id: providerId, bids_purchased: BONUS_CREDITS,
-      amount_paid: 0, status: 'granted',
-      stripe_session_id: `car_club_return_bonus_${providerId}_${memberId}`,
-    }).catch(() => {}); // non-fatal if duplicate
+    // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+    // directly on it threw unconditionally (not just "if duplicate"),
+    // which meant the outer try/catch below swallowed it and the profile
+    // bid_credits update + notification after it never ran. Use try/catch.
+    try {
+      await supabase.from('bid_credit_purchases').insert({
+        provider_id: providerId, bids_purchased: BONUS_CREDITS,
+        amount_paid: 0, status: 'granted',
+        stripe_session_id: `car_club_return_bonus_${providerId}_${memberId}`,
+      });
+    } catch (_) {} // non-fatal if duplicate
 
     const { data: p } = await supabase.from('profiles')
       .select('bid_credits').eq('id', providerId).single();
@@ -569,13 +575,15 @@ async function _maybeGrantCarClubReturnBonus(supabase, providerId, memberId) {
       .update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS })
       .eq('id', providerId);
 
-    await supabase.from('notifications').insert({
-      user_id:  providerId,
-      type:     'car_club_bonus',
-      title:    'You earned 3 bonus bid credits!',
-      body:     'A car club member returned to book your services.',
-      metadata: { member_id: memberId, club_id: clubId, credits: BONUS_CREDITS },
-    }).catch(() => {});
+    try {
+      await supabase.from('notifications').insert({
+        user_id:  providerId,
+        type:     'car_club_bonus',
+        title:    'You earned 3 bonus bid credits!',
+        body:     'A car club member returned to book your services.',
+        metadata: { member_id: memberId, club_id: clubId, credits: BONUS_CREDITS },
+      });
+    } catch (_) {}
 
     console.log(`[ai-ops-admin] car club return bonus granted: provider ${providerId} member ${memberId}`);
     return { granted: true, credits: BONUS_CREDITS };

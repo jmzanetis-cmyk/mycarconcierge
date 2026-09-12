@@ -1201,19 +1201,28 @@ async function grantReturnBonus(event, sb, user) {
     status: 'granted',
     stripe_session_id: 'car_club_return_bonus',
   });
-  await sb.rpc('increment_value', { table: 'profiles', column: 'bid_credits', row_id: provider_id, delta: BONUS_CREDITS })
-    .catch(async () => {
-      const { data: p } = await sb.from('profiles').select('bid_credits').eq('id', provider_id).single();
-      await sb.from('profiles').update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS }).eq('id', provider_id);
-    });
+  // PostgrestBuilder (Supabase's query/rpc builder) implements only .then(),
+  // never .catch()/.finally() — chaining .catch() directly on it throws
+  // "TypeError: ...catch is not a function" unconditionally (not just when
+  // the rpc fails), crashing every call to this function. Use real
+  // try/catch so the manual-increment fallback actually runs on failure
+  // instead of the whole request 502ing.
+  try {
+    await sb.rpc('increment_value', { table: 'profiles', column: 'bid_credits', row_id: provider_id, delta: BONUS_CREDITS });
+  } catch (_) {
+    const { data: p } = await sb.from('profiles').select('bid_credits').eq('id', provider_id).single();
+    await sb.from('profiles').update({ bid_credits: (p?.bid_credits || 0) + BONUS_CREDITS }).eq('id', provider_id);
+  }
 
-  await sb.from('notifications').insert({
-    user_id: provider_id,
-    type: 'car_club_bonus',
-    title: 'You earned 3 bonus bid credits!',
-    body: 'A car club member returned to book your services. Keep up the great work!',
-    metadata: { member_id: user.id, club_id, credits: BONUS_CREDITS },
-  }).catch(() => {});
+  try {
+    await sb.from('notifications').insert({
+      user_id: provider_id,
+      type: 'car_club_bonus',
+      title: 'You earned 3 bonus bid credits!',
+      body: 'A car club member returned to book your services. Keep up the great work!',
+      metadata: { member_id: user.id, club_id, credits: BONUS_CREDITS },
+    });
+  } catch (_) {}
 
   return json(200, { granted: true, credits: BONUS_CREDITS });
 }

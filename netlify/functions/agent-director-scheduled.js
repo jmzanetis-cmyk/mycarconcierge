@@ -855,14 +855,18 @@ async function checkPaymentAutoRelease(supabase) {
     // accounts so the cron doesn't attempt to capture a mock PI (which
     // Stripe would 404). Two cheap checks first (mock-id prefix) before
     // the DB lookup so the common case pays nothing extra.
+    // PostgrestBuilder (Supabase's query/rpc builder) has no .catch() (only
+    // .then()) — chaining .catch() directly on it threw unconditionally on
+    // every payment, crashing this cron run on the very first iteration
+    // instead of only swallowing a genuine rpc failure. Use try/catch.
     if (typeof piId === 'string' && piId.startsWith('pi_reviewer_mock')) {
       skippedReviewer.push(pmt.id);
-      await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+      try { await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }); } catch (_) {}
       continue;
     }
     if (pmt.member_id && await isReviewerAccount(supabase, pmt.member_id)) {
       skippedReviewer.push(pmt.id);
-      await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+      try { await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }); } catch (_) {}
       continue;
     }
     if (piId && stripe) {
@@ -875,7 +879,7 @@ async function checkPaymentAutoRelease(supabase) {
         }
       }
     }
-    await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }).catch(() => {});
+    try { await supabase.rpc('member_release_payment', { p_package_id: pmt.package_id }); } catch (_) {}
     captured.push(pmt.id);
   }
 
@@ -927,11 +931,15 @@ async function checkCommissionReconciliation(supabase) {
     } catch { /* treat as mismatch */ }
 
     const newStatus = verified ? 'verified' : 'mismatch';
-    await supabase
-      .from('commission_reconciliation_queue')
-      .update({ status: newStatus, updated_at: new Date().toISOString() })
-      .eq('id', row.id)
-      .catch(() => {});
+    // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+    // directly on it throws and crashes this loop on the first row. Use
+    // try/catch.
+    try {
+      await supabase
+        .from('commission_reconciliation_queue')
+        .update({ status: newStatus, updated_at: new Date().toISOString() })
+        .eq('id', row.id);
+    } catch (_) {}
 
     if (!verified) mismatches.push({ queue_id: row.id, commission_id: row.commission_id, founder_id: row.founder_id, amount: row.amount });
   }

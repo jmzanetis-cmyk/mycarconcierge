@@ -1312,7 +1312,13 @@ async function handleRideComplete(event, supabase, driver, assignmentId) {
               description:    `MCC Wait Time — Ride ${a.ride_id}`,
               metadata: { ride_id: a.ride_id, type: 'wait_time', driver_id: driver.id },
             });
-            await supabase.from('rides').update({ wait_time_payment_intent_id: waitPI.id }).eq('id', a.ride_id).catch(() => {});
+            // PostgrestBuilder has no .catch() (only .then()) — chaining
+            // .catch() directly on it throws and crashes the request even
+            // though the real Stripe wait-time charge above already
+            // succeeded. Use try/catch.
+            try {
+              await supabase.from('rides').update({ wait_time_payment_intent_id: waitPI.id }).eq('id', a.ride_id);
+            } catch (_) {}
           }
         }
       }

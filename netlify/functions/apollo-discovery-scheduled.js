@@ -70,18 +70,22 @@ async function maybeSendApolloCreditAlert(supabase) {
     }
   }
 
-  await supabase.from('ai_action_log').insert({
-    module: 'apollo_credit_alert',
-    action_type: 'credit_exhausted',
-    target_id: null,
-    decision: 'alert_admin',
-    confidence: 1.0,
-    auto_executed: true,
-    escalated: true,
-    outcome: emailOutcome === 'sent' ? 'sent' : 'failed',
-    error_details: { email_outcome: emailOutcome, credit_errors: creditErrors.length },
-    created_at: new Date().toISOString()
-  }).catch(() => {});
+  // PostgrestBuilder has no .catch() (only .then()) — chaining .catch()
+  // directly on it throws and crashes the run. Use try/catch.
+  try {
+    await supabase.from('ai_action_log').insert({
+      module: 'apollo_credit_alert',
+      action_type: 'credit_exhausted',
+      target_id: null,
+      decision: 'alert_admin',
+      confidence: 1.0,
+      auto_executed: true,
+      escalated: true,
+      outcome: emailOutcome === 'sent' ? 'sent' : 'failed',
+      error_details: { email_outcome: emailOutcome, credit_errors: creditErrors.length },
+      created_at: new Date().toISOString()
+    });
+  } catch (_) {}
 
   return { alerted: true, email_outcome: emailOutcome, credit_errors: creditErrors.length };
 }
