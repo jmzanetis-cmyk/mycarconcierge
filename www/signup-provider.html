@@ -497,6 +497,28 @@
           <input type="url" class="form-input" id="website" placeholder="https://yourshop.com">
         </div>
 
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Years in Business</label>
+            <input type="number" class="form-input" id="years-business" placeholder="e.g., 8" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Number of Employees</label>
+            <input type="number" class="form-input" id="employees" placeholder="e.g., 5" min="0">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label class="form-label">Number of Service Bays</label>
+            <input type="number" class="form-input" id="bays" placeholder="e.g., 3" min="0">
+          </div>
+          <div class="form-group">
+            <label class="form-label">Vehicles Serviced per Week</label>
+            <input type="number" class="form-input" id="capacity" placeholder="e.g., 20" min="0">
+          </div>
+        </div>
+
         <div class="form-nav">
           <div></div>
           <button class="btn btn--primary" onclick="nextStep(1)">Continue →</button>
@@ -545,6 +567,46 @@
         </div>
 
         <div class="form-section">
+          <div class="form-section-title">Brand Specializations (optional)</div>
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Select any makes your shop specializes in. This helps members find you for brand-specific work.</p>
+          <div class="checkbox-group" id="brands-checkboxes">
+            <label class="checkbox-item"><input type="checkbox" value="Toyota"> Toyota</label>
+            <label class="checkbox-item"><input type="checkbox" value="Honda"> Honda</label>
+            <label class="checkbox-item"><input type="checkbox" value="Ford"> Ford</label>
+            <label class="checkbox-item"><input type="checkbox" value="Chevrolet"> Chevrolet</label>
+            <label class="checkbox-item"><input type="checkbox" value="BMW"> BMW</label>
+            <label class="checkbox-item"><input type="checkbox" value="Mercedes-Benz"> Mercedes-Benz</label>
+            <label class="checkbox-item"><input type="checkbox" value="Audi"> Audi</label>
+            <label class="checkbox-item"><input type="checkbox" value="Volkswagen"> Volkswagen</label>
+            <label class="checkbox-item"><input type="checkbox" value="Porsche"> Porsche</label>
+            <label class="checkbox-item"><input type="checkbox" value="Nissan"> Nissan</label>
+            <label class="checkbox-item"><input type="checkbox" value="Hyundai"> Hyundai</label>
+            <label class="checkbox-item"><input type="checkbox" value="Kia"> Kia</label>
+            <label class="checkbox-item"><input type="checkbox" value="Subaru"> Subaru</label>
+            <label class="checkbox-item"><input type="checkbox" value="Mazda"> Mazda</label>
+            <label class="checkbox-item"><input type="checkbox" value="Jeep"> Jeep</label>
+            <label class="checkbox-item"><input type="checkbox" value="Ram"> Ram</label>
+            <label class="checkbox-item"><input type="checkbox" value="GMC"> GMC</label>
+            <label class="checkbox-item"><input type="checkbox" value="Dodge"> Dodge</label>
+            <label class="checkbox-item"><input type="checkbox" value="Chrysler"> Chrysler</label>
+            <label class="checkbox-item"><input type="checkbox" value="Lexus"> Lexus</label>
+            <label class="checkbox-item"><input type="checkbox" value="Acura"> Acura</label>
+            <label class="checkbox-item"><input type="checkbox" value="Infiniti"> Infiniti</label>
+            <label class="checkbox-item"><input type="checkbox" value="Volvo"> Volvo</label>
+            <label class="checkbox-item"><input type="checkbox" value="Tesla"> Tesla</label>
+            <label class="checkbox-item"><input type="checkbox" value="Land Rover"> Land Rover</label>
+            <label class="checkbox-item"><input type="checkbox" value="Mini"> Mini</label>
+            <label class="checkbox-item"><input type="checkbox" value="Ferrari"> Ferrari</label>
+            <label class="checkbox-item"><input type="checkbox" value="Lamborghini"> Lamborghini</label>
+            <label class="checkbox-item"><input type="checkbox" value="Maserati"> Maserati</label>
+            <label class="checkbox-item"><input type="checkbox" value="Bentley"> Bentley</label>
+            <label class="checkbox-item"><input type="checkbox" value="Rolls-Royce"> Rolls-Royce</label>
+            <label class="checkbox-item"><input type="checkbox" value="Other Import"> Other Import</label>
+            <label class="checkbox-item"><input type="checkbox" value="Other Domestic"> Other Domestic</label>
+          </div>
+        </div>
+
+        <div class="form-section">
           <div class="form-section-title">Credentials & Verification</div>
           <div class="form-group">
             <label class="form-label">Insurance Document <span class="required">*</span></label>
@@ -570,7 +632,15 @@
         <div class="form-section">
           <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Loaner Vehicle Program</div>
           <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Do you offer loaner vehicles to customers while their car is being serviced? This is a big differentiator for members!</p>
-          
+
+          <div class="form-group">
+            <label class="form-label">Loaner vehicles available?</label>
+            <div class="checkbox-group" id="loaner-available">
+              <label class="checkbox-item"><input type="radio" name="loaner" value="yes" onchange="toggleLoaner(true)"> Yes</label>
+              <label class="checkbox-item"><input type="radio" name="loaner" value="no" onchange="toggleLoaner(false)" checked> No</label>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Google Maps Link</label>
             <input type="url" class="form-input" id="google-link" placeholder="https://maps.google.com/...">
@@ -619,13 +689,39 @@
 
         <div class="form-section">
           <div class="form-section-title"><span class="icon-inline" data-icon="car"></span> Pickup & Delivery Services</div>
-          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience.</p>
-          
+          <p style="color:var(--text-muted);font-size:var(--text-base);margin-bottom:16px;">Can you pick up and/or deliver vehicles? This is essential for the MCC concierge experience — members can only request provider pickup/dropoff on a job if at least one bidder actually offers it.</p>
+
           <div class="form-group">
-            <label class="form-label">Yelp Profile</label>
-            <input type="url" class="form-input" id="yelp-link" placeholder="https://yelp.com/biz/...">
+            <label class="form-label">Pickup & delivery capabilities</label>
+            <div class="checkbox-group" id="pickup-delivery-options">
+              <label class="checkbox-item"><input type="checkbox" value="pickup_vehicle"> We pick up the member's vehicle</label>
+              <label class="checkbox-item"><input type="checkbox" value="deliver_vehicle"> We deliver the vehicle back after service</label>
+              <label class="checkbox-item"><input type="checkbox" value="flatbed"> Flatbed / tow capability</label>
+              <label class="checkbox-item"><input type="checkbox" value="rideshare_coord"> We coordinate a rideshare for the member</label>
+            </div>
+            <div class="form-hint">Select all that apply. Leave all unchecked if you don't offer pickup or delivery.</div>
           </div>
-        </div>
+
+          <div class="form-group">
+            <label class="form-label">Pickup/delivery service radius (miles)</label>
+            <input type="number" class="form-input" id="pickup-radius" placeholder="e.g., 15" min="0">
+          </div>
+
+          <div class="form-group">
+            <label class="form-label">Pickup/delivery fee (if any)</label>
+            <div class="form-row">
+              <select class="form-select" id="pickup-fee">
+                <option value="free">Free</option>
+                <option value="included">Included in service price</option>
+                <option value="flat">Flat fee</option>
+                <option value="per_mile">Per-mile fee</option>
+              </select>
+              <div class="form-group" id="pickup-fee-amount-group" style="display:none;">
+                <input type="number" class="form-input" id="pickup-fee-amount" placeholder="Amount ($)" min="0">
+              </div>
+            </div>
+          </div>
+
           <div class="form-group">
             <label class="form-label">Yelp Profile</label>
             <input type="url" class="form-input" id="yelp-link" placeholder="https://yelp.com/biz/...">

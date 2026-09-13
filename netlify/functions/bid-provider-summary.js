@@ -21,12 +21,19 @@
 //   - provider_performance HAS an open pp_select_authed policy today, but
 //     the client should reach it via the same endpoint so a future tightening
 //     of that policy doesn't silently break the UI.
+//   - provider_applications is where pickup/loaner capability lives (collected
+//     at provider signup — see www/signup-provider.html "Pickup & Delivery
+//     Services" and "Loaner Vehicle Program" sections) and contains PII
+//     (address, phone, email, legal signatory) that must never reach a member
+//     wholesale, so the same safe-endpoint pattern applies here too.
 //
 // Field whitelist (explicit — must NEVER be broadened without a real reason):
 //   stats:       provider_id, average_rating, jobs_completed, total_reviews,
 //                response_rate, on_time_rate, repeat_customer_rate
 //   performance: provider_id, tier, overall_score, rating_avg, rating_count,
 //                jobs_completed, on_time_rate, badges
+//   logistics:   provider_id, pickup_delivery_options, pickup_radius_miles,
+//                has_loaner_vehicles, loaner_vehicle_types, loaner_delivery_options
 //
 // Ownership check: caller MUST be the member on the package (auth.uid() =
 // maintenance_packages.member_id). Non-owners get 403 with no data.
@@ -35,6 +42,18 @@
 // demo bid list shows ratings/tiers/badges without touching real
 // provider_stats rows. Mirrors the pattern in care-plans.js:434 and
 // upsell-handlers.js:handleApprove.
+//
+// logistics addition (2026-09-13): pickup/delivery and loaner-vehicle
+// capability were captured at provider signup (provider_applications table)
+// but were never surfaced anywhere a member could see them — not on the bid
+// card, not anywhere in the booking flow. A member could pick "Provider picks
+// up from my location" when creating a service request, then accept a bid
+// from a provider whose application says they don't offer pickup at all, and
+// only discover the mismatch once trying to set up the actual vehicle
+// transfer. This endpoint now also returns a `logistics` map so the client
+// can show each bidding provider's real capability up front and flag a
+// mismatch against the member's requested pickup_preference before they
+// accept a bid.
 // ============================================================================
 
 'use strict';
@@ -44,12 +63,22 @@ const { isReviewerAccount } = require('./_shared/reviewer-guard');
 
 const STATS_FIELDS = 'provider_id, average_rating, jobs_completed, total_reviews, response_rate, on_time_rate, repeat_customer_rate';
 const PERF_FIELDS  = 'provider_id, tier, overall_score, rating_avg, rating_count, jobs_completed, on_time_rate, badges';
+// provider_applications' identity column is user_id (not provider_id) — see
+// netlify/functions/provider-application.js insertRow. We select it under its
+// real name and re-key the response map to provider_id ourselves (bids.provider_id
+// is the same auth uid) so the client-side shape matches stats/performance.
+const LOGISTICS_FIELDS = 'user_id, pickup_delivery_options, pickup_radius_miles, has_loaner_vehicles, loaner_vehicle_types, loaner_delivery_options';
 
 // Any field NOT in this list must not appear in the response. Cross-referenced
 // by the unit test — if this comment or the list drifts from the server code
 // below, the leakage-blocking test fails loudly.
 const STATS_ALLOWED = new Set(['provider_id', 'average_rating', 'jobs_completed', 'total_reviews', 'response_rate', 'on_time_rate', 'repeat_customer_rate']);
 const PERF_ALLOWED  = new Set(['provider_id', 'tier', 'overall_score', 'rating_avg', 'rating_count', 'jobs_completed', 'on_time_rate', 'badges']);
+// NOTE: 'user_id' is intentionally included here — whitelistRow() runs on the
+// row BEFORE we rename user_id -> provider_id (see logistics build loop
+// below), so it must be allowed through that pass. It never reaches the final
+// per-provider object (renameLogisticsRow drops it after remapping the key).
+const LOGISTICS_ALLOWED = new Set(['user_id', 'pickup_delivery_options', 'pickup_radius_miles', 'has_loaner_vehicles', 'loaner_vehicle_types', 'loaner_delivery_options']);
 
 function supabase() {
   return createClient(
@@ -103,10 +132,12 @@ function whitelistRow(row, allowedSet) {
 // Reviewer-mock payload. Deliberately realistic-looking so the demo UI
 // exercises the badge/tier/rating render paths without exposing real
 // provider metrics. Values chosen to look plausible for a reviewer:
-//   tier=gold, 4.8 stars, 47 jobs, 96% on-time, 2 badges.
+//   tier=gold, 4.8 stars, 47 jobs, 96% on-time, 2 badges, offers pickup +
+//   loaner (so the reviewer also sees the logistics badges/warning paths).
 function reviewerMockPayload(providerIds) {
   const stats = {};
   const performance = {};
+  const logistics = {};
   for (const id of providerIds) {
     stats[id] = {
       provider_id: id,
@@ -127,8 +158,27 @@ function reviewerMockPayload(providerIds) {
       on_time_rate: 96,
       badges: ['top_rated', 'quick_responder'],
     };
+    logistics[id] = {
+      provider_id: id,
+      pickup_delivery_options: ['deliver_loaner', 'pickup_at_shop'],
+      pickup_radius_miles: 15,
+      has_loaner_vehicles: true,
+      loaner_vehicle_types: 'Sedan, SUV',
+      loaner_delivery_options: ['deliver_loaner', 'pickup_at_shop'],
+    };
   }
-  return { stats, performance, reviewer_mock: true };
+  return { stats, performance, logistics, reviewer_mock: true };
+}
+
+// provider_applications rows come back keyed by user_id (that table's actual
+// identity column — see netlify/functions/provider-application.js insertRow).
+// bids.provider_id is the same auth uid, so we re-key here to match the shape
+// stats/performance already use. user_id itself is dropped from the output —
+// it was only ever needed to find the right row.
+function renameLogisticsRow(row) {
+  const clean = whitelistRow(row, LOGISTICS_ALLOWED);
+  const { user_id, ...rest } = clean;
+  return { provider_id: user_id, ...rest };
 }
 
 exports.handler = async (event) => {
@@ -163,7 +213,7 @@ exports.handler = async (event) => {
 
   const providerIds = [...new Set((bids || []).map(b => b.provider_id).filter(Boolean))];
   if (providerIds.length === 0) {
-    return json(200, { stats: {}, performance: {} });
+    return json(200, { stats: {}, performance: {}, logistics: {} });
   }
 
   // Reviewer bypass — return a realistic mock, don't touch real provider data.
@@ -172,9 +222,10 @@ exports.handler = async (event) => {
   }
 
   // Parallel fetch, whitelist SELECTs.
-  const [statsRes, perfRes] = await Promise.all([
+  const [statsRes, perfRes, logisticsRes] = await Promise.all([
     sb.from('provider_stats').select(STATS_FIELDS).in('provider_id', providerIds),
     sb.from('provider_performance').select(PERF_FIELDS).in('provider_id', providerIds),
+    sb.from('provider_applications').select(LOGISTICS_FIELDS).in('user_id', providerIds),
   ]);
 
   if (statsRes.error) {
@@ -182,6 +233,9 @@ exports.handler = async (event) => {
   }
   if (perfRes.error) {
     console.error('[bid-provider-summary] provider_performance select failed:', perfRes.error.message);
+  }
+  if (logisticsRes.error) {
+    console.error('[bid-provider-summary] provider_applications (logistics) select failed:', logisticsRes.error.message);
   }
 
   const stats = {};
@@ -194,8 +248,14 @@ exports.handler = async (event) => {
     if (!row.provider_id) continue;
     performance[row.provider_id] = whitelistRow(row, PERF_ALLOWED);
   }
+  const logistics = {};
+  for (const row of logisticsRes.data || []) {
+    if (!row.user_id) continue;
+    const renamed = renameLogisticsRow(row);
+    logistics[renamed.provider_id] = renamed;
+  }
 
-  return json(200, { stats, performance });
+  return json(200, { stats, performance, logistics });
 };
 
 // Exported for the unit test — the leakage check needs to assert both that
@@ -203,6 +263,9 @@ exports.handler = async (event) => {
 // strips any surprise field that somehow slips through.
 module.exports.STATS_FIELDS = STATS_FIELDS;
 module.exports.PERF_FIELDS = PERF_FIELDS;
+module.exports.LOGISTICS_FIELDS = LOGISTICS_FIELDS;
 module.exports.STATS_ALLOWED = STATS_ALLOWED;
 module.exports.PERF_ALLOWED = PERF_ALLOWED;
+module.exports.LOGISTICS_ALLOWED = LOGISTICS_ALLOWED;
 module.exports.whitelistRow = whitelistRow;
+module.exports.renameLogisticsRow = renameLogisticsRow;

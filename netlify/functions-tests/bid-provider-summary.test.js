@@ -65,7 +65,7 @@ process.env.SUPABASE_SERVICE_ROLE_KEY = 'stub';
 process.env.REVIEWER_EMAILS = 'reviewer-test@example.com';
 
 const handlerModule = require('../functions/bid-provider-summary');
-const { handler, STATS_FIELDS, PERF_FIELDS, STATS_ALLOWED, PERF_ALLOWED, whitelistRow } = handlerModule;
+const { handler, STATS_FIELDS, PERF_FIELDS, LOGISTICS_FIELDS, STATS_ALLOWED, PERF_ALLOWED, LOGISTICS_ALLOWED, whitelistRow, renameLogisticsRow } = handlerModule;
 
 // ---------- constants ----------
 const MEMBER_ID   = 'aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa';
@@ -91,6 +91,20 @@ const SENSITIVE_PERF = [
   'disputes_count', 'disputes_resolved', 'bids_submitted', 'bids_accepted',
   'acceptance_rate', 'avg_response_time_hours', 'jobs_on_time',
   'last_calculated_at', 'created_at', 'updated_at', 'id',
+];
+// provider_applications is a much bigger, PII-heavy row (business identity,
+// contact info, legal agreement) than the two rows above — only the logistics
+// slice should ever reach a member.
+const SENSITIVE_LOGISTICS = [
+  'id', 'business_name', 'business_type', 'contact_name', 'phone', 'email',
+  'legal_signatory_name', 'agreement_signed_at', 'agreement_signature',
+  'agreement_ip_address', 'website', 'address_line1', 'address_line2',
+  'city', 'state', 'zip', 'service_area', 'service_radius_miles',
+  'services_offered', 'brand_specializations', 'years_in_business',
+  'employees_count', 'bays_count', 'vehicles_per_week',
+  'loaner_vehicle_count', 'loaner_requirements', 'loaner_fee_type', 'loaner_fee_amount',
+  'pickup_fee_type', 'pickup_fee_amount', 'status', 'created_at', 'updated_at',
+  'referral_code', 'how_heard_about_us', 'is_founding_provider', 'founding_agreement_id',
 ];
 
 // ---------- fake sb factory ----------
@@ -187,6 +201,9 @@ async function testWhitelistBlocksLeakage() {
     for (const field of PERF_FIELDS.split(',').map(s => s.trim())) {
       truthy(PERF_ALLOWED.has(field), `PERF_FIELDS names disallowed field: ${field}`);
     }
+    for (const field of LOGISTICS_FIELDS.split(',').map(s => s.trim())) {
+      truthy(LOGISTICS_ALLOWED.has(field), `LOGISTICS_FIELDS names disallowed field: ${field}`);
+    }
     // Neither list should include any of the sensitive columns.
     for (const s of SENSITIVE_STATS) {
       falsy(STATS_ALLOWED.has(s), `STATS_ALLOWED must NOT include sensitive: ${s}`);
@@ -194,6 +211,30 @@ async function testWhitelistBlocksLeakage() {
     for (const s of SENSITIVE_PERF) {
       falsy(PERF_ALLOWED.has(s), `PERF_ALLOWED must NOT include sensitive: ${s}`);
     }
+    for (const s of SENSITIVE_LOGISTICS) {
+      falsy(LOGISTICS_ALLOWED.has(s), `LOGISTICS_ALLOWED must NOT include sensitive: ${s}`);
+    }
+  });
+
+  await run('renameLogisticsRow strips user_id and remaps it to provider_id', () => {
+    const dirty = {
+      user_id: PROVIDER_ID,
+      pickup_delivery_options: ['pickup_at_shop'],
+      has_loaner_vehicles: true,
+      business_name: 'Joe\'s Garage',   // sensitive — must not survive whitelistRow
+      phone: '555-1234',                 // sensitive
+      legal_signatory_name: 'Joe Smith', // sensitive
+    };
+    const clean = renameLogisticsRow(dirty);
+    eq(clean, {
+      provider_id: PROVIDER_ID,
+      pickup_delivery_options: ['pickup_at_shop'],
+      has_loaner_vehicles: true,
+    });
+    falsy('user_id' in clean, 'user_id must not survive the rename (only provider_id should appear)');
+    falsy('business_name' in clean, 'business_name leaked');
+    falsy('phone' in clean, 'phone leaked');
+    falsy('legal_signatory_name' in clean, 'legal_signatory_name leaked');
   });
 
   await run('whitelistRow strips fields not in allowlist', () => {
@@ -251,6 +292,25 @@ async function testWhitelistBlocksLeakage() {
           avg_response_time_hours: 2.5,
           last_calculated_at: '2026-09-01T00:00:00Z',
         }],
+        provider_applications: [{
+          user_id: PROVIDER_ID,
+          pickup_delivery_options: ['pickup_at_shop'],
+          pickup_radius_miles: 10,
+          has_loaner_vehicles: true,
+          loaner_vehicle_types: 'Sedan',
+          loaner_delivery_options: ['pickup_at_shop'],
+          // Sensitive/PII fields that MUST get stripped even if returned.
+          business_name: 'Joe\'s Garage',
+          contact_name: 'Joe Smith',
+          phone: '555-0100',
+          email: 'joe@example.com',
+          legal_signatory_name: 'Joe Smith',
+          agreement_signature: 'Joe Smith',
+          address_line1: '123 Main St',
+          city: 'Springfield',
+          state: 'IL',
+          zip: '62701',
+        }],
         profiles: [{ id: MEMBER_ID, email: 'member@example.com' }],
       },
     });
@@ -258,6 +318,7 @@ async function testWhitelistBlocksLeakage() {
     eq(r.statusCode, 200);
     const provStats = r.body.stats[PROVIDER_ID];
     const provPerf = r.body.performance[PROVIDER_ID];
+    const provLogistics = r.body.logistics[PROVIDER_ID];
     // Every sensitive field must be absent.
     for (const s of SENSITIVE_STATS) {
       falsy(s in provStats, `stats leak: ${s} appeared in response`);
@@ -265,11 +326,18 @@ async function testWhitelistBlocksLeakage() {
     for (const s of SENSITIVE_PERF) {
       falsy(s in provPerf, `performance leak: ${s} appeared in response`);
     }
+    for (const s of SENSITIVE_LOGISTICS) {
+      falsy(s in provLogistics, `logistics leak: ${s} appeared in response`);
+    }
+    falsy('user_id' in provLogistics, 'logistics leak: raw user_id key should be renamed to provider_id');
     // Safe fields are present.
     eq(provStats.average_rating, 4.5);
     eq(provStats.jobs_completed, 20);
     eq(provPerf.tier, 'gold');
     eq(provPerf.rating_avg, 4.5);
+    eq(provLogistics.provider_id, PROVIDER_ID);
+    eq(provLogistics.has_loaner_vehicles, true);
+    eq(provLogistics.pickup_radius_miles, 10);
   });
 }
 
@@ -319,6 +387,7 @@ async function testAuthAndOwnership() {
     eq(r.statusCode, 403);
     falsy(r.body.stats, 'must not include stats payload on 403');
     falsy(r.body.performance, 'must not include performance payload on 403');
+    falsy(r.body.logistics, 'must not include logistics payload on 403');
   });
 
   await run('method other than GET → 405', async () => {
@@ -350,6 +419,10 @@ async function testHappyPaths() {
           { provider_id: PROVIDER_ID,   tier: 'gold', rating_avg: 4.5 },
           { provider_id: PROVIDER_ID_2, tier: 'silver', rating_avg: 3.8 },
         ],
+        provider_applications: [
+          { user_id: PROVIDER_ID,   pickup_delivery_options: ['pickup_at_shop'], has_loaner_vehicles: false },
+          { user_id: PROVIDER_ID_2, pickup_delivery_options: ['deliver_loaner'], has_loaner_vehicles: true },
+        ],
       },
     });
     const r = await withSb(sb, () => invoke(mockEvent()));
@@ -358,8 +431,12 @@ async function testHappyPaths() {
     truthy(r.body.stats[PROVIDER_ID_2]);
     truthy(r.body.performance[PROVIDER_ID]);
     truthy(r.body.performance[PROVIDER_ID_2]);
+    truthy(r.body.logistics[PROVIDER_ID], 'provider 1 logistics present');
+    truthy(r.body.logistics[PROVIDER_ID_2], 'provider 2 logistics present');
     eq(r.body.stats[PROVIDER_ID].average_rating, 4.5);
     eq(r.body.performance[PROVIDER_ID_2].tier, 'silver');
+    eq(r.body.logistics[PROVIDER_ID].has_loaner_vehicles, false);
+    eq(r.body.logistics[PROVIDER_ID_2].has_loaner_vehicles, true);
   });
 
   await run('package with 0 bids → empty maps, 200 not 4xx', async () => {
@@ -373,21 +450,24 @@ async function testHappyPaths() {
     eq(r.statusCode, 200);
     eq(r.body.stats, {});
     eq(r.body.performance, {});
+    eq(r.body.logistics, {});
   });
 
-  await run('provider bid but no stats/performance row → provider absent from maps, no crash', async () => {
+  await run('provider bid but no stats/performance/logistics row → provider absent from maps, no crash', async () => {
     const sb = makeSupabase({
       tables: {
         maintenance_packages: [{ id: PACKAGE_ID, member_id: MEMBER_ID }],
         bids: [{ provider_id: PROVIDER_ID, package_id: PACKAGE_ID }],
         provider_stats: [],   // no row for this provider
         provider_performance: [],
+        provider_applications: [],
       },
     });
     const r = await withSb(sb, () => invoke(mockEvent()));
     eq(r.statusCode, 200);
     falsy(PROVIDER_ID in r.body.stats, 'no stats row → no map entry');
     falsy(PROVIDER_ID in r.body.performance, 'no perf row → no map entry');
+    falsy(PROVIDER_ID in r.body.logistics, 'no application row → no logistics map entry');
   });
 
   await run('duplicate bids from same provider → provider_id deduplicated', async () => {
@@ -400,6 +480,7 @@ async function testHappyPaths() {
         ],
         provider_stats: [{ provider_id: PROVIDER_ID, average_rating: 4.5 }],
         provider_performance: [{ provider_id: PROVIDER_ID, tier: 'gold' }],
+        provider_applications: [{ user_id: PROVIDER_ID, has_loaner_vehicles: true }],
       },
     });
     const r = await withSb(sb, () => invoke(mockEvent()));
@@ -407,6 +488,7 @@ async function testHappyPaths() {
     // Only one map entry per provider.
     eq(Object.keys(r.body.stats).length, 1);
     eq(Object.keys(r.body.performance).length, 1);
+    eq(Object.keys(r.body.logistics).length, 1);
   });
 }
 
@@ -443,11 +525,16 @@ async function testReviewerBypass() {
     eq(body.reviewer_mock, true);
     truthy(body.stats[PROVIDER_ID]);
     truthy(body.performance[PROVIDER_ID]);
+    truthy(body.logistics[PROVIDER_ID], 'mock logistics present so reviewer sees the badge/warning UI too');
     eq(body.performance[PROVIDER_ID].tier, 'gold');
     eq(body.stats[PROVIDER_ID].jobs_completed, 47);
+    eq(body.logistics[PROVIDER_ID].has_loaner_vehicles, true);
     // Mock payload also honors whitelist (no sensitive fields).
     for (const s of SENSITIVE_STATS) {
       falsy(s in body.stats[PROVIDER_ID], `mock leak: ${s}`);
+    }
+    for (const s of SENSITIVE_LOGISTICS) {
+      falsy(s in body.logistics[PROVIDER_ID], `mock leak: ${s}`);
     }
 
     // Restore for later tests.
