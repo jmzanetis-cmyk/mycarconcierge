@@ -869,6 +869,62 @@
       return s;
     }
 
+    // Renders pickup/delivery + loaner-vehicle capability badges for a single
+    // bidding provider, plus a mismatch warning when the member asked for
+    // provider pickup on this job but this particular bidder hasn't reported
+    // any pickup/delivery capability. Added 2026-09-13 alongside the
+    // `logistics` map on /api/bids/provider-summary (see bid-provider-summary.js)
+    // — see that file's header comment for the full story: pickup_preference
+    // was collectible from members since day one, but the matching
+    // provider_applications columns were never surfaced anywhere a member
+    // could see them before accepting a bid, so a member could pick
+    // "Provider pickup" and then accept a bid from a shop that has no way to
+    // fulfill it. `logistics` may be `undefined`/`{}` for providers who
+    // applied before the pickup/loaner fields existed on the signup form, or
+    // who left every option unchecked — both render as "no info reported"
+    // rather than a false negative.
+    const PICKUP_OPTION_LABELS = {
+      pickup_vehicle: 'Picks up vehicle',
+      deliver_vehicle: 'Delivers after service',
+      flatbed: 'Flatbed / tow',
+      rideshare_coord: 'Coordinates rideshare',
+    };
+    function renderProviderLogisticsInfo(logistics, pickupPreference) {
+      const opts = logistics?.pickup_delivery_options || [];
+      const hasAnyPickupCapability = opts.length > 0;
+      const hasLoaner = !!logistics?.has_loaner_vehicles;
+
+      const badges = [];
+      opts.forEach(o => {
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${mccIcon('car', 14)} ${PICKUP_OPTION_LABELS[o] || o}</span>`);
+      });
+      if (hasAnyPickupCapability && logistics.pickup_radius_miles) {
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:var(--bg-input);border:1px solid var(--border-subtle);color:var(--text-secondary);padding:3px 10px;border-radius:100px;font-size:0.75rem;">${logistics.pickup_radius_miles} mi radius</span>`);
+      }
+      if (hasLoaner) {
+        const types = logistics.loaner_vehicle_types ? ` (${logistics.loaner_vehicle_types})` : '';
+        badges.push(`<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);color:#10b981;padding:3px 10px;border-radius:100px;font-size:0.75rem;">${mccIcon('key', 14)} Loaner available${types}</span>`);
+      }
+
+      // Only warn about a mismatch on the one preference that actually
+      // requires the PROVIDER to do something (come get the vehicle). The
+      // other pickup_preference values (member_dropoff, rideshare, either,
+      // destination_service) don't depend on this provider's own pickup
+      // capability, so there's nothing to flag for them.
+      const mismatchWarning = (pickupPreference === 'provider_pickup' && !hasAnyPickupCapability)
+        ? `<div style="display:flex;align-items:center;gap:6px;color:#f59e0b;font-size:0.8rem;margin-top:6px;">${mccIcon('alert-triangle', 14)} You requested ${formatPickup('provider_pickup')} for this job, but this provider hasn't reported pickup/drop-off capability — message them to confirm before accepting.</div>`
+        : '';
+
+      if (badges.length === 0 && !mismatchWarning) return '';
+
+      return `
+        <div style="margin-bottom:12px;">
+          ${badges.length ? `<div style="display:flex;flex-wrap:wrap;gap:6px;">${badges.join('')}</div>` : ''}
+          ${mismatchWarning}
+        </div>
+      `;
+    }
+
     // 5-star visual rating (out of 5), matching the familiar Uber/Lyft-style
     // pattern - full/half/empty stars plus the numeric average, rather than
     // the raw 0-100 composite score.
@@ -2230,6 +2286,15 @@
       // "view and accept bids" surface unreachable.
       let providerStats = {};
       let providerPerformance = {};
+      // Pickup/delivery + loaner-vehicle capability per bidding provider (from
+      // provider_applications, via the same safe-summary endpoint). Added
+      // 2026-09-13 — see bid-provider-summary.js header comment for why this
+      // matters: a member can request "Provider picks up from my location"
+      // when creating the service request, but until now had zero visibility
+      // into whether any given bidder actually offers that, and could accept
+      // a bid that can't fulfill it. Rendered below as badges + a mismatch
+      // warning (renderProviderLogisticsInfo, further down this file).
+      let providerLogistics = {};
       if (bids && bids.length > 0) {
         try {
           const { data: { session } } = await supabaseClient.auth.getSession();
@@ -2242,6 +2307,7 @@
               const payload = await resp.json();
               providerStats = payload.stats || {};
               providerPerformance = payload.performance || {};
+              providerLogistics = payload.logistics || {};
             } else {
               console.warn('[viewPackage] provider-summary non-2xx:', resp.status);
             }
@@ -2326,6 +2392,7 @@
                 const stats = providerStats[bid.provider_id] || {};
                 const perf = providerPerformance[bid.provider_id];
                 const appData = providerApplications[bid.provider_id] || {};
+                const logistics = providerLogistics[bid.provider_id];
                 const rating = perf?.rating_avg ? perf.rating_avg.toFixed(1) : (stats.average_rating ? stats.average_rating.toFixed(1) : 'New');
                 const jobs = perf?.jobs_completed || stats.jobs_completed || 0;
                 const providerName = bid.profiles?.provider_alias || `Provider #${bid.provider_id.slice(0,4).toUpperCase()}`;
@@ -2395,6 +2462,7 @@
                     ` : ''}
                     ${bid.estimated_duration ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('clock', 16)} Estimated time: ${bid.estimated_duration}</div>` : ''}
                     ${bid.available_dates ? `<div style="font-size:0.85rem;color:var(--text-secondary);margin-bottom:8px;">${mccIcon('calendar', 16)} Availability: ${bid.available_dates}</div>` : ''}
+                    ${renderProviderLogisticsInfo(logistics, pkg.pickup_preference)}
                     ${bid.description ? `<div style="color:var(--text-secondary);margin-bottom:12px;padding:12px;background:var(--bg-input);border-radius:var(--radius-sm);font-size:0.9rem;">"${bid.description}"</div>` : ''}
                     <div style="display:flex;gap:8px;flex-wrap:wrap;">
                       <button class="btn btn-secondary btn-sm" onclick="openMessageWithProvider('${packageId}', '${bid.provider_id}', '${bid.profiles?.provider_alias || ''}')">${mccIcon('message-square', 16)} Message</button>
