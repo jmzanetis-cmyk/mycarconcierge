@@ -190,6 +190,29 @@
     }
     // ========== END FOUNDING PROVIDER HANDLING ==========
 
+    // Phase 2.7.3: render the 20 service categories, grouped under
+    // Mechanical & Service / Appearance & Protection / Electronics, Interior
+    // & Specialty, into #services-checkboxes on load. mcc-taxonomy.js is
+    // loaded before this file (signup-provider.html scripts section).
+    // Values written are category slugs (matching _taxonomy.CATEGORIES) so
+    // the same list also feeds provider_match_preferences.match_categories
+    // when the corresponding row is created downstream.
+    function renderServiceCategoryChips() {
+      var grid = document.getElementById('services-checkboxes');
+      if (!grid || !window.MCC_TAXONOMY || !window.MCC_TAXONOMY.renderCheckboxGroups) return;
+      // Skip re-render if the grid already has chips (e.g. a soft reload).
+      if (grid.querySelector('input[type=checkbox]')) return;
+      window.MCC_TAXONOMY.renderCheckboxGroups(grid, {
+        inputClass: 'signup-service-check',
+        checked: [],
+      });
+    }
+    if (document.readyState === 'loading') {
+      window.addEventListener('DOMContentLoaded', renderServiceCategoryChips);
+    } else {
+      renderServiceCategoryChips();
+    }
+
     // Checkbox toggle for service/brand selection checkboxes
     document.querySelectorAll('.checkbox-group .checkbox-item').forEach(item => {
       const checkbox = item.querySelector('input[type="checkbox"]');

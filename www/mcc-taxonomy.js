@@ -75,6 +75,178 @@
       categories: ['audio_electronics', 'lighting', 'interior', 'convertible_specialty', 'motorcycle', 'rv_camper', 'boat_marine', 'snow_removal', 'other'] }
   ];
 
+  // Phase 2.7.3: "Type of work" options per category — populates
+  // p-service-type based on the chosen category. MIRRORED EXACTLY in
+  // netlify/functions/_taxonomy.js SERVICE_TYPES_BY_CATEGORY; the taxonomy
+  // test fails if they drift.
+  var SERVICE_TYPES_BY_CATEGORY = {
+    maintenance: [
+      'Oil change / fluids',
+      'Brake service',
+      'Tire service',
+      'Battery / electrical',
+      'Engine service / repair',
+      'Transmission',
+      'Diagnostics / check engine light',
+      'A/C or heating',
+      'Alignment / suspension',
+      'Inspection / multi-point'
+    ],
+    manufacturer_service: [
+      'Factory-scheduled maintenance',
+      'Recall service',
+      'Warranty repair',
+      'Extended service package'
+    ],
+    detailing: [
+      'Interior detail',
+      'Exterior detail',
+      'Full detail',
+      'Ceramic coating',
+      'Paint correction',
+      'Engine bay detail',
+      'Headlight restoration',
+      'Odor / smoke removal'
+    ],
+    cosmetic: [
+      'Dent removal / PDR',
+      'Scratch / touch-up',
+      'Bumper repair',
+      'Trim / molding',
+      'Small paint repair',
+      'Chip repair'
+    ],
+    accident_repair: [
+      'Collision repair',
+      'Insurance claim',
+      'Frame / structural work',
+      'Bodywork & paint',
+      'Windshield / glass'
+    ],
+    performance: [
+      'Exhaust',
+      'Suspension / lowering',
+      'Engine tuning / ECU',
+      'Cold air intake',
+      'Turbo / supercharger',
+      'Performance brakes'
+    ],
+    audio_electronics: [
+      'Stereo / speakers',
+      'Subwoofer / amp',
+      'Infotainment / CarPlay',
+      'Dash cam',
+      'Remote start / alarm',
+      'Backup camera',
+      'Electronics wiring'
+    ],
+    lighting: [
+      'Headlight upgrade',
+      'Taillight upgrade',
+      'LED interior lighting',
+      'Underglow / accent',
+      'Bulb replacement',
+      'Fog / driving lights'
+    ],
+    interior: [
+      'Upholstery repair',
+      'Seat repair / re-cover',
+      'Carpet / floor',
+      'Headliner',
+      'Dashboard repair',
+      'Steering wheel wrap'
+    ],
+    offroad: [
+      'Lift kit',
+      'Off-road tires',
+      'Skid plates / armor',
+      'Winch / recovery',
+      'Suspension upgrade',
+      'Trail prep'
+    ],
+    ev_hybrid: [
+      'Battery service',
+      'Charging system',
+      'High-voltage electrical',
+      'EV/hybrid diagnostics',
+      'Drivetrain service'
+    ],
+    classic_vintage: [
+      'Restoration',
+      'Mechanical rebuild',
+      'Bodywork / paint',
+      'Interior restoration',
+      'Sourcing / parts'
+    ],
+    fleet_graphics: [
+      'Full vehicle wrap',
+      'Partial wrap / decals',
+      'Fleet lettering',
+      'Livery / branding',
+      'Removal'
+    ],
+    premium_protection: [
+      'PPF / clear bra',
+      'Ceramic coating',
+      'Window tint',
+      'Paint protection',
+      'Interior protection'
+    ],
+    convertible_specialty: [
+      'Convertible top repair',
+      'Top mechanism / motor',
+      'Weather sealing',
+      'Top replacement'
+    ],
+    motorcycle: [
+      'Maintenance / tune-up',
+      'Tire service',
+      'Chain / drivetrain',
+      'Repair / diagnostics',
+      'Detail / cleaning'
+    ],
+    rv_camper: [
+      'Maintenance',
+      'Appliance service',
+      'Plumbing / electrical',
+      'Roof / seal',
+      'Detail / cleaning'
+    ],
+    boat_marine: [
+      'Engine service',
+      'Detail / bottom paint',
+      'Trailer service',
+      'Electronics install',
+      'Winterization'
+    ],
+    snow_removal: [
+      'Driveway plowing',
+      'Sidewalk clearing',
+      'Salt / de-icing',
+      'Seasonal contract'
+    ],
+    other: [
+      'Consultation',
+      'Second opinion',
+      'Other service'
+    ]
+  };
+
+  // Populate a "Type of work" <select> from the chosen category. Preserves
+  // the current value if it still fits; otherwise falls back to a
+  // "Choose a type…" placeholder. Safe to call before any category is set.
+  function renderServiceTypes(selectEl, category) {
+    if (!selectEl) return;
+    var current = selectEl.value;
+    var list = (category && SERVICE_TYPES_BY_CATEGORY[category]) || [];
+    var html = '<option value="" disabled selected>Choose a type…</option>';
+    for (var i = 0; i < list.length; i++) {
+      html += '<option value="' + esc(list[i]) + '">' + esc(list[i]) + '</option>';
+    }
+    selectEl.innerHTML = html;
+    if (current && list.indexOf(current) !== -1) selectEl.value = current;
+  }
+
   function esc(s) {
     return String(s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -134,10 +306,12 @@
     LABELS: LABELS,
     EXAMPLES: EXAMPLES,
     GROUPS: GROUPS,
+    SERVICE_TYPES_BY_CATEGORY: SERVICE_TYPES_BY_CATEGORY,
     label: label,
     chip: chip,
     renderSelectOptions: renderSelectOptions,
-    renderCheckboxGroups: renderCheckboxGroups
+    renderCheckboxGroups: renderCheckboxGroups,
+    renderServiceTypes: renderServiceTypes
   };
 
   // Auto-wire known surfaces when present. Runs after DOM parse; safe on
@@ -145,7 +319,21 @@
   function autoWire() {
     var sel = document.getElementById('p-category');
     if (sel && sel.getAttribute('data-taxonomy') !== 'off') {
-      renderSelectOptions(sel);
+      // Phase 2.7.3: force a disabled placeholder so an unchosen category
+      // is invalid at submit — required attribute already lives on the
+      // element. Do NOT overwrite the category if one was pre-set (edit
+      // flow / query-param arrival).
+      renderSelectOptions(sel, { placeholder: 'Choose a category…' });
+
+      // Auto-wire p-service-type to the chosen category so a detailing job
+      // no longer offers "brake service" as a type. Fires on change; also
+      // fires once immediately if p-category already has a value.
+      var stSel = document.getElementById('p-service-type');
+      if (stSel && stSel.getAttribute('data-taxonomy') !== 'off') {
+        var refresh = function () { renderServiceTypes(stSel, sel.value); };
+        sel.addEventListener('change', refresh);
+        if (sel.value) refresh();
+      }
     }
     var grid = document.getElementById('match-categories-grid');
     if (grid) {

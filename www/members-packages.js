@@ -1299,7 +1299,7 @@
     async function aiDescribeToPackage() {
       const input = document.getElementById('ai-describe-input');
       const text = (input?.value || '').trim();
-      if (!text) { showToast('Please describe your issue first.', 'error'); return; }
+      if (!text) { showToast('Please describe what you need first.', 'error'); return; }
 
       const btn = document.getElementById('ai-describe-btn');
       const status = document.getElementById('ai-describe-status');
@@ -1539,7 +1539,7 @@
     async function aiCreateCarePlan() {
       const input = document.getElementById('ai-care-plan-input');
       const text = (input?.value || '').trim();
-      if (!text) { showToast('Please describe your car problem first.', 'error'); return; }
+      if (!text) { showToast('Please describe what you need first.', 'error'); return; }
 
       const btn = document.getElementById('ai-care-plan-btn');
       const status = document.getElementById('ai-care-plan-status');
