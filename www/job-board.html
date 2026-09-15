@@ -373,7 +373,13 @@
           </select>
         </div>
         <div class="filter-chips" id="service-chips">
-          <div class="filter-chip active" data-type="all" onclick="setServiceType('all', this)">All Services</div>
+          <!-- 2.6.3: pre-selected as "My specialties" when the provider has
+               match preferences (JS sets .active on load based on the
+               server's has_match_categories flag). "All jobs" is one tap
+               away for the moments when a provider wants to browse
+               beyond their declared categories. -->
+          <div class="filter-chip active" data-type="mine" onclick="setServiceType('mine', this)">My specialties</div>
+          <div class="filter-chip" data-type="all" onclick="setServiceType('all', this)">All jobs</div>
           <div class="filter-chip" data-type="maintenance" onclick="setServiceType('maintenance', this)">Maintenance</div>
           <div class="filter-chip" data-type="detailing" onclick="setServiceType('detailing', this)">Detailing</div>
           <div class="filter-chip" data-type="cosmetic" onclick="setServiceType('cosmetic', this)">Cosmetic</div>
@@ -462,6 +468,9 @@
 
 <script src="vendor/supabase.js"></script>
 <script src="supabaseclient.js"></script>
+<!-- 2.6.3: mcc-taxonomy.js provides window.MCC_TAXONOMY.label used by
+     renderPlanCard to render category chips from p.categories. -->
+<script src="mcc-taxonomy.js"></script>
 <script src="mcc-config.js"></script>
 <script>
 // ===== STATE =====
@@ -471,7 +480,13 @@ let plans = [];
 let currentPage = 1;
 let totalPlans = 0;
 let currentTab = 'all';
-let currentServiceType = 'all';
+// Spec 2.6.3: default to 'mine' so a provider with declared match
+// categories lands on their specialties. If the server reports
+// has_match_categories=false on the first response (admin, or a provider
+// who hasn't set prefs yet), the loadPlans handler below auto-snaps to
+// 'all' and reloads once.
+let currentServiceType = 'mine';
+let _matchPrefsResolved = false;
 let selectedPlanId = null;
 let planPhotos = {};
 let countdownInterval = null;
@@ -656,7 +671,9 @@ async function loadPlans(reset = false) {
     max_distance: document.getElementById('distance-select').value,
     min_value: document.getElementById('value-select').value
   });
-  if (currentServiceType !== 'all') params.set('service_type', currentServiceType);
+  // 2.6.3: 'mine' and every explicit category slug are sent; only 'all'
+  // is treated as "don't filter" and omitted (server default).
+  if (currentServiceType && currentServiceType !== 'all') params.set('service_type', currentServiceType);
   const search = document.getElementById('search-input').value.trim();
   if (search) params.set('q', search);
 
@@ -670,6 +687,26 @@ async function loadPlans(reset = false) {
     totalPlans = data.total || 0;
     window.providerVerified = data.provider_verified !== false;
     window.providerAutoBidEnabled = data.auto_bid_enabled === true;
+
+    // 2.6.3: if the provider has no match categories, 'mine' filters
+    // everything out. Auto-snap to 'all' on the first response and
+    // reload once so the initial screen isn't empty. Only fires once
+    // per session — subsequent explicit 'mine' clicks stay respected.
+    if (!_matchPrefsResolved) {
+      _matchPrefsResolved = true;
+      if (currentServiceType === 'mine' && data.has_match_categories === false) {
+        currentServiceType = 'all';
+        document.querySelectorAll('.filter-chip').forEach(c => c.classList.remove('active'));
+        var allChip = document.querySelector('.filter-chip[data-type="all"]');
+        if (allChip) allChip.classList.add('active');
+        // Kick off a fresh fetch with the corrected filter. Return early
+        // so the (empty) response we already have doesn't render first.
+        isLoading = false;
+        if (spinner) spinner.style.display = 'none';
+        loadPlans(true);
+        return;
+      }
+    }
     // Show/hide verification banner
     const banner = document.getElementById('unverified-banner');
     if (banner) banner.style.display = window.providerVerified ? 'none' : 'block';
@@ -788,7 +825,14 @@ function renderPlanCard(p) {
   const countdown = formatCountdown(p.bid_closes_at);
   const isNew = Date.now() - new Date(p.created_at).getTime() < 2 * 60 * 60 * 1000;
   const vehicle = p.vehicles ? `${p.vehicles.year || ''} ${p.vehicles.make || ''} ${p.vehicles.model || ''}`.trim() : '';
-  const svcChips = (p.service_types || []).slice(0, 3).map(s => `<span class="svc-chip">${escH(capitalize(s))}</span>`).join('');
+  // 2.6.3: render category chips from p.categories (2.6.1 populates this on
+  // every plan). Falls back to legacy service_types when a plan predates the
+  // migration and still has an empty categories array. window.MCC_TAXONOMY
+  // is loaded before this script tag (see the mcc-taxonomy.js include above).
+  const _tax = window.MCC_TAXONOMY;
+  const _catLabel = (_tax && _tax.label) ? _tax.label : (s => capitalize(s));
+  const _catSource = (p.categories && p.categories.length ? p.categories : (p.service_types || []));
+  const svcChips = _catSource.slice(0, 3).map(s => `<span class="svc-chip">${escH(_catLabel(s))}</span>`).join('');
   const loc = [p.city, p.state].filter(Boolean).join(', ') || p.member?.city || '';
   const _distMi = planDistanceMiles(p); const dist = fmtDistance(_distMi);
   // Show cached primary photo or gold/navy placeholder
