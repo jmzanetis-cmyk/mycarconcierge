@@ -7,6 +7,27 @@ let anthropicClient = null;
 let resendClient = null;
 let aiCircuitBreaker = { failures: 0, pausedUntil: null };
 
+// Phase 2.5 §3.1(e): meter every LLM call into ai_action_log so AI Ops has
+// real numbers on the two currently-unmetered high-volume consumers
+// (helpdesk widget + this engine). Best-effort — a lost row here never
+// blocks an outreach send. Uses the hoisted createSupabaseClient() below.
+async function logAiCall(module, decision, outcome, errorDetails, executionMs) {
+  try {
+    const sb = createSupabaseClient();
+    if (!sb) return;
+    await sb.from('ai_action_log').insert({
+      module: module,
+      action_type: 'llm_call',
+      decision: decision,
+      outcome: outcome || 'ok',
+      error_details: errorDetails ? String(errorDetails).slice(0, 500) : null,
+      execution_time_ms: (typeof executionMs === 'number') ? executionMs : null
+    });
+  } catch (e) {
+    console.warn('[outreach-engine] ai_action_log insert failed (non-fatal):', e.message);
+  }
+}
+
 function getAnthropic() {
   const apiKey = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
   if (!anthropicClient && apiKey) {
@@ -29,16 +50,33 @@ async function callAI(prompt, maxTokens = 4000) {
 
   const anthropic = getAnthropic();
   if (anthropic) {
+    const anthropicStart = Date.now();
+    const anthropicModel = 'claude-sonnet-4-6';
     try {
       const response = await anthropic.messages.create({
-        model: 'claude-sonnet-4-6',
+        model: anthropicModel,
         max_tokens: maxTokens,
         messages: [{ role: 'user', content: prompt }]
       });
       aiCircuitBreaker.failures = 0;
+      const usage = (response && response.usage) || {};
+      await logAiCall('outreach_engine', {
+        model: anthropicModel,
+        input_tokens: usage.input_tokens || 0,
+        output_tokens: usage.output_tokens || 0,
+        provider: 'anthropic',
+        max_tokens: maxTokens
+      }, 'ok', null, Date.now() - anthropicStart);
       return { text: response.content[0]?.type === 'text' ? response.content[0].text : '', provider: 'anthropic' };
     } catch (err) {
       const isCreditsOrRate = err.message?.includes('credit balance') || err.message?.includes('rate_limit') || err.status === 429 || err.status === 400 || err.status === 401;
+      await logAiCall('outreach_engine', {
+        model: anthropicModel,
+        input_tokens: 0,
+        output_tokens: 0,
+        provider: 'anthropic',
+        max_tokens: maxTokens
+      }, 'failed', err && err.message, Date.now() - anthropicStart);
       if (isCreditsOrRate) {
         console.log('[OutreachEngine] Anthropic unavailable, trying Gemini fallback...');
       } else {
@@ -49,15 +87,25 @@ async function callAI(prompt, maxTokens = 4000) {
 
   const geminiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
   if (geminiKey) {
+    const geminiStart = Date.now();
+    const geminiModel = 'gemini-2.5-flash';
     try {
       const { GoogleGenAI } = require('@google/genai');
       const ai = new GoogleGenAI({ apiKey: geminiKey });
       const response = await ai.models.generateContent({
-        model: 'gemini-2.5-flash',
+        model: geminiModel,
         contents: prompt,
         config: { temperature: 0.4 }
       });
       aiCircuitBreaker.failures = 0;
+      const gUsage = (response && response.usageMetadata) || {};
+      await logAiCall('outreach_engine', {
+        model: geminiModel,
+        input_tokens: gUsage.promptTokenCount || 0,
+        output_tokens: gUsage.candidatesTokenCount || 0,
+        provider: 'gemini',
+        max_tokens: maxTokens
+      }, 'ok', null, Date.now() - geminiStart);
       return { text: response.text || '', provider: 'gemini' };
     } catch (err) {
       aiCircuitBreaker.failures++;
@@ -65,6 +113,13 @@ async function callAI(prompt, maxTokens = 4000) {
         aiCircuitBreaker.pausedUntil = Date.now() + 5 * 60 * 1000;
         console.error('[OutreachEngine] Circuit breaker tripped — pausing AI calls for 5 minutes');
       }
+      await logAiCall('outreach_engine', {
+        model: geminiModel,
+        input_tokens: 0,
+        output_tokens: 0,
+        provider: 'gemini',
+        max_tokens: maxTokens
+      }, 'failed', err && err.message, Date.now() - geminiStart);
       throw err;
     }
   }
@@ -2197,11 +2252,22 @@ Then a blank line, then the email body starting with "Hi ${firstName},"`;
     const anthropic = getAnthropic();
     if (!anthropic) return { error: 'AI not configured' };
 
+    // §3.1(e) metering — Wefunder blast direct Anthropic call.
+    const wfStart = Date.now();
+    const wfModel = 'claude-haiku-4-5-20251001';
     const resp = await anthropic.messages.create({
-      model: 'claude-haiku-4-5-20251001',
+      model: wfModel,
       max_tokens: 700,
       messages: [{ role: 'user', content: prompt }]
     });
+    const wfUsage = (resp && resp.usage) || {};
+    await logAiCall('outreach_engine', {
+      model: wfModel,
+      input_tokens: wfUsage.input_tokens || 0,
+      output_tokens: wfUsage.output_tokens || 0,
+      provider: 'anthropic',
+      caller: 'wefunder_blast'
+    }, 'ok', null, Date.now() - wfStart);
     const text = resp.content[0]?.text || '';
 
     const lines = text.trim().split('\n');
