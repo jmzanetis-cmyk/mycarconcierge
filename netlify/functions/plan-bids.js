@@ -153,9 +153,12 @@ async function handleCreate(supabase, user, body) {
 
   // Care plan must exist, be open, and within its bidding window.
   // 1d-1: SELECT widened to include service_types for the service-fit check below.
+  // 2026-09-15: added member_id so we can reject self-bids explicitly (the
+  // feed endpoints already hide own plans, but a hand-crafted POST would slip
+  // past client-only guards; enforce server-side).
   const planResult = await supabase
     .from('care_plans')
-    .select('id, status, bid_closes_at, service_types')
+    .select('id, status, bid_closes_at, service_types, member_id')
     .eq('id', careplanId)
     .single();
 
@@ -163,6 +166,12 @@ async function handleCreate(supabase, user, body) {
     return jsonResp(404, { error: 'care_plan_not_found' });
   }
   const plan = planResult.data;
+  // Self-bid guard. Dual-role accounts (role=provider + is_also_member) can
+  // otherwise bid on their own requests; the feed filters (job-board.js /
+  // provider-packages.js) suppress the UI path, this rejects the raw POST.
+  if (plan.member_id === user.id) {
+    return jsonResp(403, { error: 'self_bid' });
+  }
   if (plan.status !== 'open') {
     return jsonResp(400, { error: 'care_plan_not_open' });
   }

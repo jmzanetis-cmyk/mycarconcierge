@@ -1793,6 +1793,17 @@ async function loadPackages() {
 }
 
 async function loadConversations() {
+  // Loading state: replace whatever's in the container (initial HTML default,
+  // stale empty-state, or a prior render) with a spinner so cold opens don't
+  // flash "No conversations yet" while the query is in flight. Skip if we
+  // already have real conversation cards — refresh-in-place, no flicker.
+  const _convoContainer = document.getElementById('conversations-list');
+  if (_convoContainer && !_convoContainer.querySelector('.conversation-card')) {
+    _convoContainer.innerHTML =
+      '<div class="empty-state" style="padding:24px;">' +
+      '<div class="empty-state-icon">' + mccIcon('message-square', 40) + '</div>' +
+      '<p style="color:var(--text-muted);">Loading conversations…</p></div>';
+  }
   try {
     // Get all messages where user is sender or recipient.
     // Note: the messages↔maintenance_packages FK is not exposed via PostgREST's
@@ -1807,6 +1818,26 @@ async function loadConversations() {
 
     if (error) {
       console.error('Error loading conversations:', error);
+      // Split behavior by container state:
+      //   - Cards already rendered (refresh-in-place after a successful load):
+      //     keep them on screen and surface the failure via a toast. Clobbering
+      //     a good list with an error state on a transient refresh hiccup is
+      //     worse UX than a soft toast.
+      //   - Empty / loading-skeleton container (cold open failed): render an
+      //     actionable "Try again" state so the user isn't stuck on the
+      //     spinner.
+      if (_convoContainer && _convoContainer.querySelector('.conversation-card')) {
+        if (typeof showToast === 'function') {
+          showToast('Could not refresh conversations.', 'error');
+        }
+      } else if (_convoContainer) {
+        _convoContainer.innerHTML =
+          '<div class="empty-state" style="padding:24px;">' +
+          '<div class="empty-state-icon">' + mccIcon('alert-triangle', 40) + '</div>' +
+          '<p style="color:var(--text-muted);">Could not load conversations. ' +
+          '<a href="#" onclick="event.preventDefault();loadConversations();" ' +
+          'style="color:var(--accent-gold);text-decoration:underline;">Try again</a></p></div>';
+      }
       return;
     }
 
@@ -1842,7 +1873,13 @@ async function loadConversations() {
           otherPartyId,
           lastMessage: msg.content,
           lastMessageTime: msg.created_at,
-          unread: msg.recipient_id === currentUser.id && !msg.read_at,
+          // Schema note: `messages.read` is a boolean, nullable, default false
+          // (verified via information_schema 2026-09-15). Prior code read a
+          // nonexistent `read_at` column → everything counted as unread and
+          // the header badge over-counted. Use !msg.read so null/undefined
+          // also count as unread — safer than msg.read === false, which
+          // would (incorrectly) treat null as "read".
+          unread: msg.recipient_id === currentUser.id && !msg.read,
           providerAlias: msg.provider_alias || null,
         });
       } else if (!conversationMap.get(key).providerAlias && msg.provider_alias) {
@@ -1850,22 +1887,37 @@ async function loadConversations() {
       }
     }
 
-    const conversations = Array.from(conversationMap.values());
+    let conversations = Array.from(conversationMap.values());
     conversations.forEach(c => {
       c.providerName = c.providerAlias || `Provider #${c.otherPartyId.slice(0,4).toUpperCase()}`;
     });
+
+    // Hide conversations with blocked users (Apple Guideline 1.2 block).
+    // Use refresh() so cross-session mutations (unblock in another tab, admin
+    // clearing a stale row, DB-level delete) are picked up without an app
+    // reload — the prior `_blocked` set was a page-load snapshot.
+    if (window.mccModeration) {
+      try {
+        await (window.mccModeration.refresh || window.mccModeration.loadBlockedIds)();
+        conversations = conversations.filter(c => !window.mccModeration.isBlocked(c.otherPartyId));
+      } catch (e) { /* non-fatal: show all if block list unavailable */ }
+    }
 
     renderConversations(conversations);
     
     // Update unread badge
     const unreadCount = conversations.filter(c => c.unread).length;
-    const badge = document.getElementById('message-count');
-    if (unreadCount > 0) {
-      badge.textContent = unreadCount;
-      badge.style.display = 'inline';
-    } else {
-      badge.style.display = 'none';
-    }
+    // Update both the sidebar badge and the native header Messages badge.
+    ['message-count', 'header-message-count'].forEach((bid) => {
+      const badge = document.getElementById(bid);
+      if (!badge) return;
+      if (unreadCount > 0) {
+        badge.textContent = unreadCount;
+        badge.style.display = 'inline';
+      } else {
+        badge.style.display = 'none';
+      }
+    });
   } catch (err) {
     console.error('loadConversations error:', err);
   }
@@ -3437,7 +3489,16 @@ function formatPickup(pref) {
   return map[pref] || pref;
 }
 
+// 2s de-dupe: drop a toast whose (msg, type) matches the previous one within
+// 2000ms. Keeps rapid double-taps on moderation buttons from stacking two
+// identical toasts. Module-scoped so it works across all callers.
+if (typeof window._mccMemberLastToast === 'undefined') window._mccMemberLastToast = { key: null, at: 0 };
 function showToast(message, type = 'success') {
+  const key = type + '|' + String(message);
+  const now = Date.now();
+  if (key === window._mccMemberLastToast.key && (now - window._mccMemberLastToast.at) < 2000) return;
+  window._mccMemberLastToast.key = key;
+  window._mccMemberLastToast.at = now;
   const container = document.getElementById('toast-container');
   const toast = document.createElement('div');
   toast.className = `toast ${type}`;

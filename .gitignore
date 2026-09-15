@@ -6,6 +6,10 @@ node_modules
 .env.production
 .env.*.local
 
+# FUSE filesystem artifacts (macOS/Linux; not real project files)
+.fuse_hidden*
+**/.fuse_hidden*
+
 # Local Netlify folder
 .netlify
 
@@ -48,3 +52,21 @@ android/app/src/main/assets/public/*.bak
 android/app/src/main/assets/public/*.sql
 android/app/src/main/assets/public/*.pptx
 .github/workflows/
+
+# macOS Finder metadata — top-level + any nested
+.DS_Store
+**/.DS_Store
+
+# Claude Code per-machine settings — top-level + any nested
+# (already covered by Jordan's global ~/.config/git/ignore; adding here so
+# collaborators without that global config get the same behavior)
+.claude/
+**/.claude/
+
+# Supabase CLI local state (link cache, temp SQL) — not for repo
+supabase/.temp/
+
+# Xcode per-user workspace prefs — empty plist by default; sibling
+# IDEWorkspaceChecks.plist stays tracked because it captures workspace
+# version checks Xcode uses on open.
+ios/App/App.xcworkspace/xcshareddata/WorkspaceSettings.xcsettings

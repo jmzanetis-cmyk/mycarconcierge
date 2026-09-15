@@ -199,8 +199,8 @@ function renderOpenPackages(filtered = null) {
       filterInfo.textContent = `${packagesToRender.length} open packages`;
     }
   }
-  
-  container.innerHTML = packagesToRender.map((p) => { return renderPackageCard(p, true); }).join('');
+
+  container.innerHTML = packagesToRender.map((p) => { try { return renderPackageCard(p, true); } catch (e) { console.error("[browse] renderPackageCard failed for plan", p && p.id, e); return ""; } }).join('');
 }
 
 function renderRecentPackages() {
@@ -216,6 +216,12 @@ function renderRecentPackages() {
 }
 
 function renderPackageCard(p, showBidButton = false) {
+  // Belt-and-braces self-bid filter. Server (provider-packages.js) already
+  // hides own plans at query time; this catches any leak via legacy field
+  // shapes and skips the card entirely instead of rendering + relying on the
+  // bid POST to 403. Returning empty string is fine — the .map() -> .join('')
+  // in renderOpenPackages drops it cleanly.
+  if (p.member_id && currentUser && p.member_id === currentUser.id) return '';
   const vehicle = p.vehicles;
   const vehicleName = vehicle ? (vehicle.nickname || `${vehicle.year || ''} ${vehicle.make} ${vehicle.model}`.trim()) : 'Vehicle';
   const alreadyBid = myBids.some(b => b.package_id === p.id) || p._myBid;
@@ -236,9 +242,10 @@ function renderPackageCard(p, showBidButton = false) {
   const locationDisplay = p.member_city && p.member_state 
     ? `${p.member_city}, ${p.member_state}` 
     : (p.member_zip || 'Location N/A');
-  const distanceDisplay = p._estimatedDistance !== undefined 
-    ? `~${Math.round(p._estimatedDistance)} mi` 
-    : '';
+  const _distMi = (typeof p._estimatedDistance === 'number')
+    ? p._estimatedDistance
+    : ((providerProfile && providerProfile.zip_code && p.member_zip) ? estimateZipDistance(providerProfile.zip_code, p.member_zip) : null);
+  const distanceDisplay = (_distMi == null || _distMi >= 900) ? '' : (_distMi < 1 ? 'nearby' : `~${Math.round(_distMi)} mi away`);
   
   const countdown = p.bidding_deadline ? formatCountdown(p.bidding_deadline) : null;
   const biddingExpired = countdown?.expired || false;
@@ -283,7 +290,7 @@ function renderPackageCard(p, showBidButton = false) {
         </div>
       </div>
       <div class="package-meta">
-        <span>${mccIcon('map-pin', 16)} ${locationDisplay} ${distanceDisplay ? `(${distanceDisplay})` : ''}</span>
+        <span>${mccIcon('map-pin', 16)} ${locationDisplay}${distanceDisplay ? ` · ${distanceDisplay}` : ''}</span>
         <span>${mccIcon('refresh-cw', 16)} ${formatFrequency(p.frequency)}</span>
         <span>${mccIcon('wrench', 16)} ${p.parts_preference || 'Standard'}</span>
       </div>
@@ -615,6 +622,7 @@ const BID_SENTINEL_MESSAGES = {
   duplicate_bid:          "You've already bid on this job.",
   no_credits:             "You're out of bid credits — purchase more to bid.",
   invalid_amount:         'Enter a valid bid amount.',
+  self_bid:               "You can't bid on your own service request.",
 };
 
 async function submitBid() {

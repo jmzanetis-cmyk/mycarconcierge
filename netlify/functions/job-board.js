@@ -120,6 +120,11 @@ exports.handler = async function (event) {
       vehicles:vehicle_id(id, year, make, model, nickname)
     `)
     .eq('status', 'open')
+    // A caller must not see or bid on their own care plan (dual-role accounts
+    // — role=provider + is_also_member — can otherwise self-inflate bid counts
+    // and, importantly, this is exactly the App Review demo-account path).
+    // Filtered at the query so tab_counts stay accurate too.
+    .neq('member_id', user.id)
     .or(`bid_closes_at.is.null,bid_closes_at.gt.${nowIso}`)
     .order('created_at', { ascending: false });
 

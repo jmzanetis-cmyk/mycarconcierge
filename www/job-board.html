@@ -15,7 +15,8 @@
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap"></noscript>
   <link rel="stylesheet" href="shared-styles.css?v=20260213">
   <style>
     :root {
@@ -59,7 +60,7 @@
     body { font-family: 'Inter', sans-serif; background: var(--bg-deep); color: var(--text-primary); min-height: 100vh; }
 
     /* ===== TOP NAV ===== */
-    .topnav { display: flex; align-items: center; justify-content: space-between; padding: 14px 24px; background: rgba(18, 22, 28, 0.98); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(16px); }
+    .topnav { display: flex; align-items: center; justify-content: space-between; padding: calc(env(safe-area-inset-top) + 14px) 24px 14px; background: rgba(18, 22, 28, 0.98); border-bottom: 1px solid var(--border-subtle); position: sticky; top: 0; z-index: 100; backdrop-filter: blur(16px); }
     .topnav-left { display: flex; align-items: center; gap: 16px; }
     .topnav-logo { height: 44px; width: auto; }
     .topnav-title { font-family: 'Fraunces', serif; font-size: var(--text-lg); font-weight: 500; color: var(--accent-gold); }
@@ -247,6 +248,16 @@
       .left-panel { border-right: none; }
       /* Drawer covers full screen on mobile */
       .right-panel { width: 100vw; }
+      /* Compact single-line header on phones: back chevron on the LEFT (iOS
+         convention) next to the brand, theme toggle on the right. The wrapper
+         divs are flattened so the buttons can be reordered across them. */
+      .topnav { justify-content: flex-start; gap: 10px; }
+      .topnav-left, .topnav-right { display: contents; }
+      .back-btn { order: 1; padding: 8px 11px; }
+      .mcc-logo { order: 2; }
+      .theme-btn { order: 3; margin-left: auto; }
+      .topnav-title { display: none; }
+      .back-btn-label { display: none; }
     }
   </style>
 <!-- SEO-INJECT:START -->
@@ -289,7 +300,7 @@
   <div class="topnav-right">
     <a href="/providers.html" class="back-btn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 18 9 12 15 6"/></svg>
-      Provider Portal
+      <span class="back-btn-label">Provider Portal</span>
     </a>
     <button class="theme-btn" onclick="toggleTheme()">
       <span id="theme-icon">🌙</span>
@@ -449,8 +460,9 @@
   <img id="lightbox-img" src="" alt="">
 </div>
 
-<script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+<script src="vendor/supabase.js"></script>
 <script src="supabaseclient.js"></script>
+<script src="mcc-config.js"></script>
 <script>
 // ===== STATE =====
 let currentUser = null;
@@ -483,7 +495,8 @@ async function checkAuth() {
     currentUser = session.user;
 
     // Role gate: job board is provider-only
-    const { data: prof } = await supabaseClient.from('profiles').select('role').eq('id', currentUser.id).single();
+    const { data: prof } = await supabaseClient.from('profiles').select('role, zip_code').eq('id', currentUser.id).single();
+    providerProfile = prof || null;
     if (prof && prof.role !== 'provider' && prof.role !== 'admin') {
       window.location.href = '/members.html';
       return;
@@ -665,6 +678,14 @@ async function loadPlans(reset = false) {
     renderPlanList(reset, newItems.length);
     updateBadges();
   } catch (err) {
+    // TEMP DIAGNOSTIC (2026-09-14): capture the exact throw site for the
+    // "The string did not match the expected pattern." WebKit DOMException
+    // observed on the native iOS build. Remove once the root cause is
+    // identified. Includes `name` because that determines what kind of
+    // exception it is (DOMException vs SyntaxError vs TypeError…).
+    console.error('[job-board] loadPlans failed:',
+      err && err.name, '-', err && err.message,
+      '\nstack:', err && err.stack, err);
     if (reset) document.getElementById('job-list').innerHTML = `<div class="loading-state" style="color:var(--accent-red)">Failed to load plans. ${err.message}</div>`;
   } finally {
     isLoading = false;
@@ -716,10 +737,10 @@ function renderPlanList(reset = true, newCount = PAGE_SIZE) {
     return;
   }
   if (reset) {
-    list.innerHTML = plans.map(p => renderPlanCard(p)).join('');
+    list.innerHTML = plans.map(p => { try { return renderPlanCard(p); } catch (e) { console.error("[job-board] renderPlanCard failed for plan", p && p.id, e); return ""; } }).join('');
   } else {
     // Append only the exact newly fetched cards — slice by actual count to avoid duplicates on short pages
-    const newCards = plans.slice(-newCount).map(p => renderPlanCard(p)).join('');
+    const newCards = plans.slice(-newCount).map(p => { try { return renderPlanCard(p); } catch (e) { console.error("[job-board] renderPlanCard failed for plan", p && p.id, e); return ""; } }).join('');
     list.insertAdjacentHTML('beforeend', newCards);
   }
   startCountdowns();
@@ -736,14 +757,40 @@ function activityBadge(bidCount) {
   return '<span class="activity-badge competitive-plan">Competitive</span>';
 }
 
+// Distance estimate (provider ZIP → job ZIP). Mirrors the Browse Packages
+// heuristic; used until server-side lat/lng distance lands.
+function estimateZipDistance(zip1, zip2) {
+  if (!zip1 || !zip2) return 999;
+  zip1 = String(zip1); zip2 = String(zip2);
+  if (zip1 === zip2) return 0;
+  if (zip1.substring(0, 3) === zip2.substring(0, 3)) return Math.abs(Number.parseInt(zip1) - Number.parseInt(zip2)) * 0.5;
+  const diff = Math.abs(Number.parseInt(zip1.substring(0, 3)) - Number.parseInt(zip2.substring(0, 3)));
+  if (diff <= 2) return 15 + (diff * 10);
+  if (diff <= 5) return 30 + (diff * 8);
+  if (diff <= 10) return 50 + (diff * 5);
+  return 100 + (diff * 3);
+}
+function fmtDistance(mi) { if (mi == null) return ''; if (mi < 1) return 'nearby'; return `~${Math.round(mi)} mi away`; }
+function planDistanceMiles(p) {
+  if (typeof p.estimated_distance_miles === 'number' && p.estimated_distance_miles < 900) return p.estimated_distance_miles;
+  const pz = providerProfile && providerProfile.zip_code;
+  const mz = p.zip_code || p.member_zip;
+  if (pz && mz) { const d = estimateZipDistance(pz, mz); return d < 900 ? d : null; }
+  return null;
+}
+
 function renderPlanCard(p) {
+  // Belt-and-braces self-bid filter. Server (job-board.js) already hides own
+  // plans at query time; this catches any leak and drops the card cleanly
+  // via empty-string return (the map->join in renderPlanList absorbs it).
+  if (p.member_id && currentUser && p.member_id === currentUser.id) return '';
   const val = formatValue(p.value_min, p.value_max);
   const countdown = formatCountdown(p.bid_closes_at);
   const isNew = Date.now() - new Date(p.created_at).getTime() < 2 * 60 * 60 * 1000;
   const vehicle = p.vehicles ? `${p.vehicles.year || ''} ${p.vehicles.make || ''} ${p.vehicles.model || ''}`.trim() : '';
   const svcChips = (p.service_types || []).slice(0, 3).map(s => `<span class="svc-chip">${escH(capitalize(s))}</span>`).join('');
   const loc = [p.city, p.state].filter(Boolean).join(', ') || p.member?.city || '';
-  const dist = p.estimated_distance_miles < 900 ? `~${Math.round(p.estimated_distance_miles)} mi` : '';
+  const _distMi = planDistanceMiles(p); const dist = fmtDistance(_distMi);
   // Show cached primary photo or gold/navy placeholder
   const cachedPhotos = p.vehicles?.id ? (planPhotos[p.vehicles.id] || []) : [];
   const primaryPhoto = cachedPhotos.find(ph => ph.is_primary) || cachedPhotos[0];
@@ -849,7 +896,7 @@ function renderDetailPanel(plan) {
   const vehicle = plan.vehicles;
   const val = formatValue(plan.value_min, plan.value_max);
   const countdown = formatCountdown(plan.bid_closes_at);
-  const dist = plan.estimated_distance_miles < 900 ? `~${Math.round(plan.estimated_distance_miles)} mi away` : '';
+  const _distMi = planDistanceMiles(plan); const dist = fmtDistance(_distMi);
   const services = (Array.isArray(plan.services) ? plan.services : []).map(s => {
     if (typeof s === 'string') {
       return `<div class="service-item"><span class="service-item-icon">🔧</span><div><div class="service-item-name">${escH(s)}</div></div></div>`;

@@ -113,14 +113,25 @@
       if (typeof BiometricAuth === 'undefined') {
         return false;
       }
-      
+
       if (BiometricAuth.isBiometricEnabled()) {
         return false;
       }
-      
-      const availability = await BiometricAuth.isAvailable();
-      
-      if (!availability.available) {
+
+      // isAvailable() already catches internally, but belt-and-suspenders: if
+      // the probe ever throws — hung native call, plugin bridge gone weird —
+      // return false so the caller's `if (!offered) handleUserRedirect(user)`
+      // fallback runs. The point of this whole flow is that a broken
+      // biometric plugin must never gate the user off the login screen.
+      let availability;
+      try {
+        availability = await BiometricAuth.isAvailable();
+      } catch (error) {
+        console.warn('Biometric availability probe failed — skipping enrollment offer:', error);
+        return false;
+      }
+
+      if (!availability || !availability.available) {
         return false;
       }
       
@@ -448,15 +459,32 @@
 
       setLoading(true);
 
-      const { data, error } = await supabaseClient.auth.signInWithPassword({
-        email,
-        password
-      });
-
+      // 10s timeout guard. On flaky/no-network paths the auth call would sit
+      // pending indefinitely with the button stuck on "Signing in…" — race it
+      // against a rejection so we always re-enable the button and give the
+      // user an actionable message. Rejection uses a sentinel name so the
+      // catch below can distinguish it from a real AuthApiError.
+      let data, error;
+      try {
+        const result = await Promise.race([
+          supabaseClient.auth.signInWithPassword({ email, password }),
+          new Promise((_, reject) => setTimeout(
+            () => { const e = new Error('sign_in_timeout'); e.name = 'MCCSignInTimeout'; reject(e); },
+            10000
+          ))
+        ]);
+        ({ data, error } = result);
+      } catch (raced) {
+        setLoading(false);
+        if (raced && raced.name === 'MCCSignInTimeout') {
+          return showMessage('Taking longer than usual — check your connection and try again.');
+        }
+        return showMessage('Unable to sign in. Please try again.');
+      }
 
       if (error) {
         setLoading(false);
-        const friendlyMsg = (error.message || '').toLowerCase().includes('invalid') 
+        const friendlyMsg = (error.message || '').toLowerCase().includes('invalid')
           ? 'Incorrect email or password. Please try again.'
           : 'Unable to sign in. Please try again.';
         return showMessage(friendlyMsg);

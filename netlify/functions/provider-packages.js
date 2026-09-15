@@ -155,6 +155,11 @@ exports.handler = async function (event) {
       vehicles:vehicle_id(id, year, make, model, nickname)
     `)
     .eq('status', 'open')
+    // A caller must not see or bid on their own care plan. Same reasoning as
+    // job-board.js: dual-role accounts (role=provider + is_also_member) can
+    // otherwise self-inflate bid counts, and this is exactly the App Review
+    // demo path where the reviewer signs in with both flags true.
+    .neq('member_id', user.id)
     .or(`bid_closes_at.is.null,bid_closes_at.gt.${nowIso}`)
     .order('created_at', { ascending: false });
 

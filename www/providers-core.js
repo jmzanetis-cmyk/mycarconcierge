@@ -12,7 +12,7 @@ async function loadModule(name) {
   if (loadedModules[name]) return Promise.resolve();
   return new Promise((resolve, reject) => {
     const script = document.createElement('script');
-    script.src = `/providers-${name}.js`;
+    script.src = `/providers-${name}.js?v=20260914d`;
     script.async = true;
     script.onload = () => {
       loadedModules[name] = true;
@@ -357,6 +357,29 @@ async function showSection(id) {
   if (id === 'bids' && typeof loadBidInsights === 'function') {
     loadBidInsights();
   }
+  // Browse Packages must (re)load when its section becomes visible. The open-
+  // packages feed is fetched once at app init while this section is still
+  // display:none; on WebKit (native WKWebView) cards whose innerHTML was set
+  // inside a hidden container are not reflowed when the section is later shown,
+  // so they render at zero height. Loading on show — like every other section
+  // above — renders the cards while the section is visible. (2026-09-14)
+  if (id === 'browse' && typeof loadOpenPackages === 'function') {
+    // Load-on-show (cards render while the section is visible so WebKit lays
+    // them out with real height). Then nudge a body-overflow toggle: on native
+    // WKWebView the grown document's scroll contentSize isn't recomputed until
+    // a relayout is forced, so the page can't scroll until the user opens the
+    // menu (which toggles body overflow). Reproduce that toggle programmatically
+    // so Browse Packages scrolls immediately on landing. (2026-09-14)
+    Promise.resolve(loadOpenPackages()).then(() => {
+      requestAnimationFrame(() => {
+        const b = document.body;
+        const prev = b.style.overflow;
+        b.style.overflow = 'hidden';
+        void b.offsetHeight; // force reflow
+        b.style.overflow = prev;
+      });
+    });
+  }
   if ((id === 'settings' || id === 'notifications') && typeof loadProviderNotificationSettings === 'function') {
     loadProviderNotificationSettings();
     if (typeof loadProviderPushPreferences === 'function') {
@@ -381,7 +404,16 @@ async function showSection(id) {
 }
 
 // ========== CORE UTILITY FUNCTIONS ==========
+// 2s de-dupe: drop a toast whose (msg, type) matches the previous one within
+// 2000ms. Keeps rapid double-taps on moderation buttons from stacking two
+// identical toasts. Module-scoped via window so it works across all callers.
+if (typeof window._mccProviderLastToast === 'undefined') window._mccProviderLastToast = { key: null, at: 0 };
 function showToast(message, type = 'success') {
+  const key = type + '|' + String(message);
+  const now = Date.now();
+  if (key === window._mccProviderLastToast.key && (now - window._mccProviderLastToast.at) < 2000) return;
+  window._mccProviderLastToast.key = key;
+  window._mccProviderLastToast.at = now;
   const toast = document.createElement('div');
   toast.className = `toast toast-${type}`;
   toast.textContent = message;
@@ -819,7 +851,10 @@ function renderReviews() {
         <span style="color:var(--accent-gold);">${mccIcon('star', 16).repeat(r.rating)}${mccIcon('star', 16).repeat(5-r.rating)}</span>
       </div>
       ${r.comment ? `<p style="color:var(--text-secondary);margin-bottom:8px;">"${r.comment}"</p>` : ''}
-      <div style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</div>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;">
+        <span style="font-size:0.85rem;color:var(--text-muted);">${r.maintenance_packages?.title || 'Service'} • ${new Date(r.created_at).toLocaleDateString()}</span>
+        <button onclick="window.mccModeration && window.mccModeration.openReport({contentType:'review',contentId:'${r.id}',reportedUserId:'${r.member_id || ''}',subjectLabel:'this review'})" style="background:none;border:none;color:var(--text-muted);font-size:0.8rem;cursor:pointer;text-decoration:underline;padding:0;">Report</button>
+      </div>
     </div>
   `).join('');
 }
