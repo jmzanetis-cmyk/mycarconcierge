@@ -1038,7 +1038,11 @@
     <div class="nav-item" data-section="compliance"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span> Compliance <span class="nav-badge" id="bgc-badge-pill" style="display:none;background:var(--accent-teal);color:#0c1a1f;font-size:var(--text-xs);">VERIFIED</span></div>
     <div class="nav-item team-management-nav" data-section="team-section" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg></span> Team</div>
     <div class="nav-item" data-section="background-checks"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 13c0 5-3.5 7.5-7.66 8.95a1 1 0 0 1-.67-.01C7.5 20.5 4 18 4 13V6a1 1 0 0 1 1-1c2 0 4.5-1.2 6.24-2.72a1.17 1.17 0 0 1 1.52 0C14.51 3.81 17 5 19 5a1 1 0 0 1 1 1z"/></svg></span> Background Checks</div>
-    <div class="nav-item" data-section="auto-bid"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Auto-Bid</div>
+    <!-- Auto-Bid nav item — hidden 2026-09-15 until the instant-notify-with-
+         prefilled-bid redesign lands. Reveal by setting window.MCC_CONFIG.
+         autoBidEnabled = true (default false) in mcc-config.js or via inline
+         script. Structure preserved so the redesign can slot back in place. -->
+    <div class="nav-item" data-section="auto-bid" data-feature="autoBidEnabled" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span> Auto-Bid</div>
     <div class="nav-item pos-feature" data-section="pos-integration" style="display:none;"><span class="nav-icon"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"/><circle cx="12" cy="12" r="3"/></svg></span> POS Integration</div>
     
     <div class="nav-label">Earn More</div>
@@ -4175,8 +4179,25 @@
       </div>
     </section>
 
-    <!-- Auto-Bid Section -->
-    <section id="auto-bid" class="section">
+    <!-- Auto-Bid Section — hidden 2026-09-15 pending redesign. The section
+         is left in the DOM (not deleted) so the future instant-notify flow
+         can restore the surface without a schema/markup redo; a small inline
+         script at the top of the section flips display:none when
+         window.MCC_CONFIG?.autoBidEnabled is true. -->
+    <section id="auto-bid" class="section" data-feature="autoBidEnabled" style="display:none;">
+      <script>
+        // Reveal the panel only when the config flag is explicitly enabled.
+        // Runs synchronously as the section is parsed, before showSection()
+        // ever tries to navigate here (nav item above is hidden the same way).
+        (function(){
+          if (window.MCC_CONFIG && window.MCC_CONFIG.autoBidEnabled === true) {
+            var _navItem = document.querySelector('.nav-item[data-section="auto-bid"]');
+            var _section = document.getElementById('auto-bid');
+            if (_navItem) _navItem.style.display = '';
+            if (_section) _section.style.display = '';
+          }
+        })();
+      </script>
       <div class="page-header">
         <h1 class="page-title">Auto-Bid Settings</h1>
         <p class="page-subtitle">Let the platform automatically place competitive bids on matching care plans while you focus on your work.</p>
