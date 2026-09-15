@@ -47,8 +47,11 @@ Rules:
 - description should help providers understand the scope and any symptoms mentioned
 - category must be exactly one of the listed values — pick the MOST SPECIFIC one that
   fits the description. Do not default to "maintenance" just because the request is
-  car-related; only use it for actual mechanical/repair work
-- urgency: asap if safety issue or car won't start; this_week if inconvenient; flexible otherwise
+  vehicle-related; only use it for actual mechanical/repair work. Do NOT default to
+  "maintenance" for appearance (detailing, cosmetic, wraps, PPF, tint), electronics
+  (audio, lighting, cameras, remote start), or interior (upholstery, headliner) requests
+  — those have their own categories and should be classified there.
+- urgency: asap if safety issue or vehicle won't start; this_week if inconvenient; flexible otherwise
 - If the description is too vague to parse meaningfully, still return your best guess`;
 
 function json(code, data) {

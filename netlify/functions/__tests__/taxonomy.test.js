@@ -47,6 +47,20 @@ t('www/mcc-taxonomy.js mirrors _taxonomy.js', () => {
   assert.strictEqual(JSON.stringify(b.CATEGORIES), JSON.stringify(tax.CATEGORIES), 'CATEGORIES differ');
   assert.strictEqual(JSON.stringify(b.LABELS), JSON.stringify(tax.CATEGORY_LABELS), 'LABELS differ');
   assert.strictEqual(JSON.stringify(b.GROUPS), JSON.stringify(tax.CATEGORY_GROUPS), 'GROUPS differ');
+  // Phase 2.7.3: SERVICE_TYPES_BY_CATEGORY must be identical on both sides
+  // and cover every category with 1..N options.
+  assert.ok(b.SERVICE_TYPES_BY_CATEGORY, 'browser SERVICE_TYPES_BY_CATEGORY missing');
+  assert.strictEqual(
+    JSON.stringify(b.SERVICE_TYPES_BY_CATEGORY),
+    JSON.stringify(tax.SERVICE_TYPES_BY_CATEGORY),
+    'SERVICE_TYPES_BY_CATEGORY differs between server and browser'
+  );
+  for (const c of tax.CATEGORIES) {
+    const list = tax.SERVICE_TYPES_BY_CATEGORY[c];
+    assert.ok(Array.isArray(list) && list.length > 0, `SERVICE_TYPES_BY_CATEGORY[${c}] must be a non-empty array`);
+    // No dupes within a category.
+    assert.strictEqual(new Set(list).size, list.length, `SERVICE_TYPES_BY_CATEGORY[${c}] has duplicate entries`);
+  }
 });
 
 t('20 categories, no duplicates, every category has label/hint/group', () => {

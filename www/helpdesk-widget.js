@@ -289,11 +289,41 @@ class HelpdeskWidget extends ChatWidgetBase {
   }
 
   getModeConfig() {
+    // Phase 2.7.2: rotate a set of nine driver prompts so at least one
+    // non-mechanical example (appearance / upgrade) shows every load. Three
+    // slots: one mechanical, one appearance/protection, one upgrade/
+    // education. Random pick per bucket => visitors see the breadth
+    // regardless of which sample lands.
+    const DRIVER_PROMPT_POOL = {
+      mechanical: [
+        "My check engine light is on",
+        "My brakes squeak in the morning",
+        "How often should I really change my oil?"
+      ],
+      appearance: [
+        "What does a ceramic coating actually do?",
+        "Is paint protection film worth it?",
+        "What's the best way to fix a door ding?"
+      ],
+      upgrade: [
+        "Can I add CarPlay to a 2015 Civic?",
+        "Should I tint my windows?",
+        "How do I prep my car to sell it?"
+      ]
+    };
+    function _rot(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+    const driverPrompts = [
+      _rot(DRIVER_PROMPT_POOL.mechanical),
+      _rot(DRIVER_PROMPT_POOL.appearance),
+      _rot(DRIVER_PROMPT_POOL.upgrade)
+    ];
+
     const configs = {
       driver: {
         label: 'Car Expert',
-        welcome: "Got questions about your car? Describe the issue and I'll help you understand what's happening and what to do next.",
-        prompts: ["What does my check engine light mean?", "My car is making a strange noise", "When should I change my oil?"]
+        // §2.7.1: tagline broadened beyond "car problems".
+        welcome: "Ask about repairs, detailing, upgrades, appearance, electronics — anything for your vehicle.",
+        prompts: driverPrompts
       },
       provider: {
         label: 'Provider Support',
@@ -302,7 +332,7 @@ class HelpdeskWidget extends ChatWidgetBase {
       },
       education: {
         label: 'Car Academy Tutor',
-        welcome: "Welcome to Car Academy! I'm here to help you learn about your vehicle in plain English. Ask me anything about maintenance, repairs, warning signs, or how cars work - no question is too basic!",
+        welcome: "Welcome to Car Academy! I'm here to help you learn about your vehicle in plain English. Ask me anything about maintenance, repairs, appearance work, upgrades, or how cars work - no question is too basic!",
         prompts: ["How does my engine work?", "What are the warning signs of brake problems?", "How do I read my tire numbers?"]
       }
     };
@@ -367,7 +397,7 @@ class HelpdeskWidget extends ChatWidgetBase {
       } else if (this.mode === 'provider') {
         title = `Hi ${user.name}! Need help with the platform?`;
       } else {
-        title = `Hi ${user.name}! Got questions about your car?`;
+        title = `Hi ${user.name}! Ask about repairs, detailing, upgrades — anything for your vehicle.`;
       }
     } else {
       title = this.mode === 'education' ? `Welcome to Car Academy! ${typeof mccIcon === 'function' ? mccIcon('graduation-cap', 20) : ''}` : 'Hi there!';

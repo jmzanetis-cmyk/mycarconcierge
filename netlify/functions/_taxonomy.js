@@ -98,6 +98,164 @@ function categoryHintsText() {
   return CATEGORIES.map(c => `- ${c}: ${CATEGORY_HINTS[c]}`).join('\n');
 }
 
+// Phase 2.7.3: "Type of work" options per category. Populates the member
+// form's p-service-type <select> based on the chosen category, so a
+// detailing job doesn't offer "brake service" as a type. Each list is 4–8
+// human-readable strings. Mirrored EXACTLY in www/mcc-taxonomy.js and
+// asserted by the taxonomy test.
+const SERVICE_TYPES_BY_CATEGORY = {
+  maintenance: [
+    'Oil change / fluids',
+    'Brake service',
+    'Tire service',
+    'Battery / electrical',
+    'Engine service / repair',
+    'Transmission',
+    'Diagnostics / check engine light',
+    'A/C or heating',
+    'Alignment / suspension',
+    'Inspection / multi-point',
+  ],
+  manufacturer_service: [
+    'Factory-scheduled maintenance',
+    'Recall service',
+    'Warranty repair',
+    'Extended service package',
+  ],
+  detailing: [
+    'Interior detail',
+    'Exterior detail',
+    'Full detail',
+    'Ceramic coating',
+    'Paint correction',
+    'Engine bay detail',
+    'Headlight restoration',
+    'Odor / smoke removal',
+  ],
+  cosmetic: [
+    'Dent removal / PDR',
+    'Scratch / touch-up',
+    'Bumper repair',
+    'Trim / molding',
+    'Small paint repair',
+    'Chip repair',
+  ],
+  accident_repair: [
+    'Collision repair',
+    'Insurance claim',
+    'Frame / structural work',
+    'Bodywork & paint',
+    'Windshield / glass',
+  ],
+  performance: [
+    'Exhaust',
+    'Suspension / lowering',
+    'Engine tuning / ECU',
+    'Cold air intake',
+    'Turbo / supercharger',
+    'Performance brakes',
+  ],
+  audio_electronics: [
+    'Stereo / speakers',
+    'Subwoofer / amp',
+    'Infotainment / CarPlay',
+    'Dash cam',
+    'Remote start / alarm',
+    'Backup camera',
+    'Electronics wiring',
+  ],
+  lighting: [
+    'Headlight upgrade',
+    'Taillight upgrade',
+    'LED interior lighting',
+    'Underglow / accent',
+    'Bulb replacement',
+    'Fog / driving lights',
+  ],
+  interior: [
+    'Upholstery repair',
+    'Seat repair / re-cover',
+    'Carpet / floor',
+    'Headliner',
+    'Dashboard repair',
+    'Steering wheel wrap',
+  ],
+  offroad: [
+    'Lift kit',
+    'Off-road tires',
+    'Skid plates / armor',
+    'Winch / recovery',
+    'Suspension upgrade',
+    'Trail prep',
+  ],
+  ev_hybrid: [
+    'Battery service',
+    'Charging system',
+    'High-voltage electrical',
+    'EV/hybrid diagnostics',
+    'Drivetrain service',
+  ],
+  classic_vintage: [
+    'Restoration',
+    'Mechanical rebuild',
+    'Bodywork / paint',
+    'Interior restoration',
+    'Sourcing / parts',
+  ],
+  fleet_graphics: [
+    'Full vehicle wrap',
+    'Partial wrap / decals',
+    'Fleet lettering',
+    'Livery / branding',
+    'Removal',
+  ],
+  premium_protection: [
+    'PPF / clear bra',
+    'Ceramic coating',
+    'Window tint',
+    'Paint protection',
+    'Interior protection',
+  ],
+  convertible_specialty: [
+    'Convertible top repair',
+    'Top mechanism / motor',
+    'Weather sealing',
+    'Top replacement',
+  ],
+  motorcycle: [
+    'Maintenance / tune-up',
+    'Tire service',
+    'Chain / drivetrain',
+    'Repair / diagnostics',
+    'Detail / cleaning',
+  ],
+  rv_camper: [
+    'Maintenance',
+    'Appliance service',
+    'Plumbing / electrical',
+    'Roof / seal',
+    'Detail / cleaning',
+  ],
+  boat_marine: [
+    'Engine service',
+    'Detail / bottom paint',
+    'Trailer service',
+    'Electronics install',
+    'Winterization',
+  ],
+  snow_removal: [
+    'Driveway plowing',
+    'Sidewalk clearing',
+    'Salt / de-icing',
+    'Seasonal contract',
+  ],
+  other: [
+    'Consultation',
+    'Second opinion',
+    'Other service',
+  ],
+};
+
 // ---------------------------------------------------------------------------
 // Legacy 8-bucket compatibility (provider_match_preferences before 2.6.1).
 // The backfill migration expands stored buckets to explicit categories using
@@ -267,6 +425,7 @@ module.exports = {
   CATEGORY_GROUPS,
   CATEGORY_HINTS,
   categoryHintsText,
+  SERVICE_TYPES_BY_CATEGORY,
   LEGACY_BUCKETS,
   LEGACY_BUCKET_TO_CATEGORIES,
   isCategory,

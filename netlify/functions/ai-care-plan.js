@@ -49,6 +49,9 @@ Urgency guide:
 Category: pick the MOST SPECIFIC one that fits (e.g. a full detail or wash is
 "detailing" not "maintenance"; a dent or scratch is "cosmetic"; a stereo/wiring
 job is "audio_electronics"). Only use "maintenance" for actual mechanical work.
+Do NOT default to "maintenance" for appearance (detailing, cosmetic, wraps,
+PPF, tint), electronics (audio, lighting, cameras, remote start), or interior
+(upholstery, headliner) requests — those have their own categories.
 Category reference:
 ${categoryHintsText()}`;
 
