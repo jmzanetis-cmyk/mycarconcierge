@@ -142,25 +142,9 @@ exports.handler = async function (event) {
   const eligible = (plans || []).filter(p => isAdmin || isServiceFit(p, matchCategories))
     .map(p => ({ ...p, categories: planCategories(p), my_bid: myBidByPlan.get(p.id) || null }));
 
-  // Authoritative tab counts over the full eligible set (pre-search/paging).
-  const soonCutoff = Date.now() + CLOSING_SOON_MS;
-  const tabCounts = {
-    all: eligible.length,
-    no_bids: eligible.filter(p => !p.bid_count).length,
-    closing_soon: eligible.filter(p =>
-      p.bid_closes_at && new Date(p.bid_closes_at).getTime() <= soonCutoff).length,
-    my_bids: eligible.filter(p => p.my_bid).length,
-  };
-
   // ── Query params: tab / search / service_type / min_value / sort / paging ──
   const qs = event.queryStringParameters || {};
   let list = eligible;
-
-  const tab = qs.tab || 'all';
-  if (tab === 'no-bids')      list = list.filter(p => !p.bid_count);
-  else if (tab === 'closing-soon') list = list.filter(p =>
-    p.bid_closes_at && new Date(p.bid_closes_at).getTime() <= soonCutoff);
-  else if (tab === 'my-bids') list = list.filter(p => p.my_bid);
 
   const q = (qs.q || '').trim().toLowerCase();
   if (q) {
@@ -170,7 +154,14 @@ exports.handler = async function (event) {
       (p.vehicles && `${p.vehicles.year || ''} ${p.vehicles.make || ''} ${p.vehicles.model || ''}`.toLowerCase().includes(q)));
   }
 
-  if (qs.service_type && qs.service_type !== 'all') {
+  // Spec 2.6.3 — 'mine' filter routes through isServiceFit against the
+  // provider's match_categories. For non-admins this is a no-op (the
+  // eligibility gate above already applied the same filter), but keeping
+  // it explicit both future-proofs a later relaxation of the default
+  // gate and gives admins a "narrow to my prefs" toggle.
+  if (qs.service_type === 'mine') {
+    list = list.filter(p => isServiceFit(p, matchCategories));
+  } else if (qs.service_type && qs.service_type !== 'all') {
     const st = qs.service_type.toLowerCase();
     // 2.6.1: a category slug matches on categories; anything else keeps the
     // legacy substring match on service_types (the filter chips send slugs).
@@ -181,6 +172,28 @@ exports.handler = async function (event) {
 
   const minValue = parseFloat(qs.min_value || '0');
   if (minValue > 0) list = list.filter(p => (parseFloat(p.value_max) || 0) >= minValue);
+
+  // Spec 2.6.3 (with 2026-09-15 clarification): `all` stays anchored to the
+  // unfiltered eligible set so the "All jobs" badge always tells the
+  // provider how many jobs they *could* see if they cleared filters. The
+  // other three (no_bids, closing_soon, my_bids) follow the ACTIVE
+  // service_type + search filter, so switching from All jobs → My
+  // specialties visibly shrinks those badges but never the "all" total.
+  // Tab-scoping (which tab is selected) is applied AFTER counts.
+  const soonCutoff = Date.now() + CLOSING_SOON_MS;
+  const tabCounts = {
+    all: eligible.length,
+    no_bids: list.filter(p => !p.bid_count).length,
+    closing_soon: list.filter(p =>
+      p.bid_closes_at && new Date(p.bid_closes_at).getTime() <= soonCutoff).length,
+    my_bids: list.filter(p => p.my_bid).length,
+  };
+
+  const tab = qs.tab || 'all';
+  if (tab === 'no-bids')      list = list.filter(p => !p.bid_count);
+  else if (tab === 'closing-soon') list = list.filter(p =>
+    p.bid_closes_at && new Date(p.bid_closes_at).getTime() <= soonCutoff);
+  else if (tab === 'my-bids') list = list.filter(p => p.my_bid);
 
   const sort = qs.sort || 'newest';
   if (sort === 'closing') {
@@ -200,6 +213,10 @@ exports.handler = async function (event) {
     total,
     tab_counts: tabCounts,
     provider_verified: providerVerified,
+    // Spec 2.6.3: tells the client whether to pre-select the "My specialties"
+    // filter on load. Admins might not have match prefs, so gate on the
+    // matchCategories array length rather than the role.
+    has_match_categories: matchCategories.length > 0,
     auto_bid_enabled: false, // auto-bid engine reports separately; page treats undefined/false the same
   });
 };
