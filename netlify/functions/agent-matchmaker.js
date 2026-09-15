@@ -29,6 +29,7 @@ const {
   getSupabase, getAgent, callLLM, logAction,
   authorizeAgentInvocation, jsonResponse, SpendCapError, loadActivePrompt
 } = require('./agent-fleet-runtime');
+const { isServiceFit } = require('./_eligibility');
 
 const SLUG = 'matchmaker';
 
@@ -64,7 +65,7 @@ async function loadCarePlan(supabase, carePlanId) {
   const { data } = await supabase
     .from('care_plans')
     .select(
-      'id, status, member_id, title, description, services, service_types, ' +
+      'id, status, member_id, title, description, services, service_types, categories, ' +
       'value_min, value_max, city, state, zip_code, bid_closes_at, created_at, ' +
       'vehicle:vehicle_id (year, make, model)'
     )
@@ -168,10 +169,11 @@ async function buildPrompt(supabase, payload, preloadedCarePlan = null) {
   // silently dropping them so the operator is aware.
   const enriched = allBids.map(b => {
     const prefs = matchPrefs[b.provider_id] || {};
-    const planCats = Array.isArray(carePlan.service_types) ? carePlan.service_types : [];
+    // 2.6.1: same service-fit decision as the boards and the bid gate
+    // (care_plans.categories with legacy service_types fallback). Only flag a
+    // mismatch when the provider has declared categories at all.
     const provCats = Array.isArray(prefs.match_categories) ? prefs.match_categories : [];
-    const categoryMismatch = provCats.length > 0 && planCats.length > 0 &&
-      !planCats.some(c => provCats.map(x => x.toLowerCase()).includes(c.toLowerCase()));
+    const categoryMismatch = provCats.length > 0 && !isServiceFit(carePlan, provCats);
 
     return {
       bid_id: b.id,

@@ -16,39 +16,12 @@
 
 const ANTHROPIC_API_KEY = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPIC_API_KEY;
 
-// Keep this list in exact sync with the <select id="p-category"> options in
-// members.html — if the AI picks a value that isn't a real form option, the
-// frontend silently fails to select it and the field is left on whatever was
-// already chosen (defaulting to "Maintenance & Mechanical"), which biases
-// every non-mechanical request toward that category.
-const CATEGORIES = [
-  'maintenance', 'manufacturer_service', 'detailing', 'cosmetic',
-  'accident_repair', 'performance', 'audio_electronics', 'lighting',
-  'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics',
-  'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper',
-  'boat_marine', 'snow_removal', 'other',
-];
-
-const CATEGORY_HINTS = `- maintenance: routine mechanical work, oil changes, brakes, engine/transmission issues, check engine light
-- manufacturer_service: factory-scheduled maintenance, recalls, warranty service
-- detailing: washing, waxing, interior cleaning, full detail, pre-sale prep
-- cosmetic: dents, scratches, paint chips, bumper/body cosmetic repair (non-collision)
-- accident_repair: collision damage, insurance claims, structural body work
-- performance: tuning, upgrades, aftermarket performance parts
-- audio_electronics: stereo, speakers, infotainment, wiring, electronics installs
-- lighting: headlights, taillights, underglow, lighting upgrades or repair
-- interior: upholstery, seats, carpet, dash repair/replacement
-- offroad: lift kits, off-road tires/suspension, trail prep
-- ev_hybrid: EV/hybrid-specific service (battery, charging, drivetrain)
-- classic_vintage: restoration or service of classic/vintage vehicles
-- fleet_graphics: fleet vehicle wraps, decals, commercial graphics
-- premium_protection: PPF, ceramic coating, paint protection
-- convertible_specialty: convertible tops and specialty mechanisms
-- motorcycle: motorcycle service or repair
-- rv_camper: RV or camper service or repair
-- boat_marine: boat or marine vessel service or repair
-- snow_removal: snow plowing/removal for a property
-- other: anything that doesn't clearly fit above`;
+// 2.6.1: categories + hints come from the shared taxonomy module so the AI,
+// the member form (www/mcc-taxonomy.js) and the provider filters can never
+// drift. If the AI returns a slug that isn't in CATEGORIES it falls back to
+// 'other' below.
+const { CATEGORIES, categoryHintsText } = require('./_taxonomy');
+const CATEGORY_HINTS = categoryHintsText();
 
 const SYSTEM = `You are an expert service advisor for My Car Concierge, a concierge
 platform covering far more than mechanical repair — detailing, cosmetic and body

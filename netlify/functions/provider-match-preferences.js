@@ -15,10 +15,11 @@
 
 const { createClient } = require('@supabase/supabase-js');
 
-const ALLOWED_CATEGORIES = new Set([
-  'maintenance', 'manufacturer_service', 'accident_repair',
-  'performance', 'cosmetic', 'offroad', 'snow_removal', 'other'
-]);
+// 2.6.1: the allowed set is the unified 20-category taxonomy (was the 8
+// legacy match buckets). Legacy values are a subset, so old clients still
+// validate; the widened settings UI (www/mcc-taxonomy.js) sends the rest.
+const { CATEGORIES } = require('./_taxonomy');
+const ALLOWED_CATEGORIES = new Set(CATEGORIES);
 
 function getServiceSupabase() {
   const url = process.env.SUPABASE_URL;

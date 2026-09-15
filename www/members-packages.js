@@ -5,6 +5,20 @@
     let lastAiRequestHash = '';
     let aiSuggestionAbortController = null;
 
+    // Distance estimate (member ZIP -> provider ZIP) for "how far is this provider".
+    function mccZipDistance(zip1, zip2) {
+      if (!zip1 || !zip2) return 999;
+      zip1 = String(zip1); zip2 = String(zip2);
+      if (zip1 === zip2) return 0;
+      if (zip1.substring(0, 3) === zip2.substring(0, 3)) return Math.abs(Number.parseInt(zip1) - Number.parseInt(zip2)) * 0.5;
+      const diff = Math.abs(Number.parseInt(zip1.substring(0, 3)) - Number.parseInt(zip2.substring(0, 3)));
+      if (diff <= 2) return 15 + (diff * 10);
+      if (diff <= 5) return 30 + (diff * 8);
+      if (diff <= 10) return 50 + (diff * 5);
+      return 100 + (diff * 3);
+    }
+    function mccFmtDist(mi) { if (mi == null || mi >= 900) return ''; if (mi < 1) return 'nearby'; return `~${Math.round(mi)} mi away`; }
+
     function initAiPackageAssistant() {
       const descField = document.getElementById('p-description');
       const titleField = document.getElementById('p-title');
@@ -1863,11 +1877,15 @@
         title,
         description: fullDescription,
         services: [{ name: title }],
+        // 2.6.1: the member's chosen category is the authoritative match key
+        // (care_plans.categories, one of the 20 slugs in mcc-taxonomy.js).
+        // service_types is still written for readers not yet migrated.
+        categories: category ? [category] : [],
         service_types: _aiCarePlanResult?.service_type
           ? [_aiCarePlanResult.service_type]
           : (document.getElementById('p-service-type').value
               ? [document.getElementById('p-service-type').value]
-              : []),
+              : (category ? [category] : [])),
         city: userProfile.city || null,
         state: userProfile.state || null,
         zip_code: userProfile.zip_code || null,
@@ -2252,6 +2270,18 @@
       // Store bids for acceptBid function
       currentPackageBids = bids || [];
 
+      // Provider ZIPs -> distance-from-you on each bid card (client-side;
+      // members can read provider profiles). Non-fatal: bids still render if
+      // this fails or a provider has no ZIP.
+      let providerZipById = {};
+      try {
+        const _pids = [...new Set((bids || []).map(b => b.provider_id).filter(Boolean))];
+        if (_pids.length) {
+          const { data: _pzs } = await supabaseClient.from('profiles').select('id, zip_code').in('id', _pids);
+          (_pzs || []).forEach(r => { providerZipById[r.id] = r.zip_code; });
+        }
+      } catch (_e) { /* no distance shown */ }
+
       // Resolve the accepted bid for this package (used in appointment/transfer/location templates below)
       const acceptedBid = bids?.find(b => b.id === pkg.accepted_bid_id) || bids?.find(b => b.status === 'accepted') || null;
 
@@ -2393,6 +2423,9 @@
                 const perf = providerPerformance[bid.provider_id];
                 const appData = providerApplications[bid.provider_id] || {};
                 const logistics = providerLogistics[bid.provider_id];
+                const _provZip = providerZipById[bid.provider_id];
+                const _distMi = (pkg.member_zip && _provZip) ? mccZipDistance(pkg.member_zip, _provZip) : null;
+                const distLabel = mccFmtDist(_distMi);
                 const rating = perf?.rating_avg ? perf.rating_avg.toFixed(1) : (stats.average_rating ? stats.average_rating.toFixed(1) : 'New');
                 const jobs = perf?.jobs_completed || stats.jobs_completed || 0;
                 const providerName = bid.profiles?.provider_alias || `Provider #${bid.provider_id.slice(0,4).toUpperCase()}`;
@@ -2433,7 +2466,7 @@
                           <div style="font-size:0.85rem;color:var(--text-muted);margin-top:4px;">
                             ${renderStarRow(rating, 14)}
                             ${jobs > 0 ? `• ${jobs} jobs` : '• New provider'}
-                            ${onTimeRate !== null ? ` • ${onTimeRate}% on-time` : ''}
+                            ${onTimeRate !== null ? ` • ${onTimeRate}% on-time` : ''}${distLabel ? ` • ${distLabel}` : ''}
                           </div>
                           ${badges.length > 0 ? `<div style="display:flex;gap:4px;margin-top:6px;">${badges.map(b => `<span title="${b.replace('_', ' ')}" style="font-size:1rem;">${badgeIcons[b] || ''}</span>`).join('')}</div>` : ''}
                         </div>
@@ -8252,7 +8285,7 @@
         const badgeTextColor = rec.never_done ? '#ef4444' : 'var(--accent-teal)';
         const badgeLabel = rec.never_done ? 'No record \u2014 assumed not yet done' : 'Overdue';
         const codeAttr = rec.code ? `data-code="${rec.code}"` : '';
-        return `<div class="suggestion-chip" data-idx="${i}" ${codeAttr} style="display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px 12px;margin-bottom:6px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;transition:all 0.15s;">
+        return `<div class="suggestion-chip" data-idx="${i}" ${codeAttr} style="display:flex;flex-direction:column;align-items:stretch;gap:8px;padding:10px 12px;margin-bottom:6px;background:var(--bg-input);border:1px solid var(--border-subtle);border-radius:8px;transition:all 0.15s;">
           <div style="flex:1;min-width:0;">
             <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
               <span style="font-weight:600;font-size:0.88rem;">${rec.title}</span>
@@ -8260,7 +8293,7 @@
             </div>
             <div style="font-size:0.8rem;color:var(--text-muted);margin-top:3px;">${rec.reason}</div>
           </div>
-          <div style="display:flex;gap:6px;flex-shrink:0;">
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
             <button onclick="applySuggestion(${i})" style="padding:4px 12px;font-size:0.78rem;font-weight:600;background:var(--accent-teal);color:#fff;border:none;border-radius:6px;cursor:pointer;white-space:nowrap;">Book it</button>
             <button onclick="logSuggestion(${i},'${vehicleId}')" style="padding:4px 10px;font-size:0.76rem;font-weight:500;background:transparent;color:var(--text-secondary);border:1px solid var(--border-subtle);border-radius:6px;cursor:pointer;white-space:nowrap;">Already done? Log it</button>
             ${typeof getCareKeyForCategory === 'function' && getCareKeyForCategory(rec.title || rec.category) ? `<button onclick="openAcademyCareCard('${getCareKeyForCategory(rec.title || rec.category)}')" style="padding:4px 8px;font-size:0.76rem;font-weight:500;background:transparent;color:var(--accent-teal);border:1px solid var(--accent-teal);border-radius:6px;cursor:pointer;white-space:nowrap;" title="Learn about this service">${typeof mccIcon === 'function' ? mccIcon('book-open', 14) : '📖'}</button>` : ''}

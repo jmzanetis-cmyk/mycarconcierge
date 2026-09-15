@@ -28,7 +28,7 @@
 'use strict';
 
 const utils = require('./utils');
-const { serviceTypesToBuckets } = require('./_eligibility');
+const { planCategories, isServiceFit } = require('./_eligibility');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -115,6 +115,7 @@ exports.handler = async function (event) {
     .from('care_plans')
     .select(`
       id, title, description, status, bid_count, bid_closes_at, service_types,
+      categories, bundle_id, bundle_position,
       services, value_min, value_max, city, state, zip_code, lat, lng,
       created_at, vehicle_id, member_id,
       vehicles:vehicle_id(id, year, make, model, nickname)
@@ -133,15 +134,13 @@ exports.handler = async function (event) {
     return jsonResp(500, { error: 'fetch_failed' });
   }
 
-  // Service-fit filter — same rules as the bid gate (permissive on empty
-  // service_types; admins bypass). Bid-on plans are KEPT (difference #2).
-  const provSet = new Set(matchCategories);
-  const eligible = (plans || []).filter(p => {
-    if (isAdmin) return true;
-    const buckets = serviceTypesToBuckets(p.service_types);
-    if (buckets.length === 0) return true;
-    return buckets.some(b => provSet.has(b));
-  }).map(p => ({ ...p, my_bid: myBidByPlan.get(p.id) || null }));
+  // Service-fit filter — same rules as the bid gate (permissive on plans with
+  // no category signal; admins bypass). Bid-on plans are KEPT (difference #2).
+  // 2.6.1: decided by _eligibility.isServiceFit over care_plans.categories
+  // (legacy rows fall back to classifying service_types). Each plan is
+  // annotated with its effective categories so the card can render chips.
+  const eligible = (plans || []).filter(p => isAdmin || isServiceFit(p, matchCategories))
+    .map(p => ({ ...p, categories: planCategories(p), my_bid: myBidByPlan.get(p.id) || null }));
 
   // Authoritative tab counts over the full eligible set (pre-search/paging).
   const soonCutoff = Date.now() + CLOSING_SOON_MS;
@@ -173,8 +172,11 @@ exports.handler = async function (event) {
 
   if (qs.service_type && qs.service_type !== 'all') {
     const st = qs.service_type.toLowerCase();
-    list = list.filter(p => (p.service_types || []).some(t =>
-      String(t).toLowerCase().includes(st)));
+    // 2.6.1: a category slug matches on categories; anything else keeps the
+    // legacy substring match on service_types (the filter chips send slugs).
+    list = list.filter(p =>
+      (p.categories || []).includes(st) ||
+      (p.service_types || []).some(t => String(t).toLowerCase().includes(st)));
   }
 
   const minValue = parseFloat(qs.min_value || '0');

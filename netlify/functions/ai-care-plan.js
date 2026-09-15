@@ -16,18 +16,10 @@ const API_KEY = process.env.ANTHROPIC_API_KEY_MCC_FLEET1 || process.env.ANTHROPI
 const MODEL   = 'claude-haiku-4-5-20251001';
 
 const URGENCY_LEVELS = ['critical', 'high', 'medium', 'low'];
-// Keep this list in exact sync with the <select id="p-category"> options in
-// members.html and with netlify/functions/ai-describe-to-package.js — a
-// category the AI picks that isn't a real form option silently fails to
-// select in aiCarePlanToModal() (members-packages.js), leaving the field on
-// whatever was already chosen.
-const CATEGORIES = [
-  'maintenance', 'manufacturer_service', 'detailing', 'cosmetic',
-  'accident_repair', 'performance', 'audio_electronics', 'lighting',
-  'interior', 'offroad', 'ev_hybrid', 'classic_vintage', 'fleet_graphics',
-  'premium_protection', 'convertible_specialty', 'motorcycle', 'rv_camper',
-  'boat_marine', 'snow_removal', 'other',
-];
+// 2.6.1: categories come from the shared taxonomy module (same list the
+// member form and provider filters use). A category the AI picks that isn't
+// in CATEGORIES falls back to 'other' below.
+const { CATEGORIES, categoryHintsText } = require('./_taxonomy');
 
 const SYSTEM = `You are an expert automotive service advisor for My Car Concierge.
 A member has described a car problem or service need in plain language.
@@ -56,7 +48,9 @@ Urgency guide:
 
 Category: pick the MOST SPECIFIC one that fits (e.g. a full detail or wash is
 "detailing" not "maintenance"; a dent or scratch is "cosmetic"; a stereo/wiring
-job is "audio_electronics"). Only use "maintenance" for actual mechanical work.`;
+job is "audio_electronics"). Only use "maintenance" for actual mechanical work.
+Category reference:
+${categoryHintsText()}`;
 
 function jsonResponse(status, body) {
   return {

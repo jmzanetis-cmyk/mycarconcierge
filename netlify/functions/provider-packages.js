@@ -7,7 +7,7 @@
 //   has called since the maintenance_packages era. Returns the list of open,
 //   non-expired care_plans the calling provider is eligible to bid on —
 //   eligibility mirrors plan-bids.js's gate exactly via the shared
-//   ./_eligibility.serviceTypesToBuckets, so providers never see a job on
+//   ./_eligibility.isServiceFit, so providers never see a job on
 //   their board that the gate would 403 on bid.
 //
 // PIPELINE:
@@ -19,10 +19,11 @@
 //      surfaces the categories-prompt UI instead of a generic empty state.
 //   4. SELECT open + non-expired care_plans (status='open' AND
 //      (bid_closes_at IS NULL OR bid_closes_at > now())) with vehicle join.
-//   5. Service-fit filter: keep plans where serviceTypesToBuckets(plan
-//      .service_types) overlaps the provider's match_categories. Empty
-//      service_types passes through (permissive default — MIRRORS the bid
-//      gate's plan-bids.js:228-240 behavior). Admins bypass the filter.
+//   5. Service-fit filter (2.6.1): keep plans where planCategories(plan) —
+//      care_plans.categories, or the classified legacy service_types —
+//      overlaps the provider's match_categories. A plan with no category
+//      signal passes through (permissive default — MIRRORS the bid gate in
+//      plan-bids.js, both via _eligibility.isServiceFit). Admins bypass.
 //   6. Project each row to the render shape providers-bids.js
 //      renderPackageCard expects (legacy maintenance_packages field names
 //      aliased from care_plans columns) so the client renderer works
@@ -57,7 +58,7 @@
 'use strict';
 
 const utils = require('./utils');
-const { serviceTypesToBuckets } = require('./_eligibility');
+const { planCategories, isServiceFit } = require('./_eligibility');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -150,6 +151,7 @@ exports.handler = async function (event) {
     .from('care_plans')
     .select(`
       id, title, description, status, bid_count, bid_closes_at, service_types,
+      categories, bundle_id, bundle_position,
       city, state, zip_code, lat, lng,
       created_at, vehicle_id, member_id,
       vehicles:vehicle_id(id, year, make, model, nickname)
@@ -168,18 +170,16 @@ exports.handler = async function (event) {
     return jsonResp(500, { error: 'fetch_failed' });
   }
 
-  // Service-fit filter — MIRRORS plan-bids.js:228-240 exactly:
+  // Service-fit filter — MIRRORS the plan-bids.js gate exactly (both call
+  // _eligibility.isServiceFit):
   //   - already-bid (server-side exclusion above) → drop first, before service-fit
-  //   - empty service_types on the plan → permissive default, passes
-  //   - otherwise → buckets must overlap with provider's match_categories
+  //   - plan with no category signal → permissive default, passes
+  //   - otherwise → plan categories must overlap the provider's match_categories
   //   - admins bypass entirely
-  const provSet = new Set(matchCategories);
   const filtered = (plans || []).filter(p => {
     if (!isAdmin && excludedPlanIds.has(p.id)) return false;
     if (isAdmin) return true;
-    const jobBuckets = serviceTypesToBuckets(p.service_types);
-    if (jobBuckets.length === 0) return true;
-    return jobBuckets.some(b => provSet.has(b));
+    return isServiceFit(p, matchCategories);
   });
 
   // Alias to the legacy maintenance_packages render shape that
@@ -203,6 +203,9 @@ exports.handler = async function (event) {
     lng: p.lng,
     bidding_deadline: p.bid_closes_at,
     service_types: p.service_types,
+    categories: planCategories(p),
+    bundle_id: p.bundle_id || null,
+    bundle_position: p.bundle_position || null,
     _bidCount: p.bid_count || 0,
   }));
 

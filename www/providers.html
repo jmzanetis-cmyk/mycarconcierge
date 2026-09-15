@@ -19,7 +19,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <!-- Preload critical resources -->
-  <link rel="preload" href="providers-core.js" as="script" />
+  <link rel="preload" href="providers-core.js?v=20260914b" as="script" />
   <link rel="preload" href="supabaseclient.js" as="script" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,7 +28,8 @@
   <link rel="preconnect" href="https://js.stripe.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="dns-prefetch" href="https://supabase.co">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap"></noscript>
   <link rel="stylesheet" href="shared-styles.css">
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/qr-creator/dist/qr-creator.min.js" defer></script>
@@ -433,8 +434,13 @@
     @media (max-width: 767px) {
       .sidebar { transform: translateX(-100%); transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1); width: 300px; padding: 16px 14px; padding-bottom: 100px; overflow-y: auto; -webkit-overflow-scrolling: touch; background: rgba(12, 12, 18, 0.98); }
       .sidebar.open { transform: translateX(0); box-shadow: 8px 0 40px rgba(0,0,0,0.6); }
-      .main { margin-inline-start: 0; padding: 24px 16px 100px; }
-      .mobile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; }
+      /* Native/mobile: scroll the document, not .main. The desktop model
+         (.main overflow-y:auto in a flex body) collapses to non-scrolling
+         on WKWebView because .main has no bounded height, so tall sections
+         (e.g. Browse Packages) can't scroll. Match members.html. (2026-09-14) */
+      body { display: block; overflow-x: hidden; overflow-y: scroll; -webkit-overflow-scrolling: touch; }
+      .main { margin-inline-start: 0; padding: 24px 16px 100px; overflow: visible; max-width: 100vw; box-sizing: border-box; }
+      .mobile-header { display: flex; align-items: center; gap: 16px; margin-bottom: 24px; padding-top: max(16px, env(safe-area-inset-top)); }
       .mobile-header > span { flex: 1; }
       .mobile-header .header-theme-toggle { margin-inline-start: auto; }
       .mobile-menu-btn { width: 44px; height: 44px; display: flex; align-items: center; justify-content: center; background: var(--bg-card); border: 1px solid var(--border-subtle); border-radius: var(--radius-md); color: var(--text-primary); cursor: pointer; font-size: var(--text-xl); }
@@ -2865,14 +2871,15 @@
 
         <div class="form-group">
           <label class="form-label">Categories to be matched on</label>
-          <div id="match-categories-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px;">
-            <label class="service-checkbox"><input type="checkbox" value="maintenance" class="match-category-check"> <span>Maintenance</span></label>
-            <label class="service-checkbox"><input type="checkbox" value="manufacturer_service" class="match-category-check"> <span>Manufacturer Service</span></label>
-            <label class="service-checkbox"><input type="checkbox" value="accident_repair" class="match-category-check"> <span>Accident Repair</span></label>
-            <label class="service-checkbox"><input type="checkbox" value="performance" class="match-category-check"> <span>Performance</span></label>
-            <label class="service-checkbox"><input type="checkbox" value="cosmetic" class="match-category-check"> <span>Cosmetic</span></label>
-            <label class="service-checkbox"><input type="checkbox" value="offroad" class="match-category-check"> <span>Off-Road</span></label>
-            <label class="service-checkbox"><input type="checkbox" value="snow_removal" class="match-category-check"> <span>Snow Removal</span></label>
+          <div id="match-categories-grid" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:8px;">
+            <!-- 2.6.1: rendered by mcc-taxonomy.js (renderCheckboxGroups) from the
+                 unified 20-category list. The static fallback below is only shown
+                 if that script fails to load; keep its values a subset of the list. -->
+            <label class="service-checkbox"><input type="checkbox" value="maintenance" class="match-category-check"> <span>Maintenance &amp; Mechanical</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="detailing" class="match-category-check"> <span>Detailing &amp; Cleaning</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="cosmetic" class="match-category-check"> <span>Cosmetic &amp; Paint Repair</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="accident_repair" class="match-category-check"> <span>Accident &amp; Collision Repair</span></label>
+            <label class="service-checkbox"><input type="checkbox" value="audio_electronics" class="match-category-check"> <span>Audio &amp; Electronics</span></label>
             <label class="service-checkbox"><input type="checkbox" value="other" class="match-category-check"> <span>Other</span></label>
           </div>
           <div class="form-hint" style="margin-top:6px;font-size:0.8rem;color:var(--text-muted);">Defaults to the categories from your provider application.</div>
@@ -4659,6 +4666,14 @@
         <div class="message-input-row">
           <input type="text" class="form-input" id="message-input" placeholder="Type your message...">
           <button class="btn btn--primary" onclick="sendMessage()">Send</button>
+        </div>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
+          <button class="btn btn-ghost" onclick="reportCurrentConversationP()" style="font-size:0.85rem;color:var(--text-muted);">
+            <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Report abuse
+          </button>
+          <button class="btn btn-ghost" onclick="blockCurrentMember()" style="font-size:0.85rem;color:var(--accent-red);">
+            <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></span> Block member
+          </button>
         </div>
       </div>
     </div>
@@ -7036,8 +7051,9 @@
 
   <script>window._mccPushContext = 'provider';</script>
   <script src="https://js.stripe.com/v3/"></script>
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="vendor/supabase.js"></script>
   <script src="supabaseclient.js?v=20260122"></script>
+  <script src="moderation.js?v=20260914"></script>
   <script src="mcc-config.js?v=20260122"></script>
   <script src="white-label-client.js"></script>
   <script src="tos-modal.js?v=20260122"></script>
@@ -7045,8 +7061,9 @@
   <script src="mobile-pay.js?v=20260124"></script>
   <script src="stripeutils.js?v=20260124"></script>
   <script src="mcc-icons.js?v=20260211"></script>
-  <script src="providers-core.js?v=20260202"></script>
-  <script src="providers-settings.js?v=20260315"></script>
+  <script src="providers-core.js?v=20260914b"></script>
+  <script src="mcc-taxonomy.js?v=20260920"></script>
+  <script src="providers-settings.js?v=20260914"></script>
   <script src="providers-care-plans.js?v=20260516"></script>
   <script src="bgc-badge.js?v=20260428"></script>
   <script src="bgc-pricing.js?v=20260429"></script>
@@ -7054,8 +7071,6 @@
   <script src="bgc-compliance.js?v=20260428i"></script>
   <script src="members-push.js?v=20260319"></script>
   <script src="pwa-init.js?v=20260202"></script>
-  <script src="chat-widget-base.js?v=20260122"></script>
-  <script src="helpdesk-widget.js?v=20260122"></script>
   <script src="custody-capture.js"></script>
   <script>
     function toggleTheme() {
@@ -7089,8 +7104,6 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
-
-      new HelpdeskWidget({ mode: 'provider', position: 'bottom-right' });
 
       // Load + apply feature flags (ships-dark features stay hidden by default).
       if (typeof window.loadMccFlags === 'function') {

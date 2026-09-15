@@ -22,7 +22,7 @@
   <link rel="apple-touch-icon" href="icons/apple-touch-icon.png" />
   <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
   <!-- Preload critical resources -->
-  <link rel="preload" href="members-core.js?v=20260529" as="script" />
+  <link rel="preload" href="members-core.js?v=20260914b" as="script" />
   <link rel="preload" href="supabaseclient.js" as="script" />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -31,7 +31,8 @@
   <link rel="preconnect" href="https://js.stripe.com" crossorigin>
   <link rel="preconnect" href="https://cdnjs.cloudflare.com" crossorigin>
   <link rel="dns-prefetch" href="https://supabase.co">
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" media="print" onload="this.media='all'" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap">
+  <noscript><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400..700&display=swap"></noscript>
   <link rel="stylesheet" href="shared-styles.css?v=20260213">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js" defer></script>
   <script src="https://cdn.jsdelivr.net/npm/chart.js" defer></script>
@@ -1219,6 +1220,10 @@
           </g>
         </svg>
       </a>
+      <button class="header-bell-btn" onclick="showSection('messages')" title="Messages" aria-label="Messages" style="margin-right:4px;">
+        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span id="header-message-count" class="header-bell-badge" style="display:none;">0</span>
+      </button>
       <button class="header-bell-btn" onclick="goToMyReferralQr()" title="My Referral QR" aria-label="My Referral QR" style="margin-right:4px;">
         <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="5" height="5" x="3" y="3" rx="1"/><rect width="5" height="5" x="16" y="3" rx="1"/><rect width="5" height="5" x="3" y="16" rx="1"/><path d="M21 16h-3a2 2 0 0 0-2 2v3"/><path d="M21 21v.01"/><path d="M12 7v3a2 2 0 0 1-2 2H7"/><path d="M3 12h.01"/><path d="M12 3h.01"/><path d="M12 16v.01"/><path d="M16 12h1"/><path d="M21 12v.01"/><path d="M12 21v-1"/></svg>
       </button>
@@ -6945,9 +6950,15 @@
           <input type="text" class="form-input" id="message-input" placeholder="Type your message...">
           <button class="btn btn-primary" onclick="sendMessage()">Send</button>
         </div>
-        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);">
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border-subtle);display:flex;flex-wrap:wrap;gap:10px;align-items:center;">
           <button class="btn btn-ghost" onclick="openReportModal()" style="font-size:0.85rem;color:var(--text-muted);">
             <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z"/><line x1="4" x2="4" y1="22" y2="15"/></svg></span> Report policy violation
+          </button>
+          <button class="btn btn-ghost" onclick="reportCurrentConversation()" style="font-size:0.85rem;color:var(--text-muted);">
+            <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg></span> Report abuse
+          </button>
+          <button class="btn btn-ghost" onclick="blockCurrentProvider()" style="font-size:0.85rem;color:var(--accent-red);">
+            <span class="icon-inline"><svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="m4.9 4.9 14.2 14.2"/></svg></span> Block provider
           </button>
         </div>
       </div>
@@ -8790,8 +8801,9 @@
 
   <div class="toast-container" id="toast-container"></div>
 
-  <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+  <script src="vendor/supabase.js"></script>
   <script src="supabaseclient.js?v=20260213"></script>
+  <script src="moderation.js?v=20260914"></script>
   <script src="mcc-config.js?v=20260213"></script>
   <script src="white-label-client.js"></script>
   <script src="tos-modal.js?v=20260213"></script>
@@ -8799,10 +8811,10 @@
   <script src="mobile-pay.js?v=20260213"></script>
   <script src="stripeutils.js?v=20260213"></script>
   <script src="mcc-icons.js?v=20260213"></script>
-  <script src="members-core.js?v=20260529"></script>
+  <script src="members-core.js?v=20260914b"></script>
   <script src="members-settings.js?v=20260610"></script>
   <script src="members-care-plans.js?v=20260604"></script>
-  <script src="members-extras.js?v=20260604"></script>
+  <script src="members-extras.js?v=20260914"></script>
   <script src="members-vehicles.js?v=20260213"></script>
   <script>
     // Expose members-vehicles.js functions that need global window access
@@ -8810,7 +8822,8 @@
       window.showInsuranceReviewUI = showInsuranceReviewUI;
     }
   </script>
-  <script src="members-packages.js?v=20260213"></script>
+  <script src="mcc-taxonomy.js?v=20260920"></script>
+  <script src="members-packages.js?v=20260914d"></script>
   <script src="custody-capture.js"></script>
   <script>window._mccPushContext = 'member';</script>
   <script src="members-push.js?v=20260319"></script>
@@ -9090,8 +9103,6 @@
     document.addEventListener('DOMContentLoaded', async () => {
       await I18n.init();
       I18n.createLanguageSwitcher('language-switcher');
-
-      helpdeskInstance = new HelpdeskWidget({ mode: 'driver', position: 'bottom-right' });
 
       // Load + apply feature flags (ships-dark features stay hidden by default).
       if (typeof window.loadMccFlags === 'function') {
