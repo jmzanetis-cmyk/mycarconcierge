@@ -20,6 +20,8 @@
 'use strict';
 
 const { createClient } = require('@supabase/supabase-js');
+const { planCategories } = require('./_eligibility');
+const { hasCategoryOverlap } = require('./_taxonomy');
 
 function getSupabase() {
   const url = process.env.SUPABASE_URL;
@@ -38,7 +40,7 @@ exports.handler = async function() {
   // Find care plans currently accepting bids
   const { data: plans, error: planErr } = await supabase
     .from('care_plans')
-    .select('id, service_types, value_min, value_max, city, state')
+    .select('id, service_types, categories, value_min, value_max, city, state')
     .eq('status', 'open')
     .gt('bid_closes_at', new Date().toISOString())
     .not('value_min', 'is', null)
@@ -87,8 +89,10 @@ exports.handler = async function() {
   let totalPlaced = 0;
 
   for (const plan of plans) {
-    const planCats = (Array.isArray(plan.service_types) ? plan.service_types : [])
-      .map(s => s.toLowerCase());
+    // 2.6.1: effective categories (care_plans.categories, legacy fallback to
+    // classified service_types). Previously raw service_types strings such as
+    // 'oil_change' were compared to category slugs and never matched.
+    const planCats = planCategories(plan);
 
     // Load existing bidders for this plan to avoid duplicates
     const { data: existing } = await supabase
@@ -106,10 +110,10 @@ exports.handler = async function() {
 
       // Category match: skip if provider has categories set but none overlap
       const provCats = (Array.isArray(setting.service_categories) ? setting.service_categories : [])
-        .map(c => c.toLowerCase());
-      if (provCats.length > 0 && planCats.length > 0) {
-        if (!planCats.some(c => provCats.includes(c))) continue;
-      }
+        .map(c => String(c).toLowerCase());
+      // Empty provider selection = "bid on all" (per the settings UI copy);
+      // otherwise the same overlap rule as the boards and the bid gate.
+      if (provCats.length > 0 && !hasCategoryOverlap(planCats, provCats)) continue;
 
       const amount = parseFloat(
         ((plan.value_min * setting.max_bid_percent) / 100).toFixed(2)

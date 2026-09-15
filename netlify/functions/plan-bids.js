@@ -28,7 +28,7 @@
 'use strict';
 
 const utils = require('./utils');
-const { serviceTypesToBuckets } = require('./_eligibility');
+const { isServiceFit } = require('./_eligibility');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -68,7 +68,7 @@ function normalizeOptional(v) {
   return t.slice(0, MAX_BID_FIELD_LENGTH);
 }
 
-// serviceTypesToBuckets() lives in ./_eligibility.js — same function used by
+// isServiceFit() lives in ./_eligibility.js — same function used by
 // provider-packages.js (the open-jobs board) so the gate and the board agree
 // on what counts as a service-fit match. Drift here = "I can see this job
 // but can't bid on it" UX bugs. See _eligibility.js header for details.
@@ -158,7 +158,7 @@ async function handleCreate(supabase, user, body) {
   // past client-only guards; enforce server-side).
   const planResult = await supabase
     .from('care_plans')
-    .select('id, status, bid_closes_at, service_types, member_id')
+    .select('id, status, bid_closes_at, service_types, categories, member_id')
     .eq('id', careplanId)
     .single();
 
@@ -197,18 +197,12 @@ async function handleCreate(supabase, user, body) {
       return jsonResp(403, { error: 'categories_required' });
     }
 
-    const jobBuckets = serviceTypesToBuckets(plan.service_types);
-    // Defensive note: if jobBuckets is empty (the plan has no service_types
-    // — schema default is the empty array), we have no service-fit signal
-    // to gate on. Pass through to the RPC rather than reject every bid on
-    // under-specified plans. Strict mode would reject here; revisit if/when
-    // the create-care-plan flow mandates service_types.
-    if (jobBuckets.length > 0) {
-      const provSet = new Set(matchCategories);
-      const overlap = jobBuckets.some(b => provSet.has(b));
-      if (!overlap) {
-        return jsonResp(403, { error: 'service_not_offered' });
-      }
+    // 2.6.1: one decision function shared with both boards. A plan with no
+    // category signal (no categories AND no service_types) passes through
+    // rather than rejecting every bid on an under-specified plan — same
+    // permissive default as before.
+    if (!isServiceFit(plan, matchCategories)) {
+      return jsonResp(403, { error: 'service_not_offered' });
     }
   }
 

@@ -8,6 +8,7 @@ const { STRIPE_API_VERSION } = require('../../lib/stripe-api-version');
 const { dispatchBidAcceptedPush } = require('./notifications-bid-accepted-push');
 const { audit: sharedAudit } = require('./_shared/audit');
 const { isReviewerAccount } = require('./_shared/reviewer-guard');
+const { isServiceFit } = require('./_eligibility');
 
 // Money-path audit wrapper: always log + alert on failure. A failed audit
 // must NEVER throw into the money operation — the shared helper guarantees
@@ -66,6 +67,45 @@ function buildCompletion(plan) {
     dispute_reason: plan.dispute_reason || null,
     completion_notes: plan.completion_notes || null,
   };
+}
+
+// GET /api/care-plans/preview?service_types=<csv>&max_distance=<n>
+// Backs the Auto-Bid section's "N of the last 10 plans posted match your
+// settings" widget (see updateAutoBidPreview in www/providers-settings.js).
+// Counts, out of the most recent 10 currently-open care_plans, how many pass
+// the provider's service-type filter. service_types are the chip values —
+// category slugs from _taxonomy.js (2.6.1) — and the check is the same
+// _eligibility.isServiceFit the browse feed and bid gate use, so the preview
+// never disagrees with the board. Empty selection = "bid on all" per the UI
+// copy, so the count is the raw 10. Empty service_types on a plan is treated
+// as a permissive pass to mirror provider-packages.js's browse filter.
+// max_distance is accepted for future use; distance gating is intentionally
+// deferred everywhere else in the codebase (see provider-packages.js:49-51),
+// so applying it here would give the preview widget a stricter filter than
+// the actual browse feed and the scheduled auto-bidder — inconsistent, and
+// would surprise the user. When distance is turned on for browse, wire it
+// here at the same time.
+async function handlePreview(sb, user, qs) {
+  const nowIso = new Date().toISOString();
+  const { data: plans, error } = await sb
+    .from('care_plans')
+    .select('id, service_types, categories')
+    .eq('status', 'open')
+    .gt('bid_closes_at', nowIso)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  if (error) return json(500, { error: error.message });
+
+  const raw = qs?.service_types || '';
+  const selectedBuckets = raw.split(',').map(s => s.trim()).filter(Boolean);
+
+  if (selectedBuckets.length === 0) {
+    return json(200, { count_of_last_10: (plans || []).length });
+  }
+
+  const count = (plans || []).filter(p => isServiceFit(p, selectedBuckets)).length;
+
+  return json(200, { count_of_last_10: count });
 }
 
 async function handleMine(sb, user) {
@@ -895,6 +935,7 @@ exports.handler = async (event) => {
   const sub = segments[1];    // 'accept-bid', 'complete', 'dispute'
 
   if (event.httpMethod === 'GET' && first === 'mine') return handleMine(sb, auth.user);
+  if (event.httpMethod === 'GET' && first === 'preview') return handlePreview(sb, auth.user, event.queryStringParameters);
   if (event.httpMethod === 'GET' && first && !sub) return handleGetOne(sb, auth.user, first);
   if (event.httpMethod === 'POST' && first && sub === 'accept-bid') return handleAcceptBid(event, sb, auth.user, first);
   if (event.httpMethod === 'POST' && first && sub === 'complete') return handleComplete(event, sb, auth.user, first);
