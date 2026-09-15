@@ -72,6 +72,18 @@ exports.handler = async function(event) {
   }
 
   if (event.httpMethod === 'POST') {
+    // PAUSED 2026-09-15 — the scheduled auto-bid engine is disabled in
+    // netlify.toml and the provider-facing panel is hidden behind
+    // window.MCC_CONFIG?.autoBidEnabled. This POST is preserved (not
+    // deleted) so the future instant-notify-with-prefilled-bid redesign
+    // can restore write behavior without a re-plumb. Any straggler client
+    // that still hits this endpoint (cached JS, admin curl, etc.) gets a
+    // clear 403 sentinel instead of silently mutating a paused feature.
+    //
+    // The upsert body below stays intact under the return — the redesign
+    // will either resurrect it or replace it in a subsequent branch.
+    return json(403, { error: 'auto_bid_paused' });
+    /* eslint-disable no-unreachable */
     let body = {};
     try { body = JSON.parse(event.body || '{}'); } catch {}
 
@@ -93,6 +105,7 @@ exports.handler = async function(event) {
 
     if (error) return json(500, { error: error.message });
     return json(200, { ok: true });
+    /* eslint-enable no-unreachable */
   }
 
   return json(405, { error: 'Method not allowed' });
