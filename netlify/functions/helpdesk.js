@@ -140,17 +140,53 @@ async function handleFeedback(event) {
   }
 }
 
-var rateLimitMap = new Map();
-function checkHelpdeskRateLimit(ip) {
-  var now = Date.now();
-  var entry = rateLimitMap.get(ip);
-  if (!entry || entry.resetTime <= now) {
-    rateLimitMap.set(ip, { count: 1, resetTime: now + 60000 });
+// Phase 2.5 §3.1(c): durable per-IP rate limit. Two windows (10/min and
+// 60/day) enforced by the helpdesk_check_rate_limit RPC — atomic upsert +
+// counter increment on both windows in one round trip. Migration:
+// supabase/migrations/20260921_helpdesk_rate_limits.sql.
+//
+// FAIL OPEN. Any transport error (Supabase outage, RPC missing, network
+// blip) logs a console.warn and returns true — we prefer occasional over-
+// serve to silently gating legitimate traffic when the store is down. The
+// previous in-memory Map limiter was already effectively unenforced (Netlify
+// Lambda cold starts reset it), so the fail-open behaviour is strictly
+// better than the status quo.
+async function checkHelpdeskRateLimit(supabase, ip) {
+  if (!supabase || !ip || ip === 'unknown') return true;
+  try {
+    var res = await supabase.rpc('helpdesk_check_rate_limit', { p_ip: ip });
+    if (res.error) {
+      console.warn('[helpdesk] rate limit RPC error (fail-open):', res.error.message);
+      return true;
+    }
+    var payload = res.data || {};
+    return payload.allowed !== false;
+  } catch (e) {
+    console.warn('[helpdesk] rate limit check threw (fail-open):', e.message);
     return true;
   }
-  entry.count++;
-  if (entry.count > 10) return false;
-  return true;
+}
+
+// Phase 2.5 §3.1(e): metering. One row per Anthropic call → ai_action_log
+// with module='helpdesk', action_type='llm_call', payload in decision.
+// Best-effort like persistTurn — a lost row here means one fewer entry
+// in AI Ops, never a broken user reply. Also called from outreach-engine-
+// core.js with module='outreach_engine' for the same reason (both are
+// currently unmetered high-volume Anthropic consumers).
+async function logAiCall(supabase, module, decision, outcome, errorDetails, executionMs) {
+  if (!supabase) return;
+  try {
+    await supabase.from('ai_action_log').insert({
+      module: module,
+      action_type: 'llm_call',
+      decision: decision,
+      outcome: outcome || 'ok',
+      error_details: errorDetails || null,
+      execution_time_ms: (typeof executionMs === 'number') ? executionMs : null
+    });
+  } catch (e) {
+    console.warn('[helpdesk] ai_action_log insert failed (non-fatal):', e.message);
+  }
 }
 
 var HELPDESK_BASE_PROMPT = 'You are "My Car Concierge" — a friendly, practical car expert and helpdesk agent for a marketplace that connects drivers with vetted automotive service providers.\n\nYour goals:\n- Help drivers understand car issues, maintenance, quotes, and what to do next.\n- Help providers understand how to work with the My Car Concierge platform in general terms.\n- Reduce stress and confusion, and guide people toward the right type of service.\n\nStyle:\n- Talk like a real human. Be calm, clear, and concise.\n- Use short paragraphs and bullet points when helpful.\n- Avoid heavy jargon; explain terms simply.\n- Never shame the user for not knowing something.\n\nSafety:\n- You do NOT see or inspect the car; you give general guidance only.\n- You are not a replacement for a licensed mechanic or emergency service.\n- For anything that sounds unsafe (brakes/steering issues, smoke, burning smells, fuel leaks, overheating, airbags, etc.), clearly say "Stop driving and get the car checked immediately" or "Call roadside assistance."\n- Do not give legal, insurance, financial, or medical advice, and do not guarantee specific outcomes or costs.\n\nIf you need more info, ask focused follow-up questions (year/make/model, mileage, warning lights, recent work done, etc.) but keep the conversation moving.\n\nAlways end with a simple, practical next step (what to do, what kind of provider to see, and what kind of service they might book on My Car Concierge).';
@@ -167,11 +203,16 @@ exports.handler = async function(event) {
   }
 
   var clientIP = (event.headers['x-forwarded-for'] || event.headers['client-ip'] || 'unknown').split(',')[0].trim();
-  if (!checkHelpdeskRateLimit(clientIP)) {
+  // Rate limit is checked BEFORE PATCH/POST routing so feedback taps count
+  // toward the same budget as chat sends (both go through this endpoint).
+  var _rateSupabase = null;
+  try { _rateSupabase = utils.createSupabaseClient(); } catch (e) { /* fail-open */ }
+  var _rlAllowed = await checkHelpdeskRateLimit(_rateSupabase, clientIP);
+  if (!_rlAllowed) {
     return {
       statusCode: 429,
       headers: utils.headers,
-      body: JSON.stringify({ error: 'Too many requests', message: 'Please wait before sending another message.' })
+      body: JSON.stringify({ error: 'rate_limited', message: 'Please wait before sending another message.' })
     };
   }
 
@@ -215,6 +256,12 @@ exports.handler = async function(event) {
   var supabase = null;
   try { supabase = utils.createSupabaseClient(); } catch (e) { /* insights/history are best-effort, not required */ }
 
+  // Phase 2.5 §3.1(b): Haiku for triage turns. ~10× cheaper than Sonnet
+  // and the widget's job here is short one-turn answers — Haiku is sized
+  // for it. The one Sonnet call in the flow is downstream (structuring
+  // via ai-describe-to-package during the hand-off).
+  var MODEL = 'claude-haiku-4-5-20251001';
+  var startMs = Date.now();
   try {
     var client = new Anthropic({ apiKey: apiKey });
 
@@ -223,7 +270,7 @@ exports.handler = async function(event) {
     conversationMessages.push({ role: 'user', content: message });
 
     var response = await client.messages.create({
-      model: 'claude-sonnet-4-6',
+      model: MODEL,
       max_tokens: 600,
       system: systemPrompt,
       messages: conversationMessages
@@ -241,13 +288,49 @@ exports.handler = async function(event) {
     // before this invocation ends.
     var persistResult = await persistTurn(supabase, conversationId, mode, message, reply);
 
+    // Metering (§3.1e). Best-effort, non-fatal.
+    var usage = (response && response.usage) || {};
+    await logAiCall(supabase, 'helpdesk', {
+      model: MODEL,
+      input_tokens: usage.input_tokens || 0,
+      output_tokens: usage.output_tokens || 0,
+      conversation_id: conversationId || null
+    }, 'ok', null, Date.now() - startMs);
+
     return {
       statusCode: 200,
       headers: utils.headers,
       body: JSON.stringify({ reply: reply, messageId: persistResult.assistantMessageId })
     };
   } catch (err) {
-    console.error('Helpdesk AI error:', err.message);
+    console.error('Helpdesk AI error:', err.status, err.message);
+    // Phase 2.5 §3.1(d): graceful billing / auth / server-side failure.
+    // Anthropic returns a 400 with "credit balance" in the message when the
+    // account is out of credits (verified 2026-09-15). Also treat 401/403
+    // (bad or missing key) and any 5xx as "AI unavailable" so the widget
+    // can offer a graceful fallback (create a service request) instead of
+    // showing a generic error. All other 4xx failures (bad request from
+    // us, oversize prompt, etc.) still surface as 500 — those are code
+    // bugs, not vendor availability.
+    var status = err && err.status;
+    var msg = (err && err.message) || '';
+    var isBilling = status === 400 && /credit balance|insufficient_quota|billing/i.test(msg);
+    var isAuth    = status === 401 || status === 403;
+    var isServer  = typeof status === 'number' && status >= 500;
+    // Metering for the failure path — same row shape, outcome='failed'.
+    await logAiCall(supabase, 'helpdesk', {
+      model: MODEL,
+      input_tokens: 0,
+      output_tokens: 0,
+      conversation_id: conversationId || null
+    }, 'failed', msg.slice(0, 500), Date.now() - startMs);
+    if (isBilling || isAuth || isServer) {
+      return {
+        statusCode: 503,
+        headers: utils.headers,
+        body: JSON.stringify({ error: 'ai_unavailable' })
+      };
+    }
     return utils.errorResponse(500, 'AI service error');
   }
 };

@@ -618,10 +618,22 @@ class HelpdeskWidget extends ChatWidgetBase {
         this.setInputDisabled(false);
         return;
       }
-      
+
+      // Phase 2.5 §3.2(d): 503 ai_unavailable → graceful fallback copy.
+      // The server returns this when Anthropic is down for billing / auth /
+      // 5xx reasons (see helpdesk.js catch block). Same friendly message as
+      // the network-failure catch below.
+      if (response.status === 503) {
+        this.hideTypingIndicator();
+        this.addMessage('assistant', "The Car Expert is taking a short break. You can still post a service request and get written prices — or try again in a few minutes.");
+        this.isLoading = false;
+        this.setInputDisabled(false);
+        return;
+      }
+
       const data = await response.json();
       this.hideTypingIndicator();
-      
+
       if (data.reply) {
         // messageId (added 2026-09-09) is the chat_messages row this reply
         // was persisted as, if persistence succeeded — null if it didn't
@@ -631,14 +643,18 @@ class HelpdeskWidget extends ChatWidgetBase {
         // particular reply silently stays local-only, same as before.
         this.messages.push({ role: 'assistant', content: data.reply, messageId: data.messageId || null });
         this.addMessage('assistant', data.reply, true);
+      } else if (data.error === 'ai_unavailable') {
+        // Belt-and-braces: server may 200 with { error: 'ai_unavailable' }
+        // if it ever chooses to soft-fail instead of 503-ing. Same copy.
+        this.addMessage('assistant', "The Car Expert is taking a short break. You can still post a service request and get written prices — or try again in a few minutes.");
       } else if (data.error) {
         this.addMessage('assistant', 'Sorry, something went wrong. Please try again.');
       }
     } catch (err) {
+      // Network failure — same graceful copy as 503 ai_unavailable per §3.2(d).
       console.error('Helpdesk error:', err);
       this.hideTypingIndicator();
-      const isNative = window.Capacitor !== undefined || window.location.protocol !== 'https:';
-      this.addMessage('assistant', 'Sorry, I couldn\'t connect to My Car Concierge right now. Please check your internet connection and try again.');
+      this.addMessage('assistant', "The Car Expert is taking a short break. You can still post a service request and get written prices — or try again in a few minutes.");
     }
     
     this.isLoading = false;
