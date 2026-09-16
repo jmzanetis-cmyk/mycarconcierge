@@ -199,6 +199,7 @@
         loadLoyaltyNetwork(),
         loadStripeConnectStatus(),
         (typeof loadMatchPreferences === 'function' ? loadMatchPreferences() : Promise.resolve()),
+        (typeof loadRateCard === 'function' ? loadRateCard() : Promise.resolve()),
         loadProviderTransportRequests(),
         loadCustodyFlag()
       ]);
