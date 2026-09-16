@@ -109,8 +109,15 @@ function bar(ms) {
       run: () => httpGet('/api/car-clubs', token)
     },
     {
-      name: 'GET /api/auto-bid/settings',
-      run: () => httpGet('/api/auto-bid/settings', token)
+      // auto-bid.js (the old percent-of-estimate settings endpoint) was
+      // deleted in the Phase 6/7 auto-bid redesign cleanup — it had zero
+      // production callers (Phase 6 removed the client UI that used it)
+      // and its GET handler would have started 500ing once the Phase 7
+      // cleanup migration drops the columns it read. Swapped for the new
+      // system's own read endpoint so this pressure-test entry still
+      // exercises the auto-bid surface instead of just disappearing.
+      name: 'GET /api/auto-bid-ledger',
+      run: () => httpGet('/api/auto-bid-ledger', token)
     },
     {
       name: 'POST /api/webhooks/stripe (sig check)',

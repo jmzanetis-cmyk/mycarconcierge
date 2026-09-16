@@ -259,25 +259,36 @@ async function runCleanup() {
     }
   }
 
-  // B-b: POST /api/auto-bid/settings
+  // B-b/B-c: the old /api/auto-bid/settings (percent-of-estimate toggle)
+  // was deleted in the Phase 6/7 auto-bid redesign cleanup — zero
+  // production callers left once Phase 6 removed the client UI, and its
+  // GET handler would 500 once the Phase 7 cleanup migration drops the
+  // columns it read. netlify/functions/auto-bid.js is gone; so is its
+  // www/_redirects entry. NOTE: B-b's old assertion here (expecting
+  // [200,201] from the POST) was already stale before this edit — that
+  // endpoint had returned 403 auto_bid_paused since commit 4af7eac
+  // (2026-09-16, the re-pause fix), and this script isn't wired into any
+  // npm script or CI step, so that drift went uncaught. Swapped for the
+  // new system's own endpoints so this section still exercises the
+  // auto-bid surface instead of just disappearing.
+  //
+  // B-b: PATCH /api/auto-bid-daily-cap
   if (providerToken) {
     const t0 = Date.now();
-    const r = await api('POST', '/api/auto-bid/settings',
-      { enabled: true, max_bid_amount: 5000, service_types: ['oil_change', 'tire_rotation'] },
-      providerToken);
+    const r = await api('PATCH', '/api/auto-bid-daily-cap', { daily_cap: 3 }, providerToken);
     const ms = Date.now() - t0;
-    assert([200, 201].includes(r.status) && r.json?.success !== false,
-      'B-b POST /api/auto-bid/settings', ms,
-      r.status >= 400 ? `HTTP ${r.status}: ${r.json?.error}` : '');
+    assert(r.status === 200 && r.json?.daily_cap === 3,
+      'B-b PATCH /api/auto-bid-daily-cap', ms,
+      r.status !== 200 ? `HTTP ${r.status}: ${r.json?.error}` : `daily_cap=${r.json?.daily_cap}`);
   }
 
-  // B-c: GET /api/auto-bid/settings
+  // B-c: GET /api/auto-bid-ledger
   if (providerToken) {
     const t0 = Date.now();
-    const r = await api('GET', '/api/auto-bid/settings', null, providerToken);
+    const r = await api('GET', '/api/auto-bid-ledger', null, providerToken);
     const ms = Date.now() - t0;
-    assert(r.status === 200, 'B-c GET /api/auto-bid/settings', ms,
-      r.status !== 200 ? `HTTP ${r.status}` : `enabled=${r.json?.settings?.enabled ?? r.json?.enabled}`);
+    assert(r.status === 200 && r.json?.all_time, 'B-c GET /api/auto-bid-ledger', ms,
+      r.status !== 200 ? `HTTP ${r.status}` : `all_time.total=${r.json?.all_time?.total}`);
   }
 
   // B-d: GET /api/car-clubs — verify seeded clubs (auth required)

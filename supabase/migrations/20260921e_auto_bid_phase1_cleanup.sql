@@ -19,14 +19,29 @@
 -- ============================================================================
 --
 -- provider_auto_bid_settings.max_bid_percent / .service_categories:
---   only ever read/written by netlify/functions/auto-bid.js and
---   auto-bid-engine-scheduled.js — both already dead (netlify.toml's
---   scheduled block is commented out; auto-bid.js's POST returns
---   unconditional 403 auto_bid_paused before touching either column).
---   The table itself is NOT dropped — service_categories the *reference
---   table* (public.service_categories, from 20260920a) is a different
---   object entirely and is very much still alive; only these two columns
---   on provider_auto_bid_settings go.
+--   CORRECTION 2026-09-16 (caught by CC's live-verification pass on the
+--   Phase 6/7 branch, not by the original audit below): the first version
+--   of this note only checked the WRITE path (auto-bid.js's POST returns
+--   403 auto_bid_paused before touching either column) and missed that
+--   auto-bid.js's GET handler still SELECTed both columns unconditionally
+--   — that would have 500'd the moment this migration ran, for anyone
+--   still hitting GET /api/auto-bid/settings (a stale cached client, an
+--   admin curl, scripts/pressure-test-platform.js). Fixed by deleting
+--   netlify/functions/auto-bid.js entirely in that same commit (its two
+--   www/_redirects lines removed with it, scripts/pressure-test-platform.js
+--   updated to check the new system's /api/auto-bid-ledger instead) —
+--   confirmed zero production client callers first (Phase 6 already
+--   removed the UI that used it), and confirmed netlify/functions-tests/
+--   api-route-parity.test.js + client-api-coverage.test.js both still pass
+--   with the file and its redirects gone (the dev-only allowlist entry
+--   for /api/auto-bid/ already covered the server.js dev route
+--   independently, so removing the prod redirect+handler didn't orphan
+--   anything). auto-bid-engine-scheduled.js also read these columns but
+--   was already fully dead (netlify.toml's scheduled block commented
+--   out). The table itself is NOT dropped — service_categories the
+--   *reference table* (public.service_categories, from 20260920a) is a
+--   different object entirely and is very much still alive; only these
+--   two columns on provider_auto_bid_settings go.
 --
 -- profiles.auto_bid_enabled / .auto_bid_max_distance_miles /
 -- .auto_bid_service_types / .auto_bid_percent_of_estimate:
