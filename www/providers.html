@@ -4695,6 +4695,24 @@
     </div>
   </div>
 
+  <!-- Auto-Bid Prefill Review/Confirm Modal (Phase 5 of the auto-bid redesign) -->
+  <div class="modal-backdrop" id="auto-bid-prefill-modal">
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-header">
+        <h3 class="modal-title">New Matching Job</h3>
+        <button class="modal-close" onclick="closeModal('auto-bid-prefill-modal')">×</button>
+      </div>
+      <div class="modal-body">
+        <div id="ab-prefill-error" style="display:none;margin-bottom:12px;padding:10px 12px;border-radius:8px;background:rgba(239,95,95,0.12);border:1px solid rgba(239,95,95,0.35);color:var(--accent-red);font-size:var(--text-sm);"></div>
+        <div id="ab-prefill-body"></div>
+        <div id="ab-prefill-actions" style="display:flex;gap:12px;justify-content:flex-end;margin-top:20px;">
+          <button class="btn btn--secondary" id="ab-prefill-dismiss-btn" onclick="respondToAutoBidPrefill('dismissed')">Dismiss</button>
+          <button class="btn" id="ab-prefill-submit-btn" style="background:linear-gradient(135deg,var(--accent-gold),#e6b84a);color:var(--bg-deep);font-weight:600;" onclick="respondToAutoBidPrefill('confirmed')">Submit Bid</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- QR Scanner Modal -->
   <div class="modal-backdrop" id="qr-scanner-modal">
     <div class="modal" style="max-width:500px;">
@@ -7086,6 +7104,7 @@
   <script src="bgc-onboarding.js?v=20260429"></script>
   <script src="bgc-compliance.js?v=20260428i"></script>
   <script src="members-push.js?v=20260319"></script>
+  <script src="providers-auto-bid-prefill.js?v=20260916"></script>
   <script src="pwa-init.js?v=20260202"></script>
   <script src="custody-capture.js"></script>
   <script>

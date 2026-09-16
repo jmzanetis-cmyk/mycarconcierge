@@ -107,12 +107,14 @@ async function dispatchAutoBidPrefill(supabase, providerId, prefill, itemLabel, 
   const title = 'New matching job';
   const body = _formatBody(itemLabel, distanceMiles, prefill.prefilled_amount_cents);
 
-  // TODO(Phase 5): once the review/confirm screen ships, change
-  // section:'browse' → section:'auto_bid_prefills' and include the
-  // prefill.id so the deep link opens the specific card. For now the
-  // Job Board scoped to care_plan_id is a reasonable interim landing.
+  // Phase 5 shipped: deep-link straight to the review/confirm card via
+  // the shared handleNotificationDeepLink() convention in
+  // www/members-push.js (section + entity_id drives window.showSection()
+  // plus an entity-specific opener — see the 'auto_bid_prefills' branch
+  // added there, which calls window.openAutoBidPrefill(entity_id)).
   const payloadData = {
-    section: 'browse',
+    section: 'auto_bid_prefills',
+    entity_id: prefill.id,
     care_plan_id: prefill.care_plan_id,
     item_key: prefill.item_key,
     prefilled_amount_cents: String(prefill.prefilled_amount_cents),
