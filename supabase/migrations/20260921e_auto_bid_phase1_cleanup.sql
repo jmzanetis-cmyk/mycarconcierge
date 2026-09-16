@@ -9,13 +9,30 @@
 -- fully replaced what these columns did.
 --
 -- ============================================================================
+-- APPLIED: 2026-09-16, by Jordan, directly against production via the
+-- Supabase SQL editor (not through a migration-runner). Before running it,
+-- verified with two read-only queries that every column was genuinely
+-- untouched real data, not just code-unreferenced:
+--   1. Compared every column's live values against its actual DB default
+--      (pulled from information_schema.columns, not assumed) — all six
+--      came back 0 non-default rows.
+--   2. The one row that superficially looked non-default
+--      (provider_auto_bid_settings.service_categories on one provider)
+--      turned out to be a false positive from comparing a jsonb column's
+--      empty-array default ('[]'::jsonb) against the text[] empty-literal
+--      ('{}') — the actual row was enabled=false, max_bid_percent=85
+--      (default), service_categories=[] (default). Nothing lost.
+-- Confirmed post-drop that all six columns are actually gone from
+-- information_schema.columns. This file is kept in the repo as a
+-- permanent record of what was dropped and why, per this project's
+-- migration convention — it is not re-run.
+-- ============================================================================
+--
 -- THIS MIGRATION IS DESTRUCTIVE AND NOT REVERSIBLE BY RE-RUNNING IT.
 -- Every column below was independently re-verified as having zero readers
 -- and zero writers anywhere in netlify/functions/*.js or www/*.js as of
 -- 2026-09-16 (grepped fresh, not just trusting the earlier design-doc
--- audit) before this file was written. Do not run this against production
--- without a fresh confirmation that nothing new has started reading them
--- since — this migration file existing does not mean it has been applied.
+-- audit) before this file was written.
 -- ============================================================================
 --
 -- provider_auto_bid_settings.max_bid_percent / .service_categories:
