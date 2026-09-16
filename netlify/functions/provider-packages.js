@@ -59,6 +59,7 @@
 
 const utils = require('./utils');
 const { planCategories, isServiceFit } = require('./_eligibility');
+const { planWithinRadius } = require('./_distance');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -98,9 +99,11 @@ exports.handler = async function (event) {
   const user = authResult.data.user;
 
   // Role + verification gate — mirrors plan-bids.js:checkBidGate.
+  // Phase 1 (auto-bid redesign): widened to include lat/lng so the distance
+  // filter below has provider coords in-hand without a second query.
   const profileRes = await supabase
     .from('profiles')
-    .select('role, verification_status, suspended_at')
+    .select('role, verification_status, suspended_at, lat, lng')
     .eq('id', user.id)
     .single();
   if (profileRes.error || !profileRes.data) {
@@ -116,13 +119,17 @@ exports.handler = async function (event) {
     if (profile.suspended_at !== null) return jsonResp(403, { error: 'suspended' });
   }
 
-  // Provider's declared service categories (first eligibility filter).
+  // Provider's declared service categories + distance radius (first
+  // eligibility filter + distance gate below). Phase 1: widened to include
+  // match_radius_miles so the shared _distance.planWithinRadius() call has
+  // the value it needs; default 25 mirrors the DB column default.
   const prefRes = await supabase
     .from('provider_match_preferences')
-    .select('match_categories')
+    .select('match_categories, match_radius_miles')
     .eq('profile_id', user.id)
     .maybeSingle();
   const matchCategories = (prefRes.data && prefRes.data.match_categories) || [];
+  const matchRadiusMiles = (prefRes.data && prefRes.data.match_radius_miles) || 25;
 
   // categories_required: provider hasn't declared service categories yet.
   // The bid gate would 403 categories_required on any bid attempt; the board
@@ -170,17 +177,29 @@ exports.handler = async function (event) {
     return jsonResp(500, { error: 'fetch_failed' });
   }
 
-  // Service-fit filter — MIRRORS the plan-bids.js gate exactly (both call
-  // _eligibility.isServiceFit):
-  //   - already-bid (server-side exclusion above) → drop first, before service-fit
-  //   - plan with no category signal → permissive default, passes
-  //   - otherwise → plan categories must overlap the provider's match_categories
+  // Service-fit + distance filter — mirrors plan-bids.js's gate on service-fit,
+  // adds the distance gate that was documented as deferred at the top of this
+  // file (Phase 1 of the auto-bid redesign, 2026-09-16). Both filters are
+  // null-safe / permissive by default so legacy rows (no category signal, or
+  // no coords yet) never disappear from a real provider's board.
+  //   - already-bid (server-side exclusion above) → drop first, before either gate
+  //   - plan with no category signal → passes service-fit (permissive)
+  //   - otherwise → categories must overlap match_categories
+  //   - plan or provider missing coords → passes distance (permissive; the
+  //     auto-bid prefill-notify engine will invert this posture on its side)
   //   - admins bypass entirely
-  const filtered = (plans || []).filter(p => {
+  const filteredCategoryOnly = (plans || []).filter(p => {
     if (!isAdmin && excludedPlanIds.has(p.id)) return false;
     if (isAdmin) return true;
     return isServiceFit(p, matchCategories);
   });
+  const filtered = filteredCategoryOnly
+    .map(p => {
+      const { withinRadius, miles } = planWithinRadius(p, profile.lat, profile.lng, matchRadiusMiles);
+      return { plan: p, withinRadius, miles };
+    })
+    .filter(x => isAdmin || x.withinRadius)
+    .map(x => Object.assign({}, x.plan, { _distanceMiles: x.miles }));
 
   // Alias to the legacy maintenance_packages render shape that
   // providers-bids.js renderPackageCard still expects. care_plans columns

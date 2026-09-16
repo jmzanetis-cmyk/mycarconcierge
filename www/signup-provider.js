@@ -386,10 +386,19 @@
         const businessType = document.getElementById('business-type').value;
         const city = document.getElementById('city').value.trim();
         const state = document.getElementById('state').value.trim();
+        const zip = document.getElementById('zip').value.trim();
         const serviceArea = document.getElementById('service-area').value.trim();
 
         if (!businessName || !contactName || !businessType || !city || !state || !serviceArea) {
           return showMessage('Please fill in all required business information fields.');
+        }
+        // ZIP is required and must be a 5-digit US ZIP. The server-side
+        // geocoder (Nominatim via netlify/functions/geocode.js) resolves ZIP
+        // to a centroid when no street match is found; without it, the
+        // provider ends up with null lat/lng and disappears from the
+        // distance-filtered Job Board.
+        if (!/^\d{5}$/.test(zip)) {
+          return showMessage('Please enter a valid 5-digit ZIP code.');
         }
       }
 
@@ -577,7 +586,7 @@
           address_line1: document.getElementById('street-address').value.trim() || null,
           city: document.getElementById('city').value.trim(),
           state: document.getElementById('state').value.trim(),
-          zip: document.getElementById('zip').value.trim() || null,
+          zip: document.getElementById('zip').value.trim(),
           service_area: document.getElementById('service-area').value.trim(),
           service_radius_miles: document.getElementById('service-radius').value ? Number.parseInt(document.getElementById('service-radius').value) : null,
           services_offered: services,

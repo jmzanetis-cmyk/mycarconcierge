@@ -21,14 +21,15 @@
 //
 // Query params honored: page, limit, tab (all|no-bids|closing-soon|my-bids),
 // q (title/description search), service_type, min_value, sort
-// (nearest|newest|closing|value — 'nearest' falls back to newest until the
-// distance work lands). max_distance accepted but ignored (same deferral as
-// provider-packages.js).
+// (nearest|newest|closing|value). max_distance query param is honored when
+// supplied (overrides the provider's own match_radius_miles for this request),
+// and 'nearest' now sorts by the computed distance annotation.
 // ============================================================================
 'use strict';
 
 const utils = require('./utils');
 const { planCategories, isServiceFit } = require('./_eligibility');
+const { planWithinRadius } = require('./_distance');
 
 const CORS_HEADERS = {
   'Access-Control-Allow-Origin': '*',
@@ -70,10 +71,12 @@ exports.handler = async function (event) {
   const user = authResult.data.user;
 
   // Role gate — providers and admins only. Verification does NOT gate
-  // browsing (difference #1 above); suspension does.
+  // browsing (difference #1 above); suspension does. Phase 1: widened to
+  // pull lat/lng so the shared distance filter has provider coords without
+  // a second query — same pattern as provider-packages.js.
   const profileRes = await supabase
     .from('profiles')
-    .select('role, verification_status, suspended_at')
+    .select('role, verification_status, suspended_at, lat, lng')
     .eq('id', user.id)
     .single();
   if (profileRes.error || !profileRes.data) {
@@ -87,13 +90,16 @@ exports.handler = async function (event) {
   }
   const providerVerified = isAdmin || profile.verification_status === 'verified';
 
-  // Service-category eligibility (mirrors provider-packages.js / the bid gate).
+  // Service-category eligibility + distance radius (mirrors
+  // provider-packages.js / the bid gate). Phase 1: widened to pull
+  // match_radius_miles for the shared _distance.planWithinRadius() call below.
   const prefRes = await supabase
     .from('provider_match_preferences')
-    .select('match_categories')
+    .select('match_categories, match_radius_miles')
     .eq('profile_id', user.id)
     .maybeSingle();
   const matchCategories = (prefRes.data && prefRes.data.match_categories) || [];
+  const prefRadiusMiles = (prefRes.data && prefRes.data.match_radius_miles) || 25;
   if (!isAdmin && matchCategories.length === 0) {
     return jsonResp(200, {
       plans: [], total: 0, categories_required: true,
@@ -134,13 +140,34 @@ exports.handler = async function (event) {
     return jsonResp(500, { error: 'fetch_failed' });
   }
 
-  // Service-fit filter — same rules as the bid gate (permissive on plans with
-  // no category signal; admins bypass). Bid-on plans are KEPT (difference #2).
-  // 2.6.1: decided by _eligibility.isServiceFit over care_plans.categories
-  // (legacy rows fall back to classifying service_types). Each plan is
-  // annotated with its effective categories so the card can render chips.
-  const eligible = (plans || []).filter(p => isAdmin || isServiceFit(p, matchCategories))
-    .map(p => ({ ...p, categories: planCategories(p), my_bid: myBidByPlan.get(p.id) || null }));
+  // Service-fit + distance filter — same rules as the bid gate. Both are
+  // permissive on missing signal (plan without categories / plan or provider
+  // without coords); admins bypass entirely. Bid-on plans are KEPT
+  // (difference #2). max_distance query param, if supplied, overrides the
+  // provider's stored match_radius_miles for this request so the "Any
+  // distance / 5 / 10 / 25 / 50 mi" dropdown on the page works.
+  const qs = event.queryStringParameters || {};
+  const qsMaxDistance = qs.max_distance != null && qs.max_distance !== '' && qs.max_distance !== 'all'
+    ? Number(qs.max_distance)
+    : null;
+  const effectiveRadius = Number.isFinite(qsMaxDistance) && qsMaxDistance > 0
+    ? qsMaxDistance
+    : prefRadiusMiles;
+
+  const eligible = (plans || [])
+    .filter(p => isAdmin || isServiceFit(p, matchCategories))
+    .map(p => {
+      const { withinRadius, miles } = planWithinRadius(p, profile.lat, profile.lng, effectiveRadius);
+      return {
+        ...p,
+        categories: planCategories(p),
+        my_bid: myBidByPlan.get(p.id) || null,
+        distance_miles: miles,
+        _withinRadius: withinRadius,
+      };
+    })
+    .filter(p => isAdmin || p._withinRadius)
+    .map(p => { const { _withinRadius, ...rest } = p; return rest; });
 
   // Authoritative tab counts over the full eligible set (pre-search/paging).
   const soonCutoff = Date.now() + CLOSING_SOON_MS;
@@ -153,7 +180,7 @@ exports.handler = async function (event) {
   };
 
   // ── Query params: tab / search / service_type / min_value / sort / paging ──
-  const qs = event.queryStringParameters || {};
+  // (qs already captured above so it could feed the distance filter)
   let list = eligible;
 
   const tab = qs.tab || 'all';
@@ -188,7 +215,17 @@ exports.handler = async function (event) {
       new Date(a.bid_closes_at || '9999-01-01') - new Date(b.bid_closes_at || '9999-01-01'));
   } else if (sort === 'value') {
     list = [...list].sort((a, b) => (parseFloat(b.value_max) || 0) - (parseFloat(a.value_max) || 0));
-  } // 'nearest' + 'newest' → created_at desc (already ordered)
+  } else if (sort === 'nearest') {
+    // Nulls (missing coords on plan or provider) sort last — a real distance
+    // is always more informative than "unknown". Same tie-breaker as the
+    // default sort (newest first among equal-distance plans).
+    list = [...list].sort((a, b) => {
+      const aMi = Number.isFinite(a.distance_miles) ? a.distance_miles : Infinity;
+      const bMi = Number.isFinite(b.distance_miles) ? b.distance_miles : Infinity;
+      if (aMi !== bMi) return aMi - bMi;
+      return new Date(b.created_at || 0) - new Date(a.created_at || 0);
+    });
+  } // 'newest' → created_at desc (already ordered)
 
   const total = list.length;
   const page = Math.max(1, parseInt(qs.page || '1', 10) || 1);
